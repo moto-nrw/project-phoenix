@@ -11,6 +11,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,9 +42,26 @@ func norms(s string) string { return norm.NFC.String(s) }
 // renderRow is one table row with every cell already wrapped to its
 // column width, so pagination, splitting, and drawing all work on the
 // same line counts and cannot disagree.
+type styledLine struct {
+	text   string
+	style  LineStyle
+	accent string
+	// opens marks the first line of an anchor: it starts a new accent group
+	// whether or not it carries a colour. Without it an uncoloured anchor
+	// would be indistinguishable from the lines below the anchor above it,
+	// and the previous colour bar would run on over a group it does not
+	// belong to.
+	opens bool
+}
+
+// opensGroup reports whether the accent group above this line ends here. Any
+// line carrying an accent of its own opens a group by definition; an anchor
+// opens one even when its colour is missing or unusable.
+func (l styledLine) opensGroup() bool { return l.opens || l.accent != "" }
+
 type renderRow struct {
-	cells [][]string // per column: wrapped lines
-	lines int        // max line count across cells
+	cells [][]styledLine // per column: wrapped, styled lines
+	lines int            // max line count across cells
 }
 
 func (rr renderRow) height() float64 {
@@ -194,6 +212,28 @@ type designRenderer struct {
 	cols   []Column
 	widths []float64
 	total  int
+	// gutter is the left inset every body cell reserves for the accent bar.
+	// It is derived from the document rather than passed in: the width has to
+	// be the same for every cell, and a caller-supplied flag is one more thing
+	// that can disagree with the rows it describes.
+	gutter float64
+}
+
+const (
+	accentBarW  = 2.5
+	accentInset = 7.0
+)
+
+// documentHasAccents reports whether any cell opens an accent group.
+func documentHasAccents(rows []Row) bool {
+	for _, row := range rows {
+		for _, value := range row.Values {
+			if strings.Contains(value, accentMark) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // newDesignRenderer prepares a renderer with fonts loaded but nothing
@@ -210,6 +250,9 @@ func newDesignRenderer(doc Document) (*designRenderer, error) {
 	}
 
 	r := &designRenderer{pageChrome: chrome, doc: doc, cols: cols}
+	if documentHasAccents(doc.Rows) {
+		r.gutter = accentInset
+	}
 	r.widths = pdfColumnWidths(cols, r.w-2*pageMargin-2*cardPadX)
 	return r, nil
 }
@@ -259,6 +302,13 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 			weight = 1.5
 		case ColumnGuardianContacts:
 			weight = 2.7
+		case ColumnPlanRowLabel:
+			// A plan matrix inverts the child-list balance: the row label is
+			// one name or one area, the day cells carry everything else.
+			weight = 1.1
+		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday,
+			ColumnPlanFriday, ColumnPlanSaturday, ColumnPlanSunday:
+			weight = 1.6
 		}
 		weights[i] = weight
 		sum += weight
@@ -387,17 +437,63 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 	return pages, nil
 }
 
-// buildRow wraps every cell of row to its column width (body font).
+// buildRow wraps every cell of row to its column width, keeping each line's
+// style. A segment is wrapped with its own font set, so a bold line is
+// measured as bold and cannot overrun its column.
 func (r *designRenderer) buildRow(row Row) renderRow {
-	rr := renderRow{cells: make([][]string, len(r.cols)), lines: 1}
+	rr := renderRow{cells: make([][]styledLine, len(r.cols)), lines: 1}
 	for i, col := range r.cols {
-		lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
-		rr.cells[i] = lines
-		if len(lines) > rr.lines {
-			rr.lines = len(lines)
+		rr.cells[i] = r.wrapStyled(norms(row.Values[col.ID]), r.widths[i]-cellPadX-r.gutter)
+		if n := len(rr.cells[i]); n > rr.lines {
+			rr.lines = n
 		}
 	}
 	return rr
+}
+
+// wrapStyled splits a cell into its styled lines and wraps each to maxW.
+func (r *designRenderer) wrapStyled(cell string, maxW float64) []styledLine {
+	cell = strings.ReplaceAll(strings.ReplaceAll(cell, "\r\n", "\n"), "\r", "\n")
+	out := []styledLine{}
+	for _, segment := range strings.Split(cell, "\n") {
+		decoded, text := DecodeLine(segment)
+		// Measure in the face the line will be drawn in; a bold run is wider
+		// than the same string in the regular face.
+		if err := r.setFont(fontStyleFor(decoded.Style), fontBody); err != nil {
+			return []styledLine{{text: text}}
+		}
+		for i, line := range r.wrapSegment(text, maxW) {
+			wrapped := styledLine{text: line, style: decoded.Style}
+			// Only the first wrapped line opens the accent group; the bar
+			// then runs on until the next anchor, so a heading that wraps
+			// does not restart its own bar.
+			if i == 0 {
+				wrapped.accent = decoded.Accent
+				wrapped.opens = decoded.Style == LineStrong
+			}
+			out = append(out, wrapped)
+		}
+	}
+	// Restore the body face so callers that measure afterwards are unaffected.
+	_ = r.setFont(styleNormal, fontBody)
+	if len(out) == 0 {
+		return []styledLine{{}}
+	}
+	return out
+}
+
+func fontStyleFor(style LineStyle) string {
+	if style == LineStrong {
+		return styleBold
+	}
+	return styleNormal
+}
+
+func lineColorFor(style LineStyle) rgb {
+	if style == LineMuted {
+		return colorMuted
+	}
+	return colorBody
 }
 
 // splitRenderRow slices a row taller than maxLines into continuation
@@ -408,14 +504,28 @@ func splitRenderRow(rr renderRow, maxLines int) []renderRow {
 	}
 	out := []renderRow{}
 	for start := 0; start < rr.lines; start += maxLines {
-		part := renderRow{cells: make([][]string, len(rr.cells)), lines: 1}
+		part := renderRow{cells: make([][]styledLine, len(rr.cells)), lines: 1}
 		for i, lines := range rr.cells {
 			end := start + maxLines
 			if end > len(lines) {
 				end = len(lines)
 			}
 			if start < len(lines) {
-				part.cells[i] = lines[start:end]
+				part.cells[i] = append([]styledLine(nil), lines[start:end]...)
+				// A slice that begins inside a group re-opens it, so the bar
+				// continues on the next page. The nearest anchor above decides:
+				// if it had no usable colour, the group carries no bar and the
+				// continuation must not borrow one from further up.
+				if start > 0 && !part.cells[i][0].opensGroup() {
+					for previous := start - 1; previous >= 0; previous-- {
+						if !lines[previous].opensGroup() {
+							continue
+						}
+						part.cells[i][0].accent = lines[previous].accent
+						part.cells[i][0].opens = true
+						break
+					}
+				}
 			} else {
 				part.cells[i] = nil
 			}
@@ -475,11 +585,37 @@ func (r *designRenderer) headerLineCount() int {
 	return maxLines
 }
 
-// wrap greedily breaks text to fit maxW, measured with the current font.
-// A single word wider than maxW (long German compounds — "Schmetterlings-
-// gruppe" in a narrow column) is hard-split at character level so no cell
-// ever overflows into its neighbour.
+// wrap breaks text to fit maxW, honouring explicit newlines first and
+// greedily wrapping each resulting segment. Callers that compose a cell
+// from several facts (a plan cell is "07:30–14:00", the task, the room)
+// separate them with "\n" and get one line each; everything else behaves
+// exactly as before, since no other caller emits newlines.
 func (c *pageChrome) wrap(s string, maxW float64) []string {
+	// Normalize the line-break spellings a caller can realistically produce
+	// before splitting, so a CRLF does not leave a stray \r inside a line.
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	if strings.TrimSpace(s) == "" {
+		return []string{""}
+	}
+	if !strings.Contains(s, "\n") {
+		return c.wrapSegment(s, maxW)
+	}
+	lines := []string{}
+	for _, segment := range strings.Split(s, "\n") {
+		// An empty segment is a deliberate blank line (a cell ending in "\n"
+		// would otherwise silently lose its trailing break). wrapSegment
+		// returns []string{""} for it, which is exactly one blank line.
+		lines = append(lines, c.wrapSegment(segment, maxW)...)
+	}
+	return lines
+}
+
+// wrapSegment greedily breaks one newline-free run of text to fit maxW,
+// measured with the current font. A single word wider than maxW (long German
+// compounds — "Schmetterlingsgruppe" in a narrow column) is hard-split at
+// character level so no cell ever overflows into its neighbour.
+func (c *pageChrome) wrapSegment(s string, maxW float64) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return []string{""}
@@ -1004,11 +1140,16 @@ func (r *designRenderer) drawCard(p designPage) error {
 	}
 	for _, row := range p.rows {
 		cx = textLeft
-		r.setText(colorBody)
 		for i := range r.cols {
-			ty := y + cellPadY + rowLineHt - 2
+			top := y + cellPadY
+			r.drawAccentBars(cx, top, row.cells[i])
+			ty := top + rowLineHt - 2
 			for _, ln := range row.cells[i] {
-				if err := r.text(cx, ty, ln); err != nil {
+				if err := r.setFont(fontStyleFor(ln.style), fontBody); err != nil {
+					return err
+				}
+				r.setText(lineColorFor(ln.style))
+				if err := r.text(cx+r.gutter, ty, ln.text); err != nil {
 					return err
 				}
 				ty += rowLineHt
@@ -1021,6 +1162,68 @@ func (r *designRenderer) drawCard(p designPage) error {
 		r.pdf.Line(textLeft, y, textRight, y)
 	}
 	return nil
+}
+
+// drawAccentBars paints one bar per accent group: it starts at the accented
+// line and runs down to the line before the next anchor, so a shift and the
+// tasks under it read as one block. An anchor without a usable colour ends
+// the bar above it and starts none of its own — otherwise the preceding
+// colour would visually claim a group that belongs to another category.
+func (r *designRenderer) drawAccentBars(x, top float64, lines []styledLine) {
+	if r.gutter == 0 {
+		return
+	}
+	start, color := -1, rgb{}
+	flush := func(end int) {
+		if start < 0 {
+			return
+		}
+		barTop := top + float64(start)*rowLineHt + 1
+		barBottom := top + float64(end)*rowLineHt - 1
+		r.setFill(color)
+		r.setStroke(color)
+		_ = r.pdf.Rectangle(x, barTop, x+accentBarW, barBottom, "F", 1, 4)
+		start = -1
+	}
+	for i, ln := range lines {
+		if !ln.opensGroup() {
+			continue
+		}
+		flush(i)
+		if parsed, ok := parseHexColor(ln.accent); ok {
+			start, color = i, parsed
+		}
+	}
+	flush(len(lines))
+}
+
+// parseHexColor reads "#RRGGBB" and the shorthand "#RGB" — both shapes the
+// colour columns accept (activities.Category, schedule.ShiftType,
+// facilities.Room all validate against the same pattern). Anything else is
+// ignored rather than guessed at.
+func parseHexColor(value string) (rgb, bool) {
+	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
+	if len(value) == 3 {
+		// "#abc" means "#aabbcc": each digit stands for both nibbles.
+		var expanded strings.Builder
+		for _, digit := range value {
+			expanded.WriteRune(digit)
+			expanded.WriteRune(digit)
+		}
+		value = expanded.String()
+	}
+	if len(value) != 6 {
+		return rgb{}, false
+	}
+	var out [3]uint8
+	for i := range out {
+		component, err := strconv.ParseUint(value[i*2:i*2+2], 16, 8)
+		if err != nil {
+			return rgb{}, false
+		}
+		out[i] = uint8(component)
+	}
+	return rgb{out[0], out[1], out[2]}, true
 }
 
 func (c *pageChrome) drawFooter(num, total int) error {

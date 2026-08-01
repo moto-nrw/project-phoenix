@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +21,9 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -48,6 +52,9 @@ type fakeParentService struct {
 	gotSubmitChanges []parentService.MasterDataFieldChange
 	listRows         []*userModels.StudentDataChangeRequest
 	listErr          error
+	submitStatus     *parentModels.GuardianSubmitStatus
+	gotDeletePostID  int64
+	gotDeleteComment int64
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {
@@ -65,6 +72,12 @@ func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*p
 }
 func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentModels.EnrollablePhase, error) {
 	return nil, nil
+}
+func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, int64) (*parentModels.GuardianSubmitStatus, error) {
+	if f.submitStatus != nil {
+		return f.submitStatus, nil
+	}
+	return &parentModels.GuardianSubmitStatus{}, nil
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
@@ -126,6 +139,30 @@ func (f *fakeParentService) CreateCareScheduleRequest(context.Context, int64, in
 }
 
 func (f *fakeParentService) WithdrawCareScheduleRequest(context.Context, int64, int64, int64) (*parentService.ChildCareSchedule, error) {
+	return nil, nil
+}
+
+// Offering change requests (#1665). Zero-value stubs: these handlers have their
+// own tests; the fake only has to satisfy the interface.
+func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetChildOfferingCatalog(context.Context, int64, int64) (*enrollmentService.OfferingChangeCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, int64, timezone.Date) (*enrollmentService.OfferingChangeCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateOfferingChangeRequest(
+	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string,
+) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawOfferingChangeRequest(context.Context, int64, int64, int64) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }
 
@@ -193,6 +230,102 @@ func (f *fakeParentService) MarkAnnouncementRead(context.Context, int64, int64, 
 
 func (f *fakeParentService) AcknowledgeAnnouncement(context.Context, int64, int64, time.Time) error {
 	return nil
+}
+
+// Feedback board (#1678) — stubs so the fake keeps satisfying parent.Service.
+// The board's own handler tests drive the real service against the database.
+
+func (f *fakeParentService) ListFeedbackSchools(context.Context, int64) ([]*parentService.FeedbackSchool, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListFeedback(context.Context, int64, int64, string) ([]*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateFeedback(context.Context, int64, int64, string, string) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetFeedback(context.Context, int64, int64, int64) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateFeedback(context.Context, int64, int64, int64, string, string) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) DeleteFeedback(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (f *fakeParentService) VoteFeedback(context.Context, int64, int64, int64, string) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) RemoveFeedbackVote(context.Context, int64, int64, int64) (*suggestionsModels.Post, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListFeedbackComments(context.Context, int64, int64, int64) ([]*suggestionsModels.Comment, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateFeedbackComment(context.Context, int64, int64, int64, string) error {
+	return nil
+}
+
+func (f *fakeParentService) DeleteFeedbackComment(_ context.Context, _ int64, _ int64, postID, commentID int64) error {
+	f.gotDeletePostID = postID
+	f.gotDeleteComment = commentID
+	return nil
+}
+
+func (f *fakeParentService) MarkFeedbackCommentsRead(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (f *fakeParentService) FeedbackUnreadCount(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+func feedbackCommentDeleteRequest(postID, commentID string) *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodDelete,
+		"/me/feedback/"+postID+"/comments/"+commentID+"?school_id=7", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("postId", postID)
+	route.URLParams.Add("commentId", commentID)
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestDeleteFeedbackComment_RequiresValidPostID(t *testing.T) {
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.deleteFeedbackComment(w, feedbackCommentDeleteRequest("not-a-post", "42"))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Zero(t, service.gotDeletePostID)
+	assert.Zero(t, service.gotDeleteComment)
+}
+
+func TestDeleteFeedbackComment_PassesPostIDToService(t *testing.T) {
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	postID := "5"
+	commentID := "42"
+	expectedPostID, err := strconv.ParseInt(postID, 10, 64)
+	require.NoError(t, err)
+	expectedCommentID, err := strconv.ParseInt(commentID, 10, 64)
+	require.NoError(t, err)
+
+	rs.deleteFeedbackComment(w, feedbackCommentDeleteRequest(postID, commentID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, expectedPostID, service.gotDeletePostID)
+	assert.Equal(t, expectedCommentID, service.gotDeleteComment)
 }
 
 // withClaims attaches a parent account id to the request context the way the

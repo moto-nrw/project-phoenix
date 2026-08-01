@@ -55,3 +55,5 @@ yarn-error.log*
 # a few MB each, would churn the repo). Absent in local dev: run
 # `pnpm run generate:guides` to preview the download buttons locally.
 public/help/pdfs/
+# generated jscpd clone report (issue #1629 measurement artifact)
+jscpd-report/

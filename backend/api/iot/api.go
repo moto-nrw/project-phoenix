@@ -19,6 +19,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -44,6 +45,7 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
 	IoTService            iotSvc.Service
+	StaffPINAuthenticator authSvc.StaffPINAuthenticator
 	CheckinService        *checkinSvc.CheckinService
 	StaffClockService     *staffclockSvc.Service
 	UsersService          usersSvc.PersonService
@@ -132,11 +134,16 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	// Device-authenticated routes for RFID devices.
-	// DeviceAuthenticator validates API key + PIN and sets tenant context,
-	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
-	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
+	// DeviceAuthenticator validates the device credentials and, when supplied,
+	// binds staff identity to a verified account PIN. TenantTxMiddleware then
+	// wraps each handler in a tenant-scoped transaction.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.pinResolver()))
+		r.Use(device.DeviceAuthenticator(
+			rs.IoTService,
+			rs.SchoolService,
+			rs.StaffPINAuthenticator,
+			rs.pinResolver(),
+		))
 		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.DB))
 

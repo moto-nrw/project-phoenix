@@ -27,9 +27,10 @@ import {
 } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarOff } from "lucide-react";
+import { CalendarOff, Printer } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -58,6 +59,7 @@ import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
@@ -91,6 +93,7 @@ import {
   getMonthRange,
   getWeekRange,
   getWeekdays,
+  nextWorkdayISO,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -183,6 +186,9 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "users:read");
+  const canExportBetreuungsplan =
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
@@ -193,15 +199,22 @@ function TimetablesContent() {
   // mehr). Ein ungültiges `d` fällt still auf heute zurück, ein unbekanntes
   // `view` auf die Woche.
   const rawDay = params.d;
-  const dayISO =
+  const requestedDayISO =
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
   const view: TimetableView = parseViewParam(params.view);
+  // The monthly calendar and series period lookup retain their requested
+  // calendar date. Only the workweek view snaps weekend anchors to Monday.
+  const dayISO =
+    view === "week" ? nextWorkdayISO(requestedDayISO) : requestedDayISO;
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
   const todayISO = useMemo(() => berlinTodayISO(), []);
+  const todayTargetISO = useMemo(() => nextWorkdayISO(todayISO), [todayISO]);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  // Drucken/Exportieren der angezeigten Woche (#2079).
+  const [exportOpen, setExportOpen] = useState(false);
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
   // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
   // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
@@ -275,8 +288,12 @@ function TimetablesContent() {
     [visibleDate, updateUrlParams],
   );
   const goToToday = useCallback(
-    () => updateUrlParams({ d: todayISO, block: null }),
-    [todayISO, updateUrlParams],
+    () =>
+      updateUrlParams({
+        d: view === "week" ? todayTargetISO : todayISO,
+        block: null,
+      }),
+    [todayISO, todayTargetISO, updateUrlParams, view],
   );
 
   const handlePrev = useCallback(() => {
@@ -300,7 +317,7 @@ function TimetablesContent() {
   // Monatsklick auf einen Tag: in die Woche wechseln und `d` auf den Tag setzen.
   const openWeekForDay = useCallback(
     (dateISO: string) => {
-      updateUrlParams({ view: null, d: dateISO, block: null });
+      updateUrlParams({ view: null, d: nextWorkdayISO(dateISO), block: null });
     },
     [updateUrlParams],
   );
@@ -315,26 +332,42 @@ function TimetablesContent() {
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht
   // lädt keine Instanzen. Die Jahresansicht ist ersatzlos entfallen.
   const fromISO = toISODate(weekRange.from);
-  const toISO = toISODate(weekRange.to);
   const monthRange = useMemo(() => getMonthRange(visibleDate), [visibleDate]);
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
-  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
-  const fetchToISO = view === "month" ? toISODate(monthRange.to) : toISO;
-  const weekDays = useMemo(() => getWeekdays(weekRange.from), [weekRange.from]);
+  // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
+  // Vertretung: geplant und angezeigt wird nur Mo–Fr. Die Monatsansicht
+  // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
+  const weekDays = useMemo(
+    () => getWeekdays(weekRange.from).slice(0, 5),
+    [weekRange.from],
+  );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
+  const workweekToISO = weekDayISOs[4]!;
+  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
+  const fetchToISO =
+    view === "month" ? toISODate(monthRange.to) : workweekToISO;
   const periodContextDays = view === "month" ? monthDays : weekDays;
   const periodContextDayISOs = useMemo(
     () => periodContextDays.map(toISODate),
     [periodContextDays],
   );
   const weekLabel = useMemo(
-    () => formatWeekLabel(weekRange.from, weekRange.to),
-    [weekRange.from, weekRange.to],
+    () => formatWeekLabel(weekRange.from, weekDays[4]!),
+    [weekRange.from, weekDays],
   );
   const monthLabel = useMemo(
     () => formatMonthLabel(visibleDate),
     [visibleDate],
   );
+
+  // OGS-Schließtage (#2032). Ein SWR-Zustand liefert sichtbares Fenster,
+  // vollständige Zeiträume und den Ladestatus: Raster und Termin-Dialog sehen
+  // dadurch immer denselben Datenstand.
+  const {
+    closingDays,
+    closingDayRanges,
+    isLoading: closingDaysLoading,
+  } = useClosingDaysState(fetchFromISO, fetchToISO);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "series";
@@ -344,8 +377,12 @@ function TimetablesContent() {
   // Spec 06 §5.2): GET /gaps begrenzt das Fenster hart auf 14 Tage und lehnt
   // das Monatsfenster mit 400 ab — ein leerer Zähler wäre in der
   // Monatsansicht eine falsche "Keine Lücken"-Aussage.
-  const gapsFromISO = fetchFromISO < todayISO ? todayISO : fetchFromISO;
-  const shouldLoadGaps = view === "week" && fetchToISO >= todayISO;
+  // The workweek has no Saturday/Sunday destination. On weekends, start at
+  // Monday so the gap list cannot offer a retained legacy weekend block that
+  // the week view deliberately does not expose.
+  const gapsFromISO =
+    fetchFromISO < todayTargetISO ? todayTargetISO : fetchFromISO;
+  const shouldLoadGaps = view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
@@ -661,6 +698,15 @@ function TimetablesContent() {
   const handleDeleteFollowingInstances = useCallback(
     async (instance: EnrichedInstance) => {
       if (!instance.activityGroupId) return;
+      // Das Modal blendet die Option für vergangene Termine aus; bleibt es
+      // über Mitternacht offen, würde das Backend mit einer englischen
+      // Fehlermeldung antworten (effective_date must not be in the past).
+      if (instance.date < berlinTodayISO()) {
+        toast.error(
+          "Ein Regeltermin kann nur ab heute beendet werden. Vergangene Termine lassen sich nur einzeln löschen.",
+        );
+        throw new Error("effective_date in the past");
+      }
       try {
         const result = await timetableService.endTemplate(
           instance.activityGroupId,
@@ -921,12 +967,12 @@ function TimetablesContent() {
     );
   }
 
-  const todayDate = parseISODate(todayISO);
+  const todayDate = parseISODate(view === "month" ? todayISO : todayTargetISO);
   const isOnToday =
     view === "series"
       ? true
       : view === "week"
-        ? todayISO >= fromISO && todayISO <= toISO
+        ? todayTargetISO >= fromISO && todayTargetISO <= workweekToISO
         : visibleDate.getFullYear() === todayDate.getFullYear() &&
           visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
@@ -935,14 +981,24 @@ function TimetablesContent() {
   // Anmeldung verknüpft") aus dem leeren Zwischenstand ableiten — neutraler
   // Platzhalter. Schlägt der Fetch fehl, entfällt der Chip (keine Aussage
   // ist ehrlicher als eine falsche).
+  // Rahmenlos in der Kontextzeile (#2031): dort stehen alle Angaben als ruhiger
+  // Text, eine gerahmte Pille daneben wäre das dritte Formvokabular in einer
+  // Zeile. Als Link bleibt sie unterstrichen bei Hover, sonst reiner Text.
+  const originChipClassName = "border-transparent bg-transparent px-0";
   const demandOriginChip = phasesError ? null : phasesData === undefined ? (
-    <OriginChip label="Bedarf wird ermittelt …" />
+    <OriginChip
+      label="Bedarf wird ermittelt …"
+      className={originChipClassName}
+    />
   ) : demandOrigin.href ? (
-    <Link href={tenantPath(demandOrigin.href)} className="inline-flex">
-      <OriginChip label={demandOrigin.label} />
+    <Link
+      href={tenantPath(demandOrigin.href)}
+      className="inline-flex hover:underline"
+    >
+      <OriginChip label={demandOrigin.label} className={originChipClassName} />
     </Link>
   ) : (
-    <OriginChip label={demandOrigin.label} />
+    <OriginChip label={demandOrigin.label} className={originChipClassName} />
   );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der
@@ -996,7 +1052,32 @@ function TimetablesContent() {
         actions={
           <>
             {view === "week" && (
-              <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
+              // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
+              // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
+              // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
+              // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
+              <span className="hidden sm:contents">
+                <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
+              </span>
+            )}
+            {/* Drucken/Exportieren (#2079): gehört auf die Fläche, weil der
+                Export die Woche meint, die gerade zu sehen ist. Unter sm nur
+                das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
+                und "Neu". */}
+            {canExportBetreuungsplan && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-label="Betreuungsplan drucken oder exportieren"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                onClick={() => setExportOpen(true)}
+              >
+                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Drucken
+                </span>
+              </Button>
             )}
             <TimetableAddMenu
               onAddInstance={openEventCreate}
@@ -1063,7 +1144,9 @@ function TimetablesContent() {
                 monthDate={visibleDate}
                 instances={instances}
                 todayISO={todayISO}
+                closingDays={closingDays}
                 onDayClick={openWeekForDay}
+                onInstanceClick={handleSelectInstance}
               />
             ))}
 
@@ -1079,6 +1162,7 @@ function TimetablesContent() {
                   onInstanceClick={handleSelectInstance}
                   onSlotClick={openQuickCreate}
                   gapInstanceIds={gapInstanceIds}
+                  closingDays={closingDays}
                   todayISO={todayISO}
                   dayStartHour={dayStartHour}
                   dayEndHour={dayEndHour}
@@ -1183,9 +1267,11 @@ function TimetablesContent() {
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
         }}
-        defaultDate={quickPrefill?.date ?? dayISO}
+        defaultDate={nextWorkdayISO(quickPrefill?.date ?? dayISO)}
+        closingDayRanges={closingDayRanges}
+        closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
-        weekTo={toISO}
+        weekTo={workweekToISO}
         calendarPeriods={modalCalendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}
@@ -1213,6 +1299,20 @@ function TimetablesContent() {
           setConvertingInstance(null);
         }}
       />
+
+      {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
+          ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
+          dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
+      {canExportBetreuungsplan && exportOpen && (
+        <PlanExportModal
+          isOpen
+          plan="betreuungsplan"
+          weekDay={dayISO}
+          isWeekOnScreen={view === "week"}
+          canExportInternal={canManageSchedules}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       <CalendarPeriodModal
         isOpen={periodModalOpen}

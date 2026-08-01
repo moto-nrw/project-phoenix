@@ -57,6 +57,36 @@ The settings service resolves values in **two tiers**:
 2. Registry default    (Definition.Default)
 ```
 
+### Request-Scoped Resolution Cache (#2065)
+
+Every `Resolve*`/`HasTenantOverride` call funnels through `ResolveMany`, which
+consults (in order): an explicit context snapshot (`WithSettingsSnapshot`,
+used by scheduler/prefetch paths), then a **request-scoped memo cache**
+(`WithSettingsRequestCache`, attached by `RequestSettingsCacheMiddleware`
+router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`), then
+the repository. Within one HTTP request each (tenant_id, key) pair is loaded
+from PostgreSQL at most once; a full cache hit in `Resolve*ForTenant` skips
+the tenant transaction entirely.
+
+Consistency model:
+- Cache lifetime is one request; other transactions' committed writes become
+  visible at the latest with the next request.
+- `SetValue`/`ResetValue` evict the written key, so same-request reads
+  (including side-effect hooks in the same transaction) see the new value.
+- The advisory-lock helpers (`LockSlotListCutoffPair[Shared]`,
+  `LockClassCollectionPair`) flush the whole tenant bucket. **Any new
+  cross-field guard MUST take one of the `Lock*` helpers** — the lock is the
+  freshness barrier that makes post-lock re-reads observe a concurrent
+  writer's committed state (#1565/#1663).
+- Explicit snapshots are never copied into the request cache (a scheduler
+  minute-snapshot value must not be promoted into request scope).
+
+Handlers that resolve several known keys should still batch explicitly:
+`api/common.PrefetchSettings(ctx, settingsService, keys...)` attaches a
+snapshot so downstream single-key reads (including in services) are free.
+Read paths only — prefetched snapshots are immutable and not evicted by
+writes. There is deliberately NO process-wide cache.
+
 The service does **not** check environment variables. `Resolve*()` returns the registry default when no tenant override exists. Consumers that need env var backward compatibility must implement a three-step pattern manually: `HasTenantOverride()` → `Resolve*()` → `os.Getenv()`. See [Step 3](#step-3-add-consuming-code).
 
 ### SettingsService Interface

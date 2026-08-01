@@ -3,7 +3,9 @@
 import { CareRequestReviewList } from "~/components/students/care-request-review-list";
 import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
+import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
 import { Loading } from "~/components/ui/loading";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 export default function AdminChangeRequestsPage() {
@@ -13,21 +15,21 @@ export default function AdminChangeRequestsPage() {
   const { isReady } = useRequirePermission("users:update");
   if (!isReady) return <Loading fullPage={false} />;
 
-  // Two stacked sections instead of tabs: both queues are short, and tabs
+  // Stacked sections instead of tabs: both queues are short, and tabs
   // would hide the pending count of the inactive one. Unlike the enrollment
   // queues, these guardian change requests are not tied to Anmeldung and are
   // fully reviewable on mobile — so no DesktopOnlyNotice gate here. Each
   // request renders as a calm card (flex-wrap, mobile-safe), not a bare table.
   return (
     <div className="-mt-1.5 w-full">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Änderungsanfragen
-        </h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Von Eltern eingereichte Änderungen, die eine Freigabe benötigen.
-        </p>
-      </header>
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der Kopfzeile.
+          PageHeaderWithSearch blendet seine Überschrift deshalb ab md ein
+          (md:hidden), genau wie auf der Schwesterseite Konto-Anfragen. Ein
+          eigenes h1 hätte den Titel zweimal untereinander gezeigt. */}
+      <PageHeaderWithSearch title="Änderungsanfragen" />
+      <p className="mb-6 max-w-3xl text-sm text-gray-600">
+        Von Eltern eingereichte Änderungen, die eine Freigabe benötigen.
+      </p>
 
       <section className="mb-8">
         <h2 className="text-base font-semibold text-gray-900">Stammdaten</h2>
@@ -48,6 +50,18 @@ export default function AdminChangeRequestsPage() {
           Kindes.
         </p>
         <CareRequestReviewList />
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-base font-semibold text-gray-900">
+          Betreuungsangebote und AGs
+        </h2>
+        <p className="mt-1 mb-3 text-sm text-gray-600">
+          Anfragen zu den gebuchten Betreuungsangeboten. Freigeben stellt das
+          Kind zum gewünschten Datum um: Bisheriges endet an diesem Tag, Neues
+          beginnt dann. Vergangene Zeiträume bleiben unverändert.
+        </p>
+        <OfferingRequestReviewList />
       </section>
 
       <section>

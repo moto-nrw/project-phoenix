@@ -21,6 +21,11 @@ var (
 	// ErrEnrollmentNotFound returned when an enrollment doesn't exist
 	ErrEnrollmentNotFound = errors.New("enrollment not found")
 
+	// ErrStudentNotFound returned when a student is unavailable to activity
+	// enrollment reads. Graduated students are soft-deleted and must be
+	// indistinguishable from absent students on staff-facing routes.
+	ErrStudentNotFound = errors.New("student not found")
+
 	// ErrGroupFull returned when an activity group is at maximum capacity
 	ErrGroupFull = errors.New("activity group is at maximum capacity")
 
@@ -32,6 +37,17 @@ var (
 
 	// ErrNotEnrolled returned when a student is not enrolled in a group
 	ErrNotEnrolled = errors.New("student is not enrolled in this activity group")
+
+	// ErrStudentIsAlumnus returned when an enrollment write targets a graduated
+	// student. Their enrollments are hidden from every staff-facing read, so a
+	// new one could neither be seen nor removed (#405 review).
+	ErrStudentIsAlumnus = errors.New("student has graduated and cannot be enrolled")
+
+	// errStudentRepoMissing marks the internal "cannot check graduation status"
+	// condition: the service was built without a student repository. An
+	// enrollment write must fail closed on it; a read-only decision that has a
+	// safe fallback may catch it instead (see lockEnrollmentStudents).
+	errStudentRepoMissing = errors.New("student repository not configured")
 
 	// ErrInvalidAttendanceStatus returned for an invalid attendance status
 	ErrInvalidAttendanceStatus = errors.New("invalid attendance status")

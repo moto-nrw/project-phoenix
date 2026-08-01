@@ -66,6 +66,35 @@ func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 	assert.Nil(t, found)
 }
 
+func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repo := configRepo.NewSettingValueRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	require.NoError(t, repo.Upsert(ctx, newSV("test.batch_one", `true`)))
+	require.NoError(t, repo.Upsert(ctx, newSV("test.batch_two", `false`)))
+	t.Cleanup(func() {
+		_ = repo.Delete(ctx, 1, "test.batch_one")
+		_ = repo.Delete(ctx, 1, "test.batch_two")
+	})
+
+	found, err := repo.FindByTenantAndKeys(ctx, 1, []string{
+		"test.batch_one",
+		"test.batch_two",
+		"test.not_stored",
+	})
+	require.NoError(t, err)
+	require.Len(t, found, 2)
+
+	byKey := make(map[string]json.RawMessage, len(found))
+	for _, value := range found {
+		byKey[value.SettingKey] = value.Value
+	}
+	assert.Equal(t, json.RawMessage(`true`), byKey["test.batch_one"])
+	assert.Equal(t, json.RawMessage(`false`), byKey["test.batch_two"])
+}
+
 func TestSettingValueRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

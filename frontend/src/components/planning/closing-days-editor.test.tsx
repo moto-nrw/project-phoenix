@@ -3,14 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ClosingDay } from "~/lib/closing-day-helpers";
 
-const { mockList, mockDelete, mockToastSuccess, mockToastError } = vi.hoisted(
-  () => ({
-    mockList: vi.fn(),
-    mockDelete: vi.fn(),
-    mockToastSuccess: vi.fn(),
-    mockToastError: vi.fn(),
-  }),
-);
+const {
+  mockList,
+  mockDelete,
+  mockInvalidate,
+  mockToastSuccess,
+  mockToastError,
+} = vi.hoisted(() => ({
+  mockList: vi.fn(),
+  mockDelete: vi.fn(),
+  mockInvalidate: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+}));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
@@ -27,19 +32,29 @@ vi.mock("~/lib/closing-day-api", () => ({
   },
 }));
 
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useInvalidateClosingDays: () => mockInvalidate,
+}));
+
 vi.mock("~/components/planning/closing-day-modal", () => ({
   ClosingDayModal: ({
     isOpen,
     initial,
+    onSaved,
   }: {
     isOpen: boolean;
     initial?: ClosingDay | null;
+    onSaved: () => void;
   }) =>
     isOpen ? (
       <div
         data-testid="closing-day-modal"
         data-initial-reason={initial?.reason ?? ""}
-      />
+      >
+        <button type="button" onClick={onSaved}>
+          Mock speichern
+        </button>
+      </div>
     ) : null,
 }));
 
@@ -58,6 +73,7 @@ function makeClosingDay(overrides: Partial<ClosingDay> = {}): ClosingDay {
 describe("ClosingDaysEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInvalidate.mockResolvedValue(undefined);
   });
 
   it("zeigt die Schließtage mit Zeitraum und Grund", async () => {
@@ -66,7 +82,37 @@ describe("ClosingDaysEditor", () => {
     render(<ClosingDaysEditor />);
 
     expect(await screen.findByText("Weihnachtswoche")).toBeInTheDocument();
-    expect(screen.getByText("24.12.2026 – 31.12.2026")).toBeInTheDocument();
+    // Der Zeitraum steht doppelt im Markup: eigene Spalte ab sm, darunter die
+    // Unterzeile für schmale Screens (#2033). Im Browser ist immer genau eine
+    // Variante sichtbar, jsdom wertet die CSS-Sichtbarkeit aber nicht aus.
+    const mobileRange = (
+      await screen.findAllByText("24.12.2026 – 31.12.2026")
+    ).find((element) => element.tagName === "P");
+
+    expect(mobileRange).toHaveClass("break-words");
+    expect(mobileRange).not.toHaveClass("truncate");
+  });
+
+  it("lässt den Grund umbrechen und hält die Aktionsspalte schmal", async () => {
+    mockList.mockResolvedValue([
+      makeClosingDay({ reason: "Weihnachtsschließung" }),
+    ]);
+
+    render(<ClosingDaysEditor />);
+
+    // Ein langes Wort darf die Grund-Spalte nicht über die Tabellenbreite
+    // hinaus aufziehen — sonst scrollt die Tabelle auf 320px seitwärts.
+    const reason = await screen.findByText("Weihnachtsschließung");
+    expect(reason).toHaveClass("wrap-anywhere");
+    expect(reason).not.toHaveClass("truncate");
+    expect(reason.parentElement?.className).not.toMatch(/max-w-\[/);
+
+    // Die Aktionsspalte bekommt nur ihre Mindestbreite, den Rest der
+    // Tabellenbreite behält der Grund.
+    const actionCell = screen
+      .getByRole("button", { name: "Bearbeiten" })
+      .closest("td");
+    expect(actionCell).toHaveClass("w-px");
   });
 
   it("zeigt für einen Eintages-Schließtag nur ein Datum", async () => {
@@ -80,7 +126,7 @@ describe("ClosingDaysEditor", () => {
 
     render(<ClosingDaysEditor />);
 
-    expect(await screen.findByText("08.02.2027")).toBeInTheDocument();
+    expect((await screen.findAllByText("08.02.2027"))[0]).toBeInTheDocument();
     expect(
       screen.queryByText("08.02.2027 – 08.02.2027"),
     ).not.toBeInTheDocument();
@@ -115,6 +161,20 @@ describe("ClosingDaysEditor", () => {
     );
   });
 
+  it("invalidiert den Planungs-Cache nach dem Speichern", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(<ClosingDaysEditor />);
+    const createButtons = await screen.findAllByRole("button", {
+      name: /Schließtag anlegen/,
+    });
+    fireEvent.click(createButtons[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Mock speichern" }));
+
+    await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+  });
+
   it("löscht nach Bestätigung und lädt die Liste neu", async () => {
     mockList
       .mockResolvedValueOnce([makeClosingDay()])
@@ -129,6 +189,7 @@ describe("ClosingDaysEditor", () => {
     fireEvent.click(confirmButtons[confirmButtons.length - 1]!);
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("3"));
+    await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
     expect(mockToastSuccess).toHaveBeenCalled();
   });

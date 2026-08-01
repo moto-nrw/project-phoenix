@@ -1,23 +1,39 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 type AlertType = "error" | "success" | "warning" | "info";
 
 interface AlertProps {
   readonly type: AlertType;
   readonly message: string;
   readonly announce?: "assertive" | "polite" | "off";
+  /**
+   * Optionale Aktion am rechten Rand (Link oder Button), für Hinweise, die
+   * einen konkreten nächsten Schritt anbieten. Bleibt ein Geschwister-Element
+   * der Meldung, damit die Meldung selbst direktes Kind der getönten Fläche
+   * bleibt.
+   */
+  readonly action?: ReactNode;
 }
 
-export function Alert({ type, message, announce }: Readonly<AlertProps>) {
+export function Alert({
+  type,
+  message,
+  announce,
+  action,
+}: Readonly<AlertProps>) {
   if (!message) return null;
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
+  // Brand hexes from LOCATION_COLORS (red HOME, orange SCHOOLYARD, blue
+  // OTHER_ROOM), with darker foregrounds for WCAG AA on the tinted surfaces.
   const styles = {
-    error: "bg-red-50 text-red-700 border-red-100",
-    success: "bg-[#83CD2D]/10 text-[#6BA023] border-[#83CD2D]/20",
-    warning: "bg-yellow-50 text-yellow-700 border-yellow-100",
-    info: "bg-blue-50 text-blue-700 border-blue-100",
+    error: "bg-[#FF3130]/10 text-[#CC2626] border-[#FF3130]/20",
+    success: "bg-[#83CD2D]/10 text-[#4A7A15] border-[#83CD2D]/20",
+    warning: "bg-[#F78C10]/10 text-[#8A5600] border-[#F78C10]/20",
+    info: "bg-[#5080D8]/10 text-[#355A9A] border-[#5080D8]/20",
   };
 
   // Improved styling with icon indicators
@@ -93,10 +109,20 @@ export function Alert({ type, message, announce }: Readonly<AlertProps>) {
             ? "alert"
             : "status"
       }
-      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-[box-shadow,opacity] duration-200 hover:opacity-95 hover:shadow-md ${styles[type]}`}
+      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-[box-shadow,opacity] duration-200 hover:opacity-95 hover:shadow-md ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]}`}
     >
       {icons[type]}
-      <span>{message}</span>
+      {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
+          sie beim Umbruch komplett unter das Icon rutschen. */}
+      <span className={action ? "min-w-0 flex-1" : undefined}>{message}</span>
+      {/* basis-full: die Aktion rutscht auf schmalen Bildschirmen unter die
+          Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
+          steht sie wieder rechts in derselben Zeile. */}
+      {action ? (
+        <span className="shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4">
+          {action}
+        </span>
+      ) : null}
     </div>
   );
 }

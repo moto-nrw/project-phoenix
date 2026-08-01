@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -30,6 +31,17 @@ func tenantBroadcastIDs(bc *testpkg.RecordingBroadcaster) []int64 {
 		ids[i] = c.TenantID
 	}
 	return ids
+}
+
+type recordingParentAbsenceNotifier struct {
+	reports []notificationsService.AbsenceReport
+}
+
+func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
+	_ context.Context,
+	report notificationsService.AbsenceReport,
+) {
+	n.reports = append(n.reports, report)
 }
 
 func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
@@ -111,6 +123,31 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 	assert.True(t, sick, "today's sick note must flip the live sick flag")
 
 	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire for the tenant")
+}
+
+func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	notifier := &recordingParentAbsenceNotifier{}
+	require.Implements(t, (*parentService.AbsenceNotifierSetter)(nil), svc)
+	svc.(parentService.AbsenceNotifierSetter).SetAbsenceNotifier(notifier)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	for range 2 {
+		_, err := svc.SubmitSickNote(
+			context.Background(),
+			chain.AccountID,
+			chain.StudentID,
+			[]timezone.Date{timezone.TodayDate()},
+			"Fieber",
+			activeModels.StudentStatusDaySick,
+		)
+		require.NoError(t, err)
+	}
+
+	require.Len(t, notifier.reports, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, notifier.reports[0].Status)
 }
 
 // TestChildMessaging_RequiresNotesWritePermission is the regression guard for the

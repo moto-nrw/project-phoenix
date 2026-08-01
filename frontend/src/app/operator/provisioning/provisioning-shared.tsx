@@ -1,4 +1,7 @@
+import { Children, isValidElement } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 
 export function FormField({
   label,
@@ -14,6 +17,7 @@ export function FormField({
   return (
     <div>
       <label
+        id={`${htmlFor}-label`}
         htmlFor={htmlFor}
         className="mb-1 block text-sm font-medium text-gray-700"
       >
@@ -95,30 +99,34 @@ export function EmptyState({
   readonly onAction: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <svg
-        className="h-12 w-12 text-gray-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21"
-        />
-      </svg>
-      <p className="text-lg font-medium text-gray-900">{title}</p>
-      <p className="text-sm text-gray-500">{description}</p>
-      <button
-        type="button"
-        onClick={onAction}
-        className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-      >
-        {buttonLabel}
-      </button>
-    </div>
+    <UIEmptyState
+      icon={
+        <svg
+          className="h-12 w-12"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21"
+          />
+        </svg>
+      }
+      title={title}
+      description={description}
+      action={
+        <button
+          type="button"
+          onClick={onAction}
+          className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+        >
+          {buttonLabel}
+        </button>
+      }
+    />
   );
 }
 
@@ -129,44 +137,61 @@ export function SimpleEmptyState({
   readonly title: string;
   readonly description: string;
 }) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <p className="text-lg font-medium text-gray-900">{title}</p>
-      <p className="text-sm text-gray-500">{description}</p>
-    </div>
-  );
+  return <UIEmptyState title={title} description={description} />;
 }
 
 export function SelectWithChevron({
   children,
-  ...props
+  value,
+  onChange,
+  id,
+  name,
+  disabled,
+  required,
+  "aria-label": ariaLabel,
 }: React.SelectHTMLAttributes<HTMLSelectElement> & {
   readonly children: React.ReactNode;
 }) {
-  return (
-    <div className="relative">
-      <select
-        {...props}
-        className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-      >
-        {children}
-      </select>
-      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-        <svg
-          className="h-4 w-4 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+  const options = Children.toArray(children)
+    .filter(isValidElement)
+    .map((child) => {
+      const optionProps = (
+        child as React.ReactElement<
+          React.OptionHTMLAttributes<HTMLOptionElement>
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </div>
-    </div>
+      ).props;
+      return {
+        value: optionProps.value != null ? String(optionProps.value) : "",
+        label:
+          typeof optionProps.children === "string"
+            ? optionProps.children
+            : String(optionProps.children ?? ""),
+        disabled: optionProps.disabled,
+      };
+    });
+
+  // Without an explicit aria-label, name the field (trigger AND popup listbox)
+  // from the associated FormField <label>, which carries id `${id}-label`.
+  // CustomSelect forwards ariaLabelledBy to the popup, which cannot be reached
+  // by the label's htmlFor the way the trigger button is.
+  const ariaLabelledBy = !ariaLabel && id ? `${id}-label` : undefined;
+
+  return (
+    <CustomSelect
+      id={id}
+      name={name}
+      value={value != null ? String(value) : ""}
+      options={options}
+      onChange={(next) =>
+        onChange?.({
+          target: { value: next },
+        } as unknown as React.ChangeEvent<HTMLSelectElement>)
+      }
+      disabled={disabled}
+      required={required}
+      ariaLabel={ariaLabel}
+      ariaLabelledBy={ariaLabelledBy}
+    />
   );
 }
 

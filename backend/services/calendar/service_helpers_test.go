@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -646,4 +647,14 @@ func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
 
 	_, err = svc.GetParentAppointmentOverview(ctx, 1, 0)
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
+}
+
+func TestTimetableRoomIDPrefersAssignmentOverride(t *testing.T) {
+	instance := &scheduleModels.ActivityInstance{RoomID: 70}
+	override := int64(90)
+
+	assert.Equal(t, int64(70), timetableRoomID(instance, &scheduleModels.InstanceStaff{}))
+	assert.Equal(t, int64(90), timetableRoomID(instance, &scheduleModels.InstanceStaff{RoomID: &override}))
+	assert.Equal(t, int64(70), timetableRoomID(instance, nil))
+	assert.Equal(t, int64(0), timetableRoomID(nil, nil))
 }

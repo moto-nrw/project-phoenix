@@ -491,27 +491,22 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	format := r.URL.Query().Get("format")
-	if format != "csv" && format != "xlsx" {
+	if format != "csv" && format != "xlsx" && format != "pdf" {
 		format = "csv"
 	}
 
-	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
+	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Set response headers for file download
-	switch format {
-	case "xlsx":
-		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	default:
-		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	}
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
-	w.Header().Set("Content-Length", strconv.Itoa(len(fileBytes)))
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.Filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 
-	if _, err := w.Write(fileBytes); err != nil {
+	if _, err := w.Write(file.Data); err != nil {
 		// Response already started, just log the error
 		slog.Default().Error("failed to write export response", slog.String("error", err.Error()))
 		return
@@ -581,7 +576,7 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		absence, txErr = rs.StaffAbsenceService.CreateAbsenceFor(ctx, staffID, staffID, &actorAccountID, req)
+		absence, txErr = rs.StaffAbsenceService.CreateOwnAbsence(ctx, staffID, &actorAccountID, req)
 		return txErr
 	}); err != nil {
 		tenant.MarkRollback(r.Context())
@@ -647,7 +642,7 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 	actorAccountID := int64(userClaims.ID)
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffAbsenceService.DeleteAbsenceFor(ctx, staffID, staffID, &actorAccountID, absenceID)
+		return rs.StaffAbsenceService.DeleteOwnAbsence(ctx, staffID, &actorAccountID, absenceID)
 	}); err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))

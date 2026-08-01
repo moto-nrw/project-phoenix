@@ -260,6 +260,14 @@ func (r *autoStartInstanceRepo) FindByActiveGroupID(context.Context, int64) (*sc
 func (r *autoStartInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+
+func (r *autoStartInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
+
+func (r *autoStartInstanceRepo) MaxID(context.Context) (int64, error) {
+	return 0, nil
+}
 func (r *autoStartInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
 	return nil
 }
@@ -405,6 +413,10 @@ func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezon
 }
 
 func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
 	return 0, nil
 }
 

@@ -20,6 +20,10 @@ import (
 // the recurrences.
 var ErrInconsistentTemplateScheduleValidity = errors.New("template schedules have inconsistent validity bounds")
 
+// ErrTemplateWeekendWeekday is returned when an update tries to introduce a
+// weekend weekday that was not already present on a legacy template.
+var ErrTemplateWeekendWeekday = errors.New("timetable templates can only be scheduled from Monday to Friday")
+
 // ErrTemplateSegmentNotEditable is returned when a full-series PUT reaches a
 // segment that has already been capped by Split/End. The active CRUD contract
 // exposes only open segments, so handlers map this race-safe service check to
@@ -129,10 +133,27 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if err != nil {
 		return err
 	}
+	previousSchedules, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
+	if err != nil {
+		return &ScheduleError{Op: "update template: load previous schedules", Err: err}
+	}
+	if err := validateLegacyTemplateWeekdays(previousSchedules, in.Weekdays); err != nil {
+		return &ScheduleError{Op: "update template: validate weekdays", Err: err}
+	}
+	// Capture the series' current Listenart before the field write so the
+	// instance propagation can tell an untouched occurrence (still carrying the
+	// series value) from a per-occurrence override.
+	previousListKind := existing.ListKind
 	if err := s.updateTemplateFields(ctx, in); err != nil {
 		return err
 	}
+	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
+		return err
+	}
 	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
+		return err
+	}
+	if err := s.deleteRemovedLegacyWeekendInstances(ctx, in.TemplateID, previousSchedules, in.Weekdays); err != nil {
 		return err
 	}
 	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil); err != nil {
@@ -148,6 +169,56 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 			"updated recurrence is incompatible with an existing care offering",
 			err,
 		)
+	}
+	return nil
+}
+
+func validateLegacyTemplateWeekdays(existing []*activitiesModel.Schedule, requested []int) error {
+	legacy := make(map[int]struct{})
+	for _, schedule := range existing {
+		if schedule != nil && schedule.Weekday > activitiesModel.WeekdayFriday {
+			legacy[schedule.Weekday] = struct{}{}
+		}
+	}
+	for _, weekday := range requested {
+		if weekday > activitiesModel.WeekdayFriday {
+			if _, ok := legacy[weekday]; !ok {
+				return ErrTemplateWeekendWeekday
+			}
+		}
+	}
+	return nil
+}
+
+type legacyWeekendInstanceCleaner interface {
+	DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
+}
+
+func (s *TimetableDataService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activitiesModel.Schedule, requested []int) error {
+	requestedWeekdays := make(map[int]struct{}, len(requested))
+	for _, weekday := range requested {
+		requestedWeekdays[weekday] = struct{}{}
+	}
+	removed := make([]int, 0, 2)
+	for _, schedule := range previous {
+		if schedule.Weekday > activitiesModel.WeekdayFriday {
+			if _, retained := requestedWeekdays[schedule.Weekday]; !retained {
+				removed = append(removed, schedule.Weekday)
+			}
+		}
+	}
+	cleaner, ok := s.deps.ActivityInstanceRepo.(legacyWeekendInstanceCleaner)
+	if !ok || len(removed) == 0 {
+		return nil
+	}
+	deleted, err := cleaner.DeletePlannedMaterializedWeekendInstances(ctx, templateID, removed)
+	if err != nil {
+		return &ScheduleError{Op: "update template: delete removed legacy weekend instances", Err: err}
+	}
+	if deleted > 0 {
+		// This bulk deletion bypasses the planned-instance CRUD flow, so it must
+		// invalidate clients after the surrounding transaction commits.
+		broadcastStaffingChanged(ctx, s.deps.Broadcaster, s.getLogger(), "template_legacy_weekend_cleanup")
 	}
 	return nil
 }
@@ -185,6 +256,30 @@ func (s *TimetableDataService) updateTemplateFields(ctx context.Context, in Temp
 			Op:  updateTemplateFieldsOp,
 			Err: fmt.Errorf("expected one template row to change, got %d", updated),
 		}
+	}
+	return nil
+}
+
+// propagateListKindToInstances carries a series Listenart change onto the
+// template's already-materialized future occurrences. Without it a list_kind
+// edit reaches only occurrences materialized AFTER the edit, so the classified
+// daily lists (#1565) omitted the series until a manual re-plan. It is a no-op
+// when the classification is unchanged or the instance repository is not wired
+// (read-only test facades). Runs inside the caller's tenant transaction and
+// recurrence gate; the repository predicate preserves today/past rows,
+// non-planned/spontaneous rows, and per-occurrence classification overrides.
+func (s *TimetableDataService) propagateListKindToInstances(
+	ctx context.Context,
+	templateID int64,
+	previousKind, newKind *string,
+) error {
+	if s.deps.ActivityInstanceRepo == nil || sameListKind(previousKind, newKind) {
+		return nil
+	}
+	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
+		ctx, templateID, previousKind, newKind, timezone.TodayDate(),
+	); err != nil {
+		return &ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}
 	return nil
 }

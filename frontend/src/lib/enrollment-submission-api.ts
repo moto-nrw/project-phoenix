@@ -238,12 +238,22 @@ export interface PublicSchoolClassConfig {
   collect: boolean;
   available_classes: string[];
   require: boolean;
+  /**
+   * Server-authoritative "does grade 1 declare a concrete class here?" (#1663).
+   * Grade 1 is opt-in (#1833) and the form cannot derive the answer from the
+   * pick list: a phase restricted to a prefixless class ("Bienen") collects it
+   * for grade 1 too, yet its narrowed list looks like an unrestricted phase
+   * that merely offers a named class. Optional so a payload from a backend
+   * that does not send it keeps the old prefix-only rule.
+   */
+  collect_grade_1?: boolean;
 }
 
 export const EMPTY_SCHOOL_CLASS_CONFIG: PublicSchoolClassConfig = {
   collect: false,
   available_classes: [],
   require: false,
+  collect_grade_1: false,
 };
 
 function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
@@ -254,6 +264,7 @@ function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
       ? obj.available_classes.filter((c): c is string => typeof c === "string")
       : [],
     require: obj.require === true,
+    collect_grade_1: obj.collect_grade_1 === true,
   };
 }
 
@@ -269,6 +280,13 @@ export interface PublicCareOfferingsResult {
   schoolClass?: PublicSchoolClassConfig;
   collectGradeLevel: boolean;
   careOfferingsEnabled: boolean;
+  /**
+   * Phase grade restriction (#1663); empty means unrestricted. Present only
+   * when the backend includes `eligible_grade_levels` in the response, so the
+   * normalized shape for a payload without it is unchanged — same convention
+   * as `schoolClass` above. Consumers coalesce to [].
+   */
+  eligibleGradeLevels?: number[];
 }
 
 export interface LateInviteFetchOptions {
@@ -321,6 +339,7 @@ export async function fetchPublicCareOfferings(
     school_class?: unknown;
     collect_grade_level?: boolean;
     care_offerings_enabled?: boolean;
+    eligible_grade_levels?: unknown;
   }>(response);
   const mode =
     payload?.care_offering_selection_mode ??
@@ -337,7 +356,23 @@ export async function fetchPublicCareOfferings(
       payload?.school_class == null
         ? undefined
         : parseSchoolClassConfig(payload.school_class),
+    eligibleGradeLevels:
+      payload?.eligible_grade_levels == null
+        ? undefined
+        : parseGradeLevels(payload.eligible_grade_levels),
   };
+}
+
+/**
+ * Normalizes a grade-restriction list from an untrusted payload: keeps
+ * positive integers only, so a backend that omits the field (or a stale
+ * one that never sends it) reads as "no restriction" rather than throwing.
+ */
+function parseGradeLevels(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (g): g is number => typeof g === "number" && Number.isInteger(g) && g > 0,
+  );
 }
 
 export interface PublicPhase {
@@ -350,6 +385,23 @@ export interface PublicPhase {
   enrollment_close_at?: string;
   show_status_reason_to_parent: boolean;
   care_offering_selection_mode: CareOfferingSelectionMode;
+  /**
+   * Applicant restriction (#1663). "open" (or missing) = anyone may apply;
+   * "new_students" = only children not already enrolled at the school;
+   * "existing_students" = the inverse, only children already enrolled may
+   * apply (re-enrollment / renewal) — the public picker labels both so
+   * anonymous parents see the restriction before filling the form.
+   * "linked_parents" phases never reach the public picker (filtered
+   * server-side).
+   */
+  audience?: "open" | "new_students" | "existing_students" | "linked_parents";
+  /**
+   * Grade restriction (#1663). Empty (or missing) = no restriction;
+   * otherwise only children in one of these grades may apply. The form
+   * narrows its grade select to these values so a parent never fills in
+   * the whole form only to be rejected with grade_not_eligible.
+   */
+  eligible_grade_levels?: number[];
 }
 
 /**
@@ -377,6 +429,24 @@ export interface MeProfileChild {
   last_name: string;
   school_class: string;
   grade_level?: number;
+  /**
+   * Whether this guardian relationship grants
+   * `parent_portal.enrollment.submit` for this child (#1663). The reuse
+   * picker only offers children where this is true — a portal-visible but
+   * submit-revoked child would otherwise pass the picker and 403 at submit.
+   * Optional for backward compatibility with older payloads (treated as
+   * false when absent).
+   */
+  enrollment_submit?: boolean;
+  /**
+   * Lifecycle status of the linked student (`active` | `pending` |
+   * `inactive`). Only active/pending children count as enrolled, so the reuse
+   * picker offers no other status — an inactive child would be adopted into
+   * the form and then rejected by the existing_students submit gate (#1663).
+   * Optional for backward compatibility with older payloads (an absent status
+   * is not proof of enrollment, so it is treated as not reusable).
+   */
+  status?: string;
 }
 
 export interface MeProfileResponse {
@@ -418,6 +488,33 @@ export async function fetchPublicEnrollmentBootstrap(
       ? { cache: "no-store", credentials: "omit" }
       : { cache: "no-store" },
   );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Anmeldeformular konnte nicht geladen werden",
+    );
+  }
+  return readJSON<PublicEnrollmentBootstrap>(response);
+}
+
+/**
+ * Authenticated parents-portal form-load bootstrap. Hits the parent-scoped
+ * endpoint (parent NextAuth session forwarded by the proxy) instead of the
+ * anonymous public path, so audience-restricted (linked_parents) phases —
+ * which the public endpoint refuses (#1663) — load for a logged-in
+ * guardian. The response shape matches the public bootstrap (captcha is
+ * empty; the parent JWT is the anti-bot signal).
+ */
+export async function fetchParentEnrollmentBootstrap(
+  tenantSlug: string,
+  phaseId: string,
+  options: LateInviteFetchOptions = {},
+): Promise<PublicEnrollmentBootstrap> {
+  let path = `/api/parent/enrollments/${encodeURIComponent(
+    tenantSlug,
+  )}/bootstrap/${encodeURIComponent(phaseId)}`;
+  path = withLateInviteQuery(path, options.lateInviteToken);
+  const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,

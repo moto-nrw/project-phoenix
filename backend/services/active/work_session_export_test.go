@@ -14,13 +14,24 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
 
 // ============================================================================
 // Helper to create test service with absence repo
 // ============================================================================
+
+type wsMockStaffRepository struct {
+	userModels.StaffRepository
+	findWithPersonByIDsFunc func(context.Context, []int64) (map[int64]*userModels.Staff, error)
+}
+
+func (m *wsMockStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return m.findWithPersonByIDsFunc(ctx, ids)
+}
 
 func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessionRepository, *wsMockWorkSessionBreakRepository, *wsMockWorkSessionEditRepository, *wsMockStaffAbsenceRepository, *wsMockGroupSupervisorRepository) {
 	sessionRepo := &wsMockWorkSessionRepository{}
@@ -82,20 +93,22 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	data, filename, err := svc.ExportSessions(ctx, staffID, from, to, "csv")
+	file, err := svc.ExportSessions(ctx, staffID, from, to, "csv")
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-	assert.Contains(t, filename, ".csv")
-	assert.Contains(t, filename, "2024-01-01")
-	assert.Contains(t, filename, "2024-01-07")
+	require.NotNil(t, file)
+	assert.NotEmpty(t, file.Data)
+	assert.Contains(t, file.Filename, ".csv")
+	assert.Contains(t, file.Filename, "2024-01-01")
+	assert.Contains(t, file.Filename, "2024-01-07")
+	assert.Contains(t, file.ContentType, "text/csv")
 
 	// Verify UTF-8 BOM
-	assert.Equal(t, byte(0xEF), data[0])
-	assert.Equal(t, byte(0xBB), data[1])
-	assert.Equal(t, byte(0xBF), data[2])
+	assert.Equal(t, byte(0xEF), file.Data[0])
+	assert.Equal(t, byte(0xBB), file.Data[1])
+	assert.Equal(t, byte(0xBF), file.Data[2])
 
 	// Verify semicolon separator
-	content := string(data[3:])
+	content := string(file.Data[3:])
 	assert.Contains(t, content, "Datum;Wochentag;Start;Ende")
 }
 
@@ -122,14 +135,16 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	data, filename, err := svc.ExportSessions(ctx, staffID, from, to, "xlsx")
+	file, err := svc.ExportSessions(ctx, staffID, from, to, "xlsx")
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-	assert.Contains(t, filename, ".xlsx")
+	require.NotNil(t, file)
+	assert.NotEmpty(t, file.Data)
+	assert.Contains(t, file.Filename, ".xlsx")
+	assert.Contains(t, file.ContentType, "spreadsheetml")
 
 	// Verify ZIP magic bytes (XLSX is a ZIP file)
-	assert.Equal(t, byte(0x50), data[0]) // 'P'
-	assert.Equal(t, byte(0x4B), data[1]) // 'K'
+	assert.Equal(t, byte(0x50), file.Data[0]) // 'P'
+	assert.Equal(t, byte(0x4B), file.Data[1]) // 'K'
 }
 
 func TestWSExportSessions_GetHistoryError(t *testing.T) {
@@ -139,10 +154,9 @@ func TestWSExportSessions_GetHistoryError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	data, filename, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
 	require.Error(t, err)
-	assert.Nil(t, data)
-	assert.Empty(t, filename)
+	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), "failed to get sessions for export")
 }
 
@@ -165,10 +179,9 @@ func TestWSExportSessions_GetAbsencesError(t *testing.T) {
 		return nil, errors.New("absence repo error")
 	}
 
-	data, filename, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
 	require.Error(t, err)
-	assert.Nil(t, data)
-	assert.Empty(t, filename)
+	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), "failed to get absences for export")
 }
 
@@ -248,6 +261,113 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 	assert.Contains(t, rows[0].Row[8], "Flu")                       // Bemerkungen
 }
 
+func TestClampAbsencesToRange_BoundsOverlappingAbsence(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	from := timezone.NewDate(2024, 1, 2)
+	to := timezone.NewDate(2024, 1, 3)
+	absence := &activeModels.StaffAbsence{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   from.AddDays(-1),
+		DateEnd:     to.AddDays(1),
+		Status:      activeModels.AbsenceStatusApproved,
+	}
+
+	clamped := clampAbsencesToRange([]*activeModels.StaffAbsence{absence}, from, to)
+
+	require.Len(t, clamped, 1)
+	assert.Equal(t, from, clamped[0].DateStart)
+	assert.Equal(t, to, clamped[0].DateEnd)
+	rows := svc.buildExportRows(nil, clamped)
+	require.Len(t, rows, 2)
+	assert.Equal(t, from, rows[0].Date)
+	assert.Equal(t, to, rows[1].Date)
+	assert.Equal(t, from.AddDays(-1), absence.DateStart, "the repository model must not be mutated")
+	assert.Equal(t, to.AddDays(1), absence.DateEnd, "the repository model must not be mutated")
+}
+
+func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+	ctx := context.Background()
+	staffIDs := []int64{100, 200}
+	date := timezone.NewDate(2024, 1, 2)
+	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
+	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
+
+	var sessionLoads, absenceLoads, breakLoads, manualAuditLoads int
+	sessionRepo.getHistoryByStaffIDsFunc = func(_ context.Context, gotStaffIDs []int64, _, _ timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+		sessionLoads++
+		assert.Equal(t, staffIDs, gotStaffIDs)
+		return map[int64][]*activeModels.WorkSession{
+			staffIDs[0]: {{
+				Model:        base.Model{ID: 1},
+				StaffID:      staffIDs[0],
+				Date:         date,
+				CheckInTime:  checkIn,
+				CheckOutTime: &checkOut,
+				Status:       activeModels.WorkSessionStatusPresent,
+			}},
+			staffIDs[1]: {{
+				Model:        base.Model{ID: 2},
+				StaffID:      staffIDs[1],
+				Date:         date,
+				CheckInTime:  checkIn,
+				CheckOutTime: &checkOut,
+				Status:       activeModels.WorkSessionStatusPresent,
+			}},
+		}, nil
+	}
+	sessionRepo.getHistoryByStaffIDFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, errors.New("single-staff session query must not run")
+	}
+	absenceRepo.getByStaffIDsAndDateRangeFunc = func(_ context.Context, gotStaffIDs []int64, _, _ timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+		absenceLoads++
+		assert.Equal(t, staffIDs, gotStaffIDs)
+		return map[int64][]*activeModels.StaffAbsence{}, nil
+	}
+	absenceRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, errors.New("single-staff absence query must not run")
+	}
+	breakRepo.listFunc = func(context.Context, *base.QueryOptions) ([]*activeModels.WorkSessionBreak, error) {
+		breakLoads++
+		return nil, nil
+	}
+	breakRepo.getBySessionIDFunc = func(context.Context, int64) ([]*activeModels.WorkSessionBreak, error) {
+		return nil, errors.New("per-session break query must not run")
+	}
+	auditRepo.countManualBySessionIDsFunc = func(context.Context, []int64) (map[int64]int, error) {
+		manualAuditLoads++
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(context.Context, []int64) (map[int64]int, error) {
+		return nil, errors.New("unused audit-count query must not run")
+	}
+
+	rowsByStaff, err := svc.DayExportRowsByStaffIDs(ctx, staffIDs, date, date)
+	require.NoError(t, err)
+	require.Len(t, rowsByStaff[staffIDs[0]], 1)
+	require.Len(t, rowsByStaff[staffIDs[1]], 1)
+	assert.Equal(t, 1, sessionLoads)
+	assert.Equal(t, 1, absenceLoads)
+	assert.Equal(t, 1, breakLoads)
+	assert.Equal(t, 1, manualAuditLoads)
+}
+
+func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	date := timezone.NewDate(2026, time.July, 24)
+
+	rows := svc.buildExportRows(nil, []*activeModels.StaffAbsence{{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   date,
+		DateEnd:     date,
+		Status:      activeModels.AbsenceStatusApproved,
+	}})
+
+	require.Len(t, rows, 1)
+	assert.Contains(t, rows[0].Row[6], "Freizeitausgleich")
+}
+
 func TestWSBuildExportRows_Mixed(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
@@ -324,6 +444,65 @@ func TestWSBuildExportRows_SortsByDate(t *testing.T) {
 	require.Len(t, rows, 2)
 	assert.Equal(t, date2, rows[0].Date) // Earlier date first
 	assert.Equal(t, date1, rows[1].Date)
+}
+
+func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
+	data, err := writeMonthCSV([]MonthExportRow{{
+		LastName:       "=1+1",
+		FirstName:      "+SUM(A1:A2)",
+		EmploymentType: "@legacy",
+		BalanceMinutes: -90,
+	}}, ExportTimeDecimal)
+	require.NoError(t, err)
+
+	reader := csv.NewReader(strings.NewReader(string(bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF}))))
+	reader.Comma = ';'
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	assert.Equal(t, "'=1+1", records[1][0])
+	assert.Equal(t, "'+SUM(A1:A2)", records[1][1])
+	assert.Equal(t, "'@legacy", records[1][2])
+	assert.Equal(t, "-1,50", records[1][18], "trusted negative durations must remain numeric CSV values")
+
+	dayData, err := writeDayCSV([]dayExportBlockRow{{
+		LastName:  "-danger",
+		FirstName: "Safe",
+		Cells:     []string{"02.01.2024", "Dienstag", "--", "--", "--", "--", "Krank", "", "\t=1+1"},
+	}})
+	require.NoError(t, err)
+	reader = csv.NewReader(strings.NewReader(string(bytes.TrimPrefix(dayData, []byte{0xEF, 0xBB, 0xBF}))))
+	reader.Comma = ';'
+	records, err = reader.ReadAll()
+	require.NoError(t, err)
+	assert.Equal(t, "'-danger", records[1][0])
+	assert.Equal(t, "'\t=1+1", records[1][10])
+}
+
+func TestWriteMonthXLSX_DecimalDurationsAreNumeric(t *testing.T) {
+	data, err := writeMonthXLSX([]MonthExportRow{{
+		CarryInMinutes: 750,
+		BalanceMinutes: -90,
+	}}, ExportTimeDecimal)
+	require.NoError(t, err)
+
+	book, err := excelize.OpenReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = book.Close() })
+
+	cellType, err := book.GetCellType("Zeiterfassung", "F2")
+	require.NoError(t, err)
+	assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
+	assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
+	value, err := book.GetCellValue("Zeiterfassung", "F2")
+	require.NoError(t, err)
+	assert.Equal(t, "12.50", value)
+	styleID, err := book.GetCellStyle("Zeiterfassung", "F2")
+	require.NoError(t, err)
+	style, err := book.GetStyle(styleID)
+	require.NoError(t, err)
+	require.NotNil(t, style.CustomNumFmt)
+	assert.Equal(t, "0.00", *style.CustomNumFmt)
 }
 
 // ============================================================================
@@ -626,14 +805,11 @@ func TestWSSessionToRow_GermanWeekdays(t *testing.T) {
 }
 
 // ============================================================================
-// exportCSV Tests
+// Single-staff CSV serialization Tests
 // ============================================================================
 
 func TestWSExportCSV_Headers(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	rows := []exportRow{}
-	data, err := svc.exportCSV(rows)
+	data, err := writeExportCSV(timeTrackingHeaders(), nil, []int{8})
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, data)
@@ -660,9 +836,7 @@ func TestWSExportCSV_Headers(t *testing.T) {
 }
 
 func TestWSExportCSV_UTF8BOM(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	data, err := svc.exportCSV([]exportRow{})
+	data, err := writeExportCSV(timeTrackingHeaders(), nil, []int{8})
 	require.NoError(t, err)
 
 	assert.Equal(t, byte(0xEF), data[0])
@@ -671,17 +845,11 @@ func TestWSExportCSV_UTF8BOM(t *testing.T) {
 }
 
 func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	date := timezone.NewDate(2024, 1, 15)
-	rows := []exportRow{
-		{
-			Date: date,
-			Row:  []string{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "Test"},
-		},
+	rows := [][]string{
+		{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "Test"},
 	}
 
-	data, err := svc.exportCSV(rows)
+	data, err := writeExportCSV(timeTrackingHeaders(), rows, []int{8})
 	require.NoError(t, err)
 
 	content := string(data[3:])
@@ -690,39 +858,104 @@ func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
 	assert.False(t, strings.Contains(lines[1], ","))
 }
 
-// ============================================================================
-// exportXLSX Tests
-// ============================================================================
+// TestWSExportCSV_SanitizesNotes: the Bemerkungen column carries untrusted
+// free text — a note starting with a formula trigger must be escaped so
+// spreadsheet software cannot evaluate it (#1568 migration hardening; the
+// cross-staff CSV always did this, the single-staff CSV now shares the path).
+func TestWSExportCSV_SanitizesNotes(t *testing.T) {
+	rows := [][]string{
+		{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "=1+1"},
+	}
 
-func TestWSExportXLSX_ValidZipFormat(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
-
-	rows := []exportRow{}
-	data, err := svc.exportXLSX(rows)
-
+	data, err := writeExportCSV(timeTrackingHeaders(), rows, []int{8})
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
 
-	// Verify ZIP magic bytes
-	assert.Equal(t, byte(0x50), data[0]) // 'P'
-	assert.Equal(t, byte(0x4B), data[1]) // 'K'
+	reader := csv.NewReader(bytes.NewReader(data[3:]))
+	reader.Comma = ';'
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	assert.Equal(t, "'=1+1", records[1][8])
+	// Absence sentinel cells ("--") sit outside the untrusted column list
+	// and must stay verbatim.
+	assert.Equal(t, "15.01.2024", records[1][0])
 }
 
-func TestWSExportXLSX_WithData(t *testing.T) {
-	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+// ============================================================================
+// Single-staff XLSX/PDF document Tests
+// ============================================================================
+
+func TestWSBuildTimeTrackingDocument_ShapesRows(t *testing.T) {
+	service, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
 	rows := []exportRow{
 		{
 			Date: date,
-			Row:  []string{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "Test"},
+			Row:  []string{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "Test"},
 		},
 	}
 
-	data, err := svc.exportXLSX(rows)
+	doc, err := service.buildTimeTrackingDocument(context.Background(), 100, rows, date, date)
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-	assert.True(t, len(data) > 100) // Should be substantial file
+	assert.Equal(t, "Zeiterfassung", doc.Title)
+	assert.NotEmpty(t, doc.Footer)
+	require.Len(t, doc.Rows, 1)
+	require.Len(t, doc.Columns, 9)
+	assert.Equal(t, "15.01.2024", doc.Rows[0].Values[doc.Columns[0].ID])
+	assert.Equal(t, "Test", doc.Rows[0].Values[doc.Columns[8].ID])
+	require.Len(t, doc.Filters, 1)
+	assert.Contains(t, doc.Filters[0], "15.01.2024")
+}
+
+func TestWSExportSessions_PDF_Success(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.NewDate(2024, 1, 1), timezone.NewDate(2024, 1, 7), "pdf")
+	require.NoError(t, err)
+	require.NotNil(t, file)
+	assert.Contains(t, file.Filename, ".pdf")
+	assert.Equal(t, "application/pdf", file.ContentType)
+	assert.True(t, bytes.HasPrefix(file.Data, []byte("%PDF")))
+}
+
+func TestWSExportSessions_PDF_StaffLookupError(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	svc.staffRepo = &wsMockStaffRepository{
+		findWithPersonByIDsFunc: func(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+			return nil, errors.New("database error")
+		},
+	}
+
+	file, err := svc.ExportSessions(context.Background(), 100, timezone.NewDate(2024, 1, 1), timezone.NewDate(2024, 1, 7), "pdf")
+	require.Error(t, err)
+	assert.Nil(t, file)
+	assert.ErrorContains(t, err, "failed to load staff for export")
 }
 
 // ============================================================================

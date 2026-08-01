@@ -9,6 +9,11 @@ import {
   weekPatternForDate,
 } from "~/lib/calendar-period-helpers";
 import {
+  findFirstClosingDayConflict,
+  type ClosingDayConflict,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
+import {
   berlinTodayISO,
   formatDate,
   parseISODate,
@@ -27,6 +32,7 @@ import { timetableService } from "~/lib/timetable-api";
 import {
   chunkDateRange,
   getGermanWeekdayLong,
+  materializedRecurrenceDates,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
@@ -150,6 +156,7 @@ export interface UseEventFormParams {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  closingDayRanges?: readonly ClosingDayRange[];
 }
 
 /**
@@ -177,6 +184,7 @@ export function useEventForm({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  closingDayRanges,
 }: UseEventFormParams) {
   const { tenant } = useTenant();
   const {
@@ -225,6 +233,14 @@ export function useEventForm({
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
     roomId: number;
   } | null>(null);
+  const [scopeClosingDayWarning, setScopeClosingDayWarning] = useState<{
+    conflict: ClosingDayConflict;
+    scope: "all" | "following";
+    roomId: number;
+    template: TimetableTemplate;
+    periodEnd: string | undefined;
+    groupId: string;
+  } | null>(null);
   // #1875: a series edit that would discard single-occurrence changes is
   // deferred here until the user confirms the loss (with the concrete dates).
   // `onConfirm` runs the actual destructive edit — shared by the occurrence
@@ -269,6 +285,14 @@ export function useEventForm({
   // the user explicitly changes Personal; otherwise a title-only split would
   // promote a substitute to planned series staff and erase its deviation role.
   const staffRosterTouched = useRef(false);
+  // An occurrence form starts from the occurrence's OWN Listenart snapshot,
+  // which may differ from the series template's classification (a per-occurrence
+  // override, or a blank that inherits). So the form value alone can't tell an
+  // untouched inherited value from a deliberate series-wide edit. Remember
+  // explicit user intent separately: an all/following edit echoes the fetched
+  // template's Listenart until the user actually changes the field, then it
+  // writes form.listKind to the series (#1565 review).
+  const listKindTouched = useRef(false);
   // Once the user picks Woche A/B explicitly, date or period changes must not
   // override that choice with the recomputed default parity — and the pick
   // survives switching the repeat mode away and back within the same modal
@@ -400,6 +424,7 @@ export function useEventForm({
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
     staffRosterTouched.current = false;
+    listKindTouched.current = false;
     manualWeekPattern.current = null;
     setForm(nextForm);
     setValidationError(null);
@@ -410,6 +435,7 @@ export function useEventForm({
     setDeletingSeries(false);
     setExpanded(variant === "full");
     setPendingSeriesEdit(null);
+    setScopeClosingDayWarning(null);
     setLostEdits(null);
     setConflictWarnings([]);
     setCoverageWarnings([]);
@@ -988,6 +1014,7 @@ export function useEventForm({
       end_time: form.endTime,
       room_id: roomId,
       notes: form.notes.trim() || undefined,
+      list_kind: form.listKind || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
       staff_ids: staffIDsForSave.map(Number),
       student_ids: studentIDsForSave.map(Number),
@@ -1000,6 +1027,7 @@ export function useEventForm({
   ): CreateTemplateBody => ({
     name: form.title.trim(),
     type: form.type,
+    list_kind: form.listKind || undefined,
     weekdays: form.weekdays,
     start_time: form.startTime,
     end_time: form.endTime,
@@ -1063,6 +1091,20 @@ export function useEventForm({
     return {
       name: form.title.trim(),
       type: template.type,
+      // This builder runs only for occurrence-scope edits ("Alle Termine" /
+      // "Diesen und folgende"), both of which target the SERIES. `form.listKind`
+      // starts as the OCCURRENCE's own classification (its snapshot, or a
+      // per-occurrence override), so blindly copying it onto the template would
+      // clear the series (stale empty) or promote a per-occurrence override to
+      // every future occurrence. Until the user actually changes Listenart, echo
+      // the fetched template's value (`?? null` clears only an already-unset
+      // series — a no-op). Once they edit it, both scope descriptions promise the
+      // change applies to the series, so write the new value to the series;
+      // `|| null` sends an explicit clear when they pick "Keine". Both the update
+      // and split endpoints honor either (#1565 review).
+      list_kind: listKindTouched.current
+        ? form.listKind || null
+        : (template.listKind ?? null),
       weekdays: weekdays.length > 0 ? weekdays : [1],
       start_time: form.startTime,
       end_time: form.endTime,
@@ -1432,6 +1474,27 @@ export function useEventForm({
     };
   };
 
+  const findScopeClosingDayConflict = (
+    template: TimetableTemplate,
+    body: UpdateTemplateBody,
+    fromISO: string,
+  ): ClosingDayConflict | null => {
+    const calendarPeriodId =
+      resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
+    const period = findPeriod(calendarPeriodId);
+    if (!period) return null;
+    const validity = template.schedules[0];
+    const dates = materializedRecurrenceDates({
+      period,
+      fromISO,
+      weekdays: body.weekdays,
+      weekPattern: body.week_pattern ?? 0,
+      validFrom: validity?.validFrom,
+      validUntil: validity?.validUntil,
+    });
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  };
+
   const handleScopeError = (scope: string, err: unknown) => {
     logger.error("series_scope_save_failed", {
       scope,
@@ -1447,6 +1510,7 @@ export function useEventForm({
       ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
       : raw;
     setPendingSeriesEdit(null);
+    setScopeClosingDayWarning(null);
     setLostEdits(null);
     setValidationError(msg);
     toastError(msg);
@@ -1531,6 +1595,57 @@ export function useEventForm({
     }
   };
 
+  const continuePreparedSeriesEdit = async ({
+    typedScope,
+    roomId,
+    template,
+    periodEnd,
+    groupId,
+  }: {
+    typedScope: "all" | "following";
+    roomId: number;
+    template: TimetableTemplate;
+    periodEnd: string | undefined;
+    groupId: string;
+  }) => {
+    if (!initialInstance) return;
+    // #1875: before rebuilding the series, check whether single-occurrence
+    // edits in the affected window would be discarded. "following" also
+    // rematerializes individually-deleted occurrences; "all" preserves them.
+    const editsFrom =
+      typedScope === "following" ? initialInstance.date : berlinTodayISO();
+    const editsTo = periodEnd ?? weekTo ?? editsFrom;
+    let lost: EditedInWindowResult | null = null;
+    try {
+      const probe = await timetableService.countEditedInWindow(
+        groupId,
+        editsFrom,
+        editsTo,
+        typedScope === "following",
+      );
+      if (probe.count > 0) lost = probe;
+    } catch (probeErr) {
+      logger.warn("edited_in_window_probe_failed", {
+        error: probeErr instanceof Error ? probeErr.message : String(probeErr),
+      });
+    }
+
+    if (lost) {
+      setPendingSeriesEdit(null);
+      setLostEdits({
+        scope: typedScope,
+        result: lost,
+        onConfirm: () =>
+          performSeriesEdit(typedScope, roomId, template, periodEnd, groupId),
+      });
+      return;
+    }
+
+    await performSeriesEdit(typedScope, roomId, template, periodEnd, groupId);
+    setPendingSeriesEdit(null);
+    onClose();
+  };
+
   const handleScopeSelect = async (scope: string) => {
     if (submitting) return;
     const pending = pendingSeriesEdit;
@@ -1567,64 +1682,56 @@ export function useEventForm({
       const periodEnd =
         findPeriod(templateCalendarPeriodId)?.endDate ??
         findPeriod(form.calendarPeriodId)?.endDate;
-
-      // #1875: before rebuilding the series, check whether single-occurrence
-      // edits in the affected window would be discarded, and warn with the
-      // concrete dates. The probe is advisory — a failure must never block the
-      // edit, so on error we proceed silently (mirrors the coverage check).
-      // "following" splits into a successor template that rematerializes
-      // individually-deleted occurrences, so include deletions on that path;
-      // "all" re-plans the same template and preserves them.
-      const editsFrom =
+      const body = templateBodyFromForm(template, pending.roomId);
+      const scopeFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
-      const editsTo = periodEnd ?? weekTo ?? editsFrom;
-      let lost: EditedInWindowResult | null = null;
-      try {
-        const probe = await timetableService.countEditedInWindow(
-          groupId,
-          editsFrom,
-          editsTo,
-          typedScope === "following",
-        );
-        if (probe.count > 0) lost = probe;
-      } catch (probeErr) {
-        logger.warn("edited_in_window_probe_failed", {
-          error:
-            probeErr instanceof Error ? probeErr.message : String(probeErr),
-        });
-      }
-
-      if (lost) {
-        // Defer the edit: close the scope picker and ask the user to confirm
-        // the loss, listing the affected dates so they can re-edit afterwards.
-        setPendingSeriesEdit(null);
-        setLostEdits({
+      const closingConflict = findScopeClosingDayConflict(
+        template,
+        body,
+        scopeFrom,
+      );
+      if (closingConflict) {
+        setScopeClosingDayWarning({
+          conflict: closingConflict,
           scope: typedScope,
-          result: lost,
-          onConfirm: () =>
-            performSeriesEdit(
-              typedScope,
-              pending.roomId,
-              template,
-              periodEnd,
-              groupId,
-            ),
+          roomId: pending.roomId,
+          template,
+          periodEnd,
+          groupId,
         });
-        setSubmitting(false);
         return;
       }
 
-      await performSeriesEdit(
+      await continuePreparedSeriesEdit({
         typedScope,
-        pending.roomId,
+        roomId: pending.roomId,
         template,
         periodEnd,
         groupId,
-      );
-      setPendingSeriesEdit(null);
-      onClose();
+      });
     } catch (err) {
       handleScopeError(scope, err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmScopeClosingDay = async () => {
+    if (submitting) return;
+    const warning = scopeClosingDayWarning;
+    if (!warning) return;
+    setScopeClosingDayWarning(null);
+    setSubmitting(true);
+    try {
+      await continuePreparedSeriesEdit({
+        typedScope: warning.scope,
+        roomId: warning.roomId,
+        template: warning.template,
+        periodEnd: warning.periodEnd,
+        groupId: warning.groupId,
+      });
+    } catch (err) {
+      handleScopeError(warning.scope, err);
     } finally {
       setSubmitting(false);
     }
@@ -1908,6 +2015,9 @@ export function useEventForm({
     choiceDialogOpen,
     setPendingSeriesEdit,
     handleScopeSelect,
+    scopeClosingDayWarning,
+    setScopeClosingDayWarning,
+    confirmScopeClosingDay,
     lostEdits,
     setLostEdits,
     confirmLostEdits,
@@ -1940,6 +2050,7 @@ export function useEventForm({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    listKindTouched,
     manualWeekPattern,
   };
 }

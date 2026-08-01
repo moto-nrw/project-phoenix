@@ -5,7 +5,10 @@ import Link from "next/link";
 import { AlertCircle, ArrowLeft, Check, Clock, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
+import { todayISO } from "~/lib/date-helpers";
+import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
@@ -22,6 +25,7 @@ import {
   updateMasterDataField,
 } from "~/lib/parent-api";
 import { ChildCareScheduleSection } from "~/components/parent/child-care-schedule";
+import { ChildCareOfferingsSection } from "~/components/parent/child-care-offerings";
 import { Section } from "~/components/parent/child-detail-section";
 
 const logger = createLogger({ component: "ChildMasterData" });
@@ -147,7 +151,7 @@ function ChildMasterDataContent({
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <BackBar studentId={studentId} />
         <div className="p-5 sm:p-6">
           <h1 className="text-2xl font-semibold text-gray-900">{t("title")}</h1>
@@ -253,6 +257,8 @@ function ChildMasterDataContent({
       />
 
       <ChildCareScheduleSection studentId={studentId} />
+
+      <ChildCareOfferingsSection studentId={studentId} />
     </div>
   );
 }
@@ -860,6 +866,7 @@ function RequestField({
   pending?: MasterDataChange;
 }>) {
   const t = useTranslations("parentMasterData");
+  const datePicker = useLocalizedDatePicker();
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -874,13 +881,30 @@ function RequestField({
         )}
       </div>
       <div className="mt-1">
-        <Input
-          aria-label={label}
-          type={type}
-          value={value}
-          disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        {type === "date" ? (
+          // Only the birthday is a date field. It gets the kit calendar with
+          // month/year dropdowns (a birth year is far from today) and cannot be
+          // in the future.
+          <ISODatePicker
+            {...datePicker}
+            ariaLabel={label}
+            value={value}
+            disabled={disabled}
+            onChange={onChange}
+            monthYearNavigation
+            max={todayISO()}
+            calendarLayout="popover"
+            controlSize="lg"
+          />
+        ) : (
+          <Input
+            aria-label={label}
+            type={type}
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
       </div>
       {pending && (
         <p className="mt-1 text-xs text-gray-500">{t("pendingNotice")}</p>

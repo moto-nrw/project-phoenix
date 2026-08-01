@@ -1,8 +1,10 @@
 package staffshifts
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/render"
 
@@ -11,6 +13,30 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+// occurrenceShiftID accepts legacy JSON numbers as well as the lossless
+// decimal-string representation used by the frontend. JavaScript numbers
+// cannot faithfully represent every valid PostgreSQL bigint ID.
+type occurrenceShiftID int64
+
+func (id *occurrenceShiftID) UnmarshalJSON(data []byte) error {
+	var encoded string
+	if err := json.Unmarshal(data, &encoded); err == nil {
+		parsed, err := strconv.ParseInt(encoded, 10, 64)
+		if err != nil {
+			return errors.New("occurrence_shift_id must be an int64")
+		}
+		*id = occurrenceShiftID(parsed)
+		return nil
+	}
+
+	var parsed int64
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return errors.New("occurrence_shift_id must be an int64")
+	}
+	*id = occurrenceShiftID(parsed)
+	return nil
+}
 
 // SeriesRequest is the create payload for a recurring shift series (#1889).
 // Weekdays are ISO (1=Monday … 7=Sunday); week_pattern is 0 = every week,
@@ -29,16 +55,24 @@ type SeriesRequest struct {
 	CalendarPeriodID int64      `json:"calendar_period_id"`
 	WeekPattern      *int       `json:"week_pattern"` // omitted: create = every week, split = keep predecessor
 	ValidFrom        string     `json:"valid_from"`
-	ValidUntil       *string    `json:"valid_until"`
-	EffectiveDate    string     `json:"effective_date"`
+	// ValidUntil is presence-aware on split (#2028): an omitted key keeps the
+	// predecessor's end, an explicit null lets the series run to the period end.
+	ValidUntil    optionalString `json:"valid_until"`
+	EffectiveDate string         `json:"effective_date"`
+	// OccurrenceShiftID is the concrete row opened by the planner. For a
+	// permanent edit effective today it is updated in place before the series
+	// is re-planned from tomorrow.
+	OccurrenceShiftID occurrenceShiftID `json:"occurrence_shift_id"`
 }
 
 // SeriesResponse is the wire format for series create/split/end results.
 // Skipped dates are days the series left out because an existing shift of
 // the same person would overlap there.
 type SeriesResponse struct {
-	SeriesID     int64    `json:"series_id"`
-	OldSeriesID  int64    `json:"old_series_id,omitempty"`
+	// Keep bigint identifiers as strings on the wire. The frontend needs to
+	// carry them through a subsequent split request without JavaScript rounding.
+	SeriesID     int64    `json:"series_id,string"`
+	OldSeriesID  int64    `json:"old_series_id,omitempty,string"`
 	Created      int      `json:"created"`
 	Deleted      int64    `json:"deleted"`
 	SkippedDates []string `json:"skipped_dates"`
@@ -77,6 +111,65 @@ func toWeekdays(values []int) ([]int16, error) {
 	return out, nil
 }
 
+// SeriesDetailResponse is the stored rule behind a shift: what the series
+// editor loads before writing the change back through the split (#2028). Times are "HH:MM"
+// wall-clock, dates "YYYY-MM-DD"; valid_until is exclusive, as everywhere in
+// the series API.
+type SeriesDetailResponse struct {
+	ID               int64   `json:"id,string"`
+	StaffID          int64   `json:"staff_id"`
+	Weekdays         []int   `json:"weekdays"`
+	StartTime        string  `json:"start_time"`
+	EndTime          string  `json:"end_time"`
+	BreakMinutes     int     `json:"break_minutes"`
+	ShiftTypeID      *int64  `json:"shift_type_id"`
+	Notes            string  `json:"notes,omitempty"`
+	CalendarPeriodID int64   `json:"calendar_period_id"`
+	WeekPattern      int     `json:"week_pattern"`
+	ValidFrom        string  `json:"valid_from"`
+	ValidUntil       *string `json:"valid_until"`
+}
+
+func toSeriesDetailResponse(series *scheduleModels.StaffShiftSeries) SeriesDetailResponse {
+	weekdays := make([]int, 0, len(series.Weekdays))
+	for _, wd := range series.Weekdays {
+		weekdays = append(weekdays, int(wd))
+	}
+	resp := SeriesDetailResponse{
+		ID:               series.ID,
+		StaffID:          series.StaffID,
+		Weekdays:         weekdays,
+		StartTime:        timezone.WallClock(series.StartTime).Format("15:04"),
+		EndTime:          timezone.WallClock(series.EndTime).Format("15:04"),
+		BreakMinutes:     series.BreakMinutes,
+		ShiftTypeID:      series.ShiftTypeID,
+		Notes:            series.Notes,
+		CalendarPeriodID: series.CalendarPeriodID,
+		WeekPattern:      series.WeekPattern,
+		ValidFrom:        series.ValidFrom.String(),
+	}
+	if series.ValidUntil != nil {
+		until := series.ValidUntil.String()
+		resp.ValidUntil = &until
+	}
+	return resp
+}
+
+// parseOptionalValidUntil turns the presence-aware payload field into a date.
+// An absent key and an explicit null both mean "no end date" here; the split
+// handler additionally reads Present to tell "clear the end" from "keep the
+// predecessor's end".
+func parseOptionalValidUntil(raw optionalString) (*timezone.Date, error) {
+	if raw.Value == nil || *raw.Value == "" {
+		return nil, nil
+	}
+	parsed, err := timezone.ParseDate(*raw.Value)
+	if err != nil {
+		return nil, errors.New("valid_until must be YYYY-MM-DD")
+	}
+	return &parsed, nil
+}
+
 func renderSeriesServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSeriesNotFound):
@@ -93,13 +186,9 @@ func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSe
 	if err != nil {
 		return nil, errors.New("valid_from must be YYYY-MM-DD")
 	}
-	var validUntil *timezone.Date
-	if req.ValidUntil != nil && *req.ValidUntil != "" {
-		parsed, err := timezone.ParseDate(*req.ValidUntil)
-		if err != nil {
-			return nil, errors.New("valid_until must be YYYY-MM-DD")
-		}
-		validUntil = &parsed
+	validUntil, err := parseOptionalValidUntil(req.ValidUntil)
+	if err != nil {
+		return nil, err
 	}
 	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
 	if err != nil {
@@ -184,29 +273,53 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	validUntil, err := parseOptionalValidUntil(req.ValidUntil)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	editorID, err := rs.editorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 	result, err := rs.SeriesService.SplitSeries(r.Context(), scheduleSvc.SplitSeriesInput{
-		SeriesID:       id,
-		EffectiveDate:  effective,
-		Weekdays:       weekdays,
-		StartTime:      start,
-		EndTime:        end,
-		BreakMinutes:   req.BreakMinutes,
-		ShiftTypeID:    req.ShiftTypeID.Value,
-		ShiftTypeIDSet: req.ShiftTypeID.Present,
-		Notes:          req.Notes,
-		WeekPattern:    req.WeekPattern,
-		ActorStaffID:   editorID,
+		SeriesID:          id,
+		EffectiveDate:     effective,
+		OccurrenceShiftID: int64(req.OccurrenceShiftID),
+		Weekdays:          weekdays,
+		StartTime:         start,
+		EndTime:           end,
+		BreakMinutes:      req.BreakMinutes,
+		ShiftTypeID:       req.ShiftTypeID.Value,
+		ShiftTypeIDSet:    req.ShiftTypeID.Present,
+		Notes:             req.Notes,
+		ValidUntil:        validUntil,
+		ValidUntilSet:     req.ValidUntil.Present,
+		WeekPattern:       req.WeekPattern,
+		ActorStaffID:      editorID,
 	})
 	if err != nil {
 		renderSeriesServiceError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series split")
+}
+
+// getSeries returns the rule behind a shift so the planner can edit the whole
+// series (weekdays, rhythm, validity), not just one occurrence (#2028).
+func (rs *Resource) getSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	series, err := rs.SeriesService.GetSeries(r.Context(), id)
+	if err != nil {
+		renderSeriesServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toSeriesDetailResponse(series), "Staff shift series retrieved")
 }
 
 func (rs *Resource) endSeries(w http.ResponseWriter, r *http.Request) {

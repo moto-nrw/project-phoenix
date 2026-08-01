@@ -19,6 +19,10 @@ type ToastType = "success" | "error" | "info" | "warning";
 interface ToastOptions {
   id?: string;
   duration?: number; // ms
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ToastItemData {
@@ -26,6 +30,7 @@ interface ToastItemData {
   type: ToastType;
   message: string;
   duration: number;
+  action?: ToastOptions["action"];
 }
 
 interface ToastAPI {
@@ -221,14 +226,23 @@ function ToastRow({
     setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
   };
 
+  const handleAction = () => {
+    item.action?.onClick();
+    handleMobileDismiss();
+  };
+
   return (
     <>
       {/* Mobile: Center-Overlay Modal Style - tap to dismiss */}
       <button
         type="button"
-        aria-label={`${modalTitles[item.type]}: ${item.message}. Tippen zum Schließen`}
+        aria-label={`${modalTitles[item.type]}: ${item.message}. ${
+          item.action
+            ? `Tippen zum ${item.action.label}`
+            : "Tippen zum Schließen"
+        }`}
         aria-hidden={isDesktopRef.current}
-        onClick={handleMobileDismiss}
+        onClick={item.action ? handleAction : handleMobileDismiss}
         className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none ${
           visible && !exiting ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
@@ -292,6 +306,15 @@ function ToastRow({
           <p className={`flex-1 text-sm font-medium ${desktopStyles.text}`}>
             {item.message}
           </p>
+          {item.action && (
+            <button
+              type="button"
+              onClick={handleAction}
+              className={`flex-shrink-0 text-sm font-semibold ${desktopStyles.text} underline underline-offset-2 transition-opacity hover:opacity-70`}
+            >
+              {item.action.label}
+            </button>
+          )}
           <button
             type="button"
             aria-label="Schließen"
@@ -360,7 +383,7 @@ export function ToastProvider({
       setItems((prev) => {
         const next: ToastItemData[] = [
           ...prev,
-          { id, type, message, duration },
+          { id, type, message, duration, action: options?.action },
         ];
         if (next.length > MAX_VISIBLE) {
           // remove oldest to keep at most MAX_VISIBLE visible

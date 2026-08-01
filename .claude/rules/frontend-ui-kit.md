@@ -68,7 +68,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
 | Delete confirmation | `ConfirmDeleteModal` | `~/components/ui/confirm-delete-modal` |
 | Multi-step wizard | `WizardStepper` | `~/components/ui/wizard-stepper` |
-| Tabs / segmented switcher | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline) | `~/components/ui/tabs` |
+| Tabs (switching CONTENT panels) | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline) | `~/components/ui/tabs` |
+| Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |
 | Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
 | Info / stat card | `InfoCard`, `InfoItem` | `~/components/ui/info-card` |
 | Detail-panel fields | `DataField`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
@@ -77,6 +78,9 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
+| Semantic status pill (fixed tone set) | `StatusBadge` — tinted pill + dot, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes) | `~/components/ui/status-badge` |
+| Data-driven status pill (raw hex) | `StatusDotBadge` | `~/components/ui/status-dot-badge` |
+| Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
 | Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
@@ -131,7 +135,7 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. The kit still does **not** have a generic `DropdownMenu`/popover-menu or a `Select` (native `<select>` styled to the kit `Input` look via the `moto-select` utility is the current convention). When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. A generic kebab/dropdown menu now EXISTS: `ui/page-header/OverflowMenu` covers action menus fully (portal-rendered, header/radio/separator entries, `href` link items incl. `external`, destructive tone, badges) — never hand-roll a `menuOpen` + click-outside menu again. Semantic status pills (`ui/status-badge`, tone-based, with an optional `title` for a hover tooltip) and empty states (`ui/empty-state`) now EXIST too. A segmented single-choice control EXISTS at `ui/segmented-control` — reach for it instead of hand-rolling a `<button>` cluster whenever the choice is a **value** (work mode, Monat/Woche, a modal's section switcher) rather than a content panel; `ui/Tabs` is Radix and stays the answer for real panels. Note the test consequence when picking between them: Radix tabs activate on **mousedown**, so a screen whose existing tests drive the switcher with `fireEvent.click` must use `SegmentedControl` (plain buttons), not `Tabs`. The kit still does **not** have a `Select` (native `<select>` styled to the kit `Input` look via the `moto-select` utility is the current convention). When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
@@ -139,14 +143,30 @@ Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`,
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for both dense chrome and modal footers; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"`, and for **modal / slide-over footers and in-form actions** use `size="md"` (`px-4 py-2 text-sm`) instead of reaching for `size="sm"` (which is the same height as `base`).
 - **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
 
+## UI skills: this rule outranks all of them
+
+The UI skills live in `frontend/.claude/skills/` and load only when an agent works in `frontend/`. Several of them overlap, so precedence is fixed: **this rule and the kit win; a skill's generic advice is the fallback where this rule is silent.** Run one review, not four. `better-interface` coordinates the six `better-*` skills and is the entry point for a full pass.
+
+The three places where following the vendored skill literally produces wrong output here (two of them fail `pnpm run check`):
+
+| Skill says | Here instead |
+|---|---|
+| `better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces. |
+| `better-colors`: express colors as OKLCH tokens | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
+| `better-writing`: title case vs sentence case, English phrasing | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
+
+On motion, `ui-skills` is stricter than `better-ui/animations.md` and wins: no animation unless it was asked for, compositor properties only.
+
 ## Detection
+
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on three drift patterns beyond its shrink-only, per-match baselines — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), and `ui-kit/no-rounded-3xl` (off-scale card radius). Each legacy utility is tracked by value and count, so existing files cannot add violations. When you migrate a file, reduce its baseline; never increase one. Test/stories files are exempt (several assert on the legacy classes — the brand-hex fix for the kit primitives themselves is a deliberate rule change requiring test updates in the same PR).
 
 ```bash
 # Components imported from the design-system package — should be ZERO (tokens only)
 rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
 
 # Generic Tailwind brand-color utilities — prefer LOCATION_COLORS hex or a kit component
-rg -n "(text|bg|border)-(red|green|blue|orange|purple|amber|yellow|emerald)-[0-9]" frontend/src -g '*.tsx'
+rg -n "(text|bg|border|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]" frontend/src -g '*.tsx'
 ```
 
 ## Mandatory visual check — do not skip

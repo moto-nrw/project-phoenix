@@ -8,6 +8,11 @@
  * Tag angezeigt wird und der Umschalter "Nur Störungen"/"Ganzer Tag" leben im
  * Parent (vertretung-view.tsx); der Filterzustand kommt hier nur als Prop an.
  *
+ * Die Klassifikation (`classifyInstances`) und die Zeilendarstellung
+ * (`VertretungRowList`) sind exportiert, weil die Wochenansicht
+ * (vertretung-week-list.tsx, #2030) dieselben Regeln pro Tag anwendet. Es gibt
+ * genau eine Störungsdefinition, nicht zwei je Ansicht.
+ *
  * Störungsdefinition (Abschnitt 2.2, Bedingungen 1-4): eine Position gilt als
  * gestört, wenn sie in `gaps` steht (offene Lücke), in `acknowledged` steht
  * (quittiert), `status === "cancelled"` ist (abgesagt), oder mindestens eine
@@ -30,8 +35,14 @@ import type {
 } from "~/lib/timetable-types";
 
 import { timetableSurface } from "./timetable-style";
+import {
+  VertretungListFilter,
+  type VertretungDayListMode as FilterMode,
+} from "./vertretung-list-filter";
 
-export type VertretungDayListMode = "stoerungen" | "ganzer-tag";
+// Der Typ lebt beim Filter (siehe dort), wird hier aber unter dem gewohnten
+// Namen weitergereicht, damit die bestehenden Aufrufer nichts ändern müssen.
+export type VertretungDayListMode = FilterMode;
 
 export interface StaffTriple {
   readonly planned: number;
@@ -56,6 +67,8 @@ export interface VertretungDayListProps {
    */
   staffNames: Map<string, string>;
   mode: VertretungDayListMode;
+  /** Setzt den Filter. Ohne Callback wird die Filterzeile nicht gerendert. */
+  onModeChange?: (mode: VertretungDayListMode) => void;
   canManage: boolean;
   onEdit: (instanceId: string) => void;
   className?: string;
@@ -84,7 +97,7 @@ export function computeStaffTriple(instance: EnrichedInstance): StaffTriple {
   };
 }
 
-interface ClassifiedRow {
+export interface ClassifiedRow {
   instance: EnrichedInstance;
   ackMatch?: GapInstance;
   isCancelled: boolean;
@@ -165,6 +178,48 @@ function compareRows(a: ClassifiedRow, b: ClassifiedRow): number {
   return a.severityRank - b.severityRank;
 }
 
+/**
+ * Klassifiziert und sortiert die Instanzen eines Tages (Startzeit, bei
+ * Gleichstand Schwere). Reine Funktion, von Tages- und Wochenansicht geteilt.
+ */
+export function classifyInstances(
+  instances: EnrichedInstance[],
+  gaps: GapInstance[],
+  acknowledged: GapInstance[],
+  gapsAvailable: boolean,
+): ClassifiedRow[] {
+  return instances
+    .map((instance) => classify(instance, gaps, acknowledged, gapsAvailable))
+    .sort(compareRows);
+}
+
+/** Die Zeilenliste ohne Kartenrahmen — beide Ansichten rendern dieselben Zeilen. */
+export function VertretungRowList({
+  rows,
+  staffNames,
+  canManage,
+  onEdit,
+}: {
+  rows: ClassifiedRow[];
+  staffNames: Map<string, string>;
+  canManage: boolean;
+  onEdit: (instanceId: string) => void;
+}) {
+  return (
+    <ul className="divide-y divide-gray-200">
+      {rows.map((row) => (
+        <VertretungDayListRow
+          key={row.instance.id}
+          row={row}
+          staffNames={staffNames}
+          canManage={canManage}
+          onEdit={onEdit}
+        />
+      ))}
+    </ul>
+  );
+}
+
 export function VertretungDayList({
   instances,
   gaps,
@@ -172,6 +227,7 @@ export function VertretungDayList({
   gapsAvailable,
   staffNames,
   mode,
+  onModeChange,
   canManage,
   onEdit,
   className,
@@ -179,10 +235,18 @@ export function VertretungDayList({
   const containerClassName = className
     ? `${timetableSurface} ${className}`
     : timetableSurface;
+  const filter = onModeChange ? (
+    <VertretungListFilter
+      mode={mode}
+      onModeChange={onModeChange}
+      allLabel="Ganzer Tag"
+    />
+  ) : null;
 
   if (instances.length === 0) {
     return (
       <div className={containerClassName}>
+        {filter}
         <p className="p-4 text-sm text-gray-500">
           Keine Termine an diesem Tag.
         </p>
@@ -190,9 +254,12 @@ export function VertretungDayList({
     );
   }
 
-  const classified = instances
-    .map((instance) => classify(instance, gaps, acknowledged, gapsAvailable))
-    .sort(compareRows);
+  const classified = classifyInstances(
+    instances,
+    gaps,
+    acknowledged,
+    gapsAvailable,
+  );
   const disturbed = classified.filter((row) => row.isDisturbed);
   // Ohne Gaps kann der Client nicht wissen, ob ein ansonsten unauffälliger
   // Block unterbesetzt ist. Deshalb weder Entwarnung noch Ganztags-Fallback.
@@ -202,6 +269,7 @@ export function VertretungDayList({
 
   return (
     <div className={containerClassName}>
+      {filter}
       {!gapsAvailable && (
         <p className="border-b border-gray-200 p-3 text-xs font-medium text-gray-500">
           Störungslage konnte nicht vollständig geprüft werden
@@ -212,17 +280,12 @@ export function VertretungDayList({
           Keine Störungen an diesem Tag
         </p>
       )}
-      <ul className="divide-y divide-gray-200">
-        {visibleRows.map((row) => (
-          <VertretungDayListRow
-            key={row.instance.id}
-            row={row}
-            staffNames={staffNames}
-            canManage={canManage}
-            onEdit={onEdit}
-          />
-        ))}
-      </ul>
+      <VertretungRowList
+        rows={visibleRows}
+        staffNames={staffNames}
+        canManage={canManage}
+        onEdit={onEdit}
+      />
     </div>
   );
 }
@@ -282,10 +345,14 @@ function VertretungDayListRow({
         {/* Auch Lesenutzer brauchen ein Klickziel: unterhalb lg gibt es keine
             Kalenderspalte, und der Verlauf muss ohne schedules:manage lesbar
             bleiben (Kriterium 8). Der Editor selbst rendert ohne canManage
-            nur Lese-Inhalte. */}
+            nur Lese-Inhalte.
+            Mit Verwaltungsrechten ist "Bearbeiten" die Hauptaktion der Zeile
+            und trägt deshalb die weiße Kit-Fläche mit Rahmen (#2029). Ohne die
+            Rechte bleibt "Details" die ruhigere Ghost-Variante, damit ein
+            reiner Lesezugriff nicht wie eine Aufforderung zum Ändern wirkt. */}
         <Button
           type="button"
-          variant="ghost"
+          variant={canManage ? "outline" : "ghost"}
           size="compact"
           onClick={() => onEdit(instance.id)}
         >

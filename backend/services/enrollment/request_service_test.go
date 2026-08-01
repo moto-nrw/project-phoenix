@@ -134,6 +134,7 @@ func (r *recordingOutbox) ByKind(kind string) []platformModels.OutboxEnqueueRequ
 type requestTestEnv struct {
 	db        *bun.DB
 	svc       enrollmentService.RequestService
+	config    enrollmentService.RequestServiceConfig
 	phase     *enrollmentModels.Phase
 	schemaID  int64
 	creatorID int64
@@ -161,7 +162,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 
 	outbox := &recordingOutbox{}
-	svc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
+	config := enrollmentService.RequestServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
 		RequestGuardianRepo:      repoFactory.RequestGuardian,
@@ -176,7 +177,8 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		FrontendURL:              "http://localhost:3000",
 		DB:                       db,
 		Logger:                   slog.Default(),
-	})
+	}
+	svc := enrollmentService.NewRequestService(config)
 
 	ctx := testpkg.TenantContext(1)
 
@@ -211,6 +213,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	env := &requestTestEnv{
 		db:        db,
 		svc:       svc,
+		config:    config,
 		phase:     phase,
 		schemaID:  schema.ID,
 		creatorID: account.ID,
@@ -278,6 +281,26 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 }
 
 // --- Submit ---
+
+// TestRequestService_Submit_RejectsCrossTenantPhase proves a phase_id from
+// another school cannot be submitted against the caller's tenant. The parent
+// portal resolves the phase under an admin transaction (RLS bypassed), so
+// without the tenant-binding guard a phase belonging to tenant 2 would load
+// cleanly and get stamped with tenant 1's tenant_id (#1663). SkipRateLimit
+// avoids writing a rate-limit row for the nonexistent claimed tenant.
+func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	req := validSubmission(env.phaseID) // phase belongs to tenant 1
+	req.TenantID = 2                    // ...but the submission claims tenant 2
+	req.SkipRateLimit = true
+
+	_, err := env.svc.Submit(ctx, req)
+	require.ErrorIs(t, err, enrollmentService.ErrInvalidSubmission,
+		"a phase from another tenant must be rejected as not found")
+}
 
 func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
@@ -1846,6 +1869,15 @@ func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.
 
 // --- Capacity overflow ---
 
+type lockedCareOfferingRepo struct {
+	enrollmentModels.CareOfferingRepository
+	lockedOfferings []*enrollmentModels.CareOffering
+}
+
+func (r *lockedCareOfferingRepo) ListByIDsForUpdate(_ context.Context, _ []int64) ([]*enrollmentModels.CareOffering, error) {
+	return r.lockedOfferings, nil
+}
+
 func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity int) *enrollmentModels.CareOffering {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
@@ -1886,6 +1918,51 @@ func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 	env.phase.CareOverflowMode = mode
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+}
+
+func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	lockedOffering := *offering
+	lockedCapacity := 0
+	lockedOffering.Capacity = &lockedCapacity
+	config := env.config
+	config.CareOfferingRepo = &lockedCareOfferingRepo{
+		CareOfferingRepository: config.CareOfferingRepo,
+		lockedOfferings:        []*enrollmentModels.CareOffering{&lockedOffering},
+	}
+	svc := enrollmentService.NewRequestService(config)
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "locked-capacity@example.com"
+	request.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := svc.Submit(ctx, request)
+	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingFull)
+}
+
+func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.phase.ServiceStartDate = timezone.NewDate(2025, 9, 1)
+	env.phase.ServiceEndDate = timezone.NewDate(2026, 7, 31)
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	request := validSubmission(env.phaseID)
+	request.AllowClosedPhase = true
+	request.GuardianEmail = "historical-care-offering@example.com"
+	request.Children[0].OfferingIDs = []int64{offering.ID}
+
+	result, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[0].Status)
 }
 
 // TestRequestService_Submit_CapacityOverflowWaitlist verifies that when
@@ -2741,4 +2818,68 @@ func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed),
 		"the edit path must reject off-list pickup times too")
+}
+
+// restrictClassesForEditDraftTest turns the env phase into a class-restricted
+// phase whose offered list is a proper superset of the eligible list — the
+// shape the admin editor produces, since eligible classes are ADDED to the
+// offered list rather than replacing it.
+func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source string) *enrollmentService.SubmitResult {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
+	env.phase.AvailableSchoolClasses = []string{"2a", "2b"}
+	env.phase.EligibleSchoolClasses = []string{"2a"}
+	env.phase.EligibleGradeLevels = []int{2}
+	env.phase.RequireSchoolClass = true
+	require.NoError(t, repositories.NewFactory(env.db).Phase.Update(ctx, env.phase))
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "edit-draft-eligibility@example.com"
+	req.SubmissionSource = source
+	req.AllowClosedPhase = source != ""
+	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
+	req.Children[0].TargetSchoolClass = testpkg.StrPtr("2a")
+	req.Children[0].DateOfBirth = timezone.NewDate(2018, 4, 15)
+	submitted, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	return submitted
+}
+
+// Reopening a request for editing is a self-service form load, and the edit
+// paths re-run the class-eligibility gate. Offering "2b" — available but not
+// eligible — would let the parent pick it and lose the whole edit to
+// class_not_eligible on save, so the draft must present the eligible subset
+// only (#1663).
+func TestRequestService_GetEditDraft_NarrowsOfferedClassesToEligible(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted := restrictClassesForEditDraftTest(t, env, "")
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2a"}, draft.Phase.AvailableSchoolClasses,
+		"an available-but-ineligible class must not be offered on the edit form")
+	assert.Equal(t, []int{2}, draft.Phase.EligibleGradeLevels,
+		"an enforced draft keeps the grade restriction its save re-checks")
+}
+
+// A trusted-source request (admin manual / late invite) bypasses the
+// eligibility gates on edit, so its draft keeps the phase's full offered list —
+// narrowing it would strip the exception the admin deliberately created.
+func TestRequestService_GetEditDraft_TrustedSourceKeepsFullClassList(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted := restrictClassesForEditDraftTest(t, env, enrollmentModels.RequestSourceAdminManual)
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2a", "2b"}, draft.Phase.AvailableSchoolClasses,
+		"an eligibility-exempt draft must keep every offered class")
+	assert.Empty(t, draft.Phase.EligibleGradeLevels,
+		"an eligibility-exempt draft must not narrow the grade select")
 }

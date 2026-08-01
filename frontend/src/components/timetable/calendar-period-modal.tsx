@@ -15,6 +15,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -28,10 +30,9 @@ import {
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
-import { timetableRequiredMark, timetableSelectClass } from "./timetable-style";
+import { timetableRequiredMark } from "./timetable-style";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
-const FORM_SELECT_CLASS = timetableSelectClass;
 
 interface CalendarPeriodModalProps {
   isOpen: boolean;
@@ -316,8 +317,8 @@ export function CalendarPeriodModal({
         persisted ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
       }
       footer={
-        <div className="flex w-full items-center justify-between gap-2">
-          <div>
+        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full sm:w-auto">
             {isEdit && (
               <div className="flex max-w-sm flex-col gap-1">
                 <Button
@@ -339,7 +340,7 @@ export function CalendarPeriodModal({
               </div>
             )}
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
             {deleteConfirm && !deleting && (
               <Button
                 type="button"
@@ -406,44 +407,40 @@ export function CalendarPeriodModal({
         </Field>
 
         <Field label="Art" htmlFor="period_type" required>
-          <select
+          <CustomSelect
             id="period_type"
+            ariaLabel="Art"
             value={form.periodType}
-            onChange={(e) => update("periodType", e.target.value as PeriodType)}
-            className={FORM_SELECT_CLASS}
-          >
-            {PERIOD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {PERIOD_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
+            options={PERIOD_TYPES.map((t) => ({
+              value: t,
+              label: PERIOD_TYPE_LABELS[t],
+            }))}
+            onChange={(next) => update("periodType", next as PeriodType)}
+          />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Startdatum" htmlFor="start_date" required>
-            <Input
+            <ISODatePicker
               id="start_date"
-              type="date"
+              controlSize="md"
               value={form.startDate}
-              controlSize="compact"
-              onChange={(e) => update("startDate", e.target.value)}
-              required
+              onChange={(next) => update("startDate", next)}
+              calendarLayout="popover"
             />
           </Field>
           <Field label="Enddatum" htmlFor="end_date" required>
-            <Input
+            <ISODatePicker
               id="end_date"
-              type="date"
+              controlSize="md"
               value={form.endDate}
-              controlSize="compact"
-              onChange={(e) => update("endDate", e.target.value)}
-              required
+              onChange={(next) => update("endDate", next)}
+              calendarLayout="popover"
             />
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
             <Input
               id="cycle_length"
@@ -463,13 +460,13 @@ export function CalendarPeriodModal({
             htmlFor="cycle_anchor"
             required={cycleLength > 1}
           >
-            <Input
+            <ISODatePicker
               id="cycle_anchor"
-              type="date"
+              controlSize="md"
               value={form.weekCycleAnchor}
-              controlSize="compact"
-              onChange={(e) => update("weekCycleAnchor", e.target.value)}
+              onChange={(next) => update("weekCycleAnchor", next)}
               disabled={cycleLength <= 1}
+              calendarLayout="popover"
             />
           </Field>
         </div>
@@ -483,11 +480,15 @@ export function CalendarPeriodModal({
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
           />
-          <span className="font-semibold text-gray-700">
-            Zeitraum im Plan verwenden
-          </span>
-          <span className="text-xs text-gray-500">
-            Nur aktive Zeiträume legen Termine aus Regelterminen an
+          {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
+              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
+          <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+            <span className="font-semibold text-gray-700">
+              Zeitraum im Plan verwenden
+            </span>
+            <span className="text-xs text-gray-500">
+              Nur aktive Zeiträume legen Termine aus Regelterminen an
+            </span>
           </span>
         </label>
 

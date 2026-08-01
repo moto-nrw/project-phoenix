@@ -15,6 +15,7 @@ import {
   getActivityTypeBadge,
   getCurrentTimeOffset,
   getEventBlockPosition,
+  getGermanWeekdayAdverb,
   getGermanWeekdayLong,
   getGermanWeekdayShort,
   getMonthDays,
@@ -36,6 +37,7 @@ import {
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
+  materializedRecurrenceDates,
   mapReplanWeekResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
@@ -49,6 +51,7 @@ import {
   toISODate,
   weekdayDatesInRange,
 } from "./timetable-helpers";
+import type { CalendarPeriod } from "./calendar-period-helpers";
 import type { EnrichedInstance, TimetableTemplate } from "./timetable-types";
 
 // Minimal helper — assignBlockLanes only inspects startTime/endTime.
@@ -168,6 +171,27 @@ describe("date and range helpers", () => {
     expect(weekdayDatesInRange("2026-04-06", "2026-04-08", [0, 8])).toEqual([]);
   });
 
+  it("bounds materialized recurrence dates by segment validity and A/B week", () => {
+    const period = {
+      id: "5",
+      startDate: "2026-05-01",
+      endDate: "2026-06-30",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    } as CalendarPeriod;
+
+    expect(
+      materializedRecurrenceDates({
+        period,
+        fromISO: "2026-05-01",
+        weekdays: [1],
+        weekPattern: 1,
+        validFrom: "2026-05-11",
+        validUntil: "2026-06-01",
+      }),
+    ).toEqual(["2026-05-18"]);
+  });
+
   it("snaps weekend dates to the following Monday, weekdays pass through", () => {
     expect(nextWorkdayISO("2026-07-18")).toBe("2026-07-20"); // Sa -> Mo
     expect(nextWorkdayISO("2026-07-19")).toBe("2026-07-20"); // So -> Mo
@@ -215,6 +239,19 @@ describe("date and range helpers", () => {
     expect(formatYearLabel(monday)).toBe("2026");
     expect(getGermanWeekdayLong(monday)).toBe("Montag");
     expect(getGermanWeekdayShort(monday)).toBe("Mo");
+  });
+
+  it.each([
+    ["Montag", "montags"],
+    ["Dienstag", "dienstags"],
+    ["Mittwoch", "mittwochs"],
+    ["Donnerstag", "donnerstags"],
+    ["Freitag", "freitags"],
+    ["Samstag", "samstags"],
+    ["Sonntag", "sonntags"],
+    ["", ""],
+  ])("formats %j as the recurring weekday adverb %j", (weekday, expected) => {
+    expect(getGermanWeekdayAdverb(weekday)).toBe(expected);
   });
 });
 
@@ -830,6 +867,7 @@ describe("backend mappers", () => {
                 end_time: "15:00",
                 week_pattern: 2,
                 calendar_period_id: 5,
+                valid_from: "2026-05-04",
                 valid_until: "2026-06-01",
               },
             ],
@@ -842,7 +880,14 @@ describe("backend mappers", () => {
       studentIds: ["21"],
       staffIds: ["11"],
       primaryStaffId: "11",
-      schedules: [{ id: "9", calendarPeriodId: "5", validUntil: "2026-06-01" }],
+      schedules: [
+        {
+          id: "9",
+          calendarPeriodId: "5",
+          validFrom: "2026-05-04",
+          validUntil: "2026-06-01",
+        },
+      ],
     });
   });
 

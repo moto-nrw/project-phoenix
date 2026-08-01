@@ -7,17 +7,33 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
+var errTimetableWeekend = errors.New("timetable entries can only be scheduled from Monday to Friday")
+
 // berlinDate parses a YYYY-MM-DD input into a calendar date. timezone.Date
 // carries no instant, so the historical 00:00–02:00 CET/UTC anchoring pitfall
 // cannot occur by construction.
 func berlinDate(input string) (timezone.Date, error) {
 	return timezone.ParseDate(input)
+}
+
+// validateTimetableWorkday keeps the planning contract consistent across the
+// three planning views: the OGS timetable accepts appointments only Monday to
+// Friday. It lives at the HTTP boundary so direct API clients cannot create
+// entries the workweek views intentionally do not display.
+func validateTimetableWorkday(date timezone.Date) error {
+	switch date.Weekday() {
+	case time.Saturday, time.Sunday:
+		return errTimetableWeekend
+	default:
+		return nil
+	}
 }
 
 // inclusiveDayCount returns the number of calendar days in the inclusive

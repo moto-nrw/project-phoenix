@@ -37,6 +37,11 @@ const (
 	// fixes the floor at 2 years; §147 AO / §257 HGB cap the legally
 	// defensible ceiling at 8 years.
 	KeyGDPRTimeTrackingRetentionDays = "gdpr.time_tracking_retention_days"
+	// Retention window (days) for the per-child change history
+	// (audit.student_field_edits, issue #1455). The log answers concrete
+	// day-to-day Rückfragen ("wer hat das geändert"), not long-term archival,
+	// so the window is short and admin-configurable.
+	KeyGDPRStudentChangeLogRetentionDays = "gdpr.student_change_log_retention_days"
 	// Default visit-data retention window (days) applied when a student's
 	// privacy consent does not set its own data_retention_days. Issue #586
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
@@ -160,6 +165,24 @@ const (
 	// KeyNotificationsAbsenceApprovalEmail toggles the absence-request email
 	// notifications (request received / approved / declined / Rückfrage, #1419).
 	KeyNotificationsAbsenceApprovalEmail = "notifications.absence_approval_email"
+	// KeyNotificationsDispatchEnabled is the feature flag for the notification
+	// abstraction (#1624). When off (the default), Notify(ctx, event) is a
+	// no-op and no channel delivers anything.
+	KeyNotificationsDispatchEnabled = "notifications.dispatch_enabled"
+	// KeyNotificationsActiveWindowStart / End bound the wall-clock window in
+	// which notifications may be delivered at all. Enforced once in the
+	// notification router, so it applies to every producer.
+	KeyNotificationsActiveWindowStart = "notifications.active_window_start"
+	KeyNotificationsActiveWindowEnd   = "notifications.active_window_end"
+	// KeyNotificationsAbsenceReportedEnabled lets a school switch off the
+	// sick/excused notification entirely. This is a data-minimisation decision
+	// about health information, not a matter of personal taste, which is why it
+	// exists on top of the per-person opt-in.
+	KeyNotificationsAbsenceReportedEnabled = "notifications.absence_reported_enabled"
+	// KeyNotificationsOnDutyOnly restricts personal notifications to staff who
+	// are currently checked in. An empty presence map fails closed; schools
+	// without time tracking must disable this setting.
+	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -226,6 +249,8 @@ const (
 	KeyEnrollmentNotificationEmails                     = "enrollment.notification_emails"
 	KeyEnrollmentChangeRequestEmailNotificationsEnabled = "enrollment.change_request_email_notifications_enabled"
 	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
+	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
+	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
@@ -296,6 +321,11 @@ const (
 	// and scrolls if events fall outside.
 	KeyTimetableDayStartTime = "timetable.day_start_time"
 	KeyTimetableDayEndTime   = "timetable.day_end_time"
+
+	// Pickup buckets for timetable-derived slot lists. Schools use different
+	// checkout cutoffs, so list labels and cohort membership are tenant config.
+	KeySlotListShortDayCutoff = "timetable.slot_list_short_day_cutoff"
+	KeySlotListLongDayCutoff  = "timetable.slot_list_long_day_cutoff"
 )
 
 // Info-point display settings (issue #1325). The whole feature is opt-in:
@@ -316,4 +346,36 @@ const (
 	KeyRemindersActivityStartEnabled      = "reminders.activity_start_enabled"
 	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
 	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
+)
+
+// Payroll foundation settings (#1417 Tranche 2b). Lohnartnummern are
+// mandant-specific DATEV numbers — there are NO defaults on purpose: a
+// plausible-looking preset would silently bill wrong. Empty means "not
+// configured yet"; the later DATEV writers refuse to produce a file until
+// the configuration is complete. Definitions live in defaults/payroll.go.
+const (
+	KeyPayrollLohnartRegelarbeit       = "payroll.lohnart_regelarbeit"
+	KeyPayrollLohnartPlusStunden       = "payroll.lohnart_plus_stunden"
+	KeyPayrollLohnartAuszahlung        = "payroll.lohnart_auszahlung"
+	KeyPayrollLohnartFreizeitausgleich = "payroll.lohnart_freizeitausgleich"
+	KeyPayrollLohnartKrank             = "payroll.lohnart_krank"
+	KeyPayrollLohnartUrlaub            = "payroll.lohnart_urlaub"
+	KeyPayrollLohnartFortbildung       = "payroll.lohnart_fortbildung"
+
+	// Unit per category, only where day values exist (sick/vacation/training).
+	// The remaining categories are minute sums with no day representation, so
+	// they are always exported in hours and carry no unit setting.
+	KeyPayrollEinheitKrank       = "payroll.einheit_krank"
+	KeyPayrollEinheitUrlaub      = "payroll.einheit_urlaub"
+	KeyPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
+
+	// LODAS file-header identifiers; Lohn und Gehalt does not need them.
+	KeyPayrollDatevBeraternummer   = "payroll.datev_beraternummer"
+	KeyPayrollDatevMandantennummer = "payroll.datev_mandantennummer"
+)
+
+// Payroll unit select values.
+const (
+	PayrollUnitHours = "stunden"
+	PayrollUnitDays  = "tage"
 )

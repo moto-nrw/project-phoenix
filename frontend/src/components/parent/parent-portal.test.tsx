@@ -173,6 +173,19 @@ describe("Parent portal components", () => {
     expect(screen.getByText("Lina Muster")).toBeInTheDocument();
     expect(screen.getByText("Mila Neu")).toBeInTheDocument();
     expect(screen.getByText("Offen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Push-Benachrichtigungen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the Neue Anmeldung action on the dashboard", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.listMyEnrollments.mockResolvedValueOnce([]);
+
+    render(<ParentDashboard />);
+
+    const link = await screen.findByRole("link", { name: "Neue Anmeldung" });
+    expect(link).toHaveAttribute("href", "/parents/enroll");
   });
 
   it("shows dashboard error state when parent data fails", async () => {

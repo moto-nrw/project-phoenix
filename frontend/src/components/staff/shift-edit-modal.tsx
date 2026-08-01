@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
@@ -9,15 +10,21 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
-import { Radio } from "~/components/ui/radio";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   findPeriodForDate,
+  shouldMaterializeWeekPattern,
   weekPatternForDate,
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  findFirstClosingDayConflict,
+  type ClosingDayConflict,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -29,9 +36,21 @@ import {
   staffShiftService,
   staffShiftSeriesService,
   type SeriesResult,
+  type SeriesRule,
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import {
+  latestISODate,
+  materializedRecurrenceDates,
+  weekdayDatesInRange,
+} from "~/lib/timetable-helpers";
+
+import {
+  formatWeekdays,
+  RhythmPicker,
+  WeekdayPicker,
+} from "./shift-recurrence-fields";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -41,16 +60,7 @@ const EMPTY_STAFF_OPTIONS: readonly StaffScheduleStaff[] = [];
 // Stable empty default for the optional existingReplacements prop (same
 // rationale as EMPTY_STAFF_OPTIONS).
 const EMPTY_REPLACEMENTS: readonly StaffShift[] = [];
-
-const WEEKDAY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
-  { value: 1, label: "Mo" },
-  { value: 2, label: "Di" },
-  { value: 3, label: "Mi" },
-  { value: 4, label: "Do" },
-  { value: 5, label: "Fr" },
-  { value: 6, label: "Sa" },
-  { value: 7, label: "So" },
-];
+const EMPTY_CLOSING_DAY_RANGES: readonly ClosingDayRange[] = [];
 
 function getShiftMutationErrorMessage(
   err: unknown,
@@ -62,6 +72,18 @@ function getShiftMutationErrorMessage(
       return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
     }
     if (err.status === 400) {
+      // A series edit rejects for reasons that have nothing to do with the
+      // times, so translate those instead of sending the planner to check
+      // Beginn/Ende/Pause (#2028).
+      if (detail.includes("no occurrences left")) {
+        return 'Diese Serie hat ab morgen keine Termine mehr. Setzen Sie „Gültig bis" auf ein späteres Datum, um sie fortzuführen.';
+      }
+      if (detail.includes("calendar period")) {
+        return "Der gewählte Zeitraum liegt außerhalb des Kalenderzeitraums der Serie.";
+      }
+      if (detail.includes("week cycle")) {
+        return "Woche A/B benötigt einen Kalenderzeitraum mit gepflegtem Wochenzyklus.";
+      }
       return "Ungültige Schichtdaten. Bitte prüfen Sie Beginn, Ende und Pause.";
     }
     if (err.status === 401) {
@@ -110,6 +132,8 @@ interface ShiftEditModalProps {
    *  the backend would delete every cover. Optional / empty for create and for
    *  never-cancelled shifts. */
   readonly existingReplacements?: readonly StaffShift[];
+  /** All stored ranges, used to warn for every generated series occurrence. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }
@@ -126,6 +150,13 @@ interface ReplacementRow {
   shiftTypeId: string;
 }
 
+interface OccurrenceDraft {
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly breakMinutesStr: string;
+  readonly shiftTypeId: string;
+}
+
 export function ShiftEditModal({
   isOpen,
   mode,
@@ -136,6 +167,7 @@ export function ShiftEditModal({
   shiftTypes,
   staffOptions = EMPTY_STAFF_OPTIONS,
   existingReplacements = EMPTY_REPLACEMENTS,
+  closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
   onClose,
   onSaved,
 }: ShiftEditModalProps) {
@@ -191,13 +223,42 @@ export function ShiftEditModal({
   // After a series create/split with skipped days the modal shows this
   // notice instead of closing, so the admin sees which days were left out.
   const [seriesNotice, setSeriesNotice] = useState<string | null>(null);
-  // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft") for edits and
-  // deletes of a series-backed row.
+  const [closingDayPrompt, setClosingDayPrompt] = useState<{
+    conflict: ClosingDayConflict;
+    confirmationKey: string;
+    /** Welche Aktion nach dem Bestätigen weiterläuft. */
+    action: "submit" | "seriesRule";
+  } | null>(null);
+  const confirmedClosingConflict = useRef<string | null>(null);
+  // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft" / "Alle Termine
+  // der Serie") for edits and deletes of a series-backed row.
   const [scopeQuestion, setScopeQuestion] = useState<"edit" | "delete" | null>(
     null,
   );
 
+  // Serienbearbeitung (#2028): the rule behind this shift, plus the state of
+  // the "Alle Termine der Serie" editor. The rule is loaded whenever a series
+  // row is opened so its rhythm is visible right away instead of only after
+  // the user tries to save.
+  const [seriesRule, setSeriesRule] = useState<SeriesRule | null>(null);
+  const [seriesRuleError, setSeriesRuleError] = useState(false);
+  const [seriesEditOpen, setSeriesEditOpen] = useState(false);
+  const [seriesWeekdays, setSeriesWeekdays] = useState<number[]>([]);
+  const [seriesBiweekly, setSeriesBiweekly] = useState(false);
+  const [seriesAbPattern, setSeriesAbPattern] = useState<1 | 2>(1);
+  // The series editor temporarily reuses the occurrence fields. Keep their
+  // draft so returning to the occurrence cannot turn a later single save into
+  // an unintended series value.
+  const [occurrenceDraft, setOccurrenceDraft] =
+    useState<OccurrenceDraft | null>(null);
+  // Inclusive "Gültig bis" as shown in the picker; the stored valid_until is
+  // exclusive (converted on load and on save).
+  const [seriesValidUntil, setSeriesValidUntil] = useState("");
+
   const isSeriesRow = mode === "edit" && shift?.seriesId != null;
+  // A moved occurrence keeps its original recurrence slot. Series changes
+  // begin at that slot, so every editor hint must describe the same date.
+  const seriesEffectiveDate = shift?.seriesOccurrenceDate ?? date;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -214,7 +275,13 @@ export function ShiftEditModal({
     setAbTouched(false);
     setValidUntil("");
     setSeriesNotice(null);
+    setClosingDayPrompt(null);
+    confirmedClosingConflict.current = null;
     setScopeQuestion(null);
+    setSeriesRule(null);
+    setSeriesRuleError(false);
+    setSeriesEditOpen(false);
+    setOccurrenceDraft(null);
     setChangeReason(shift?.changeReason ?? "");
     setCancelled(shift?.cancelled ?? false);
     // Seed the replacement rows from the covers already attached to this shift
@@ -232,9 +299,11 @@ export function ShiftEditModal({
   }, [isOpen, initial, date, shift, existingReplacements]);
 
   // Calendar periods load once the series section is opened; the period is
-  // required (it bounds the series and anchors Woche A/B).
+  // required (it bounds the series and anchors Woche A/B). A series row needs
+  // them too: its own period decides whether Woche A/B is available at all
+  // (#2028).
   useEffect(() => {
-    if (!repeatEnabled || periods !== null) return;
+    if ((!repeatEnabled && !isSeriesRow) || periods !== null) return;
     let cancelled = false;
     calendarPeriodService
       .list()
@@ -254,7 +323,32 @@ export function ShiftEditModal({
     return () => {
       cancelled = true;
     };
-  }, [repeatEnabled, periods, date]);
+  }, [repeatEnabled, isSeriesRow, periods, date]);
+
+  // The rule behind a series shift (#2028). Loaded on open so the modal can
+  // state the rhythm up front — "Diese Schicht ist Teil einer Serie" alone
+  // does not tell the planner what the series actually does.
+  const seriesId = shift?.seriesId ?? null;
+  useEffect(() => {
+    if (!isOpen || mode !== "edit" || seriesId === null) return;
+    let cancelled = false;
+    staffShiftSeriesService
+      .getSeries(seriesId)
+      .then((rule) => {
+        if (!cancelled) setSeriesRule(rule);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("shift_series_load_failed", {
+          series_id: seriesId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setSeriesRuleError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, mode, seriesId]);
 
   const selectedPeriod = useMemo(
     () => periods?.find((p) => p.id === periodId) ?? null,
@@ -262,6 +356,60 @@ export function ShiftEditModal({
   );
   const periodHasCycle = (selectedPeriod?.weekCycleLength ?? 1) > 1;
   const defaultAbPattern = weekPatternForDate(selectedPeriod, date);
+  const effectiveWeekPattern = biweekly && periodHasCycle ? abPattern : 0;
+  const seriesClosingDayWindow = useMemo(() => {
+    if (!repeatEnabled || !selectedPeriod) return null;
+    const tomorrow = dayAfterISO(berlinTodayISO());
+    const from = latestISODate(date, selectedPeriod.startDate, tomorrow);
+    const to =
+      validUntil !== "" && validUntil < selectedPeriod.endDate
+        ? validUntil
+        : selectedPeriod.endDate;
+    const dates = weekdayDatesInRange(from, to, weekdays).filter((dateISO) =>
+      shouldMaterializeWeekPattern(
+        selectedPeriod,
+        dateISO,
+        effectiveWeekPattern,
+      ),
+    );
+    return { from, to, dates };
+  }, [
+    date,
+    effectiveWeekPattern,
+    repeatEnabled,
+    selectedPeriod,
+    validUntil,
+    weekdays,
+  ]);
+  const seriesClosingDayState = useClosingDaysState(
+    seriesClosingDayWindow?.from ?? "",
+    seriesClosingDayWindow?.to ?? "",
+  );
+  const seriesClosingDayConflict = useMemo(() => {
+    const dates = seriesClosingDayWindow?.dates ?? [];
+    for (const dateISO of dates) {
+      const reason = seriesClosingDayState.closingDays.get(dateISO);
+      if (reason !== undefined) return { dateISO, reason };
+    }
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    closingDayRanges,
+    seriesClosingDayState.closingDays,
+    seriesClosingDayWindow,
+  ]);
+  const seriesClosingDaysLoading =
+    seriesClosingDayWindow !== null && seriesClosingDayState.isLoading;
+  const closingDayConfirmationKey =
+    seriesClosingDayConflict === null
+      ? null
+      : JSON.stringify({
+          action: "create",
+          conflict: seriesClosingDayConflict,
+          weekdays,
+          periodId,
+          weekPattern: effectiveWeekPattern,
+          validUntil,
+        });
 
   // Default the A/B choice to the parity of the clicked week (mirrors the
   // timetable Wochenrhythmus control from #1882); a manual choice sticks.
@@ -269,6 +417,108 @@ export function ShiftEditModal({
     if (!biweekly || abTouched) return;
     if (defaultAbPattern !== null) setAbPattern(defaultAbPattern);
   }, [biweekly, abTouched, defaultAbPattern]);
+
+  // The series edits against its OWN period, not the create form's selection:
+  // that period decides whether Woche A/B exists and anchors the A/B parity.
+  const seriesPeriod = useMemo(
+    () => periods?.find((p) => p.id === seriesRule?.calendarPeriodId) ?? null,
+    [periods, seriesRule],
+  );
+  const seriesPeriodHasCycle = (seriesPeriod?.weekCycleLength ?? 1) > 1;
+  // The backend never re-plans today or the past, so a series edit takes effect
+  // tomorrow at the earliest (clamped up to the segment start). Every hint in
+  // the editor describes THIS date — showing the opened occurrence promised a
+  // change for a day the re-plan does not touch (#2028).
+  const seriesAppliesFrom = latestISODate(
+    seriesEffectiveDate,
+    dayAfterISO(berlinTodayISO()),
+    seriesRule?.validFrom ?? seriesEffectiveDate,
+  );
+  // "Gültig bis" is inclusive in the picker: the segment still has something to
+  // change while its last day is on or after the applies-from date. Without the
+  // check the save fails server-side with a 400 the planner cannot act on.
+  const seriesHasDateRange =
+    seriesValidUntil === "" || seriesValidUntil >= seriesAppliesFrom;
+  const seriesDefaultAbPattern = weekPatternForDate(
+    seriesPeriod,
+    seriesAppliesFrom,
+  );
+  // Keep the stored A/B pattern until the series period is available:
+  // otherwise a save while its metadata is still loading would silently turn
+  // an alternating series into a weekly one (#2028).
+  const seriesRuleWeekPattern =
+    seriesPeriod === null
+      ? (seriesRule?.weekPattern ?? 0)
+      : seriesBiweekly && seriesPeriodHasCycle
+        ? seriesAbPattern
+        : 0;
+
+  // Schließtage der Serienbearbeitung (#2032): "Alle Termine der Serie" plant
+  // ab dieser Stelle neu, kann also spätere Termine auf einen Schließtag
+  // legen — dieselbe Rückfrage wie beim Anlegen. Das Fenster beginnt frühestens
+  // morgen, weil die Materialisierung vergangene Tage ohnehin nicht anfasst.
+  const seriesEditClosingDayWindow = useMemo(() => {
+    if (!seriesEditOpen || !seriesPeriod) return null;
+    const from = latestISODate(seriesAppliesFrom, seriesPeriod.startDate);
+    const to =
+      seriesValidUntil !== "" && seriesValidUntil < seriesPeriod.endDate
+        ? seriesValidUntil
+        : seriesPeriod.endDate;
+    const dates = materializedRecurrenceDates({
+      period: seriesPeriod,
+      fromISO: from,
+      weekdays: seriesWeekdays,
+      weekPattern: seriesRuleWeekPattern,
+      validUntil:
+        seriesValidUntil === "" ? undefined : dayAfterISO(seriesValidUntil),
+    });
+    return { from, to, dates };
+  }, [
+    seriesEditOpen,
+    seriesAppliesFrom,
+    seriesPeriod,
+    seriesRuleWeekPattern,
+    seriesValidUntil,
+    seriesWeekdays,
+  ]);
+  const seriesEditClosingDayState = useClosingDaysState(
+    seriesEditClosingDayWindow?.from ?? "",
+    seriesEditClosingDayWindow?.to ?? "",
+  );
+  const seriesEditClosingDayConflict = useMemo(() => {
+    const dates = seriesEditClosingDayWindow?.dates ?? [];
+    for (const dateISO of dates) {
+      const reason = seriesEditClosingDayState.closingDays.get(dateISO);
+      if (reason !== undefined) return { dateISO, reason };
+    }
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    closingDayRanges,
+    seriesEditClosingDayState.closingDays,
+    seriesEditClosingDayWindow,
+  ]);
+  // Solange die Zeiträume fehlen, ist das Fenster nicht bestimmbar und die
+  // Rückfrage ließe sich durch schnelles Speichern umgehen. Bleibt der
+  // Zeitraum der Serie dauerhaft unauffindbar, wird nicht blockiert: die
+  // Markierung ist ein Hinweis, kein Sperrmechanismus.
+  const seriesEditClosingDaysLoading =
+    seriesEditOpen && (periods === null || seriesEditClosingDayState.isLoading);
+  const seriesHasRemainingOccurrence =
+    seriesHasDateRange &&
+    (seriesPeriod === null || seriesEditClosingDayWindow?.dates.length !== 0);
+  const seriesNoOccurrenceMessage = seriesHasDateRange
+    ? `Für die gewählten Wochentage und den Wochenrhythmus bleibt ab ${formatShortDate(seriesAppliesFrom)} kein Termin mehr. Setzen Sie „Gültig bis" auf ein späteres Datum oder ändern Sie die Wiederholung.`
+    : `Diese Serie endet am ${formatShortDate(seriesValidUntil)}, Änderungen wirken aber erst ab ${formatShortDate(seriesAppliesFrom)}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
+  const seriesEditConfirmationKey =
+    seriesEditClosingDayConflict === null
+      ? null
+      : JSON.stringify({
+          action: "seriesRule",
+          conflict: seriesEditClosingDayConflict,
+          weekdays: seriesWeekdays,
+          weekPattern: seriesRuleWeekPattern,
+          validUntil: seriesValidUntil,
+        });
 
   const timesValid = startTime !== "" && endTime !== "" && startTime < endTime;
   const breakMaxMinutes = timesValid
@@ -350,6 +600,95 @@ export function ShiftEditModal({
 
   const removeReplacement = (index: number) => {
     setReplacements((rows) => rows.filter((_, i) => i !== index));
+  };
+
+  const toggleSeriesWeekday = (value: number) => {
+    setSeriesWeekdays((current) =>
+      current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value].sort((a, b) => a - b),
+    );
+  };
+
+  /** Opens the series editor: the same shift modal, but editing the rule
+   *  behind the shift (weekdays, rhythm, window, validity) instead of the
+   *  single day. */
+  const openSeriesEdit = () => {
+    if (!seriesRule) {
+      setError(
+        "Die Serie konnte nicht geladen werden. Bitte schließen Sie das Fenster und versuchen Sie es erneut.",
+      );
+      return;
+    }
+    setError(null);
+    setOccurrenceDraft({ startTime, endTime, breakMinutesStr, shiftTypeId });
+    setSeriesWeekdays([...seriesRule.weekdays].sort((a, b) => a - b));
+    setSeriesBiweekly(seriesRule.weekPattern !== 0);
+    setSeriesAbPattern(seriesRule.weekPattern === 2 ? 2 : 1);
+    // Stored valid_until is exclusive, the picker inclusive.
+    setSeriesValidUntil(
+      seriesRule.validUntil ? dayBeforeISO(seriesRule.validUntil) : "",
+    );
+    setStartTime(seriesRule.startTime);
+    setEndTime(seriesRule.endTime);
+    setBreakMinutesStr(String(seriesRule.breakMinutes));
+    setShiftTypeId(seriesRule.shiftTypeId ?? "");
+    setSeriesEditOpen(true);
+  };
+
+  /** Writes the edited rule through the existing split: it takes effect from
+   *  this occurrence onwards, days before it keep the old rule. That is the
+   *  one behaviour a series edit has — no second write path (#2028). */
+  const saveSeriesRule = async () => {
+    if (!seriesRule || !shift) return;
+    if (!validateInputs()) return;
+    if (seriesWeekdays.length === 0) {
+      setError("Bitte mindestens einen Wochentag auswählen.");
+      return;
+    }
+    if (!seriesHasRemainingOccurrence) {
+      setError(seriesNoOccurrenceMessage);
+      return;
+    }
+    // Schließtag-Rückfrage vor dem Neuplanen (#2032).
+    if (seriesEditClosingDaysLoading) return;
+    if (
+      seriesEditClosingDayConflict !== null &&
+      seriesEditConfirmationKey !== null &&
+      confirmedClosingConflict.current !== seriesEditConfirmationKey
+    ) {
+      setClosingDayPrompt({
+        conflict: seriesEditClosingDayConflict,
+        confirmationKey: seriesEditConfirmationKey,
+        action: "seriesRule",
+      });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
+        effectiveDate: seriesEffectiveDate,
+        occurrenceShiftId: shift.id,
+        startTime,
+        endTime,
+        breakMinutes: breakMinutes ?? 0,
+        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+        weekdays: seriesWeekdays,
+        weekPattern: seriesRuleWeekPattern,
+        // The picker is inclusive, the API's valid_until exclusive.
+        validUntil:
+          seriesValidUntil === "" ? null : dayAfterISO(seriesValidUntil),
+      });
+      finishSeriesMutation(result);
+    } catch (err: unknown) {
+      logger.error("shift_series_rule_save_failed", {
+        series_id: seriesRule.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(getShiftMutationErrorMessage(err, "speichern"));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleWeekday = (value: number) => {
@@ -523,7 +862,8 @@ export function ShiftEditModal({
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(shift.seriesId, {
-        effectiveDate: shift.date,
+        effectiveDate: seriesEffectiveDate,
+        occurrenceShiftId: shift.id,
         startTime,
         endTime,
         breakMinutes: breakMinutes ?? 0,
@@ -546,6 +886,19 @@ export function ShiftEditModal({
   const handleSubmit = async () => {
     if (!validateInputs()) return;
     if (mode === "create" && repeatEnabled) {
+      if (seriesClosingDaysLoading) return;
+      if (
+        seriesClosingDayConflict !== null &&
+        closingDayConfirmationKey !== null &&
+        confirmedClosingConflict.current !== closingDayConfirmationKey
+      ) {
+        setClosingDayPrompt({
+          conflict: seriesClosingDayConflict,
+          confirmationKey: closingDayConfirmationKey,
+          action: "submit",
+        });
+        return;
+      }
       await createSeries();
       return;
     }
@@ -585,13 +938,16 @@ export function ShiftEditModal({
     if (!shift?.seriesId) return;
     setIsDeleting(true);
     try {
-      await staffShiftSeriesService.endSeries(shift.seriesId, shift.date);
+      await staffShiftSeriesService.endSeries(
+        shift.seriesId,
+        seriesEffectiveDate,
+      );
       onSaved();
       onClose();
     } catch (err: unknown) {
       logger.error("shift_series_end_failed", {
         series_id: shift.seriesId,
-        date: shift.date,
+        date: seriesEffectiveDate,
         error: err instanceof Error ? err.message : String(err),
       });
       setError(getShiftMutationErrorMessage(err, "löschen"));
@@ -621,15 +977,61 @@ export function ShiftEditModal({
     }
   };
 
-  const title =
-    mode === "edit"
+  const title = seriesEditOpen
+    ? "Serie bearbeiten"
+    : mode === "edit"
       ? `Schicht bearbeiten · ${formatLongDate(date)}`
       : `Schicht anlegen · ${formatLongDate(date)}`;
+
+  // The series editor writes the rule, not this day — so it gets its own
+  // footer: no per-day delete, and a back route to the single occurrence.
+  const seriesFooter = (
+    <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => {
+          if (occurrenceDraft) {
+            setStartTime(occurrenceDraft.startTime);
+            setEndTime(occurrenceDraft.endTime);
+            setBreakMinutesStr(occurrenceDraft.breakMinutesStr);
+            setShiftTypeId(occurrenceDraft.shiftTypeId);
+          }
+          setSeriesEditOpen(false);
+          setOccurrenceDraft(null);
+          setError(null);
+        }}
+        disabled={isSaving}
+      >
+        Zurück
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={() => void saveSeriesRule()}
+        isLoading={isSaving}
+        loadingText="Speichern…"
+        disabled={
+          isSaving ||
+          !timesValid ||
+          !breakValid ||
+          seriesWeekdays.length === 0 ||
+          seriesEditClosingDaysLoading
+        }
+      >
+        Serie speichern
+      </Button>
+    </div>
+  );
 
   const footer = seriesNotice ? (
     <Button type="button" variant="primary" size="md" onClick={onClose}>
       Schließen
     </Button>
+  ) : seriesEditOpen ? (
+    seriesFooter
   ) : (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center">
       {mode === "edit" && shift && (
@@ -661,7 +1063,12 @@ export function ShiftEditModal({
         isLoading={isSaving}
         loadingText="Speichern…"
         disabled={
-          isSaving || isDeleting || !timesValid || !breakValid || !seriesValid
+          isSaving ||
+          isDeleting ||
+          !timesValid ||
+          !breakValid ||
+          !seriesValid ||
+          seriesClosingDaysLoading
         }
       >
         {submitLabel(mode, repeatEnabled)}
@@ -669,13 +1076,13 @@ export function ShiftEditModal({
     </div>
   );
 
-  const scopeOverlayOpen = scopeQuestion !== null;
+  const scopeOverlayOpen = scopeQuestion !== null || closingDayPrompt !== null;
 
   return (
     <>
-      {/* Hidden while the delete confirmation or the scope question is open —
-          all use the same fixed z-index, so stacking them puts the topmost
-          dialog's buttons behind this modal's body. */}
+      {/* Hidden while another confirmation is open — all use the same fixed
+          z-index, so stacking them puts the topmost dialog's buttons behind
+          this modal's body. */}
       <Modal
         isOpen={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
         onClose={onClose}
@@ -693,11 +1100,39 @@ export function ShiftEditModal({
           <div className="space-y-4 text-sm">
             <p className="text-sm text-gray-600">{staffName}</p>
             {isSeriesRow && (
-              <p className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                {shift?.detached
-                  ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
-                  : "Diese Schicht ist Teil einer Serie."}
-              </p>
+              // The series panel states the rule itself (#2028). Knowing only
+              // "Teil einer Serie" leaves the planner guessing which days the
+              // series covers and how far it runs — and the way to the whole
+              // series used to exist only as a dialog after Speichern.
+              <div className="space-y-2 rounded-md bg-gray-50 px-3 py-2.5">
+                <p className="text-xs text-gray-600">
+                  {shift?.detached
+                    ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
+                    : "Diese Schicht ist Teil einer Serie."}
+                </p>
+                {seriesRule && (
+                  <p className="text-xs font-medium text-gray-800">
+                    {describeSeriesRule(seriesRule)}
+                  </p>
+                )}
+                {seriesRuleError && (
+                  <p className="text-xs text-gray-500">
+                    Die Serienangaben konnten nicht geladen werden. Änderungen
+                    an dieser Schicht sind weiterhin möglich.
+                  </p>
+                )}
+                {!seriesEditOpen && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    onClick={openSeriesEdit}
+                    disabled={seriesRule === null || isSaving || isDeleting}
+                  >
+                    Serie bearbeiten
+                  </Button>
+                )}
+              </div>
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Beginn">
@@ -741,7 +1176,7 @@ export function ShiftEditModal({
                 />
               </Field>
             )}
-            {mode === "edit" && (
+            {mode === "edit" && !seriesEditOpen && (
               <Field label="Grund der Änderung (optional)">
                 <input
                   type="text"
@@ -773,110 +1208,185 @@ export function ShiftEditModal({
                 Diese Schicht ist eine Vertretung für eine ausgefallene Schicht.
               </p>
             )}
-            {mode === "edit" && shift && !isReplacementRow && (
+            {seriesEditOpen && seriesRule && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">
-                <label
-                  htmlFor="shift-cancel-toggle"
-                  className="flex items-center gap-2"
-                >
-                  <Checkbox
-                    id="shift-cancel-toggle"
-                    checked={cancelled}
-                    // Keep the replacement rows across an un-check/re-check: the
-                    // section is hidden while unchecked and the save only sends
-                    // replacements when `cancelled` is true, so clearing here
-                    // would erase the existing covers for a reactivation that was
-                    // never submitted — and re-checking must bring them back
-                    // rather than silently wiping every cover on save (#1841).
-                    onChange={(e) => setCancelled(e.target.checked)}
+                <p className="text-xs text-gray-600">
+                  {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
+                </p>
+                <FieldGroup label="Wochentage">
+                  <WeekdayPicker
+                    idPrefix="shift-series-edit"
+                    weekdays={seriesWeekdays}
+                    onToggle={toggleSeriesWeekday}
                   />
-                  <span className="text-sm font-medium text-gray-800">
-                    Diese Schicht fällt aus
-                  </span>
-                </label>
-                {cancelled && (
-                  <div className="space-y-3">
-                    <p className="text-xs text-gray-500">
-                      Die Schicht zählt nicht mehr zur geplanten Zeit. Ohne
-                      Vertretung bleibt die Lücke bewusst offen; sonst tragen
-                      Sie eine oder mehrere Ersatzpersonen ein.
-                    </p>
-                    {replacements.map((row, index) => (
-                      <div
-                        key={getStableObjectKey(row, "replacement")}
-                        className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                            Vertretung {index + 1}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="compact"
-                            onClick={() => removeReplacement(index)}
-                          >
-                            Entfernen
-                          </Button>
-                        </div>
-                        <CustomSelect
-                          value={row.staffId}
-                          options={replacementStaffOptions}
-                          onChange={(value) =>
-                            updateReplacement(index, { staffId: value })
-                          }
-                          ariaLabel={`Ersatzperson ${index + 1}`}
-                          placeholder="Person auswählen"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <Field label="Beginn">
-                            <input
-                              type="time"
-                              aria-label={`Vertretung ${index + 1} Beginn`}
-                              value={row.startTime}
-                              onChange={(e) =>
-                                updateReplacement(index, {
-                                  startTime: e.target.value,
-                                })
-                              }
-                              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
-                            />
-                          </Field>
-                          <Field label="Ende">
-                            <input
-                              type="time"
-                              aria-label={`Vertretung ${index + 1} Ende`}
-                              value={row.endTime}
-                              onChange={(e) =>
-                                updateReplacement(index, {
-                                  endTime: e.target.value,
-                                })
-                              }
-                              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
-                            />
-                          </Field>
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      onClick={addReplacement}
-                      disabled={replacementStaffOptions.length <= 1}
-                    >
-                      + Vertretung hinzufügen
-                    </Button>
-                    {replacementStaffOptions.length <= 1 && (
-                      <p className="text-xs text-gray-500">
-                        Keine andere Person verfügbar, um eine Vertretung
-                        einzutragen.
-                      </p>
-                    )}
-                  </div>
+                </FieldGroup>
+                <FieldGroup label="Wochenrhythmus">
+                  <RhythmPicker
+                    idPrefix="shift-series-edit"
+                    biweekly={seriesBiweekly}
+                    onBiweeklyChange={setSeriesBiweekly}
+                    abPattern={seriesAbPattern}
+                    onAbPatternChange={setSeriesAbPattern}
+                    periodHasCycle={seriesPeriodHasCycle}
+                    weekHint={
+                      seriesDefaultAbPattern !== null
+                        ? `Die Woche vom ${formatShortDate(seriesAppliesFrom)} ist Woche ${
+                            seriesDefaultAbPattern === 1 ? "A" : "B"
+                          }.`
+                        : undefined
+                    }
+                  />
+                </FieldGroup>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* The date the change actually takes effect: the opened
+                      occurrence, moved forward to tomorrow when it already
+                      passed — the re-plan never touches today or earlier. */}
+                  <Field label="Gilt ab">
+                    <input
+                      type="text"
+                      value={formatShortDate(seriesAppliesFrom)}
+                      disabled
+                      className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
+                    />
+                  </Field>
+                  {/* FieldGroup, not Field — see the create block: a label
+                      around the DatePicker re-dispatches clicks. */}
+                  <FieldGroup label="Gültig bis (optional)">
+                    <DatePicker
+                      value={
+                        seriesValidUntil === ""
+                          ? null
+                          : parseISODate(seriesValidUntil)
+                      }
+                      onChange={(picked) =>
+                        setSeriesValidUntil(picked ? toISODate(picked) : "")
+                      }
+                      placeholder="Datum auswählen"
+                    />
+                  </FieldGroup>
+                </div>
+                {/* Say it before the save fails: a segment whose last day has
+                    arrived has nothing left for the re-plan to change (#2028). */}
+                {!seriesHasRemainingOccurrence && (
+                  <p
+                    className="rounded-md px-3 py-2 text-xs"
+                    style={{
+                      backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
+                      color: LOCATION_COLORS.SCHOOLYARD,
+                    }}
+                  >
+                    {seriesNoOccurrenceMessage}
+                  </p>
                 )}
               </div>
             )}
+            {mode === "edit" &&
+              shift &&
+              !isReplacementRow &&
+              !seriesEditOpen && (
+                <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <label
+                    htmlFor="shift-cancel-toggle"
+                    className="flex items-center gap-2"
+                  >
+                    <Checkbox
+                      id="shift-cancel-toggle"
+                      checked={cancelled}
+                      // Keep the replacement rows across an un-check/re-check: the
+                      // section is hidden while unchecked and the save only sends
+                      // replacements when `cancelled` is true, so clearing here
+                      // would erase the existing covers for a reactivation that was
+                      // never submitted — and re-checking must bring them back
+                      // rather than silently wiping every cover on save (#1841).
+                      onChange={(e) => setCancelled(e.target.checked)}
+                    />
+                    <span className="text-sm font-medium text-gray-800">
+                      Diese Schicht fällt aus
+                    </span>
+                  </label>
+                  {cancelled && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-gray-500">
+                        Die Schicht zählt nicht mehr zur geplanten Zeit. Ohne
+                        Vertretung bleibt die Lücke bewusst offen; sonst tragen
+                        Sie eine oder mehrere Ersatzpersonen ein.
+                      </p>
+                      {replacements.map((row, index) => (
+                        <div
+                          key={getStableObjectKey(row, "replacement")}
+                          className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                              Vertretung {index + 1}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="compact"
+                              onClick={() => removeReplacement(index)}
+                            >
+                              Entfernen
+                            </Button>
+                          </div>
+                          <CustomSelect
+                            value={row.staffId}
+                            options={replacementStaffOptions}
+                            onChange={(value) =>
+                              updateReplacement(index, { staffId: value })
+                            }
+                            ariaLabel={`Ersatzperson ${index + 1}`}
+                            placeholder="Person auswählen"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Field label="Beginn">
+                              <input
+                                type="time"
+                                aria-label={`Vertretung ${index + 1} Beginn`}
+                                value={row.startTime}
+                                onChange={(e) =>
+                                  updateReplacement(index, {
+                                    startTime: e.target.value,
+                                  })
+                                }
+                                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                              />
+                            </Field>
+                            <Field label="Ende">
+                              <input
+                                type="time"
+                                aria-label={`Vertretung ${index + 1} Ende`}
+                                value={row.endTime}
+                                onChange={(e) =>
+                                  updateReplacement(index, {
+                                    endTime: e.target.value,
+                                  })
+                                }
+                                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                              />
+                            </Field>
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        onClick={addReplacement}
+                        disabled={replacementStaffOptions.length <= 1}
+                      >
+                        + Vertretung hinzufügen
+                      </Button>
+                      {replacementStaffOptions.length <= 1 && (
+                        <p className="text-xs text-gray-500">
+                          Keine andere Person verfügbar, um eine Vertretung
+                          einzutragen.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             {mode === "create" && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">
                 <label
@@ -895,24 +1405,11 @@ export function ShiftEditModal({
                 {repeatEnabled && (
                   <div className="space-y-3">
                     <FieldGroup label="Wochentage">
-                      <div className="flex flex-wrap gap-2">
-                        {WEEKDAY_OPTIONS.map((option) => (
-                          <label
-                            key={option.value}
-                            htmlFor={`shift-series-weekday-${option.value}`}
-                            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
-                          >
-                            <Checkbox
-                              id={`shift-series-weekday-${option.value}`}
-                              checked={weekdays.includes(option.value)}
-                              onChange={() => toggleWeekday(option.value)}
-                            />
-                            <span className="text-xs font-medium text-gray-700">
-                              {option.label}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
+                      <WeekdayPicker
+                        idPrefix="shift-series"
+                        weekdays={weekdays}
+                        onToggle={toggleWeekday}
+                      />
                     </FieldGroup>
                     <Field label="Kalenderzeitraum">
                       {periods !== null && periodOptions.length === 0 ? (
@@ -934,95 +1431,24 @@ export function ShiftEditModal({
                       )}
                     </Field>
                     <FieldGroup label="Wochenrhythmus">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          <label
-                            htmlFor="shift-series-rhythm-weekly"
-                            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
-                          >
-                            <Radio
-                              id="shift-series-rhythm-weekly"
-                              name="shift-series-rhythm"
-                              value="weekly"
-                              checked={!biweekly}
-                              onChange={() => setBiweekly(false)}
-                            />
-                            <span className="text-xs font-medium text-gray-700">
-                              Jede Woche
-                            </span>
-                          </label>
-                          <label
-                            htmlFor="shift-series-rhythm-biweekly"
-                            className={
-                              periodHasCycle
-                                ? "flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
-                                : "flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5 opacity-50"
-                            }
-                          >
-                            <Radio
-                              id="shift-series-rhythm-biweekly"
-                              name="shift-series-rhythm"
-                              value="biweekly"
-                              checked={biweekly}
-                              onChange={() => setBiweekly(true)}
-                              disabled={!periodHasCycle}
-                            />
-                            <span className="text-xs font-medium text-gray-700">
-                              Alle 2 Wochen
-                            </span>
-                          </label>
-                        </div>
-                        {!periodHasCycle && (
-                          <p className="text-xs text-gray-500">
-                            Woche A/B benötigt einen Kalenderzeitraum mit
-                            gepflegtem Wochenzyklus.
-                          </p>
-                        )}
-                        {biweekly && periodHasCycle && (
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap gap-2">
-                              <label
-                                htmlFor="shift-series-ab-pattern-a"
-                                className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
-                              >
-                                <Radio
-                                  id="shift-series-ab-pattern-a"
-                                  name="shift-series-ab-pattern"
-                                  value="a"
-                                  checked={abPattern === 1}
-                                  onClick={() => setAbTouched(true)}
-                                  onChange={() => setAbPattern(1)}
-                                />
-                                <span className="text-xs font-medium text-gray-700">
-                                  Woche A
-                                </span>
-                              </label>
-                              <label
-                                htmlFor="shift-series-ab-pattern-b"
-                                className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
-                              >
-                                <Radio
-                                  id="shift-series-ab-pattern-b"
-                                  name="shift-series-ab-pattern"
-                                  value="b"
-                                  checked={abPattern === 2}
-                                  onClick={() => setAbTouched(true)}
-                                  onChange={() => setAbPattern(2)}
-                                />
-                                <span className="text-xs font-medium text-gray-700">
-                                  Woche B
-                                </span>
-                              </label>
-                            </div>
-                            {defaultAbPattern !== null && (
-                              <p className="text-xs text-gray-500">
-                                Die Woche vom {formatShortDate(date)} ist Woche{" "}
-                                {defaultAbPattern === 1 ? "A" : "B"}.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <RhythmPicker
+                        idPrefix="shift-series"
+                        biweekly={biweekly}
+                        onBiweeklyChange={setBiweekly}
+                        abPattern={abPattern}
+                        onAbPatternChange={(next) => {
+                          setAbTouched(true);
+                          setAbPattern(next);
+                        }}
+                        periodHasCycle={periodHasCycle}
+                        weekHint={
+                          defaultAbPattern !== null
+                            ? `Die Woche vom ${formatShortDate(date)} ist Woche ${
+                                defaultAbPattern === 1 ? "A" : "B"
+                              }.`
+                            : undefined
+                        }
+                      />
                     </FieldGroup>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Field label="Gültig ab">
@@ -1067,6 +1493,21 @@ export function ShiftEditModal({
           </div>
         )}
       </Modal>
+      {closingDayPrompt !== null && (
+        <ClosingDayConfirmModal
+          dateISO={closingDayPrompt.conflict.dateISO}
+          reason={closingDayPrompt.conflict.reason}
+          subject="schicht"
+          onCancel={() => setClosingDayPrompt(null)}
+          onConfirm={() => {
+            const { action, confirmationKey } = closingDayPrompt;
+            confirmedClosingConflict.current = confirmationKey;
+            setClosingDayPrompt(null);
+            if (action === "seriesRule") void saveSeriesRule();
+            else void handleSubmit();
+          }}
+        />
+      )}
       <ConfirmDeleteModal
         isOpen={confirmDeleteOpen}
         title="Schicht löschen"
@@ -1130,6 +1571,25 @@ export function ShiftEditModal({
   );
 }
 
+/** One line describing what a series does: "Mo, Mi · 08:00–16:00 · Woche A ·
+ *  bis 31.01.2027". Without it "Teil einer Serie" leaves the planner guessing
+ *  which days are covered and how long the rule runs (#2028). */
+function describeSeriesRule(rule: SeriesRule): string {
+  const parts = [
+    formatWeekdays(rule.weekdays),
+    `${rule.startTime}–${rule.endTime}`,
+  ];
+  if (rule.weekPattern === 1) parts.push("Woche A");
+  if (rule.weekPattern === 2) parts.push("Woche B");
+  parts.push(
+    rule.validUntil
+      ? // valid_until is exclusive; the last day WITH a shift is the day before.
+        `bis ${formatShortDate(dayBeforeISO(rule.validUntil))}`
+      : "bis Ende des Kalenderzeitraums",
+  );
+  return parts.filter(Boolean).join(" · ");
+}
+
 function submitLabel(mode: ShiftEditMode, repeatEnabled: boolean): string {
   if (mode === "edit") return "Änderungen speichern";
   return repeatEnabled ? "Serie anlegen" : "Schicht anlegen";
@@ -1179,6 +1639,14 @@ function FieldGroup({
 function dayAfterISO(isoDate: string): string {
   const d = parseISODate(isoDate);
   d.setDate(d.getDate() + 1);
+  return toISODate(d);
+}
+
+// Inverse of dayAfterISO: turns the stored exclusive valid_until back into the
+// inclusive "Gültig bis" the picker and the summary line show.
+function dayBeforeISO(isoDate: string): string {
+  const d = parseISODate(isoDate);
+  d.setDate(d.getDate() - 1);
   return toISODate(d);
 }
 

@@ -512,6 +512,26 @@ func TestGetStudent(t *testing.T) {
 
 		testutil.AssertBadRequest(t, rr)
 	})
+
+	// A graduated (alumnus) student is soft-deleted. GetStudentByID is
+	// unfiltered, so the shared parseAndGetStudent gate must reject a bookmarked
+	// or directly-called per-student route with 404 — the same status these
+	// routes returned when graduates were hard-deleted (#405).
+	t.Run("not_found_for_alumnus", func(t *testing.T) {
+		alumnus := testpkg.CreateTestStudent(t, tc.db, "Graduated", "Alumnus", "GS-Alum")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, alumnus.ID)
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+			Where("id = ?", alumnus.ID).
+			Exec(t.Context())
+		require.NoError(t, err)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", alumnus.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertNotFound(t, rr)
+	})
 }
 
 // =============================================================================
@@ -1750,4 +1770,81 @@ func countString(values []string, needle string) int {
 		}
 	}
 	return count
+}
+
+// TestListStudents_AlumniHidden verifies graduated (alumnus) students are
+// invisible to the staff student list and the school-classes endpoint. Their
+// rows survive in the DB (soft delete via grade transitions), so the API layer
+// must filter them out everywhere staff browse students.
+func TestListStudents_AlumniHidden(t *testing.T) {
+	tc := setupTestContext(t)
+
+	alumniClass := fmt.Sprintf("AlumHidden-%d", time.Now().UnixNano()%1_000_000)
+
+	visible := testpkg.CreateTestStudent(t, tc.db, "Visible", "Kid", alumniClass)
+	hidden := testpkg.CreateTestStudent(t, tc.db, "Hidden", "Alumnus", alumniClass)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, visible.ID, hidden.ID)
+
+	_, err := tc.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Where("id = ?", hidden.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	t.Run("list excludes alumni", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s", alumniClass), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+		var resp struct {
+			Data []struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+
+		ids := make([]int64, 0, len(resp.Data))
+		for _, s := range resp.Data {
+			ids = append(ids, s.ID)
+		}
+		assert.Contains(t, ids, visible.ID)
+		assert.NotContains(t, ids, hidden.ID)
+	})
+
+	t.Run("search excludes alumni", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/?search=Hidden+Alumnus", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var resp struct {
+			Data []struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		for _, s := range resp.Data {
+			assert.NotEqual(t, hidden.ID, s.ID, "alumnus must not be searchable")
+		}
+	})
+
+	t.Run("school-classes excludes alumni-only classes", func(t *testing.T) {
+		// Graduate the remaining active student too — class disappears entirely
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+			Where("id = ?", visible.ID).
+			Exec(t.Context())
+		require.NoError(t, err)
+
+		req := testutil.NewRequest("GET", "/school-classes", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var resp struct {
+			Data []string `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.NotContains(t, resp.Data, alumniClass)
+	})
 }

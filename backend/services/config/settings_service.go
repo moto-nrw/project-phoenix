@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -22,6 +25,51 @@ type settingsService struct {
 	schoolRepo platform.SchoolRepository
 	db         *bun.DB
 	logger     *slog.Logger
+	// classRestrictionGuard, when set, reports whether the tenant in
+	// context currently has an active enrollment phase that restricts
+	// eligibility to specific school classes. It gates disabling the
+	// concrete-class collection toggles so an admin cannot make every
+	// submission to such a phase fail (#1663). Optional: nil skips the
+	// guard (unit tests, callers that never wire enrollment). Injected via
+	// SetClassRestrictionGuard to keep the config package decoupled from
+	// the enrollment domain.
+	classRestrictionGuard func(ctx context.Context) (bool, error)
+	// gradeRestrictionGuard is the same probe for phases restricted to
+	// specific GRADE LEVELS. Separate from classRestrictionGuard because the
+	// two hang off different toggles: a grade restriction only needs
+	// collect_grade_level, so disabling collect_school_class must not be
+	// blocked by it (#1663). Optional in the same way; injected via
+	// SetGradeRestrictionGuard.
+	gradeRestrictionGuard func(ctx context.Context) (bool, error)
+	// gradeCapGuard reports the highest grade any active phase restricts
+	// itself to (0 when none does). It gates LOWERING
+	// enrollment.grade_level_max: the public form only offers grades up to the
+	// cap and the submit path re-checks it, so a cap below a live restriction
+	// leaves that phase unable to accept any submission (#1663). Optional in
+	// the same way as the two probes above; injected via SetGradeCapGuard.
+	gradeCapGuard func(ctx context.Context) (int, error)
+}
+
+// SetClassRestrictionGuard wires the enrollment class-restriction probe used
+// by the concrete-class collection guard. Kept off the constructor (and off
+// the SettingsService interface) so existing call sites and tests are
+// unaffected; the factory sets it after construction (#1663).
+func (s *settingsService) SetClassRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
+	s.classRestrictionGuard = fn
+}
+
+// SetGradeRestrictionGuard wires the enrollment grade-restriction probe used
+// by the grade-level collection guard, following the same off-constructor
+// convention as SetClassRestrictionGuard (#1663).
+func (s *settingsService) SetGradeRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
+	s.gradeRestrictionGuard = fn
+}
+
+// SetGradeCapGuard wires the enrollment highest-restricted-grade probe used by
+// the grade-level-cap guard, following the same off-constructor convention as
+// SetClassRestrictionGuard (#1663).
+func (s *settingsService) SetGradeCapGuard(fn func(ctx context.Context) (int, error)) {
+	s.gradeCapGuard = fn
 }
 
 // NewSettingsService creates a new SettingsService.
@@ -44,48 +92,175 @@ func NewSettingsService(
 // Resolve returns the value for a setting: tenant override if it exists,
 // otherwise the registry default.
 func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) {
-	def := config.GetDefinition(key)
-	if def == nil {
-		return nil, &SettingsError{
-			Op:  "resolve",
-			Err: &DefinitionNotFoundError{Key: key},
-		}
+	snapshot, err := s.ResolveMany(ctx, []string{key})
+	if err != nil {
+		return nil, err
 	}
+	return snapshot.Value(key)
+}
 
+// ResolveMany resolves several settings in one repository query. A compatible
+// context snapshot wins, which lets scheduler-invoked downstream services
+// share the minute snapshot without knowing about scheduler internals. Below
+// the explicit snapshot sits the request-scoped memo cache (issue #2065):
+// within one request every (tenant_id, key) pair is loaded from PostgreSQL at
+// most once; only cache-missing keys reach the repository.
+func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error) {
 	tenantID := tenant.FromContext(ctx)
-	if tenantID > 0 {
-		sv, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
-		if err != nil {
-			return nil, &SettingsError{Op: "resolve", Err: err}
-		}
-		if sv != nil {
-			var value any
-			if err := json.Unmarshal(sv.Value, &value); err != nil {
-				return nil, &SettingsError{Op: "resolve", Err: fmt.Errorf("unmarshal value: %w", err)}
+	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
+		// Explicit snapshots are returned as-is and deliberately NEVER copied
+		// into the request cache: the scheduler's minute snapshot may be up to
+		// a minute old, and promoting its values into request scope would
+		// leak that staleness into paths that expect request freshness.
+		return snapshot, nil
+	}
+
+	if tenantID <= 0 || len(keys) == 0 {
+		return newSettingsSnapshot(tenantID, keys, nil)
+	}
+
+	// Validate every key up front so an unknown key fails deterministically
+	// regardless of which keys happen to be cached already.
+	for _, key := range keys {
+		if config.GetDefinition(key) == nil {
+			return nil, &SettingsError{
+				Op:  "resolve_many",
+				Err: &DefinitionNotFoundError{Key: key},
 			}
-			return value, nil
 		}
 	}
 
-	return def.Default, nil
+	cache := requestCacheFromContext(ctx)
+	if cache == nil {
+		stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, keys)
+		if err != nil {
+			return nil, &SettingsError{Op: "resolve_many", Err: err}
+		}
+		return newSettingsSnapshot(tenantID, keys, stored)
+	}
+
+	resolved, missing := cache.lookup(tenantID, keys)
+	if len(missing) > 0 {
+		stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, missing)
+		if err != nil {
+			return nil, &SettingsError{Op: "resolve_many", Err: err}
+		}
+		loaded, err := newSettingsSnapshot(tenantID, missing, stored)
+		if err != nil {
+			return nil, err
+		}
+		cache.store(tenantID, loaded.values)
+		maps.Copy(resolved, loaded.values)
+	}
+	return newSettingsSnapshotFromValues(tenantID, resolved), nil
+}
+
+// ResolveManyForTenant resolves several settings inside one tenant
+// transaction. A matching context snapshot avoids both the transaction and
+// query when a scheduler already prefetched the values, and a full
+// request-cache hit skips the tenant transaction entirely (issue #2065).
+func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error) {
+	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
+		return snapshot, nil
+	}
+
+	// Consult the request cache only when the ambient tenant context is absent
+	// or matches tenantID: a mismatched ambient tenant must still reach
+	// WithTenantTx below so its nested-transaction guard surfaces the wiring
+	// bug instead of the cache silently succeeding.
+	if ctxTenant := tenant.FromContext(ctx); tenantID > 0 && len(keys) > 0 &&
+		(ctxTenant == 0 || ctxTenant == tenantID) {
+		if cache := requestCacheFromContext(ctx); cache != nil {
+			for _, key := range keys {
+				if config.GetDefinition(key) == nil {
+					return nil, &SettingsError{
+						Op:  "resolve_many",
+						Err: &DefinitionNotFoundError{Key: key},
+					}
+				}
+			}
+			if resolved, missing := cache.lookup(tenantID, keys); len(missing) == 0 {
+				return newSettingsSnapshotFromValues(tenantID, resolved), nil
+			}
+		}
+	}
+
+	var result *SettingsSnapshot
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var resolveErr error
+		result, resolveErr = s.ResolveMany(txCtx, keys)
+		return resolveErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ResolveManyForTenants resolves all tenant/key pairs in one privileged query.
+// Registry defaults are filled independently for every requested tenant.
+// Deliberately NOT request-cached: its only callers are the scheduler (which
+// owns the minute snapshot) and other admin-tx batch paths that already
+// coalesce their reads.
+func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*SettingsSnapshot, error) {
+	uniqueTenantIDs := make([]int64, 0, len(tenantIDs))
+	seenTenantIDs := make(map[int64]struct{}, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		if tenantID <= 0 {
+			continue
+		}
+		if _, seen := seenTenantIDs[tenantID]; seen {
+			continue
+		}
+		seenTenantIDs[tenantID] = struct{}{}
+		uniqueTenantIDs = append(uniqueTenantIDs, tenantID)
+	}
+
+	result := make(map[int64]*SettingsSnapshot, len(uniqueTenantIDs))
+	if len(uniqueTenantIDs) == 0 {
+		return result, nil
+	}
+
+	var stored []*config.SettingValue
+	if len(keys) > 0 {
+		err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+			var findErr error
+			stored, findErr = s.valueRepo.FindByTenantsAndKeys(txCtx, uniqueTenantIDs, keys)
+			return findErr
+		})
+		if err != nil {
+			return nil, &SettingsError{Op: "resolve_many_for_tenants", Err: err}
+		}
+	}
+
+	storedByTenant := make(map[int64][]*config.SettingValue, len(uniqueTenantIDs))
+	for _, value := range stored {
+		if value == nil {
+			continue
+		}
+		tenantID := value.GetTenantID()
+		if _, requested := seenTenantIDs[tenantID]; requested {
+			storedByTenant[tenantID] = append(storedByTenant[tenantID], value)
+		}
+	}
+	for _, tenantID := range uniqueTenantIDs {
+		snapshot, err := newSettingsSnapshot(tenantID, keys, storedByTenant[tenantID])
+		if err != nil {
+			return nil, err
+		}
+		result[tenantID] = snapshot
+	}
+	return result, nil
 }
 
 // ResolveStringForTenant resolves a setting as a string for a specific tenant,
 // wrapping the query in a tenant transaction to satisfy RLS.
 func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error) {
-	var result string
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		val, resolveErr := s.ResolveString(txCtx, key)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		result = val
-		return nil
-	})
+	snapshot, err := s.ResolveManyForTenant(ctx, tenantID, []string{key})
 	if err != nil {
 		return "", err
 	}
-	return result, nil
+	return snapshot.String(key)
 }
 
 // ResolveBoolForTenant resolves a setting as a bool for a specific tenant,
@@ -93,115 +268,78 @@ func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID i
 // call sites that run outside TenantTxMiddleware (e.g. /auth/mfa/verify)
 // but already know which tenant they're acting on.
 func (s *settingsService) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {
-	var result bool
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		val, resolveErr := s.ResolveBool(txCtx, key)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		result = val
-		return nil
-	})
+	snapshot, err := s.ResolveManyForTenant(ctx, tenantID, []string{key})
 	if err != nil {
 		return false, err
 	}
-	return result, nil
+	return snapshot.Bool(key)
 }
 
 // ResolveIntForTenant mirrors ResolveBoolForTenant but for integer settings.
 func (s *settingsService) ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error) {
-	var result int
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		val, resolveErr := s.ResolveInt(txCtx, key)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		result = val
-		return nil
-	})
+	snapshot, err := s.ResolveManyForTenant(ctx, tenantID, []string{key})
 	if err != nil {
 		return 0, err
 	}
-	return result, nil
+	return snapshot.Int(key)
 }
 
 // ResolveString resolves a setting as a string.
 func (s *settingsService) ResolveString(ctx context.Context, key string) (string, error) {
-	val, err := s.Resolve(ctx, key)
+	snapshot, err := s.ResolveMany(ctx, []string{key})
 	if err != nil {
 		return "", err
 	}
-	if val == nil {
-		return "", nil
-	}
-	str, ok := val.(string)
-	if !ok {
-		return fmt.Sprintf("%v", val), nil
-	}
-	return str, nil
+	return snapshot.String(key)
 }
 
 // ResolveBool resolves a setting as a bool.
 func (s *settingsService) ResolveBool(ctx context.Context, key string) (bool, error) {
-	val, err := s.Resolve(ctx, key)
+	snapshot, err := s.ResolveMany(ctx, []string{key})
 	if err != nil {
 		return false, err
 	}
-	if val == nil {
-		return false, nil
+	return snapshot.Bool(key)
+}
+
+// ResolveBools resolves multiple boolean settings while loading all tenant
+// overrides in one query. Registry defaults are filled first, then explicit
+// tenant values replace them.
+func (s *settingsService) ResolveBools(ctx context.Context, keys []string) (map[string]bool, error) {
+	snapshot, err := s.ResolveMany(ctx, keys)
+	if err != nil {
+		return nil, err
 	}
-	b, ok := val.(bool)
-	if !ok {
-		return false, &SettingsError{Op: "resolve_bool", Err: fmt.Errorf("expected bool, got %T", val)}
+	resolved := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		if _, seen := resolved[key]; seen {
+			continue
+		}
+		value, resolveErr := snapshot.Bool(key)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		resolved[key] = value
 	}
-	return b, nil
+	return resolved, nil
 }
 
 // ResolveInt resolves a setting as an int.
 func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, error) {
-	val, err := s.Resolve(ctx, key)
+	snapshot, err := s.ResolveMany(ctx, []string{key})
 	if err != nil {
 		return 0, err
 	}
-	if val == nil {
-		return 0, nil
-	}
-	switch n := val.(type) {
-	case float64:
-		if n != math.Floor(n) {
-			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v has fractional part", n)}
-		}
-		if n > float64(math.MaxInt) || n < float64(math.MinInt) {
-			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v out of int range", n)}
-		}
-		return int(n), nil
-	case int:
-		return n, nil
-	case json.Number:
-		i, err := n.Int64()
-		if err != nil {
-			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("invalid number: %w", err)}
-		}
-		if i > int64(math.MaxInt) || i < int64(math.MinInt) {
-			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v out of int range", i)}
-		}
-		return int(i), nil
-	default:
-		return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("expected number, got %T", val)}
-	}
+	return snapshot.Int(key)
 }
 
 // HasTenantOverride checks if a tenant has an explicit DB override for a setting.
 func (s *settingsService) HasTenantOverride(ctx context.Context, key string) (bool, error) {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return false, nil
-	}
-	sv, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
+	snapshot, err := s.ResolveMany(ctx, []string{key})
 	if err != nil {
-		return false, &SettingsError{Op: "has_override", Err: err}
+		return false, err
 	}
-	return sv != nil, nil
+	return snapshot.HasOverride(key)
 }
 
 // checkWritePermission verifies the caller has the required write permission.
@@ -262,6 +400,16 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
 
+	// Cross-field invariants the per-field validation above cannot express.
+	// Rejecting the pair here is what keeps an unusable configuration from ever
+	// being persisted (#1565 review: an inverted Ganztag cutoff pair passed
+	// FieldTime validation and then 500'd every pickup list, options and export).
+	if err := s.validateCrossField(ctx, key, value); err != nil {
+		// validateCrossField returns *InvalidValueError only for a genuinely
+		// invalid pair (→ 400); lock/lookup failures stay operational (→ 500).
+		return &SettingsError{Op: "set_value", Err: err}
+	}
+
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
 	if err != nil {
@@ -282,6 +430,13 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 
 	if err := s.valueRepo.Upsert(ctx, sv); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
+	}
+
+	// Evict the written key from the request cache so same-request reads —
+	// including side-effect hooks running inside this transaction — see the
+	// new value instead of a memoized pre-write entry.
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictKey(tenantID, key)
 	}
 
 	// Audit — redact password values to avoid storing cleartext PINs
@@ -326,6 +481,17 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
 	}
 
+	// Resetting restores the registry default, which can invert a cross-field
+	// invariant even though SetValue guards it (e.g. resetting the long Ganztag
+	// cutoff to its 16:00 default while a 18:00 short-cutoff override stays put).
+	// Validate the effective pair with the default in place before deleting, so a
+	// reset can never persist an unusable configuration that then 500s every
+	// pickup list (#1565 review).
+	if err := s.validateCrossField(ctx, key, def.Default); err != nil {
+		// See SetValue: only an inverted pair is a 400; operational failures 500.
+		return &SettingsError{Op: "reset_value", Err: err}
+	}
+
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
 	if err != nil {
@@ -338,6 +504,11 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 
 	if err := s.valueRepo.Delete(ctx, tenantID, key); err != nil {
 		return &SettingsError{Op: "reset_value", Err: err}
+	}
+
+	// See SetValue: same-request reads must observe the reset immediately.
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictKey(tenantID, key)
 	}
 
 	// Audit — redact password values
@@ -421,18 +592,14 @@ func validateValue(def *config.Definition, value any) error {
 			return err
 		}
 
-	case config.FieldText, config.FieldTextarea:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected a string")
-		}
-
-	case config.FieldPassword:
+	case config.FieldText, config.FieldTextarea, config.FieldPassword:
 		str, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("expected a string")
 		}
-		// Apply pattern validation from registry definition if present
-		if def.Validation != nil && def.Validation.CompiledPattern != nil && str != "" {
+		if def.Validation != nil &&
+			def.Validation.CompiledPattern != nil &&
+			(str != "" || !def.Validation.AllowEmpty) {
 			if !def.Validation.CompiledPattern.MatchString(str) {
 				return fmt.Errorf("value does not match required pattern")
 			}
@@ -448,6 +615,300 @@ func validateValue(def *config.Definition, value any) error {
 	}
 
 	return nil
+}
+
+// validateCrossField enforces invariants that span more than one setting, using
+// the sibling setting's currently effective value (the new value is not yet
+// persisted). There is always an edit order that reaches any valid target pair,
+// so a rejection here only asks the admin to set the values in a consistent
+// order — never blocks a reachable configuration.
+func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
+	switch key {
+	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
+		return s.validateSlotListCutoffPair(ctx, key, value)
+	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:
+		return s.validateClassCollectionGuard(ctx, key, value)
+	case config.KeyEnrollmentGradeLevelMax:
+		return s.validateGradeLevelCapGuard(ctx, key, value)
+	}
+	return nil
+}
+
+// validateGradeLevelCapGuard blocks lowering enrollment.grade_level_max below
+// a grade an active phase already restricts itself to. The public form offers
+// grades 1..cap and the submit path re-checks the cap, so such a phase would
+// end up unable to accept any submission: the parent cannot pick the eligible
+// grade, and a hand-crafted submission carrying it is rejected by the cap.
+// This is the inverse of the phase-side ensureEligibleGradeLevelsWithinTenantCap
+// check — together they keep the pair consistent from either edit direction,
+// including via ResetValue, which restores the registry default 4 (#1663).
+//
+// Takes the same per-tenant lock as the class/grade collection guards so a
+// concurrent phase write and a cap change cannot both pass on a stale read.
+// Best-effort: a nil guard skips the check.
+func (s *settingsService) validateGradeLevelCapGuard(ctx context.Context, key string, value any) error {
+	if s.gradeCapGuard == nil {
+		return nil
+	}
+	num, ok := toFloat64(value)
+	if !ok {
+		// A non-numeric value is already rejected by validateValue; nothing to
+		// compare here.
+		return nil
+	}
+	newMax := int(num)
+	if err := s.LockClassCollectionPair(ctx); err != nil {
+		return err
+	}
+	highest, err := s.gradeCapGuard(ctx)
+	if err != nil {
+		// Operational failure stays a plain error → 500, not a "your value is
+		// invalid" 400.
+		return fmt.Errorf("check grade-restricted phases: %w", err)
+	}
+	if highest > newMax {
+		return &InvalidValueError{
+			Key: key,
+			Reason: fmt.Sprintf(
+				"Die höchste Klassenstufe kann nicht auf %d gesenkt werden, solange eine aktive Anmeldephase auf Klassenstufe %d beschränkt ist. Entfernen Sie zuerst die Klassenstufenbeschränkung der betroffenen Phase.",
+				newMax,
+				highest,
+			),
+		}
+	}
+	return nil
+}
+
+// validateClassCollectionGuard blocks disabling concrete-class collection
+// while an active enrollment phase restricts eligibility to specific school
+// classes. Concrete-class collection is effective only when BOTH
+// collect_grade_level and collect_school_class are on (a class without its
+// grade is ambiguous). When it turns off, the submit path forces every
+// child's class to nil, so a phase with a non-empty eligible_school_classes
+// gate rejects every submission with class_not_eligible. This is the inverse
+// of the phase-side validateEligibleClassesCollectable check: together they
+// keep the restricted-phase / class-collection pair consistent from either
+// edit direction (#1663). Best-effort: nil guard skips the check.
+//
+// It guards the grade-level restriction on the same lock: an active phase
+// limited to whole grades survives collect_school_class being off, but not
+// collect_grade_level.
+func (s *settingsService) validateClassCollectionGuard(ctx context.Context, key string, value any) error {
+	if s.classRestrictionGuard == nil && s.gradeRestrictionGuard == nil {
+		return nil
+	}
+	newVal, ok := value.(bool)
+	if !ok {
+		// Non-bool falls back to the registry default / is caught by
+		// validateValue; nothing to compare here.
+		return nil
+	}
+	// Serialize the read-validate-write of this invariant against a concurrent
+	// activation of a class-restricted phase. The phase side takes the same
+	// per-tenant lock before it resolves these toggles, so the second writer
+	// blocks and observes the first's committed state instead of both passing
+	// on a stale read (#1663). Lock first, then read the sibling toggle and the
+	// restricted-phase probe below. Held until the setting upsert commits with
+	// the request tx.
+	if err := s.LockClassCollectionPair(ctx); err != nil {
+		return err
+	}
+	// Grade-level restrictions hang off collect_grade_level ALONE — a phase
+	// targeting a whole grade never needs concrete classes — so this check runs
+	// only when the write itself turns grade collection off, and independently
+	// of the class-collection pair below (#1663).
+	if key == config.KeyEnrollmentCollectGradeLevel && !newVal && s.gradeRestrictionGuard != nil {
+		restricted, err := s.gradeRestrictionGuard(ctx)
+		if err != nil {
+			return fmt.Errorf("check grade-restricted phases: %w", err)
+		}
+		if restricted {
+			return &InvalidValueError{
+				Key:    key,
+				Reason: "Die Klassenstufen-Abfrage kann nicht deaktiviert werden, solange eine aktive Anmeldephase auf bestimmte Klassenstufen beschränkt ist. Entfernen Sie zuerst die Klassenstufenbeschränkung der betroffenen Phase.",
+			}
+		}
+	}
+	if s.classRestrictionGuard == nil {
+		return nil
+	}
+	// Compute the effective collection state with `value` applied to `key`
+	// and the sibling toggle resolved live (its current effective value).
+	collectGrade, collectClass := newVal, newVal
+	var err error
+	if key == config.KeyEnrollmentCollectGradeLevel {
+		collectClass, err = s.ResolveBool(ctx, config.KeyEnrollmentCollectSchoolClass)
+	} else {
+		collectGrade, err = s.ResolveBool(ctx, config.KeyEnrollmentCollectGradeLevel)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve paired class-collection toggle: %w", err)
+	}
+	if collectGrade && collectClass {
+		// Collection stays effective — no restricted phase is endangered.
+		return nil
+	}
+	restricted, err := s.classRestrictionGuard(ctx)
+	if err != nil {
+		// Operational failure stays a plain error → surfaces as a 500, not a
+		// "your value is invalid" 400.
+		return fmt.Errorf("check class-restricted phases: %w", err)
+	}
+	if restricted {
+		return &InvalidValueError{
+			Key:    key,
+			Reason: "Die Klassen-Abfrage kann nicht deaktiviert werden, solange eine aktive Anmeldephase auf bestimmte Klassen beschränkt ist. Entfernen Sie zuerst die Klassenbeschränkung der betroffenen Phase.",
+		}
+	}
+	return nil
+}
+
+// validateSlotListCutoffPair rejects a Ganztag cutoff pair where the long-day
+// cutoff is not strictly after the short-day cutoff — the pickup buckets are
+// [.., short] and (short, long], so an inverted or equal pair leaves the
+// long-day bucket empty and, before this guard, made every pickup list fail.
+func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key string, value any) error {
+	newVal, ok := value.(string)
+	if !ok || newVal == "" {
+		// A non-string or empty value falls back to the registry default, which
+		// is a valid pair; format errors are already caught by validateValue.
+		return nil
+	}
+	// Serialize the read-validate-write of the cutoff pair against a concurrent
+	// write of the sibling cutoff (#1565 review). Without this, two requests that
+	// both start from a valid pair each read the OLD sibling, both pass this
+	// check, and then commit an inverted pair (e.g. short=15:30 alongside
+	// long=15:00) that 500s every pickup list, preview and export. The
+	// transaction-scoped advisory lock — held until the request tx commits after
+	// the upsert — forces the second writer to block, then read the first's
+	// committed value and reject.
+	if err := s.LockSlotListCutoffPair(ctx); err != nil {
+		return err
+	}
+	short, long := newVal, newVal
+	var err error
+	if key == config.KeySlotListShortDayCutoff {
+		long, err = s.ResolveString(ctx, config.KeySlotListLongDayCutoff)
+	} else {
+		short, err = s.ResolveString(ctx, config.KeySlotListShortDayCutoff)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve paired Ganztag cutoff: %w", err)
+	}
+	shortT, err := time.Parse("15:04", strings.TrimSpace(short))
+	if err != nil {
+		return nil // sibling is unparseable/empty; nothing to compare against yet
+	}
+	longT, err := time.Parse("15:04", strings.TrimSpace(long))
+	if err != nil {
+		return nil
+	}
+	if !longT.After(shortT) {
+		// Only the inverted pair is a client validation error (→ 400). The lock
+		// and sibling-resolve failures above are operational and stay plain
+		// errors so they surface as a 500, not as "your time is invalid"
+		// (#1565 review).
+		return &InvalidValueError{
+			Key:    key,
+			Reason: fmt.Sprintf("der lange Ganztag (%s) muss nach dem kurzen Ganztag (%s) liegen", long, short),
+		}
+	}
+	return nil
+}
+
+// LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
+// that guards the Ganztag pickup-cutoff pair. Both the pair validator on the
+// write path (validateSlotListCutoffPair) and the slot-list reader on the read
+// path (services/slotlists pickupBuckets) take it, so a concurrent lowering of
+// both cutoffs cannot interleave with a read and expose an inverted short/long
+// pair under READ COMMITTED (#1565 review). Best-effort: without an ambient
+// transaction the xact lock is meaningless — the settings read/write paths always
+// run inside a tenant tx (the RLS-scoped repos require one) — so it is skipped
+// rather than failing.
+// Taking the lock is also the freshness barrier of the request cache: the
+// tenant bucket is flushed (before the no-tx early return, so tests without an
+// ambient transaction behave like production) so post-lock reads hit the
+// database and observe the concurrent writer's committed state.
+func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
+	s.flushRequestCacheForLock(ctx)
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLock(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
+	}
+	return nil
+}
+
+// flushRequestCacheForLock drops every request-cache entry for the ambient
+// tenant. All Lock* helpers call it first: which keys a cross-field guard
+// re-reads under its lock is deliberately not enumerated here — a whole-tenant
+// flush stays correct when the next guard adds another key (#1565/#1663).
+func (s *settingsService) flushRequestCacheForLock(ctx context.Context) {
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictTenant(tenant.FromContext(ctx))
+	}
+}
+
+// LockSlotListCutoffPairShared takes the SHARED variant of the Ganztag cutoff
+// lock for read paths (services/slotlists pickupBuckets). Shared holders never
+// block one another, so concurrent /options, pickup-preview and export requests
+// no longer serialize behind a single exclusive lock — a slow export scanning
+// rosters or rendering a PDF/XLSX cannot stall every other reader in the tenant.
+// It still conflicts with the exclusive writer lock, so a cutoff update can never
+// commit a partial pair while a reader observes the two cutoffs (#1565 review).
+// Flushes the tenant's request-cache bucket like the exclusive variant — the
+// slotlists reader resolves both cutoffs after taking this lock and must see
+// the writer's committed pair, not memoized pre-lock values.
+func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) error {
+	s.flushRequestCacheForLock(ctx)
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLockShared(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock Ganztag cutoff pair (shared): %w", err)
+	}
+	return nil
+}
+
+// slotListCutoffLockKey is the per-tenant advisory-lock key shared by the
+// exclusive writer lock and the shared reader lock so the two conflict.
+func slotListCutoffLockKey(ctx context.Context) string {
+	return fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
+}
+
+// LockClassCollectionPair takes the per-tenant transaction-scoped advisory lock
+// that guards the enrollment class-restriction / class-collection invariant.
+// Two writes can otherwise race: one disabling concrete-class collection
+// (validateClassCollectionGuard here) and one activating a class-restricted
+// phase (validateEligibleClassesCollectable in services/enrollment). Under READ
+// COMMITTED each reads the other's pre-commit state, both pass, and they commit
+// an active restricted phase with class collection off — every submission then
+// fails class_not_eligible. Both sides take THIS lock on the same key, so the
+// second writer blocks, re-reads the first's committed state, and rejects.
+// Best-effort: without an ambient transaction the xact lock is meaningless (the
+// settings and phase write paths always run inside a tenant tx), so it is
+// skipped rather than failing.
+// Flushes the tenant's request-cache bucket first: both the settings-side
+// guard and the enrollment-side phase guard re-read settings (including
+// enrollment.grade_level_max) under this lock and must observe committed
+// state, not memoized pre-lock values.
+func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
+	s.flushRequestCacheForLock(ctx)
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLock(ctx, s.db, classCollectionLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock class-collection pair: %w", err)
+	}
+	return nil
+}
+
+// classCollectionLockKey is the per-tenant advisory-lock key shared by the
+// settings-side class-collection guard and the enrollment-side phase
+// eligibility guard so the two conflict.
+func classCollectionLockKey(ctx context.Context) string {
+	return fmt.Sprintf("enrollment-class-collection:%d", tenant.FromContext(ctx))
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

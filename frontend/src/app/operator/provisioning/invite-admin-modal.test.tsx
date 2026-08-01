@@ -46,6 +46,14 @@ vi.mock("~/lib/logger", () => ({
 
 import { InviteAdminModal } from "./invite-admin-modal";
 
+function selectCustomOption(
+  labelMatcher: RegExp | string,
+  optionName: RegExp | string,
+) {
+  fireEvent.click(screen.getByLabelText(labelMatcher));
+  fireEvent.click(screen.getByRole("option", { name: optionName }));
+}
+
 const invitationResult = {
   id: "55",
   email: "admin@example.com",
@@ -121,9 +129,14 @@ describe("InviteAdminModal", () => {
     fireEvent.click(screen.getByLabelText("Auch als Betreuer einsetzen"));
 
     expect(screen.getByLabelText("Position")).toBeInTheDocument();
-    expect(screen.getByText("Pädagogische Fachkraft")).toBeInTheDocument();
-    expect(screen.getByText("OGS-Büro")).toBeInTheDocument();
-    expect(screen.getByText("Extern")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Position"));
+    expect(
+      screen.getByRole("option", { name: "Pädagogische Fachkraft" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "OGS-Büro" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Extern" })).toBeInTheDocument();
   });
 
   it("submits a plain admin invitation without caregiver fields", async () => {
@@ -151,9 +164,7 @@ describe("InviteAdminModal", () => {
 
     fillInviteForm();
     fireEvent.click(screen.getByLabelText("Auch als Betreuer einsetzen"));
-    fireEvent.change(screen.getByLabelText("Position"), {
-      target: { value: "OGS-Büro" },
-    });
+    selectCustomOption("Position", "OGS-Büro");
     fireEvent.click(screen.getByText("Einladung senden"));
 
     await waitFor(() => {
@@ -175,9 +186,7 @@ describe("InviteAdminModal", () => {
     const { rerender, onClose } = renderModal();
 
     fireEvent.click(screen.getByLabelText("Auch als Betreuer einsetzen"));
-    fireEvent.change(screen.getByLabelText("Position"), {
-      target: { value: "Extern" },
-    });
+    selectCustomOption("Position", "Extern");
 
     rerender(
       <InviteAdminModal

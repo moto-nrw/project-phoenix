@@ -74,7 +74,16 @@ type RequestChild struct {
 	ReviewedAt        *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	ReviewedBy        *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
 	CreatedStudentID  *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
-	SortOrder         int            `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	// MatchedStudentID (migration 1.15.221) — set only for existing_students
+	// phases: the already-enrolled student this child was matched to at
+	// submission (unambiguous name+birthday lookup). On approval the decision
+	// service renews that student instead of creating a duplicate
+	// Person/Student. NULL for every other audience and when the submission
+	// matched zero or more than one enrolled student (ambiguous → left to the
+	// fresh-create path). FK ON DELETE SET NULL: a student deleted before
+	// approval clears the reference.
+	MatchedStudentID *int64 `bun:"matched_student_id" json:"matched_student_id,omitempty"`
+	SortOrder        int    `bun:"sort_order,notnull,default:0" json:"sort_order"`
 
 	// Rollover columns (migration 1.15.62). NULL on rows created via
 	// the public form; set by RolloverService when a previous-year
@@ -100,6 +109,19 @@ func (c *RequestChild) IsTerminal() bool {
 	}
 }
 
+// StudentCarePeriod is one approved enrollment that materialized into a
+// student, together with the care window of its phase. The parents portal
+// needs the window to decide which care period is the current one for a child
+// that is enrolled across several school years (#1665).
+type StudentCarePeriod struct {
+	RequestChildID   int64         `bun:"request_child_id"`
+	RequestID        int64         `bun:"request_id"`
+	PhaseID          int64         `bun:"phase_id"`
+	PhaseName        string        `bun:"phase_name"`
+	ServiceStartDate timezone.Date `bun:"service_start_date"`
+	ServiceEndDate   timezone.Date `bun:"service_end_date"`
+}
+
 // RequestChildRepository describes the DB operations PR 5/7/8 need. PR 5
 // only implements + tests Create/ListByRequestID/UpdateStatus; PR 8
 // adds LinkCreatedStudent to back-link the row to the student record
@@ -108,6 +130,7 @@ func (c *RequestChild) IsTerminal() bool {
 type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	FindByID(ctx context.Context, id int64) (*RequestChild, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*RequestChild, error)
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
 	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*RequestChild, error)
 
@@ -121,6 +144,10 @@ type RequestChildRepository interface {
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
 	UpdateData(ctx context.Context, child *RequestChild) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
+	// UpdateMatchedStudent re-points (or clears, on nil) the already-enrolled
+	// student an existing_students child is pinned to, for in-place edits of a
+	// persisted row.
+	UpdateMatchedStudent(ctx context.Context, requestChildID int64, studentID *int64) error
 	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error
 	DeleteByRequestID(ctx context.Context, requestID int64) error
 
@@ -135,6 +162,14 @@ type RequestChildRepository interface {
 	// students created from the phase's requests. Powers the phase-delete
 	// confirmation modal; these students survive the delete.
 	CountCreatedStudentsByPhaseID(ctx context.Context, phaseID int64) (int, error)
+
+	// ListCarePeriodsByStudentID returns the approved enrollments that
+	// materialized into this student, joined with their phase care window and
+	// ordered by that window (latest first). A plain filter cannot express it:
+	// the phase window lives two joins away (request_child → request → phase),
+	// and the parents portal needs window and child row together to pick the
+	// period that covers today.
+	ListCarePeriodsByStudentID(ctx context.Context, studentID int64) ([]*StudentCarePeriod, error)
 
 	// BulkUpdateStatusByPhaseAndStatus is the deadline-worker
 	// primitive: flip every row in (phaseID, currentStatus) to

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -202,6 +203,23 @@ func NewReportService(cfg ReportServiceConfig) ReportService {
 	return &reportService{ReportServiceConfig: cfg}
 }
 
+// reportOfferingDate selects the current point within a phase. Reports for a
+// future phase show the selection that will apply at its start; reports for a
+// completed phase show the final selection instead of mixing all intervals.
+func reportOfferingDate(phase *enrollmentModels.Phase) timezone.Date {
+	today := timezone.TodayDate()
+	if phase == nil || (phase.ServiceStartDate.IsZero() && phase.ServiceEndDate.IsZero()) {
+		return today
+	}
+	if !phase.ServiceStartDate.IsZero() && today.Before(phase.ServiceStartDate) {
+		return phase.ServiceStartDate
+	}
+	if !phase.ServiceEndDate.IsZero() && today.After(phase.ServiceEndDate) {
+		return phase.ServiceEndDate
+	}
+	return today
+}
+
 func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error) {
 	filters = normalizeCareUsageFilters(filters)
 	if err := validateCareUsageFilters(filters); err != nil {
@@ -241,7 +259,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, reportOfferingDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
 	}
@@ -476,7 +494,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	}
 
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, approvedChildIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, approvedChildIDs, reportOfferingDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}

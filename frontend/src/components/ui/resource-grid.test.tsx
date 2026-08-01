@@ -38,6 +38,13 @@ function renderGrid(
 }
 
 describe("ResourceGrid", () => {
+  it("clips the rounded surface without becoming a scroll container", () => {
+    const { container } = renderGrid();
+
+    expect(container.firstElementChild).toHaveClass("overflow-clip");
+    expect(container.firstElementChild).not.toHaveClass("overflow-hidden");
+  });
+
   it("renders the row header in a sticky first column", () => {
     renderGrid();
 
@@ -109,6 +116,60 @@ describe("ResourceGrid", () => {
     expect(screen.getByText("Mo 13.07.").closest("th")).toHaveClass(
       "min-w-[3.25rem]",
     );
+  });
+
+  // Issue #2026: an empty and a filled plan must raster identically. Column
+  // widths therefore come from a fixed table layout plus a colgroup, never from
+  // the cell content, and every cell carries the same height floor.
+  it("lays the table out with fixed columns from a colgroup, not from content", () => {
+    const { container } = renderGrid();
+
+    const table = container.querySelector("table");
+    expect(table).toHaveClass("table-fixed");
+    // One <col> for the sticky row header plus one per data column.
+    expect(container.querySelectorAll("colgroup col")).toHaveLength(
+      DAY_COLUMNS.length + 1,
+    );
+    expect((table as HTMLTableElement).style.minWidth).toBe(
+      `${13 + DAY_COLUMNS.length * 7.5}rem`,
+    );
+  });
+
+  it("scales the table min width with the narrower weeks columns", () => {
+    const { container } = renderGrid({ columnMode: "weeks" });
+
+    const table = container.querySelector("table") as HTMLTableElement;
+    expect(table.style.minWidth).toBe(`${13 + DAY_COLUMNS.length * 3.25}rem`);
+  });
+
+  it("gives empty, bare and filled cells the same height floor", () => {
+    const { container } = renderGrid({
+      renderCell: (row, column) =>
+        column.key === "mo" ? <span>{`${row.name} früh`}</span> : null,
+      emptyCellLabel: (row, column) => `Anlegen, ${row.name}, ${column.label}`,
+      onEmptyCellClick: vi.fn(),
+    });
+
+    const filledWrapper = screen.getByText("A. Krause früh").parentElement;
+    const emptyWrapper = screen.getByRole("button", {
+      name: "Anlegen, A. Krause, Di 14.07.",
+    }).parentElement;
+
+    expect(filledWrapper).toHaveClass("min-h-16");
+    expect(emptyWrapper).toHaveClass("min-h-16");
+    // Every cell wrapper in the body carries the floor, including the ones
+    // without any empty-cell affordance.
+    for (const cell of container.querySelectorAll("tbody td")) {
+      expect(cell.firstElementChild).toHaveClass("min-h-16");
+    }
+  });
+
+  it("uses the shorter cell height floor in weeks mode", () => {
+    const { container } = renderGrid({ columnMode: "weeks" });
+
+    for (const cell of container.querySelectorAll("tbody td")) {
+      expect(cell.firstElementChild).toHaveClass("min-h-11");
+    }
   });
 
   it("renders the footer slot inside a tfoot (CapacityStrip interplay)", () => {

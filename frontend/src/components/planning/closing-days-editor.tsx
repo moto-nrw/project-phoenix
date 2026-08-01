@@ -20,6 +20,7 @@ import {
   formatClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { useToast } from "~/contexts/ToastContext";
+import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ClosingDaysEditor" });
@@ -33,6 +34,7 @@ export function ClosingDaysEditor() {
   const [deleting, setDeleting] = useState<ClosingDay | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
+  const invalidateClosingDays = useInvalidateClosingDays();
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -53,6 +55,15 @@ export function ClosingDaysEditor() {
     void load();
   }, [load]);
 
+  const refreshAfterMutation = useCallback(() => {
+    void invalidateClosingDays().catch((err: unknown) => {
+      logger.warn("closing_days_cache_invalidation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    void load({ silent: true });
+  }, [invalidateClosingDays, load]);
+
   const beginCreate = () => {
     setEditing(null);
     setModalOpen(true);
@@ -70,7 +81,7 @@ export function ClosingDaysEditor() {
       await closingDayService.delete(deleting.id);
       toastSuccess(`Schließtag "${deleting.reason}" gelöscht`);
       setDeleting(null);
-      await load({ silent: true });
+      refreshAfterMutation();
     } catch (err) {
       const message =
         err instanceof Error
@@ -84,13 +95,15 @@ export function ClosingDaysEditor() {
     } finally {
       setDeleteLoading(false);
     }
-  }, [deleting, load, toastSuccess, toastError]);
+  }, [deleting, refreshAfterMutation, toastSuccess, toastError]);
 
   const columns = useMemo<DataTableColumn<ClosingDay>[]>(
     () => [
       {
         key: "range",
         header: "Von – Bis",
+        className: "hidden sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
         sortValue: (day) => day.startDate,
         render: (day) => (
           <span className="text-sm whitespace-nowrap text-gray-600">
@@ -102,16 +115,37 @@ export function ClosingDaysEditor() {
         key: "reason",
         header: "Grund",
         sortValue: (day) => day.reason,
+        // Der Zeitraum rutscht auf schmalen Screens als Unterzeile hierher,
+        // weil die eigene Spalte dort ausgeblendet ist (#2033).
         render: (day) => (
-          <p className="truncate font-medium text-gray-900">{day.reason}</p>
+          // Wie im CalendarPeriodsEditor: kein fester max-w, sondern
+          // Restbreite neben der schmalen Aktionsspalte plus umbrechender
+          // Text — so passt die Zeile auch auf 320px ohne Seitwärts-Scroll.
+          <div className="min-w-0">
+            {/* wrap-anywhere statt break-words: nur damit sinkt die
+                Mindestbreite der Spalte unter die Länge eines langen
+                Wortes wie "Weihnachtsschließung". */}
+            <p className="font-medium wrap-anywhere text-gray-900">
+              {day.reason}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 break-words text-gray-500 sm:hidden">
+              {formatClosingDayRange(day)}
+            </p>
+          </div>
         ),
       },
       {
         key: "actions",
         header: "",
         align: "right",
+        // w-px: die Aktionsspalte bekommt nur ihre Mindestbreite, die
+        // Grund-Spalte den Rest der Tabellenbreite (#2033).
+        className: "w-px",
+        headerClassName: "w-px",
         render: (day) => (
-          <div className="flex justify-end gap-1">
+          // Auf schmalen Screens stapeln sich die beiden Aktionen, sonst
+          // passen Grund-Spalte und Buttons nicht nebeneinander (#2033).
+          <div className="flex flex-col items-end justify-end gap-1 sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="ghost"
@@ -212,7 +246,7 @@ export function ClosingDaysEditor() {
       <ClosingDayModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSaved={() => void load({ silent: true })}
+        onSaved={refreshAfterMutation}
         initial={editing}
       />
 

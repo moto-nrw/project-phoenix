@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { closingDayService } from "~/lib/closing-day-api";
@@ -142,11 +143,12 @@ export function ClosingDayModal({
             >
               Von
             </label>
-            <Input
+            <ISODatePicker
               id="closing-day-start"
-              type="date"
+              controlSize="lg"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={setStartDate}
+              calendarLayout="popover"
             />
           </div>
           <div>
@@ -156,11 +158,13 @@ export function ClosingDayModal({
             >
               Bis
             </label>
-            <Input
+            <ISODatePicker
               id="closing-day-end"
-              type="date"
+              controlSize="lg"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate || undefined}
+              onChange={setEndDate}
+              calendarLayout="popover"
             />
           </div>
         </div>

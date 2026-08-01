@@ -105,6 +105,31 @@ func (r *AccountTenantRepository) FindActiveByAccountID(ctx context.Context, acc
 	return items, nil
 }
 
+// FindActiveGuardianByAccountID returns active tenant mappings where the
+// account currently has the guardian role.
+func (r *AccountTenantRepository) FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
+	var items []auth.AccountTenant
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&items).
+		ModelTableExpr(accountTenantTableAlias).
+		Where(`"account_tenant".account_id = ?`, accountID).
+		Where(`"account_tenant".status = ?`, auth.AccountTenantStatusActive).
+		Where(`EXISTS (
+			SELECT 1
+			FROM auth.account_roles AS "account_role"
+			INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id
+			WHERE "account_role".account_id = "account_tenant".account_id
+				AND "account_role".tenant_id = "account_tenant".tenant_id
+				AND LOWER("role".name) = ?
+		)`, auth.BaseRoleGuardian).
+		OrderExpr(`"account_tenant".created_at ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 // ExistsByAccountAndTenant checks if an active mapping exists for the given account and tenant.
 func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	exists, err := base.GetDB(ctx, r.db).NewSelect().
@@ -114,6 +139,42 @@ func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, 
 		Where("status = ?", auth.AccountTenantStatusActive).
 		Exists(ctx)
 	return exists, err
+}
+
+// ListTenantAccessByAccountID returns every school mapping of one account,
+// active and inactive alike, with school/organization context and whether the
+// account already carries a person and staff record at that school.
+//
+// This is the inverse direction of the account listings below (account -> many
+// schools instead of school -> many accounts) and is therefore cross-tenant by
+// construction: callers must be operator-scoped.
+func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error) {
+	var rows []auth.AccountTenantAccessInfo
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"at".tenant_id`).
+		ColumnExpr(`"sch".name AS school_name`).
+		ColumnExpr(`"sch".slug AS school_slug`).
+		ColumnExpr(`"sch".active AS school_active`).
+		ColumnExpr(`"sch".organization_id`).
+		ColumnExpr(`"org".name AS organization_name`).
+		ColumnExpr(`"at".status`).
+		ColumnExpr(`"at".activated_at`).
+		ColumnExpr(`"at".deactivated_at`).
+		ColumnExpr(`("p".id IS NOT NULL) AS has_person`).
+		ColumnExpr(`("s".id IS NOT NULL) AS has_staff`).
+		TableExpr(`auth.account_tenants AS "at"`).
+		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
+		Join(`INNER JOIN platform.organizations AS "org" ON "org".id = "sch".organization_id`).
+		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
+		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
+		Where(`"at".account_id = ?`, accountID).
+		Where(`"sch".deleted_at IS NULL`).
+		OrderExpr(`"org".name ASC, "sch".name ASC`).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // ListAccountsByTenantID returns all accounts for a given tenant with their roles and pedagogic info,

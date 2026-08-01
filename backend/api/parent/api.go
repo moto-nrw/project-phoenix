@@ -28,6 +28,7 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -41,8 +42,20 @@ type Resource struct {
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         platformSvc.SchoolService
+	PushService           notificationsService.PushSubscriptionService
+	PreferenceService     notificationsService.PreferenceService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
+}
+
+// SetPreferenceService injects the notification consent service.
+func (rs *Resource) SetPreferenceService(service notificationsService.PreferenceService) {
+	rs.PreferenceService = service
+}
+
+// SetPushService injects the Web Push subscription service (#2003).
+func (rs *Resource) SetPushService(service notificationsService.PushSubscriptionService) {
+	rs.PushService = service
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for public parent auth
@@ -105,6 +118,23 @@ func (rs *Resource) Router() chi.Router {
 		// Cross-tenant children list — every student the parent is
 		// linked to, across every active tenant mapping. Account id
 		// is read from claims, never from URL or body.
+		// Push subscription management for the parent's own devices
+		// (#2003). Registers across every active tenant mapping.
+		r.Route("/me/push", func(r chi.Router) {
+			r.Get("/public-key", rs.getPushPublicKey)
+			r.Post("/subscriptions", rs.subscribePush)
+			r.Delete("/subscriptions", rs.unsubscribePush)
+		})
+
+		// Which notifications this guardian agreed to. Applied to every
+		// school the family belongs to, the same fan-out the push
+		// registration above uses.
+		r.Route("/me/notification-preferences", func(r chi.Router) {
+			r.Get("/", rs.listNotificationPreferences)
+			r.Delete("/", rs.deleteAllNotificationPreferences)
+			r.Put("/{type}", rs.setNotificationPreference)
+		})
+
 		r.Get("/me/profile", rs.getMyProfile)
 		r.Put("/me/profile", rs.updateMyProfile)
 		r.Get("/me/children", rs.listMyChildren)
@@ -134,6 +164,14 @@ func (rs *Resource) Router() chi.Router {
 		// the guardian_profile in that tenant (or claims if none) +
 		// any students already linked to the guardian profile.
 		r.Get("/enrollments/{tenantSlug}/profile", rs.getEnrollmentProfile)
+
+		// Authenticated form-load bootstrap for the embedded enrollment
+		// form. Mirrors the anonymous public /form-bootstrap endpoint but
+		// runs the enrollee phase gate, so audience-restricted
+		// (linked_parents) phases load here for a logged-in guardian while
+		// the public path refuses them (#1663). Tenant from {tenantSlug},
+		// account from the parent JWT; captcha skipped.
+		r.Get("/enrollments/{tenantSlug}/bootstrap/{phaseId}", rs.getEnrollmentBootstrap)
 
 		// Authenticated submit. Stamps guardian_account_id on the
 		// resulting enrollment.requests row, skips captcha (parent
@@ -187,6 +225,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/me/children/{studentId}/care-schedule/requests", rs.createCareScheduleRequest)
 		r.Post("/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw", rs.withdrawCareScheduleRequest)
 
+		// Booked care offerings + activity groups (#1665) — read view plus the
+		// post-enrollment change-request lifecycle. Approved requests are
+		// applied by the enrollment domain on a chosen effective date.
+		r.Get("/me/children/{studentId}/care-offerings", rs.getChildCareOfferings)
+		r.Get("/me/children/{studentId}/care-offerings/catalog", rs.getChildOfferingCatalog)
+		r.Post("/me/children/{studentId}/care-offerings/requests", rs.createOfferingChangeRequest)
+		r.Post("/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw", rs.withdrawOfferingChangeRequest)
+
 		// Stammdaten — structured view of the child's master data plus the
 		// calling guardian's own contact data. Track A direct edits apply
 		// immediately and are audited; Track B change requests (name,
@@ -215,6 +261,26 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/guardians", rs.listChildGuardians)
 		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/contact", rs.updateGuardianContact)
 		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/pickup", rs.updateGuardianRelationship)
+
+		// Feedback board to the moto product team (#1678). This is NOT a
+		// channel to the school: the school never sees these entries, and
+		// guardians appear under a pseudonym. The addressed school arrives as
+		// school_id (query or body) and is validated in the service against the
+		// guardian's own children; the board itself is separated from the
+		// school's staff board by actor-scoped RLS.
+		r.Get("/me/feedback", rs.listFeedback)
+		r.Post("/me/feedback", rs.createFeedback)
+		r.Get("/me/feedback/schools", rs.listFeedbackSchools)
+		r.Get("/me/feedback/unread-count", rs.feedbackUnreadCount)
+		r.Get("/me/feedback/{postId}", rs.getFeedback)
+		r.Put("/me/feedback/{postId}", rs.updateFeedback)
+		r.Delete("/me/feedback/{postId}", rs.deleteFeedback)
+		r.Post("/me/feedback/{postId}/vote", rs.voteFeedback)
+		r.Delete("/me/feedback/{postId}/vote", rs.removeFeedbackVote)
+		r.Get("/me/feedback/{postId}/comments", rs.listFeedbackComments)
+		r.Post("/me/feedback/{postId}/comments", rs.createFeedbackComment)
+		r.Post("/me/feedback/{postId}/comments/read", rs.markFeedbackCommentsRead)
+		r.Delete("/me/feedback/{postId}/comments/{commentId}", rs.deleteFeedbackComment)
 	})
 
 	return r

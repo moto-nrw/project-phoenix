@@ -70,6 +70,7 @@ type Factory struct {
 	RFIDCard            userModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
+	StudentDeletion     userModels.StudentDeletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
@@ -78,6 +79,8 @@ type Factory struct {
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
+
+	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
 	Room facilityModels.RoomRepository
@@ -131,6 +134,8 @@ type Factory struct {
 	StaffAbsence          activeModels.StaffAbsenceRepository
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
+	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
 
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
@@ -139,7 +144,8 @@ type Factory struct {
 	FeedbackEntry feedbackModels.EntryRepository
 
 	// IoT domain
-	Device iotModels.DeviceRepository
+	Device           iotModels.DeviceRepository
+	PushSubscription iotModels.PushSubscriptionRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -156,6 +162,7 @@ type Factory struct {
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
+	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
@@ -164,7 +171,11 @@ type Factory struct {
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
 	WorkSessionEdit              auditModels.WorkSessionEditRepository
+	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
+	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
+	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
+	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -197,8 +208,11 @@ type Factory struct {
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	ChangeRequest        enrollmentModels.ChangeRequestRepository
 	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
-	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
-	Phase                enrollmentModels.PhaseRepository
+	// OfferingChangeRequest carries post-enrollment care/AG change requests
+	// from the parents portal (#1665).
+	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
+	SubmissionRateLimit   enrollmentModels.SubmissionRateLimitRepository
+	Phase                 enrollmentModels.PhaseRepository
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display displayModels.Repository
@@ -257,6 +271,7 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard:            users.NewRFIDCardRepository(db),
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
+		StudentDeletion:     users.NewStudentDeletionRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
@@ -265,6 +280,8 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
+
+		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
 		Room: facilities.NewRoomRepository(db),
@@ -318,6 +335,8 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
+		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
+		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
@@ -326,7 +345,8 @@ func NewFactory(db *bun.DB) *Factory {
 		FeedbackEntry: feedback.NewEntryRepository(db),
 
 		// IoT repositories
-		Device: iot.NewDeviceRepository(db),
+		Device:           iot.NewDeviceRepository(db),
+		PushSubscription: iot.NewPushSubscriptionRepository(db),
 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(db),
@@ -343,6 +363,7 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
+		StudentDeletionAudit:         audit.NewStudentDeletionRepository(db),
 		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
 		DataAccessLog:                audit.NewDataAccessLogRepository(db),
 		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
@@ -351,7 +372,11 @@ func NewFactory(db *bun.DB) *Factory {
 		AuthEvent:                    audit.NewAuthEventRepository(db),
 		DataImport:                   audit.NewDataImportRepository(db),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
+		StudentFieldEdit:             audit.NewStudentFieldEditRepository(db),
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
+		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
+		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
+		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),
@@ -373,18 +398,19 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
-		FormSchema:           enrollment.NewFormSchemaRepository(db),
-		Request:              enrollment.NewRequestRepository(db),
-		EnrollmentDeletion:   enrollment.NewDeletionRepository(db),
-		RequestChild:         enrollment.NewRequestChildRepository(db),
-		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
-		LateInvite:           enrollment.NewLateInviteRepository(db),
-		CareOffering:         enrollment.NewCareOfferingRepository(db),
-		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
-		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
-		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
-		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
-		Phase:                enrollment.NewPhaseRepository(db),
+		FormSchema:            enrollment.NewFormSchemaRepository(db),
+		Request:               enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:    enrollment.NewDeletionRepository(db),
+		RequestChild:          enrollment.NewRequestChildRepository(db),
+		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
+		LateInvite:            enrollment.NewLateInviteRepository(db),
+		CareOffering:          enrollment.NewCareOfferingRepository(db),
+		RequestChildOffering:  enrollment.NewRequestChildOfferingRepository(db),
+		OfferingChangeRequest: enrollment.NewOfferingChangeRequestRepository(db),
+		ChangeRequest:         enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
+		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
+		Phase:                 enrollment.NewPhaseRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),

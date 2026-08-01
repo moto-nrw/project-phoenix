@@ -2,10 +2,18 @@
 
 interface DesktopOnlyNoticeProps {
   readonly title?: string;
+  /**
+   * Begründung, warum genau DIESE Seite den großen Screen braucht. Der
+   * Standardtext spricht von der Anmeldungsverwaltung — wer die Komponente
+   * anderswo einsetzt, muss ihn ersetzen, sonst steht dort eine falsche
+   * Aussage (so geschehen auf der Planungsseite Kalenderzeiträume, #2033).
+   */
+  readonly description?: string;
 }
 
 export function DesktopOnlyNotice({
   title = "Bitte am Computer öffnen",
+  description = "Die Anmeldungsverwaltung ist für die Arbeit am Computer optimiert. Bitte öffne diese Seite auf einem Laptop oder Desktop-Rechner.",
 }: DesktopOnlyNoticeProps) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center lg:hidden">
@@ -25,10 +33,7 @@ export function DesktopOnlyNotice({
         </svg>
       </div>
       <h2 className="mb-3 text-xl font-semibold text-gray-900">{title}</h2>
-      <p className="max-w-md text-base text-gray-600">
-        Die Anmeldungsverwaltung ist für die Arbeit am Computer optimiert. Bitte
-        öffne diese Seite auf einem Laptop oder Desktop-Rechner.
-      </p>
+      <p className="max-w-md text-base text-gray-600">{description}</p>
     </div>
   );
 }

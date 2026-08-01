@@ -32,6 +32,7 @@ export default function OperatorSuggestionsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [visibilityFilter, setVisibilityFilter] = useState("all");
   const [schoolFilter, setSchoolFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
@@ -104,6 +105,9 @@ export default function OperatorSuggestionsPage() {
     if (schoolFilter !== "all") {
       result = result.filter((s) => s.schoolId === schoolFilter);
     }
+    if (sourceFilter !== "all") {
+      result = result.filter((s) => s.authorType === sourceFilter);
+    }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(
@@ -115,7 +119,14 @@ export default function OperatorSuggestionsPage() {
       );
     }
     return result;
-  }, [suggestions, searchTerm, statusFilter, visibilityFilter, schoolFilter]);
+  }, [
+    suggestions,
+    searchTerm,
+    statusFilter,
+    visibilityFilter,
+    schoolFilter,
+    sourceFilter,
+  ]);
 
   const handleStatusChange = useCallback(
     async (id: string, newStatus: OperatorSuggestionStatus) => {
@@ -179,6 +190,18 @@ export default function OperatorSuggestionsPage() {
       value: schoolFilter,
       onChange: (value) => setSchoolFilter(value as string),
       options: [{ value: "all", label: "Alle Schulen" }, ...schoolOptions],
+    },
+    {
+      id: "source",
+      label: "Quelle",
+      type: "dropdown",
+      value: sourceFilter,
+      onChange: (value) => setSourceFilter(value as string),
+      options: [
+        { value: "all", label: "Alle Quellen" },
+        { value: "staff", label: "Personal" },
+        { value: "parent", label: "Eltern" },
+      ],
     },
   ];
 
@@ -304,6 +327,11 @@ function OperatorSuggestionCard({
             {suggestion.isHidden && (
               <span className="shrink-0 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700">
                 Ausgeblendet
+              </span>
+            )}
+            {suggestion.authorType === "parent" && (
+              <span className="shrink-0 rounded-full bg-[#D946EF]/10 px-2 py-0.5 text-[10px] font-semibold text-[#D946EF]">
+                Eltern
               </span>
             )}
           </h3>

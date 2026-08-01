@@ -149,6 +149,7 @@ func (m *SchoolRepoMock) CountNonDeletedByOrganizationID(ctx context.Context, or
 type StaffRepoMock struct {
 	CreateFn                        func(ctx context.Context, entity *users.Staff) error
 	FindByIDFn                      func(ctx context.Context, id any) (*users.Staff, error)
+	FindByIDForUpdateFn             func(ctx context.Context, id int64) (*users.Staff, error)
 	UpdateFn                        func(ctx context.Context, entity *users.Staff) error
 	DeleteFn                        func(ctx context.Context, id any) error
 	ListFn                          func(ctx context.Context, filters map[string]any) ([]*users.Staff, error)
@@ -162,6 +163,8 @@ type StaffRepoMock struct {
 	ListStaffWithPermissionFn       func(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error)
 	GetStaffContactInfoFn           func(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error)
 	FindReachableCalendarStaffIDsFn func(ctx context.Context, ids []int64) (map[int64]bool, error)
+	ListAccountIDsByStaffIDsFn      func(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
+	ListAllStaffAccountIDsFn        func(ctx context.Context) (map[int64]int64, error)
 }
 
 var _ users.StaffRepository = (*StaffRepoMock)(nil)
@@ -178,6 +181,13 @@ func (m *StaffRepoMock) FindByID(ctx context.Context, id any) (*users.Staff, err
 		return m.FindByIDFn(ctx, id)
 	}
 	return nil, nil
+}
+
+func (m *StaffRepoMock) FindByIDForUpdate(ctx context.Context, id int64) (*users.Staff, error) {
+	if m.FindByIDForUpdateFn != nil {
+		return m.FindByIDForUpdateFn(ctx, id)
+	}
+	return m.FindByID(ctx, id)
 }
 
 func (m *StaffRepoMock) Update(ctx context.Context, entity *users.Staff) error {
@@ -248,6 +258,20 @@ func (m *StaffRepoMock) GetStaffContactInfo(ctx context.Context, staffID int64) 
 		return m.GetStaffContactInfoFn(ctx, staffID)
 	}
 	return nil, nil
+}
+
+func (m *StaffRepoMock) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error) {
+	if m.ListAccountIDsByStaffIDsFn != nil {
+		return m.ListAccountIDsByStaffIDsFn(ctx, staffIDs)
+	}
+	return map[int64]int64{}, nil
+}
+
+func (m *StaffRepoMock) ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error) {
+	if m.ListAllStaffAccountIDsFn != nil {
+		return m.ListAllStaffAccountIDsFn(ctx)
+	}
+	return map[int64]int64{}, nil
 }
 
 func (m *StaffRepoMock) ListStaffWithPermission(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error) {

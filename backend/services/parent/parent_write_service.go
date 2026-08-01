@@ -24,7 +24,9 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -244,6 +246,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	var result []*activeModels.StudentStatusDay
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var fresh *usersModels.Student
+		notifyAbsence := false
+		if slices.Contains(dates, today) {
+			var err error
+			fresh, err = s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+			if err != nil {
+				return err
+			}
+			notifyAbsence = isNewParentReportableAbsence(fresh, status)
+		}
+
 		for _, other := range activeModels.StudentStatusDayStatusesExcept(status) {
 			if err := s.StatusDayRepo.MarkClearedForDates(txCtx, studentID, other, dates, now, activeModels.StudentStatusSourceParent); err != nil {
 				return err
@@ -262,11 +275,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		if slices.Contains(dates, today) {
-			fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
-			if err != nil {
-				return err
-			}
+		if fresh != nil {
 			applyLiveStatusForParentToday(fresh, status, now)
 			if err := s.StudentRepo.Update(txCtx, fresh); err != nil {
 				return err
@@ -307,6 +316,21 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			// just the acting guardian's thread; fan out to EVERY guardian so a
 			// co-guardian's open tab drops the stale presence too (#1725 review).
 			s.wakeChildGuardians(capturedTenant, studentID)
+			// The child's group and the office learn that the family reported
+			// an absence. Hooked here rather than in the repository: the
+			// check-in path also writes a status row before immediately
+			// clearing it, and a repository hook would announce a sick note
+			// exactly when the child walks in.
+			if notifyAbsence && s.AbsenceNotifier != nil {
+				s.AbsenceNotifier.NotifyAbsenceReported(context.Background(), notificationsSvc.AbsenceReport{
+					TenantID:       capturedTenant,
+					StudentIDs:     []int64{studentID},
+					Status:         status,
+					Dates:          dates,
+					FromParent:     true,
+					ActorAccountID: accountID,
+				})
+			}
 		})
 		return nil
 	})
@@ -323,6 +347,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		slog.Bool("has_reason", notePtr != nil),
 	)
 	return &SickNoteResult{StatusDays: result}, nil
+}
+
+func isNewParentReportableAbsence(student *usersModels.Student, status string) bool {
+	switch status {
+	case activeModels.StudentStatusDaySick:
+		return student.Sick == nil || !*student.Sick
+	case activeModels.StudentStatusDayExcused:
+		return student.Excused == nil || !*student.Excused
+	default:
+		return false
+	}
 }
 
 // submitExcusedRequest turns an excused report into a pending office-approval
@@ -442,49 +477,84 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, err
 	}
-	sick, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
+	keys := []string{
+		configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentExcusedRequiresApproval,
+		configModels.KeyParentNotesEnabled,
+		configModels.KeyParentPickupChangeEnabled,
+		configModels.KeyGuardianParentInviteMode,
+		configModels.KeyGuardianParentCanRemove,
+		configModels.KeyParentMasterDataEditEnabled,
+		configModels.KeyParentMasterDataRequestEnabled,
+		configModels.KeyMealPlanEnabled,
+		configModels.KeyParentNewsEnabled,
+		configModels.KeyParentGuardianManagementEnabled,
+	}
+	var snapshot *configService.SettingsSnapshot
+	if batch, ok := s.Settings.(interface {
+		ResolveManyForTenant(context.Context, int64, []string) (*configService.SettingsSnapshot, error)
+	}); ok {
+		snapshot, err = batch.ResolveManyForTenant(ctx, child.tenantID, keys)
+		if err != nil {
+			return ChildFeatureFlags{}, fmt.Errorf("parent: resolve child feature settings: %w", err)
+		}
+	}
+	resolveBool := func(key string) (bool, error) {
+		if snapshot != nil {
+			return snapshot.Bool(key)
+		}
+		return s.Settings.ResolveBoolForTenant(ctx, child.tenantID, key)
+	}
+	resolveString := func(key string) (string, error) {
+		if snapshot != nil {
+			return snapshot.String(key)
+		}
+		return s.Settings.ResolveStringForTenant(ctx, child.tenantID, key)
+	}
+
+	sick, err := resolveBool(configModels.KeyParentSickNoteEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-note setting: %w", err)
 	}
-	excusedApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentExcusedRequiresApproval)
+	excusedApproval, err := resolveBool(configModels.KeyParentExcusedRequiresApproval)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve excused-approval setting: %w", err)
 	}
-	notes, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
+	notes, err := resolveBool(configModels.KeyParentNotesEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve notes setting: %w", err)
 	}
-	pickupChange, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
+	pickupChange, err := resolveBool(configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
-	inviteMode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	inviteMode, err := resolveString(configModels.KeyGuardianParentInviteMode)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
-	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
+	canRemove, err := resolveBool(configModels.KeyGuardianParentCanRemove)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
-	masterEdit, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
+	masterEdit, err := resolveBool(configModels.KeyParentMasterDataEditEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data edit setting: %w", err)
 	}
-	masterRequest, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
+	masterRequest, err := resolveBool(configModels.KeyParentMasterDataRequestEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
-	mealPlan, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
+	mealPlan, err := resolveBool(configModels.KeyMealPlanEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
-	news, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNewsEnabled)
+	news, err := resolveBool(configModels.KeyParentNewsEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve parent-news setting: %w", err)
 	}
-	guardianManagement, err := s.guardianManagementEnabled(ctx, child.tenantID)
+	guardianManagement, err := resolveBool(configModels.KeyParentGuardianManagementEnabled)
 	if err != nil {
-		return ChildFeatureFlags{}, err
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve guardian-management setting: %w", err)
 	}
 	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{

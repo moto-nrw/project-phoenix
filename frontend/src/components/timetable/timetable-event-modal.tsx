@@ -1,13 +1,14 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
+import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
-import { Input } from "~/components/ui/input";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -20,7 +21,13 @@ import {
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import {
+  findFirstClosingDayConflict,
+  type ClosingDayConflict,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -44,6 +51,7 @@ const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   time: "Zeit/Datum",
   staff: "Personal",
   students: "Kinder",
+  list_kind: "Listenart",
   deleted: "Gelöschter Termin",
 };
 
@@ -62,6 +70,20 @@ const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
 ];
 
 const LAST_STEP = WIZARD_STEPS.length - 1;
+
+function getClosingDayWarningMessage(
+  isSeriesFlow: boolean,
+  conflict: ClosingDayConflict,
+): string {
+  let reason = "";
+  if (conflict.reason !== "") reason = ` (${conflict.reason})`;
+
+  const date = formatDate(conflict.dateISO);
+  if (isSeriesFlow) {
+    return `Hinweis: Der Regeltermin fällt am ${date} auf einen Schließtag${reason}. Planen ist weiterhin möglich.`;
+  }
+  return `Hinweis: Am ${date} ist ein Schließtag hinterlegt${reason}. Planen ist weiterhin möglich.`;
+}
 
 interface TimetableEventModalProps {
   isOpen: boolean;
@@ -90,6 +112,15 @@ interface TimetableEventModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  /**
+   * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
+   * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
+   * bestätigt wurde. Ohne die Liste verhält sich der Dialog wie bisher.
+   */
+  closingDayRanges?: readonly ClosingDayRange[];
+  /** Saving stays disabled until the range lookup completes, so an empty
+   *  loading state cannot be mistaken for a conflict-free date. */
+  closingDaysLoading?: boolean;
 }
 
 export function TimetableEventModal({
@@ -111,6 +142,8 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  closingDayRanges,
+  closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
   const {
@@ -150,6 +183,9 @@ export function TimetableEventModal({
     choiceDialogOpen,
     setPendingSeriesEdit,
     handleScopeSelect,
+    scopeClosingDayWarning,
+    setScopeClosingDayWarning,
+    confirmScopeClosingDay,
     lostEdits,
     setLostEdits,
     confirmLostEdits,
@@ -182,6 +218,7 @@ export function TimetableEventModal({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    listKindTouched,
     manualWeekPattern,
   } = useEventForm({
     isOpen,
@@ -201,6 +238,7 @@ export function TimetableEventModal({
     defaultStartTime,
     defaultEndTime,
     canCheckShiftCoverage,
+    closingDayRanges,
   });
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
@@ -208,12 +246,81 @@ export function TimetableEventModal({
   // instance edit, series edit) starts at step 1 with all steps reachable.
   const [step, setStep] = useState(0);
   const submitAttempted = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (isOpen) {
       setStep(convertInstance ? 1 : 0);
       submitAttempted.current = false;
+      confirmedClosingConflict.current = null;
+      setClosingDayPrompt(null);
     }
   }, [isOpen, convertInstance]);
+
+  // Schließtag-Warnung (#2032). Bei Serien zählt nicht nur das Ankerdatum:
+  // dieselben Wochentag-/A-B-Regeln wie beim Materialisieren werden über den
+  // gewählten Zeitraum gelegt. Bestätigt wird die aktuelle Konfiguration;
+  // ändert sie sich danach, fragt der Dialog erneut.
+  const closingDayConflict = useMemo(() => {
+    if (!isSeriesFlow) {
+      return findFirstClosingDayConflict(closingDayRanges, [form.date]);
+    }
+    const period = calendarPeriods.find(
+      (candidate) => candidate.id === form.calendarPeriodId,
+    );
+    if (!period) return null;
+    const today = berlinTodayISO();
+    const from =
+      initialSeries && today > period.startDate ? today : period.startDate;
+    const validity = initialSeries?.schedules[0];
+    const dates = materializedRecurrenceDates({
+      period,
+      fromISO: from,
+      weekdays: form.weekdays,
+      weekPattern: form.weekPattern,
+      validFrom: validity?.validFrom,
+      validUntil: validity?.validUntil,
+    });
+    // Converting preserves the concrete seed occurrence even when its date is
+    // outside the selected recurrence slots.
+    if (convertInstance && form.date && !dates.includes(form.date)) {
+      dates.push(form.date);
+      dates.sort((left, right) => left.localeCompare(right));
+    }
+    return findFirstClosingDayConflict(closingDayRanges, dates);
+  }, [
+    calendarPeriods,
+    closingDayRanges,
+    convertInstance,
+    form.calendarPeriodId,
+    form.date,
+    form.weekPattern,
+    form.weekdays,
+    initialSeries,
+    isSeriesFlow,
+  ]);
+  const closingDayConfirmationKey =
+    closingDayConflict === null
+      ? null
+      : JSON.stringify({
+          conflict: closingDayConflict,
+          repeat: form.repeat,
+          weekdays: form.weekdays,
+          calendarPeriodId: form.calendarPeriodId,
+          weekPattern: form.weekPattern,
+        });
+  const [closingDayPrompt, setClosingDayPrompt] = useState<{
+    conflict: ClosingDayConflict;
+    confirmationKey: string;
+  } | null>(null);
+  const confirmedClosingConflict = useRef<string | null>(null);
+  // Nach der Bestätigung ganz normal absenden: die Serienkonfiguration steht
+  // dann im Ref, die Rückfrage greift also nicht erneut.
+  const submitAfterConfirm = () => {
+    if (!closingDayPrompt) return;
+    confirmedClosingConflict.current = closingDayPrompt.confirmationKey;
+    setClosingDayPrompt(null);
+    formRef.current?.requestSubmit();
+  };
 
   const stepHasError = (index: number, errors: Record<string, string>) =>
     (STEP_FIELDS[index] ?? []).some((field) => errors[field] !== undefined);
@@ -222,12 +329,25 @@ export function TimetableEventModal({
     // Reuses the hook's unchanged validateForm and only looks at the fields of
     // the current step — no separate rule set.
     validateForm();
-    if (stepHasError(step, lastValidationErrors.current)) return;
+    const errors = lastValidationErrors.current;
+    if (stepHasError(step, errors)) return;
+    // A repeat choice in step 2 retroactively makes step-1 fields required (a
+    // Regeltermin needs a Kategorie). Once the current step is clean, block on
+    // an earlier step's error too and jump to it, instead of waving the user
+    // through to Speichern and only revealing the field there.
+    const earlier = STEP_FIELDS.findIndex(
+      (_, index) => index < step && stepHasError(index, errors),
+    );
+    if (earlier >= 0) {
+      setStep(earlier);
+      return;
+    }
     setStep((current) => Math.min(current + 1, LAST_STEP));
   };
 
-  // Speichern works from every step. When the full validation fails on a field
-  // the user cannot see, surface it by jumping to its step.
+  // Speichern only exists on the last step, but the full validation covers
+  // every step. When it fails on a field the user cannot see, surface it by
+  // jumping to its step.
   useEffect(() => {
     if (!submitAttempted.current) return;
     submitAttempted.current = false;
@@ -289,8 +409,38 @@ export function TimetableEventModal({
 
         <form
           id="timetable-event-form"
+          ref={formRef}
           noValidate
           onSubmit={(event) => {
+            // Before the last step the submit button is "Weiter", so every
+            // submit — the click and the implicit one Enter triggers in a
+            // field — advances the wizard instead of saving. (#2025)
+            if (step < LAST_STEP) {
+              event.preventDefault();
+              goNext();
+              return;
+            }
+            if (closingDaysLoading) {
+              event.preventDefault();
+              return;
+            }
+            // Schließtag: erst nachfragen, dann speichern (#2032). Die Frage
+            // kommt erst, wenn das Formular auch wirklich speichern würde —
+            // sonst stünde sie vor den Pflichtfeld-Fehlern.
+            if (
+              closingDayConflict !== null &&
+              closingDayConfirmationKey !== null &&
+              confirmedClosingConflict.current !== closingDayConfirmationKey &&
+              !submitting &&
+              validateForm()
+            ) {
+              event.preventDefault();
+              setClosingDayPrompt({
+                conflict: closingDayConflict,
+                confirmationKey: closingDayConfirmationKey,
+              });
+              return;
+            }
             // Mirror handleSubmit's early-return guards: on those paths no
             // validation runs, so the flag would stay set and a later,
             // unrelated fieldErrors change could trigger a spurious step jump.
@@ -329,6 +479,7 @@ export function TimetableEventModal({
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 quickPreset={quickPreset}
+                listKindTouched={listKindTouched}
               />
             )}
 
@@ -440,6 +591,19 @@ export function TimetableEventModal({
                 </div>
               )}
 
+            {/* Schließtag in der aktuellen Termin-/Serienkonfiguration (#2032)
+                — Hinweis, keine Sperre. Beim Speichern folgt die Rückfrage. */}
+            {closingDayConflict !== null && (
+              <Alert
+                type="warning"
+                message={getClosingDayWarningMessage(
+                  isSeriesFlow,
+                  closingDayConflict,
+                )}
+                announce="off"
+              />
+            )}
+
             {validationError && (
               <Alert type="error" message={validationError} />
             )}
@@ -485,32 +649,41 @@ export function TimetableEventModal({
                 Zurück
               </Button>
             )}
-            {step < LAST_STEP && (
+            {step < LAST_STEP ? (
+              // #2025: "Weiter" is the primary action so the eye lands on the
+              // path through the wizard; Speichern only exists on the last
+              // step, so no step can be saved unseen. It is the form's submit
+              // button (not just an onClick): a form without one suppresses
+              // implicit submission, so Enter in a field would do nothing at
+              // all. This way click and Enter take the same path — onSubmit,
+              // which routes everything before the last step into goNext.
               <Button
-                type="button"
-                variant="secondary"
+                type="submit"
+                form="timetable-event-form"
+                variant="primary"
                 size="md"
-                onClick={goNext}
                 disabled={submitting || deletingSeries}
               >
                 Weiter
               </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="timetable-event-form"
+                variant="primary"
+                size="md"
+                isLoading={submitting}
+                loadingText="Speichere …"
+                disabled={
+                  submitting ||
+                  deletingSeries ||
+                  closingDaysLoading ||
+                  (isEditingInstance && initialInstance?.status !== "planned")
+                }
+              >
+                Speichern
+              </Button>
             )}
-            <Button
-              type="submit"
-              form="timetable-event-form"
-              variant="primary"
-              size="md"
-              isLoading={submitting}
-              loadingText="Speichere …"
-              disabled={
-                submitting ||
-                deletingSeries ||
-                (isEditingInstance && initialInstance?.status !== "planned")
-              }
-            >
-              Speichern
-            </Button>
           </div>
         </SlideOverFooter>
 
@@ -538,19 +711,18 @@ export function TimetableEventModal({
                 required
                 error={deleteError ?? undefined}
               >
-                <Input
+                <ISODatePicker
                   id="series_delete_effective_date"
-                  type="date"
+                  controlSize="md"
                   value={deleteEffectiveDate}
                   min={berlinTodayISO()}
-                  controlSize="compact"
-                  aria-invalid={deleteError ? true : undefined}
+                  invalid={Boolean(deleteError)}
                   disabled={deletingSeries}
-                  onChange={(event) => {
-                    setDeleteEffectiveDate(event.target.value);
+                  calendarLayout="popover"
+                  onChange={(next) => {
+                    setDeleteEffectiveDate(next);
                     setDeleteError(null);
                   }}
-                  required
                 />
               </Field>
             </div>
@@ -559,7 +731,7 @@ export function TimetableEventModal({
 
         {initialInstance && (
           <ChoiceModal
-            isOpen={choiceDialogOpen}
+            isOpen={choiceDialogOpen && scopeClosingDayWarning === null}
             onClose={() => setPendingSeriesEdit(null)}
             title="Wiederholenden Termin ändern"
             description={
@@ -588,6 +760,28 @@ export function TimetableEventModal({
             ]}
             onSelect={(value) => void handleScopeSelect(value)}
             isBusy={submitting}
+          />
+        )}
+
+        {/* #2032: bestätigbare Warnung, bevor ein Termin auf einem Schließtag
+            gespeichert wird. */}
+        {closingDayPrompt !== null && (
+          <ClosingDayConfirmModal
+            dateISO={closingDayPrompt.conflict.dateISO}
+            reason={closingDayPrompt.conflict.reason}
+            subject="termin"
+            onCancel={() => setClosingDayPrompt(null)}
+            onConfirm={submitAfterConfirm}
+          />
+        )}
+
+        {scopeClosingDayWarning !== null && (
+          <ClosingDayConfirmModal
+            dateISO={scopeClosingDayWarning.conflict.dateISO}
+            reason={scopeClosingDayWarning.conflict.reason}
+            subject="termin"
+            onCancel={() => setScopeClosingDayWarning(null)}
+            onConfirm={() => void confirmScopeClosingDay()}
           />
         )}
 

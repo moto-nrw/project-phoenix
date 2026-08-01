@@ -12,6 +12,10 @@ import (
 const (
 	AuthorTypeOperator = "operator"
 	AuthorTypeUser     = "user"
+	// AuthorTypeParent marks a comment written in the parent portal. Parent
+	// identities are never resolved into author_name — see the comment
+	// repository's name masking.
+	AuthorTypeParent = "parent"
 )
 
 // Comment represents a comment on a suggestion post
@@ -39,6 +43,7 @@ func (c *Comment) Validate() error {
 		return errors.New("author ID is required")
 	}
 	if !isValidAuthorType(c.AuthorType) {
+		// Message intentionally unchanged: comment_test.go pins this wording.
 		return errors.New("author type must be 'operator' or 'user'")
 	}
 	if c.Content == "" {
@@ -52,5 +57,7 @@ func (c *Comment) Validate() error {
 
 // isValidAuthorType checks if an author type string is valid
 func isValidAuthorType(authorType string) bool {
-	return authorType == AuthorTypeOperator || authorType == AuthorTypeUser
+	return authorType == AuthorTypeOperator ||
+		authorType == AuthorTypeUser ||
+		authorType == AuthorTypeParent
 }

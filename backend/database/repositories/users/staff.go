@@ -32,6 +32,28 @@ func NewStaffRepository(db *bun.DB) users.StaffRepository {
 	}
 }
 
+// FindByIDForUpdate retrieves a staff row with a SELECT … FOR UPDATE lock.
+// Payroll-number changes use the lock to derive their audit old_value from
+// the last committed value when concurrent updates target the same staff row.
+func (r *StaffRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Staff, error) {
+	staff := new(users.Staff)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".id = ?`, id).
+		For("UPDATE")
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find staff by id for update",
+			Err: err,
+		}
+	}
+	return staff, nil
+}
+
 // FindByPersonID retrieves a staff member by their person ID
 func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error) {
 	staff := new(users.Staff)
@@ -114,7 +136,14 @@ func (r *StaffRepository) staffWithPersonQuery(ctx context.Context, results *[]s
 		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
 		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
+		// employment_type is part of the model and the cross-staff
+		// time-tracking overview filters on it (#1417); without it the field
+		// scanned back as NULL for every staff member.
+		ColumnExpr(`"staff".employment_type AS "staff__employment_type"`).
 		ColumnExpr(`"staff".work_time_model_id AS "staff__work_time_model_id"`).
+		// personnel_number feeds the DATEV writers (#1417): without it every
+		// staff member would be "skipped, no Personalnummer" in the export.
+		ColumnExpr(`"staff".personnel_number AS "staff__personnel_number"`).
 		ColumnExpr(`"staff".rotation_anchor_date AS "staff__rotation_anchor_date"`).
 		ColumnExpr(`"person".id AS "person__id"`).
 		ColumnExpr(`"person".created_at AS "person__created_at"`).
@@ -193,6 +222,96 @@ func (r *StaffRepository) GetStaffContactInfo(ctx context.Context, staffID int64
 		return nil, &modelBase.DatabaseError{Op: "get staff contact info", Err: err}
 	}
 	return &result, nil
+}
+
+// ListAccountIDsByStaffIDs maps staff members to their login accounts.
+//
+// The bulk counterpart of the staff -> person -> account walk
+// GetStaffContactInfo does for one person, reduced to the two columns a caller
+// addressing people by account needs. Deliberately not FindWithPersonByIDs:
+// that hydrates whole staff and person rows for a lookup that is two integers.
+//
+// Staff without an active login account and active tenant mapping are absent
+// from the result rather than mapped to zero, so a caller ranging over the map
+// cannot accidentally address account 0. Soft-deleted staff and persons are
+// excluded.
+func (r *StaffRepository) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error) {
+	if len(staffIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+
+	var rows []struct {
+		StaffID   int64 `bun:"staff_id"`
+		AccountID int64 `bun:"account_id"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"account".id AS account_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id AND "account".active = TRUE`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id
+			AND "account_tenant".tenant_id = "staff".tenant_id
+			AND "account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"staff".deleted_at IS NULL`).
+		Where(`"staff".id IN (?)`, bun.List(staffIDs))
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list account IDs by staff IDs", Err: err}
+	}
+
+	accountsByStaff := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		accountsByStaff[row.StaffID] = row.AccountID
+	}
+
+	return accountsByStaff, nil
+}
+
+// ListAllStaffAccountIDs maps every staff member of the current tenant who can
+// actually log in to their account.
+//
+// The candidate set for anything addressed at "the team": a caller narrows it
+// afterwards by whatever the feature requires. It is deliberately not
+// ListAccountIDsByStaffIDs with a wildcard — that one answers a question about
+// named people and returns nothing for an empty list, which is the correct
+// contract there and the wrong one here.
+//
+// Inactive accounts and inactive tenant mappings are excluded, so a departed
+// colleague is not addressed by a background job that has no request context to
+// notice it. Staff without an account are absent rather than mapped to zero.
+func (r *StaffRepository) ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error) {
+	var rows []struct {
+		StaffID   int64 `bun:"staff_id"`
+		AccountID int64 `bun:"account_id"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"account".id AS account_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id AND "account".active = TRUE`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id
+			AND "account_tenant".tenant_id = "staff".tenant_id
+			AND "account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"staff".deleted_at IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list all staff account IDs", Err: err}
+	}
+
+	accountsByStaff := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		accountsByStaff[row.StaffID] = row.AccountID
+	}
+
+	return accountsByStaff, nil
 }
 
 // ListStaffWithPermission returns all active staff whose effective permissions

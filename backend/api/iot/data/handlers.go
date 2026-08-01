@@ -394,6 +394,20 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 		return nil
 	}
 
+	// A graduated child is soft-deleted and absent from every device roster, so
+	// reporting the tag as theirs would name a person the kiosk cannot act on:
+	// the assignment view shows their name and class while the unassign call
+	// 404s through the shared alumnus gate. Graduation releases the tag itself
+	// (see GradeTransitionService.releaseGraduateTags), so this only covers rows
+	// graduated before that existed — those bracelets read as free and can be
+	// handed to a current child, which is what physically happened (#405 review).
+	if student.Status == users.StudentStatusAlumnus {
+		slog.Default().InfoContext(ctx, "rfid tag still bound to a graduated student, reporting as unassigned",
+			slog.Int64("student_id", student.ID),
+		)
+		return nil
+	}
+
 	return &RFIDTagAssignmentResponse{
 		Assigned:   true,
 		PersonType: "student",

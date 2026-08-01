@@ -63,7 +63,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
-		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion),
+		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,
@@ -73,7 +73,9 @@ func setupTestContext(t *testing.T) *testContext {
 		SchoolService:           svc.Schools,
 		SettingsService:         svc.Settings,
 		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
+		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
+		CareDayService:          svc.CareDay,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		Broadcaster:             broadcaster,

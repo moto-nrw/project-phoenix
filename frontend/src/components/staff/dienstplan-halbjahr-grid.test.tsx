@@ -242,6 +242,7 @@ function renderGrid(
       staff={props.staff ?? STAFF}
       reducedPath={props.reducedPath ?? false}
       todayIso={props.todayIso ?? ANCHOR}
+      closingDayRanges={props.closingDayRanges}
       onWeekClick={onWeekClick}
     />,
   );
@@ -495,5 +496,42 @@ describe("DienstplanHalbjahrGrid", () => {
       screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
     );
     expect(mocks.push).toHaveBeenCalledWith("/calendar-periods");
+  });
+});
+
+// #2032: Wochen mit Schließtagen sind in der Halbjahres-Sicht erkennbar.
+describe("DienstplanHalbjahrGrid closing days", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("marks the week column containing closing days with their count and days", () => {
+    configureSWR({ periods: [PERIOD_6W], overviewByKey: allWeeksReady() });
+
+    renderGrid({
+      closingDayRanges: [
+        {
+          startDate: "2026-09-16",
+          endDate: "2026-09-17",
+          reason: "Pädagogischer Tag",
+        },
+      ],
+    });
+
+    const marked = screen.getByTitle(
+      "2 Schließtage: 16.09. Pädagogischer Tag, 17.09. Pädagogischer Tag",
+    );
+    // KW 38 (Mo 14.09.) ist die Woche, in die beide Tage fallen.
+    expect(marked.closest("th")).toHaveTextContent("KW 38");
+    // Keine andere Woche trägt eine Kennzeichnung.
+    expect(screen.getAllByText(/Schließtag/)).toHaveLength(1);
+  });
+
+  it("keeps every column unmarked without closing days", () => {
+    configureSWR({ periods: [PERIOD_6W], overviewByKey: allWeeksReady() });
+
+    renderGrid();
+
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
   });
 });

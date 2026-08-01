@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -24,8 +25,8 @@ type SSESettingsResolver interface {
 }
 
 // SSESubscription is the resolved topic set for an SSE client: the staff
-// member (0 for pure admins without a staff record), the active-group topics,
-// the derived educational-group topics, and the deduplicated union.
+// member (0 for effective admins without a staff record), the active-group
+// topics, the derived educational-group topics, and the deduplicated union.
 type SSESubscription struct {
 	StaffID        int64
 	ActiveGroupIDs []string
@@ -44,15 +45,15 @@ type SSESetupError struct {
 func (e *SSESetupError) Error() string { return fmt.Sprintf("SSE setup: %s", e.Message) }
 
 // ResolveSSESubscription resolves the full topic subscription for the
-// authenticated caller. Pure admins may not have a staff record — that's OK,
-// they still receive BroadcastToAll events and (when admin_supervision_overview
-// is enabled) every active group's events. Non-admins without a staff record
-// are rejected with an SSESetupError.
+// authenticated caller. Effective admins may not have a staff record — that's
+// OK, they still receive BroadcastToAll events and (when
+// admin_supervision_overview is enabled) every active group's events.
+// Non-admins without a staff record are rejected with an SSESetupError.
 func (s *userContextService) ResolveSSESubscription(ctx context.Context) (*SSESubscription, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
+	isAdmin := authorize.HasEffectiveAdminScope(ctx)
 
 	staff, errMsg, code := s.resolveSSEStaff(ctx)
-	if staff == nil && !claims.IsAdmin {
+	if staff == nil && !isAdmin {
 		return nil, &SSESetupError{Message: errMsg, Status: code}
 	}
 
@@ -147,9 +148,7 @@ func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID
 		return nil, errors.New("SSE active service is not configured")
 	}
 
-	claims := jwt.ClaimsFromCtx(ctx)
-
-	if claims.IsAdmin && s.sseSettings != nil {
+	if authorize.HasEffectiveAdminScope(ctx) && s.sseSettings != nil {
 		enabled, err := s.sseSettings.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
 		if err != nil {
 			s.getLogger().Warn("admin_supervision_overview setting check failed for SSE, falling back to staff supervisions",

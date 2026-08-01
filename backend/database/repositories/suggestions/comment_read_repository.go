@@ -14,6 +14,10 @@ import (
 
 const tableCommentReadsAlias = `suggestions.comment_reads AS "cr"`
 
+// ownParentCommentExclusion keeps a guardian's own comments out of their
+// unread badge. Staff and operators retain the existing unread semantics.
+const ownParentCommentExclusion = `( ? <> 'parent' OR c.author_type <> 'parent' OR c.author_id <> ?)`
+
 // CommentReadRepository implements suggestions.CommentReadRepository
 type CommentReadRepository struct {
 	db *bun.DB
@@ -73,6 +77,7 @@ func (r *CommentReadRepository) CountUnreadByPost(ctx context.Context, accountID
 		Where("c.post_id = ?", postID).
 		Where("p.is_hidden = FALSE").
 		Where("c.deleted_at IS NULL").
+		Where(ownParentCommentExclusion, readerType, accountID).
 		Where(`c.created_at > COALESCE(
 			(SELECT cr.last_read_at FROM suggestions.comment_reads cr
 			 WHERE cr.account_id = ? AND cr.post_id = ? AND cr.reader_type = ?),
@@ -93,6 +98,7 @@ func (r *CommentReadRepository) CountTotalUnread(ctx context.Context, accountID 
 		Join("JOIN suggestions.posts AS p ON p.id = c.post_id").
 		Where("p.is_hidden = FALSE").
 		Where("c.deleted_at IS NULL").
+		Where(ownParentCommentExclusion, readerType, accountID).
 		Where(`c.created_at > COALESCE(
 			(SELECT cr.last_read_at FROM suggestions.comment_reads cr
 			 WHERE cr.account_id = ? AND cr.post_id = c.post_id AND cr.reader_type = ?),

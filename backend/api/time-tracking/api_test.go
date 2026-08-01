@@ -45,7 +45,7 @@ type mockWorkSessionService struct {
 	getHistoryFn         func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
 	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
 	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
-	exportSessionsFn     func(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
+	exportSessionsFn     func(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*activeSvc.ExportFile, error)
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
@@ -141,11 +141,18 @@ func (m *mockWorkSessionService) SetStaffShiftRepo(_ scheduleModels.StaffShiftRe
 func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
-func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error) {
+func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*activeSvc.ExportFile, error) {
 	if m.exportSessionsFn != nil {
 		return m.exportSessionsFn(ctx, staffID, from, to, format)
 	}
-	return []byte("data"), "export.csv", nil
+	return &activeSvc.ExportFile{Data: []byte("data"), Filename: "export.csv", ContentType: "text/csv; charset=utf-8"}, nil
+}
+func (m *mockWorkSessionService) DayExportRows(context.Context, int64, timezone.Date, timezone.Date) ([]activeSvc.DayExportRow, error) {
+	return nil, nil
+}
+
+func (m *mockWorkSessionService) DayExportRowsByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]activeSvc.DayExportRow, error) {
+	return nil, nil
 }
 func (m *mockWorkSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, error) {
 	if m.autoEndExpiredBreaks != nil {
@@ -210,6 +217,9 @@ func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int
 	}
 	return &activeSvc.StaffAbsenceResponse{}, nil
 }
+func (m *mockStaffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int64, _ *int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+	return m.CreateAbsence(ctx, staffID, req)
+}
 func (m *mockStaffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 	if m.updateAbsenceFn != nil {
 		return m.updateAbsenceFn(ctx, staffID, actorAccountID, absenceID, req)
@@ -221,6 +231,9 @@ func (m *mockStaffAbsenceService) DeleteAbsence(ctx context.Context, staffID int
 		return m.deleteAbsenceFn(ctx, staffID, absenceID)
 	}
 	return nil
+}
+func (m *mockStaffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID int64, _ *int64, absenceID int64) error {
+	return m.DeleteAbsence(ctx, staffID, absenceID)
 }
 
 // The #1843 *For variants delegate to the existing fn fields so the tests
@@ -1173,10 +1186,10 @@ func TestGetSessionEdits_InvalidID(t *testing.T) {
 
 func TestExportSessions_CSV(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, staffID int64, _, _ timezone.Date, format string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, staffID int64, _, _ timezone.Date, format string) (*activeSvc.ExportFile, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "csv", format)
-			return []byte("date,time\n"), "export.csv", nil
+			return &activeSvc.ExportFile{Data: []byte("date,time\n"), Filename: "export.csv", ContentType: "text/csv; charset=utf-8"}, nil
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
@@ -1193,9 +1206,9 @@ func TestExportSessions_CSV(t *testing.T) {
 
 func TestExportSessions_XLSX(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) (*activeSvc.ExportFile, error) {
 			assert.Equal(t, "xlsx", format)
-			return []byte{0x50, 0x4B}, "export.xlsx", nil
+			return &activeSvc.ExportFile{Data: []byte{0x50, 0x4B}, Filename: "export.xlsx", ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}, nil
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
@@ -1211,9 +1224,9 @@ func TestExportSessions_XLSX(t *testing.T) {
 
 func TestExportSessions_DefaultCSV(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) (*activeSvc.ExportFile, error) {
 			assert.Equal(t, "csv", format)
-			return []byte("data"), "export.csv", nil
+			return &activeSvc.ExportFile{Data: []byte("data"), Filename: "export.csv", ContentType: "text/csv; charset=utf-8"}, nil
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
@@ -1239,8 +1252,8 @@ func TestExportSessions_MissingDates(t *testing.T) {
 
 func TestExportSessions_ServiceError(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, _ string) ([]byte, string, error) {
-			return nil, "", errors.New("export failed")
+		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, _ string) (*activeSvc.ExportFile, error) {
+			return nil, errors.New("export failed")
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
@@ -1730,6 +1743,28 @@ func TestClassifyAbsenceError(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
+
+	t.Run("manager-controlled absence returns coded forbidden", func(t *testing.T) {
+		renderer := classifyAbsenceError(activeSvc.ErrManagerControlledAbsence)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		err := render.Render(w, r, renderer)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusForbidden, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence"}`, w.Body.String())
+	})
+
+	t.Run("wrapped comp-time overdraft returns coded conflict", func(t *testing.T) {
+		serviceErr := fmt.Errorf("validate comp_time absence: %w", activeSvc.ErrCompTimeExceedsBalance)
+		renderer := classifyAbsenceError(serviceErr)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		err := render.Render(w, r, renderer)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"validate comp_time absence: comp_time absence exceeds accrued balance","code":"comp_time_exceeds_balance"}`, w.Body.String())
+	})
 }
 
 // --- parseDateRange tests ---

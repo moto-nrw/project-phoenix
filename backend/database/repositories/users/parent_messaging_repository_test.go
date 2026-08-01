@@ -519,3 +519,51 @@ func derefStr(s *string) string {
 	}
 	return *s
 }
+
+// TestParentMessaging_UnreadCountExcludesAlumni guards the sidebar badges
+// against graduated children: both inboxes hide an alumnus child's threads, so
+// the shared unread-count query must not keep counting their messages — a
+// nonzero badge no portal can open or clear (#405 review).
+func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+	msgRepo := usersRepo.NewParentMessageRepository(db)
+	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	ctx := tenantCtx()
+
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+
+	// One unread message per reader side: the guardian message badges the staff
+	// sidebar, the staff message badges the parent portal.
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "hallo")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "antwort")))
+
+	staffUnread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	require.Equal(t, 1, staffUnread, "guard: the guardian message counts while the child is active")
+	guardianUnread, err := readRepo.UnreadMessageCountForGuardianTenants(ctx, chain.AccountID, []int64{1})
+	require.NoError(t, err)
+	require.Equal(t, 1, guardianUnread, "guard: the staff message counts while the child is active")
+
+	// The child graduates (soft delete via Jahrgangswechsel).
+	_, err = db.NewRaw(`UPDATE users.students SET status = 'alumnus' WHERE id = ?`, chain.StudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	staffUnread, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, staffUnread, "a graduated child's messages must not badge the staff sidebar")
+	guardianUnread, err = readRepo.UnreadMessageCountForGuardianTenants(ctx, chain.AccountID, []int64{1})
+	require.NoError(t, err)
+	assert.Equal(t, 0, guardianUnread, "a graduated child's messages must not badge the parent portal")
+}

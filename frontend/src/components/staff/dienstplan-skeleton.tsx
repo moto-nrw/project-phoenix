@@ -1,23 +1,43 @@
 "use client";
 
+import { CapacityStrip } from "~/components/ui/capacity-strip";
+import {
+  RESOURCE_GRID_METRICS,
+  resourceGridMinWidth,
+} from "~/components/ui/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
 
-// The PlanningContextBar header placeholder (title, week nav, view switcher,
-// "Schichtarten verwalten" action). Only used by the full-page skeleton — once
-// the session is ready the real PlanningContextBar renders and only the grid
-// area falls back to a skeleton on cold data (docs/05 Abschnitt 5).
+// Das Skelett rastert wie das echte Wochenraster (Issue #2026). Die Maße —
+// Spaltenbreiten und Zellen-Mindesthöhe — kommen aus RESOURCE_GRID_METRICS und
+// wandern mit; die Tabellenstruktur (Ränder, Paddings, sticky Personenspalte)
+// ist bewusst nachgebaut, weil das ResourceGrid Textspalten-Köpfe erwartet und
+// hier nur Platzhalter stehen. Ändert sich dort die Struktur, muss sie hier
+// nachgezogen werden.
+const SKELETON_DAY_COLUMNS = 5;
+const DAY_COLUMN_INDEXES = Array.from(
+  { length: SKELETON_DAY_COLUMNS },
+  (_, index) => index,
+);
+
+// The PlanningContextBar header placeholder mirrors its mobile title,
+// navigation, view switcher, action, and context row. Only used by the
+// full-page skeleton — once the session is ready the real PlanningContextBar
+// renders and only the grid area falls back to a skeleton on cold data
+// (docs/05 Abschnitt 5).
 function HeaderSkeleton() {
   return (
-    <div className="moto-content-surface rounded-2xl border p-3 sm:p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Skeleton className="h-6 w-28 rounded" />
-        <div className="flex items-center gap-1">
-          <Skeleton className="h-8 w-8 rounded-md" />
-          <Skeleton className="h-4 w-44 rounded" />
-          <Skeleton className="h-8 w-8 rounded-md" />
-        </div>
-        <Skeleton className="h-9 w-40 rounded-lg" />
+    <div className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3">
+      <Skeleton className="h-7 w-28 md:hidden" />
+      <div className="flex min-h-9 flex-wrap items-center gap-3">
+        <Skeleton className="h-8 w-28 rounded-lg" />
+        <Skeleton className="h-6 w-44 rounded" />
+        <Skeleton className="h-8 w-40 rounded-lg" />
         <Skeleton className="ml-auto h-9 w-48 rounded-lg" />
+      </div>
+      <div className="border-t border-gray-100 pt-2">
+        <div className="min-h-8">
+          <Skeleton className="h-5 w-32" />
+        </div>
       </div>
     </div>
   );
@@ -30,35 +50,60 @@ function HeaderSkeleton() {
 function GridSkeletonBody() {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
-        <table className="w-full min-w-[960px] border-collapse text-sm">
-          <tbody className="divide-y divide-gray-100">
-            {Array.from({ length: 6 }, (_, row) => (
-              <tr key={row} className="bg-white">
-                <td className="px-4 py-2">
-                  <Skeleton className="h-4 w-32 rounded" />
-                </td>
-                {Array.from({ length: 5 }, (_, col) => (
-                  <td key={col} className="px-3 py-2">
-                    <Skeleton className="h-9 w-full rounded-md" />
-                  </td>
+      <div className="max-w-full overflow-clip rounded-2xl border border-gray-200">
+        <div className="max-w-full overflow-x-auto">
+          <table
+            className="w-full table-fixed border-collapse text-sm"
+            style={{ minWidth: resourceGridMinWidth(SKELETON_DAY_COLUMNS) }}
+          >
+            <colgroup>
+              <col style={{ width: RESOURCE_GRID_METRICS.rowHeaderWidth }} />
+              {DAY_COLUMN_INDEXES.map((col) => (
+                <col key={col} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-left">
+                  <Skeleton className="h-4 w-16 rounded" />
+                </th>
+                {DAY_COLUMN_INDEXES.map((col) => (
+                  <th key={col} className="px-2 py-1.5 text-left">
+                    <Skeleton className="h-4 w-14 rounded" />
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-gray-200 bg-gray-50">
-              <td className="px-4 py-2">
-                <Skeleton className="h-4 w-28 rounded" />
-              </td>
-              {Array.from({ length: 5 }, (_, col) => (
-                <td key={col} className="px-3 py-2">
-                  <Skeleton className="h-4 w-8 rounded" />
-                </td>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }, (_, row) => (
+                <tr key={row} className="border-t border-gray-100">
+                  <th className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal">
+                    <Skeleton className="h-4 w-32 rounded" />
+                  </th>
+                  {DAY_COLUMN_INDEXES.map((col) => (
+                    <td
+                      key={col}
+                      className="border-l border-gray-100 px-1 py-1 align-top"
+                    >
+                      <Skeleton
+                        className={`${RESOURCE_GRID_METRICS.cellMinHeightClass.days} w-full rounded-md`}
+                      />
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          </tfoot>
-        </table>
+            </tbody>
+            <tfoot>
+              <CapacityStrip
+                rowLabel={<Skeleton className="h-4 w-28 rounded" />}
+                cells={DAY_COLUMN_INDEXES.map((col) => ({
+                  key: String(col),
+                  content: <Skeleton className="mx-auto h-4 w-8 rounded" />,
+                }))}
+              />
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   );

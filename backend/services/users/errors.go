@@ -33,6 +33,12 @@ var (
 	// ErrStudentNotFound indicates a student could not be found in this tenant
 	ErrStudentNotFound = errors.New("student not found")
 
+	// ErrStudentGraduated indicates a write that only makes sense for an
+	// enrolled child targeted a graduated (alumnus) student. Graduation is a
+	// soft delete, so callers render it as the same 404 every other
+	// staff-facing student route returns for an alumnus (#405).
+	ErrStudentGraduated = errors.New("student has graduated")
+
 	// Companion ("läuft mit" / Laufgemeinschaft) validation errors. The messages
 	// are German because the child detail view surfaces them verbatim.
 
@@ -111,6 +117,19 @@ var (
 	// reaches across siblings the caller may not supervise, so it is restricted
 	// to admins.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
+
+	// ErrStudentDeletionPreviewChanged refuses a permanent deletion when the
+	// dependent row counts or the student/person record changed after the admin
+	// reviewed the impact.
+	ErrStudentDeletionPreviewChanged = errors.New("Die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrStudentDeletionConfirmationMismatch means the typed name does not
+	// exactly match the currently stored child name.
+	ErrStudentDeletionConfirmationMismatch = errors.New("Der eingegebene Name stimmt nicht mit dem Kind überein.") //nolint:staticcheck // ST1005: user-facing German message
+
+	ErrStudentDeletionNotAcknowledged = errors.New("Die Unwiderruflichkeit der Löschung muss bestätigt werden.")    //nolint:staticcheck // ST1005: user-facing German message
+	ErrStudentDeletionInvalidReason   = errors.New("Ungültiger Löschgrund.")                                        //nolint:staticcheck // ST1005: user-facing German message
+	ErrStudentDeletionAlumnus         = errors.New("Abgänger werden über den Jahrgangswechsel endgültig gelöscht.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // GuardianStillLinkedError signals that a guardian delete was refused because the

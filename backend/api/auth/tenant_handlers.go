@@ -70,6 +70,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		orgName = school.Organization.Name
 	}
 
+	// Shell settings resolve first: their batch includes grade_level_max, so
+	// the request cache satisfies the hard-fail resolve below without a second
+	// tenant transaction (issue #2065).
+	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
+
 	// GradeLevelMax is a validation constraint, not an optional display hint.
 	// The registry returns the legitimate default for tenants without an
 	// override; a missing settings service, read error, or corrupt value must
@@ -82,7 +87,6 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
 
 	resp := &TenantResolveResponse{
 		TenantID:               school.ID,
@@ -101,6 +105,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		GradeLevelMax:          gradeLevelMax,
 		CareOfferingsEnabled:   resolved.careOfferingsEnabled,
 		AttendanceWebEnabled:   resolved.attendanceWebEnabled,
+		AttendanceLogEnabled:   resolved.attendanceLogEnabled,
 		GroupMode:              resolved.groupMode,
 		ShowTimetableCounts:    resolved.showTimetableCounts,
 		WaitlistEnabled:        resolved.waitlistEnabled,
@@ -111,16 +116,48 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) tenantShellSettings {
 	resolved := tenantShellSettings{
-		presenceMode:         configSvc.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID, nil),
-		careOfferingsEnabled: true,
-		groupMode:            configModel.GroupModeFixedGroups,
-		showTimetableCounts:  true,
-		waitlistEnabled:      true,
+		presenceMode:           configModel.PresenceModeDetailed,
+		parentMessagingEnabled: true,
+		careOfferingsEnabled:   true,
+		groupMode:              configModel.GroupModeFixedGroups,
+		showTimetableCounts:    true,
+		waitlistEnabled:        true,
 	}
 	if rs.SettingsService == nil {
 		return resolved
 	}
 
+	keys := []string{
+		configModel.KeyPresenceMode,
+		configModel.KeyStudentPhotosEnabled,
+		configModel.KeyAttendanceNFCEnabled,
+		configModel.KeyDisplayEnabled,
+		configModel.KeyEnrollmentCareOfferingsEnabled,
+		configModel.KeyAttendanceWebEnabled,
+		configModel.KeyAttendanceLogEnabled,
+		configModel.KeyTimetableShowExpectedChildrenCount,
+		configModel.KeyEnrollmentWaitlistEnabled,
+		configModel.KeyGroupMode,
+		configModel.KeyParentNotesEnabled,
+		// Not read from this snapshot — prefetched so the hard-fail
+		// resolveTenantGradeLevelMax call hits the request cache instead of
+		// opening a second tenant transaction (issue #2065).
+		configModel.KeyEnrollmentGradeLevelMax,
+	}
+	if batch, ok := rs.SettingsService.(interface {
+		ResolveManyForTenant(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error)
+	}); ok {
+		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, keys)
+		if err != nil {
+			logTenantResolveSettingFailure(ctx, tenantID, "tenant_shell", err, slog.LevelError)
+			return resolved
+		}
+		if snapshot != nil {
+			return resolveTenantShellSnapshot(ctx, tenantID, snapshot, resolved)
+		}
+	}
+
+	resolved.presenceMode = configSvc.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID, nil)
 	if value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyStudentPhotosEnabled); err == nil {
 		resolved.studentPhotosEnabled = value == "true"
 	}
@@ -132,6 +169,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	}
 	resolved.careOfferingsEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
 	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
+	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
@@ -139,6 +177,50 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
 	resolved.parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(ctx, rs.SettingsService, tenantID, nil)
+	return resolved
+}
+
+func resolveTenantShellSnapshot(
+	ctx context.Context,
+	tenantID int64,
+	snapshot *configSvc.SettingsSnapshot,
+	resolved tenantShellSettings,
+) tenantShellSettings {
+	resolveBool := func(key string, fallback bool, level slog.Level) bool {
+		value, err := snapshot.Bool(key)
+		if err != nil {
+			logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
+			return fallback
+		}
+		return value
+	}
+	resolveString := func(key, fallback string, level slog.Level) string {
+		value, err := snapshot.String(key)
+		if err != nil {
+			logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
+			return fallback
+		}
+		return value
+	}
+
+	resolved.studentPhotosEnabled = resolveString(configModel.KeyStudentPhotosEnabled, "false", slog.LevelError) == "true"
+	resolved.nfcEnabled = resolveBool(configModel.KeyAttendanceNFCEnabled, false, slog.LevelError)
+	resolved.displayEnabled = resolveBool(configModel.KeyDisplayEnabled, false, slog.LevelError)
+	resolved.careOfferingsEnabled = resolveBool(configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
+	resolved.attendanceWebEnabled = resolveBool(configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
+	resolved.attendanceLogEnabled = resolveBool(configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
+	resolved.showTimetableCounts = resolveBool(configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
+	resolved.waitlistEnabled = resolveBool(configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
+	resolved.parentMessagingEnabled = resolveBool(configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
+
+	mode := resolveString(configModel.KeyPresenceMode, configModel.PresenceModeDetailed, slog.LevelWarn)
+	if mode != "" {
+		resolved.presenceMode = mode
+	}
+	groupMode := resolveString(configModel.KeyGroupMode, configModel.GroupModeFixedGroups, slog.LevelError)
+	if groupMode == configModel.GroupModeOpenCare {
+		resolved.groupMode = groupMode
+	}
 	return resolved
 }
 

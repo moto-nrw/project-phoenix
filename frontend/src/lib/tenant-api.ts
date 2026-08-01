@@ -73,6 +73,12 @@ export interface TenantInfo {
    */
   careOfferingsEnabled?: boolean;
   attendanceWebEnabled?: boolean;
+  /**
+   * Whether the attendance log / Tagesauswertung (gdpr.attendance_log_enabled)
+   * is enabled. Opt-in and default off; the sidebar entry stays hidden until a
+   * school enables it.
+   */
+  attendanceLogEnabled?: boolean;
   groupMode?: "fixed_groups" | "open_care";
   showTimetableCounts?: boolean;
   waitlistEnabled?: boolean;
@@ -109,6 +115,7 @@ interface TenantResolveResponse {
   display_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
+  attendance_log_enabled?: boolean;
   group_mode?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
@@ -159,6 +166,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       displayEnabled: data.display_enabled === true,
       careOfferingsEnabled: data.care_offerings_enabled !== false,
       attendanceWebEnabled: data.attendance_web_enabled === true,
+      attendanceLogEnabled: data.attendance_log_enabled === true,
       groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
       showTimetableCounts: data.show_timetable_counts !== false,
       waitlistEnabled: data.waitlist_enabled !== false,

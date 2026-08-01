@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -48,9 +50,9 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 
 // applyApprovedChangeRequestOfferings applies an offering proposal whose
 // capability was validated and pinned when the parent created the change
-// request. The unexported method keeps this bypass inaccessible to HTTP input;
-// all validation, capacity-related preparation, rematerialization, and audit
-// behavior below remains identical to a direct admin adjustment.
+// request. The offering-change request service separately enforces the live
+// care-offerings setting before using this shared path; generic form
+// corrections intentionally preserve their frozen offering snapshot.
 func (s *decisionService) applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
 	return s.updateChildOfferings(ctx, input, false)
 }
@@ -99,6 +101,17 @@ func (s *decisionService) updateChildOfferings(
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
+	effectiveFrom, err := validateAdjustmentEffectiveFrom(input.EffectiveFrom, phase)
+	if err != nil {
+		return nil, err
+	}
+	selectionDate := currentOfferingSelectionDate(phase)
+	if effectiveFrom != nil {
+		selectionDate = *effectiveFrom
+		if selectionDate.Before(phase.ServiceStartDate) {
+			selectionDate = phase.ServiceStartDate
+		}
+	}
 
 	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, req.PhaseID)
 	if err != nil {
@@ -118,7 +131,7 @@ func (s *decisionService) updateChildOfferings(
 		offeringByID[offering.ID] = offering
 	}
 
-	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, selectionDate)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
 	}
@@ -205,11 +218,37 @@ func (s *decisionService) updateChildOfferings(
 		return nil, afterSnapshotErr
 	}
 
-	if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
+	scheduled, err := s.scheduledOfferingReplacements(ctx, child.ID, selectionDate, effectiveFrom)
+	if err != nil {
+		return nil, err
+	}
+	if effectiveFrom != nil {
+		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
+			return nil, fmt.Errorf("decision: schedule child offerings: %w", err)
+		}
+	} else if len(scheduled) > 0 {
+		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
+			return nil, fmt.Errorf("decision: schedule corrected child offerings: %w", err)
+		}
+		for _, future := range scheduled {
+			if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, future.EffectiveFrom, future.Rows); err != nil {
+				return nil, fmt.Errorf("decision: restore scheduled child offerings: %w", err)
+			}
+		}
+	} else if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
 		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
 	}
-	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, phase); err != nil {
+	materializeFrom := effectiveFrom
+	if effectiveFrom == nil && len(scheduled) > 0 {
+		materializeFrom = &selectionDate
+	}
+	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, replacement, phase, materializeFrom); err != nil {
 		return nil, err
+	}
+	for _, future := range scheduled {
+		if err := s.splitAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, future.Rows, phase, future.EffectiveFrom); err != nil {
+			return nil, err
+		}
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, input.ActorAccountID)
 	entry := &auditModels.EnrollmentOfferingAdjustment{
@@ -231,6 +270,90 @@ func (s *decisionService) updateChildOfferings(
 		return nil, fmt.Errorf("decision: create offering adjustment audit: %w", err)
 	}
 	return s.RequestChildRepo.FindByID(ctx, child.ID)
+}
+
+// validateAdjustmentEffectiveFrom keeps a dated switch inside the window it
+// can actually describe. A date in the past would silently rewrite days that
+// were already attended (the whole reason the dated path exists), and a date
+// after the phase ends would produce a row whose exclusive end is not after
+// its start, which the DB check would reject with a far less useful message.
+func validateAdjustmentEffectiveFrom(
+	effectiveFrom *timezone.Date,
+	phase *enrollmentModels.Phase,
+) (*timezone.Date, error) {
+	if effectiveFrom == nil {
+		return nil, nil
+	}
+	if effectiveFrom.Before(timezone.TodayDate()) {
+		return nil, fmt.Errorf("%w: effective_from must not be in the past", ErrOfferingAdjustmentInvalid)
+	}
+	if effectiveFrom.After(phase.ServiceEndDate) {
+		return nil, fmt.Errorf("%w: effective_from must not be after the care period ends", ErrOfferingAdjustmentInvalid)
+	}
+	return effectiveFrom, nil
+}
+
+// currentOfferingSelectionDate returns the day a child's persisted offering
+// links have to be read at to yield the booking that is in force right now.
+// Since a dated change splits those links into intervals, reading them without
+// a date returns the whole history and reading them at the service start
+// returns the superseded booking - both of which a caller asking for "the
+// current selection" would misread as a live one. The window clamp keeps the
+// answer meaningful outside the service period too: before it starts that is
+// the initial selection, after it ended the last one.
+func currentOfferingSelectionDate(phase *enrollmentModels.Phase) timezone.Date {
+	today := timezone.TodayDate()
+	if phase == nil {
+		return today
+	}
+	if today.Before(phase.ServiceStartDate) {
+		return phase.ServiceStartDate
+	}
+	if today.After(phase.ServiceEndDate) {
+		return phase.ServiceEndDate
+	}
+	return today
+}
+
+type scheduledOfferingReplacement struct {
+	EffectiveFrom timezone.Date
+	Rows          []*enrollmentModels.RequestChildOffering
+}
+
+// scheduledOfferingReplacements captures future changes before an undated
+// staff correction rewrites the current selection. A correction applies now;
+// it must not silently cancel a separately approved future request.
+func (s *decisionService) scheduledOfferingReplacements(
+	ctx context.Context,
+	requestChildID int64,
+	selectionDate timezone.Date,
+	effectiveFrom *timezone.Date,
+) ([]scheduledOfferingReplacement, error) {
+	if effectiveFrom != nil {
+		return nil, nil
+	}
+	history, err := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, requestChildID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list scheduled child offerings: %w", err)
+	}
+	byDate := make(map[timezone.Date][]*enrollmentModels.RequestChildOffering)
+	for _, row := range history {
+		if row == nil || row.ValidFrom == nil || !row.ValidFrom.After(selectionDate) {
+			continue
+		}
+		date := *row.ValidFrom
+		byDate[date] = append(byDate[date], row)
+	}
+	dates := make([]timezone.Date, 0, len(byDate))
+	for date := range byDate {
+		dates = append(dates, date)
+	}
+	sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
+	scheduled := make([]scheduledOfferingReplacement, 0, len(dates))
+	for _, date := range dates {
+		scheduled = append(scheduled, scheduledOfferingReplacement{EffectiveFrom: date, Rows: byDate[date]})
+	}
+	return scheduled, nil
 }
 
 func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error) {
@@ -289,7 +412,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 
 	var guardian *users.GuardianProfile
 	if input.ReplaceTargetedData && s.GuardianProfileRepo != nil {
-		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID)
+		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID, true)
 		if err != nil {
 			return nil, err
 		}
@@ -312,6 +435,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			}
 		}
 		if guardian != nil {
+			beforeTargetedSync := *student
 			planSynced, terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
 				Replace:                input.ReplaceTargetedData,
 				PreviousSnapshot:       input.PreviousSnapshot,
@@ -338,6 +462,24 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 				if errors.Is(terr, users.ErrCompanionWouldLoseDeparture) ||
 					errors.Is(terr, users.ErrCompanionLockBusy) {
 					return nil, fmt.Errorf("decision: approved child departure sync refused: %w", terr)
+				}
+			}
+			if s.StudentAudit != nil {
+				afterTargetedSync := student
+				if terr != nil {
+					persistedStudent, reloadErr := s.StudentRepo.FindByID(ctx, student.ID)
+					if reloadErr != nil {
+						return nil, fmt.Errorf("decision: reload approved child after partial targeted-field sync: %w", reloadErr)
+					}
+					afterTargetedSync = persistedStudent
+				}
+				if auditErr := s.StudentAudit.RecordChangesForActor(
+					ctx,
+					&beforeTargetedSync,
+					afterTargetedSync,
+					input.ActorAccountID,
+				); auditErr != nil {
+					return nil, fmt.Errorf("decision: audit approved child targeted-field sync: %w", auditErr)
 				}
 			}
 			// A departure-plan sync that actually TRIMMED a link changed rows on
@@ -478,7 +620,9 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	beforeLinks []*enrollmentModels.RequestChildOffering,
+	replacement []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
+	effectiveFrom *timezone.Date,
 ) error {
 	if s.StudentEnrollmentRepo == nil {
 		return nil
@@ -491,10 +635,115 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 			return err
 		}
 	}
+	if effectiveFrom != nil {
+		return s.splitAdjustedEnrollments(ctx, requestChildID, studentID, replacement, phase, *effectiveFrom)
+	}
 	if _, err := s.StudentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
 		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
 	}
 	return s.materializeEnrollments(ctx, requestChildID, studentID, phase)
+}
+
+// splitAdjustedEnrollments applies the new offering selection from
+// effectiveFrom onward without rewriting the past. Deleting and re-creating
+// the whole phase window (what an admin correction does) would erase the
+// record of which groups the child actually attended before the switch, and
+// the attendance taken there would no longer have a roster row behind it.
+//
+// Per existing row materialized from this request child:
+//   - already ended before the switch: untouched, it is history
+//   - identical to a row the new selection wants: kept, so an unchanged
+//     offering does not become two adjacent rows
+//   - starts on/after the switch: deleted, it never took effect
+//   - started earlier: capped at effectiveFrom (valid_until is exclusive, so
+//     the last attended day is the day before)
+//
+// Rows the new selection still wants are then materialized starting at the
+// switch date. Phase-window edits are deliberately not reconciled here: a
+// kept row keeps its original valid_until, and correcting phase dates is what
+// the undated (correction) path is for.
+func (s *decisionService) splitAdjustedEnrollments(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	replacement []*enrollmentModels.RequestChildOffering,
+	phase *enrollmentModels.Phase,
+	effectiveFrom timezone.Date,
+) error {
+	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, replacement, phase)
+	if err != nil {
+		return err
+	}
+	existing, err := s.StudentEnrollmentRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("decision: list enrollments for dated adjustment: %w", err)
+	}
+	for _, row := range existing {
+		if err := s.reconcileAdjustedEnrollment(ctx, row, requestChildID, phase, effectiveFrom, drafts); err != nil {
+			return err
+		}
+	}
+	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, &effectiveFrom)
+}
+
+func (s *decisionService) reconcileAdjustedEnrollment(
+	ctx context.Context,
+	row *activities.StudentEnrollment,
+	requestChildID int64,
+	phase *enrollmentModels.Phase,
+	effectiveFrom timezone.Date,
+	drafts map[int64]*careEnrollmentDraft,
+) error {
+	if row == nil || row.EnrollmentRequestChildID == nil || *row.EnrollmentRequestChildID != requestChildID {
+		return nil
+	}
+	if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
+		return nil
+	}
+	if draft := drafts[row.ActivityGroupID]; draft != nil &&
+		!row.ValidFrom.After(effectiveFrom) &&
+		(row.ValidUntil == nil || row.ValidUntil.After(effectiveFrom)) &&
+		careDraftMatchesEnrollment(draft, row) {
+		phaseEndExclusive := phase.ServiceEndDate.AddDays(1)
+		if row.ValidUntil != nil && row.ValidUntil.Before(phaseEndExclusive) {
+			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, phaseEndExclusive); err != nil {
+				return fmt.Errorf("decision: extend retained adjusted enrollment: %w", err)
+			}
+		}
+		delete(drafts, row.ActivityGroupID)
+		return nil
+	}
+	if !row.ValidFrom.Before(effectiveFrom) {
+		if err := s.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
+			return fmt.Errorf("decision: delete not-yet-effective adjusted enrollment: %w", err)
+		}
+		return nil
+	}
+	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, effectiveFrom); err != nil {
+		return fmt.Errorf("decision: cap adjusted enrollment: %w", err)
+	}
+	return nil
+}
+
+// careDraftMatchesEnrollment reports whether an existing row already is what
+// the new selection asks for, so the switch can leave it alone. Weekday sets
+// are compared as sets; an empty stored set means every weekday, which is how
+// materialization writes an all-days draft.
+func careDraftMatchesEnrollment(draft *careEnrollmentDraft, row *activities.StudentEnrollment) bool {
+	if !sameOptionalInt64(draft.calendarPeriodID, row.CalendarPeriodID) {
+		return false
+	}
+	if draft.allWeekdays || len(draft.selectedWeekday) == 0 {
+		return len(row.SelectedWeekdays) == 0
+	}
+	if len(row.SelectedWeekdays) != len(draft.selectedWeekday) {
+		return false
+	}
+	for _, weekday := range row.SelectedWeekdays {
+		if !draft.selectedWeekday[weekday] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *decisionService) backfillLegacyAdjustedEnrollments(

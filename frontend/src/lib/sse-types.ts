@@ -21,7 +21,17 @@ type SSEEventType =
   | "activity_update"
   | "active_supervision_changed"
   | "dashboard_counts_changed"
+  // Tenant-wide, identifier-free trigger emitted after staff work-session
+  // writes commit. Time-account and school-overview caches refetch on it.
+  | "staff_time_tracking_changed"
   | "arrival_schedule_changed"
+  // Pickup-side counterpart of arrival_schedule_changed: a staff write changed
+  // a child's weekly Gehzeit plan or a date-specific pickup exception. Its own
+  // event so only the pickup-derived caches refetch (per-child Betreuungsplan,
+  // student lists, student detail) — those disable focus revalidation, so
+  // before it existed a staff pickup write stayed invisible in every other open
+  // tab. See backend/realtime/events.go EventPickupScheduleChanged.
+  | "pickup_schedule_changed"
   | "tenant_settings_changed"
   // Tenant-wide staff signal that a parent change-request queue changed (a
   // request was created/decided/withdrawn). Staff review lists + the pending-count
@@ -56,7 +66,12 @@ type SSEEventType =
   // request is created/decided/withdrawn), regardless of parent messaging being on.
   // Carries only student_id; must NOT touch any unread badge or thread list. See
   // backend/realtime/events.go EventParentChildUpdated.
-  | "parent_child_updated";
+  | "parent_child_updated"
+  // A user-facing notification from the notification abstraction (#1624).
+  // Unlike every other event this is NOT a cache-invalidation trigger: the
+  // payload carries display-safe title/body/deep_link that clients render
+  // directly (toast). See backend/realtime/events.go EventNotification.
+  | "notification";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
@@ -70,6 +85,15 @@ interface SSEEventData {
 
   // Affected students on a bulk_student_checkout event (whole-session end).
   student_ids?: string[];
+
+  // Affected educational (OGS) group ids on dashboard_counts_changed /
+  // student_checkin / student_checkout / bulk_student_checkout (#2057).
+  // Group ids only — never student identity — so the tenant-wide
+  // dashboard_counts_changed stays GDPR-safe. Clients scope their
+  // ogs-students-{gid} revalidation to these ids; an ABSENT field means
+  // "scope unknown → refresh broadly" (old backends, activity events,
+  // students without an OGS group). The backend never sends an empty array.
+  group_ids?: string[];
 
   // Activity session fields (for activity_start/end/update events)
   activity_name?: string;
@@ -91,6 +115,15 @@ interface SSEEventData {
 
   // Reason tracking for generic refresh events.
   reason?: string;
+
+  // Notification fields (notification events only, #1624). Display-safe by
+  // backend contract — rendered directly, no refetch.
+  title?: string;
+  body?: string;
+  deep_link?: string; // app-relative path, e.g. "/reminders"
+  priority?: string; // "low" | "normal" | "high"
+  notification_type?: string;
+  notification_data?: Record<string, string>; // opaque IDs for client-side routing
 
   // Parent-messaging field (parent_message events). With student_id, lets an
   // open chat/conversation skip refetching when the event is about a different

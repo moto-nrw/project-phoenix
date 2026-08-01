@@ -2,7 +2,8 @@
 
 import type React from "react";
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Clock } from "lucide-react";
+import useSWR from "swr";
+import { AlertTriangle, Check, Clock, Info, Pencil } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -164,6 +165,80 @@ function ClockIcon({
         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
       />
     </svg>
+  );
+}
+
+// =============================================================================
+// FIELD HISTORY INFO (ⓘ next to a field — issue #1455)
+// =============================================================================
+
+interface FieldChangeEntry {
+  id: string;
+  field: string;
+  edited_by: string;
+  changed_at: string;
+}
+
+const changeHistoryFetcher = async (
+  url: string,
+): Promise<FieldChangeEntry[]> => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`change-history ${res.status}`);
+  const body = (await res.json()) as { data?: FieldChangeEntry[] };
+  return body.data ?? [];
+};
+
+/**
+ * Discreet ⓘ shown next to a tracked field. On hover it reveals who last
+ * changed the field and when — the quick-answer use case from issue #1455.
+ * Renders nothing when there is no recorded change (or no access). All
+ * instances for one student share a single request via SWR's cache key.
+ */
+function FieldHistoryInfo({
+  studentId,
+  fields,
+}: Readonly<{ studentId: string; fields: readonly string[] }>) {
+  const { data } = useSWR<FieldChangeEntry[]>(
+    `/api/students/${studentId}/change-history`,
+    changeHistoryFetcher,
+    { shouldRetryOnError: false, revalidateOnFocus: false },
+  );
+
+  const [open, setOpen] = useState(false);
+
+  // The API returns entries newest-first, so the first match is the latest.
+  const latest = data?.find((entry) => fields.includes(entry.field));
+  if (!latest) return null;
+
+  const when = new Date(latest.changed_at).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+  return (
+    <span className="relative mt-0.5 inline-flex flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onBlur={() => setOpen(false)}
+        aria-label="Änderungsinformation anzeigen"
+        className="inline-flex text-[#5080D8] transition-colors hover:text-[#3f66b8]"
+      >
+        <Info className="h-[18px] w-[18px]" />
+      </button>
+      {open && (
+        <span className="absolute top-6 right-0 z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg">
+          <span className="block text-xs font-semibold text-gray-900">
+            Zuletzt geändert
+          </span>
+          <span className="mt-1 block text-sm text-gray-700">
+            {latest.edited_by}
+          </span>
+          <span className="block text-xs text-gray-500">am {when}</span>
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -791,18 +866,26 @@ export function PersonalInfoReadOnly({
         <InfoItem
           label="Erlaubte Heimwege"
           value={
-            <AllowedDepartureModesDisplay
-              value={
-                student.allowed_departure_modes ??
-                allowedDepartureModesFromDeparture(
-                  student.departure_days ??
-                    departureDaysFromLegacy(
-                      student.bus_days,
-                      student.pickup_days,
-                    ),
-                )
-              }
-            />
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">
+                <AllowedDepartureModesDisplay
+                  value={
+                    student.allowed_departure_modes ??
+                    allowedDepartureModesFromDeparture(
+                      student.departure_days ??
+                        departureDaysFromLegacy(
+                          student.bus_days,
+                          student.pickup_days,
+                        ),
+                    )
+                  }
+                />
+              </span>
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["departure_days", "pickup_status"]}
+              />
+            </span>
           }
         />
         {companionsUnavailable && (
@@ -839,20 +922,62 @@ export function PersonalInfoReadOnly({
         {student.departure_companion_note && (
           <InfoItem
             label="Geht außerdem mit"
-            value={student.departure_companion_note}
+            value={
+              <span className="flex items-start gap-1.5">
+                <span className="min-w-0 flex-1">
+                  {student.departure_companion_note}
+                </span>
+                <FieldHistoryInfo
+                  studentId={student.id}
+                  fields={["departure_companion_note"]}
+                />
+              </span>
+            }
           />
         )}
         {student.health_info && (
           <InfoItem
             label="Gesundheitsinformationen"
-            value={student.health_info}
+            value={
+              <span className="flex items-start gap-1.5">
+                <span className="min-w-0 flex-1">{student.health_info}</span>
+                <FieldHistoryInfo
+                  studentId={student.id}
+                  fields={["health_info"]}
+                />
+              </span>
+            }
           />
         )}
         {student.supervisor_notes && (
-          <InfoItem label="Betreuernotizen" value={student.supervisor_notes} />
+          <InfoItem
+            label="Betreuernotizen"
+            value={
+              <span className="flex items-start gap-1.5">
+                <span className="min-w-0 flex-1">
+                  {student.supervisor_notes}
+                </span>
+                <FieldHistoryInfo
+                  studentId={student.id}
+                  fields={["supervisor_notes"]}
+                />
+              </span>
+            }
+          />
         )}
         {student.extra_info && (
-          <InfoItem label="Elternnotizen" value={student.extra_info} />
+          <InfoItem
+            label="Elternnotizen"
+            value={
+              <span className="flex items-start gap-1.5">
+                <span className="min-w-0 flex-1">{student.extra_info}</span>
+                <FieldHistoryInfo
+                  studentId={student.id}
+                  fields={["extra_info"]}
+                />
+              </span>
+            }
+          />
         )}
         <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
       </div>
@@ -958,6 +1083,7 @@ interface StudentHistorySectionProps {
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   readOnly?: boolean;
+  canViewChangeHistory?: boolean;
   onNavigate: (path: string) => void;
 }
 
@@ -972,10 +1098,12 @@ export function StudentHistorySection({
   attendanceLogEnabled,
   feedbackEnabled,
   readOnly = false,
+  canViewChangeHistory = true,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
   const attendanceDisabled = readOnly || !attendanceLogEnabled;
   const feedbackDisabled = readOnly || !feedbackEnabled;
+  const changeHistoryDisabled = readOnly || !canViewChangeHistory;
 
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
@@ -1022,6 +1150,22 @@ export function StudentHistorySection({
           description="Mahlzeiten und Bestellungen"
           bgColor="bg-[#F78C10]"
           disabled
+        />
+        <HistoryButton
+          icon={<Pencil className="h-4 w-4 text-white" />}
+          title="Änderungsverlauf"
+          description={
+            changeHistoryDisabled
+              ? "Nur für Gruppenbetreuer"
+              : "Wer hat was geändert"
+          }
+          bgColor="bg-[#7C3AED]"
+          disabled={changeHistoryDisabled}
+          onClick={
+            !changeHistoryDisabled
+              ? () => onNavigate(`/students/${studentId}/change-history`)
+              : undefined
+          }
         />
       </div>
     </InfoCard>

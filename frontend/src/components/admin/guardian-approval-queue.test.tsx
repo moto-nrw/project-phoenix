@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianApprovalQueue from "./guardian-approval-queue";
 import type { PendingApproval } from "@/lib/guardian-api";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({ success: vi.fn(), error: vi.fn() })),
@@ -35,6 +36,12 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
+const mockPush = vi.fn();
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: mockPush }),
+}));
+
 const mockList = vi.fn();
 const mockApprove = vi.fn();
 const mockReject = vi.fn();
@@ -57,6 +64,11 @@ const sampleRequest: PendingApproval = {
   expiresAt: "2026-06-12T08:00:00Z",
 };
 
+const staffApprovalMode = {
+  status: "ready",
+  mode: "staff_approval",
+} as const;
+
 describe("GuardianApprovalQueue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,7 +78,7 @@ describe("GuardianApprovalQueue", () => {
   });
 
   it("renders a pending request with guardian, child and requester", async () => {
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={{ status: "loading" }} />);
     await waitFor(() =>
       expect(screen.getByText("Julia Schröder")).toBeInTheDocument(),
     );
@@ -77,14 +89,108 @@ describe("GuardianApprovalQueue", () => {
 
   it("shows the empty state when there are no requests", async () => {
     mockList.mockResolvedValue([]);
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() =>
       expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
     );
+    // Nothing is misconfigured, so no settings shortcut is offered.
+    expect(
+      screen.queryByRole("button", { name: /Einstellungen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains an empty queue when parent invites are disabled", async () => {
+    mockList.mockResolvedValue([]);
+    const { container } = render(
+      <GuardianApprovalQueue
+        inviteModeState={{ status: "ready", mode: "disabled" }}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Eltern können derzeit niemanden einladen/),
+      ).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Einstellungen/ }));
+    expect(mockPush).toHaveBeenCalledWith("/settings?tab=operations");
+
+    const iconBadge =
+      container.querySelector(".lucide-settings")?.parentElement;
+    expect(iconBadge).toHaveStyle({
+      backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}1F`,
+      color: LOCATION_COLORS.OTHER_ROOM,
+    });
+  });
+
+  it("explains an empty queue when invites are sent without approval", async () => {
+    mockList.mockResolvedValue([]);
+    render(
+      <GuardianApprovalQueue
+        inviteModeState={{ status: "ready", mode: "direct" }}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Einladungen gehen ohne Freigabe raus/),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: /Einstellungen/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the neutral empty state when approval is the active mode", async () => {
+    mockList.mockResolvedValue([]);
+    const { container } = render(
+      <GuardianApprovalQueue inviteModeState={staffApprovalMode} />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/Keine offenen Anfragen/)).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Einstellungen/ }),
+    ).not.toBeInTheDocument();
+
+    const iconBadge =
+      container.querySelector(".lucide-user-check")?.parentElement;
+    expect(iconBadge).toHaveStyle({
+      backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}24`,
+      color: LOCATION_COLORS.GROUP_ROOM,
+    });
+  });
+
+  it("defers only an empty result while the invite mode is loading", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(<GuardianApprovalQueue inviteModeState={{ status: "loading" }} />);
+
+    const loading = await screen.findByLabelText(
+      "Einladungs-Einstellung wird geladen…",
+    );
+    expect(loading).toHaveAttribute("aria-live", "polite");
+    expect(mockList).toHaveBeenCalledOnce();
+  });
+
+  it("shows a retryable settings error only for an empty result", async () => {
+    const retry = vi.fn();
+    mockList.mockResolvedValue([]);
+
+    render(
+      <GuardianApprovalQueue
+        inviteModeState={{ status: "error", isRetrying: false, retry }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/Einladungs-Einstellung konnte nicht geladen/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("approves a request and reloads the list", async () => {
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() => screen.getByText("Julia Schröder"));
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
@@ -95,7 +201,7 @@ describe("GuardianApprovalQueue", () => {
   });
 
   it("rejects a request via the confirmation modal", async () => {
-    render(<GuardianApprovalQueue />);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
     await waitFor(() => screen.getByText("Julia Schröder"));
 
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));

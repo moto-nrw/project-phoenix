@@ -23,6 +23,7 @@ type Service struct {
 	enrollmentRepo  activities.StudentEnrollmentRepository
 	activeGroupRepo activeModels.GroupRepository
 	staffRepo       userModels.StaffRepository
+	studentRepo     userModels.StudentRepository
 }
 
 // NewService creates a new activity service
@@ -34,6 +35,7 @@ func NewService(
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	activeGroupRepo activeModels.GroupRepository,
 	staffRepo userModels.StaffRepository,
+	studentRepo userModels.StudentRepository,
 ) (*Service, error) {
 	return &Service{
 		categoryRepo:    categoryRepo,
@@ -43,6 +45,7 @@ func NewService(
 		enrollmentRepo:  enrollmentRepo,
 		activeGroupRepo: activeGroupRepo,
 		staffRepo:       staffRepo,
+		studentRepo:     studentRepo,
 	}, nil
 }
 

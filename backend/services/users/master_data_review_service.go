@@ -75,6 +75,7 @@ type masterDataReviewService struct {
 	userCtx           authorize.StudentModifyUserContext
 	broadcaster       realtime.Broadcaster
 	emitter           *parentmessaging.Emitter
+	studentAudit      StudentChangeRecorder
 	logger            *slog.Logger
 }
 
@@ -92,6 +93,34 @@ func NewMasterDataReviewService(
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
+	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, nil, logger, broadcasters...)
+}
+
+// NewMasterDataReviewServiceWithAudit wires the staff review service and the
+// per-child change recorder used for approved departure-plan requests.
+func NewMasterDataReviewServiceWithAudit(
+	changeRequestRepo userModels.StudentDataChangeRequestRepository,
+	studentRepo userModels.StudentRepository,
+	personRepo userModels.PersonRepository,
+	userCtx authorize.StudentModifyUserContext,
+	emitter *parentmessaging.Emitter,
+	studentAudit StudentChangeRecorder,
+	logger *slog.Logger,
+	broadcasters ...realtime.Broadcaster,
+) MasterDataReviewService {
+	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, logger, broadcasters...)
+}
+
+func newMasterDataReviewService(
+	changeRequestRepo userModels.StudentDataChangeRequestRepository,
+	studentRepo userModels.StudentRepository,
+	personRepo userModels.PersonRepository,
+	userCtx authorize.StudentModifyUserContext,
+	emitter *parentmessaging.Emitter,
+	studentAudit StudentChangeRecorder,
+	logger *slog.Logger,
+	broadcasters ...realtime.Broadcaster,
+) MasterDataReviewService {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -106,6 +135,7 @@ func NewMasterDataReviewService(
 		userCtx:           userCtx,
 		broadcaster:       broadcaster,
 		emitter:           emitter,
+		studentAudit:      studentAudit,
 		logger:            logger,
 	}
 }
@@ -150,6 +180,13 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 		if !writable(students[r.StudentID]) {
 			continue
 		}
+		// A graduated child is soft-deleted: their pending requests survive the
+		// graduation (the hard delete it replaced cascaded them away), so without
+		// this they would sit in the staff queue and the sidebar badge and could
+		// still be approved onto an alumnus. A revert brings them back (#405 review).
+		if students[r.StudentID].IsAlumnus() {
+			continue
+		}
 		item := &MasterDataReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -182,9 +219,27 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	// (auth/authorize.CanUpdateStudent, the same gate the direct student edit
 	// uses). Both approve and reject are gated: a staffer who cannot edit the
 	// child has no business deciding its request either way.
-	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	//
+	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
+	// grade transition cannot change underneath it: the transition apply locks
+	// exactly this row before flipping it to alumnus, so an unlocked read could
+	// see "active", let the approve through, and have the graduation commit
+	// before the person/student writes land — an alumnus' master data rewritten
+	// past the gate that exists to refuse it. Under the lock the two serialize.
+	// This is also the transaction's FIRST row lock: the apply below only ever
+	// re-acquires this same student row or takes the child's person row after
+	// it, so no student lock order is inverted and the person lock keeps its
+	// single acquisition site (#405 review).
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("review: load student for decision: %w", err)
+	}
+	// The child graduated after filing this request. The lookup is unfiltered, so
+	// without this gate an approve would still rewrite an alumnus' master data
+	// (name, departure modes, companion links). Same 404 the rest of the child
+	// surface returns for graduates (#405 review).
+	if student.IsAlumnus() {
+		return nil, ErrReviewNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx); !ok {
 		return nil, ErrReviewForbidden
@@ -220,7 +275,7 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	// approval that changes no weekday the links depend on leaves every link in
 	// place (see userModels.CompanionChangeRecorder).
 	applyCtx, companionChanges := userModels.ContextWithCompanionChangeRecorder(ctx)
-	if err := s.applyApprovedChange(applyCtx, req); err != nil {
+	if err := s.applyApprovedChange(applyCtx, req, input.ReviewedBy); err != nil {
 		return nil, err
 	}
 	if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusApproved, reason, input.ReviewedBy, true); err != nil {
@@ -357,12 +412,12 @@ func (s *masterDataReviewService) deferStudentCompanionsChanged(ctx context.Cont
 }
 
 // applyApprovedChange writes the request's new_value to the live record.
-func (s *masterDataReviewService) applyApprovedChange(ctx context.Context, req *userModels.StudentDataChangeRequest) error {
+func (s *masterDataReviewService) applyApprovedChange(ctx context.Context, req *userModels.StudentDataChangeRequest, reviewedBy int64) error {
 	switch req.Target {
 	case userModels.DataChangeTargetPerson:
 		return s.applyPersonChange(ctx, req)
 	case userModels.DataChangeTargetDeparture:
-		return s.applyDepartureChange(ctx, req)
+		return s.applyDepartureChange(ctx, req, reviewedBy)
 	default:
 		return ErrReviewInvalidTarget
 	}
@@ -415,7 +470,7 @@ func (s *masterDataReviewService) applyPersonChange(ctx context.Context, req *us
 	return nil
 }
 
-func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req *userModels.StudentDataChangeRequest) error {
+func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req *userModels.StudentDataChangeRequest, reviewedBy int64) error {
 	if req.FieldKey != "allowed_departure_modes" {
 		return ErrReviewInvalidTarget
 	}
@@ -430,6 +485,7 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("review: load student: %w", err)
 	}
+	before := *student
 	oldModes, err := decodeDepartureModes(req.OldValue)
 	if err != nil {
 		return err
@@ -442,6 +498,11 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 	student.AllowedDepartureModes = modes.Normalize()
 	if err := s.studentRepo.Update(ctx, student); err != nil {
 		return fmt.Errorf("review: update student departure: %w", err)
+	}
+	if s.studentAudit != nil {
+		if err := s.studentAudit.RecordChangesForActor(ctx, &before, student, reviewedBy); err != nil {
+			return fmt.Errorf("review: audit student departure: %w", err)
+		}
 	}
 	return nil
 }

@@ -55,14 +55,45 @@ func (r *mfaTestValueRepo) FindByTenantAndKey(_ context.Context, tenantID int64,
 	return nil, nil
 }
 
-func (r *mfaTestValueRepo) FindByTenant(_ context.Context, tenantID int64) ([]*configModel.SettingValue, error) {
+func (r *mfaTestValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64, settingKeys []string) ([]*configModel.SettingValue, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
 	prefix := fmt.Sprintf("%d:", tenantID)
 	out := []*configModel.SettingValue{}
 	for k, v := range r.values {
-		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
-			out = append(out, v)
+		if len(k) <= len(prefix) || k[:len(prefix)] != prefix {
+			continue
+		}
+		if _, ok := requested[v.SettingKey]; !ok {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+func (r *mfaTestValueRepo) FindByTenantsAndKeys(_ context.Context, tenantIDs []int64, settingKeys []string) ([]*configModel.SettingValue, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tenants := make(map[int64]struct{}, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		tenants[tenantID] = struct{}{}
+	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
+	var out []*configModel.SettingValue
+	for _, value := range r.values {
+		if _, ok := tenants[value.GetTenantID()]; !ok {
+			continue
+		}
+		if _, ok := requested[value.SettingKey]; ok {
+			out = append(out, value)
 		}
 	}
 	return out, nil

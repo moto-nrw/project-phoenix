@@ -449,6 +449,7 @@ const templateListSelect = `
 			g.target_group_type,
 			g.target_grade_level,
 			g.target_school_class,
+			g.list_kind,
 			g.notes,
 			COALESCE(st.name, '') AS shift_type_name,
 			COALESCE(st.color, '') AS shift_type_color,
@@ -463,6 +464,7 @@ const templateListSelect = `
 			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
 			s.week_pattern,
 			s.calendar_period_id,
+			TO_CHAR(s.valid_from, 'YYYY-MM-DD') AS schedule_valid_from,
 			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
 		FROM activities.groups AS g
 		INNER JOIN activities.schedules AS s
@@ -774,6 +776,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("target_group_type = ?", targetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).
 		Set("target_school_class = ?", fields.TargetSchoolClass).
+		Set("list_kind = ?", fields.ListKind).
 		Set("notes = ?", fields.Notes).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).

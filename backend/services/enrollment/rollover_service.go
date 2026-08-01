@@ -194,6 +194,7 @@ type rolloverService struct {
 
 type rolloverRequestInput struct {
 	tenantID          int64
+	sourcePhase       *enrollmentModels.Phase
 	newPhase          *enrollmentModels.Phase
 	sourceRequest     *enrollmentModels.Request
 	sourceChildren    []*enrollmentModels.RequestChild
@@ -300,6 +301,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	result.SourceChildCount = len(sourceChildren)
 	return s.rollSourceRequests(ctx, rolloverRequestInput{
 		tenantID:          tenantID,
+		sourcePhase:       source,
 		newPhase:          newPhase,
 		sourceChildren:    sourceChildren,
 		maxGrade:          maxGrade,
@@ -346,15 +348,43 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
 		AvailableSchoolClasses:    source.AvailableSchoolClasses,
 		RequireSchoolClass:        source.RequireSchoolClass,
-		IsActive:                  true,
-		RolloverSourcePhaseID:     &source.ID,
-		RolloverMode:              &mode,
-		RolloverAutoApprove:       req.RolloverAutoApprove,
-		RolloverDeadline:          &deadline,
-		RolloverBumpsGrade:        req.RolloverBumpsGrade,
+		// Carry the eligibility config forward. Without this the successor
+		// silently defaults to audience=open with no class gate (Phase.Validate
+		// fills those in), turning a rolled linked/class-restricted phase
+		// public — the active successor is what parents actually submit to
+		// (#1663).
+		Audience:              source.Audience,
+		EligibleSchoolClasses: source.EligibleSchoolClasses,
+		// Copied verbatim, like the class list: a rollover is a new service
+		// period for the same target group, and the admin retargets the
+		// successor in the editor when the group changes. Deliberately NOT
+		// shifted by RolloverBumpsGrade — that flag bumps each CHILD's grade,
+		// and auto-shifting the phase restriction alongside it would silently
+		// retarget a phase the admin never edited (#1663).
+		EligibleGradeLevels:   source.EligibleGradeLevels,
+		IsActive:              true,
+		RolloverSourcePhaseID: &source.ID,
+		RolloverMode:          &mode,
+		RolloverAutoApprove:   req.RolloverAutoApprove,
+		RolloverDeadline:      &deadline,
+		RolloverBumpsGrade:    req.RolloverBumpsGrade,
 	}
 	phase.SetTenantID(tenantID)
 	if err := phase.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
+	}
+	// A rollover copies the source's class-eligibility restriction into an
+	// ACTIVE successor (IsActive: true above). If concrete-class collection was
+	// disabled after the source went inactive, activating that restriction here
+	// would make every submission fail class_not_eligible — the invariant the
+	// admin create/update paths enforce but which this direct-repo path
+	// otherwise bypasses. runCreate wraps this in a tenant tx, so the shared
+	// lock inside serializes it against a concurrent class-collection toggle
+	// (#1663).
+	if err := ensureEligibleGradeLevelsCollectable(ctx, s.Settings, phase.EligibleGradeLevels); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
+	}
+	if err := ensureEligibleClassesCollectable(ctx, s.Settings, phase.EligibleSchoolClasses); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
 	if err := s.PhaseRepo.Create(ctx, phase); err != nil {
@@ -473,7 +503,7 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 		}
 		return "", fmt.Errorf("rollover: create request_child: %w", err)
 	}
-	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID); err != nil {
+	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID, input.sourcePhase.ServiceEndDate); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
@@ -501,8 +531,8 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentM
 	return attributes
 }
 
-func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64) error {
-	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, sourceChildID)
+func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64, sourcePeriodEnd timezone.Date) error {
+	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, sourceChildID, sourcePeriodEnd)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}

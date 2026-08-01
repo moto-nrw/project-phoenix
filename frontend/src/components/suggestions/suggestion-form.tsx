@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createSuggestion, updateSuggestion } from "~/lib/suggestions-api";
@@ -10,11 +10,32 @@ import { trackEvent } from "~/lib/analytics";
 
 const logger = createLogger({ component: "SuggestionForm" });
 
+/** Write half of a board — the parent feedback board supplies its own. */
+interface SuggestionFormApi {
+  create: (title: string, description: string) => Promise<unknown>;
+  update: (id: string, title: string, description: string) => Promise<unknown>;
+}
+
+const staffFormApi: SuggestionFormApi = {
+  create: (title, description) => createSuggestion({ title, description }),
+  update: (id, title, description) =>
+    updateSuggestion(id, { title, description }),
+};
+
 interface SuggestionFormProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess: () => void;
   readonly editSuggestion?: Suggestion | null;
+  /** Which board to write to. Defaults to the school's staff board. */
+  readonly api?: SuggestionFormApi;
+  /** Enable analytics only from the authenticated tenant board. */
+  readonly analyticsEnabled?: boolean;
+  /** Optional note above the fields, e.g. who will read this. */
+  readonly hint?: ReactNode;
+  /** Example wording. The staff default names a staff feature. */
+  readonly titlePlaceholder?: string;
+  readonly descriptionPlaceholder?: string;
 }
 
 export function SuggestionForm({
@@ -22,6 +43,11 @@ export function SuggestionForm({
   onClose,
   onSuccess,
   editSuggestion,
+  api = staffFormApi,
+  analyticsEnabled = false,
+  hint,
+  titlePlaceholder = "z.B. 'PDF-Export für Vertretungsplan'",
+  descriptionPlaceholder = "Beschreibe dein Feedback...",
 }: SuggestionFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -69,17 +95,13 @@ export function SuggestionForm({
     setIsSubmitting(true);
     try {
       if (isEdit && editSuggestion) {
-        await updateSuggestion(editSuggestion.id, {
-          title: trimmedTitle,
-          description: trimmedDescription,
-        });
+        await api.update(editSuggestion.id, trimmedTitle, trimmedDescription);
         toastSuccess("Beitrag wurde aktualisiert.");
       } else {
-        await createSuggestion({
-          title: trimmedTitle,
-          description: trimmedDescription,
-        });
-        trackEvent("suggestion_created");
+        await api.create(trimmedTitle, trimmedDescription);
+        if (analyticsEnabled) {
+          trackEvent("suggestion_created");
+        }
         toastSuccess("Beitrag wurde eingereicht.");
       }
       onSuccess();
@@ -131,6 +153,7 @@ export function SuggestionForm({
     >
       <form id="suggestion-form" onSubmit={(e) => void handleSubmit(e)}>
         <div className="space-y-4">
+          {hint}
           <div>
             <label
               htmlFor="suggestion-title"
@@ -144,7 +167,7 @@ export function SuggestionForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
-              placeholder="z.B. 'PDF-Export für Vertretungsplan'"
+              placeholder={titlePlaceholder}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             />
           </div>
@@ -161,7 +184,7 @@ export function SuggestionForm({
               onChange={(e) => setDescription(e.target.value)}
               maxLength={5000}
               rows={5}
-              placeholder="Beschreibe dein Feedback..."
+              placeholder={descriptionPlaceholder}
               className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             />
             <div className="mt-1 text-right text-xs text-gray-400">

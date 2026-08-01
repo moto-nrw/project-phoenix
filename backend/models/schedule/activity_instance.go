@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -47,7 +48,10 @@ type ActivityInstance struct {
 	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
 	Status        string `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID *int64 `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous bool   `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	// ListKind classifies the instance for printable daily lists (issue #1565).
+	// Copied from the template at materialization time; NULL means no list kind.
+	ListKind      *string `bun:"list_kind" json:"list_kind,omitempty"`
+	IsSpontaneous bool    `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
 	// UnderstaffedAck records that an admin deliberately accepts this block
 	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
 	// detector reports the block as an acknowledged shortfall instead of an open
@@ -92,6 +96,16 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
 		return errors.New("required_staff cannot be negative")
+	}
+	// Canonicalize a non-nil pointer to "" to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if i.ListKind != nil && *i.ListKind == "" {
+		i.ListKind = nil
+	}
+	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+		return errors.New("invalid list kind")
 	}
 	return nil
 }
@@ -151,6 +165,38 @@ type ActivityInstanceRepository interface {
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
 
+	// FindPlannedTemplateBackedFrom returns every planned instance dated on or
+	// after `from` that the MATERIALIZER produced (activity_group_id and
+	// calendar_period_id both set, is_spontaneous false), tenant-scoped and
+	// ordered by date then start time. Used to reconcile already-materialized
+	// rosters when a reverted grade transition restores students the
+	// insert-only materializer had skipped while they were alumni (#405
+	// review).
+	//
+	// Hand-created blocks are excluded even when they link a template for its
+	// metadata: their roster is the list of students the planner submitted, so
+	// refilling it from the template's enrollments would add children nobody
+	// assigned. Only the materializer stamps calendar_period_id (#405 review).
+	//
+	// The bound is INCLUSIVE of `from` (today, at revert time). An instance
+	// materialized after the apply but dated today has no archive row — the
+	// materializer skipped the alumnus outright — so excluding the boundary date
+	// would leave a same-day apply-then-revert child permanently missing from
+	// today's roster with nothing left to repair it. Today's instances that
+	// already started or finished are excluded by the planned-status filter.
+	FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*ActivityInstance, error)
+
+	// MaxID returns the highest instance id currently visible to this tenant, or
+	// 0 when it has none. It is an ORDERING MARKER, not a count: a grade
+	// transition records it while applying so its revert can tell instances that
+	// already existed from instances materialized afterwards, during the alumnus
+	// window. created_at cannot answer that — it defaults to the transaction
+	// start time, so a materialization that started earlier and then blocked on
+	// the tenant transition lock backdates rows it inserts after the apply
+	// commits. Sequence ids are assigned at INSERT and do reflect that order
+	// (#405 review).
+	MaxID(ctx context.Context) (int64, error)
+
 	// MarkCompleted updates only lifecycle columns. Do not use a full-row
 	// Update for DB-loaded instances because SQL TIME columns do not round-trip
 	// safely through Bun.
@@ -173,6 +219,16 @@ type ActivityInstanceRepository interface {
 	// (#1840): true for re-plan, false for the destructive template
 	// split/end series operation — see the implementation for why.
 	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
+
+	// PropagateListKindToFutureInstances re-classifies future template-backed
+	// planned instances of one template whose list_kind still equals the
+	// series' previous value (NULL and '' treated alike), returning the number
+	// of rows changed. It carries a series Listenart edit onto already
+	// materialized future occurrences so the classified daily lists (#1565)
+	// reflect it without a manual re-plan, while leaving today/past rows,
+	// non-planned/spontaneous rows, and per-occurrence classification overrides
+	// untouched. `after` is today; only rows dated strictly after it change.
+	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after timezone.Date) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary

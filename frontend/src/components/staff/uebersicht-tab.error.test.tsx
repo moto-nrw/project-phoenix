@@ -16,10 +16,12 @@ vi.mock("~/lib/swr", () => ({
     }
     return { data: undefined, isLoading: false, error: undefined };
   },
+  useTenantMutateMatching: () => () => Promise.resolve([]),
 }));
 
 vi.mock("~/lib/staff-api", () => ({
   staffAbsenceService: { getAbsences: vi.fn() },
+  staffBalanceAdjustmentService: { list: vi.fn() },
   staffHistoryService: { getHistory: vi.fn() },
   staffScheduleService: { getSchedule: vi.fn() },
   staffMonthSummaryService: {

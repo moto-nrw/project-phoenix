@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, MoreVertical } from "lucide-react";
+import { Download } from "lucide-react";
 
 import { ExportRangeForm } from "~/components/ui/export-range-form";
-
-type View = "closed" | "menu" | "form";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 
 export function StaffExportButton({
   staffId,
@@ -14,58 +13,46 @@ export function StaffExportButton({
   readonly staffId: string;
   readonly yearStart: Date;
 }) {
-  const [view, setView] = useState<View>("closed");
+  // The kebab trigger and its menu are ui/OverflowMenu (portal-rendered,
+  // outside-click and Escape handled there). Only the range form stays local:
+  // it is a form popover, not a menu entry.
+  const [formOpen, setFormOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (view === "closed") return;
+    if (!formOpen) return;
     function handleClickOutside(event: MouseEvent) {
       if (
         containerRef.current &&
         !containerRef.current.contains(event.target as Node)
       ) {
-        setView("closed");
+        setFormOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [view]);
+  }, [formOpen]);
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setView((v) => (v === "closed" ? "menu" : "closed"))}
-        aria-label="Menü öffnen"
-        aria-haspopup="menu"
-        aria-expanded={view !== "closed"}
-        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-      >
-        <MoreVertical className="h-5 w-5" />
-      </button>
+      <OverflowMenu
+        ariaLabel="Menü öffnen"
+        onOpen={() => setFormOpen(false)}
+        items={[
+          {
+            label: "Exportieren",
+            icon: <Download className="h-4 w-4" />,
+            onClick: () => setFormOpen(true),
+          },
+        ]}
+      />
 
-      {view === "menu" && (
-        <div
-          role="menu"
-          className="absolute top-full right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg"
-        >
-          <button
-            type="button"
-            onClick={() => setView("form")}
-            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            <Download className="h-4 w-4" />
-            Exportieren
-          </button>
-        </div>
-      )}
-
-      {view === "form" && (
+      {formOpen && (
         <div className="fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-1 sm:max-h-none sm:overflow-visible">
           <ExportRangeForm
             exportUrl={`/api/staff/${staffId}/time-tracking/export`}
             anchor={yearStart}
-            onDone={() => setView("closed")}
+            onDone={() => setFormOpen(false)}
           />
         </div>
       )}

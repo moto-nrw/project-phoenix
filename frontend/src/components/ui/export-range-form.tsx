@@ -21,9 +21,11 @@ function toIsoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// Shared export form: inline date-range calendar + CSV/Excel buttons. The
+// Shared export form: inline date-range calendar + CSV/Excel/PDF buttons. The
 // caller passes the proxy URL — used for both the MA-Sicht ("/api/time-tracking
 // /export") and the admin-Sicht ("/api/staff/{id}/time-tracking/export").
+// PDF is the designed print artifact (#1568) and therefore the primary action;
+// CSV/Excel stay as the data formats.
 export function ExportRangeForm({
   exportUrl,
   anchor,
@@ -40,7 +42,7 @@ export function ExportRangeForm({
     () => initialRange ?? { from: addDays(today, -29), to: today },
   );
 
-  const handleExport = (format: "csv" | "xlsx") => {
+  const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (!range?.from || !range?.to) return;
     const from = toIsoDate(range.from);
     const to = toIsoDate(range.to);
@@ -78,9 +80,17 @@ export function ExportRangeForm({
           type="button"
           onClick={() => handleExport("xlsx")}
           disabled={!hasRange}
-          className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Excel
+        </button>
+        <button
+          type="button"
+          onClick={() => handleExport("pdf")}
+          disabled={!hasRange}
+          className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          PDF
         </button>
       </div>
     </div>

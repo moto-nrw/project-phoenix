@@ -9,10 +9,15 @@ import type { Suggestion } from "~/lib/suggestions-helpers";
 
 const mockCreateSuggestion = vi.hoisted(() => vi.fn());
 const mockUpdateSuggestion = vi.hoisted(() => vi.fn());
+const mockTrackEvent = vi.hoisted(() => vi.fn());
 
 vi.mock("~/lib/suggestions-api", () => ({
   createSuggestion: mockCreateSuggestion,
   updateSuggestion: mockUpdateSuggestion,
+}));
+
+vi.mock("~/lib/analytics", () => ({
+  trackEvent: mockTrackEvent,
 }));
 
 const mockToastSuccess = vi.fn();
@@ -199,6 +204,32 @@ describe("SuggestionForm", () => {
       );
       expect(onSuccess).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
+      expect(mockTrackEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  it("tracks new submissions only when tenant analytics are enabled", async () => {
+    mockCreateSuggestion.mockResolvedValue(editSuggestion);
+
+    render(
+      <SuggestionForm
+        isOpen={true}
+        onClose={onClose}
+        onSuccess={onSuccess}
+        analyticsEnabled
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Titel/), {
+      target: { value: "New Title" },
+    });
+    fireEvent.change(screen.getByLabelText(/Beschreibung/), {
+      target: { value: "New Description" },
+    });
+    fireEvent.submit(document.getElementById("suggestion-form")!);
+
+    await waitFor(() => {
+      expect(mockTrackEvent).toHaveBeenCalledWith("suggestion_created");
     });
   });
 

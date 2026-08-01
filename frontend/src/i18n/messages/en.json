@@ -3,6 +3,14 @@
     "label": "Language",
     "saveError": "Couldn't save the language to your account. Your choice applies on this device."
   },
+  "datePicker": {
+    "placeholder": "Select date",
+    "clear": "Clear date",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "month": "Month",
+    "year": "Year"
+  },
   "parentAuthShell": {
     "badges": {
       "audience": "Made for after-school care",
@@ -53,7 +61,8 @@
     "comingSoonTooltip": "Coming soon",
     "role": "Parent",
     "childProfile": "Child profile",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "feedback": "Feedback"
   },
   "parentMealPlan": {
     "title": "Meal plan",
@@ -108,7 +117,27 @@
     "newsAcknowledged": "Confirmed",
     "newsRead": "Read",
     "newsActionError": "Action failed. Please try again.",
-    "newsStaleError": "This announcement is no longer current. Please reload the page."
+    "newsStaleError": "This announcement is no longer current. Please reload the page.",
+    "newEnrollment": "New enrollment"
+  },
+  "parentEnroll": {
+    "back": "Back to the parent portal",
+    "title": "New enrollment",
+    "description": "Choose a school and enrollment phase to register your child.",
+    "loading": "Loading enrollment phases …",
+    "loadError": "The enrollment phases could not be loaded.",
+    "empty": "There are currently no enrollment phases available.",
+    "yourSchools": "Your schools",
+    "otherSchools": "Other schools",
+    "kindSchoolYear": "School year",
+    "kindHoliday": "Holiday care",
+    "kindCustom": "Other",
+    "closesAt": "Registration until {date}",
+    "audienceNewStudents": "New children only",
+    "audienceExistingStudents": "Enrolled children only",
+    "audienceLinkedParents": "Linked parents only",
+    "rangeConnector": "to",
+    "openPhase": "Open enrollment"
   },
   "parentChildren": {
     "eyebrow": "My children",
@@ -495,6 +524,8 @@
     "openUntil": "Open until {date}",
     "serviceRange": "Care period: {from} to {to}",
     "start": "Start enrollment",
+    "audienceNewStudents": "New children only",
+    "audienceExistingStudents": "Enrolled children only",
     "kind": {
       "school_year": "School year",
       "holiday": "Holiday care",
@@ -546,6 +577,7 @@
       "childrenKicker": "Step 2",
       "childrenTitle": "Child or children",
       "childrenDescription": "Enter each child separately. You can add siblings with the button.",
+      "newStudentsOnlyNotice": "This enrollment phase is for new children only. Children already enrolled at the school cannot be re-enrolled here.",
       "consentKicker": "Step 3",
       "consentTitle": "Consents",
       "consentDescription": "Please read the consents carefully. Required consents must be selected actively."
@@ -937,7 +969,8 @@
       "health": "Health",
       "contact": "Your contact details",
       "departure": "Permanent ways home",
-      "careSchedule": "Care times"
+      "careSchedule": "Care times",
+      "careOfferings": "Care offerings"
     },
     "fields": {
       "firstName": "First name",
@@ -989,6 +1022,77 @@
       "withdrawError": "The request could not be withdrawn.",
       "withdrawConfirmTitle": "Withdraw request?",
       "withdrawConfirmBody": "Do you really want to withdraw your change request? The current schedule stays unchanged."
+    },
+    "careOfferings": {
+      "hint": "These offerings and clubs are booked for your child. Changes are reviewed by the team before they apply.",
+      "loadError": "The care offerings could not be loaded. Please refresh the page.",
+      "period": "Care period {name} ({from} to {until})",
+      "offeringsTitle": "Booked care offerings",
+      "groupsTitle": "Clubs and groups",
+      "noOfferings": "No care offerings are currently booked for your child.",
+      "noGroups": "Your child is not currently assigned to a club or group.",
+      "allDays": "all care days",
+      "notBooked": "not booked",
+      "removed": "cancelled",
+      "lunch": "including lunch",
+      "holidayCare": "including holiday care",
+      "price": "{amount} per month",
+      "startsLater": "from {date}",
+      "until": "until {date}",
+      "fromOffering": "from the enrolment",
+      "pendingBadge": "Under review",
+      "requestedAt": "Requested on {date}",
+      "pendingEffectiveFrom": "Requested from {date}",
+      "pendingNotice": "Your request is being reviewed by the team. Everything stays as it is until it is confirmed.",
+      "pendingNote": "Your message: {note}",
+      "withdraw": "Withdraw request",
+      "withdrawError": "The request could not be withdrawn.",
+      "withdrawConfirmTitle": "Withdraw request?",
+      "withdrawConfirmBody": "Do you really want to withdraw your change request? The booked offerings stay unchanged.",
+      "requestButton": "Request a change",
+      "disabledNoEnrollment": "There is no enrolment for your child that a change could be applied to. Please contact the care team directly.",
+      "disabledNoPermission": "You are not allowed to request changes for this child.",
+      "disabledSchoolOff": "This care team does not accept change requests through the app. Please contact them directly.",
+      "disabledPeriodOver": "The care period has ended. Please enrol your child again for the new period.",
+      "requestsTitle": "Change requests",
+      "decisionApproved": "Change applied",
+      "decisionApprovedFrom": "Valid from {date}",
+      "decisionRejected": "Request rejected",
+      "decisionReason": "Reason given by the care team: {reason}",
+      "decisionDecidedAt": "Decided on {date}",
+      "noRequests": "There is no change request at the moment.",
+      "decisionRequested": "You had requested:"
+    },
+    "careOfferingsModal": {
+      "title": "Request a change to the care offerings",
+      "intro": "Choose which offerings your child should attend and when the change should take effect. The team reviews your request.",
+      "loadError": "The available offerings could not be loaded.",
+      "noOfferings": "There are no care offerings available for this period.",
+      "effectiveFromLabel": "Change applies from",
+      "effectiveFromHint": "Earliest {date}. Please select a date within an approved care period.",
+      "daysLabel": "Days",
+      "fixedDays": "Fixed days: {days}",
+      "requiredBadge": "Mandatory",
+      "fullBadge": "Full",
+      "freeSlots": "{count} places left",
+      "noteLabel": "Message to the care team (optional)",
+      "notePlaceholder": "For example the reason for the change.",
+      "submit": "Send request",
+      "cancel": "Cancel",
+      "noChange": "Your selection matches the current booking. Change something to send a request.",
+      "noDaysSelected": "Pick at least one day for every selected offering.",
+      "submitError": "The request could not be sent.",
+      "capacityFull": "One of the selected offerings has no places left.",
+      "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed."
+    },
+    "weekdayShort": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
     }
   },
   "parentOgsMessaging": {
@@ -1021,6 +1125,41 @@
     "diffModeAlone": "Goes alone",
     "diffModeBus": "Takes the bus",
     "diffModePickup": "Is picked up",
-    "diffModeAccompanied": "With another child"
+    "diffModeAccompanied": "With another child",
+    "eventRequestCreatedCareOffering": "Care offering change requested",
+    "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched"
+  },
+  "parentFeedback": {
+    "kicker": "Feedback",
+    "title": "Feedback",
+    "productTeamNotice": "Your feedback goes straight to the moto product team who build the app. Your child's after-school care never sees these entries.",
+    "pseudonymNotice": "You appear to everyone as “Parent” only, including to the product team.",
+    "schoolLabel": "School",
+    "sortLabel": "Sorting",
+    "sortPopular": "Most popular",
+    "sortNewest": "Newest",
+    "newEntry": "New entry",
+    "edit": "Edit",
+    "delete": "Delete",
+    "actions": "Actions",
+    "emptyTitle": "No entries yet",
+    "emptyDescription": "Share ideas, report problems or suggest improvements to the app.",
+    "noSchoolsTitle": "No school linked yet",
+    "noSchoolsDescription": "Once your child is enrolled at a school, you can leave feedback here.",
+    "loadError": "The feedback could not be loaded.",
+    "retry": "Try again",
+    "formHint": "This entry goes to the moto product team, not to the after-school care. Other parents at your school can read and rate it.",
+    "deleteTitle": "Delete entry?",
+    "deleteBody": "This entry and all its votes will be deleted permanently.",
+    "deleteSuccess": "Entry deleted.",
+    "deleteError": "The entry could not be deleted.",
+    "statusOpen": "Open",
+    "statusPlanned": "Planned",
+    "statusInProgress": "In progress",
+    "statusDone": "Done",
+    "statusRejected": "Declined",
+    "statusNeedInfo": "Question",
+    "titlePlaceholder": "e.g. “Reminder before pickup time”",
+    "descriptionPlaceholder": "Describe your feedback..."
   }
 }

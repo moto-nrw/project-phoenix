@@ -240,6 +240,16 @@ func (s *materializationService) MaterializeForTenant(
 		if err := lockTenantRecurrenceWrites(ctx, s.db); err != nil {
 			return nil, &ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
 		}
+		// Then the grade-transition gate, in that order (see
+		// education.TenantTransitionsLockKey — recurrence first, transitions
+		// second, everywhere). copyEnrollments decides whether to insert a roster
+		// row from the student status this pass read; a grade transition
+		// committing its graduation and its roster-archive pass in between would
+		// leave a departed child on an upcoming roster with nothing left to
+		// remove them (#405 review).
+		if err := lockTenantGradeTransitions(ctx, s.db); err != nil {
+			return nil, &ScheduleError{Op: "materialize for tenant: lock grade transitions", Err: err}
+		}
 	}
 
 	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)
@@ -422,6 +432,12 @@ func (s *materializationService) materializeTemplate(
 	}
 
 	for date := from; !date.After(to); date = date.AddDays(1) {
+		// Templates created before the Mo–Fr planning rule may still contain
+		// weekend schedules. Keep those records intact for administration, but
+		// never create new invisible weekend instances from them.
+		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+			continue
+		}
 		isoWd := isoWeekday(date)
 		for _, sch := range schedules {
 			if sch.Weekday != isoWd {
@@ -511,6 +527,7 @@ func (s *materializationService) materializeTemplate(
 				StartTime:        effective.StartTime,
 				EndTime:          effective.EndTime,
 				RoomID:           effective.RoomID,
+				ListKind:         tmpl.ListKind,
 				Status:           schedule.InstanceStatusPlanned,
 				IsSpontaneous:    false,
 			}
@@ -571,6 +588,20 @@ func (s *materializationService) copyEnrollments(
 	seen := make(map[int64]struct{}, len(enrollments))
 	for _, e := range enrollments {
 		if !isEnrollmentValidOn(e, date, periodID) {
+			continue
+		}
+		// A graduated (alumnus) student is soft-deleted: their enrollment rows
+		// survive for transition reverts, but future planning must never copy
+		// them into a new instance_students row — otherwise upcoming cards,
+		// staffing ratios, slot-list exports and instance completion keep
+		// counting a departed child. Historical rows already materialized before
+		// graduation stay untouched (this service is insert-only). (#405)
+		if enrollmentStudentIsAlumnus(e) {
+			s.getLogger().Debug("skipping graduated student on materialization",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("student_id", e.StudentID),
+				slog.String("date", date.String()),
+			)
 			continue
 		}
 		if _, dup := seen[e.StudentID]; dup {
@@ -716,6 +747,17 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
+//
+// enrollmentStudentIsAlumnus reports whether the enrollment's joined student
+// row is a graduated (alumnus) soft-delete. FindByGroupID hydrates Student
+// (incl. status); enrollments built without that join return false, so callers
+// that only need the valid-on-date predicate are unaffected. Graduated students
+// keep their enrollment rows for transition reverts but must drop off every
+// current/future planning surface (#405).
+func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
+	return e != nil && e.Student != nil && e.Student.IsAlumnus()
+}
+
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
 	if e == nil {
 		return false

@@ -94,6 +94,8 @@ interface AccountsTableProps {
     account: AccountRow,
     schoolContext: { id: string; name: string } | null,
   ) => void;
+  // Schulzugänge are account-scoped, not school-scoped — no school context.
+  onManageTenantAccess?: (account: AccountRow) => void;
 }
 
 export function AccountsTable({
@@ -102,6 +104,7 @@ export function AccountsTable({
   selectedSchool,
   onManageCaregiver,
   onManageMFA,
+  onManageTenantAccess,
 }: Readonly<AccountsTableProps>) {
   const columns = useMemo<DataTableColumn<AccountRow>[]>(() => {
     const cols: DataTableColumn<AccountRow>[] = [];
@@ -197,7 +200,13 @@ export function AccountsTable({
             schoolContext != null;
           const canManageCaregiver = isActionable && onManageCaregiver != null;
           const canManageMFA = isActionable && onManageMFA != null;
-          if (!canManageCaregiver && !canManageMFA) {
+          // Managing school access needs no school context, so it stays
+          // available even when the row has none.
+          const canManageTenantAccess =
+            row.accountId !== "0" &&
+            row.status !== "invited" &&
+            onManageTenantAccess != null;
+          if (!canManageCaregiver && !canManageMFA && !canManageTenantAccess) {
             return <span className="text-xs text-gray-400">—</span>;
           }
           return (
@@ -220,6 +229,15 @@ export function AccountsTable({
                   2FA verwalten
                 </button>
               )}
+              {canManageTenantAccess && (
+                <button
+                  type="button"
+                  onClick={() => onManageTenantAccess?.(row)}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Schulzugänge
+                </button>
+              )}
             </div>
           );
         },
@@ -227,7 +245,13 @@ export function AccountsTable({
     );
 
     return cols;
-  }, [showSchool, selectedSchool, onManageCaregiver, onManageMFA]);
+  }, [
+    showSchool,
+    selectedSchool,
+    onManageCaregiver,
+    onManageMFA,
+    onManageTenantAccess,
+  ]);
 
   return (
     <DataTable

@@ -17,6 +17,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -461,20 +462,14 @@ func (rs *Resource) processBinaryModeCheckin(
 ) {
 	ctx := r.Context()
 
-	// Staff ID for CheckedInBy / CheckedOutBy is carried by device auth
-	// (staff PIN). No active-group lookup is needed because binary-mode
-	// kiosks don't open activity sessions.
+	// Binary-mode kiosks don't open activity sessions, so staff identity comes
+	// from the account-PIN verification performed by DeviceAuthenticator.
+	// Legacy clients only authenticate the device and shared OGS PIN; keep
+	// those scans device-attributed instead of trusting their caller-controlled
+	// X-Staff-ID value.
 	var staffID int64
 	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
 		staffID = staffCtx.ID
-	}
-	if staffID == 0 {
-		rs.getLogger().WarnContext(ctx, "binary mode checkin without staff context",
-			slog.Int64("student_id", student.ID),
-			slog.Int64("device_id", deviceCtx.ID),
-		)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("staff PIN required for binary-mode attendance toggle")))
-		return
 	}
 
 	// skipAuthCheck=true: the device + staff-PIN layer already authorized
@@ -482,6 +477,21 @@ func (rs *Resource) processBinaryModeCheckin(
 	// require an active session supervisor, which doesn't exist in binary.
 	result, err := rs.ActiveService.ToggleStudentAttendance(ctx, student.ID, staffID, deviceCtx.ID, true)
 	if err != nil {
+		// A graduation that committed between resolving this student (as active)
+		// and the attendance write surfaces as ErrStudentGraduated. It is the same
+		// 404 "person is not a student" every other attendance path returns for an
+		// alumnus — not a 500, which tells the kiosk the backend broke and to
+		// retry a scan that can never succeed. Route through the shared renderer
+		// so the whole family of recoverable active-service errors keeps the
+		// PyrePortal wire contract instead of collapsing into 500 (#405 review).
+		if errors.Is(err, activeSvc.ErrStudentGraduated) {
+			rs.getLogger().InfoContext(ctx, "binary mode checkin rejected: student graduated mid-scan",
+				slog.Int64("student_id", student.ID),
+				slog.Int64("staff_id", staffID),
+			)
+			common.RenderError(w, r, shared.ErrorRenderer(err))
+			return
+		}
 		rs.getLogger().ErrorContext(ctx, "binary mode attendance toggle failed",
 			slog.Int64("student_id", student.ID),
 			slog.Int64("staff_id", staffID),

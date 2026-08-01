@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -50,6 +51,13 @@ type PersonService interface {
 
 	// LinkToRFIDCard associates a person with an RFID card
 	LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error
+
+	// LinkStudentToRFIDCard assigns a bracelet to a student, re-reading the
+	// student row under a FOR UPDATE lock first so a graduation committing in
+	// the meantime is refused with ErrStudentGraduated instead of leaving a tag
+	// linked to an alumnus. Every student-facing tag assignment must go through
+	// this method rather than LinkToRFIDCard (#405).
+	LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error
 
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
@@ -104,6 +112,13 @@ type PersonService interface {
 	// GetStudentByID retrieves a student by ID.
 	GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error)
 
+	// GetStudentByIDForUpdate retrieves a student by ID under a SELECT … FOR
+	// UPDATE row lock held for the caller's transaction, so a status the caller
+	// validates cannot be changed by a concurrent grade transition before the
+	// caller's own write commits. Errors are returned verbatim like the other
+	// entity lookups (sql.ErrNoRows stays unwrappable).
+	GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
+
 	// GetStudentByPersonID retrieves the student record belonging to a person.
 	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
 
@@ -116,6 +131,11 @@ type PersonService interface {
 	// GetStudentsByGroupIDs retrieves the students of multiple groups.
 	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
 
+	// GetEligibleStudentsByGroupIDsOnDate retrieves group students enrolled on
+	// the requested calendar date. today is the caller's frozen calendar day,
+	// so a request crossing Berlin midnight keeps one notion of "today".
+	GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error)
+
 	// CountStudentsByGroupIDs counts students per group in a single query.
 	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
@@ -125,11 +145,17 @@ type PersonService interface {
 	// staff row still persists, mirroring the historical api/staff behaviour.
 	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 
-	// UpdateStaffWithTeacher persists the (already mutated) staff row,
-	// reloads it with person data, and applies the requested teacher-record
-	// change. Teacher-record failures are non-fatal and reported through the
-	// returned TeacherAction; the staff update always persists.
+	// UpdateStaffWithTeacher applies the already-mutated directory fields to
+	// a freshly locked staff row, reloads it with person data, and applies the
+	// requested teacher-record change. Teacher-record failures are non-fatal
+	// and reported through the returned TeacherAction.
 	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
+
+	// UpdatePersonnelNumber sets or clears (nil / empty) the staff member's
+	// payroll Personalnummer (#1417). Writes an audit row in the same tenant
+	// transaction; returns ErrPersonnelNumberTaken on a per-tenant duplicate
+	// and ErrPersonnelNumberInvalid on a malformed value.
+	UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)
@@ -170,9 +196,10 @@ const (
 // soft-deletes the staff/teacher rows, cleans up planned assignments, and
 // revokes the linked account's access for the tenant.
 type StaffOffboardingService interface {
-	// OffboardStaff offboards the staff member. deletedBy is the acting
-	// account's username for the audit trail ("system" if empty).
-	OffboardStaff(ctx context.Context, staffID int64, deletedBy string) error
+	// OffboardStaff offboards the staff member. deletedByStaffID identifies
+	// the acting staff member in time-tracking tombstones; deletedBy is the
+	// account username used by the broader data-deletion audit.
+	OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error
 }
 
 // CaregiverCapabilityService manages the operational caregiver capability of an

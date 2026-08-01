@@ -56,6 +56,10 @@ func (s *stubEnrollableRepo) ListEnrollable(_ context.Context, accountID int64) 
 	return s.result, s.err
 }
 
+func (s *stubEnrollableRepo) GuardianSubmitStatus(_ context.Context, _, _ int64) (*parentModels.GuardianSubmitStatus, error) {
+	return &parentModels.GuardianSubmitStatus{}, nil
+}
+
 func newSvcWithChild(t *testing.T, child *stubChildRepo) parentService.Service {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)

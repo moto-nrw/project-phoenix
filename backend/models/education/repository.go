@@ -12,6 +12,9 @@ import (
 type GroupRepository interface {
 	base.CRUDRepository[*Group]
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+	// FindByIDsWithRooms is the bulk sibling of FindWithRoom: one LEFT JOIN
+	// resolves every group's room relation (#2094 review).
+	FindByIDsWithRooms(ctx context.Context, ids []int64) (map[int64]*Group, error)
 
 	// Exists reports whether a group with the given ID exists in the current
 	// tenant (issue #584: moved from api/timetable template validation).
@@ -21,6 +24,38 @@ type GroupRepository interface {
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*Group, error)
 	FindWithRoom(ctx context.Context, groupID int64) (*Group, error)
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+
+	// ListSupervisedGroupIDsByStaff returns, for each of the given staff
+	// members, the education groups they supervise on the given day: groups
+	// they are assigned to as a teacher, plus groups they cover through an
+	// active substitution.
+	//
+	// This is the identity-free bulk form of what
+	// usercontext.GetMyGroups answers for one authenticated caller. It exists
+	// because GetMyGroups derives the staff member from JWT claims and so
+	// cannot be used from a background job, and because asking it per person
+	// would mean a per-person round trip.
+	//
+	// It is a read filter for child data: an over-permissive result widens
+	// who may see a student. Any change here must keep the equivalence test
+	// against GetMyGroups green.
+	ListSupervisedGroupIDsByStaff(ctx context.Context, staffIDs []int64, on timezone.Date) ([]StaffGroupID, error)
+
+	// ListStaffIDsByEducationGroupIDs is the same relation read in the other
+	// direction: who supervises these groups on the given day. Producers use it
+	// to find the people responsible for one child.
+	//
+	// Both directions must agree, so they share the join shape. Widening either
+	// one widens who may learn something about a child.
+	ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]StaffGroupID, error)
+}
+
+// StaffGroupID pairs a staff member with one education group they supervise.
+// It is the projection ListSupervisedGroupIDsByStaff returns: callers need the
+// group IDs to decide readability, never the group rows themselves.
+type StaffGroupID struct {
+	StaffID int64 `bun:"staff_id"`
+	GroupID int64 `bun:"group_id"`
 }
 
 // GroupTeacherRepository defines operations for managing group-teacher relationships

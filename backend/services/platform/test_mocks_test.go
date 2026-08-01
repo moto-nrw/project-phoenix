@@ -198,6 +198,8 @@ type mockAccountTenantRepo struct {
 	listAccountsByTenantIDFn     func(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error)
 	listAccountsByOrganizationFn func(ctx context.Context, organizationID int64) ([]auth.OrgAccountInfo, error)
 	listAllAccountsFn            func(ctx context.Context) ([]auth.OrgAccountInfo, error)
+	deactivateFn                 func(ctx context.Context, accountID, tenantID int64) error
+	listTenantAccessFn           func(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error)
 }
 
 func (m *mockAccountTenantRepo) Create(ctx context.Context, mapping *auth.AccountTenant) error {
@@ -214,8 +216,18 @@ func (m *mockAccountTenantRepo) EnsureActive(ctx context.Context, mapping *auth.
 	return nil
 }
 
-func (m *mockAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
+func (m *mockAccountTenantRepo) Deactivate(ctx context.Context, accountID, tenantID int64) error {
+	if m.deactivateFn != nil {
+		return m.deactivateFn(ctx, accountID, tenantID)
+	}
 	return nil
+}
+
+func (m *mockAccountTenantRepo) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error) {
+	if m.listTenantAccessFn != nil {
+		return m.listTenantAccessFn(ctx, accountID)
+	}
+	return nil, nil
 }
 
 func (m *mockAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
@@ -223,6 +235,10 @@ func (m *mockAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accou
 		return m.findActiveByAccountIDFn(ctx, accountID)
 	}
 	return nil, nil
+}
+
+func (m *mockAccountTenantRepo) FindActiveGuardianByAccountID(context.Context, int64) ([]auth.AccountTenant, error) {
+	panic("unexpected FindActiveGuardianByAccountID")
 }
 
 func (m *mockAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {

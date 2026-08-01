@@ -114,6 +114,10 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 				OR %[5]s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
@@ -390,6 +394,10 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -473,10 +481,10 @@ func reachedArgs(announcementID, tenantID, accountID int64) []any {
 // guardian profile's e-mail/name; the pending_enrollment target reads the
 // e-mail/name captured on the enrollment request (those guardians may not have
 // a profile yet). An outer GROUP BY collapses the UNION to one row per
-// normalized e-mail, so a guardian reached through BOTH a student target and
-// pending_enrollment — possibly with different captured vs profile names — is
-// enqueued (and e-mailed) only once; the retained name prefers a non-empty
-// value across the merged rows.
+// account and normalized e-mail, so a guardian reached through BOTH a student
+// target and pending_enrollment — possibly with different captured vs profile
+// names — is enqueued (and e-mailed) only once per address; the retained name
+// prefers a non-empty value across the merged rows.
 func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipient, error) {
 	// Only guardians WITH a linked account receive the e-mail: the mail is a
 	// pointer into the parent portal (title + link, no body), which is useless
@@ -488,11 +496,11 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	// requests with no account at all.
 	var rows []*users.AnnouncementRecipient
 	sqlStr := fmt.Sprintf(`
-		SELECT email,
+		SELECT account_id, email,
 			COALESCE(min(NULLIF(first_name, '')), '') AS first_name,
 			COALESCE(min(NULLIF(last_name, '')), '') AS last_name
 		FROM (
-		SELECT DISTINCT lower(gp.email) AS email,
+		SELECT DISTINCT gp.account_id, lower(gp.email) AS email,
 			COALESCE(gp.first_name, '') AS first_name, COALESCE(gp.last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
 		JOIN users.students s ON s.tenant_id = ? AND (
@@ -503,6 +511,10 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			OR %s
 		)
 		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		-- Graduated (alumnus) students are soft-deleted: their guardians must
+		-- drop out of every announcement audience (reach count, feed
+		-- visibility, and e-mails) once the child has left the OGS (#405).
+		AND s.status <> 'alumnus'
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -514,7 +526,8 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 
 		UNION
 
-		SELECT DISTINCT lower(req.guardian_email) AS email,
+		SELECT DISTINCT COALESCE(req.guardian_account_id, ea.id) AS account_id,
+			lower(req.guardian_email) AS email,
 			COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
 		JOIN enrollment.requests req ON req.tenant_id = ?
@@ -528,7 +541,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 			AND (req.guardian_account_id IS NOT NULL OR ea.id IS NOT NULL)
 		) recips
-		GROUP BY email`,
+		GROUP BY account_id, email`,
 		activeActivityGroupExists("?"), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
@@ -576,6 +589,10 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -773,6 +790,10 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- Graduated (alumnus) students are soft-deleted: their guardians must
+			-- drop out of every announcement audience (reach count, feed
+			-- visibility, and e-mails) once the child has left the OGS (#405).
+			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?

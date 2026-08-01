@@ -69,8 +69,20 @@ const (
 	// "instance_delete").
 	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
 
-	// Global refresh event — tells all clients to re-fetch dashboard counts
+	// Tenant-wide refresh event — tells every client of the tenant to re-fetch
+	// dashboard counts. Broadcast via BroadcastToTenant (issue #2057; it was
+	// BroadcastToAll before, which fanned every school's check-in traffic out to
+	// every OTHER school's clients). Carries GroupIDs (educational group ids,
+	// never student identity) when the emitting site knows them, so clients can
+	// scope their ogs-students-{gid} revalidation; without GroupIDs clients fall
+	// back to a broad refresh.
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
+
+	// EventStaffTimeTrackingChanged is a tenant-wide invalidation trigger for
+	// writes that change staff work sessions, absences, balances, contractual
+	// schedules, or planned shifts. It carries no staff identifier: authorized
+	// clients re-fetch their permission-scoped time-tracking views.
+	EventStaffTimeTrackingChanged EventType = "staff_time_tracking_changed"
 
 	// Active supervision refresh event — tenant-wide signal that the active
 	// supervision view is stale regardless of whether the cause was IoT, NFC,
@@ -80,6 +92,23 @@ const (
 	// Arrival schedule events affect derived "not arriving today" badges and
 	// bulk arrival-time lookups across student list/detail pages.
 	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
+
+	// EventPickupScheduleChanged is the pickup-side counterpart of
+	// EventArrivalScheduleChanged: a staff write changed a child's weekly
+	// pickup plan, a date-specific pickup exception, or a day note (Gehzeit —
+	// all three travel in the same pickup payload). It is its own
+	// event rather than a reuse of the arrival one so clients can invalidate
+	// only the pickup-derived caches, and so the arrival name keeps meaning
+	// what it says.
+	//
+	// It exists BECAUSE the staff pickup handlers previously woke only the
+	// child's guardians (#1725): the parents app updated live while every OTHER
+	// staff tab — the per-child Betreuungsplan, the student list's Gehzeit
+	// column — kept the old time indefinitely (those views disable focus
+	// revalidation, so nothing else would refetch). Broadcast to ALL like its
+	// arrival sibling: pickup times are read across tenants' dashboards and
+	// list pages, and the payload carries no student data.
+	EventPickupScheduleChanged EventType = "pickup_schedule_changed"
 
 	// EventChangeRequestsChanged is a tenant-wide staff signal that a parent
 	// change-request queue changed — a request was created, decided, or withdrawn
@@ -128,6 +157,15 @@ const (
 	// must NOT touch any unread badge or thread list; it carries only student_id so
 	// the affected child's view refetches while others skip. Trigger only.
 	EventParentChildUpdated EventType = "parent_child_updated"
+
+	// EventNotification carries a user-facing notification from the
+	// notification abstraction (services/notifications, #1624) over the SSE
+	// channel. Unlike every other event type it is NOT a cache-invalidation
+	// trigger: clients render Title/Body directly (toast/bell). The payload is
+	// display-safe by contract — the notifications service only accepts
+	// non-sensitive title/body text and an app-relative deep link; sensitive
+	// details are loaded authenticated after following the link (GDPR).
+	EventNotification EventType = "notification"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -138,8 +176,8 @@ type Event struct {
 	Timestamp     time.Time `json:"timestamp"`
 }
 
-// EventData contains the payload for an SSE event
-// Only includes display-level data for GDPR compliance (no sensitive info)
+// EventData contains the payload for an SSE event. Fields follow the
+// event-specific GDPR contract and must not expose sensitive data.
 type EventData struct {
 	// Student-related fields (for check-in/check-out events)
 	StudentID   *string `json:"student_id,omitempty"`
@@ -149,6 +187,18 @@ type EventData struct {
 	// (whole-session end). The client adds each to its per-student
 	// detail-cache invalidation set; the refetch itself is topic-driven.
 	StudentIDs *[]string `json:"student_ids,omitempty"`
+
+	// GroupIDs carries the affected educational (OGS) group ids on
+	// dashboard_counts_changed / student_checkin / student_checkout /
+	// bulk_student_checkout (#2057). Group ids only — NEVER student identity —
+	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
+	// gdpr.student_data_scope: it reveals "counts in group X changed", nothing
+	// about who. Clients scope their ogs-students-{gid} revalidation to these
+	// ids. Contract: absence of the field means "scope unknown → refresh
+	// broadly"; emitters MUST omit the field entirely (nil) instead of sending
+	// an empty array, which clients would read as "scope to nothing" and
+	// silently drop the invalidation.
+	GroupIDs *[]string `json:"group_ids,omitempty"`
 
 	// Activity session fields (for activity_start/end/update events)
 	ActivityName  *string   `json:"activity_name,omitempty"`
@@ -192,6 +242,17 @@ type EventData struct {
 
 	// Reason tracking for generic refresh events.
 	Reason *string `json:"reason,omitempty"`
+
+	// Notification fields (notification events only, #1624). Display-safe by
+	// contract: the notifications service validates that no sensitive student
+	// data travels in the visible fields — clients render these directly instead
+	// of refetching. NotificationData contains only opaque routing IDs.
+	Title            *string           `json:"title,omitempty"`
+	Body             *string           `json:"body,omitempty"`
+	DeepLink         *string           `json:"deep_link,omitempty"` // app-relative path, e.g. "/reminders"
+	Priority         *string           `json:"priority,omitempty"`  // "low" | "normal" | "high"
+	NotificationType *string           `json:"notification_type,omitempty"`
+	NotificationData map[string]string `json:"notification_data,omitempty"` // opaque IDs for client-side routing
 }
 
 // staffSafeParentMessage returns a copy of a parent-message event with every

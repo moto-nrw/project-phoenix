@@ -28,13 +28,14 @@ export function StatusIndicator({
 }
 
 function getColorClass(color: StatusIndicatorProps["color"]): string {
+  // Brand hexes from LOCATION_COLORS: green GROUP_ROOM, amber SICK, red HOME.
   switch (color) {
     case "green":
-      return "animate-pulse bg-green-500";
+      return "animate-pulse bg-[#83CD2D]";
     case "yellow":
-      return "bg-yellow-500";
+      return "bg-[#EAB308]";
     case "red":
-      return "bg-red-500";
+      return "bg-[#FF3130]";
     default:
       return "bg-gray-400";
   }

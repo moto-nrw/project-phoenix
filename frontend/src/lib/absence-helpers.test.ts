@@ -97,6 +97,19 @@ describe("dayCountFor", () => {
     ).toBe(0.5);
   });
 
+  it("uses the legacy halfDay flag when serialized boundary fields are false", () => {
+    expect(
+      dayCountFor({
+        dateStart: "2027-07-05",
+        dateEnd: "2027-07-05",
+        halfDay: true,
+        startHalfDay: false,
+        endHalfDay: false,
+        hasBoundaryFields: true,
+      }),
+    ).toBe(0.5);
+  });
+
   it("keeps a full legacy day when halfDay is false", () => {
     expect(
       dayCountFor({

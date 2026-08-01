@@ -40,7 +40,7 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 		ModelTableExpr(accountRoleTableAlias).
 		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		ColumnExpr(`"account_role".*`).
-		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description", "role".is_system AS "role__is_system", "role".base_role AS "role__base_role"`).
 		Where(`"account_role".account_id = ?`, accountID)
 
 	query = base.WithTenantFilter(ctx, query, "account_role")
@@ -67,7 +67,7 @@ func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, ac
 		ModelTableExpr(accountRoleTableAlias).
 		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		ColumnExpr(`"account_role".*`).
-		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description", "role".is_system AS "role__is_system", "role".base_role AS "role__base_role"`).
 		Where(`"account_role".account_id = ?`, accountID)
 
 	if tenantID > 0 {
@@ -186,6 +186,27 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by account and role",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// DeleteByAccountRoleAndTenant deletes one role assignment for a single school.
+// The tenant is passed explicitly (not taken from context) because operator-led
+// access management runs outside any tenant transaction.
+func (r *AccountRoleRepository) DeleteByAccountRoleAndTenant(ctx context.Context, accountID, roleID, tenantID int64) error {
+	_, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.AccountRole)(nil)).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".account_id = ?`, accountID).
+		Where(`"account_role".role_id = ?`, roleID).
+		Where(`"account_role".tenant_id = ?`, tenantID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by account, role and tenant",
 			Err: err,
 		}
 	}

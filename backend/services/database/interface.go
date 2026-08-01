@@ -30,6 +30,9 @@ type StatsPermissions struct {
 	CanViewDevices     bool `json:"canViewDevices"`
 	CanViewPermissions bool `json:"canViewPermissions"`
 	CanViewTimetables  bool `json:"canViewTimetables"`
+	// CanViewGradeTransitions gates the Jahrgangswechsel card (#405); no
+	// count is exposed because the card links into a workflow, not a list.
+	CanViewGradeTransitions bool `json:"canViewGradeTransitions"`
 }
 
 // StatsGetter defines operations for database statistics and management

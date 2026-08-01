@@ -357,15 +357,16 @@ func newPhoneNumberResponse(phone *users.GuardianPhoneNumber) *PhoneNumberRespon
 func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool, error) {
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
-	// Admin users have full access
-	if authorize.HasAdminWildcard(userPermissions) {
-		return true, nil
+	// Resolve the student before the admin fast path: graduated students are a
+	// soft-delete and their guardian relationships must remain immutable.
+	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
+	if err != nil || student.IsAlumnus() {
+		return false, fmt.Errorf("student not found")
 	}
 
-	// Get the student
-	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
-	if err != nil {
-		return false, fmt.Errorf("student not found")
+	// Admin users have full access to active students.
+	if authorize.HasAdminWildcard(userPermissions) {
+		return true, nil
 	}
 
 	// Student must have a group for non-admin operations
@@ -1039,6 +1040,11 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		return
+	}
+	student, err := rs.PersonService.GetStudentByID(r.Context(), studentID)
+	if err != nil || student.IsAlumnus() {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
 	}
 

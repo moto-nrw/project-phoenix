@@ -92,5 +92,9 @@ type StudentStatusDayRepository interface {
 	FindActiveByID(ctx context.Context, id int64) (*StudentStatusDay, error)
 	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentStatusDay, error)
+	// FindSignedOffByStudentIDsAndDate returns active rows plus end-of-day
+	// archived rows (source = "end_of_day") for the date — the full set of
+	// valid registered sign-offs for that day.
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentStatusDay, error)
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 }

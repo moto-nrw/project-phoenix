@@ -41,6 +41,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.room_detail_visible_days",
 		"gdpr.attendance_log_scope",
 		"gdpr.student_data_scope",
+		// Per-child change-history retention (issue #1455).
+		"gdpr.student_change_log_retention_days",
 		"feedback.enabled",
 		"feedback.data_retention_days",
 		"security.ogs_device_pin",
@@ -68,6 +70,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Display range for the admin weekly calendar (Apple-style grid).
 		"timetable.day_start_time",
 		"timetable.day_end_time",
+		// Pickup buckets for timetable-derived lists.
+		"timetable.slot_list_short_day_cutoff",
+		"timetable.slot_list_long_day_cutoff",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_enabled",
@@ -590,6 +595,8 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.parent_notes_enabled", config.FieldBoolean},
 		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
 		{"operations.parent_guardian_management_enabled", config.FieldBoolean},
+		{"timetable.slot_list_short_day_cutoff", config.FieldTime},
+		{"timetable.slot_list_long_day_cutoff", config.FieldTime},
 	}
 
 	for _, tc := range tests {
@@ -1004,6 +1011,8 @@ func TestSecuritySettings(t *testing.T) {
 	assert.Equal(t, "devices", def.Tab)
 	assert.Equal(t, "pin", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	assert.False(t, def.Validation.AllowEmpty)
 	require.NotNil(t, def.DependsOn)
 	assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
@@ -1445,4 +1454,70 @@ func TestAutoCheckoutSettings(t *testing.T) {
 	require.NotNil(t, grace.Validation.Max)
 	assert.Equal(t, float64(0), *grace.Validation.Min)
 	assert.Equal(t, float64(240), *grace.Validation.Max)
+}
+
+// TestPayrollSettings pins the DATEV payroll foundation (#1417 Tranche 2b).
+// The empty defaults are the point: Lohnartnummern are mandant-specific and
+// a plausible preset would silently bill wrong. Any change that introduces a
+// non-empty default here must be treated as a billing bug, not a convenience.
+func TestPayrollSettings(t *testing.T) {
+	lohnarten := []string{
+		config.KeyPayrollLohnartRegelarbeit,
+		config.KeyPayrollLohnartPlusStunden,
+		config.KeyPayrollLohnartAuszahlung,
+		config.KeyPayrollLohnartFreizeitausgleich,
+		config.KeyPayrollLohnartKrank,
+		config.KeyPayrollLohnartUrlaub,
+		config.KeyPayrollLohnartFortbildung,
+	}
+	for _, key := range lohnarten {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, config.FieldText, def.Type, key)
+		assert.Equal(t, "", def.Default, "%s must default to EMPTY — never invent Lohnart numbers", key)
+		assert.Equal(t, "abrechnung", def.Tab, key)
+		assert.Equal(t, "lohnarten", def.Category, key)
+		assert.Equal(t, "config:manage", def.WritePermission, key)
+		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
+		require.NotNil(t, def.Validation, key)
+		require.NotNil(t, def.Validation.Pattern, key)
+		assert.True(t, def.Validation.AllowEmpty, key)
+		assert.Equal(t, `^\d{1,4}$`, *def.Validation.Pattern, key)
+	}
+
+	units := []string{
+		config.KeyPayrollEinheitKrank,
+		config.KeyPayrollEinheitUrlaub,
+		config.KeyPayrollEinheitFortbildung,
+	}
+	for _, key := range units {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, config.FieldSelect, def.Type, key)
+		assert.Equal(t, "", def.Default, "%s must default to 'not set' — the unit comes from the Träger's Lohnart definition", key)
+		assert.Equal(t, "abrechnung", def.Tab, key)
+		assert.Equal(t, "config:manage", def.WritePermission, key)
+		require.NotNil(t, def.Options, key)
+		require.Len(t, def.Options.Static, 3, key)
+	}
+
+	berater := config.GetDefinition(config.KeyPayrollDatevBeraternummer)
+	require.NotNil(t, berater)
+	assert.Equal(t, config.FieldText, berater.Type)
+	assert.Equal(t, "", berater.Default)
+	assert.Equal(t, "config:manage", berater.WritePermission)
+	require.NotNil(t, berater.Validation)
+	require.NotNil(t, berater.Validation.Pattern)
+	assert.True(t, berater.Validation.AllowEmpty)
+	assert.Equal(t, `^\d{1,7}$`, *berater.Validation.Pattern)
+
+	mandant := config.GetDefinition(config.KeyPayrollDatevMandantennummer)
+	require.NotNil(t, mandant)
+	assert.Equal(t, config.FieldText, mandant.Type)
+	assert.Equal(t, "", mandant.Default)
+	assert.Equal(t, "config:manage", mandant.WritePermission)
+	require.NotNil(t, mandant.Validation)
+	require.NotNil(t, mandant.Validation.Pattern)
+	assert.True(t, mandant.Validation.AllowEmpty)
+	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
 }

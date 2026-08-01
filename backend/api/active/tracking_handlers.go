@@ -34,7 +34,14 @@ func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	ctx := r.Context()
+	// One batch query for the toggle plus the three label keys; the per-key
+	// reads below then resolve from the snapshot (issue #2065).
+	ctx := common.PrefetchSettings(r.Context(), rs.SettingsService,
+		configModel.KeyTrackingIndicatorsEnabled,
+		configModel.KeyTrackingIndicator1,
+		configModel.KeyTrackingIndicator2,
+		configModel.KeyTrackingIndicator3,
+	)
 
 	// Check if tracking indicators are enabled for this tenant.
 	enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyTrackingIndicatorsEnabled)

@@ -50,6 +50,46 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	return supervisions, nil
 }
 
+// ListActiveSupervisedRooms returns the (staff_id, room_id) pairs of every
+// currently active supervision in the tenant.
+//
+// Custom method rather than a Repository[T] filter (backend-conventions Rule 2):
+// the result is a cross-table projection, not a slice of GroupSupervisor rows,
+// and it deliberately collapses the two-step FindActiveByStaffID +
+// GetActiveGroupsByIDs walk that callers otherwise repeat per staff member.
+//
+// The end_date predicate mirrors IsSupervisorActive
+// (services/active/session_lifecycle.go): open-ended supervisions are active,
+// a dated one stays active while today is strictly before end_date. Doing it in
+// SQL keeps the in-Go re-filter that FindActiveByStaffID's callers apply from
+// being duplicated (or forgotten) here.
+//
+// The `end_time IS NULL` on the active group is not redundant with that: a
+// closed session has no room presence left, so its room must not appear as
+// supervised.
+func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]active.StaffRoomSupervision, error) {
+	var rows []active.StaffRoomSupervision
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Distinct().
+		TableExpr(`active.group_supervisors AS "group_supervisor"`).
+		ColumnExpr(`"group_supervisor".staff_id, "group".room_id`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "group_supervisor".group_id`).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate()).
+		Where(`"group".end_time IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list active supervised rooms",
+			Err: err,
+		}
+	}
+
+	return rows, nil
+}
+
 // FindStaleOpen returns supervisor rows started before the given day that
 // still lack an end_date. Feeds the nightly stale-supervisor cleanup and its
 // preview (services/active/cleanup_service.go, session_service.go).

@@ -29,7 +29,7 @@ vi.mock("~/components/ui/form-modal", () => ({
     ) : null,
 }));
 
-vi.mock("~/components/ui/date-picker", () => ({
+vi.mock("~/components/ui/date-picker", async () => ({
   DatePicker: ({
     onChangeDates,
   }: {
@@ -47,6 +47,10 @@ vi.mock("~/components/ui/date-picker", () => ({
       DatePicker Auswahl
     </button>
   ),
+  // The class-trip range fields moved from native date inputs to the kit
+  // picker; this stub keeps them settable via fireEvent.change. Imported
+  // inside the factory because vi.mock is hoisted above the imports.
+  ...(await import("~/test/mocks/date-picker")).isoDatePickerMock(),
 }));
 
 const existingDays: StudentStatusDay[] = [

@@ -859,6 +859,20 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 	if roleID != nil && *roleID > 0 && tenantID <= 0 {
 		return nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
 	}
+	if roleID != nil && *roleID > 0 {
+		var roleErr error
+		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
+			// System roles have tenant_id NULL. Clear only the Go context tenant
+			// for this lookup; the surrounding transaction and its RLS context stay
+			// intact for the subsequent account creation.
+			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
+			return roleErr
+		})
+		if err != nil {
+			return nil, &AuthError{Op: "register", Err: err}
+		}
+	}
 
 	// Create account object with hashed password
 	account, err := s.createAccountObject(email, username, password)
@@ -978,6 +992,24 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 
 	if tenantID <= 0 {
 		return nil, &AuthError{Op: op, Err: ErrTenantRequiredForRoleAssignment}
+	}
+
+	// Same role policy as operator-led school access: no guardian (that is the
+	// guardian invitation flow), no retired teacher role, and no role belonging
+	// to a different school (issue #1021).
+	if roleID != nil && *roleID > 0 {
+		var roleErr error
+		// System roles have tenant_id NULL. Clear only the Go context tenant for
+		// this lookup; the admin transaction and the target-school policy remain
+		// in force.
+		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
+			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
+			return roleErr
+		})
+		if err != nil {
+			return nil, &AuthError{Op: op, Err: err}
+		}
 	}
 
 	// Find existing account
@@ -1511,7 +1543,10 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction)
+	var accountID int64
+	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
+	// Token revocation commits independently so a later push-cleanup failure
+	// cannot leave the authenticated session valid.
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -1519,6 +1554,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			// Token not found, consider logout successful
 			return nil
 		}
+		accountID = dbToken.AccountID
 
 		// Delete ALL tokens for this account to ensure complete logout
 		// This ensures that all sessions (access and refresh tokens) are invalidated
@@ -1542,8 +1578,20 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 		return nil
 	})
+	if err != nil || accountID == 0 {
+		return err
+	}
 
-	return err
+	// Staff subscriptions are tenant-specific, but logout is account-wide.
+	// Remove every staff row server-side so subscriptions registered on other
+	// school subdomains cannot keep receiving notifications.
+	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		return s.repos.PushSubscription.DeleteStaffByAccountID(txCtx, accountID)
+	})
+	if err != nil {
+		return &AuthError{Op: "delete staff push subscriptions", Err: err}
+	}
+	return nil
 }
 
 // ChangePassword updates an account's password

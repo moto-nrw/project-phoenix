@@ -8,10 +8,11 @@ import (
 
 // BroadcastCall records one realtime.Broadcaster invocation.
 type BroadcastCall struct {
-	Method     string // "group", "tenant", "all", "parent" or "guardian"
+	Method     string // "group", "tenant", "admin", "all", "parent", "guardian" or "staff"
 	TenantID   int64
-	Topic      string // active-group topic (BroadcastToGroup only)
-	GuardianID int64  // guardian account ID (BroadcastParentMessage / BroadcastToGuardian)
+	Topic      string  // active-group topic (BroadcastToGroup only)
+	GuardianID int64   // guardian account ID (BroadcastParentMessage / BroadcastToGuardian)
+	AccountIDs []int64 // staff account IDs (BroadcastToStaffAccounts only)
 	Event      realtime.Event
 }
 
@@ -48,6 +49,16 @@ func (b *RecordingBroadcaster) BroadcastToTenant(tenantID int64, event realtime.
 	return b.record(BroadcastCall{Method: "tenant", TenantID: tenantID, Event: event})
 }
 
+// BroadcastToStaffAccounts implements realtime.Broadcaster.
+func (b *RecordingBroadcaster) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event realtime.Event) error {
+	return b.record(BroadcastCall{Method: "staff", TenantID: tenantID, AccountIDs: accountIDs, Event: event})
+}
+
+// BroadcastToTenantAdmins implements realtime.Broadcaster.
+func (b *RecordingBroadcaster) BroadcastToTenantAdmins(tenantID int64, event realtime.Event) error {
+	return b.record(BroadcastCall{Method: "admin", TenantID: tenantID, Event: event})
+}
+
 // BroadcastToAll implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "all", Event: event})
@@ -73,7 +84,7 @@ func (b *RecordingBroadcaster) Calls() []BroadcastCall {
 }
 
 // CallsByMethod returns every recorded call made through the given method
-// ("group", "tenant", "all" or "parent").
+// ("group", "tenant", "admin", "all", "parent" or "guardian").
 func (b *RecordingBroadcaster) CallsByMethod(method string) []BroadcastCall {
 	out := make([]BroadcastCall, 0)
 	for _, c := range b.Calls() {

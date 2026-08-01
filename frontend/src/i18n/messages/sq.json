@@ -3,6 +3,14 @@
     "label": "Gjuha",
     "saveError": "Gjuha nuk u ruajt në llogarinë tënde. Zgjedhja vlen në këtë pajisje."
   },
+  "datePicker": {
+    "placeholder": "Zgjidhni datën",
+    "clear": "Fshi datën",
+    "previousMonth": "Muaji i mëparshëm",
+    "nextMonth": "Muaji i ardhshëm",
+    "month": "Muaji",
+    "year": "Viti"
+  },
   "parentAuthShell": {
     "badges": {
       "audience": "Krijuar për kujdesin pas shkollës",
@@ -53,7 +61,8 @@
     "comingSoonTooltip": "Së shpejti",
     "role": "Prind",
     "childProfile": "Profili i fëmijës",
-    "loading": "Po ngarkohet..."
+    "loading": "Po ngarkohet...",
+    "feedback": "Reagime"
   },
   "parentMealPlan": {
     "title": "Plani i ushqimit",
@@ -108,7 +117,27 @@
     "newsAcknowledged": "Konfirmuar",
     "newsRead": "Lexuar",
     "newsActionError": "Veprimi dështoi. Provoni përsëri.",
-    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
+    "newEnrollment": "Regjistrim i ri"
+  },
+  "parentEnroll": {
+    "back": "Kthehu te portali i prindërve",
+    "title": "Regjistrim i ri",
+    "description": "Zgjidhni një shkollë dhe një fazë regjistrimi për të regjistruar fëmijën tuaj.",
+    "loading": "Duke ngarkuar fazat e regjistrimit …",
+    "loadError": "Fazat e regjistrimit nuk mund të ngarkoheshin.",
+    "empty": "Aktualisht nuk ka faza regjistrimi të disponueshme.",
+    "yourSchools": "Shkollat tuaja",
+    "otherSchools": "Shkolla të tjera",
+    "kindSchoolYear": "Viti shkollor",
+    "kindHoliday": "Kujdesi gjatë pushimeve",
+    "kindCustom": "Të tjera",
+    "closesAt": "Regjistrimi deri më {date}",
+    "audienceNewStudents": "Vetëm fëmijë të rinj",
+    "audienceExistingStudents": "Vetëm fëmijë të regjistruar",
+    "audienceLinkedParents": "Vetëm për prindër të lidhur",
+    "rangeConnector": "deri",
+    "openPhase": "Hap regjistrimin"
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",
@@ -495,6 +524,8 @@
     "openUntil": "Hapur deri më {date}",
     "serviceRange": "Periudha e përkujdesjes: {from} deri {to}",
     "start": "Nis regjistrimin",
+    "audienceNewStudents": "Vetëm për fëmijë të rinj",
+    "audienceExistingStudents": "Vetëm për fëmijë të regjistruar",
     "kind": {
       "school_year": "Viti shkollor",
       "holiday": "Përkujdesje gjatë pushimeve",
@@ -548,6 +579,7 @@
       "extraTitle": "Të dhëna të tjera",
       "extraDescription": "OGS-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
       "childrenDescription": "Regjistroni çdo fëmijë veçmas. Për motrat/vëllezërit mund të shtoni të dhëna të tjera fëmije me butonin.",
+      "newStudentsOnlyNotice": "Kjo fazë regjistrimi është vetëm për fëmijë të rinj. Fëmijët tashmë të regjistruar në shkollë nuk mund të riregjistrohen këtu.",
       "consentDescription": "Ju lutemi lexoni me kujdes pëlqimet. Pëlqimet e detyrueshme duhet të zgjidhen aktivisht."
     },
     "fields": {
@@ -937,7 +969,8 @@
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
-      "careSchedule": "Betreuungszeiten"
+      "careSchedule": "Betreuungszeiten",
+      "careOfferings": "Betreuungsangebote"
     },
     "fields": {
       "firstName": "Vorname",
@@ -989,6 +1022,77 @@
       "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
       "withdrawConfirmTitle": "Anfrage zurückziehen?",
       "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
+    },
+    "careOfferings": {
+      "hint": "Diese Angebote und AGs sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
+      "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "period": "Betreuungszeitraum {name} ({from} bis {until})",
+      "offeringsTitle": "Gebuchte Betreuungsangebote",
+      "groupsTitle": "AGs und Gruppen",
+      "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
+      "noGroups": "Ihr Kind ist derzeit keiner AG oder Gruppe zugeordnet.",
+      "allDays": "të gjitha ditët e kujdesit",
+      "notBooked": "nuk është rezervuar",
+      "removed": "anuluar",
+      "lunch": "mit Mittagessen",
+      "holidayCare": "mit Ferienbetreuung",
+      "price": "{amount} pro Monat",
+      "startsLater": "ab {date}",
+      "until": "bis {date}",
+      "fromOffering": "aus der Anmeldung",
+      "pendingBadge": "In Prüfung",
+      "requestedAt": "Angefragt am {date}",
+      "pendingEffectiveFrom": "Gewünscht ab {date}",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung bleibt alles wie bisher.",
+      "pendingNote": "Ihre Nachricht: {note}",
+      "withdraw": "Anfrage zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Die gebuchten Angebote bleiben unverändert.",
+      "requestButton": "Änderung anfragen",
+      "disabledNoEnrollment": "Für Ihr Kind liegt keine Anmeldung vor, über die eine Änderung beantragt werden kann. Wenden Sie sich bitte direkt an die Betreuung.",
+      "disabledNoPermission": "Sie haben keine Berechtigung, Änderungen für dieses Kind zu beantragen.",
+      "disabledSchoolOff": "Diese Betreuung nimmt Änderungswünsche nicht über die App an. Wenden Sie sich bitte direkt an das Team.",
+      "disabledPeriodOver": "Der Betreuungszeitraum ist abgelaufen. Für den neuen Zeitraum melden Sie Ihr Kind bitte neu an.",
+      "requestsTitle": "Änderungsanfragen",
+      "decisionApproved": "Änderung übernommen",
+      "decisionApprovedFrom": "Gültig ab {date}",
+      "decisionRejected": "Anfrage abgelehnt",
+      "decisionReason": "Begründung der Betreuung: {reason}",
+      "decisionDecidedAt": "Entschieden am {date}",
+      "noRequests": "Derzeit liegt keine Änderungsanfrage vor.",
+      "decisionRequested": "Beantragt war:"
+    },
+    "careOfferingsModal": {
+      "title": "Änderung der Betreuungsangebote anfragen",
+      "intro": "Wählen Sie, welche Angebote Ihr Kind künftig besuchen soll, und ab wann die Änderung gelten soll. Das Team prüft Ihre Anfrage.",
+      "loadError": "Die verfügbaren Angebote konnten nicht geladen werden.",
+      "noOfferings": "Für diesen Zeitraum sind keine Betreuungsangebote verfügbar.",
+      "effectiveFromLabel": "Änderung gilt ab",
+      "effectiveFromHint": "Frühestens {date}. Wählen Sie einen Termin innerhalb eines bestätigten Betreuungszeitraums.",
+      "daysLabel": "Tage",
+      "fixedDays": "Feste Tage: {days}",
+      "requiredBadge": "Pflichtangebot",
+      "fullBadge": "Belegt",
+      "freeSlots": "{count} Plätze frei",
+      "noteLabel": "Nachricht an die Betreuung (optional)",
+      "notePlaceholder": "Zum Beispiel der Grund für die Änderung.",
+      "submit": "Anfrage senden",
+      "cancel": "Abbrechen",
+      "noChange": "Ihre Auswahl entspricht der aktuellen Buchung. Ändern Sie etwas, um eine Anfrage zu senden.",
+      "noDaysSelected": "Wählen Sie für jedes gewählte Angebot mindestens einen Tag.",
+      "submitError": "Die Anfrage konnte nicht gesendet werden.",
+      "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei.",
+      "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab."
+    },
+    "weekdayShort": {
+      "1": "Hën",
+      "2": "Mar",
+      "3": "Mër",
+      "4": "Enj",
+      "5": "Pre",
+      "6": "Sht",
+      "7": "Die"
     }
   },
   "parentOgsMessaging": {
@@ -1021,6 +1125,41 @@
     "diffModeAlone": "Largohet vetë",
     "diffModeBus": "Udhëton me autobus",
     "diffModePickup": "Merret",
-    "diffModeAccompanied": "Me një fëmijë tjetër"
+    "diffModeAccompanied": "Me një fëmijë tjetër",
+    "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
+  },
+  "parentFeedback": {
+    "kicker": "Reagim",
+    "title": "Reagime",
+    "productTeamNotice": "Reagimi yt shkon drejtpërdrejt te ekipi i moto-s që zhvillon aplikacionin. Kujdesi passhkollor i fëmijës tënd nuk i sheh këto shënime.",
+    "pseudonymNotice": "Për të gjithë, edhe për ekipin e produktit, ti shfaqesh vetëm si „Prind“.",
+    "schoolLabel": "Shkolla",
+    "sortLabel": "Renditja",
+    "sortPopular": "Më të pëlqyerat",
+    "sortNewest": "Më të rejat",
+    "newEntry": "Shënim i ri",
+    "edit": "Ndrysho",
+    "delete": "Fshi",
+    "actions": "Veprime",
+    "emptyTitle": "Ende asnjë shënim",
+    "emptyDescription": "Ndaj ide, raporto probleme ose propozo përmirësime për aplikacionin.",
+    "noSchoolsTitle": "Ende asnjë shkollë e lidhur",
+    "noSchoolsDescription": "Sapo fëmija yt të regjistrohet në një shkollë, mund të lësh reagime këtu.",
+    "loadError": "Reagimet nuk mund të ngarkoheshin.",
+    "retry": "Provo përsëri",
+    "formHint": "Ky shënim shkon te ekipi i moto-s, jo te kujdesi passhkollor. Prindërit e tjerë të shkollës sate mund ta lexojnë dhe ta vlerësojnë.",
+    "deleteTitle": "Të fshihet shënimi?",
+    "deleteBody": "Ky shënim dhe të gjitha votat fshihen përgjithmonë.",
+    "deleteSuccess": "Shënimi u fshi.",
+    "deleteError": "Shënimi nuk mund të fshihej.",
+    "statusOpen": "Hapur",
+    "statusPlanned": "Planifikuar",
+    "statusInProgress": "Në proces",
+    "statusDone": "Realizuar",
+    "statusRejected": "Refuzuar",
+    "statusNeedInfo": "Pyetje",
+    "titlePlaceholder": "p.sh. „Kujtesë para orës së marrjes“",
+    "descriptionPlaceholder": "Përshkruaj reagimin tënd..."
   }
 }

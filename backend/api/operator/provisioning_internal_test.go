@@ -62,6 +62,46 @@ type mockProvisioningService struct {
 	listSchoolSummariesFn     func(context.Context) ([]*platformSvc.SchoolSummary, error)
 	listOrgSchoolSummariesFn  func(context.Context, int64) ([]*platformSvc.SchoolSummary, error)
 	listOrgPersonsFn          func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
+	listTenantAccessFn        func(context.Context, int64) ([]platformSvc.AccountTenantAccessEntry, error)
+	listAssignableRolesFn     func(context.Context, int64) ([]*authModels.Role, error)
+	grantTenantAccessFn       func(context.Context, int64, int64, platformSvc.GrantAccountTenantAccessRequest, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
+	updateTenantRoleFn        func(context.Context, int64, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
+	revokeTenantAccessFn      func(context.Context, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
+}
+
+func (m *mockProvisioningService) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]platformSvc.AccountTenantAccessEntry, error) {
+	if m.listTenantAccessFn != nil {
+		return m.listTenantAccessFn(ctx, accountID)
+	}
+	return nil, nil
+}
+
+func (m *mockProvisioningService) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error) {
+	if m.listAssignableRolesFn != nil {
+		return m.listAssignableRolesFn(ctx, schoolID)
+	}
+	return nil, nil
+}
+
+func (m *mockProvisioningService) GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req platformSvc.GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
+	if m.grantTenantAccessFn != nil {
+		return m.grantTenantAccessFn(ctx, accountID, schoolID, req, operatorID, clientIP)
+	}
+	return nil, nil
+}
+
+func (m *mockProvisioningService) UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
+	if m.updateTenantRoleFn != nil {
+		return m.updateTenantRoleFn(ctx, accountID, schoolID, roleID, operatorID, clientIP)
+	}
+	return nil, nil
+}
+
+func (m *mockProvisioningService) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
+	if m.revokeTenantAccessFn != nil {
+		return m.revokeTenantAccessFn(ctx, accountID, schoolID, operatorID, clientIP)
+	}
+	return nil, nil
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {

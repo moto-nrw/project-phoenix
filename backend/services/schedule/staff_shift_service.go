@@ -14,6 +14,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
 
@@ -73,7 +74,10 @@ type StaffShiftService interface {
 }
 
 type StaffShiftUpdateOptions struct {
-	PreserveExistingNotes bool
+	// SuppressTimeTrackingBroadcast lets a larger operation send one shared
+	// invalidation after all of its shift writes have completed.
+	SuppressTimeTrackingBroadcast bool
+	PreserveExistingNotes         bool
 	// PreserveExistingShiftType keeps the stored shift type when the update
 	// request omitted shift_type_id entirely (stale client / third-party
 	// consumer), so an unrelated edit does not silently clear the label. An
@@ -101,6 +105,7 @@ type staffShiftService struct {
 	// there (an audit failure rolls the move back).
 	deviationEventRepo auditModels.DeviationEventRepository
 	db                 *bun.DB
+	broadcaster        realtime.Broadcaster
 	logger             *slog.Logger
 	// lockObserver, when set, is invoked with the sorted, de-duplicated staff-id
 	// set of every lockStaffWritesOrdered acquisition. It is a test-only seam: the
@@ -130,6 +135,16 @@ func (s *staffShiftService) SetSeriesExceptionRepo(repo scheduleModels.StaffShif
 // SetDeviationEventRepo wires the Änderungsprotokoll repository (#1884).
 func (s *staffShiftService) SetDeviationEventRepo(repo auditModels.DeviationEventRepository) {
 	s.deviationEventRepo = repo
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster used to invalidate
+// time-tracking views after committed shift writes.
+func (s *staffShiftService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffShiftService) broadcastTimeTrackingChanged(ctx context.Context) {
+	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 // lockShiftWrites takes the per-staff advisory lock before the overlap
@@ -388,7 +403,12 @@ func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *sched
 func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
 	// A create always assigns the type fresh, so no deactivated type is
 	// grandfathered in (nil allowlist).
-	return s.createShift(ctx, shift, nil)
+	created, err := s.createShift(ctx, shift, nil)
+	if err != nil {
+		return nil, err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return created, nil
 }
 
 // createShift is the shared create path. allowedInactiveTypes grandfathers a set
@@ -459,6 +479,17 @@ func (s *staffShiftService) UpdateShift(ctx context.Context, shift *scheduleMode
 }
 
 func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
+	updated, err := s.updateShiftWithOptions(ctx, shift, opts)
+	if err != nil {
+		return nil, err
+	}
+	if !opts.SuppressTimeTrackingBroadcast {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
+	return updated, nil
+}
+
+func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
 	if shift.ID <= 0 {
 		return nil, ErrShiftNotFound
 	}
@@ -659,6 +690,7 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 		"shift_id", id,
 		"staff_id", existing.StaffID,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -864,7 +896,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	if input.ActorStaffID > 0 {
 		originUpdate.UpdatedBy = &input.ActorStaffID
 	}
-	updated, err := s.UpdateShiftWithOptions(ctx, originUpdate, StaffShiftUpdateOptions{
+	updated, err := s.updateShiftWithOptions(ctx, originUpdate, StaffShiftUpdateOptions{
 		PreserveExistingNotes:     true,
 		PreserveExistingShiftType: preserveType,
 	})
@@ -879,6 +911,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 			"staff_id", updated.StaffID,
 			"removed_replacements", len(covers),
 		)
+		s.broadcastTimeTrackingChanged(ctx)
 		return result, nil
 	}
 
@@ -930,5 +963,6 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		"staff_id", updated.StaffID,
 		"replacements", len(result.Replacements),
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return result, nil
 }

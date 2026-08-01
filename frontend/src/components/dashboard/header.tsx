@@ -6,11 +6,17 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { LogoutModal } from "~/components/ui/logout-modal";
-import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
+import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
-import { useTenantSafe } from "~/lib/tenant-context";
+import {
+  useTenantRoutingModeSafe,
+  useTenantSafe,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
+import { normalizeTenantPathname } from "~/lib/tenant-path";
+import { matchesPathPrefix } from "~/lib/section-navigation";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -19,11 +25,10 @@ import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
-  DatabaseBreadcrumb,
+  SectionBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
-  RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
   StaffDetailBreadcrumb,
@@ -32,22 +37,17 @@ import {
 } from "./header/breadcrumb-components";
 import {
   getPageTitle,
-  getSubPageLabel,
   getBreadcrumbLabel,
   getHistoryType,
   getPageTypeInfo,
+  getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
-
-function isPathSegment(path: string, basePath: string): boolean {
-  return path === basePath || path.startsWith(`${basePath}/`);
-}
 
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
     studentName,
     staffName,
-    roomName,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -57,7 +57,14 @@ export function Header() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const tenantSlug = useTenantSlugSafe();
+  const routingMode = useTenantRoutingModeSafe();
+  const pathname = normalizeTenantPathname(
+    rawPathname,
+    tenantSlug,
+    routingMode,
+  );
   const tenantContext = useTenantSafe();
   // parentNav is available in every shell; only parent-mode branches read it, so
   // the German staff/operator labels are untouched (they render the de mirror).
@@ -81,9 +88,9 @@ export function Header() {
     if (pathname === "/parents/children") return tParentNav("children");
     if (pathname.startsWith("/parents/children/"))
       return tParentNav("childProfile");
-    if (isPathSegment(pathname, "/parents/messages"))
+    if (matchesPathPrefix(pathname, "/parents/messages"))
       return tParentNav("messages");
-    if (isPathSegment(pathname, "/messages")) return tParentNav("messages");
+    if (matchesPathPrefix(pathname, "/messages")) return tParentNav("messages");
     if (pathname === "/parents/news" || pathname === "/news")
       return tParentNav("news");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
@@ -146,7 +153,11 @@ export function Header() {
   const referrer = referrerPage ?? "/students/search";
   const breadcrumbLabel = getBreadcrumbLabel(referrer);
   const historyType = getHistoryType(pathname);
-  const subPageLabel = getSubPageLabel(pathname);
+  // Nur im Mitarbeiter-Portal: die Kataloge beschreiben dessen Seitenleiste.
+  // Das Elternportal teilt sich Pfade wie /messages und bekäme sonst eine
+  // "Eltern › Nachrichten"-Breadcrumb aus der Mitarbeitersicht.
+  const sectionBreadcrumb =
+    mode === "teacher" ? getSectionBreadcrumb(pathname) : null;
 
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
@@ -171,23 +182,34 @@ export function Header() {
             isScrolled ? "h-12 lg:h-16" : "h-14 lg:h-16"
           }`}
         >
-          {/* Left section: Logo + Brand + Context */}
-          <div className="flex flex-shrink-0 items-center space-x-4">
-            <BrandLink
-              isScrolled={isScrolled}
-              href={homeUrl}
-              label={brandLabel}
-            />
+          {/* Left section: Logo + Brand + Context — must be allowed to
+              shrink (min-w-0) so long tenant names / breadcrumbs truncate
+              instead of pushing the header past the viewport (#2011) */}
+          <div className="flex min-w-0 flex-1 items-center space-x-4">
+            {mode === "teacher" ? (
+              // Brand doubles as tenant switcher when the account has
+              // multiple tenants; renders a plain BrandLink otherwise.
+              <BrandTenantSwitcher
+                isScrolled={isScrolled}
+                href={homeUrl}
+                label={brandLabel}
+              />
+            ) : (
+              <BrandLink
+                isScrolled={isScrolled}
+                href={homeUrl}
+                label={brandLabel}
+              />
+            )}
             <BreadcrumbDivider />
             <HeaderBreadcrumb
               pathname={pathname}
               pageTitle={displayedPageTitle}
               pageTypeInfo={pageTypeInfo}
-              subPageLabel={subPageLabel}
+              sectionBreadcrumb={sectionBreadcrumb}
               isScrolled={isScrolled}
               studentName={studentName}
               staffName={staffName}
-              roomName={roomName}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -197,7 +219,7 @@ export function Header() {
           </div>
 
           {/* Right section: Actions + Profile */}
-          <div className="ml-auto flex items-center space-x-3">
+          <div className="ml-auto flex flex-shrink-0 items-center space-x-3">
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
@@ -211,7 +233,6 @@ export function Header() {
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}
-            {mode === "teacher" ? <TenantSwitcher /> : null}
             {mode === "parent" ? <LanguageSwitcher compact /> : null}
 
             {/* User menu */}
@@ -273,11 +294,10 @@ interface HeaderBreadcrumbProps {
   readonly pathname: string;
   readonly pageTitle: string;
   readonly pageTypeInfo: ReturnType<typeof getPageTypeInfo>;
-  readonly subPageLabel: string;
+  readonly sectionBreadcrumb: ReturnType<typeof getSectionBreadcrumb>;
   readonly isScrolled: boolean;
   readonly studentName?: string;
   readonly staffName?: string;
-  readonly roomName?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -289,38 +309,35 @@ function HeaderBreadcrumb({
   pathname,
   pageTitle,
   pageTypeInfo,
-  subPageLabel,
+  sectionBreadcrumb,
   isScrolled,
   studentName,
   staffName,
-  roomName,
   referrer,
   breadcrumbLabel,
   historyType,
   ogsGroupName,
   activeSupervisionName,
 }: HeaderBreadcrumbProps) {
-  // Database sub-pages
-  if (pageTypeInfo.isDatabaseSubPage) {
-    return (
-      <DatabaseBreadcrumb
-        pathname={pathname}
-        pageTitle={pageTitle}
-        subPageLabel={subPageLabel}
-        isDeepPage={pageTypeInfo.isDatabaseDeepPage}
-      />
-    );
+  // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
+  if (sectionBreadcrumb) {
+    return <SectionBreadcrumb {...sectionBreadcrumb} isScrolled={isScrolled} />;
   }
 
   // OGS Groups page
   if (pathname === "/ogs-groups") {
-    return <OgsGroupsBreadcrumb groupName={ogsGroupName} />;
+    return (
+      <OgsGroupsBreadcrumb groupName={ogsGroupName} isScrolled={isScrolled} />
+    );
   }
 
   // Active Supervisions page
   if (pathname === "/active-supervisions") {
     return (
-      <ActiveSupervisionsBreadcrumb supervisionName={activeSupervisionName} />
+      <ActiveSupervisionsBreadcrumb
+        supervisionName={activeSupervisionName}
+        isScrolled={isScrolled}
+      />
     );
   }
 
@@ -340,21 +357,16 @@ function HeaderBreadcrumb({
     );
   }
 
-  // Room detail page
-  if (pageTypeInfo.isRoomDetailPage && roomName) {
-    return <RoomBreadcrumb roomName={roomName} />;
-  }
-
-  // Enrich referrer with sub-item param so the sidebar highlights the correct
-  // group/room when navigating back (e.g. /ogs-groups?group=5 instead of /ogs-groups).
-  const enrichedReferrer = enrichReferrerWithParam(referrer);
+  // enrichReferrerWithParam liest localStorage; der Aufruf steht deshalb in
+  // den beiden Zweigen, die das Ergebnis auch verwenden, statt auf jedem
+  // Render-Pfad zu laufen.
 
   // Student history sub-page (3 or 4 levels depending on context)
   if (pageTypeInfo.isStudentHistoryPage) {
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
-        referrer={enrichedReferrer}
+        referrer={enrichReferrerWithParam(referrer)}
         breadcrumbLabel={breadcrumbLabel}
         pathname={pathname}
         studentName={studentName ?? "…"}
@@ -382,27 +394,13 @@ function HeaderBreadcrumb({
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
-        referrer={enrichedReferrer}
+        referrer={enrichReferrerWithParam(referrer)}
         breadcrumbLabel={breadcrumbLabel}
         studentName={studentName ?? "…"}
         isScrolled={isScrolled}
         subSectionName={subSectionName}
       />
     );
-  }
-
-  // Simple page routes
-  const simpleTitleRoutes = [
-    "/rooms",
-    "/activities",
-    "/staff",
-    "/substitutions",
-    "/timetables",
-    "/time-tracking",
-  ];
-
-  if (simpleTitleRoutes.includes(pathname)) {
-    return <PageTitleDisplay title={pageTitle} isScrolled={isScrolled} />;
   }
 
   // Default: show page title

@@ -2,8 +2,9 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the labeled horizontal scroll region must be keyboard-focusable and arrow keys scroll it */
 
-import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
+
+import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 
 /**
  * ResourceGrid is the generic rows-by-columns planning grid of the planning
@@ -28,6 +29,16 @@ export interface ResourceGridColumn {
    * NEUTRAL gray, never a semantic hue.
    */
   readonly isCurrent?: boolean;
+  /**
+   * Marks a column as non-operational (e.g. a closing day). Rendered with a
+   * slightly stronger NEUTRAL gray tint than `isCurrent` and taking
+   * precedence over it. The grid stays domain-agnostic: what "muted" means
+   * and how it is labelled is entirely the caller's business — supply the
+   * wording via `headerNote`.
+   */
+  readonly isMuted?: boolean;
+  /** Extra header line below label/sublabel, e.g. a caller-owned marker. */
+  readonly headerNote?: ReactNode;
 }
 
 type ResourceGridColumnMode = "days" | "weeks";
@@ -42,11 +53,17 @@ interface ResourceGridProps<TRow> {
    * Cell content per (row, column). Returning null lets the grid render the
    * labelled empty-cell button (if `emptyCellLabel` + `onEmptyCellClick` are
    * given) — the caller decides emptiness, the grid owns the empty affordance.
+   *
+   * The returned node lands in a `flex flex-col` wrapper carrying the
+   * per-mode cell minimum height. Interactive content that should cover the
+   * whole cell (a click target, a hover surface) needs `flex-1` to fill that
+   * floor — otherwise it floats in the taller box.
    */
   readonly renderCell: (row: TRow, column: ResourceGridColumn) => ReactNode;
   /**
-   * Drives only the per-column minimum width: a handful of wide day columns vs.
-   * a couple dozen narrow week columns. Cell content itself is the caller's.
+   * Drives the per-column width and the uniform cell height: a handful of wide
+   * day columns vs. a couple dozen narrow week columns. Cell content itself is
+   * the caller's.
    */
   readonly columnMode?: ResourceGridColumnMode;
   /** Top-left corner header above the sticky row-header column. */
@@ -67,10 +84,72 @@ interface ResourceGridProps<TRow> {
   readonly className?: string;
 }
 
+// Declared per-column floor on the header cells. Under `table-layout: fixed`
+// the browser ignores min-width on table cells — the floor that actually binds
+// is the table's own minWidth below, computed from the same values.
 const COLUMN_MIN_WIDTH_CLASS: Record<ResourceGridColumnMode, string> = {
   days: "min-w-[7.5rem]",
   weeks: "min-w-[3.25rem]",
 };
+
+const ROW_HEADER_WIDTH_REM = 13;
+const COLUMN_WIDTH_REM: Record<ResourceGridColumnMode, number> = {
+  days: 7.5,
+  weeks: 3.25,
+};
+
+function getColumnBackgroundClass(
+  column: ResourceGridColumn,
+  mutedClass: string,
+  currentClass: string,
+): string {
+  if (column.isMuted) return mutedClass;
+  if (column.isCurrent) return currentClass;
+  return "";
+}
+
+/**
+ * Raster metrics — the reason an empty and a filled plan look identical
+ * (issue #2026). The table runs in `table-layout: fixed`, so column widths come
+ * from the <colgroup> below and no longer from whatever a cell happens to
+ * contain. Fixed layout ignores `min-width` on cells, so the per-column floor
+ * has to be re-expressed as the table's own `minWidth` (row header + n columns)
+ * — below that the scroll container takes over. `cellMinHeightClass` is the
+ * matching floor for the row height: it applies to EVERY cell, empty or filled,
+ * and is sized so a cell holding one plain entry does not grow past it.
+ *
+ * The skeleton (dienstplan-skeleton.tsx) imports these so it keeps rastering
+ * like the real grid. `columnWidth` carries the same values as
+ * COLUMN_MIN_WIDTH_CLASS above as plain lengths — Tailwind only picks up class
+ * names written out as literals, hence the two shapes.
+ */
+export const RESOURCE_GRID_METRICS = {
+  // 13rem statt der alten Mindestbreite von 180px: die Spalte war im
+  // Auto-Layout je nach Inhalt 194–259px breit. Auf 180px (oder 192px)
+  // festgenagelt würden längere Namen ("Zimmermann, Frank") plötzlich
+  // abgeschnitten — gemessen im Dienstplan mit 21 Personen.
+  rowHeaderWidth: `${ROW_HEADER_WIDTH_REM}rem`,
+  columnWidth: {
+    days: `${COLUMN_WIDTH_REM.days}rem`,
+    weeks: `${COLUMN_WIDTH_REM.weeks}rem`,
+  },
+  cellMinHeightClass: {
+    days: "min-h-16",
+    weeks: "min-h-11",
+  },
+} as const satisfies {
+  rowHeaderWidth: string;
+  columnWidth: Record<ResourceGridColumnMode, string>;
+  cellMinHeightClass: Record<ResourceGridColumnMode, string>;
+};
+
+/** Table width below which the grid scrolls instead of squeezing columns. */
+export function resourceGridMinWidth(
+  columnCount: number,
+  columnMode: ResourceGridColumnMode = "days",
+): string {
+  return `${ROW_HEADER_WIDTH_REM + columnCount * COLUMN_WIDTH_REM[columnMode]}rem`;
+}
 
 export function ResourceGrid<TRow>({
   columns,
@@ -88,93 +167,140 @@ export function ResourceGrid<TRow>({
   className,
 }: ResourceGridProps<TRow>) {
   const columnMinWidth = COLUMN_MIN_WIDTH_CLASS[columnMode];
+  const cellWrapperClass = `flex ${RESOURCE_GRID_METRICS.cellMinHeightClass[columnMode]} flex-col`;
 
   return (
+    // Radius, Rand und Ausschnitt sitzen auf der Fläche, gescrollt wird im
+    // inneren Container. Sonst zeichnet der Browser die Scrollleiste über die
+    // volle Breite der Box, quer durch die abgerundeten Ecken und über den
+    // unteren Rand hinaus. Der Fokusring wandert per :has() mit nach außen,
+    // weil der Ausschnitt einen Ring am inneren Element abschneiden würde.
+    // overflow-clip beschneidet dabei ohne einen zusätzlichen Scroll-Container
+    // zu erzeugen, damit die sticky Zeilenköpfe am inneren Scroll-Container
+    // ausgerichtet bleiben.
     <div
-      role={ariaLabel ? "region" : undefined}
-      aria-label={ariaLabel}
-      aria-describedby={scrollHintId}
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-        event.preventDefault();
-        event.currentTarget.scrollBy({
-          left: event.key === "ArrowLeft" ? -240 : 240,
-          behavior: "smooth",
-        });
-      }}
-      className={`max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none ${className ?? ""}`}
+      // Das Raster IST die Karte (#2031): vorher lag es in einer zusätzlichen
+      // weißen Karte des Aufrufers, also Rahmen im Rahmen mit 24px Luft
+      // dazwischen — keine andere Planungsfläche macht das.
+      className={`moto-content-surface max-w-full overflow-clip rounded-2xl border shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
     >
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-left">
-            <th
-              scope="col"
-              className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
-            >
-              {cornerHeader}
-            </th>
+      <div
+        role={ariaLabel ? "region" : undefined}
+        aria-label={ariaLabel}
+        aria-describedby={scrollHintId}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          event.currentTarget.scrollBy({
+            left: event.key === "ArrowLeft" ? -240 : 240,
+            behavior: "smooth",
+          });
+        }}
+        className="max-w-full overflow-x-auto overscroll-x-contain focus-visible:outline-none"
+      >
+        <table
+          className="w-full table-fixed border-collapse text-sm"
+          style={{ minWidth: resourceGridMinWidth(columns.length, columnMode) }}
+        >
+          {/* Fixed layout reads the column widths from here, so an empty and a
+              filled plan raster identically (issue #2026). Only the row header
+              is pinned; the data columns share the remaining width equally and
+              never fall below the floor baked into the table's minWidth. */}
+          <colgroup>
+            <col style={{ width: RESOURCE_GRID_METRICS.rowHeaderWidth }} />
             {columns.map((column) => (
-              <th
-                key={column.key}
-                scope="col"
-                className={`${columnMinWidth} px-2 py-1.5 text-xs font-medium text-gray-500 ${
-                  column.isCurrent ? "bg-gray-100" : ""
-                }`}
-              >
-                <span className="block">{column.label}</span>
-                {column.sublabel && (
-                  <span className="block font-normal text-gray-400">
-                    {column.sublabel}
-                  </span>
-                )}
-              </th>
+              <col key={column.key} />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            return (
-              <tr key={getRowKey(row)} className="border-t border-gray-100">
+          </colgroup>
+          <thead>
+            <tr className="bg-gray-50 text-left">
+              <th
+                scope="col"
+                className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
+              >
+                {cornerHeader}
+              </th>
+              {columns.map((column) => (
                 <th
-                  scope="row"
-                  className="sticky left-0 z-10 min-w-[180px] bg-white px-2 py-1.5 text-left align-top font-normal"
+                  key={column.key}
+                  scope="col"
+                  className={`${columnMinWidth} px-2 py-1.5 text-xs font-medium text-gray-500 ${getColumnBackgroundClass(
+                    column,
+                    "bg-gray-200/70",
+                    "bg-gray-100",
+                  )}`}
                 >
-                  {renderRowHeader(row)}
+                  <span className="block">{column.label}</span>
+                  {column.sublabel && (
+                    <span className="block font-normal text-gray-400">
+                      {column.sublabel}
+                    </span>
+                  )}
+                  {column.headerNote && (
+                    <span className="mt-0.5 block font-normal">
+                      {column.headerNote}
+                    </span>
+                  )}
                 </th>
-                {columns.map((column) => {
-                  const cell = renderCell(row, column);
-                  const showEmptyButton =
-                    cell == null && emptyCellLabel && onEmptyCellClick;
-                  return (
-                    <td
-                      key={column.key}
-                      className={`border-l border-gray-100 px-1 py-1 align-top ${
-                        column.isCurrent ? "bg-gray-50" : ""
-                      }`}
-                    >
-                      {cell != null ? (
-                        cell
-                      ) : showEmptyButton ? (
-                        <button
-                          type="button"
-                          onClick={() => onEmptyCellClick(row, column)}
-                          aria-label={emptyCellLabel(row, column)}
-                          className="flex min-h-14 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
-                        >
-                          <Plus className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                      ) : null}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-        {footer && <tfoot>{footer}</tfoot>}
-      </table>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              return (
+                <tr key={getRowKey(row)} className="border-t border-gray-100">
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal"
+                  >
+                    {renderRowHeader(row)}
+                  </th>
+                  {columns.map((column) => {
+                    const cell = renderCell(row, column);
+                    const showEmptyButton =
+                      cell == null && emptyCellLabel && onEmptyCellClick;
+                    return (
+                      <td
+                        key={column.key}
+                        className={`border-l border-gray-100 px-1 py-1 align-top ${getColumnBackgroundClass(
+                          column,
+                          "bg-gray-100/70",
+                          "bg-gray-50",
+                        )}`}
+                      >
+                        {/* The height floor sits on the wrapper, not on the
+                            cell content: an empty cell, a bare cell without an
+                            empty-cell affordance and a filled one all get the
+                            same row height (issue #2026). */}
+                        <div className={cellWrapperClass}>
+                          {cell != null ? (
+                            cell
+                          ) : showEmptyButton ? (
+                            <button
+                              type="button"
+                              onClick={() => onEmptyCellClick(row, column)}
+                              aria-label={emptyCellLabel(row, column)}
+                              // Ohne items-center: die Anlege-Fläche dehnt sich
+                              // über die ganze Zelle (#2031), die Zeilenhöhe
+                              // bleibt die des Wrappers (#2026).
+                              className="group flex w-full flex-1 rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+                            >
+                              <PlanAddAffordance />
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+          {footer && <tfoot>{footer}</tfoot>}
+        </table>
+      </div>
     </div>
   );
 }

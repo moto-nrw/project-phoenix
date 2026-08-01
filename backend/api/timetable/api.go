@@ -21,7 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -105,15 +107,22 @@ type Dependencies struct {
 	CareDayService         scheduleSvc.CareDayService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
-	Broadcaster            realtime.Broadcaster
-	Logger                 *slog.Logger
-	DB                     *bun.DB
+	SlotListsService       slotlists.Service
+	// PlanExportService renders the printable Betreuungsplan week (#2079).
+	PlanExportService planexport.Service
+	Broadcaster       realtime.Broadcaster
+	Logger            *slog.Logger
+	DB                *bun.DB
+	Now               func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
 // Nil deps are tolerated at construction time; the dependent handler returns
 // 500 at request time if one of its deps is unset.
 func NewResource(deps Dependencies) *Resource {
+	if deps.Now == nil {
+		deps.Now = timezone.Now
+	}
 	return &Resource{Dependencies: deps}
 }
 
@@ -125,7 +134,10 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		r.Route("/periods", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPeriods)
+			// Shift-series creation is available to time-tracking managers and
+			// requires a period ID, so the read-only list must be available on
+			// that reduced Dienstplan path as well.
+			r.With(authorize.RequiresAnyPermission(permissions.SchedulesRead, permissions.TimeTrackingManage), withTx).Get("/", rs.listPeriods)
 			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/", rs.createPeriod)
 			// WP-B1: idempotent school-year bootstrap. Same permission and tx
 			// middleware as POST /periods — it is just a specialized create.
@@ -247,6 +259,28 @@ func (rs *Resource) Router() chi.Router {
 			permissions.TimeTrackingManage,
 			permissions.UsersRead,
 		), withTx).Post("/shift-coverage", rs.checkShiftCoverage)
+
+		// Issue #1565: lists from planned care slots (Plan / Ist / Abgleich).
+		// Read-only, but they expose named children + presence, so they require
+		// student-data read on top of schedule read (GDPR) — same bar as the
+		// emergency snapshot export (UsersRead).
+		r.Route("/lists", func(r chi.Router) {
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/options", rs.listSlotListOptions)
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/preview", rs.previewSlotList)
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/export", rs.exportSlotList)
+		})
+
+		// Printable Betreuungsplan week (#2079). Staff names are on the sheet,
+		// so it needs users:read on top of the schedules:read the plan itself
+		// requires — the same pair the slot lists use. exportBetreuungsplan
+		// additionally gates the sensitive internal variant by its request body.
+		r.Route("/betreuungsplan", func(r chi.Router) {
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/export", rs.exportBetreuungsplan)
+		})
 
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -20,6 +22,7 @@ type fakeAnnouncementRepo struct {
 	usersModels.ParentAnnouncementRepository
 	announcement *usersModels.ParentAnnouncement
 	recipients   []*usersModels.AnnouncementRecipient
+	audience     []*usersModels.AnnouncementRecipientStatus
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
@@ -69,6 +72,21 @@ func (f *fakeAnnouncementRepo) ResolveAudienceEmails(_ context.Context, _, _ int
 	return f.recipients, nil
 }
 
+func (f *fakeAnnouncementRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+	if f.audience != nil {
+		return f.audience, nil
+	}
+	recipients := make([]*usersModels.AnnouncementRecipientStatus, 0, len(f.recipients))
+	for i, recipient := range f.recipients {
+		accountID := recipient.AccountID
+		if accountID <= 0 {
+			accountID = int64(i + 1)
+		}
+		recipients = append(recipients, &usersModels.AnnouncementRecipientStatus{AccountID: accountID})
+	}
+	return recipients, nil
+}
+
 func (f *fakeAnnouncementRepo) SchoolName(_ context.Context, _ int64) (string, error) {
 	return "OGS Testschule", nil
 }
@@ -94,6 +112,16 @@ type fakeOutbox struct {
 	cancelCalls int
 }
 
+type fakeNotifier struct {
+	events []notifications.Event
+	err    error
+}
+
+func (f *fakeNotifier) Notify(_ context.Context, event notifications.Event) error {
+	f.events = append(f.events, event)
+	return f.err
+}
+
 func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
 	f.requests = append(f.requests, req)
 	return &platformModels.EmailOutbox{}, nil
@@ -108,6 +136,7 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 	return NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true},
+		Notifier:   &fakeNotifier{},
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
@@ -249,6 +278,45 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 	}
 }
 
+func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.T) {
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(false),
+		audience: []*usersModels.AnnouncementRecipientStatus{
+			{AccountID: 101},
+			{AccountID: 202},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if len(notifier.events) != 1 {
+		t.Fatalf("expected one batched guardian event, got %d", len(notifier.events))
+	}
+	event := notifier.events[0]
+	if event.Audience.Scope != notifications.ScopeGuardian ||
+		!slices.Equal(event.Audience.GuardianAccountIDs, []int64{101, 202}) ||
+		event.Audience.TenantID != 11 {
+		t.Fatalf("unexpected guardian audience: %+v", event.Audience)
+	}
+	if event.Title == repo.announcement.Title || event.Body == repo.announcement.Body {
+		t.Fatalf("push payload must not expose announcement content: %+v", event)
+	}
+	if event.Type != parentAnnouncementNotificationType ||
+		event.Priority != notifications.PriorityNormal ||
+		event.DeepLink != "/" {
+		t.Fatalf("unexpected guardian notification metadata: %+v", event)
+	}
+}
+
 // The announcement mail must carry the same header/footer branding as the
 // enrollment mails: an absolute school-logo URL (uploaded image rewritten to the
 // public read endpoint) and the absolute moto footer logo.
@@ -263,6 +331,7 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true, logoURL: "/uploads/login-images/2_abc.jpg"},
+		Notifier:   &fakeNotifier{},
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
@@ -426,6 +495,7 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true},
+		Notifier:   &fakeNotifier{},
 		Outbox:     failingOutbox{},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),

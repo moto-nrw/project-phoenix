@@ -64,7 +64,7 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
 }
 
-// exportStaffSessions handles GET /api/staff/{id}/time-tracking/export?from=...&to=...&format=csv|xlsx
+// exportStaffSessions handles GET /api/staff/{id}/time-tracking/export?from=...&to=...&format=csv|xlsx|pdf
 func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) {
 	staffID, err := common.ParseID(r)
 	if err != nil {
@@ -94,11 +94,11 @@ func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	format := r.URL.Query().Get("format")
-	if format != "csv" && format != "xlsx" {
+	if format != "csv" && format != "xlsx" && format != "pdf" {
 		format = "csv"
 	}
 
-	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
+	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
 	if err != nil {
 		rs.getLogger().Error("failed to export staff sessions",
 			"staff_id", staffID,
@@ -108,15 +108,10 @@ func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	switch format {
-	case "xlsx":
-		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	default:
-		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	}
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
-	w.Header().Set("Content-Length", strconv.Itoa(len(fileBytes)))
-	if _, err := w.Write(fileBytes); err != nil {
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.Filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
+	if _, err := w.Write(file.Data); err != nil {
 		rs.getLogger().Error("failed to write export response", "error", err.Error())
 	}
 }
@@ -486,6 +481,11 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 // (no sentinels), so most rules match on the message; the sick cascade wraps
 // schedule sentinels, matched via errors.Is.
 var adminAbsenceErrorRules = []common.ErrorRule{
+	// 409 with a stable code so the frontend can show the overdraft message
+	// (#1420 review) — mirrors balance_adjustment_exceeds_balance.
+	{Target: activeSvc.ErrCompTimeExceedsBalance, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
+	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},

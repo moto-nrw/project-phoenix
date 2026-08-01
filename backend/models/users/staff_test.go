@@ -1,10 +1,28 @@
 package users
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+func TestStaff_JSONOmitsPersonnelNumber(t *testing.T) {
+	personnelNumber := "90001"
+	staff := &Staff{
+		PersonID:        1,
+		PersonnelNumber: &personnelNumber,
+	}
+
+	payload, err := json.Marshal(staff)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if strings.Contains(string(payload), "personnel_number") {
+		t.Fatalf("json.Marshal() exposed personnel_number: %s", payload)
+	}
+}
 
 func TestStaff_Validate(t *testing.T) {
 	tests := []struct {

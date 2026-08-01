@@ -1,8 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { CheckSquare, Loader2 } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+
+const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
+const CHECKIN_BAR_OFFSET = "4.5rem";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -36,6 +40,26 @@ export function SchoolCheckinModeMobile({
   pendingCount,
 }: SchoolCheckinModeMobileProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
+
+  useEffect(() => {
+    if (!attendanceWebEnabled || !isActive) return;
+    const root = document.documentElement;
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const publishOffset = () => {
+      if (mediaQuery.matches) {
+        root.style.setProperty(CHECKIN_BAR_OFFSET_VAR, CHECKIN_BAR_OFFSET);
+      } else {
+        root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
+      }
+    };
+    publishOffset();
+    mediaQuery.addEventListener("change", publishOffset);
+    return () => {
+      mediaQuery.removeEventListener("change", publishOffset);
+      root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
+    };
+  }, [attendanceWebEnabled, isActive]);
+
   if (!attendanceWebEnabled) return null;
   if (!isActive) {
     return (

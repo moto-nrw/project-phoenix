@@ -37,6 +37,13 @@ import {
 } from "~/lib/planning-navigation";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  DATABASE_SECTION,
+  ENROLLMENT_SECTION,
+  ENROLLMENT_SUB_PAGES,
+  PARENT_SECTION,
+  PARENT_SUB_PAGES,
+} from "~/lib/section-navigation";
+import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -266,6 +273,16 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     tKey: "mealPlan",
     iconKey: "utensils",
   },
+  // Feedback ans Produktteam (#1678) — last of the real entries, mirroring the
+  // desktop sidebar where it sits pinned below the daily-use areas. It is a
+  // channel to moto, not to the school, so no per-school gate applies.
+  {
+    href: "/parents/feedback",
+    label: "Feedback",
+    tKey: "feedback",
+    iconKey: "feedback",
+    alwaysShow: true,
+  },
   {
     href: "#",
     label: "Kontaktdaten",
@@ -283,7 +300,9 @@ const PLANNING_ICON_KEYS: Record<
   "/betreuungsplan": "betreuungsplan",
   "/dienstplan": "dienstplan",
   "/vertretung": "vertretung",
+  "/lists": "calendar",
   "/calendar-periods": "calendar",
+  "/payroll": "chart",
 };
 
 const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
@@ -291,7 +310,8 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
     href: page.href,
     label: page.label,
     iconKey: PLANNING_ICON_KEYS[page.href],
-    requiresAdmin: true,
+    requiresAdmin: page.nonAdminPermission === undefined,
+    requiresPermission: page.nonAdminPermission,
     activePaths: getPlanningMobileActivePaths(page.href),
   }));
 
@@ -305,7 +325,7 @@ const additionalNavItems: AdditionalNavItem[] = [
   { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
   {
     href: "/calendar",
-    label: "Kalender",
+    label: "Mein Kalender",
     iconKey: "calendar",
     // Match the backend calendar:own gate on GET /api/calendar/my.
     requiresPermission: "calendar:own",
@@ -323,22 +343,17 @@ const additionalNavItems: AdditionalNavItem[] = [
   // desktop-only calendar-period editor and supplies all legacy active paths.
   ...PLANNING_ADDITIONAL_ITEMS,
   {
-    href: "/database",
-    label: "Datenverwaltung",
+    href: DATABASE_SECTION.href,
+    label: DATABASE_SECTION.label,
     iconKey: "database",
     requiresAdmin: true,
   },
   {
-    href: "/admin/enrollments",
-    label: "Anmeldungen",
+    href: ENROLLMENT_SECTION.href,
+    label: ENROLLMENT_SECTION.label,
     iconKey: "enrollments",
     requiresAdmin: true,
-    activePaths: [
-      "/admin/enrollments",
-      "/enrollment-phases",
-      "/care-offerings",
-      "/enrollment-form",
-    ],
+    activePaths: ENROLLMENT_SUB_PAGES.map((page) => page.href),
   },
   {
     href: "/time-tracking",
@@ -377,18 +392,11 @@ const additionalNavItems: AdditionalNavItem[] = [
   // Datenverwaltung / Anmeldungen). Shown to all staff; the overview itself
   // renders only the cards the caller may access.
   {
-    href: "/eltern",
-    label: "Eltern",
+    href: PARENT_SECTION.href,
+    label: PARENT_SECTION.label,
     iconKey: "parents",
     alwaysShow: true,
-    activePaths: [
-      "/eltern",
-      "/messages",
-      "/admin/guardian-approvals",
-      "/admin/change-requests",
-      "/parent-announcements",
-      "/meal-plan",
-    ],
+    activePaths: PARENT_SUB_PAGES.map((page) => page.href),
   },
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
@@ -612,7 +620,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Filter additional navigation items based on permissions
   const filteredMainItemsByMode = filteredMainItems.filter(
-    (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
+    (item) =>
+      (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+      // Bei offener Betreuung gibt es keine "meine Gruppe" — der
+      // gruppenbasierte Einstieg entfällt (#1544).
+      !(openCareGroupMode && item.href === "/ogs-groups"),
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
@@ -621,7 +633,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
-    if (isPlanningPageHref(item.href) && !timetableEnabled) return false;
+    if (
+      isPlanningPageHref(item.href) &&
+      item.href !== "/calendar-periods" &&
+      item.href !== "/payroll" &&
+      !timetableEnabled &&
+      (userIsAdmin || item.requiresPermission === undefined)
+    ) {
+      return false;
+    }
     if (item.href === "/substitutions" && openCareGroupMode) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;

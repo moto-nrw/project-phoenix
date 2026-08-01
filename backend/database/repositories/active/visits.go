@@ -79,6 +79,33 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 	return visits, nil
 }
 
+// FindByActiveGroupIDs finds all visits belonging to any of the given active
+// groups in a single query. It is the bulk counterpart of FindByActiveGroupID:
+// callers that resolve many groups (a whole day of slots) get one query instead
+// of one per group. An empty input returns no visits without hitting the DB.
+func (r *VisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.Visit, error) {
+	if len(activeGroupIDs) == 0 {
+		return nil, nil
+	}
+	var visits []*active.Visit
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&visits).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Where(`"visit".active_group_id IN (?)`, bun.List(activeGroupIDs))
+
+	query = base.WithTenantFilter(ctx, query, "visit")
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by active group IDs",
+			Err: err,
+		}
+	}
+
+	return visits, nil
+}
+
 // FindByTimeRange finds all visits active during a specific time range
 func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
 	var visits []*active.Visit
@@ -637,6 +664,49 @@ func (r *VisitRepository) ListActiveStudentIDsByRoomID(ctx context.Context, room
 		}
 	}
 	return ids, nil
+}
+
+// ListOpenVisitStudentIDsByRoom returns every student of the tenant who is
+// currently checked in, grouped by the room they are in. It is the whole-tenant
+// counterpart of ListActiveStudentIDsByRoomID.
+//
+// Deliberately parameterless: a caller resolving many supervised rooms would
+// otherwise issue one query per room, and a tenant only ever has a few hundred
+// open visits, so narrowing by a room IN-list buys nothing while forcing two
+// code paths.
+//
+// Student IDs are distinct per room: two open visits for the same child in two
+// groups sharing a room collapse to one entry, so callers can range over the
+// slice without building their own set.
+func (r *VisitRepository) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	var rows []struct {
+		RoomID    int64 `bun:"room_id"`
+		StudentID int64 `bun:"student_id"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Distinct().
+		TableExpr(tableExprActiveVisitsAsVisit).
+		ColumnExpr(`"group".room_id, "visit".student_id`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Where(`"group".end_time IS NULL`).
+		Where(`"visit".exit_time IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "visit")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list open visit student IDs by room",
+			Err: err,
+		}
+	}
+
+	byRoom := make(map[int64][]int64)
+	for _, row := range rows {
+		byRoom[row.RoomID] = append(byRoom[row.RoomID], row.StudentID)
+	}
+
+	return byRoom, nil
 }
 
 // CountActiveByGroupID counts active visits in the given active group.

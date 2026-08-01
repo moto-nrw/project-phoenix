@@ -6,14 +6,31 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+// PhaseSettingsResolver is the narrow slice of the settings service the
+// phase service needs: the two toggles that decide whether the enrollment
+// form collects a concrete school class, plus the tenant's grade-level cap.
+// A class-based eligibility restriction (eligible_school_classes) is
+// uncheckable — and every submission is rejected — when the class is never
+// collected, and a grade restriction above enrollment.grade_level_max is
+// unsatisfiable for the same reason (the form never offers that grade), so
+// Create/Update reject both configurations up front. Optional: when nil
+// (unit tests with mocks) the collectability guard is skipped.
+type PhaseSettingsResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
 
 // PhaseService sentinel errors. The HTTP layer maps these to status
 // codes; tests assert on them via errors.Is.
@@ -78,8 +95,12 @@ type PhaseServiceConfig struct {
 	CalendarPeriods                 scheduleService.CalendarPeriodService
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
-	DB                              *bun.DB
-	Logger                          *slog.Logger
+	// Settings resolves the concrete-class collection toggles used to
+	// reject unsatisfiable eligibility configs. Optional: nil skips the
+	// guard (unit tests with mocks; the CHECK/model rules still apply).
+	Settings PhaseSettingsResolver
+	DB       *bun.DB
+	Logger   *slog.Logger
 }
 
 type phaseService struct {
@@ -91,6 +112,7 @@ type phaseService struct {
 	calendarPeriods                 scheduleService.CalendarPeriodService
 	lockTemplateRecurrence          func(context.Context) error
 	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
+	settings                        PhaseSettingsResolver
 	txHandler                       *modelBase.TxHandler
 	logger                          *slog.Logger
 }
@@ -113,9 +135,172 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		calendarPeriods:                 cfg.CalendarPeriods,
 		lockTemplateRecurrence:          cfg.LockTemplateRecurrence,
 		validateCareOfferingPhaseChange: cfg.ValidateCareOfferingPhaseChange,
+		settings:                        cfg.Settings,
 		txHandler:                       txHandler,
 		logger:                          logger,
 	}
+}
+
+// classCollectionResolver is the minimal settings surface the collectability
+// guard reads: the two collection toggles plus enrollment.grade_level_max for
+// the grade-cap check. The concrete settings service additionally satisfies the
+// optional LockClassCollectionPair interface the guard type-asserts for.
+type classCollectionResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// ensureEligibleClassesCollectable rejects a class-based eligibility
+// restriction the school cannot actually collect. eligible_school_classes
+// is checked at submit against each child's declared concrete class, but
+// the form only collects that class when BOTH collect_grade_level and
+// collect_school_class are on (a class without its grade is ambiguous).
+// With collection off, validateAndNormalizeSchoolClasses forces every
+// child's class to nil, so a non-empty eligibility list rejects every
+// submission with class_not_eligible. Reject the config here so the admin
+// enables class collection (or clears the list) first (#1663). Skipped
+// when no settings resolver is wired. Shared by phaseService.Create/Update
+// and rolloverService (an inactive class-restricted source must not be rolled
+// into an active successor while collection is off).
+func ensureEligibleClassesCollectable(ctx context.Context, settings classCollectionResolver, eligible []string) error {
+	if settings == nil || !hasNonEmptyEligibleClass(eligible) {
+		return nil
+	}
+	// Serialize against a concurrent settings write disabling concrete-class
+	// collection: services/config validateClassCollectionGuard takes the same
+	// per-tenant lock, so the two invariant sides can't both pass on a stale
+	// read and commit an active restricted phase with collection off (#1663).
+	// The concrete settings service implements the lock; minimal test fakes
+	// don't, so it degrades to best-effort there.
+	if locker, ok := settings.(interface {
+		LockClassCollectionPair(context.Context) error
+	}); ok {
+		if err := locker.LockClassCollectionPair(ctx); err != nil {
+			return fmt.Errorf("lock class-collection pair: %w", err)
+		}
+	}
+	collectGrade, err := settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	collectClass, err := settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
+	}
+	if !collectGrade || !collectClass {
+		return fmt.Errorf("%w: eligible_school_classes requires the concrete-class collection settings (Klassen-Abfrage) to be active", ErrInvalidPhase)
+	}
+	return nil
+}
+
+// ensureEligibleGradeLevelsCollectable is the grade-level counterpart of
+// ensureEligibleClassesCollectable. A grade restriction is checked at submit
+// against each child's declared grade level, which the form collects only
+// while collect_grade_level is on — with it off,
+// normalizeSubmissionForCapabilities nils every child's grade and the
+// restriction rejects every submission with grade_not_eligible. Note the
+// weaker requirement than the class guard: a whole-grade phase needs the grade
+// toggle ALONE, which is exactly why enumerating concrete classes is not a
+// substitute for it (#1663). Skipped when no settings resolver is wired.
+func ensureEligibleGradeLevelsCollectable(ctx context.Context, settings classCollectionResolver, eligible []int) error {
+	if settings == nil || len(eligible) == 0 {
+		return nil
+	}
+	// Same per-tenant lock as the class guard: the settings side takes it
+	// before deciding whether collect_grade_level may be turned off, so the two
+	// invariant sides cannot both pass on a stale read (#1663).
+	if locker, ok := settings.(interface {
+		LockClassCollectionPair(context.Context) error
+	}); ok {
+		if err := locker.LockClassCollectionPair(ctx); err != nil {
+			return fmt.Errorf("lock class-collection pair: %w", err)
+		}
+	}
+	collectGrade, err := settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	if !collectGrade {
+		return fmt.Errorf("%w: eligible_grade_levels requires the grade-level collection setting (Klassenstufen-Abfrage) to be active", ErrInvalidPhase)
+	}
+	return ensureEligibleGradeLevelsWithinTenantCap(ctx, settings, eligible)
+}
+
+// ensureEligibleGradeLevelsWithinTenantCap rejects a grade restriction the
+// tenant's own form can never satisfy. The public form offers grades
+// 1..enrollment.grade_level_max and the submit path re-checks the same cap, so
+// a phase restricted to a grade ABOVE it is unsatisfiable from both ends: the
+// select never offers the grade, and a hand-crafted submission carrying it is
+// rejected by the cap before eligibility is even consulted. Without this check
+// an admin can save eligible_grade_levels [5] under a cap of 4 and end up with
+// an active phase that accepts no submission at all (#1663).
+//
+// Runs under the lock the caller already holds, which the settings side takes
+// too — so lowering the cap and adding an above-cap restriction cannot both
+// pass on a stale read. Values below MinGradeLevel are already rejected by
+// Phase.Validate's normalizeGradeLevelList; the cap is the tenant-specific half
+// it cannot know about.
+func ensureEligibleGradeLevelsWithinTenantCap(ctx context.Context, settings classCollectionResolver, eligible []int) error {
+	gradeMax, err := settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentGradeLevelMax, err)
+	}
+	// A corrupt or out-of-range cap must stop the write rather than silently
+	// pick a substitute bound — the same fail-closed reasoning as
+	// requestService.resolveGradeMax and rolloverService.resolveMaxGrade.
+	if gradeMax < schoolclass.MinGradeLevel || gradeMax > schoolclass.MaxGradeLevel {
+		return fmt.Errorf(
+			"resolve %s: value %d is outside %d..%d",
+			configModel.KeyEnrollmentGradeLevelMax,
+			gradeMax,
+			schoolclass.MinGradeLevel,
+			schoolclass.MaxGradeLevel,
+		)
+	}
+	for _, level := range eligible {
+		if level > gradeMax {
+			return fmt.Errorf(
+				"%w: eligible_grade_levels contains grade %d above the tenant maximum %d (Höchste Klassenstufe im Formular); the form never offers that grade, so every submission would be rejected",
+				ErrInvalidPhase,
+				level,
+				gradeMax,
+			)
+		}
+	}
+	return nil
+}
+
+// validateEligibleClassesCollectable is the phaseService adapter over the two
+// collectability guards used by Create/Update.
+//
+// Only ACTIVE phases are guarded. The invariant these guards protect is
+// "no ACTIVE restricted phase while the matching collection setting is off" —
+// exactly the scope the settings side enforces from its end
+// (ExistsActiveWithEligibleClasses / ExistsActiveWithEligibleGradeLevels only
+// look at is_active phases). Applying them to an inactive phase made a
+// historical restricted phase unwritable once collection was disabled: a name
+// or date correction, or even deactivating the phase, hit the guard and could
+// not be saved at all, while clearing the restriction to get past it would
+// destroy the record of what that phase was restricted to. Reactivating such a
+// phase still goes through Update with is_active=true and is still refused
+// (#1663).
+func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if s.settings == nil || !phase.IsActive {
+		return nil
+	}
+	if err := ensureEligibleGradeLevelsCollectable(ctx, s.settings, phase.EligibleGradeLevels); err != nil {
+		return err
+	}
+	return ensureEligibleClassesCollectable(ctx, s.settings, phase.EligibleSchoolClasses)
+}
+
+func hasNonEmptyEligibleClass(classes []string) bool {
+	for _, c := range classes {
+		if strings.TrimSpace(c) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // validateCalendarPeriodLink checks that a linked calendar period exists
@@ -214,6 +399,9 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if err := phase.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidPhase, err)
 	}
+	if err := s.validateEligibleClassesCollectable(ctx, phase); err != nil {
+		return nil, err
+	}
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return nil, err
 	}
@@ -236,6 +424,9 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	}
 	if err := phase.Validate(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	}
+	if err := s.validateEligibleClassesCollectable(ctx, phase); err != nil {
+		return err
 	}
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return err

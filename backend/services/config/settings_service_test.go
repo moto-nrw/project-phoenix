@@ -22,8 +22,10 @@ import (
 // --- Mock repositories ---
 
 type mockValueRepo struct {
-	values map[string]*config.SettingValue // key: "tenantID:settingKey"
-	err    error
+	values        map[string]*config.SettingValue // key: "tenantID:settingKey"
+	err           error
+	findManyCalls int
+	findManyKeys  [][]string // per FindByTenantAndKeys call, the requested keys
 }
 
 func newMockValueRepo() *mockValueRepo {
@@ -45,13 +47,50 @@ func (m *mockValueRepo) FindByTenantAndKey(_ context.Context, tenantID int64, se
 	return sv, nil
 }
 
-func (m *mockValueRepo) FindByTenant(_ context.Context, _ int64) ([]*config.SettingValue, error) {
+func (m *mockValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64, settingKeys []string) ([]*config.SettingValue, error) {
+	m.findManyCalls++
+	m.findManyKeys = append(m.findManyKeys, append([]string(nil), settingKeys...))
 	if m.err != nil {
 		return nil, m.err
 	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
 	var result []*config.SettingValue
 	for _, v := range m.values {
+		if v.TenantID != tenantID {
+			continue
+		}
+		if _, ok := requested[v.SettingKey]; !ok {
+			continue
+		}
 		result = append(result, v)
+	}
+	return result, nil
+}
+
+func (m *mockValueRepo) FindByTenantsAndKeys(_ context.Context, tenantIDs []int64, settingKeys []string) ([]*config.SettingValue, error) {
+	m.findManyCalls++
+	if m.err != nil {
+		return nil, m.err
+	}
+	tenants := make(map[int64]struct{}, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		tenants[tenantID] = struct{}{}
+	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
+	var result []*config.SettingValue
+	for _, value := range m.values {
+		if _, ok := tenants[value.GetTenantID()]; !ok {
+			continue
+		}
+		if _, ok := requested[value.SettingKey]; ok {
+			result = append(result, value)
+		}
 	}
 	return result, nil
 }
@@ -189,6 +228,72 @@ func TestResolveBool(t *testing.T) {
 	val, err := svc.ResolveBool(tenantCtx(1), "test.enabled")
 	require.NoError(t, err)
 	assert.True(t, val)
+}
+
+func TestResolveBoolsLoadsOverridesOnceAndFillsDefaults(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.enabled", config.FieldBoolean, true)
+	registerTestSetting("test.disabled", config.FieldBoolean, false)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.enabled"] = &config.SettingValue{
+		SettingKey: "test.enabled",
+		Value:      json.RawMessage(`false`),
+	}
+	repo.values["1:test.enabled"].TenantID = 1
+	repo.values["2:test.disabled"] = &config.SettingValue{
+		SettingKey: "test.disabled",
+		Value:      json.RawMessage(`true`),
+	}
+	repo.values["2:test.disabled"].TenantID = 2
+
+	svc := createService(repo, &mockAuditRepo{})
+	values, err := svc.ResolveBools(tenantCtx(1), []string{
+		"test.enabled",
+		"test.disabled",
+		"test.enabled",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]bool{
+		"test.enabled":  false,
+		"test.disabled": false,
+	}, values)
+	assert.Equal(t, 1, repo.findManyCalls, "all keys must share one repository query")
+}
+
+func TestResolveBoolsFailsClosedForInvalidDefinitionsAndValues(t *testing.T) {
+	t.Run("unknown key", func(t *testing.T) {
+		setupTest(t)
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.unknown"})
+		require.Error(t, err)
+	})
+
+	t.Run("non-boolean default", func(t *testing.T) {
+		setupTest(t)
+		registerTestSetting("test.text", config.FieldText, "value")
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.text"})
+		require.Error(t, err)
+	})
+
+	t.Run("non-boolean override", func(t *testing.T) {
+		setupTest(t)
+		registerTestSetting("test.enabled", config.FieldBoolean, true)
+		repo := newMockValueRepo()
+		repo.values["1:test.enabled"] = &config.SettingValue{
+			SettingKey: "test.enabled",
+			Value:      json.RawMessage(`"yes"`),
+		}
+		repo.values["1:test.enabled"].TenantID = 1
+		svc := createService(repo, &mockAuditRepo{})
+
+		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.enabled"})
+		require.Error(t, err)
+	})
 }
 
 func TestResolveInt(t *testing.T) {
@@ -1296,6 +1401,43 @@ func TestSetValue_TextRejectsNonString(t *testing.T) {
 	assert.Contains(t, err.Error(), "expected a string")
 }
 
+func TestSetValue_TextPatternValidation(t *testing.T) {
+	setupTest(t)
+	pattern := `^\d{1,4}$`
+	config.Register(config.Definition{
+		Key:        "payroll.lohnart_test",
+		Label:      "Lohnart",
+		Type:       config.FieldText,
+		Default:    "",
+		Tab:        "abrechnung",
+		Category:   "lohnarten",
+		Validation: &config.ValidationRules{Pattern: &pattern, AllowEmpty: true},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	for _, tc := range []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "empty remains valid", value: ""},
+		{name: "numeric value matches", value: "1234"},
+		{name: "letters are rejected", value: "12a", wantErr: true},
+		{name: "too many digits are rejected", value: "12345", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := svc.SetValue(tenantCtx(1), "payroll.lohnart_test", tc.value, nil, nil)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "does not match required pattern")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 // =============================================================================
 // PIN validation tests
 // =============================================================================
@@ -1359,7 +1501,7 @@ func TestSetValue_PINAccepts4Digits(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSetValue_PINAcceptsEmpty(t *testing.T) {
+func TestSetValue_PINRejectsEmpty(t *testing.T) {
 	setupTest(t)
 	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
@@ -1375,7 +1517,8 @@ func TestSetValue_PINAcceptsEmpty(t *testing.T) {
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "", nil, nil)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not match required pattern")
 }
 
 // =============================================================================
@@ -2004,4 +2147,356 @@ func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
 	_, err := svc.SetLoginImageURL(context.Background(), 999999999, "/uploads/test.jpg")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "find school")
+}
+
+// TestSetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
+// fix: an inverted or equal Ganztag cutoff pair passes the per-field FieldTime
+// validation but must be rejected here so it can never be persisted (and then
+// 500 every pickup list). A valid pair, and any pair reached in a consistent
+// edit order, is accepted.
+func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
+	registerCutoffs := func() {
+		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	}
+
+	t.Run("long cutoff not after short is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		err := svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "14:00", nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+	})
+
+	t.Run("equal cutoffs are rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		err := svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "16:00", nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+	})
+
+	t.Run("valid pair is accepted", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "17:00", nil, nil))
+	})
+
+	t.Run("window can be shifted later via a consistent edit order", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Setting the short cutoff past the current long cutoff first is refused,
+		// but setting the long cutoff first, then the short cutoff, succeeds.
+		require.Error(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+	})
+}
+
+// TestResetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
+// fix: resetting a Ganztag cutoff restores its registry default, which can
+// invert the effective pair even though SetValue guards it. The reset must be
+// validated the same way, or it 500s every pickup list until repaired.
+func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
+	registerCutoffs := func() {
+		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	}
+
+	t.Run("reset that inverts the effective pair is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Valid overrides: short 18:00, long 19:00.
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+
+		// Resetting the long cutoff would restore its 16:00 default, leaving the
+		// short cutoff at 18:00 — an inverted pair. It must be refused, and the
+		// override must survive.
+		err := svc.ResetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+
+		long, err := svc.ResolveString(tenantCtx(1), config.KeySlotListLongDayCutoff)
+		require.NoError(t, err)
+		assert.Equal(t, "19:00", long, "rejected reset must not delete the override")
+	})
+
+	t.Run("reset that keeps a valid pair is accepted", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Valid overrides: short 18:00, long 19:00. Resetting the short cutoff
+		// restores 14:30, which is still before the long 19:00 → allowed.
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+
+		require.NoError(t, svc.ResetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, nil, nil))
+
+		short, err := svc.ResolveString(tenantCtx(1), config.KeySlotListShortDayCutoff)
+		require.NoError(t, err)
+		assert.Equal(t, "14:30", short, "accepted reset falls back to the registry default")
+	})
+}
+
+// setClassRestrictionGuard wires the enrollment class-restriction probe on a
+// settings service via the exported setter on the concrete type (reachable
+// from this external test package through an interface assertion, the same
+// way the factory wires it).
+func setClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+	t.Helper()
+	guarded, ok := svc.(interface {
+		SetClassRestrictionGuard(func(context.Context) (bool, error))
+	})
+	require.True(t, ok, "settings service must expose SetClassRestrictionGuard")
+	guarded.SetClassRestrictionGuard(func(context.Context) (bool, error) { return restricted, nil })
+}
+
+// TestSetValue_ClassCollectionGuard_CrossFieldValidation covers the #1663 fix:
+// disabling either concrete-class collection toggle must be refused while the
+// tenant has an active phase that restricts eligibility to specific classes —
+// otherwise validateAndNormalizeSchoolClasses erases every child's class and
+// the eligibility gate rejects every submission with class_not_eligible. This
+// is the inverse of the phase-side validateEligibleClassesCollectable guard.
+func TestSetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
+	registerCollectionKeys := func() {
+		registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+		registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
+	}
+
+	t.Run("disabling concrete-class collection is rejected while a restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, true)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassen-Abfrage")
+	})
+
+	t.Run("disabling grade-level collection is likewise rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, true)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassen-Abfrage")
+	})
+
+	t.Run("keeping collection effective is allowed even with a restricted phase", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, true)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, true, nil, nil))
+	})
+
+	t.Run("disabling is allowed when no restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, false)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil))
+	})
+
+	t.Run("no guard wired skips the check", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil))
+	})
+}
+
+// TestResetValue_ClassCollectionGuard_CrossFieldValidation covers the reset
+// direction of the #1663 guard: resetting a collection toggle restores its
+// registry default, which can disable collection even though SetValue guards
+// it. The reset must be validated the same way and the override must survive.
+func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
+	setupTest(t)
+	// grade default true, class default false: resetting class restores false,
+	// which disables concrete-class collection.
+	registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+	registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, false)
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// Enable the class override first (no restricted phase yet, so allowed).
+	setClassRestrictionGuard(t, svc, false)
+	require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, true, nil, nil))
+
+	// A restricted phase now exists; resetting class back to its false default
+	// would disable collection and must be refused, leaving the override intact.
+	setClassRestrictionGuard(t, svc, true)
+	err := svc.ResetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Klassen-Abfrage")
+
+	got, err := svc.ResolveBool(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass)
+	require.NoError(t, err)
+	assert.True(t, got, "rejected reset must not delete the override")
+}
+
+// setGradeRestrictionGuard wires the enrollment grade-restriction probe, the
+// counterpart of setClassRestrictionGuard above (#1663).
+func setGradeRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+	t.Helper()
+	guarded, ok := svc.(interface {
+		SetGradeRestrictionGuard(func(context.Context) (bool, error))
+	})
+	require.True(t, ok, "settings service must expose SetGradeRestrictionGuard")
+	guarded.SetGradeRestrictionGuard(func(context.Context) (bool, error) { return restricted, nil })
+}
+
+// TestSetValue_GradeCollectionGuard_CrossFieldValidation covers the grade-level
+// half of the #1663 guard. A phase restricted to whole grades depends on
+// collect_grade_level ALONE — it needs no concrete classes — so disabling that
+// toggle must be refused, while disabling concrete-class collection stays
+// allowed for such a phase.
+func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
+	registerCollectionKeys := func() {
+		registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+		registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
+	}
+
+	t.Run("disabling grade-level collection is rejected while a grade-restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, true)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassenstufen-Abfrage")
+	})
+
+	t.Run("disabling concrete-class collection stays allowed for a grade-restricted phase", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, true)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil),
+			"a whole-grade phase does not depend on concrete classes")
+	})
+
+	t.Run("enabling grade-level collection is never blocked", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, true)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, true, nil, nil))
+	})
+
+	t.Run("disabling is allowed when no grade-restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, false)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil))
+	})
+}
+
+// setGradeCapGuard wires the highest-restricted-grade probe, the third #1663
+// enrollment probe next to setClassRestrictionGuard / setGradeRestrictionGuard.
+func setGradeCapGuard(t *testing.T, svc configSvc.SettingsService, highest int) {
+	t.Helper()
+	guarded, ok := svc.(interface {
+		SetGradeCapGuard(func(context.Context) (int, error))
+	})
+	require.True(t, ok, "settings service must expose SetGradeCapGuard")
+	guarded.SetGradeCapGuard(func(context.Context) (int, error) { return highest, nil })
+}
+
+// TestSetValue_GradeLevelCapGuard_CrossFieldValidation covers lowering
+// enrollment.grade_level_max below a grade an active phase already restricts
+// itself to. The form offers grades 1..cap and submit re-checks the cap, so
+// such a phase would accept no submission at all (#1663).
+func TestSetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
+	registerCap := func() {
+		registerTestSetting(config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
+	}
+
+	t.Run("lowering the cap below a live grade restriction is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCap()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeCapGuard(t, svc, 6)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 4, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassenstufe 6")
+	})
+
+	t.Run("lowering to exactly the restricted grade is allowed", func(t *testing.T) {
+		setupTest(t)
+		registerCap()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeCapGuard(t, svc, 6)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 6, nil, nil),
+			"the restricted grade itself is still offered at cap == grade")
+	})
+
+	t.Run("raising the cap is never blocked", func(t *testing.T) {
+		setupTest(t)
+		registerCap()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeCapGuard(t, svc, 6)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 10, nil, nil))
+	})
+
+	t.Run("no grade-restricted phase leaves the cap free", func(t *testing.T) {
+		setupTest(t)
+		registerCap()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeCapGuard(t, svc, 0)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 1, nil, nil))
+	})
+}
+
+// A reset restores the registry default (4), which lowers the cap just as a
+// SetValue would — so it must be validated the same way and the override must
+// survive the rejection.
+func TestResetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
+	setupTest(t)
+	registerTestSetting(config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// Raise the cap to 6 first (no restricted phase yet, so allowed).
+	setGradeCapGuard(t, svc, 0)
+	require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 6, nil, nil))
+
+	// A phase restricted to grade 6 now exists; resetting back to the default 4
+	// must be refused, leaving the override intact.
+	setGradeCapGuard(t, svc, 6)
+	err := svc.ResetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Klassenstufe 6")
+
+	got, err := svc.ResolveInt(tenantCtx(1), config.KeyEnrollmentGradeLevelMax)
+	require.NoError(t, err)
+	assert.Equal(t, 6, got, "rejected reset must not delete the override")
 }

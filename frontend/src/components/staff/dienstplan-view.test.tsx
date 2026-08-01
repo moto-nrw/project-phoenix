@@ -64,10 +64,12 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
     weekDays,
     todayIso,
     assignmentsByStaff,
+    closingDaysLoading,
     onCellClick,
   }: {
     weekDays: string[];
     todayIso: string;
+    closingDaysLoading: boolean;
     assignmentsByStaff: Map<
       string,
       Map<string, Array<{ activityTitle: string }>>
@@ -81,6 +83,9 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
     <div data-testid="dienstplan-grid">
       <span data-testid="dienstplan-week-days">{weekDays.join(",")}</span>
       <span data-testid="dienstplan-today">{todayIso}</span>
+      <span data-testid="closing-days-loading">
+        {String(closingDaysLoading)}
+      </span>
       <span data-testid="dienstplan-assignments">
         {[...assignmentsByStaff.values()]
           .flatMap((byDate) => [...byDate.values()])
@@ -286,6 +291,47 @@ describe("DienstplanView", () => {
     );
   });
 
+  it("keeps shift creation gated while closing days are loading", () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "2026-07-06",
+            to: "2026-07-10",
+            dienstplanInUse: true,
+            staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+            shifts: [],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (key === "planning-closing-days") {
+        return {
+          data: undefined,
+          error: undefined,
+          isLoading: true,
+          mutate: vi.fn(),
+        };
+      }
+      return {
+        data: [],
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("closing-days-loading")).toHaveTextContent(
+      "true",
+    );
+  });
+
   it("keeps the legacy shift-only path when schedules:read is missing", () => {
     const keys: Array<string | null> = [];
     mocks.hasPermission.mockImplementation(
@@ -375,13 +421,12 @@ describe("DienstplanView", () => {
       "2026-07-06,2026-07-07,2026-07-08,2026-07-09,2026-07-10",
     );
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
-    // Woche ist aktiv: kein Halbjahres-Platzhalter, kein "Heute"-Button.
+    // Woche ist aktiv: kein Halbjahres-Platzhalter. Der "Heute"-Button steht
+    // in der laufenden Woche deaktiviert da, statt zu verschwinden (#2031).
     expect(
       screen.queryByText("Halbjahresansicht folgt."),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
   });
 
   it("invalidates all loaded plan caches after a shift is saved", () => {
@@ -405,10 +450,14 @@ describe("DienstplanView", () => {
       render(<DienstplanView />);
 
       // 14.09.2026 ist ein Montag; die Woche ist KW 38. The label must retain
-      // those calendar days even when the browser is east of Berlin.
-      const label = screen.getByText(/KW 38:/);
-      expect(label).toHaveTextContent(/^KW 38: 14\./);
-      expect(label).toHaveTextContent(/bis 18\./);
+      // those calendar days even when the browser is east of Berlin. Das
+      // Etikett kommt seit der Kopfzeilen-Vereinheitlichung aus
+      // formatWeekLabel und lautet damit wie in Vertretung und Betreuungsplan
+      // "KW 38 · 14.09.–18.09.2026"; die Zeitzonen-Aussage dieses Tests bleibt
+      // unverändert.
+      const label = screen.getByText(/KW 38 ·/);
+      expect(label).toHaveTextContent(/^KW 38 · 14\.09\./);
+      expect(label).toHaveTextContent(/–18\.09\./);
       expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
         "2026-09-14,2026-09-15,2026-09-16,2026-09-17,2026-09-18",
       );
@@ -502,21 +551,19 @@ describe("DienstplanView", () => {
     },
   );
 
-  it("shows the Heute button only when the visible week differs from today's", () => {
+  it("enables the Heute button only when the visible week differs from today's", () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");
     mockOverviewLoaded();
 
-    // Aktuelle Woche -> kein Heute-Button.
+    // Aktuelle Woche -> Heute ist wirkungslos und deshalb deaktiviert.
     const { unmount } = render(<DienstplanView />);
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
     unmount();
 
-    // Andere Woche -> Heute-Button erscheint.
+    // Andere Woche -> Heute wird bedienbar.
     mocks.search.value = "d=2026-09-14";
     render(<DienstplanView />);
-    expect(screen.getByRole("button", { name: "Heute" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeEnabled();
   });
 
   it("renders the Halbjahr grid for view=halbjahr and writes the param on switch", async () => {
@@ -567,10 +614,9 @@ describe("DienstplanView", () => {
   });
 
   it("hides the Halbjahr tab and falls back to Woche without schedules:read", () => {
-    // Die Halbjahres-Sicht lädt /api/timetable/periods (backend-seitig mit
-    // schedules:read geschützt) — ohne die Berechtigung liefe sie in einen 403.
-    // Ohne schedules:read greift zugleich der reduzierte Datenpfad, daher der
-    // Legacy-Stub (dienstplan-staff) statt mockOverviewLoaded.
+    // Die Halbjahres-Sicht zeigt den Soll-/Plan-Abgleich aus /overview, der
+    // schedules:read verlangt. Ohne die Berechtigung greift zugleich der
+    // reduzierte Datenpfad, daher der Legacy-Stub (dienstplan-staff).
     mocks.hasPermission.mockImplementation(
       (_session: unknown, permission: string) =>
         permission !== "schedules:read",
@@ -633,6 +679,35 @@ describe("DienstplanView", () => {
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "Halbjahr" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the export action with the full permission triple", () => {
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Dienstplan drucken oder exportieren",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides export without the permission to read staff names", () => {
+    // POST /api/staff-shifts/export verlangt users:read; ohne die Berechtigung
+    // liefe der Dialog in ein 403.
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) => permission !== "users:read",
+    );
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Dienstplan drucken oder exportieren",
+      }),
     ).not.toBeInTheDocument();
   });
 

@@ -39,8 +39,13 @@ type StaffShiftSeries struct {
 	ValidFrom    timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
 	ValidUntil   *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 	SeriesRootID *int64         `bun:"series_root_id" json:"series_root_id,omitempty"`
-	CreatedBy    int64          `bun:"created_by,notnull" json:"created_by"`
-	UpdatedBy    *int64         `bun:"updated_by" json:"updated_by,omitempty"`
+	// RetainedOccurrenceShiftID records the concrete current-day row that a
+	// same-day permanent edit retained. It is deliberately separate from
+	// Detached: detached rows can also be ordinary one-off deviations, which
+	// subsequent permanent edits must not overwrite.
+	RetainedOccurrenceShiftID *int64 `bun:"retained_occurrence_shift_id" json:"-"`
+	CreatedBy                 int64  `bun:"created_by,notnull" json:"created_by"`
+	UpdatedBy                 *int64 `bun:"updated_by" json:"updated_by,omitempty"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:tenant_id=tenant_id,join:staff_id=id" json:"staff,omitempty"`
 }

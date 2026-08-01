@@ -162,6 +162,14 @@ func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 	require.NoError(t, err, "stamp photo consent")
 }
 
+func graduateStudent(t *testing.T, tc *testContext, studentID int64) {
+	t.Helper()
+	_, err := tc.db.ExecContext(testpkg.TenantContext(1), `
+		UPDATE users.students SET status = ? WHERE id = ?
+	`, users.StudentStatusAlumnus, studentID)
+	require.NoError(t, err)
+}
+
 // readStudentPhotoPath returns the current photo_path column for the
 // student row, or empty string if NULL. Used to assert that
 // upload/delete actually mutated the DB.
@@ -480,6 +488,24 @@ func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
 
+func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	tc := setupTestContext(t)
+	enableStudentPhotos(t, tc)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Graduate", "PU7")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	graduateStudent(t, tc, student.ID)
+
+	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), map[string]string{"consent_acknowledged": "true"})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/%d/photo", student.ID), body)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
+	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
+	assert.Empty(t, readStudentPhotoPath(t, tc, student.ID))
+}
+
 // TestUploadStudentPhoto_ReplacesExistingPhoto — student already has
 // a photo_path. A successful upload must overwrite the row, return
 // 200, and queue the previous file for after-commit unlink. We do
@@ -613,6 +639,24 @@ func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
+}
+
+func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	tc := setupTestContext(t)
+	enableStudentPhotos(t, tc)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "Graduate", "PD7")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	storedURL, diskPath := seedStudentWithPhoto(t, tc, student.ID)
+	t.Cleanup(func() { _ = os.Remove(diskPath) })
+	graduateStudent(t, tc, student.ID)
+
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
+	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
+	assert.Equal(t, storedURL, readStudentPhotoPath(t, tc, student.ID))
 }
 
 // =============================================================================
@@ -761,6 +805,23 @@ func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 	enableStudentPhotos(t, tc)
 
 	req, _ := http.NewRequest("GET", "/9999997/photo/anything.jpg", nil)
+	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
+	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
+}
+
+func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	tc := setupTestContext(t)
+	enableStudentPhotos(t, tc)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Graduate", "PS7")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	storedURL, diskPath := seedStudentWithPhoto(t, tc, student.ID)
+	t.Cleanup(func() { _ = os.Remove(diskPath) })
+	graduateStudent(t, tc, student.ID)
+
+	req, _ := http.NewRequest("GET", common.BuildStudentPhotoServeURL(student.ID, storedURL), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
 

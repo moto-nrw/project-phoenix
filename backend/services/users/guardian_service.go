@@ -588,8 +588,8 @@ func (s *GuardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 	result := make([]*StudentWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
 		student, ok := students[rel.StudentID]
-		if !ok {
-			continue // Skip if student not found
+		if !ok || student.IsAlumnus() {
+			continue // Skip missing and graduated students
 		}
 
 		result = append(result, &StudentWithRelationship{

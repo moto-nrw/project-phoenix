@@ -309,7 +309,8 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
+	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -325,6 +326,18 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])
+
+	history, err := audit.GetChangeHistory(tenant.WithTenantID(context.Background(), chain.TenantID), chain.StudentID)
+	require.NoError(t, err)
+	require.NotEmpty(t, history)
+	var departureEditFound bool
+	for _, edit := range history {
+		if edit.FieldName == "departure_days" {
+			departureEditFound = true
+			assert.Equal(t, chain.AccountID, edit.EditedBy)
+		}
+	}
+	assert.True(t, departureEditFound)
 }
 
 func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {

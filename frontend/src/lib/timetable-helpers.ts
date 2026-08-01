@@ -9,6 +9,10 @@
 
 import { parseISODate, toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
+import {
+  shouldMaterializeWeekPattern,
+  type CalendarPeriod,
+} from "./calendar-period-helpers";
 import type {
   ActivityType,
   BackendConflictCheckResult,
@@ -215,6 +219,42 @@ export function weekdayDatesInRange(
   return dates;
 }
 
+export function latestISODate(first: string, ...dates: string[]): string {
+  let latest = first;
+  for (const candidate of dates) {
+    if (candidate > latest) latest = candidate;
+  }
+  return latest;
+}
+
+/**
+ * Concrete recurrence dates inside a calendar period and schedule segment.
+ * `validFrom` is inclusive, `validUntil` exclusive, matching the backend
+ * materializer and split-series contract.
+ */
+export function materializedRecurrenceDates({
+  period,
+  fromISO,
+  weekdays,
+  weekPattern,
+  validFrom,
+  validUntil,
+}: {
+  period: CalendarPeriod;
+  fromISO: string;
+  weekdays: number[];
+  weekPattern: number;
+  validFrom?: string;
+  validUntil?: string;
+}): string[] {
+  const from = latestISODate(period.startDate, fromISO, validFrom ?? "");
+  return weekdayDatesInRange(from, period.endDate, weekdays).filter(
+    (dateISO) =>
+      (validUntil === undefined || dateISO < validUntil) &&
+      shouldMaterializeWeekPattern(period, dateISO, weekPattern),
+  );
+}
+
 export { toISODate };
 
 /**
@@ -250,6 +290,11 @@ const GERMAN_WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 export function getGermanWeekdayLong(d: Date): string {
   return GERMAN_WEEKDAY_LONG[d.getDay()] ?? "";
+}
+
+/** Converts a German weekday name to its recurring adverb ("Montag" → "montags"). */
+export function getGermanWeekdayAdverb(weekday: string): string {
+  return weekday ? `${weekday.toLowerCase()}s` : "";
 }
 
 export function getGermanWeekdayShort(d: Date): string {
@@ -446,6 +491,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       raw.activity_group_id !== undefined && raw.activity_group_id !== null
         ? String(raw.activity_group_id)
         : undefined,
+    listKind: raw.list_kind,
     activityType: raw.activity_type,
     roomId: String(raw.room_id),
     roomName: raw.room_name,
@@ -821,6 +867,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       id: String(template.id),
       name: template.name,
       type: template.type,
+      listKind: template.list_kind,
       categoryId: String(template.category_id),
       categoryName: template.category_name,
       roomId:
@@ -870,6 +917,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           schedule.calendar_period_id !== null
             ? String(schedule.calendar_period_id)
             : undefined,
+        validFrom: schedule.valid_from,
         validUntil: schedule.valid_until,
       })),
     })),

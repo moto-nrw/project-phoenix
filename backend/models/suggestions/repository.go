@@ -66,6 +66,10 @@ type CommentRepository interface {
 const (
 	ReaderTypeUser     = "user"
 	ReaderTypeOperator = "operator"
+	// ReaderTypeParent namespaces read tracking for the parent feedback board.
+	// It is separate from ReaderTypeUser because a dual-role account (staff at
+	// a school AND guardian of a child there) reads two independent boards.
+	ReaderTypeParent = "parent"
 )
 
 // CommentReadRepository defines operations for tracking unread comments

@@ -204,6 +204,10 @@ func (f *fakeInstanceStudentRepo) FindByInstanceID(context.Context, int64) ([]*s
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
 	panic("unused")
 }
@@ -228,6 +232,14 @@ func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, [
 }
 
 func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) error {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date, time.Time) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
 	panic("unused")
 }
 
@@ -871,10 +883,22 @@ func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, 
 	return 0, nil
 }
 
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
 func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
 	return 0, nil
 }
 
 func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
+}
+
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) MaxID(context.Context) (int64, error) {
+	return 0, nil
 }

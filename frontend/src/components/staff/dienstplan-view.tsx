@@ -4,8 +4,9 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Settings2 } from "lucide-react";
+import { Printer, Settings2 } from "lucide-react";
 
+import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -26,10 +27,10 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
-import { formatCalendarDate } from "~/lib/localized-date-format";
 import { createLogger } from "~/lib/logger";
 import { getSettingValue } from "~/lib/settings-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
@@ -37,8 +38,10 @@ import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { getWeekNumber } from "~/lib/time-tracking-helpers";
-import { firstSchoolDayInPeriod } from "~/lib/timetable-helpers";
+import {
+  firstSchoolDayInPeriod,
+  formatWeekLabel,
+} from "~/lib/timetable-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 
 import {
@@ -87,14 +90,22 @@ function DienstplanContent() {
   const { params, updateParams: updateUrlParams } =
     useUrlParams(ALLOWED_URL_PARAMS);
   const canEdit = isAdmin(session);
-  // Die Halbjahres-Sicht lädt die Planungszeiträume (/api/timetable/periods),
-  // die das Backend mit `schedules:read` schützt, und je nach Datenpfad
-  // /api/staff-shifts oder /overview. Beide verlangen zusätzlich
-  // `time_tracking:manage`; Tab und Deep-Link sind darum auf beide
-  // Berechtigungen gegated.
+  // Die Halbjahres-Sicht zeigt Soll-/Plan-Abgleiche aus /overview. Dieser
+  // Endpunkt verlangt zusätzlich `schedules:read`; Tab und Deep-Link sind
+  // darum weiterhin auf beide Berechtigungen gegated, auch wenn die
+  // Zeitraumsliste für Schichtserien ebenfalls im reduzierten Pfad lesbar ist.
   const canViewHalbjahr =
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "schedules:read");
+  // POST /api/staff-shifts/export verlangt dieselbe Dreierkombination wie
+  // /overview — der Ausdruck nennt Namen und liest die Schichtprojektion. Ohne
+  // `users:read` liefe der Dialog in ein 403, darum wird der Knopf gar nicht
+  // erst angeboten (gleiche Schranke wie im Betreuungsplan).
+  const canExportPlan =
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
+  const canExportInternal = hasPermission(session, "schedules:manage");
   const today = useBerlinToday();
 
   // URL-State: der angezeigte Tag und die Ansicht werden bei jedem Render aus
@@ -109,6 +120,7 @@ function DienstplanContent() {
 
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
@@ -183,6 +195,15 @@ function DienstplanContent() {
     refreshPlanCaches,
   } = useDienstplanData(weekFrom, weekTo);
 
+  // OGS-Schließtage (#2032): die Woche markiert ihre fünf Tage, der
+  // Verschieben-Dialog prüft seinen frei wählbaren Zieltag gegen alle
+  // gespeicherten Zeiträume. Die Halbjahres-Sicht lädt ihr eigenes Fenster.
+  const {
+    closingDays,
+    closingDayRanges,
+    isLoading: closingDaysLoading,
+  } = useClosingDaysState(weekFrom, weekTo);
+
   const refreshAfterPlanMutation = useCallback(() => {
     refreshPlanCaches().catch((err: unknown) => {
       logger.error("post_plan_mutation_refresh_failed", {
@@ -205,19 +226,15 @@ function DienstplanContent() {
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
 
+  // Dasselbe Wochenetikett wie in Vertretung und Betreuungsplan
+  // ("KW 31 · 27.07.–31.07.2026"). Der Dienstplan schrieb es früher als
+  // "KW 31: 27. Juli bis 31. Juli 2026" selbst zusammen: drei benachbarte
+  // Flächen mit drei Schreibweisen für dieselbe Woche, und auf einem Telefon
+  // 220px Text in einer 199px breiten Kopfzeile, also abgeschnitten.
   const weekLabel = useMemo(() => {
     const end = new Date(weekAnchor);
     end.setDate(end.getDate() + 4);
-    const startLabel = formatCalendarDate(toISODate(weekAnchor), "de-DE", {
-      day: "numeric",
-      month: "short",
-    });
-    const endLabel = formatCalendarDate(toISODate(end), "de-DE", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-    return `KW ${getWeekNumber(weekAnchor)}: ${startLabel} bis ${endLabel}`;
+    return formatWeekLabel(weekAnchor, end);
   }, [weekAnchor]);
 
   // Wochen-Navigation schreibt den Montag der Zielwoche nach `d`.
@@ -322,12 +339,15 @@ function DienstplanContent() {
         staff={sortedStaff}
         reducedPath={reducedPath}
         todayIso={today}
+        closingDayRanges={closingDayRanges}
         onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
       />
     );
   } else {
     content = (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      // Kein zusätzlicher Kartenrahmen um das Raster (#2031) — die ResourceGrid
+      // bringt ihre Fläche selbst mit, wie das Wochenraster im Betreuungsplan.
+      <div className="space-y-3">
         {shiftTypesError && (
           <Alert
             type="warning"
@@ -338,7 +358,7 @@ function DienstplanContent() {
           // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
           // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
           // Raster, keine Alert-Box.
-          <p className="mb-3 text-sm text-gray-500">
+          <p className="text-sm text-gray-500">
             In dieser Woche sind keine Schichten geplant.
           </p>
         )}
@@ -349,6 +369,9 @@ function DienstplanContent() {
           summaryByStaff={summaryByStaff}
           weekDays={weekDays}
           todayIso={today}
+          closingDays={closingDays}
+          closingDaysLoading={closingDaysLoading}
+          closingDayRanges={closingDayRanges}
           typesById={typesById}
           shiftTypes={shiftTypes ?? []}
           reducedPath={reducedPath}
@@ -398,16 +421,46 @@ function DienstplanContent() {
           ) : undefined
         }
         actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setManageOpen(true)}
-            disabled={Boolean(shiftTypesError)}
-          >
-            <Settings2 className="mr-1.5 h-4 w-4" />
-            Schichtarten verwalten
-          </Button>
+          // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
+          // zweizeilig um und schob zusammen mit dem Ansichtsumschalter die
+          // ganze Zeile aus dem Viewport. EIN Button je Aktion mit
+          // ausgeblendetem Label statt zweier Breakpoint-Varianten — das
+          // `aria-label` hält sie für Screenreader und Tests unter demselben
+          // Namen auffindbar.
+          <>
+            {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
+                Exportseite, weil der Export immer die Woche meint, die gerade
+                auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
+            {canExportPlan && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-label="Dienstplan drucken oder exportieren"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                onClick={() => setExportOpen(true)}
+              >
+                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Drucken
+                </span>
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              aria-label="Schichtarten verwalten"
+              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+              onClick={() => setManageOpen(true)}
+              disabled={Boolean(shiftTypesError)}
+            >
+              <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+              <span className="hidden whitespace-nowrap sm:inline">
+                Schichtarten verwalten
+              </span>
+            </Button>
+          </>
         }
       >
         {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
@@ -450,6 +503,7 @@ function DienstplanContent() {
           shiftTypes={shiftTypes ?? []}
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
+          closingDayRanges={closingDayRanges}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPlanMutation}
         />
@@ -467,6 +521,19 @@ function DienstplanContent() {
             setPeriodModalOpen(false);
             void mutatePeriods();
           }}
+        />
+      )}
+      {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
+          ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
+          dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
+      {canExportPlan && exportOpen && (
+        <PlanExportModal
+          isOpen
+          plan="dienstplan"
+          weekDay={dayISO}
+          isWeekOnScreen={view === "woche"}
+          canExportInternal={canExportInternal}
+          onClose={() => setExportOpen(false)}
         />
       )}
       <ShiftTypeManageModal

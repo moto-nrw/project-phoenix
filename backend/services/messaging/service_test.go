@@ -470,6 +470,29 @@ func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 
+func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
+	f := newFixture(t, true)
+	ctx := adminCtx(f.staffAccount)
+	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	require.NoError(t, err)
+
+	_, err = f.db.ExecContext(context.Background(), `
+		UPDATE users.students SET status = ? WHERE id = ?
+	`, usersModels.StudentStatusAlumnus, f.chain.StudentID)
+	require.NoError(t, err)
+
+	_, err = f.svc.GetThread(ctx, started.ThreadID)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+	_, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply")
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+	_, err = f.svc.ListStudentThreads(ctx, f.chain.StudentID)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+
+	inbox, err := f.svc.ListInbox(ctx, false)
+	require.NoError(t, err)
+	assert.Empty(t, inbox)
+}
+
 // TestPostMessage_GuardianAccessRevoked: staff keep READ access to a historical
 // thread after the guardian loses parent_portal.access, but may not WRITE to it
 // (the parent APIs now hide it, so a reply would be unreadable and the SSE would

@@ -507,6 +507,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 				CreatedAt: r.CreatedAt,
 				UpdatedAt: r.UpdatedAt,
 			},
+			TenantModel:    modelBase.TenantModel{TenantID: r.TenantID},
 			StartTime:      r.StartTime,
 			EndTime:        r.EndTime,
 			LastActivity:   r.LastActivity,

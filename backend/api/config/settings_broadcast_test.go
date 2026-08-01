@@ -31,6 +31,12 @@ func (c *captureBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Ev
 	return nil
 }
 
+func (c *captureBroadcaster) BroadcastToTenantAdmins(_ int64, _ realtime.Event) error { return nil }
+
+func (c *captureBroadcaster) BroadcastToStaffAccounts(_ int64, _ []int64, _ realtime.Event) error {
+	return nil
+}
+
 func (c *captureBroadcaster) BroadcastToAll(_ realtime.Event) error { return nil }
 
 // TestScheduleSettingsBroadcast_FiresAfterCommit pins the contract: the

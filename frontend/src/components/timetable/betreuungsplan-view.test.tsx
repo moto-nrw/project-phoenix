@@ -245,28 +245,38 @@ vi.mock("~/components/timetable/conflict-warnings-banner", () => ({
 vi.mock("~/components/timetable/month-planner-grid", () => ({
   MonthPlannerGrid: ({
     onDayClick,
+    onInstanceClick,
   }: {
     onDayClick: (date: string) => void;
+    onInstanceClick?: (instance: { id: string }) => void;
   }) => (
-    <button type="button" onClick={() => onDayClick("2026-05-06")}>
-      month-grid
-    </button>
+    <div>
+      <button type="button" onClick={() => onDayClick("2026-05-06")}>
+        month-grid
+      </button>
+      <button type="button" onClick={() => onInstanceClick?.({ id: "42" })}>
+        month-instance
+      </button>
+    </div>
   ),
 }));
 
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: ({
+    weekDays,
     instances,
     onInstanceClick,
     onSlotClick,
     gapInstanceIds,
   }: {
+    weekDays: Date[];
     instances: Array<{ id: string }>;
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
   }) => (
     <div>
+      <span data-testid="grid-week-days">{weekDays.length}</span>
       <span data-testid="grid-gap-ids">
         {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
       </span>
@@ -375,7 +385,13 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         <button type="button" onClick={() => void onDeleteCancelled(instance)}>
           detail-delete
         </button>
-        <button type="button" onClick={() => void onDeleteFollowing(instance)}>
+        {/* Das echte Modal schluckt eine Rejection (bereits gemeldeter
+            Fehler) und lässt den Auswahldialog offen — der Mock muss das
+            nachbilden, sonst wird daraus eine Unhandled Rejection. */}
+        <button
+          type="button"
+          onClick={() => void onDeleteFollowing(instance).catch(() => null)}
+        >
           detail-delete-following
         </button>
         <button type="button" onClick={() => onEdit(instance)}>
@@ -409,6 +425,7 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
     defaultDate?: string;
     defaultStartTime?: string;
     defaultEndTime?: string;
+    closingDaysLoading?: boolean;
     calendarPeriods?: Array<{ id: string }>;
     defaultCalendarPeriodId?: string | null;
     initialSeries?: { id: string } | null;
@@ -619,6 +636,7 @@ function setupSWR({
   gapsState = "ready" as "ready" | "loading" | "error",
   phases = [] as Array<Record<string, unknown>>,
   phasesState = "ready" as "ready" | "loading" | "error",
+  closingDaysLoading = false,
 }: {
   periods?: Array<typeof period>;
   templates?: TimetableTemplate[];
@@ -630,6 +648,7 @@ function setupSWR({
   gapsState?: "ready" | "loading" | "error";
   phases?: Array<Record<string, unknown>>;
   phasesState?: "ready" | "loading" | "error";
+  closingDaysLoading?: boolean;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -643,6 +662,11 @@ function setupSWR({
     }
     if (key === "database-calendar-periods-list") {
       return { data: periods, isLoading: false };
+    }
+    if (key === "planning-closing-days") {
+      return closingDaysLoading
+        ? { data: undefined, isLoading: true }
+        : { data: [], isLoading: false };
     }
     if (key === "timetable-enrollment-phases") {
       if (phasesState === "loading") return { isLoading: true };
@@ -769,6 +793,7 @@ describe("BetreuungsplanView", () => {
       screen.getByRole("heading", { name: "Betreuungsplan" }),
     ).toBeVisible();
     expect(screen.getByText("week-grid")).toBeVisible();
+    expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
     // Kein Alt-URL-Parameter überlebt.
     expect(urlParams().has("week")).toBe(false);
@@ -799,6 +824,20 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByTestId("detail-can-manage-pool")).toHaveTextContent(
       "false",
     );
+  });
+
+  it("hides export without the permission to read staff names", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Betreuungsplan drucken oder exportieren",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("falls back to the week for an unknown view value", () => {
@@ -836,17 +875,47 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().has("view")).toBe(false);
   });
 
-  it("shows the Heute button only when the visible week differs from today's", () => {
+  it("enables the Heute button only when the visible week differs from today's", () => {
     render(<BetreuungsplanView />);
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    // In der laufenden Woche bleibt der Button sichtbar und ist deaktiviert
+    // (#2031: die Navigationsgruppe behält ihre Geometrie).
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
 
     setUrl("d=2026-09-14");
     render(<BetreuungsplanView />);
     const todayButton = screen.getAllByRole("button", { name: "Heute" })[0]!;
     fireEvent.click(todayButton);
     expect(urlParams().get("d")).toBe("2026-05-06");
+  });
+
+  it("snaps weekend deep links and the Heute target to the following Monday", () => {
+    setUrl("d=2026-05-09");
+    const { unmount } = render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-11" }),
+    );
+
+    unmount();
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("d=2026-05-06");
+    render(<BetreuungsplanView />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
+    expect(urlParams().get("d")).toBe("2026-05-11");
+  });
+
+  it("does not query gaps for a finished Friday workweek on Saturday", () => {
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("view=woche&d=2026-05-04");
+    render(<BetreuungsplanView />);
+
+    const gapKeys = mockUseSWRAuth.mock.calls
+      .map(([key]) => key)
+      .filter(
+        (key) => typeof key === "string" && key.startsWith("timetable-gaps"),
+      );
+    expect(gapKeys).toEqual([]);
   });
 
   it("switches to the week and sets d when a month day is clicked", () => {
@@ -857,6 +926,15 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("d")).toBe("2026-05-06");
     expect(urlParams().has("view")).toBe(false);
     expect(screen.getByText("week-grid")).toBeVisible();
+  });
+
+  it("keeps a weekend month anchor and opens retained month instances", () => {
+    setUrl("view=monat&d=2026-05-31");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Mai 2026")).toBeVisible();
+    fireEvent.click(screen.getByText("month-instance"));
+    expect(screen.getByText("detail-close")).toBeVisible();
   });
 
   it("opens and closes the slide-over via the block param", async () => {
@@ -1021,6 +1099,9 @@ describe("BetreuungsplanView", () => {
   });
 
   it("ends following instances from the slide-over", async () => {
+    // Der Regeltermin lässt sich nur ab heute beenden, also muss der Termin
+    // der Fixture (2026-05-04) hier "heute" sein.
+    vi.setSystemTime(new Date("2026-05-04T08:00:00"));
     setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 
@@ -1030,6 +1111,22 @@ describe("BetreuungsplanView", () => {
         effective_date: "2026-05-04",
       }),
     );
+  });
+
+  it("refuses to end a series from a past occurrence", async () => {
+    // Uhr steht auf 2026-05-06, der Termin der Fixture auf 2026-05-04: das
+    // Backend lehnt ein effective_date in der Vergangenheit ab, also fängt
+    // die View den Aufruf mit einer verständlichen Meldung ab.
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete-following"));
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        expect.stringContaining("nur ab heute beendet werden"),
+      ),
+    );
+    expect(mockEndTemplate).not.toHaveBeenCalled();
   });
 
   it("repeats an instance into a series from the slide-over", async () => {
@@ -1313,6 +1410,24 @@ describe("BetreuungsplanView", () => {
         variant: "full",
         defaultStartTime: undefined,
         defaultEndTime: undefined,
+      }),
+    );
+  });
+
+  it("passes the closing-day loading state to the event modal", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setupSWR({ closingDaysLoading: true });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        closingDaysLoading: true,
       }),
     );
   });

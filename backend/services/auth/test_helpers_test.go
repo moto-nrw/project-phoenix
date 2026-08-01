@@ -199,6 +199,10 @@ func (noopAccountRepository) FindByRole(context.Context, string) ([]*authModel.A
 	panic("FindByRole not implemented")
 }
 
+func (noopAccountRepository) ListEffectiveAdminAccountIDs(context.Context) ([]int64, error) {
+	panic("ListEffectiveAdminAccountIDs not implemented")
+}
+
 func (noopAccountRepository) FindAccountsWithRolesAndPermissions(context.Context, map[string]interface{}) ([]*authModel.Account, error) {
 	panic("FindAccountsWithRolesAndPermissions not implemented")
 }
@@ -881,6 +885,10 @@ func (noopAccountRoleRepository) DeleteByAccountAndRole(context.Context, int64, 
 	panic("DeleteByAccountAndRole not implemented")
 }
 
+func (noopAccountRoleRepository) DeleteByAccountRoleAndTenant(context.Context, int64, int64, int64) error {
+	panic("DeleteByAccountRoleAndTenant not implemented")
+}
+
 func (noopAccountRoleRepository) DeleteByAccountID(context.Context, int64) error {
 	panic("DeleteByAccountID not implemented")
 }
@@ -1225,6 +1233,10 @@ func (r *stubAccountTenantRepository) FindActiveByAccountID(_ context.Context, a
 	return result, nil
 }
 
+func (r *stubAccountTenantRepository) FindActiveGuardianByAccountID(context.Context, int64) ([]authModel.AccountTenant, error) {
+	panic("FindActiveGuardianByAccountID not implemented")
+}
+
 func (r *stubAccountTenantRepository) ExistsByAccountAndTenant(_ context.Context, accountID, tenantID int64) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1243,6 +1255,9 @@ func (r *stubAccountTenantRepository) ListAccountsByOrganizationID(context.Conte
 	return nil, nil
 }
 func (r *stubAccountTenantRepository) ListAllAccounts(context.Context) ([]authModel.OrgAccountInfo, error) {
+	return nil, nil
+}
+func (r *stubAccountTenantRepository) ListTenantAccessByAccountID(context.Context, int64) ([]authModel.AccountTenantAccessInfo, error) {
 	return nil, nil
 }
 

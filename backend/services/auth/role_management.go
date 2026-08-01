@@ -42,6 +42,23 @@ func (s *Service) GetRoleByID(ctx context.Context, id int) (*auth.Role, error) {
 	return role, nil
 }
 
+// ResolveAssignableSchoolRole returns the role only if it may be handed out for
+// the given school. It is the layer boundary for the policy in
+// role_assignment_policy.go: handlers must not reach a repository themselves
+// (backend-conventions Rule 1), so the account-creating flows reach the same
+// rules the invitation flow uses through here.
+func (s *Service) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error) {
+	role, err := ValidateAssignableSchoolRole(ctx, s.repos.Role, roleID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	role.Permissions, err = s.repos.Permission.FindByRoleID(ctx, role.ID)
+	if err != nil {
+		return nil, err
+	}
+	return role, nil
+}
+
 // UpdateRole updates an existing role. System roles cannot be modified.
 func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
 	// Always verify against the DB record — never trust the caller's IsSystem value
@@ -99,13 +116,21 @@ func (s *Service) ListRoles(ctx context.Context, filters map[string]interface{})
 // AssignRoleToAccount assigns a role to an account
 func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
-		// Verify account exists
-		if _, err := s.repos.Account.FindByID(txCtx, int64(accountID)); err != nil {
+		// Serialize assignments with tenant-access revocation, which holds the
+		// same account lock while removing the tenant's roles and mapping.
+		if _, err := s.repos.Account.FindByIDForUpdate(txCtx, int64(accountID)); err != nil {
 			return &AuthError{Op: "assign role", Err: ErrAccountNotFound}
 		}
 
-		// Verify role exists
-		if _, err := s.repos.Role.FindByID(txCtx, int64(roleID)); err != nil {
+		// System roles have tenant_id NULL and must remain resolvable while the
+		// assignment itself is written for the caller's tenant. Custom roles are
+		// still restricted to that tenant.
+		roleLookupCtx := tenant.WithTenantID(txCtx, 0)
+		role, err := s.repos.Role.FindByID(roleLookupCtx, int64(roleID))
+		if err != nil {
+			return &AuthError{Op: "assign role", Err: errors.New("role not found")}
+		}
+		if tenantID := tenant.FromContext(txCtx); tenantID > 0 && role.TenantID != nil && *role.TenantID != tenantID {
 			return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 		}
 

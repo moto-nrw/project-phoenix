@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -73,24 +80,43 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
-vi.mock("~/components/timetable/vertretung-day-list", () => ({
-  VertretungDayList: (props: {
-    instances: Array<{ id: string }>;
-    gapsAvailable: boolean;
-    mode: string;
-    canManage: boolean;
-    onEdit: (id: string) => void;
-  }) => {
-    mockDayListProps(props);
-    return (
-      <div data-testid="day-list" data-mode={props.mode}>
-        <button type="button" onClick={() => props.onEdit("42")}>
-          day-list-edit
-        </button>
-      </div>
-    );
+vi.mock("~/lib/shift-api", () => ({
+  staffShiftService: {
+    getOverview: vi.fn(),
   },
 }));
+
+vi.mock("~/lib/tenant-path", () => ({
+  useTenantAwarePath: () => (path: string) => `/acme${path}`,
+}));
+
+// Nur die Tagesliste selbst ersetzen. Die übrigen Exporte (Klassifikation und
+// Zeilendarstellung) bleiben echt, weil die Wochenliste sie importiert — ein
+// Voll-Mock des Moduls würde sie beim Rendern der Wochenansicht verschlucken.
+vi.mock(
+  "~/components/timetable/vertretung-day-list",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/components/timetable/vertretung-day-list")
+    >()),
+    VertretungDayList: (props: {
+      instances: Array<{ id: string }>;
+      gapsAvailable: boolean;
+      mode: string;
+      canManage: boolean;
+      onEdit: (id: string) => void;
+    }) => {
+      mockDayListProps(props);
+      return (
+        <div data-testid="day-list" data-mode={props.mode}>
+          <button type="button" onClick={() => props.onEdit("42")}>
+            day-list-edit
+          </button>
+        </div>
+      );
+    },
+  }),
+);
 
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: (props: {
@@ -196,6 +222,12 @@ interface SwrState {
   staffError?: Error;
   settingsSchema?: unknown;
   settingsLoading?: boolean;
+  /** Dienstplan-Übersicht für den Abdeckungshinweis; ohne sie kein Hinweis. */
+  coverageData?: {
+    dienstplanInUse: boolean;
+    assignments: Array<Record<string, unknown>>;
+  };
+  coverageError?: Error;
 }
 
 function setupSWR(state: SwrState = {}) {
@@ -219,6 +251,8 @@ function setupSWR(state: SwrState = {}) {
     staffError,
     settingsSchema = null,
     settingsLoading = false,
+    coverageData,
+    coverageError,
   } = state;
 
   mockUseSWRAuth.mockImplementation((key: string | null) => {
@@ -241,6 +275,9 @@ function setupSWR(state: SwrState = {}) {
         error: weekError,
         isLoading: weekLoading,
       };
+    }
+    if (key.startsWith("dienstplan-overview")) {
+      return { data: coverageData, error: coverageError };
     }
     return {};
   });
@@ -278,10 +315,9 @@ describe("VertretungView", () => {
     const props = mockDayListProps.mock.calls.at(-1)?.[0];
     expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual(["42"]);
     expect(props.instances[0].date).toBe("2026-07-15");
-    // Kein "Heute"-Button, solange d der heutige Tag ist.
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    // Der "Heute"-Button bleibt sichtbar und ist deaktiviert, solange d der
+    // heutige Tag ist (#2031: feste Geometrie der Navigationsgruppe).
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
   });
 
   it("renders exactly the five Mo–Fr chips, never Sa/So", () => {
@@ -316,7 +352,7 @@ describe("VertretungView", () => {
     expect(props.instances).toEqual([]);
   });
 
-  it("defaults to next Monday on a weekend and hides the Heute button", () => {
+  it("defaults to next Monday on a weekend and disables the Heute button", () => {
     // Samstag 2026-07-18, Berlin (Sommerzeit UTC+2).
     vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
     render(<VertretungView />);
@@ -324,10 +360,9 @@ describe("VertretungView", () => {
     expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
       "bg-gray-900",
     );
-    // dayISO == Heute-Ziel (nächster Montag) -> kein Heute-Button.
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
+    // dayISO == Heute-Ziel (nächster Montag) -> Heute ist wirkungslos und
+    // deshalb deaktiviert, verschwindet aber nicht (#2031).
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
   });
 
   it("navigates to next Monday when Heute is clicked on a weekend", () => {
@@ -510,9 +545,12 @@ describe("VertretungView", () => {
 
     expect(mockDayListProps.mock.calls.at(-1)?.[0].mode).toBe("stoerungen");
 
-    // Radix-Tabs aktivieren per mousedown, nicht click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Ganzer Tag" }), {
-      button: 0,
+    // Der Umschalter sitzt seit #2031 in der Liste, die er filtert (die hier
+    // gemockt ist). Getestet wird deshalb die Verdrahtung: der Callback der
+    // Liste setzt den Modus, den sie beim nächsten Rendern zurückbekommt. Die
+    // Bedienung des Umschalters selbst prüft vertretung-list-filter.test.tsx.
+    act(() => {
+      mockDayListProps.mock.calls.at(-1)?.[0].onModeChange("ganzer-tag");
     });
 
     await waitFor(() =>
@@ -541,6 +579,190 @@ describe("VertretungView", () => {
     expect(urlKeys()).toEqual(["d"]);
   });
 
+  // --- Wochenansicht (#2030) -------------------------------------------
+  // Die Tagesansicht ist der Standard; die Woche ist eine zusätzliche Sicht
+  // auf dieselben bereits geladenen Daten und lebt in `view=woche`.
+
+  it("startet in der Tagesansicht und gibt dem Raster genau einen Tag", () => {
+    render(<VertretungView />);
+
+    expect(screen.getByRole("tab", { name: "Tag" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(mockGridProps.mock.calls.at(-1)?.[0].weekDays).toHaveLength(1);
+    expect(screen.getByTestId("day-list")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("vertretung-week-list"),
+    ).not.toBeInTheDocument();
+    expect(urlKeys()).toEqual([]);
+  });
+
+  it("schaltet über die Kontextleiste auf die Woche und schreibt view=woche in die URL", async () => {
+    render(<VertretungView />);
+
+    // Radix-Tabs aktivieren per mousedown, nicht click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche" }), {
+      button: 0,
+    });
+
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("view")).toBe(
+        "woche",
+      ),
+    );
+  });
+
+  it("stellt die Wochenansicht aus einem Deep-Link wieder her", () => {
+    mockSearch.value = "view=woche";
+    render(<VertretungView />);
+
+    expect(screen.getByRole("tab", { name: "Woche" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("vertretung-week-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+    // Statt der Tagesleiste steht das Wochenlabel zwischen den Pfeilen — über
+    // Mo–Fr, nicht über das Mo–So-Fetch-Fenster.
+    expect(screen.getByText(/13\.07\.–17\.07\.2026/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mi 15.07." }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt in der Wochenansicht alle fünf Schultage mit ihren Terminen", () => {
+    mockSearch.value = "view=woche";
+    render(<VertretungView />);
+
+    const grid = mockGridProps.mock.calls.at(-1)?.[0];
+    expect(grid.weekDays).toHaveLength(5);
+    // Mi und Do liegen in derselben Woche — beide Termine sind im Raster.
+    expect(grid.instances.map((i: EnrichedInstance) => i.id)).toEqual([
+      "42",
+      "43",
+    ]);
+    for (const iso of [
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16",
+      "2026-07-17",
+    ]) {
+      expect(
+        screen.getByTestId(`vertretung-week-list-day-${iso}`),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("markiert in der Wochenansicht die Lücken aller Tage und zählt sie über die Woche", () => {
+    setupSWR({
+      gapsData: {
+        from: "2026-07-15",
+        to: "2026-07-19",
+        gaps: [
+          { instanceId: "42", date: "2026-07-15" },
+          { instanceId: "43", date: "2026-07-16" },
+        ],
+        acknowledged: [],
+      },
+    });
+    mockSearch.value = "view=woche";
+    render(<VertretungView />);
+
+    const grid = mockGridProps.mock.calls.at(-1)?.[0];
+    expect([...(grid.gapInstanceIds as Set<string>)].sort()).toEqual([
+      "42",
+      "43",
+    ]);
+    // Der Zähler der Kontextleiste zählt in der Wochenansicht die Woche.
+    expect(screen.getByText("Offen: 2")).toBeInTheDocument();
+  });
+
+  it("zeigt am Wochenende keine erfundenen Wochenzähler für ein leeres sichtbares Lückenfenster", () => {
+    // Für die laufende Woche lädt der Endpunkt ab Samstag. Die Wochenansicht
+    // zeigt aber nur Mo–Fr; ein erfolgreicher Request enthält damit keine
+    // sichtbaren Tage und darf nicht als bestätigte Null gewertet werden.
+    vi.setSystemTime(new Date("2026-07-18T12:00:00Z")); // Samstag
+    setupSWR({
+      gapsData: {
+        from: "2026-07-18",
+        to: "2026-07-19",
+        gaps: [],
+        acknowledged: [],
+      },
+    });
+    mockSearch.value = "d=2026-07-17&view=woche";
+    render(<VertretungView />);
+
+    expect(screen.getByText("Offen: –")).toBeInTheDocument();
+    expect(screen.getByText("Quittiert: –")).toBeInTheDocument();
+    expect(screen.queryByText("Offen: 0")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quittiert: 0")).not.toBeInTheDocument();
+  });
+
+  it("öffnet aus der Wochenliste denselben Editor wie die Tagesansicht", () => {
+    // Der Donnerstags-Termin muss gestört sein, sonst steht er im Modus
+    // "Nur Störungen" nicht in der Liste.
+    setupSWR({
+      gapsData: {
+        from: "2026-07-15",
+        to: "2026-07-19",
+        gaps: [{ instanceId: "43", date: "2026-07-16" }],
+        acknowledged: [],
+      },
+    });
+    mockSearch.value = "view=woche";
+    window.history.replaceState(null, "", "/acme/vertretung?view=woche");
+    const { unmount } = render(<VertretungView />);
+
+    const thursday = screen.getByTestId("vertretung-week-list-day-2026-07-16");
+    fireEvent.click(
+      within(thursday).getByRole("button", { name: "Bearbeiten" }),
+    );
+
+    expect(new URLSearchParams(window.location.search).get("block")).toBe("43");
+    // Die Ansicht bleibt beim Öffnen des Editors erhalten.
+    expect(new URLSearchParams(window.location.search).get("view")).toBe(
+      "woche",
+    );
+
+    // Derselbe Editor wie in der Tagesansicht — der Klick schreibt nur `block`,
+    // gerendert wird daraus (der Suchparam-Mock re-rendert nicht von selbst).
+    unmount();
+    mockSearch.value = "view=woche&block=43";
+    render(<VertretungView />);
+    expect(mockEditorProps.mock.calls.at(-1)?.[0].instance?.id).toBe("43");
+    expect(screen.getByTestId("editor")).toBeInTheDocument();
+  });
+
+  it("springt per Tageskopfzeile aus der Woche in die Tagesansicht", () => {
+    mockSearch.value = "view=woche";
+    window.history.replaceState(null, "", "/acme/vertretung?view=woche");
+    render(<VertretungView />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Do 16.07. als Tagesansicht öffnen" }),
+    );
+
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("d")).toBe("2026-07-16");
+    expect(params.has("view")).toBe(false);
+  });
+
+  it("hält die URL auch mit view auf dem erlaubten Vokabular", () => {
+    mockSearch.value = "view=woche&block=42&utm_source=x";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?view=woche&block=42&utm_source=x",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-history"));
+    expect(urlKeys().sort()).toEqual(["block", "verlauf", "view"]);
+  });
+
   it("renders the disabled state when timetable.enabled is false", () => {
     setupSWR({
       settingsSchema: {
@@ -561,5 +783,209 @@ describe("VertretungView", () => {
 
     expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+  });
+
+  // Einsätze ohne Dienstplan-Abdeckung sind KEINE Störung (die Definition
+  // bleibt vierteilig), sondern ein Planungshinweis über der Liste.
+  describe("Dienstplan-Abdeckungshinweis", () => {
+    function coverageAssignment(overrides: Record<string, unknown> = {}) {
+      return {
+        instanceId: "42",
+        staffId: "11",
+        date: "2026-07-15",
+        startTime: "12:00",
+        endTime: "14:00",
+        activityTitle: "Mensa",
+        status: "planned",
+        isAbsent: false,
+        isSubstitute: false,
+        coverageStatus: "uncovered",
+        coverageReason: null,
+        uncoveredIntervals: [{ startTime: "12:30", endTime: "14:00" }],
+        ...overrides,
+      };
+    }
+
+    function authenticateWithOverviewAccess() {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            roles: ["admin"],
+            permissions: [
+              "schedules:manage",
+              "schedules:read",
+              "time_tracking:manage",
+              "users:read",
+            ],
+          },
+        },
+      });
+    }
+
+    it("zählt die nicht abgedeckten Einsätze und verlinkt den Dienstplan", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.getByText("1 Einsatz ist nicht durch den Dienstplan abgedeckt."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Dienstplan öffnen" }),
+      ).toHaveAttribute("href", "/acme/dienstplan?d=2026-07-15");
+    });
+
+    it("lässt abgedeckte Einsätze aus der Zählung", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [
+            coverageAssignment(),
+            coverageAssignment({
+              instanceId: "44",
+              staffId: "12",
+              coverageStatus: "covered",
+              uncoveredIntervals: [],
+            }),
+          ],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.getByText("1 Einsatz ist nicht durch den Dienstplan abgedeckt."),
+      ).toBeInTheDocument();
+    });
+
+    it("zählt nicht in die Störungszähler", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(screen.getByText("Offen: 0")).toBeInTheDocument();
+      expect(screen.getByText("Quittiert: 0")).toBeInTheDocument();
+    });
+
+    it("bleibt still ohne die Rechte der Dienstplan-Übersicht", () => {
+      // Standard-Session aus beforeEach: nur schedules:manage.
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still für Nicht-Administratoren mit den Rechten der Dienstplan-Übersicht", () => {
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+      });
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            permissions: [
+              "schedules:manage",
+              "schedules:read",
+              "time_tracking:manage",
+              "users:read",
+            ],
+          },
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still, solange kein Dienstplan gepflegt ist", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: false,
+          assignments: [coverageAssignment()],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still, wenn die Dienstplan-Abfrage fehlschlägt", () => {
+      authenticateWithOverviewAccess();
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment()],
+        },
+        coverageError: new Error("Netzwerkfehler"),
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("bleibt still für einen vergangenen Tag", () => {
+      authenticateWithOverviewAccess();
+      mockSearch.value = "d=2026-07-14";
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [coverageAssignment({ date: "2026-07-14" })],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.queryByRole("link", { name: "Dienstplan öffnen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("meldet in der Wochenansicht denselben Satz und öffnet die gezeigte Woche", () => {
+      authenticateWithOverviewAccess();
+      mockSearch.value = "view=woche";
+      setupSWR({
+        coverageData: {
+          dienstplanInUse: true,
+          assignments: [
+            coverageAssignment({ date: "2026-07-16", instanceId: "43" }),
+          ],
+        },
+      });
+      render(<VertretungView />);
+
+      expect(
+        screen.getByText("1 Einsatz ist nicht durch den Dienstplan abgedeckt."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Dienstplan öffnen" }),
+      ).toHaveAttribute("href", "/acme/dienstplan?d=2026-07-13");
+    });
   });
 });

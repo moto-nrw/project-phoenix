@@ -64,8 +64,13 @@ type TenantResolveResponse struct {
 	// corrections. Missing metadata stays enabled for compatibility with older
 	// backends; an explicit settings-resolution error fails closed so the UI
 	// cannot offer a mutation that the authoritative service will reject.
-	CareOfferingsEnabled bool   `json:"care_offerings_enabled"`
-	AttendanceWebEnabled bool   `json:"attendance_web_enabled"`
+	CareOfferingsEnabled bool `json:"care_offerings_enabled"`
+	AttendanceWebEnabled bool `json:"attendance_web_enabled"`
+	// AttendanceLogEnabled is the tenant's resolved gdpr.attendance_log_enabled
+	// setting. Shell metadata like the flags above: non-admin staff (no
+	// config:read) need it to know whether the Tagesauswertung / attendance
+	// history areas exist at this school. Defaults to false (opt-in feature).
+	AttendanceLogEnabled bool   `json:"attendance_log_enabled"`
 	GroupMode            string `json:"group_mode"`
 	ShowTimetableCounts  bool   `json:"show_timetable_counts"`
 	WaitlistEnabled      bool   `json:"waitlist_enabled"`
@@ -79,6 +84,7 @@ type tenantShellSettings struct {
 	displayEnabled         bool
 	careOfferingsEnabled   bool
 	attendanceWebEnabled   bool
+	attendanceLogEnabled   bool
 	groupMode              string
 	showTimetableCounts    bool
 	waitlistEnabled        bool

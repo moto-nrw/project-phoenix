@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,7 +38,12 @@ func (rs *Resource) Router() chi.Router {
 // eventsHandler handles Server-Sent Events connections
 // Orchestrates: connection setup → subscription resolution → event streaming
 func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel, ok := withSSETokenDeadline(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	defer cancel()
 
 	// Step 1: Setup SSE connection (headers, flusher validation)
 	conn, statusCode := rs.setupSSEConnection(w)
@@ -49,6 +55,10 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
+	conn.isAdmin = authorize.HasEffectiveAdminScope(ctx)
+	// The login account, needed to address this person individually. Already in
+	// the claims, so no extra lookup.
+	conn.accountID = int64(jwt.ClaimsFromCtx(ctx).ID)
 
 	// Step 3: Resolve staff + subscription topics.
 	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)

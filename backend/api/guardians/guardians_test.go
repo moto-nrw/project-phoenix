@@ -23,6 +23,7 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -828,6 +829,39 @@ func TestGetStudentGuardians_InvalidStudentID(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
+}
+
+func TestStudentGuardianEndpoints_AlumnusRejected(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Former", "Student", "4a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	_, err := ctx.db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", string(userModels.StudentStatusAlumnus)).
+		Where("id = ?", student.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	router := ctx.resource.Router()
+
+	t.Run("guardian read is not found", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/students/%d/guardians", student.ID), nil,
+			bearer(t, testutil.DefaultTestClaims()),
+		)
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertNotFound(t, rr)
+	})
+
+	t.Run("admin cannot link guardian", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/students/%d/guardians", student.ID), map[string]any{},
+			bearer(t, testutil.AdminTestClaims(999)),
+		)
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertForbidden(t, rr)
+	})
 }
 
 func TestGetGuardianStudents_NonExistent_ReturnsEmptyArray(t *testing.T) {

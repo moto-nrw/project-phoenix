@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -35,13 +36,15 @@ type Resource struct {
 	SeriesService scheduleSvc.StaffShiftSeriesService
 	Overview      scheduleSvc.StaffScheduleOverviewGetter
 	PersonService usersSvc.PersonService
-	db            *bun.DB
-	logger        *slog.Logger
+	// PlanExport renders the printable Dienstplan week (#2079).
+	PlanExport planexport.Service
+	db         *bun.DB
+	logger     *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, seriesService scheduleSvc.StaffShiftSeriesService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, SeriesService: seriesService, Overview: overview, PersonService: personService, db: db, logger: logger}
+func NewResource(service scheduleSvc.StaffShiftService, seriesService scheduleSvc.StaffShiftSeriesService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, planExport planexport.Service, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, SeriesService: seriesService, Overview: overview, PersonService: personService, PlanExport: planExport, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -58,12 +61,22 @@ func (rs *Resource) Router() chi.Router {
 			authorize.RequiresPermission(permissions.UsersRead),
 			withTx,
 		).Get("/overview", rs.overview)
+		// Printable Dienstplan week (#2079). The wall-sheet variant uses the
+		// same permission triple as /overview; export.go additionally requires
+		// schedules:manage for the sensitive internal variant.
+		r.With(
+			authorize.RequiresPermission(permissions.TimeTrackingManage),
+			authorize.RequiresPermission(permissions.SchedulesRead),
+			authorize.RequiresPermission(permissions.UsersRead),
+			withTx,
+		).Post("/export", rs.exportPlan)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/move", rs.move)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}", rs.getSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
 	})
@@ -94,7 +107,7 @@ type ShiftRequest struct {
 	ChangeReason optionalString `json:"change_reason"`
 	// OriginShiftID marks this shift as a replacement covering another shift
 	// (#1841). Only honoured on create; a plain edit never re-points it.
-	OriginShiftID *int64 `json:"origin_shift_id"`
+	OriginShiftID optionalID `json:"origin_shift_id"`
 }
 
 // optionalID captures whether a nullable ID field was present in the JSON
@@ -111,6 +124,15 @@ func (o *optionalID) UnmarshalJSON(data []byte) error {
 	o.Present = true
 	if string(data) == "null" {
 		o.Value = nil
+		return nil
+	}
+	var decimal string
+	if err := json.Unmarshal(data, &decimal); err == nil {
+		v, err := strconv.ParseInt(decimal, 10, 64)
+		if err != nil {
+			return fmt.Errorf("ID must be a signed 64-bit integer: %w", err)
+		}
+		o.Value = &v
 		return nil
 	}
 	var v int64
@@ -188,7 +210,9 @@ func (o *optionalString) UnmarshalJSON(data []byte) error {
 
 // ShiftResponse is the wire format returned to clients.
 type ShiftResponse struct {
-	ID           int64  `json:"id"`
+	// IDs cross the JSON boundary as decimal strings. A JavaScript number cannot
+	// represent every PostgreSQL bigint value without rounding it.
+	ID           int64  `json:"id,string"`
 	StaffID      int64  `json:"staff_id"`
 	Date         string `json:"date"`
 	StartTime    string `json:"start_time"`
@@ -202,11 +226,15 @@ type ShiftResponse struct {
 	ShiftTypeName  *string `json:"shift_type_name,omitempty"`
 	ShiftTypeColor *string `json:"shift_type_color,omitempty"`
 	Notes          string  `json:"notes,omitempty"`
-	SeriesID       *int64  `json:"series_id,omitempty"`
+	SeriesID       *int64  `json:"series_id,omitempty,string"`
 	Detached       bool    `json:"detached"`
 	Cancelled      bool    `json:"cancelled"`
 	ChangeReason   *string `json:"change_reason,omitempty"`
-	OriginShiftID  *int64  `json:"origin_shift_id,omitempty"`
+	OriginShiftID  *int64  `json:"origin_shift_id,omitempty,string"`
+	// SeriesOccurrenceDate is the immutable recurrence slot. It lets clients
+	// apply a rule edit from a moved occurrence's source date, not its current
+	// display date.
+	SeriesOccurrenceDate *string `json:"series_occurrence_date,omitempty"`
 }
 
 // ToShiftResponse maps a shift onto the wire format. Exported for the
@@ -226,6 +254,10 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		Cancelled:     s.Cancelled,
 		ChangeReason:  s.ChangeReason,
 		OriginShiftID: s.OriginShiftID,
+	}
+	if s.SeriesOccurrenceDate != nil {
+		occurrenceDate := s.SeriesOccurrenceDate.String()
+		resp.SeriesOccurrenceDate = &occurrenceDate
 	}
 	if s.ShiftType != nil {
 		name := s.ShiftType.Name
@@ -281,7 +313,7 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		Notes:         notes,
 		Cancelled:     req.Cancelled.Value,
 		ChangeReason:  req.ChangeReason.Value,
-		OriginShiftID: req.OriginShiftID,
+		OriginShiftID: req.OriginShiftID.Value,
 	}, nil
 }
 

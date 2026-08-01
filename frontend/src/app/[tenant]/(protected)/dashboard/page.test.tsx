@@ -106,6 +106,7 @@ vi.mock("~/lib/swr/hooks", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
+  useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
@@ -126,7 +127,11 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
-import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
+import {
+  useNFCEnabled,
+  useOpenCareGroupMode,
+  usePresenceMode,
+} from "~/lib/tenant-context";
 
 // Helper to create SWR mock return values
 function mockSWR(
@@ -153,6 +158,7 @@ describe("DashboardPage", () => {
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
     vi.mocked(useNFCEnabled).mockReturnValue(true);
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
     vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
@@ -245,6 +251,21 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("hides group dashboard surfaces in open-care group mode", async () => {
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Aktive Gruppen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Aktive Gruppen/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
+      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
   it("hides activity dashboard surfaces when NFC is disabled", async () => {
     vi.mocked(useNFCEnabled).mockReturnValue(false);
 
@@ -264,7 +285,7 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("hides activity dashboard surfaces in binary presence mode", async () => {
+  it("hides room and activity dashboard surfaces in binary presence mode", async () => {
     vi.mocked(useNFCEnabled).mockReturnValue(true);
     vi.mocked(usePresenceMode).mockReturnValue("binary");
 
@@ -278,9 +299,28 @@ describe("DashboardPage", () => {
       expect(
         screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
       ).not.toBeInTheDocument();
+      expect(screen.queryByText("In Räumen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Unterwegs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
+      expect(screen.queryByText("Auslastung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Letzte Bewegungen")).not.toBeInTheDocument();
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
-      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("expands the staff summary when it is the only dashboard info card", async () => {
+    vi.mocked(usePresenceMode).mockReturnValue("binary");
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const staffSummary = screen.getByRole("link", {
+        name: /Personal heute/i,
+      });
+      expect(staffSummary.parentElement).toHaveClass("lg:col-span-2");
+      expect(staffSummary).toHaveClass("h-full");
     });
   });
 

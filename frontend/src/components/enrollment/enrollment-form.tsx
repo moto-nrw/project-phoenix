@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.json";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
@@ -18,6 +20,7 @@ import {
   type SubmitChildPayload,
   type SubmitGuardianPayload,
   type EnrollmentEditDraft,
+  type PublicPhase,
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
@@ -64,6 +67,12 @@ const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 // at enrollment submit AND at student creation on approval. Kept in sync so a
 // value the form accepts can never be rejected later at approval.
 const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
+
+// Student lifecycle statuses the backend counts as "enrolled"
+// (users.StudentStatusActive / StudentStatusPending — see
+// ExistsEnrolledByNameAndBirthday). The existing_students audience accepts
+// nothing else, so the reuse picker must not offer anything else either.
+const ENROLLED_CHILD_STATUSES = new Set(["active", "pending"]);
 
 interface ChildDraft {
   // Stable, client-only identity for React list keys. Never sent to the
@@ -167,6 +176,19 @@ export interface EnrollmentFormPrefetchedData {
   schoolClass?: PublicSchoolClassConfig;
   collectGradeLevel?: boolean;
   careOfferingsEnabled?: boolean;
+  /**
+   * Phase applicant restriction (#1663). Only meaningful on the parent
+   * portal path, which prefills linked children: a "new_students" phase
+   * rejects any already-enrolled child, so the form must hide the
+   * "reuse an existing child" panel and explain why instead of letting
+   * the parent adopt a child the server will reject.
+   */
+  audience?: PublicPhase["audience"];
+  /**
+   * Phase grade restriction (#1663). When non-empty the grade select offers
+   * exactly these grades, so a parent cannot pick one the server rejects.
+   */
+  eligibleGradeLevels?: number[];
 }
 
 /**
@@ -205,6 +227,19 @@ export function EnrollmentForm({
     [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
+  // A "new_students" phase rejects any already-enrolled child at submit
+  // (#1663). The parent portal prefills the guardian's linked children, so
+  // offering to reuse one would always fail server-side — hide the reuse
+  // panel and explain the restriction instead.
+  const isNewStudentsPhase = prefetchedData?.audience === "new_students";
+  // Reusing an existing child (adopting a linked student into a form slot)
+  // only produces a correct approval on an "existing_students" phase: there
+  // the backend matches the child to the already-enrolled student and RENEWS
+  // it. On open/linked_parents phases the same reuse resolves no match and
+  // approval fresh-creates a DUPLICATE Person/Student, so the reuse panel is
+  // scoped to existing_students only (#1663).
+  const isExistingStudentsPhase =
+    prefetchedData?.audience === "existing_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
@@ -233,6 +268,12 @@ export function EnrollmentForm({
     useState<PublicSchoolClassConfig>(
       prefetchedData?.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
     );
+  // Phase grade restriction (#1663): empty = every grade up to the tenant
+  // cap. Seeded from prefetched data (public page + parent portal) or from
+  // the care-offerings fallback load below.
+  const [eligibleGradeLevels, setEligibleGradeLevels] = useState<number[]>(
+    prefetchedData?.eligibleGradeLevels ?? [],
+  );
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
@@ -356,6 +397,23 @@ export function EnrollmentForm({
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
   );
+  // Children the parent may actually re-enroll. Two independent facts are
+  // required, because portal visibility grants neither (#1663):
+  //   - the relationship grants parent_portal.enrollment.submit, so a
+  //     permission-revoked child never 403s after the form is filled;
+  //   - the child is still enrolled (active/pending). The profile lists every
+  //     non-alumnus child, but the existing_students gate only accepts
+  //     active/pending, so an inactive child would be adopted here and then
+  //     rejected as "nicht eingeschrieben" at submit.
+  const reusableChildren = useMemo(
+    () =>
+      (profile?.children ?? []).filter(
+        (c) =>
+          c.enrollment_submit === true &&
+          ENROLLED_CHILD_STATUSES.has(c.status ?? ""),
+      ),
+    [profile],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -368,6 +426,7 @@ export function EnrollmentForm({
       setSchoolClassConfig(
         prefetchedData.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
       );
+      setEligibleGradeLevels(prefetchedData.eligibleGradeLevels ?? []);
       setCaptchaConfig(prefetchedData.captchaConfig);
       setLegalTexts(prefetchedData.legalTexts);
       setProfile(prefetchedData.profile ?? null);
@@ -431,6 +490,8 @@ export function EnrollmentForm({
                 schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
                 collectGradeLevel: true,
                 careOfferingsEnabled: true,
+                // No phase, so no phase-level grade restriction (preview).
+                eligibleGradeLevels: [] as number[],
               }),
           profileLoader().catch(() => null),
           // Skip the captcha config when the caller already authenticated
@@ -464,6 +525,7 @@ export function EnrollmentForm({
         setSchoolClassConfig(
           offeringsResult.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
         );
+        setEligibleGradeLevels(offeringsResult.eligibleGradeLevels ?? []);
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
         setChildren((prev) =>
@@ -800,11 +862,10 @@ export function EnrollmentForm({
       // rather than an unsubmittable required-but-empty dropdown. Mirror the
       // backend gate (#1833).
       if (
-        schoolClassConfig.collect &&
         schoolClassConfig.require &&
-        Number(c.target_grade_level) >= 2 &&
-        schoolClassConfig.available_classes.some((cls) =>
-          classMatchesGrade(cls, c.target_grade_level),
+        collectsConcreteClassForGrade(
+          schoolClassConfig,
+          c.target_grade_level,
         ) &&
         !c.target_school_class.trim()
       ) {
@@ -1107,13 +1168,16 @@ export function EnrollmentForm({
         target_grade_level: collectGradeLevel
           ? Number(c.target_grade_level)
           : undefined,
-        // Only send a concrete class when the feature is on, the grade is
-        // 2+, and a class was actually chosen; the backend re-validates
-        // and normalises (#1833). Empty/grade-1 -> omitted ("Klasse offen").
+        // Only send a concrete class when the phase collects it for this
+        // child's grade and a class was actually chosen; the backend
+        // re-validates and normalises (#1833/#1663). Grade 1 is collected
+        // only when the phase offers a grade-1 class, otherwise omitted
+        // ("Klasse offen").
         target_school_class:
-          schoolClassConfig.collect &&
-          Number(c.target_grade_level) >= 2 &&
-          c.target_school_class.trim()
+          collectsConcreteClassForGrade(
+            schoolClassConfig,
+            c.target_grade_level,
+          ) && c.target_school_class.trim()
             ? c.target_school_class.trim()
             : undefined,
         custom_data: customData,
@@ -1477,59 +1541,90 @@ export function EnrollmentForm({
           ) : null}
         </div>
 
-        {profile && profile.children.length > 0 && !lockChildStructure && (
-          <ExistingChildrenPanel
-            existing={profile.children}
-            usedIDs={usedExistingChildIDs}
-            tr={tr}
-            onAdopt={(child) => {
-              const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
-              newSlot.first_name = child.first_name;
-              newSlot.last_name = child.last_name;
-              newSlot.target_grade_level =
-                child.grade_level != null ? String(child.grade_level) : "";
-              for (const offering of availableCareOfferings(
-                offerings,
-                newSlot.target_grade_level,
-              )) {
-                if (offering.is_required) {
-                  newSlot.offering_ids.add(offering.id);
-                }
-              }
-              // Prefill the concrete class only when it matches one of the
-              // phase's offered classes, so re-enrolling an existing "2a"
-              // child defaults sensibly without injecting a stale/unknown
-              // value into the dropdown (#1833).
-              newSlot.target_school_class =
-                schoolClassConfig.available_classes.includes(
-                  child.school_class,
-                ) &&
-                classMatchesGrade(
-                  child.school_class,
+        {profile &&
+          profile.children.length > 0 &&
+          !lockChildStructure &&
+          isNewStudentsPhase && (
+            <p className="rounded-lg border border-[#F78C10]/30 bg-[#F78C10]/5 px-4 py-3 text-sm text-gray-700">
+              {tr("sections.newStudentsOnlyNotice")}
+            </p>
+          )}
+
+        {reusableChildren.length > 0 &&
+          !lockChildStructure &&
+          isExistingStudentsPhase && (
+            <ExistingChildrenPanel
+              existing={reusableChildren}
+              usedIDs={usedExistingChildIDs}
+              tr={tr}
+              onAdopt={(child) => {
+                const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
+                newSlot.first_name = child.first_name;
+                newSlot.last_name = child.last_name;
+                // The phase may restrict eligible grades (#1663), and the
+                // grade select offers exactly those. Adopting a child whose
+                // stored grade falls outside the restriction would prefill a
+                // value the parent can neither see nor change, pass the
+                // client-side "grade is set" check, and only fail at submit
+                // with grade_not_eligible for the whole form. Drop the
+                // ineligible prefill so the required-field check forces a
+                // grade the phase accepts. Grades are not collected at all
+                // when collect_grade_level is off — the phase-side
+                // collectability guard keeps that pair from carrying a
+                // restriction — so the prefill stays untouched there and
+                // keeps driving the care-offering filter.
+                const reusedGrade =
+                  child.grade_level != null ? String(child.grade_level) : "";
+                newSlot.target_grade_level =
+                  !collectGradeLevel ||
+                  selectableGradeLevels(
+                    gradeLevelMax,
+                    eligibleGradeLevels,
+                  ).includes(Number(reusedGrade))
+                    ? reusedGrade
+                    : "";
+                for (const offering of availableCareOfferings(
+                  offerings,
                   newSlot.target_grade_level,
-                )
-                  ? child.school_class
-                  : "";
-              setChildren((prev) => {
-                // Replace the first empty slot if one exists, otherwise
-                // append. Avoids leaving a stranded empty card after
-                // every adoption.
-                const emptyIdx = prev.findIndex(
-                  (c) => !c.first_name && !c.last_name && !c.date_of_birth,
-                );
-                if (emptyIdx >= 0) {
-                  return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
+                )) {
+                  if (offering.is_required) {
+                    newSlot.offering_ids.add(offering.id);
+                  }
                 }
-                return [...prev, newSlot];
-              });
-              setUsedExistingChildIDs((prev) => {
-                const next = new Set(prev);
-                next.add(child.id);
-                return next;
-              });
-            }}
-          />
-        )}
+                // Prefill the concrete class only when it matches one of the
+                // phase's offered classes, so re-enrolling an existing "2a"
+                // child defaults sensibly without injecting a stale/unknown
+                // value into the dropdown (#1833).
+                newSlot.target_school_class =
+                  schoolClassConfig.available_classes.includes(
+                    child.school_class,
+                  ) &&
+                  classMatchesGrade(
+                    child.school_class,
+                    newSlot.target_grade_level,
+                  )
+                    ? child.school_class
+                    : "";
+                setChildren((prev) => {
+                  // Replace the first empty slot if one exists, otherwise
+                  // append. Avoids leaving a stranded empty card after
+                  // every adoption.
+                  const emptyIdx = prev.findIndex(
+                    (c) => !c.first_name && !c.last_name && !c.date_of_birth,
+                  );
+                  if (emptyIdx >= 0) {
+                    return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
+                  }
+                  return [...prev, newSlot];
+                });
+                setUsedExistingChildIDs((prev) => {
+                  const next = new Set(prev);
+                  next.add(child.id);
+                  return next;
+                });
+              }}
+            />
+          )}
 
         {children.map((child, i) => {
           const childOfferings = availableCareOfferings(
@@ -1652,13 +1747,16 @@ export function EnrollmentForm({
                       );
                     }}
                     max={gradeLevelMax}
+                    allowedGrades={eligibleGradeLevels}
                     error={fieldErrors[`children_${i}_target_grade_level`]}
                     tr={tr}
                   />
                 )}
                 {collectGradeLevel &&
-                  schoolClassConfig.collect &&
-                  Number(child.target_grade_level) >= 2 &&
+                  collectsConcreteClassForGrade(
+                    schoolClassConfig,
+                    child.target_grade_level,
+                  ) &&
                   (() => {
                     // Options are filtered to this child's grade; a phase may
                     // require classes yet offer none for this grade, in which
@@ -2576,6 +2674,7 @@ function GradeLevelSelect({
   value,
   onChange,
   max,
+  allowedGrades,
   error,
   tr,
 }: {
@@ -2583,15 +2682,25 @@ function GradeLevelSelect({
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly max: number;
+  /**
+   * Phase grade restriction (#1663); empty means unrestricted. Offering a
+   * grade the submit gate rejects would let a parent complete the entire
+   * form and then fail with grade_not_eligible, so the select presents the
+   * eligible grades only — the same reason the class pick list is narrowed
+   * server-side.
+   */
+  readonly allowedGrades: number[];
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
 }) {
+  const grades = selectableGradeLevels(max, allowedGrades);
   return (
-    <label className="block" htmlFor={id}>
+    <label className="block" htmlFor={id} id={`${id}-label`}>
       <span className="block text-sm font-semibold text-gray-700">
         {tr("fields.gradeLevel")}
       </span>
       <CustomSelect
+        ariaLabelledBy={`${id}-label`}
         id={id}
         value={value}
         required
@@ -2600,18 +2709,34 @@ function GradeLevelSelect({
         className="mt-1"
         options={[
           { value: "", label: tr("fields.choose"), disabled: true },
-          ...Array.from({ length: max }, (_, n) => {
-            const grade = String(n + 1);
-            return {
-              value: grade,
-              label: tr("fields.grade", { grade: n + 1 }),
-            };
-          }),
+          ...grades.map((grade) => ({
+            value: String(grade),
+            label: tr("fields.grade", { grade }),
+          })),
         ]}
       />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
+}
+
+// selectableGradeLevels is the list of grades the grade select actually
+// offers: every grade up to the tenant cap, narrowed by the phase's
+// restriction (#1663). Callers that PREFILL a grade must check against this
+// list too — a value the select does not offer is invisible in the UI yet
+// still submitted, and the backend then rejects the whole form with
+// grade_not_eligible.
+//
+// A restriction naming only grades above the tenant cap is broken config (the
+// cap was lowered after the phase was set up). Fall back to the full range
+// rather than rendering an empty select; the server still rejects the
+// submission with the authoritative error.
+function selectableGradeLevels(max: number, allowedGrades: number[]): number[] {
+  const everyGrade = Array.from({ length: max }, (_, n) => n + 1);
+  const eligible = everyGrade.filter((grade) => allowedGrades.includes(grade));
+  return allowedGrades.length > 0 && eligible.length > 0
+    ? eligible
+    : everyGrade;
 }
 
 // schoolClassGradePrefix returns the first run of digits in a school class
@@ -2631,6 +2756,33 @@ function schoolClassGradePrefix(schoolClass: string): string {
 function classMatchesGrade(schoolClass: string, gradeLevel: string): boolean {
   const prefix = schoolClassGradePrefix(schoolClass);
   return prefix === "" || prefix === gradeLevel.trim();
+}
+
+// collectsConcreteClassForGrade decides whether the concrete-class field is
+// shown/collected for a child of the given grade. Grade >= 2 is unchanged
+// (#1833): collected whenever the phase offers a class matching the grade,
+// prefixless classes included. Grade 1 is opt-in (#1663): the backend decides
+// it (CollectsGrade1Class -> `collect_grade_1`), because a phase restricted to
+// a prefixless class ("Bienen") collects a grade-1 class too and the narrowed
+// pick list alone cannot say so. The prefix-only rule stays as the fallback
+// for a payload without the field, keeping the pre-#1663 behaviour: a phase
+// that never added a grade-1 class leaves grade 1 grade-level-only.
+function collectsConcreteClassForGrade(
+  config: PublicSchoolClassConfig,
+  gradeLevel: string,
+): boolean {
+  if (!config.collect) return false;
+  const grade = Number(gradeLevel);
+  if (!Number.isFinite(grade) || grade < 1) return false;
+  if (grade >= 2) {
+    return config.available_classes.some((cls) =>
+      classMatchesGrade(cls, gradeLevel),
+    );
+  }
+  if (config.collect_grade_1 === true) return true;
+  return config.available_classes.some(
+    (cls) => schoolClassGradePrefix(cls) === "1",
+  );
 }
 
 // SchoolClassSelect renders the concrete-class dropdown shown for grade
@@ -2656,11 +2808,12 @@ function SchoolClassSelect({
   readonly tr: EnrollmentFormTranslator;
 }) {
   return (
-    <label className="block" htmlFor={id}>
+    <label className="block" htmlFor={id} id={`${id}-label`}>
       <span className="block text-sm font-semibold text-gray-700">
         {tr(required ? "fields.schoolClassRequired" : "fields.schoolClass")}
       </span>
       <CustomSelect
+        ariaLabelledBy={`${id}-label`}
         id={id}
         value={value}
         required={required}
@@ -3162,6 +3315,7 @@ function CustomFieldInput({
   onCompanionNoteChange,
   companionNoteError,
 }: CustomFieldInputProps) {
+  const datePicker = useLocalizedDatePicker();
   const labelEl = (
     <>
       <span className="block text-sm font-semibold text-gray-700">
@@ -3233,6 +3387,7 @@ function CustomFieldInput({
       <label className="block">
         {labelEl}
         <CustomSelect
+          ariaLabel={field.label}
           value={valueStr}
           onChange={onChange}
           name={field.key}
@@ -3324,12 +3479,31 @@ function CustomFieldInput({
     );
   }
 
-  const inputType =
-    field.type === "number"
-      ? "number"
-      : field.type === "date"
-        ? "date"
-        : "text";
+  if (field.type === "date") {
+    const dateId = `enrollment-${field.key}`;
+    return (
+      <div className="block">
+        <label htmlFor={dateId}>{labelEl}</label>
+        <ISODatePicker
+          {...datePicker}
+          id={dateId}
+          controlSize="md"
+          value={valueStr}
+          onChange={onChange}
+          invalid={Boolean(error)}
+          className="mt-1"
+          calendarLayout="popover"
+          // A school-defined date field can be anything from a birthday to a
+          // future appointment, so the year dropdown stays available and no
+          // bound is imposed.
+          monthYearNavigation
+        />
+        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      </div>
+    );
+  }
+
+  const inputType = field.type === "number" ? "number" : "text";
   return (
     <label className="block">
       {labelEl}

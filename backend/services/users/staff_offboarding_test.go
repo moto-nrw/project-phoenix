@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -66,6 +68,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		RoleRepo:               repos.Role,
 		AccountPermissionRepo:  repos.AccountPermission,
 		DataDeletionRepo:       repos.DataDeletion,
+		TimeTrackingDeleteRepo: repos.TimeTrackingDeletion,
 		AuthService:            authService,
 		DB:                     db,
 	})
@@ -99,6 +102,7 @@ func assignTenantRole(t *testing.T, db *bun.DB, accountID int64, roleID int64) {
 func cleanupOffboardedStaffChain(t *testing.T, db *bun.DB, staffID, personID int64, accountID *int64) {
 	t.Helper()
 	ctx := context.Background()
+	_, _ = db.ExecContext(ctx, `DELETE FROM audit.time_tracking_deletions WHERE staff_id = ? OR deleted_by = ?`, staffID, staffID)
 	_, _ = db.ExecContext(ctx, `DELETE FROM audit.data_deletions WHERE staff_id = ?`, staffID)
 	_, _ = db.ExecContext(ctx, `DELETE FROM users.teachers WHERE staff_id = ?`, staffID)
 	_, _ = db.ExecContext(ctx, `DELETE FROM users.staff WHERE id = ?`, staffID)
@@ -132,7 +136,7 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	var attendanceCount int
 	err := sc.db.NewSelect().
@@ -184,7 +188,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	_, _, err := sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login must work before offboarding")
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, offboardingFixtureTenant)
 	require.NoError(t, err)
@@ -250,7 +254,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	var active bool
 	err := sc.db.NewSelect().
@@ -322,7 +326,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	require.Error(t, err, "re-invite must be blocked while the mapping is active")
 	require.ErrorIs(t, err, authSvcPkg.ErrAccountAlreadyHasTenantAccess)
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	invitation, err := invSvc.CreateInvitation(sc.ctx, authSvcPkg.InvitationRequest{
 		Email:     emailAddr,
@@ -379,7 +383,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
 	})
 
-	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin")
+	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, usersSvc.ErrStaffInUse), "active supervision must block offboarding")
 
@@ -424,7 +428,7 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staffID, personID, nil)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staffID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staffID, staffID, "test-admin"))
 
 	var gtCount int
 	require.NoError(t, sc.db.NewSelect().
@@ -455,7 +459,7 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 // no-op so the HTTP handler keeps returning 200.
 func TestOffboardStaff_Idempotent(t *testing.T) {
 	sc := newOffboardingScenario(t)
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, 999999, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, 999999, 999999, "test-admin"))
 }
 
 // TestOffboardStaff_ExcludedFromListsAndPIN: offboarded staff must vanish from
@@ -470,7 +474,7 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	listed, err := sc.repos.Staff.ListAllWithPerson(sc.ctx)
 	require.NoError(t, err)
@@ -502,7 +506,7 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	var permCount int
 	err := sc.db.NewSelect().
@@ -535,7 +539,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	countRole := func(roleID int64) int {
 		var n int
@@ -623,7 +627,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	countAssignment := func(id int64) int {
 		var n int
@@ -647,6 +651,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Absent", "Staff")
+	actor := testpkg.CreateTestStaff(t, sc.db, "Offboarding", "Admin")
 	today := timezone.TodayDate()
 
 	makeAbsence := func(absenceType, status string, start, end timezone.Date) *activeModels.StaffAbsence {
@@ -673,9 +678,10 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 
 	t.Cleanup(func() {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
+		cleanupOffboardedStaffChain(t, sc.db, actor.ID, actor.PersonID, nil)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, actor.ID, "test-admin"))
 
 	countAbsence := func(id int64) int {
 		var n int
@@ -698,6 +704,63 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		Where(`staff_id = ?`, staff.ID).
 		Scan(context.Background(), &auditedCount))
 	assert.Equal(t, "3", auditedCount, "audit record must count the deleted absences")
+
+	var tombstones []*auditModels.TimeTrackingDeletion
+	require.NoError(t, sc.db.NewSelect().
+		Model(&tombstones).
+		ModelTableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
+		Where(`"time_tracking_deletion".staff_id = ?`, staff.ID).
+		OrderExpr(`"time_tracking_deletion".source_id ASC`).
+		Scan(sc.ctx))
+	require.Len(t, tombstones, 3, "every deleted absence must leave a tombstone")
+	for _, tombstone := range tombstones {
+		assert.Equal(t, actor.ID, tombstone.DeletedBy)
+		assert.Equal(t, auditModels.TimeTrackingDeletionSourceAbsence, tombstone.Source)
+		assert.Equal(t, "Personal-Offboarding", tombstone.Note)
+		var payload activeModels.StaffAbsence
+		require.NoError(t, json.Unmarshal(tombstone.Payload, &payload))
+		assert.Equal(t, tombstone.SourceID, payload.ID)
+	}
+}
+
+func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	staff := testpkg.CreateTestStaff(t, sc.db, "Audit", "Rollback")
+	today := timezone.TodayDate()
+	absence := &activeModels.StaffAbsence{
+		StaffID:     staff.ID,
+		AbsenceType: activeModels.AbsenceTypeVacation,
+		DateStart:   today.AddDays(1),
+		DateEnd:     today.AddDays(2),
+		Status:      activeModels.AbsenceStatusApproved,
+		CreatedBy:   staff.ID,
+	}
+	require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, sc.db, "active.staff_absences", absence.ID)
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
+	})
+
+	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, 0, "test-admin")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "deleted_by is required")
+
+	var absenceCount int
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`active.staff_absences`).
+		ColumnExpr(`COUNT(*)`).
+		Where(`id = ?`, absence.ID).
+		Scan(context.Background(), &absenceCount))
+	assert.Equal(t, 1, absenceCount, "absence deletion must roll back when its tombstone fails")
+
+	var deletedAt *time.Time
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.staff`).
+		ColumnExpr(`deleted_at`).
+		Where(`id = ?`, staff.ID).
+		Scan(context.Background(), &deletedAt))
+	assert.Nil(t, deletedAt, "staff offboarding must roll back with the failed tombstone")
 }
 
 func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
@@ -726,7 +789,7 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	countShift := func(id int64) int {
 		var n int
@@ -776,7 +839,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	var workTimeModelID *int64
 	require.NoError(t, sc.db.NewSelect().

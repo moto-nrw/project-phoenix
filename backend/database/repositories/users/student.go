@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // studentPhotoFeatureLockClass is the pg_advisory_xact_lock class id used
@@ -35,6 +34,37 @@ import (
 // tx, so callers must already be inside a tenant tx — there is no
 // separate Unlock method to forget.
 const studentPhotoFeatureLockClass int32 = 0x70686F74
+
+// studentClassWritesLockClass is the pg_advisory_xact_lock class id ("clas" in
+// ASCII) that serializes a grade transition apply/revert against every write
+// which could put a child INTO one of the classes it is transitioning.
+//
+// Row locks cannot express that: a student created in a mapped class — or moved
+// in from an unmapped one — has no row the transition could have locked. The
+// apply's post-lock re-read (services/education.ensureNoLateArrivals) therefore
+// only sees arrivals that COMMITTED before it ran; one committing after that
+// statement but before the apply commits was silently left behind in a class the
+// transition had just emptied, while the transition reported success and wrote
+// no history row a revert could undo it with (#405 review).
+//
+// Writers take the gate SHARED — shared holders never conflict with each other,
+// so the normal path costs one in-memory advisory-lock round-trip and never
+// blocks. Apply/revert take it EXCLUSIVE for their whole transaction, which is
+// the only time a writer waits. Both forms are transaction-scoped: they release
+// at COMMIT/ROLLBACK (no Unlock to forget), and re-acquiring a lock the same
+// transaction already holds never waits — the transition's own student reads and
+// writes below pass straight through its exclusive hold.
+//
+// LOCK ORDER (must stay acyclic):
+//
+//  1. this gate, BEFORE the tenant recurrence gate and the grade-transition gate
+//     (services/education.lockRecurrenceThenTransitions takes all three in that
+//     order), and
+//  2. BEFORE any users.students row lock — every acquisition below sits in front
+//     of the row lock taken by the same method, so no transaction can hold a
+//     student row and then queue for the gate while the gate holder waits for
+//     that row.
+const studentClassWritesLockClass int32 = 0x636C6173
 
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
@@ -71,7 +101,7 @@ func (r *StudentRepository) FindByID(ctx context.Context, id interface{}) (*user
 	if err != nil {
 		return nil, err
 	}
-	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
+	if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
 		return nil, err
 	}
 	return student, nil
@@ -126,7 +156,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	for _, student := range students {
 		result[student.ID] = student
 	}
-	if err := r.hydrateBusDaysIfPresent(ctx, students); err != nil {
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
 		return nil, err
 	}
 
@@ -135,9 +165,9 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 
 // FindReadScopeByIDs retrieves a lightweight projection of the given students —
 // only id, group_id, person_id, and school_class — in a single primary-key
-// IN-list query. Unlike FindByIDs it does NOT run hydrateBusDaysIfPresent, so it
-// avoids the extra information_schema column probe and jsonb weekday-hydration
-// round-trip. Callers that only gate read access and display a name (e.g. the
+// IN-list query. Unlike FindByIDs it does NOT run hydrateBusDaysForStudents, so
+// it avoids the extra jsonb weekday-hydration round-trip. Callers that only
+// gate read access and display a name (e.g. the
 // reminders header, polled per browser every 60s) get just those small rows and
 // nothing they never read. The returned *Student values have ONLY those four
 // fields populated — do not use them where full student data is expected.
@@ -169,13 +199,15 @@ func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// FindByGroupID retrieves students by their group ID
+// FindByGroupID retrieves students by their group ID. Alumni (graduated,
+// soft-deleted) are excluded — their rows only exist for transition reverts.
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id = ?", groupID)
+		Where("group_id = ?", groupID).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -205,7 +237,8 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id IN (?)", bun.List(groupIDs))
+		Where("group_id IN (?)", bun.List(groupIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -225,13 +258,18 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	return students, nil
 }
 
-// FindBySchoolClass retrieves students by their school class
+// FindBySchoolClass retrieves students by their school class. Alumni
+// (graduated, soft-deleted) are excluded — staff-facing callers (arrival-plan
+// bulk upsert, enrollment reports, calendar targeting) must never write to or
+// count a graduate. Their rows survive only for transition reverts, which use
+// the education repository's by-ID paths, not this lookup.
 func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -251,6 +289,79 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	return students, nil
 }
 
+// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
+// student with the given (case-insensitive, trimmed) name and birthday
+// exists in the tenant. Backs the enrollment new_students audience check
+// (#1663). "Enrolled" spans both active and pending students: an
+// enrollment approved before its service start date creates the resulting
+// student as pending until the activation scheduler flips it to active
+// (approvalActivationPlan), so pending children are already enrolled and
+// must be treated as such — otherwise a just-approved child would slip
+// through a new_students phase and create a duplicate record. The tenant
+// filter is explicit (not RLS/context-based) because the parent submit
+// path runs under an admin transaction. A zero birthday binds NULL and
+// matches nothing — the safe outcome for incomplete input.
+func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".status IN (?)`, bun.List([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
+		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
+		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
+		Where(`"person".birthday = ?`, birthday).
+		Where(`"person".deleted_at IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "exists enrolled by name and birthday",
+			Err: err,
+		}
+	}
+	return count > 0, nil
+}
+
+// FindEnrolledStudentIDByNameAndBirthday resolves the single already-enrolled
+// student matching the given (case-insensitive, trimmed) name and birthday in
+// the tenant, backing the existing_students re-enrollment path (#1663). It
+// returns the student ID ONLY when exactly one active/pending student matches:
+// zero matches or an ambiguous multi-match both yield (nil, nil) so the caller
+// stores no reference and approval falls back to the fresh-create path rather
+// than renewing an arbitrary record. Same enrolled-scope and explicit tenant
+// filter as ExistsEnrolledByNameAndBirthday (the parent submit path runs under
+// an admin transaction, not RLS context). A zero birthday binds NULL and
+// matches nothing.
+func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		ColumnExpr(`"student".id`).
+		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".status IN (?)`, bun.List([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
+		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
+		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
+		Where(`"person".birthday = ?`, birthday).
+		Where(`"person".deleted_at IS NULL`).
+		OrderExpr(`"student".id ASC`).
+		Limit(2).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find enrolled student id by name and birthday",
+			Err: err,
+		}
+	}
+	if len(ids) != 1 {
+		// Zero or ambiguous (>1): no unambiguous student to renew.
+		return nil, nil
+	}
+	id := ids[0]
+	return &id, nil
+}
+
 // ListSchoolClasses retrieves all distinct non-empty school_class values.
 func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
 	var classes []string
@@ -258,6 +369,7 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 		TableExpr(`users.students AS "student"`).
 		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
 		Where(`TRIM("student".school_class) != ''`).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
 		OrderExpr(`TRIM("student".school_class) ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
@@ -278,6 +390,13 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 		return fmt.Errorf("student cannot be nil")
 	}
 
+	// A brand-new row is exactly the arrival a grade transition cannot row-lock
+	// against; the shared gate makes the insert wait out a running apply/revert
+	// instead of landing in a class it has already emptied (#405 review).
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return err
+	}
+
 	// Validate student
 	if err := student.Validate(); err != nil {
 		return err
@@ -293,6 +412,15 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 func (r *StudentRepository) Update(ctx context.Context, student *users.Student) error {
 	if student == nil {
 		return fmt.Errorf("student cannot be nil")
+	}
+
+	// A full-row update rewrites school_class, so it can move a child into a
+	// class a concurrent grade transition is mid-way through emptying. Take the
+	// shared gate FIRST — before the row lock below and before any row lock the
+	// caller took through FindByIDForUpdate, which takes the same gate — so the
+	// acquisition order is gate-then-rows everywhere (#405 review).
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return err
 	}
 
 	// Take the subject's row lock BEFORE reading its stored departure plan or its
@@ -484,9 +612,9 @@ type companionTrim struct {
 // plan on that weekday, no note, no other link on that weekday) — the same
 // rule services/users checkCompanionRemovals enforces for the HTTP path.
 //
-// Returns nil when it did not evaluate the edges (plan untouched, plan allows
-// every weekday, or the table predates this schema); the caller then falls back
-// to the EXISTS-based link flag probe.
+// Returns nil when it did not evaluate the edges (plan untouched, or the plan
+// allows every weekday); the caller then falls back to the EXISTS-based link
+// flag probe.
 func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student *users.Student) (*companionTrim, error) {
 	if student.ID <= 0 || !departurePlanTouched(student) {
 		return nil, nil
@@ -498,16 +626,6 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 	if len(accompanied) == len(users.PickupDayOrder) {
 		// Every weekday still allows "Anderes Kind" — no edge can lose its
 		// basis, so skip the edge query on this common widening path.
-		return nil, nil
-	}
-
-	// The table landed in 1.15.209 and the migration tests exercise historical
-	// schemas with the current model; an absent table means no links.
-	exists, err := r.hasCompanionTable(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
 		return nil, nil
 	}
 
@@ -771,64 +889,33 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 	// set (#1694).
 	pickupStatus := allowed.LegacyPickupStatus()
 
-	// Resolve every optional departure column's existence in one query. Each
-	// landed in its own migration (departure_days 1.15.120, bus_days 1.15.112,
-	// pickup_days 1.15.116, allowed_departure_modes 1.15.130, the scanonly
-	// departure_companion_note 1.15.138 which rollback drops again), and the
-	// migration tests exercise historical schemas with the current model, so only
-	// set columns that actually exist — batched, not one round-trip per column.
-	cols, err := r.hasStudentColumns(ctx, "departure_days", "allowed_departure_modes", "bus_days", "pickup_days", "departure_companion_note")
-	if err != nil {
-		return err
-	}
-
+	// All departure columns are guaranteed present: the server only starts
+	// against a fully migrated schema (VerifyStudentSchema at boot), so this
+	// writes them unconditionally — no per-request schema detection (#2059).
 	if planTouched {
-		query = query.Set(`pickup_status = ?`, pickupStatus)
-
-		if cols["departure_days"] {
-			query = query.Set(`departure_days = ?`, departure)
-		}
-		if cols["allowed_departure_modes"] {
-			query = query.Set(`allowed_departure_modes = ?`, allowed)
-		}
-		if cols["bus_days"] {
-			query = query.Set(`bus_days = ?`, busDays)
-		}
-		if cols["pickup_days"] {
-			query = query.Set(`pickup_days = ?`, pickupDays)
-		}
+		query = query.
+			Set(`pickup_status = ?`, pickupStatus).
+			Set(`departure_days = ?`, departure).
+			Set(`allowed_departure_modes = ?`, allowed).
+			Set(`bus_days = ?`, busDays).
+			Set(`pickup_days = ?`, pickupDays)
 	}
 
-	noteWritten := false
-	if noteTouched && cols["departure_companion_note"] {
-		query = query.Set(`departure_companion_note = ?`, noteToStore)
-		noteWritten = true
-	}
-
-	// A note-only update on a schema that predates the companion-note column has
-	// nothing left to write — bail before issuing a SET-less UPDATE.
-	if !planTouched && !noteWritten {
-		return nil
-	}
+	// noteTouched is true here (the !noteTouched no-op returned above), so the
+	// companion note column is always part of this write.
+	query = query.Set(`departure_companion_note = ?`, noteToStore)
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		// Before 1.6.18.1 even pickup_status did not exist; on those ancient
-		// schemas the legacy in-memory fields cover the gap.
-		if isUndefinedColumnError(err) {
-			return nil
-		}
 		return &modelBase.DatabaseError{
 			Op:  "update student departure days",
 			Err: err,
 		}
 	}
 
-	if noteWritten {
-		student.DepartureCompanionNote = noteToStore
-	}
+	student.DepartureCompanionNote = noteToStore
 	if planTouched {
 		student.DepartureDays = departure
 		student.AllowedDepartureModes = allowed
@@ -993,11 +1080,6 @@ func pickupDaysEqual(a, b users.PickupDays) bool {
 	return true
 }
 
-func isUndefinedColumnError(err error) bool {
-	var pgErr pgdriver.Error
-	return errors.As(err, &pgErr) && pgErr.Field('C') == "42703"
-}
-
 // Legacy method to maintain compatibility with old interface
 func (r *StudentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Student, error) {
 	options := modelBase.NewQueryOptions()
@@ -1007,6 +1089,14 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 		if value != nil {
 			applyStudentFilter(filter, field, value)
 		}
+	}
+
+	// Exclude soft-deleted alumni by default so unscoped reads (e.g. database
+	// statistics counting Student.List(ctx, nil)) never count graduates. A
+	// caller that filters on status explicitly (pending / active / alumnus) is
+	// respected and gets exactly what it asked for.
+	if _, ok := filters["status"]; !ok {
+		filter.NotIn("status", string(users.StudentStatusAlumnus))
 	}
 
 	options.Filter = filter
@@ -1083,6 +1173,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		ColumnExpr(`"student".group_id`).
 		ColumnExpr("COUNT(*) AS count").
 		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
 		GroupExpr(`"student".group_id`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
@@ -1177,6 +1268,14 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
+	// Alumni (graduated students) are soft-deleted and must be invisible to
+	// every staff-facing and kiosk roster. This shared builder backs
+	// FindAllWithGroups and FindByTeacherIDWithGroups, which feed the IoT
+	// student roster (GET /api/iot/students) and the calendar student picker;
+	// without this filter graduates stayed visible on the tablet teacher list
+	// and bracelet-assignment despite the documented promise (#405).
+	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+
 	return query
 }
 
@@ -1224,26 +1323,12 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		return nil
 	}
 
-	// departure_days (1.15.120) is the source of truth, but pickup_days
-	// (1.15.116) and departure_days each landed after bus_days (1.15.112), so
-	// there are schema windows where a later column does not exist yet. Detect
-	// each independently and only select present columns — otherwise a missing
-	// column would fail the whole query and drop the bus_days hydration with it.
-	// All four are optional columns that landed in their own migrations; resolve
-	// their existence in one query so hydration stays batched (see
-	// hasStudentColumns). departure_companion_note (1.15.138) is scanonly, so the
-	// generic model select never fetches it: hydrate it here, behind the same
-	// column-existence guard, so it survives the schema windows where the column
-	// is absent.
-	cols, err := r.hasStudentColumns(ctx, "pickup_days", "departure_days", "allowed_departure_modes", "departure_companion_note")
-	if err != nil {
-		return err
-	}
-	hasPickupDays := cols["pickup_days"]
-	hasDepartureDays := cols["departure_days"]
-	hasAllowedDepartureModes := cols["allowed_departure_modes"]
-	hasCompanionNote := cols["departure_companion_note"]
-
+	// All departure columns (bus_days 1.15.112, pickup_days 1.15.116,
+	// departure_days 1.15.120, allowed_departure_modes 1.15.130, the scanonly
+	// departure_companion_note 1.15.138) are guaranteed present: the server
+	// only starts against a fully migrated schema (VerifyStudentSchema at
+	// boot). Hydration therefore selects them with one static query — the
+	// per-request information_schema probes are gone (#2059).
 	type weekdayDaysRow struct {
 		ID                     int64                       `bun:"id"`
 		BusDays                users.BusDays               `bun:"bus_days"`
@@ -1253,23 +1338,8 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		DepartureCompanionNote *string                     `bun:"departure_companion_note"`
 	}
 	var rows []weekdayDaysRow
-	pickupCol := `, NULL::jsonb AS pickup_days`
-	if hasPickupDays {
-		pickupCol = `, "student".pickup_days`
-	}
-	departureCol := `, NULL::jsonb AS departure_days`
-	if hasDepartureDays {
-		departureCol = `, "student".departure_days`
-	}
-	allowedCol := `, NULL::jsonb AS allowed_departure_modes`
-	if hasAllowedDepartureModes {
-		allowedCol = `, "student".allowed_departure_modes`
-	}
-	noteCol := `, NULL::text AS departure_companion_note`
-	if hasCompanionNote {
-		noteCol = `, "student".departure_companion_note`
-	}
-	sql := `SELECT "student".id, "student".bus_days` + pickupCol + departureCol + allowedCol + noteCol +
+	sql := `SELECT "student".id, "student".bus_days, "student".pickup_days, "student".departure_days,` +
+		` "student".allowed_departure_modes, "student".departure_companion_note` +
 		` FROM users.students AS "student" WHERE "student".id IN (?)`
 	args := []any{bun.List(ids)}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -1278,12 +1348,6 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	}
 
 	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {
-		// Migration tests exercise historical schemas with the current model.
-		// Before 1.15.112 the bus_days column legitimately does not exist;
-		// callers can still rely on the legacy bus flag in those schema states.
-		if strings.Contains(err.Error(), "bus_days") {
-			return nil
-		}
 		return &modelBase.DatabaseError{
 			Op:  "hydrate student weekday days",
 			Err: err,
@@ -1297,10 +1361,8 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		}
 		// The companion note is independent of which departure projection wins
 		// below, so set it before the branches (all of which `continue`).
-		if hasCompanionNote {
-			student.DepartureCompanionNote = row.DepartureCompanionNote
-		}
-		if allowed := row.AllowedDepartureModes.Normalize(); hasAllowedDepartureModes && allowed.HasAny() {
+		student.DepartureCompanionNote = row.DepartureCompanionNote
+		if allowed := row.AllowedDepartureModes.Normalize(); allowed.HasAny() {
 			student.AllowedDepartureModes = allowed
 			student.DepartureDays = allowed.DepartureDays()
 			student.BusDays = allowed.BusDays()
@@ -1310,11 +1372,11 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		}
 		// departure_days is authoritative when it carries any non-alone day:
 		// derive the legacy per-day views from it. When it is empty we cannot
-		// tell "genuinely all alone" from "not yet backfilled" (e.g. the
-		// pre-1.15.120 schema window, or a row written straight to bus_days),
-		// so we fall back to the stored legacy maps — which are empty too for a
-		// truly all-alone child, giving the same result either way.
-		if departure := row.DepartureDays.Normalize(); hasDepartureDays && departure.HasAny() {
+		// tell "genuinely all alone" from "not yet backfilled" (e.g. a row
+		// written straight to bus_days), so we fall back to the stored legacy
+		// maps — which are empty too for a truly all-alone child, giving the
+		// same result either way.
+		if departure := row.DepartureDays.Normalize(); departure.HasAny() {
 			student.DepartureDays = departure
 			student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(departure)
 			student.BusDays = departure.BusDays()
@@ -1415,6 +1477,52 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 	return nil
 }
 
+// LockStudentClassWrites takes the EXCLUSIVE per-tenant class-writes gate, so
+// no student can be created in — or moved into — a class while the caller runs.
+// Only the grade transition apply/revert takes it; every ordinary student write
+// takes the shared form (see studentClassWritesLockClass for the race, the lock
+// order, and why row locks cannot cover it).
+//
+// Transaction-scoped: releases at COMMIT/ROLLBACK, so the caller must already be
+// inside the tenant transaction.
+func (r *StudentRepository) LockStudentClassWrites(ctx context.Context) error {
+	return r.lockClassWrites(ctx, false)
+}
+
+// lockClassWritesShared takes the SHARED per-tenant class-writes gate. Called at
+// the top of every repository method that inserts a student, updates one, or
+// takes a student row lock the caller will update under — always BEFORE that
+// method's own row lock, which is what keeps the acquisition order acyclic.
+func (r *StudentRepository) lockClassWritesShared(ctx context.Context) error {
+	return r.lockClassWrites(ctx, true)
+}
+
+func (r *StudentRepository) lockClassWrites(ctx context.Context, shared bool) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		// No tenant in context: the CLI / migration / seeding paths that run
+		// outside the tenant transaction as superuser. There is no per-tenant
+		// gate to take there, and a grade transition (a tenant-scoped HTTP
+		// request) can never be one of those callers.
+		return nil
+	}
+	if tenantID > 0x7fffffff {
+		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
+	}
+
+	lockFn, op := "pg_advisory_xact_lock", "lock_student_class_writes"
+	if shared {
+		lockFn, op = "pg_advisory_xact_lock_shared", "lock_student_class_writes_shared"
+	}
+
+	if _, err := base.GetDB(ctx, r.db).
+		NewRaw("SELECT "+lockFn+"(?, ?)", studentClassWritesLockClass, int32(tenantID)).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: op, Err: err}
+	}
+	return nil
+}
+
 // FindByIDForUpdate fetches a student row with a SELECT … FOR UPDATE so
 // the caller can re-validate state (consent, photo_path, …) under the
 // same row lock the subsequent UPDATE will use. Used by the photo upload
@@ -1446,6 +1554,16 @@ func (r *StudentRepository) FindByIDForUpdateNoWait(ctx context.Context, id int6
 }
 
 func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noWait bool) (*users.Student, error) {
+	// Callers of this method lock the row in order to update it, so the gate has
+	// to be taken here rather than only in Update — otherwise such a caller would
+	// hold a student row and THEN queue behind a grade transition that is waiting
+	// for exactly that row. noWait keeps its meaning for the ROW lock (55P03
+	// instead of waiting, which is what the companion lock protocol relies on);
+	// the gate itself is uncontended except while an apply/revert runs.
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return nil, err
+	}
+
 	lockClause := "UPDATE"
 	op := "find_by_id_for_update"
 	if noWait {
@@ -1465,51 +1583,10 @@ func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noW
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: op, Err: err}
 	}
-	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
+	if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
 		return nil, err
 	}
 	return student, nil
-}
-
-func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, students []*users.Student) error {
-	hasBusDays, err := r.hasStudentColumn(ctx, "bus_days")
-	if err != nil {
-		return err
-	}
-	if !hasBusDays {
-		return nil
-	}
-	return r.hydrateBusDaysForStudents(ctx, students)
-}
-
-// hasStudentColumns resolves the existence of several users.students columns in
-// a SINGLE information_schema query, instead of one round-trip per column.
-// Hydration checks four optional departure columns at once; folding them into
-// one query keeps the per-request query budget batched (api/timetable guards
-// this with a query-count ceiling) rather than N+1.
-func (r *StudentRepository) hasStudentColumns(ctx context.Context, columns ...string) (map[string]bool, error) {
-	present := make(map[string]bool, len(columns))
-	if len(columns) == 0 {
-		return present, nil
-	}
-	var existing []string
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT column_name
-		FROM information_schema.columns
-		WHERE table_schema = 'users'
-		  AND table_name = 'students'
-		  AND column_name IN (?)
-	`, bun.List(columns)).Scan(ctx, &existing)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "check students columns",
-			Err: err,
-		}
-	}
-	for _, col := range existing {
-		present[col] = true
-	}
-	return present, nil
 }
 
 // applyCompanionLinkDays fills the non-persisted Student.DepartureCompanionDays
@@ -1535,18 +1612,6 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		return nil
 	}
 
-	// The table landed in 1.15.209 and the migration tests exercise historical
-	// schemas with the current model, so probe it like the optional departure
-	// columns are probed. Absent table means no links, which keeps the note
-	// requirement in force — failing closed.
-	exists, err := r.hasCompanionTable(ctx)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return nil
-	}
-
 	var weekdays []int
 	if err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT DISTINCT weekday
@@ -1562,44 +1627,6 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		}
 	}
 	return nil
-}
-
-// hasCompanionTable reports whether users.student_companions exists. The table
-// landed in 1.15.209 and the migration tests exercise historical schemas with
-// the current model, so every companion read in this repository is guarded by
-// this probe.
-func (r *StudentRepository) hasCompanionTable(ctx context.Context) (bool, error) {
-	var exists bool
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM information_schema.tables
-			WHERE table_schema = 'users' AND table_name = 'student_companions'
-		)
-	`).Scan(ctx, &exists); err != nil {
-		return false, &modelBase.DatabaseError{Op: "check student companions table", Err: err}
-	}
-	return exists, nil
-}
-
-func (r *StudentRepository) hasStudentColumn(ctx context.Context, column string) (bool, error) {
-	var exists bool
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM information_schema.columns
-			WHERE table_schema = 'users'
-			  AND table_name = 'students'
-			  AND column_name = ?
-		)
-	`, column).Scan(ctx, &exists)
-	if err != nil {
-		return false, &modelBase.DatabaseError{
-			Op:  "check students column",
-			Err: err,
-		}
-	}
-	return exists, nil
 }
 
 // PurgeAllPhotos clears photo_path for every row visible in the current
@@ -1690,6 +1717,12 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 }
 
 // FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+//
+// Alumni are excluded, matching the soft-delete default in List: graduation
+// keeps the student row around, and a graduate must not block the import of a
+// new child who happens to share their name and class. Before graduation became
+// a soft delete the row was gone and could not collide; leaving it visible here
+// would reject that import as already_exists (#405 review).
 func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -1698,7 +1731,8 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
 		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
-		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass)
+		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -1735,6 +1769,50 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 	}
 
 	return base.AssertRowsAffected(result, 1, "update student status")
+}
+
+// TransitionStatus changes a student's lifecycle status only when the stored
+// status still matches expected. It returns false without error when another
+// writer changed or removed the row after the caller selected it.
+//
+// Background lifecycle work (the activate-students tick) selects due rows, then
+// updates them one by one. An unconditional update by id resurrects a student
+// whose status changed in that window: a grade transition graduating the child
+// commits `alumnus`, the pending update waits on the same row lock, and then
+// replaces it with `active` or `inactive` — putting a departed child back into
+// every staff list, roster and export, past all the alumnus read filters and
+// without any of apply's guards. Comparing against the status the caller
+// actually saw makes that update a no-op instead (#405 review).
+func (r *StudentRepository) TransitionStatus(
+	ctx context.Context,
+	studentID int64,
+	expected users.StudentStatus,
+	next users.StudentStatus,
+) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set("status = ?", string(next)).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, studentID).
+		Where(`"student".status = ?`, string(expected))
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "transition student status",
+			Err: err,
+		}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "transition student status",
+			Err: err,
+		}
+	}
+	return affected == 1, nil
 }
 
 // FindPendingDueForActivation returns students whose status='pending' and

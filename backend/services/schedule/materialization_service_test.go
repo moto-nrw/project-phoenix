@@ -230,6 +230,11 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 	}
 }
 
+func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
+	enrollment := &activities.StudentEnrollment{}
+	assert.False(t, enrollmentStudentIsAlumnus(enrollment))
+}
+
 // -----------------------------------------------------------------------------
 // TestIsSupervisorValidOn — same shape as enrollments (ensures the two
 // predicates stay symmetric by design).
@@ -656,6 +661,24 @@ func TestMaterializeForTenant_TemplateInsertErrorBubbles(t *testing.T) {
 	assert.Zero(t, result.CandidatesRaced)
 }
 
+func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
+	svc, saturday := newMaterializationBranchServiceForSchedule(
+		materializationFakeInstanceRepo{inserted: true},
+		timezone.NewDate(2026, time.April, 25),
+		activities.WeekdaySaturday,
+	)
+
+	result, err := svc.MaterializeForTenant(
+		tenant.WithTenantID(context.Background(), 300),
+		saturday,
+		saturday,
+		MaterializationSourceManual,
+	)
+
+	require.NoError(t, err)
+	assert.Zero(t, result.InstancesCreated)
+}
+
 func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 	date := timezone.NewDate(2026, 4, 20)
 
@@ -983,6 +1006,14 @@ func (r *materializationCountingStaffRepo) Create(_ context.Context, row *schedu
 
 func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (MaterializationService, timezone.Date) {
 	date := timezone.NewDate(2026, 4, 20)
+	return newMaterializationBranchServiceForSchedule(instanceRepo, date, activities.WeekdayMonday)
+}
+
+func newMaterializationBranchServiceForSchedule(
+	instanceRepo materializationFakeInstanceRepo,
+	date timezone.Date,
+	weekday int,
+) (MaterializationService, timezone.Date) {
 	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
 	roomID := int64(700)
@@ -999,7 +1030,7 @@ func newMaterializationBranchService(instanceRepo materializationFakeInstanceRep
 		materializationFakeScheduleRepo{schedules: []*activities.Schedule{{
 			Model:           modelBase.Model{ID: 800},
 			ActivityGroupID: templateID,
-			Weekday:         activities.WeekdayMonday,
+			Weekday:         weekday,
 			TimeframeID:     &timeframeID,
 		}}},
 		materializationFakeEnrollmentRepo{},

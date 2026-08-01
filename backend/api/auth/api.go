@@ -186,8 +186,13 @@ func (rs *Resource) Router() chi.Router {
 			// Account creation — uses users:manage (not users:create) because
 			// the "user" role is granted users:create in migrations; manage
 			// restricts this to actual administrators.
+			//
+			// link-to-tenant carries the same weight: it assigns a role to an
+			// existing account inside the caller's tenant, so guarding it with
+			// users:create would let every "user" account grant itself the
+			// admin role (issue #1021 review).
 			r.With(authorize.RequiresPermission(permUsersManage)).Post("/register", rs.register)
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
+			r.With(authorize.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
@@ -229,7 +234,7 @@ func (rs *Resource) Router() chi.Router {
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.AssignRoleToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
 						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, common.ErrorInternalServer))
 					})
 
@@ -272,7 +277,11 @@ func (rs *Resource) Router() chi.Router {
 			})
 
 			r.Route("/invitations", func(r chi.Router) {
-				r.With(authorize.RequiresPermission(permUsersCreate)).Post("/", rs.createInvitation)
+				// users:manage, not users:create: the "user" role carries
+				// users:create globally (migration 1.5.3, so Betreuer can
+				// create person records), and an invitation hands out a role.
+				// The UI already gates this screen on the admin role.
+				r.With(authorize.RequiresPermission(permUsersManage)).Post("/", rs.createInvitation)
 				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)

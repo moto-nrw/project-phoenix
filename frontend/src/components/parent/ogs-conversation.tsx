@@ -211,7 +211,7 @@ export function OgsConversation({
     >
       {showBack ? <BackBar /> : null}
 
-      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-5 py-4 sm:px-6">
           <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
             Austausch mit der OGS

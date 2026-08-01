@@ -2,19 +2,15 @@
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
-import {
-  timetableRequiredMark,
-  timetableSelectClass,
-} from "../timetable-style";
+import { timetableRequiredMark } from "../timetable-style";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState, RepeatMode } from "./form-model";
 import { WEEKDAYS } from "./use-event-form";
-
-const FORM_SELECT_CLASS = timetableSelectClass;
 
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
@@ -75,6 +71,21 @@ export function StepWiederholung({
   dateWeekdayName,
   manualWeekPattern,
 }: Readonly<StepWiederholungProps>) {
+  const legacyWeekendWeekdays = form.weekdays.filter((iso) => iso > 5);
+  const normalizeLegacyWeekend = (legacyWeekday: number) => {
+    const weekdays = form.weekdays.filter((iso) => iso !== legacyWeekday);
+    // This control explicitly migrates the selected legacy day to Monday. A
+    // different workday (for example Friday) must not turn that migration into
+    // a silent deletion of future weekend appointments.
+    if (!weekdays.includes(1)) {
+      weekdays.push(1);
+    }
+    update(
+      "weekdays",
+      weekdays.sort((a, b) => a - b),
+    );
+  };
+
   return (
     <>
       {expanded ? (
@@ -116,23 +127,27 @@ export function StepWiederholung({
         </div>
       ) : (
         <Field label="Wiederholt sich" htmlFor="event_quick_repeat">
-          <select
+          <CustomSelect
             id="event_quick_repeat"
+            ariaLabel="Wiederholt sich"
             value={quickPreset}
-            onChange={(event) => handleQuickPresetChange(event.target.value)}
-            className={FORM_SELECT_CLASS}
-          >
-            <option value="einmalig">Einmalig</option>
-            {/* On Sa/So a weekly preset would silently save a Monday
-                series (weekdays are Mo–Fr) — omit it instead. */}
-            {dateWeekday >= 1 && dateWeekday <= 5 && (
-              <option value="woechentlich-am">
-                {`Wöchentlich am ${dateWeekdayName}`}
-              </option>
-            )}
-            <option value="jeden-wochentag">Jeden Wochentag (Mo–Fr)</option>
-            <option value="benutzerdefiniert">Benutzerdefiniert …</option>
-          </select>
+            options={[
+              { value: "einmalig", label: "Einmalig" },
+              // On Sa/So a weekly preset would silently save a Monday
+              // series (weekdays are Mo–Fr) — omit it instead.
+              ...(dateWeekday >= 1 && dateWeekday <= 5
+                ? [
+                    {
+                      value: "woechentlich-am",
+                      label: `Wöchentlich am ${dateWeekdayName}`,
+                    },
+                  ]
+                : []),
+              { value: "jeden-wochentag", label: "Jeden Wochentag (Mo–Fr)" },
+              { value: "benutzerdefiniert", label: "Benutzerdefiniert …" },
+            ]}
+            onChange={(next) => handleQuickPresetChange(next)}
+          />
         </Field>
       )}
 
@@ -185,7 +200,26 @@ export function StepWiederholung({
                   </Button>
                 );
               })}
+              {legacyWeekendWeekdays.map((iso) => (
+                <Button
+                  key={iso}
+                  type="button"
+                  variant="outline_danger"
+                  size="compact"
+                  className="min-w-[44px]"
+                  onClick={() => normalizeLegacyWeekend(iso)}
+                  aria-label={`Alten Wochenendtag ${weekdayLabel(iso)} zu Montag ändern`}
+                >
+                  {weekdayLabel(iso)} zu Mo
+                </Button>
+              ))}
             </div>
+            {legacyWeekendWeekdays.length > 0 && (
+              <p className="text-xs text-gray-500">
+                Wochenendtermine aus bestehenden Serien werden zu Montag
+                verschoben oder entfernt, wenn ein Werktag verbleibt.
+              </p>
+            )}
             {fieldErrors.weekdays && (
               <p role="alert" className="mt-1 text-xs text-[#FF3130]">
                 {fieldErrors.weekdays}
@@ -201,28 +235,27 @@ export function StepWiederholung({
                 required
                 error={fieldErrors.calendarPeriodId}
               >
-                <select
+                <CustomSelect
                   id="event_period"
-                  value={form.calendarPeriodId}
-                  onChange={(event) =>
-                    update("calendarPeriodId", event.target.value)
-                  }
-                  required
-                  aria-invalid={fieldErrors.calendarPeriodId ? true : undefined}
-                  aria-describedby={
+                  ariaLabel="Planungszeitraum"
+                  ariaDescribedBy={
                     fieldErrors.calendarPeriodId
                       ? "event_period_error"
                       : undefined
                   }
-                  className={FORM_SELECT_CLASS}
-                >
-                  <option value="">Zeitraum auswählen …</option>
-                  {calendarPeriods.map((period) => (
-                    <option key={period.id} value={period.id}>
-                      {period.name}
-                    </option>
-                  ))}
-                </select>
+                  value={form.calendarPeriodId}
+                  options={[
+                    { value: "", label: "Zeitraum auswählen …" },
+                    ...calendarPeriods.map((period) => ({
+                      value: period.id,
+                      label: period.name,
+                    })),
+                  ]}
+                  onChange={(next) => update("calendarPeriodId", next)}
+                  required
+                  invalid={Boolean(fieldErrors.calendarPeriodId)}
+                  placeholder="Zeitraum auswählen …"
+                />
               </Field>
             ) : (
               <div className="flex flex-col justify-end gap-1">

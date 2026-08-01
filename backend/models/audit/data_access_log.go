@@ -9,6 +9,10 @@ import (
 // ResourceType constants for DataAccessLog.ResourceType.
 const (
 	ResourceTypeAttendanceHistory = "attendance_history"
+	// ResourceTypeAttendanceDayLog records a group day-log view/export
+	// (issue #1456): per-group daily statuses of many children at once.
+	// StudentID stays NULL; metadata carries the group scope.
+	ResourceTypeAttendanceDayLog = "attendance_day_log"
 	// ResourceTypeEnrollmentPhaseExport records a bulk export of every
 	// registration (guardian + child PII) in one enrollment phase. The
 	// row's range_start/range_end carry the phase's service window —

@@ -64,7 +64,9 @@ function loadAccess(): SeedAccess | null {
 const access = loadAccess();
 const base = access ? `http://${access.slug}.localhost:3000` : "";
 
-const ALLOWED_PARAMS = new Set(["d", "block", "verlauf"]);
+// `view` kam mit der Wochenansicht (#2030) hinzu; die Tagesansicht bleibt der
+// Standard und schreibt den Parameter nicht.
+const ALLOWED_PARAMS = new Set(["d", "view", "block", "verlauf"]);
 const DEVIATIONS_RE = /\/api\/timetable\/instances\/\d+\/deviations$/;
 // Großzügiges Budget für Zusicherungen, die von einem SWR-Refetch gegen den
 // Next-Dev-Server abhängen (Liste nach Save, Verlauf nach Deep-Link).
@@ -80,8 +82,8 @@ let cleanupStaffId: number | null = null;
 
 /**
  * URL-Vokabular-Invariante (Akzeptanzkriterium 3): der Bereich trägt nie mehr
- * als `d`, `block`, `verlauf`. Der Filterzustand ("Nur Störungen | Ganzer Tag")
- * ist lokaler State und darf nie in der URL landen.
+ * als `d`, `view`, `block`, `verlauf`. Der Filterzustand ("Nur Störungen |
+ * Ganzer Tag") ist lokaler State und darf nie in der URL landen.
  */
 function assertUrlVocabulary(page: Page, context: string) {
   const keys = [...new URL(page.url()).searchParams.keys()];

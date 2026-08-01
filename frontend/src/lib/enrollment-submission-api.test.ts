@@ -151,6 +151,7 @@ describe("enrollment-submission-api", () => {
           school_class: {
             collect: true,
             require: true,
+            collect_grade_1: true,
             // Non-string entries are filtered out.
             available_classes: ["2a", "2b", 3, null, "3a"],
           },
@@ -165,6 +166,8 @@ describe("enrollment-submission-api", () => {
         collect: true,
         require: true,
         available_classes: ["2a", "2b", "3a"],
+        // Server-authoritative grade-1 collection flag (#1663).
+        collect_grade_1: true,
       },
     });
   });
@@ -188,6 +191,7 @@ describe("enrollment-submission-api", () => {
         collect: false,
         require: false,
         available_classes: [],
+        collect_grade_1: false,
       },
     });
   });
@@ -206,6 +210,8 @@ describe("enrollment-submission-api", () => {
       collect: false,
       available_classes: [],
       require: false,
+      // Grade 1 stays grade-level-only unless the backend says otherwise (#1663).
+      collect_grade_1: false,
     });
   });
 

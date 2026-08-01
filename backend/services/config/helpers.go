@@ -26,6 +26,10 @@ type stringResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
+type snapshotResolver interface {
+	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
+}
+
 // ResolveBoolOrDefault returns the tenant-override value for a boolean setting if
 // one exists, otherwise the provided fallback default.
 //
@@ -40,6 +44,29 @@ type stringResolver interface {
 func ResolveBoolOrDefault(ctx context.Context, svc boolResolver, key string, fallback bool, logger *slog.Logger) bool {
 	if svc == nil {
 		return fallback
+	}
+	if batch, ok := any(svc).(snapshotResolver); ok {
+		snapshot, err := batch.ResolveMany(ctx, []string{key})
+		if err != nil {
+			logSettingsFallback(logger, "settings snapshot failed, using fallback", key, err)
+			return fallback
+		}
+		if snapshot != nil {
+			has, err := snapshot.HasOverride(key)
+			if err != nil {
+				logSettingsFallback(logger, "settings override check failed, using fallback", key, err)
+				return fallback
+			}
+			if !has {
+				return fallback
+			}
+			value, err := snapshot.Bool(key)
+			if err != nil {
+				logSettingsFallback(logger, "settings resolve failed, using fallback", key, err)
+				return fallback
+			}
+			return value
+		}
 	}
 	has, err := svc.HasTenantOverride(ctx, key)
 	if err != nil {
@@ -71,6 +98,29 @@ func ResolveBoolOrDefault(ctx context.Context, svc boolResolver, key string, fal
 func ResolveIntOrDefault(ctx context.Context, svc intResolver, key string, fallback int, logger *slog.Logger) int {
 	if svc == nil {
 		return fallback
+	}
+	if batch, ok := any(svc).(snapshotResolver); ok {
+		snapshot, err := batch.ResolveMany(ctx, []string{key})
+		if err != nil {
+			logSettingsFallback(logger, "settings snapshot failed, using fallback", key, err)
+			return fallback
+		}
+		if snapshot != nil {
+			has, err := snapshot.HasOverride(key)
+			if err != nil {
+				logSettingsFallback(logger, "settings override check failed, using fallback", key, err)
+				return fallback
+			}
+			if !has {
+				return fallback
+			}
+			value, err := snapshot.Int(key)
+			if err != nil {
+				logSettingsFallback(logger, "settings resolve failed, using fallback", key, err)
+				return fallback
+			}
+			return value
+		}
 	}
 	has, err := svc.HasTenantOverride(ctx, key)
 	if err != nil {
@@ -105,6 +155,32 @@ func ResolveStringOrDefault(ctx context.Context, svc stringResolver, key, fallba
 	if svc == nil {
 		return fallback
 	}
+	if batch, ok := any(svc).(snapshotResolver); ok {
+		snapshot, err := batch.ResolveMany(ctx, []string{key})
+		if err != nil {
+			logSettingsFallback(logger, "settings snapshot failed, using fallback", key, err)
+			return fallback
+		}
+		if snapshot != nil {
+			has, err := snapshot.HasOverride(key)
+			if err != nil {
+				logSettingsFallback(logger, "settings override check failed, using fallback", key, err)
+				return fallback
+			}
+			if !has {
+				return fallback
+			}
+			value, err := snapshot.String(key)
+			if err != nil {
+				logSettingsFallback(logger, "settings resolve failed, using fallback", key, err)
+				return fallback
+			}
+			if value == "" {
+				return fallback
+			}
+			return value
+		}
+	}
 	has, err := svc.HasTenantOverride(ctx, key)
 	if err != nil {
 		if logger != nil {
@@ -132,4 +208,14 @@ func ResolveStringOrDefault(ctx context.Context, svc stringResolver, key, fallba
 		return fallback
 	}
 	return val
+}
+
+func logSettingsFallback(logger *slog.Logger, message, key string, err error) {
+	if logger == nil {
+		return
+	}
+	logger.Warn(message,
+		slog.String("key", key),
+		slog.String("error", err.Error()),
+	)
 }

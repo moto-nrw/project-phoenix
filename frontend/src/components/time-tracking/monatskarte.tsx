@@ -6,8 +6,17 @@
 // Saldo. Everything is computed live by the backend — the Übertrag updates
 // automatically when past months are corrected.
 
+import { Lock } from "lucide-react";
+
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
-import { formatDuration } from "~/lib/time-tracking-helpers";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
+import {
+  balanceAdjustmentTypeLabel,
+  formatDuration,
+} from "~/lib/time-tracking-helpers";
 import type { MonthSummary } from "~/lib/time-tracking-helpers";
 
 const MONTH_NAMES = [
@@ -34,6 +43,8 @@ function formatDays(days: number): string {
   return `${value} ${days === 1 ? "Tag" : "Tage"}`;
 }
 
+// Plain text on the white card: brand green for a positive balance, the app's
+// red-600 for a negative one — same tone map as the table rows and KpiCard.
 function deltaClass(minutes: number): string {
   if (minutes > 0) return "text-[#70b525]";
   if (minutes < 0) return "text-red-600";
@@ -101,6 +112,11 @@ export interface MonatskarteProps {
   readonly accountStartsInFuture?: boolean;
   /** Configured account start ("YYYY-MM-DD"), for the pre-account note. */
   readonly accountStartDate?: string;
+  /**
+   * Admin-only (#1417): renders the "Monat wieder öffnen" action on a closed
+   * month. The MA-facing own view passes nothing and stays read-only.
+   */
+  readonly onReopen?: () => void;
 }
 
 function formatIsoDateGerman(iso: string): string {
@@ -116,18 +132,19 @@ export function Monatskarte({
   isPreAccountMonth = false,
   accountStartsInFuture = false,
   accountStartDate,
+  onReopen,
 }: MonatskarteProps) {
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
         <div className="h-40 animate-pulse rounded-lg bg-gray-100" />
       </div>
     );
   }
   if (error) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <Alert type="error" message={error} />
       </div>
     );
   }
@@ -136,6 +153,7 @@ export function Monatskarte({
   const creditedTotal =
     summary.creditedSickMinutes +
     summary.creditedVacationMinutes +
+    summary.creditedTrainingMinutes +
     summary.creditedOtherMinutes;
 
   const planCoverage = (() => {
@@ -153,10 +171,25 @@ export function Monatskarte({
   })();
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
-        Monatskarte {monthLabel(summary.year, summary.month)}
-      </h3>
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-gray-900">
+          Monatskarte {monthLabel(summary.year, summary.month)}
+        </h3>
+        {summary.isClosed && (
+          <span className="inline-flex items-center gap-1.5">
+            <Lock className="h-3 w-3 text-gray-500" aria-hidden />
+            <StatusBadge
+              tone="gray"
+              label={`Abgeschlossen${
+                summary.closedAt
+                  ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
+                  : ""
+              }`}
+            />
+          </span>
+        )}
+      </div>
 
       <div className="divide-y divide-gray-100">
         {!isPreAccountMonth && (
@@ -195,14 +228,33 @@ export function Monatskarte({
                 value={formatDuration(summary.creditedVacationMinutes)}
               />
             )}
+            {summary.creditedTrainingMinutes > 0 && (
+              <SummaryRow
+                label="Gutschrift Fortbildung"
+                hint={formatDays(summary.trainingDays)}
+                value={formatDuration(summary.creditedTrainingMinutes)}
+              />
+            )}
             {summary.creditedOtherMinutes > 0 && (
               <SummaryRow
-                label="Gutschrift Fortbildung/Sonstiges"
+                label="Gutschrift Sonstiges"
                 value={formatDuration(summary.creditedOtherMinutes)}
               />
             )}
           </>
         )}
+        {/* Stundenkonto-Buchungen (#1420): Auszahlung, Freizeitausgleich,
+            Reset — eine Zeile pro Buchung, damit die Kette Soll → Ist →
+            Anpassungen → Saldo von oben nach unten nachrechenbar bleibt. */}
+        {summary.adjustments.map((adjustment) => (
+          <SummaryRow
+            key={adjustment.id}
+            label={balanceAdjustmentTypeLabel(adjustment.type)}
+            hint={formatIsoDateGerman(adjustment.effectiveDate)}
+            value={formatSignedDuration(adjustment.minutesDelta)}
+            valueClass={deltaClass(adjustment.minutesDelta)}
+          />
+        ))}
         <SummaryRow
           label="Dienstplan geplant"
           hint={planCoverage.hint}
@@ -225,17 +277,65 @@ export function Monatskarte({
             the value is a clean 0 for an empty span. Printing either as
             "Übertrag Monatsende" or "Stundenkonto Stand" would present a
             non-cumulative figure as a real balance. */}
-        {!isPreAccountMonth && !accountStartsInFuture && (
-          <SummaryRow
-            label={
-              isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"
-            }
-            value={formatSignedDuration(summary.closingBalanceMinutes)}
-            valueClass={deltaClass(summary.closingBalanceMinutes)}
-            emphasis
-          />
-        )}
+        {!isPreAccountMonth &&
+          !accountStartsInFuture &&
+          (summary.isClosed && summary.frozenClosingBalanceMinutes !== null ? (
+            // Abgeschlossener Monat: der Folgemonat rechnet mit dem
+            // EINGEFRORENEN Wert weiter, also ist der die verbindliche Zahl.
+            // Die live gerechneten Zeilen darüber bleiben stehen; weicht ihre
+            // Summe ab, erklärt der Hinweis darunter die Differenz.
+            <SummaryRow
+              label="Übertrag Monatsende (eingefroren)"
+              value={formatSignedDuration(summary.frozenClosingBalanceMinutes)}
+              valueClass={deltaClass(summary.frozenClosingBalanceMinutes)}
+              emphasis
+            />
+          ) : (
+            <SummaryRow
+              label={
+                isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"
+              }
+              value={formatSignedDuration(summary.closingBalanceMinutes)}
+              valueClass={deltaClass(summary.closingBalanceMinutes)}
+              emphasis
+            />
+          ))}
       </div>
+
+      {summary.isClosed && summary.driftMinutes !== 0 && (
+        <div className="mt-3 rounded-xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-3 text-xs text-[#8A5600]">
+          <p className="font-semibold">
+            Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
+          </p>
+          <p className="mt-1">
+            Neu gerechnet wäre der Übertrag{" "}
+            <span className="font-medium tabular-nums">
+              {formatSignedDuration(summary.closingBalanceMinutes)}
+            </span>{" "}
+            ({formatSignedDuration(summary.driftMinutes)} gegenüber dem
+            abgeschlossenen Stand). Der Übertrag in den Folgemonat bleibt beim
+            eingefrorenen Wert.
+          </p>
+          <p className="mt-1">
+            Zwei Wege zur Korrektur: die Differenz im offenen Monat als Buchung
+            im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder den Monat
+            wieder öffnen, wenn der Abschluss selbst falsch war.
+          </p>
+        </div>
+      )}
+
+      {summary.isClosed && onReopen && (
+        <div className="mt-3 flex justify-end">
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            onClick={onReopen}
+          >
+            Monat wieder öffnen…
+          </Button>
+        </div>
+      )}
 
       {isPreAccountMonth && (
         <p className="mt-3 text-xs text-gray-500">

@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -86,6 +87,59 @@ var (
 	ErrEditNotAllowed          = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed      = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment     = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// ErrExistingStudentAlreadyRequested rejects an existing_students
+	// submission (or parent edit) whose child matched an already-enrolled
+	// student that ANOTHER active request in the same phase already targets.
+	// The email-based duplicate check keys on guardian_email, so two guardians
+	// with different emails submitting the same child both slip through it yet
+	// pin the same matched_student_id; approving both would renew/overwrite one
+	// live student twice and duplicate its care-offering enrollments. Enforced
+	// unconditionally (independent of the block/warn/ignore duplicate policy)
+	// because it protects a live student record, not just parent convenience
+	// (#1663). Mapped to 409 Conflict.
+	ErrExistingStudentAlreadyRequested = errors.New("another active enrollment request already targets this student in this phase")
+	// Phase eligibility sentinels (#1663). ErrPhaseNotEligible is the
+	// audience gate: a linked_parents phase rejects anonymous submissions
+	// (the parent handler additionally verifies the guardian link before
+	// stamping GuardianAccountID). The two child-level errors carry stable
+	// codes so the form can explain which child is affected.
+	ErrPhaseNotEligible      = errors.New("phase is not open for this applicant")
+	ErrChildClassNotEligible = fmt.Errorf("%w: child school class is not eligible for this phase", ErrInvalidSubmission)
+	// ErrChildGradeNotEligible is the grade-level counterpart of
+	// ErrChildClassNotEligible: a phase aimed at whole grades (e.g. all
+	// grade-3 applicants) rejects a child declaring any other grade.
+	ErrChildGradeNotEligible = fmt.Errorf("%w: child grade level is not eligible for this phase", ErrInvalidSubmission)
+	ErrChildAlreadyEnrolled  = fmt.Errorf("%w: child is already enrolled at this school", ErrInvalidSubmission)
+	// ErrChildNotEnrolled backs the existing_students audience — the
+	// inverse of ErrChildAlreadyEnrolled: a phase open only to already
+	// enrolled students rejects a child with no matching enrolled record.
+	ErrChildNotEnrolled = fmt.Errorf("%w: child is not enrolled at this school", ErrInvalidSubmission)
+	// ErrChildEnrollmentAmbiguous rejects an existing_students submission
+	// whose child matches MORE THAN ONE already-enrolled record by
+	// name+birthday. The enrolled gate passes (at least one match exists) but
+	// the matched-student resolver refuses to guess which record to renew, so
+	// approval would silently take the fresh-create path and add yet another
+	// duplicate on top of the colliding records. The school must resolve the
+	// duplicate students first (#1663).
+	ErrChildEnrollmentAmbiguous = fmt.Errorf("%w: child matches multiple enrolled students at this school", ErrInvalidSubmission)
+	// ErrChildEnrollmentNotPermitted rejects an existing_students re-enrollment
+	// submitted from the parents portal when the authenticated guardian account
+	// does NOT hold parent_portal.enrollment.submit on the SPECIFIC already
+	// enrolled student the child matched (#1663). Guardian parent-portal
+	// permissions are relationship-scoped: a parent authorized to re-enroll one
+	// child must not be able to renew a DIFFERENT child at the same school just
+	// because the school-wide GuardianSubmitEligible audience flag is set. It is
+	// an authorization failure (mapped to 403), NOT an ErrInvalidSubmission.
+	ErrChildEnrollmentNotPermitted = errors.New("guardian is not permitted to re-enroll this child")
+	// ErrPhaseAudienceRestricted is the public form-load gate for
+	// audience-restricted phases (#1663): a linked_parents or
+	// existing_students phase cannot be bootstrapped anonymously, so the
+	// unauthenticated public path rejects it (the same set Submit refuses —
+	// see audienceRequiresGuardianAccount). It maps to a plain 404 so an
+	// anonymous caller cannot distinguish
+	// a restricted phase from a non-existent one; the parents portal loads
+	// these phases through its own authenticated bootstrap path instead.
+	ErrPhaseAudienceRestricted = errors.New("phase is not available for public enrollment")
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -133,11 +187,19 @@ type SubmitRequest struct {
 	CustomData        map[string]any
 
 	// GuardianAccountID is set when the submission comes from an
-	// authenticated parent on the parents portal. The handler verifies
-	// the account has access to req.TenantID before passing it through.
-	// Stamped onto the request row so PR 11/4 can skip the invitation
-	// when an account already exists. nil = anonymous public submission.
+	// authenticated parent on the parents portal. Stamped onto the
+	// request row so PR 11/4 can skip the invitation when an account
+	// already exists. nil = anonymous public submission.
 	GuardianAccountID *int64
+
+	// GuardianSubmitEligible is set by the parent handler alongside
+	// GuardianAccountID: true when the account holds a guardian
+	// relationship at the tenant granting parent_portal.enrollment.submit
+	// (#1663). Phases with audience=linked_parents require it; open and
+	// new_students phases accept authenticated parents without any
+	// guardian link (applying to a new school is the point of the parent
+	// picker). Always false for anonymous submissions.
+	GuardianSubmitEligible bool
 
 	Children []SubmitChild
 
@@ -333,14 +395,24 @@ type RequestService interface {
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
 	LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
 
-	// LoadPublicPhaseWithLateInvite is the shared public phase gate: every
-	// public form-load endpoint (schema, offerings, legal texts, bootstrap)
-	// calls this so a direct or stale parent link cannot load detail data
-	// for a phase the picker would hide. Returns ErrEnrollmentDisabled when
-	// the tenant toggle is off or the phase is inactive, ErrInvalidSubmission
-	// when the id is unknown, and ErrEnrollmentWindowClosed outside the
-	// phase's enrollment window. Caller must be inside a tenant-tx.
+	// LoadPublicPhaseWithLateInvite is the shared anonymous public phase
+	// gate: every public form-load endpoint (schema, offerings, legal texts,
+	// bootstrap) calls this so a direct or stale parent link cannot load
+	// detail data for a phase the picker would hide. Returns
+	// ErrEnrollmentDisabled when the tenant toggle is off or the phase is
+	// inactive, ErrInvalidSubmission when the id is unknown,
+	// ErrEnrollmentWindowClosed outside the phase's enrollment window, and
+	// ErrPhaseAudienceRestricted for an audience-restricted (linked_parents /
+	// existing_students) phase — those are reachable only through the
+	// authenticated parents-portal gate (LoadEnrolleePhaseWithLateInvite).
+	// Caller must be inside a tenant-tx.
 	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
+	// LoadEnrolleePhaseWithLateInvite is the authenticated parents-portal
+	// counterpart to LoadPublicPhaseWithLateInvite; identical except it also
+	// admits the audience-restricted (linked_parents / existing_students)
+	// phases the caller's resolved guardian facts cover — the caller passes
+	// them as EnrolleeAudienceAccess, whose zero value is the public gate.
+	LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error)
 	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
 
 	// LoadPublicFormBootstrap assembles everything the public enrollment
@@ -351,6 +423,12 @@ type RequestService interface {
 	// in *BootstrapStageError so the caller can map them to 500 instead of
 	// the public 404 gate mapping. Caller must be inside a tenant-tx.
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadEnrolleeFormBootstrap mirrors LoadPublicFormBootstrap for the
+	// authenticated parents-portal form load, using the enrollee phase gate
+	// so the audience-restricted phases the caller's access covers load for a
+	// logged-in guardian. Passing the zero access value makes it behave
+	// exactly like LoadPublicFormBootstrap. Caller must be inside a tenant-tx.
+	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
 	// LoadPublicCareOfferings is the offering-only projection of the public
 	// bootstrap: phase gate + capabilities + active offerings, no schema,
 	// legal texts or captcha. Capability failures are wrapped in
@@ -418,6 +496,18 @@ type RequestSettingsResolver interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
+// GuardianStudentAuthorizer is the narrow slice of the student-guardian
+// repository the submit path needs: a per-child parent-portal permission probe.
+// It backs the existing_students re-enrollment authorization gate (#1663) — the
+// only place Submit resolves a concrete existing student a submission could
+// renew. Two probes, one per identity the enrollment flows can carry: the
+// authenticated portal account, and (for the accountless late-invite path) the
+// guardian email the request is bound to.
+type GuardianStudentAuthorizer interface {
+	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
+	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
+}
+
 // RequestServiceConfig is the dep-injection bundle.
 type RequestServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
@@ -429,9 +519,27 @@ type RequestServiceConfig struct {
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	SchoolRepo               platformModels.SchoolRepository
-	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
-	OutboxEnqueuer           platformModels.OutboxEnqueuer
-	Settings                 RequestSettingsResolver
+	// StudentRepo backs the new_students audience check (#1663): a
+	// submission for a child who is already an enrolled student at the
+	// school is rejected. Nil-safe — without the repo the check is
+	// skipped (relevant for narrow test setups only; the factory always
+	// wires it).
+	StudentRepo users.StudentRepository
+	// GuardianAuthorizer verifies per-child parent-portal permissions for every
+	// submit path that can pin an existing student. It gates existing_students
+	// re-enrollment (#1663): the matched student may be renewed only when the
+	// request's own guardian identity — the authenticated account, or the bound
+	// guardian email on the accountless late-invite path — holds
+	// parent_portal.enrollment.submit on ITS relationship to that student. The
+	// school-wide GuardianSubmitEligible flag and a late-invite token both admit
+	// the submitter to the phase but neither proves authority over one child. The
+	// submit path fails closed when the authorizer is nil and a submission
+	// resolves an existing student, so only tests that never pin one leave it
+	// unset (the factory always wires it).
+	GuardianAuthorizer GuardianStudentAuthorizer
+	RateLimitRepo      enrollmentModels.SubmissionRateLimitRepository
+	OutboxEnqueuer     platformModels.OutboxEnqueuer
+	Settings           RequestSettingsResolver
 	// ManualDecider approves the freshly submitted request in the manual
 	// admin-enrollment flow. Narrow slice of DecisionService so the request
 	// service does not depend on the whole decision surface.
@@ -488,6 +596,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, err
 	}
+	// Bind the phase to the submission's tenant. The parent submit path
+	// resolves the phase under an admin transaction (RLS bypassed), so a
+	// phase_id belonging to another school would otherwise load cleanly and
+	// get stamped with THIS school's tenant_id. Reject the cross-tenant
+	// reference before any window / eligibility / permission decision
+	// consumes it — mirroring the "not found" shape so a probe can't
+	// distinguish another tenant's phase from a nonexistent one (#1663).
+	if phase.TenantID != req.TenantID {
+		return nil, fmt.Errorf("%w: phase %d not found", ErrInvalidSubmission, req.PhaseID)
+	}
 	now := time.Now()
 	if !req.AllowClosedPhase && !IsEnrollmentWindowOpen(phase, now) {
 		return nil, ErrEnrollmentWindowClosed
@@ -535,19 +653,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, err
 	}
+	capacityChildren := childrenWithMaterializedOfferingSelections(req.Children, materializedSelections)
 
-	// Decide per-child overflow status before opening the write tx.
 	// childStatusOverrides[i] is set when capacity logic forces a
-	// non-default status (e.g. waitlisted under mode=waitlist). When the
-	// mode is 'reject' an over-capacity offering aborts the whole
-	// submission with ErrCareOfferingFull. Mode comes from the phase row.
+	// non-default status (e.g. waitlisted under mode=waitlist). It is resolved
+	// inside the write transaction below, so the offering locks protect both
+	// the count and the request-child offering rows that consume the slot.
 	childStatusOverrides := map[int]string{}
-	if capabilities.CareOfferingsEnabled {
-		childStatusOverrides, err = s.applyCapacityOverflow(ctx, phase, req.Children, openByID)
-	}
-	if err != nil {
-		return nil, err
-	}
 
 	// Pin the schema version to whichever schema the phase points at,
 	// or the tenant's currently-active schema if the phase has no
@@ -580,6 +692,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// the tenant setting, so they run here rather than in validateSubmission.
 	// Mutates req.Children[i].TargetSchoolClass to the persisted value.
 	if err := s.validateAndNormalizeSchoolClasses(ctx, phase, req.Children); err != nil {
+		return nil, err
+	}
+	// Phase eligibility runs AFTER class canonicalization so it validates
+	// the persisted TargetSchoolClass, not the raw client value. Otherwise a
+	// crafted request could declare an eligible class for a grade-1 child (or
+	// with concrete-class collection disabled), pass the class gate, and then
+	// have validateAndNormalizeSchoolClasses erase the class — letting an
+	// ineligible submission through (#1663). No DB writes happen before the
+	// write tx below, so the later rejection stays clean.
+	if err := s.validatePhaseEligibility(ctx, phase, req); err != nil {
 		return nil, err
 	}
 	// consent_flags is legally meaningful data: persist only keys the
@@ -677,6 +799,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			sourceMetadata["late_invite_id"] = invite.ID
 		}
 
+		// Identity the per-child re-enrollment gate below authorizes against.
+		// emailLC is the invite's own guardian email on the late-invite path —
+		// findLateInviteForSubmit rejects the submission when the two differ — so a
+		// token holder cannot shop for an email that happens to be an authorized
+		// guardian of the child they want to claim (#1663).
+		reEnrollSubmitter := reEnrollmentSubmitterFor(submissionSource, req.GuardianAccountID, emailLC)
+
 		// Dedup check runs inside the lock so the result is stable for
 		// the rest of the tx. Different parents or different child
 		// names slip past untouched; rejected/withdrawn rows are
@@ -695,6 +824,14 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			default:
 				return fmt.Errorf("submit: unsupported duplicate handling %q", duplicatePolicy)
 			}
+		}
+
+		if capabilities.CareOfferingsEnabled {
+			overrides, capacityErr := s.applyCapacityOverflow(txCtx, phase, capacityChildren, openByID)
+			if capacityErr != nil {
+				return capacityErr
+			}
+			childStatusOverrides = overrides
 		}
 
 		var schemaID *int64
@@ -764,6 +901,22 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				ActivationMode:    enrollmentModels.ChildActivationScheduled,
 				SortOrder:         i,
 			}
+			matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
+			if err != nil {
+				return err
+			}
+			// !AllowClosedPhase == validatePhaseEligibility ran above, so a
+			// vanished match here is a race, not a fresh create (#1663).
+			if err := assertExistingStudentMatchResolved(phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {
+				return err
+			}
+			if err := s.assertGuardianMayReEnrollStudent(txCtx, reEnrollSubmitter, matchedStudentID, req.TenantID, i); err != nil {
+				return err
+			}
+			if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, 0, i); err != nil {
+				return err
+			}
+			row.MatchedStudentID = matchedStudentID
 			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
 			}
@@ -815,6 +968,25 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		StatusURL: statusURL,
 		Warnings:  warnings,
 	}, nil
+}
+
+func childrenWithMaterializedOfferingSelections(
+	children []SubmitChild,
+	materialized [][]materializedOfferingSelection,
+) []SubmitChild {
+	withMaterialized := make([]SubmitChild, len(children))
+	for i, child := range children {
+		withMaterialized[i] = child
+		if i >= len(materialized) {
+			continue
+		}
+		ids := make([]int64, 0, len(materialized[i]))
+		for _, selection := range materialized[i] {
+			ids = append(ids, selection.OfferingID)
+		}
+		withMaterialized[i].OfferingIDs = ids
+	}
+	return withMaterialized
 }
 
 func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error) {
@@ -871,7 +1043,13 @@ func (s *requestService) findLateInviteForSubmit(ctx context.Context, token stri
 	}
 	invite, err := s.LateInviteRepo.FindUsableByTokenHashForUpdate(ctx, lateInviteTokenHash(token), phaseID, now)
 	if err != nil {
-		return nil, ErrLateInviteInvalid
+		// Same split as the form-load gate: only a genuinely unusable token is
+		// an invalid invite. A lookup failure must not tell the parent their
+		// invite is invalid — surface it as a server error (#1663).
+		if errors.Is(err, enrollmentModels.ErrLateInviteNotFound) {
+			return nil, ErrLateInviteInvalid
+		}
+		return nil, fmt.Errorf("submit: resolve late invite: %w", err)
 	}
 	if strings.ToLower(strings.TrimSpace(invite.GuardianEmail)) != guardianEmail {
 		return nil, ErrLateInviteInvalid
@@ -1631,6 +1809,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	var (
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
+		childIDs  []int64
 		guardians []*enrollmentModels.RequestGuardian
 		links     []*enrollmentModels.RequestChildOffering
 		school    *platformModels.School
@@ -1658,15 +1837,9 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			}
 			guardians = loadedGuardians
 		}
-		childIDs := make([]int64, 0, len(children))
 		for _, c := range children {
 			childIDs = append(childIDs, c.ID)
 		}
-		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(tenantCtx, childIDs)
-		if err != nil {
-			return fmt.Errorf("edit draft: list child offerings: %w", err)
-		}
-		links = loadedLinks
 		if s.SchoolRepo != nil {
 			loadedSchool, err := s.SchoolRepo.FindByID(adminCtx, req.GetTenantID())
 			if err != nil {
@@ -1677,11 +1850,6 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil
 	}); err != nil {
 		return nil, err
-	}
-
-	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
-	for _, link := range links {
-		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
 	var (
@@ -1722,6 +1890,34 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			return ErrEnrollmentWindowClosed
 		}
 		phase = loadedPhase
+		// Loaded here rather than with the other request data above because it
+		// needs the phase: the form has to reopen on the booking in force now.
+		// The unscoped read returns every interval, so after a dated change the
+		// parent would find the superseded and the current selection both
+		// ticked - and saving that would book both.
+		loadedLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			txCtx, childIDs, currentOfferingSelectionDate(phase),
+		)
+		if linkErr != nil {
+			return fmt.Errorf("edit draft: list child offerings: %w", linkErr)
+		}
+		links = loadedLinks
+		// Reopening the form is a self-service load like the public one, so it
+		// must present exactly the world the save will accept. Both edit paths
+		// (ReplaceEditable, prepareProposed) re-run the per-child eligibility
+		// gates under this very predicate, so an enforced draft gets the
+		// offered classes narrowed to the eligible subset — otherwise the
+		// parent picks an available-but-ineligible class and the save fails
+		// with class_not_eligible after the whole form was filled in. An exempt
+		// draft (trusted source / rollover-generated) bypasses those gates, so
+		// it keeps the full offered list and drops the grade restriction the
+		// form would otherwise narrow its grade select to. Mirrors the public
+		// form gate loadEditablePhaseWithLateInvite (#1663).
+		if isTrustedEnrollmentSource(req.SubmissionSource) || hasRolloverGeneratedChild(children) {
+			clearGradeRestrictionForEligibilityExemptForm(phase)
+		} else {
+			narrowOfferedClassesToEligibleForForm(phase)
+		}
 		loadedSchema, err := s.schemaForEditableRequest(txCtx, req, phase)
 		if err != nil {
 			return err
@@ -1779,6 +1975,11 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
+	for _, link := range links {
+		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
 	return &EditDraft{
@@ -1912,6 +2113,31 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateAndNormalizeSchoolClasses(txCtx, phase, editReq.Children); err != nil {
 			return err
 		}
+		// Reapply the per-child eligibility gates (eligible_school_classes +
+		// new_students already-enrolled) so a status-token holder cannot edit a
+		// previously eligible request into an ineligible class or an
+		// already-enrolled child's identity (#1663). Runs after class
+		// canonicalization, mirroring Submit's ordering. The linked_parents
+		// audience authorization is preserved from the original submission —
+		// the request's existence proves it passed and the status token is held
+		// by that same guardian — so it is not re-evaluated here. Trusted-path
+		// requests (late invite / admin manual) bypassed eligibility
+		// deliberately at creation and keep that override on edit.
+		// Generated rollover requests carry submission_source='public' (the DB
+		// default) yet their children were carried forward from an already-
+		// approved enrollment, so they necessarily FAIL the self-service gates
+		// on renewal: a new_students successor trips ErrChildAlreadyEnrolled,
+		// and a grade-bumped class-restricted successor has its concrete class
+		// cleared and trips class_not_eligible. Exempt them here alongside the
+		// trusted-source bypass — the identity of a rollover edit is already
+		// pinned by validateRolloverEditIdentity, so no arbitrary child can be
+		// slipped in behind this exemption (#1663).
+		eligibilityEnforced := !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children)
+		if eligibilityEnforced {
+			if err := s.validatePhaseChildEligibility(txCtx, phase, editReq); err != nil {
+				return err
+			}
+		}
 		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
 		if err := s.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
 			return err
@@ -1972,16 +2198,39 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				return err
 			}
 		}
-		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
+		// One point-in-time read serves both consumers below. Preserving a
+		// hidden selection means preserving the one in force now: across the
+		// full interval history a superseded booking would be restored
+		// alongside the live one and written back as current.
+		activeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			txCtx, existingChildIDs, currentOfferingSelectionDate(phase),
+		)
 		if err != nil {
-			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
+			return fmt.Errorf("edit replace: load active child offerings: %w", err)
 		}
-		preservedClaims := make(map[int64]int, len(existingLinks))
-		for _, link := range existingLinks {
+		preservedClaims := make(map[int64]int, len(activeLinks))
+		seenClaims := make(map[[2]int64]struct{}, len(activeLinks))
+		for _, link := range activeLinks {
+			if link == nil {
+				continue
+			}
+			key := [2]int64{link.RequestChildID, link.CareOfferingID}
+			if _, seen := seenClaims[key]; seen {
+				continue
+			}
+			seenClaims[key] = struct{}{}
 			preservedClaims[link.CareOfferingID]++
 		}
 		if !capabilities.CareOfferingsEnabled {
-			materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
+			materializedSelections = preservedOfferingSelections(children, editReq.Children, activeLinks)
+		}
+
+		childStatusOverrides := map[int]string{}
+		if capabilities.CareOfferingsEnabled {
+			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
+			if err != nil {
+				return err
+			}
 		}
 
 		if s.RequestGuardianRepo != nil {
@@ -2011,14 +2260,6 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			duplicatePolicy != configModel.EnrollmentDuplicateHandlingWarn &&
 			duplicatePolicy != configModel.EnrollmentDuplicateHandlingIgnore {
 			return fmt.Errorf("edit replace: unsupported duplicate handling %q", duplicatePolicy)
-		}
-
-		childStatusOverrides := map[int]string{}
-		if capabilities.CareOfferingsEnabled {
-			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
-			if err != nil {
-				return err
-			}
 		}
 
 		req.GuardianFirstName = strings.TrimSpace(editReq.GuardianFirstName)
@@ -2062,11 +2303,75 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				ActivationMode:    enrollmentModels.ChildActivationScheduled,
 				SortOrder:         i,
 			}
-			if matched := matchedExistingChildren[i]; matched != nil {
+			matched := matchedExistingChildren[i]
+			if matched != nil {
 				row.ActivationMode = matched.ActivationMode
 				row.ActivateOn = matched.ActivateOn
 				row.RolloverSourceChildID = matched.RolloverSourceChildID
 				row.ReviewReason = matched.ReviewReason
+			}
+			// Resolve the matched existing student for existing_students edits so
+			// approval still renews the right record instead of duplicating
+			// (#1663). Skipped for rollover children: their existing student is
+			// resolved through the rollover source chain, which takes precedence at
+			// approval, so a redundant match here would be dead data.
+			if row.RolloverSourceChildID == nil {
+				// Default to the submission-time pin carried on the prior row. The
+				// original submission pinned it while the phase was
+				// existing_students; if the phase audience is later flipped away,
+				// re-resolution below no-ops and must NOT drop the pin FOR AN
+				// UNCHANGED IDENTITY — otherwise approval takes the fresh-create
+				// branch and duplicates the very Person/Student the existing_students
+				// audience exists to renew. An edited identity is handled just below.
+				var matchedStudentID *int64
+				if matched != nil {
+					matchedStudentID = matched.MatchedStudentID
+				}
+				// Replacement edits pair to the prior row by persisted ID, so an
+				// edited name/birthday keeps the SAME row — and its pin — even though
+				// it now describes a different child. Drop the carried pin when the
+				// submitted identity no longer matches what was originally pinned:
+				// keeping it would renew/overwrite the originally matched student even
+				// though the review screen shows the new identity. The unchanged-
+				// identity case still preserves the pin (the anti-duplication reason
+				// above), and re-resolution below re-pins by the NEW identity when the
+				// phase is still existing_students; otherwise the child falls through
+				// to a clean fresh create (#1663).
+				if matchedStudentID != nil && !sameSubmittedIdentity(matched, child) {
+					matchedStudentID = nil
+				}
+				// While the phase is still existing_students, re-resolve against the
+				// (possibly edited) name/birthday. A concrete re-resolution wins; a
+				// nil result keeps the carried pin rather than dropping it.
+				if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents {
+					resolved, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
+					if err != nil {
+						return err
+					}
+					if resolved != nil {
+						matchedStudentID = resolved
+					}
+				}
+				// Same race guard as Submit: when the eligibility gate ran a few
+				// statements earlier it proved this child is enrolled, so an
+				// unpinned existing_students child means the student changed
+				// status underneath the edit — reject instead of letting approval
+				// duplicate it (#1663).
+				if err := assertExistingStudentMatchResolved(phase, matchedStudentID, eligibilityEnforced, i); err != nil {
+					return err
+				}
+				// Authorized against the PERSISTED request's identity, so an edit
+				// cannot re-point the pin at a child the request's guardian holds no
+				// re-enrollment permission on (#1663).
+				if err := s.assertGuardianMayReEnrollStudent(txCtx,
+					reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+					matchedStudentID, req.TenantID, i); err != nil {
+					return err
+				}
+				if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, 0, i); err != nil {
+					return err
+				}
+				row.MatchedStudentID = matchedStudentID
 			}
 			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
@@ -2623,6 +2928,29 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if s.Settings == nil {
 		return LegalTexts{}, nil
 	}
+	keys := []string{
+		configModel.KeyEnrollmentLegalAGBText,
+		configModel.KeyEnrollmentLegalAGBDocumentURL,
+		configModel.KeyEnrollmentLegalAGBDisplayMode,
+		configModel.KeyEnrollmentLegalDSGVOText,
+		configModel.KeyEnrollmentLegalEmailContactText,
+		configModel.KeyEnrollmentLegalPhotoText,
+		configModel.KeyEnrollmentLegalTermsEnabled,
+		configModel.KeyEnrollmentLegalDSGVOEnabled,
+		configModel.KeyEnrollmentLegalEmailContactEnabled,
+		configModel.KeyEnrollmentLegalPhotoEnabled,
+	}
+	if batch, ok := s.Settings.(interface {
+		ResolveMany(context.Context, []string) (*config.SettingsSnapshot, error)
+	}); ok {
+		snapshot, err := batch.ResolveMany(ctx, keys)
+		if err != nil {
+			return LegalTexts{}, fmt.Errorf("resolve legal settings: %w", err)
+		}
+		if snapshot != nil {
+			ctx = config.WithSettingsSnapshot(ctx, snapshot)
+		}
+	}
 	agb, err := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBText)
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve AGB legal text: %w", err)
@@ -2687,6 +3015,18 @@ func (s *requestService) LegalTextsForPhaseWithLateInvite(ctx context.Context, p
 	return s.legalTextsForLoadedPhase(ctx, phase)
 }
 
+// LegalTextsForEnrolleePhaseWithLateInvite mirrors
+// LegalTextsForPhaseWithLateInvite but runs the authenticated enrollee gate
+// with the caller's resolved audience access, so the parents-portal bootstrap
+// resolves legal texts for exactly the restricted phases it may load.
+func (s *requestService) LegalTextsForEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string, access EnrolleeAudienceAccess) (LegalTexts, error) {
+	phase, err := s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken, access)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	return s.legalTextsForLoadedPhase(ctx, phase)
+}
+
 func (s *requestService) LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
 	phase, err := s.LoadManualEnrollmentPhase(ctx, phaseID)
 	if err != nil {
@@ -2707,23 +3047,193 @@ func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *en
 	return applyTemplateLegalBlocks(texts, schema), nil
 }
 
-func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
+// loadEditablePhaseWithLateInvite is the shared form-load phase gate. It
+// resolves the phase, enforces the enrollment window (honoring a valid
+// late-invite token when the window is closed) and rejects every
+// audience-restricted phase the caller's resolved access does not cover, so
+// neither a direct anonymous link nor a parent-scoped JWT without the
+// matching guardian fact can bootstrap a linked_parents or existing_students
+// phase (#1663). The audience check runs before the window check so a
+// restricted phase always surfaces the same 404 regardless of window. The
+// restricted set is exactly the one Submit refuses
+// (audienceRequiresGuardianAccount): loading a form whose save can only ever
+// fail is a dead end that also leaks the phase's existence.
+func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
+	}
+	// A valid late invite is an explicit, per-recipient eligibility override
+	// (Submit treats it exactly that way via AllowClosedPhase), so it also
+	// lifts the audience restriction: an admin who mints a late invite for a
+	// restricted phase hands out the tenant's public form URL, and the
+	// recipient must be able to load the form the invite points at. Resolve
+	// the invite once here and reuse it for the window check below, so a
+	// restricted phase with a valid invite loads instead of 404-ing before
+	// the token is ever validated (#1663).
+	hasValidLateInvite := false
+	if s.LateInviteRepo != nil && strings.TrimSpace(lateInviteToken) != "" {
+		_, inviteErr := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now)
+		switch {
+		case inviteErr == nil:
+			hasValidLateInvite = true
+		case errors.Is(inviteErr, enrollmentModels.ErrLateInviteNotFound):
+			// Unknown, used, or expired token: no override, fall through to
+			// the normal audience and window gates below.
+		default:
+			// A database or driver failure leaves the invite status unknown.
+			// Treating it as "no invite" would render an outage as a 404
+			// (ErrPhaseAudienceRestricted / ErrLateInviteInvalid) and tell a
+			// legitimate recipient their link is invalid, so propagate it and
+			// let the handler return a 500 (#1663).
+			return nil, fmt.Errorf("resolve late invite: %w", inviteErr)
+		}
+	}
+	if !hasValidLateInvite && !access.AllowsAudience(phase.Audience) {
+		return nil, ErrPhaseAudienceRestricted
 	}
 	if !IsEnrollmentWindowOpen(phase, now) {
 		if strings.TrimSpace(lateInviteToken) == "" {
 			return nil, ErrEnrollmentWindowClosed
 		}
-		if s.LateInviteRepo == nil {
-			return nil, ErrLateInviteInvalid
-		}
-		if _, err := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now); err != nil {
+		if !hasValidLateInvite {
 			return nil, ErrLateInviteInvalid
 		}
 	}
+	// Only offer classes the submit-time eligibility gate will actually accept.
+	// A valid late invite bypasses that gate (AllowClosedPhase), so its recipient
+	// keeps the full offered list; everyone else sees the eligible subset (#1663).
+	if hasValidLateInvite {
+		clearGradeRestrictionForEligibilityExemptForm(phase)
+	} else {
+		narrowOfferedClassesToEligibleForForm(phase)
+	}
 	return phase, nil
+}
+
+// clearGradeRestrictionForEligibilityExemptForm drops the phase's grade
+// restriction from a form-load response served to a caller the submit-time
+// eligibility gates do not apply to: a valid late-invite recipient, or the
+// holder of a status token on a trusted-source / rollover-generated request.
+// Such a load is a deliberate eligibility override — Submit honors the invite
+// via AllowClosedPhase and the edit paths skip validateChildGradeEligibility
+// for exempt requests — so a child from outside the restricted grade is
+// accepted. Leaving the restriction in the response would still narrow the
+// form's grade select to it, making the caller unable to declare the very
+// grade the invite (or the carried-forward enrollment) exists for. This is the
+// grade-level mirror of the class handling, where an exempt load skips
+// narrowOfferedClassesToEligibleForForm and keeps the full offered class list
+// (#1663).
+//
+// Mutates a phase already cleared for a form load; Submit and the edit paths
+// reload the phase independently, so this never reaches validation.
+func clearGradeRestrictionForEligibilityExemptForm(phase *enrollmentModels.Phase) {
+	if phase == nil {
+		return
+	}
+	phase.EligibleGradeLevels = []int{}
+}
+
+// narrowOfferedClassesToEligibleForForm restricts the phase's offered concrete
+// classes (available_school_classes) to those that are ALSO eligible, for the
+// self-service form-load paths. Phase.Validate only enforces eligible ⊆
+// available, so available may legitimately be a wider superset — and a stale
+// admin client or a direct API write can widen it further while the eligibility
+// list stays narrow. Offering a class the submit-time gate rejects would let a
+// parent complete the whole form only to fail with class_not_eligible, so
+// present exactly the eligible subset instead. Mutates a phase already cleared
+// for a self-service load; the callers exclude eligibility-exempt loads (late
+// invite, trusted-source or rollover-generated edit drafts), which bypass the
+// gate. No-op when no restriction is active. Submit reloads the phase
+// independently (loadPhaseForSubmission), so this narrowing never reaches
+// validation — and eligible ⊆ available guarantees every offered class still
+// passes the available check anyway (#1663).
+func narrowOfferedClassesToEligibleForForm(phase *enrollmentModels.Phase) {
+	if phase == nil || len(phase.EligibleSchoolClasses) == 0 {
+		return
+	}
+	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			eligible[t] = struct{}{}
+		}
+	}
+	narrowed := make([]string, 0, len(phase.AvailableSchoolClasses))
+	for _, c := range phase.AvailableSchoolClasses {
+		if _, ok := eligible[strings.TrimSpace(c)]; ok {
+			narrowed = append(narrowed, c)
+		}
+	}
+	phase.AvailableSchoolClasses = narrowed
+	narrowOfferedGradesToEligibleClassesForForm(phase)
+}
+
+// narrowOfferedGradesToEligibleClassesForForm derives the form's grade options
+// from a class-only eligibility restriction. A phase restricted to "3a" but with
+// an empty eligible_grade_levels leaves the grade select offering every grade
+// 1..grade_level_max, while only grade 3 can ever declare an eligible class: the
+// form filters the class pick list by the selected grade, so grade 1 shows no
+// class at all (or "Klasse offen") and the submit then fails with
+// class_not_eligible after the whole form was filled in. That is the same dead
+// end narrowOfferedClassesToEligibleForForm removes on the class side, one level
+// up (#1663).
+//
+// Only ever narrows, and only for the self-service loads that narrowing serves:
+// an explicit eligible_grade_levels is left untouched (Phase.Validate already
+// keeps the two lists consistent, so it is never wider than the class-derived
+// set), and an eligible class with no derivable grade ("Bienen") is compatible
+// with every grade — exactly as Phase.Validate treats it — so it suppresses the
+// narrowing entirely rather than hiding the grade a prefixless class belongs to.
+//
+// Presentation only: this mutates a phase already cleared for a form load, and
+// Submit reloads the phase independently, so the derived list never reaches
+// validation or the database. The class gate stays the enforcing side.
+func narrowOfferedGradesToEligibleClassesForForm(phase *enrollmentModels.Phase) {
+	if phase == nil || len(phase.EligibleGradeLevels) > 0 {
+		return
+	}
+	grades := make([]int, 0, len(phase.EligibleSchoolClasses))
+	seen := make(map[int]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if strings.TrimSpace(c) == "" {
+			continue
+		}
+		prefix := schoolclass.GradePrefix(c)
+		if prefix == "" {
+			// Grade-agnostic eligible class: every grade stays satisfiable.
+			return
+		}
+		level, err := strconv.Atoi(prefix)
+		if err != nil {
+			return
+		}
+		if _, ok := seen[level]; ok {
+			continue
+		}
+		seen[level] = struct{}{}
+		grades = append(grades, level)
+	}
+	if len(grades) == 0 {
+		return
+	}
+	sort.Ints(grades)
+	phase.EligibleGradeLevels = grades
+}
+
+// LoadPublicPhaseWithLateInvite is the anonymous public form-load gate: it
+// rejects every audience-restricted phase (linked_parents and
+// existing_students) outright — the zero access value grants neither.
+func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, EnrolleeAudienceAccess{})
+}
+
+// LoadEnrolleePhaseWithLateInvite is the authenticated parent-portal
+// form-load gate. It behaves exactly like the public gate except it also
+// admits the restricted audiences the caller's resolved guardian facts cover
+// (see EnrolleeAudienceAccess) — the submit path still enforces
+// GuardianSubmitEligible + the per-child eligibility rules on top.
+func (s *requestService) LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error) {
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
 }
 
 func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
@@ -3045,6 +3555,482 @@ func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrol
 //     phase's RequireSchoolClass makes it mandatory -> then reject.
 //
 // Trims and collapses empty strings to nil so "" never reaches the DB.
+// validatePhaseEligibility enforces the per-phase eligibility config
+// (#1663) server-side for the self-service paths (public + parent).
+// Trusted paths — admin manual enrollment and late invites, both
+// recognizable by AllowClosedPhase — bypass eligibility entirely: an
+// admin acts deliberately (exception cases must stay possible, same as
+// the paper form), and a late invite is an explicit personal invitation
+// that outranks the phase's audience config.
+//
+// That bypass covers the AUDIENCE gate only. It does not extend to the
+// per-child re-enrollment authorization in
+// assertGuardianMayReEnrollStudent: whichever path pins a live student,
+// the request's guardian identity must already hold
+// parent_portal.enrollment.submit on that student (admin manual excepted,
+// since staff act with their own authorization). A late-invite token is
+// minted per phase and email and proves nothing about WHICH child, so
+// letting it through both gates would have handed an invited parent the
+// child of anyone whose name and birthday they could read off a class
+// list (#1663).
+//
+//   - linked_parents audience: requires an authenticated parent whose
+//     guardian relationship at the tenant grants
+//     parent_portal.enrollment.submit. The parent handler resolves that
+//     fact into GuardianSubmitEligible; anonymous submissions carry
+//     neither and are rejected.
+//   - eligible_school_classes: when non-empty, every child must declare
+//     one of the listed classes.
+//   - new_students audience: a child matching an already-enrolled student
+//     (name + birthday) is rejected. "Enrolled" spans active AND pending
+//     students, so a child approved-but-not-yet-activated still blocks a
+//     second submission. Best-effort by design — it blocks the honest
+//     mistake, not a determined false declaration, exactly like the paper
+//     form it replaces.
+//   - existing_students audience: the inverse — a child with NO matching
+//     already-enrolled student is rejected, so every submitted child must
+//     already be enrolled (re-enrollment / renewal). Same name+birthday
+//     lookup, same best-effort semantics.
+//
+// existing_students carries the SAME authentication gate as linked_parents.
+// Unlike every other audience, a submission there does not create a new
+// record: resolveMatchedStudentID pins a LIVE student that approval renews
+// and attaches the submitter to as a guardian. Name + date of birth is a
+// recognition signal, not an authentication one — a class list or a school
+// festival is enough to learn both — so accepting it anonymously handed
+// portal access to a stranger's child to anyone who could guess it. Requiring
+// an authenticated, submit-eligible guardian account makes the per-student
+// probe in assertGuardianMayReEnrollStudent reachable, which is what actually
+// decides WHICH child that account may renew. Parents without a portal
+// account are served by the two deliberate override paths that already skip
+// this gate via AllowClosedPhase: a late invite (a per-recipient token the
+// school mints) and admin manual enrollment (#1663).
+func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
+	if req.AllowClosedPhase {
+		return nil
+	}
+	if audienceRequiresGuardianAccount(phase.Audience) &&
+		(req.GuardianAccountID == nil || !req.GuardianSubmitEligible) {
+		return ErrPhaseNotEligible
+	}
+	return s.validatePhaseChildEligibility(ctx, phase, req)
+}
+
+// audienceRequiresGuardianAccount reports whether a phase audience may only be
+// submitted by an authenticated, submit-eligible guardian account. Both
+// audiences it covers are also the ones the parents-portal picker hides from
+// accounts without that permission and the ones the public form gate refuses to
+// bootstrap, so the three stay in agreement (#1663).
+func audienceRequiresGuardianAccount(audience string) bool {
+	return audience == enrollmentModels.PhaseAudienceLinkedParents ||
+		audience == enrollmentModels.PhaseAudienceExistingStudents
+}
+
+// EnrolleeAudienceAccess carries the caller's per-audience form-load
+// authority. The restricted audiences do NOT share one gate (#1663):
+//
+//   - linked_parents needs any guardian relationship at the school that
+//     grants parent_portal.enrollment.submit — a relationship to an inactive
+//     child still qualifies, because enrolling a new sibling is the point.
+//   - existing_students additionally needs that relationship to point at a
+//     still-enrolled (active/pending) child: without one, the submit-time
+//     student matcher can only fail (ErrChildNotEnrolled /
+//     ErrChildEnrollmentNotPermitted).
+//
+// The two flags therefore mirror guard.has_submit_permission and
+// guard.has_enrolled_submit_permission in the parents-portal picker
+// (EnrollablePhaseRepository.ListEnrollable) one-for-one, so the form gate
+// admits exactly the phases the picker advertises. The zero value is the
+// anonymous caller: no restricted audience at all.
+type EnrolleeAudienceAccess struct {
+	LinkedParents    bool
+	ExistingStudents bool
+}
+
+// AllowsAudience reports whether the caller may load a form for a phase with
+// this audience. Unrestricted audiences (open / new_students) always pass; a
+// restricted one passes only on its matching flag. A restricted audience with
+// no flag of its own fails closed, so adding one to
+// audienceRequiresGuardianAccount can never silently open the form gate.
+func (a EnrolleeAudienceAccess) AllowsAudience(audience string) bool {
+	if !audienceRequiresGuardianAccount(audience) {
+		return true
+	}
+	switch audience {
+	case enrollmentModels.PhaseAudienceLinkedParents:
+		return a.LinkedParents
+	case enrollmentModels.PhaseAudienceExistingStudents:
+		return a.ExistingStudents
+	default:
+		return false
+	}
+}
+
+// validatePhaseChildEligibility enforces the per-child eligibility gates
+// (eligible_school_classes + new_students already-enrolled) independently of
+// the linked_parents *audience* gate. Submit runs the full
+// validatePhaseEligibility; the editable-request path calls this directly so
+// a status-token holder cannot edit a child into an ineligible class or an
+// already-enrolled identity, while the linked_parents authorization stays
+// preserved from the original submission (#1663). Callers must run
+// validateAndNormalizeSchoolClasses first so this sees the persisted class.
+func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
+	if err := validateChildGradeEligibility(phase, req.Children); err != nil {
+		return err
+	}
+	if err := validateChildClassEligibility(phase, req.Children); err != nil {
+		return err
+	}
+
+	for i := range req.Children {
+		if err := s.validateChildEnrolledStatus(ctx, phase, req.TenantID, req.Children[i], i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateChildEnrolledStatus applies the audience's enrolled-status gate to a
+// single child, reporting failures under childIndex so the form can point at
+// the right row (#1663).
+//
+// new_students and existing_students are the two child-scoped enrolled-status
+// gates: new_students rejects a child that already matches an enrolled record;
+// existing_students rejects a child that does NOT — every submitted child must
+// already be enrolled (a re-enrollment / renewal phase). Both consult the same
+// name+birthday lookup, so they share one probe per child.
+//
+// Split out per child because the change-request path applies it to a SUBSET —
+// only the children whose identity an edit rewrites — and still needs the
+// original index in the error (see validateChangedChildIdentityEligibility).
+func (s *requestService) validateChildEnrolledStatus(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	tenantID int64,
+	child SubmitChild,
+	childIndex int,
+) error {
+	if s.StudentRepo == nil ||
+		(phase.Audience != enrollmentModels.PhaseAudienceNewStudents &&
+			phase.Audience != enrollmentModels.PhaseAudienceExistingStudents) {
+		return nil
+	}
+	exists, err := s.StudentRepo.ExistsEnrolledByNameAndBirthday(ctx, tenantID,
+		child.FirstName, child.LastName, child.DateOfBirth)
+	if err != nil {
+		return fmt.Errorf("submit: check enrolled student for child %d: %w", childIndex, err)
+	}
+	if phase.Audience == enrollmentModels.PhaseAudienceNewStudents && exists {
+		return fmt.Errorf("%w: child %d", ErrChildAlreadyEnrolled, childIndex)
+	}
+	if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents && !exists {
+		return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, childIndex)
+	}
+	return nil
+}
+
+// validateChildClassEligibility enforces the phase's eligible_school_classes
+// restriction: when the list is non-empty, every child must declare one of the
+// listed classes. Pure — no repos — because it is the one child-eligibility
+// gate that stays valid at EVERY point of a request's life, so the
+// change-request path applies it too (#1663).
+//
+// eligible_school_classes may be a proper subset of available_school_classes,
+// so without this an approved change request could persist an
+// available-but-ineligible class. The enrolled-status gates it sits next to
+// cannot run unconditionally on the change-request path — re-running the
+// new_students "must not already be enrolled" probe on a child whose approval
+// JUST created that student would reject every later change request on it — so
+// that path applies them only to children whose identity the edit rewrites
+// (validateChangedChildIdentityEligibility).
+func validateChildClassEligibility(phase *enrollmentModels.Phase, children []SubmitChild) error {
+	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			eligible[t] = struct{}{}
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+	for i := range children {
+		declared := ""
+		if children[i].TargetSchoolClass != nil {
+			declared = strings.TrimSpace(*children[i].TargetSchoolClass)
+		}
+		if declared == "" {
+			return fmt.Errorf("%w: child %d declares no school class", ErrChildClassNotEligible, i)
+		}
+		if _, ok := eligible[declared]; !ok {
+			return fmt.Errorf("%w: child %d class %q", ErrChildClassNotEligible, i, declared)
+		}
+	}
+	return nil
+}
+
+// validateChildGradeEligibility enforces the phase's eligible_grade_levels
+// restriction: when the list is non-empty, every child must declare one of the
+// listed grades. This is the enforcement half of the whole-grade phase
+// ("nur Klasse 3") — a case the concrete-class list cannot express, because a
+// school that collects only the grade level never has a class to compare, and
+// enumerating 3a/3b goes stale as soon as a class is added or renamed (#1663).
+//
+// Pure, like validateChildClassEligibility, and applied at exactly the same
+// points: submit, the editable-request path, and the change-request path. A
+// child's grade is stable data the parent declares in every one of them, so
+// re-checking it never rejects an edit that creation allowed — unlike the
+// enrolled-status probes.
+//
+// A missing grade is a rejection, not a pass: normalizeSubmissionForCapabilities
+// nils the grade out when collect_grade_level is off, and the phase-side
+// collectability guard is what keeps that pair from being configurable. Treating
+// nil as "eligible" would silently disable the restriction instead.
+func validateChildGradeEligibility(phase *enrollmentModels.Phase, children []SubmitChild) error {
+	if len(phase.EligibleGradeLevels) == 0 {
+		return nil
+	}
+	eligible := make(map[int]struct{}, len(phase.EligibleGradeLevels))
+	for _, level := range phase.EligibleGradeLevels {
+		eligible[level] = struct{}{}
+	}
+	for i := range children {
+		if children[i].TargetGradeLevel == nil {
+			return fmt.Errorf("%w: child %d declares no grade level", ErrChildGradeNotEligible, i)
+		}
+		declared := int(*children[i].TargetGradeLevel)
+		if _, ok := eligible[declared]; !ok {
+			return fmt.Errorf("%w: child %d grade %d", ErrChildGradeNotEligible, i, declared)
+		}
+	}
+	return nil
+}
+
+// isTrustedEnrollmentSource reports whether a persisted request was created
+// through a deliberate override path (admin manual enrollment or a late
+// invite). Submit skips eligibility for those via AllowClosedPhase, so the
+// editable-request path must keep that override when re-checking child
+// eligibility rather than newly rejecting an edit the original creation
+// allowed.
+func isTrustedEnrollmentSource(source string) bool {
+	switch strings.TrimSpace(source) {
+	case enrollmentModels.RequestSourceLateInvite, enrollmentModels.RequestSourceAdminManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// resolveMatchedStudentID returns the already-enrolled student a submitted
+// child was matched to, but only for existing_students phases and only when the
+// name+birthday lookup is unambiguous (#1663). The result is stamped onto
+// request_children so approval renews the matched student instead of creating a
+// duplicate Person/Student.
+//
+// The repository returns a non-nil ID ONLY for exactly one enrolled match and
+// collapses both "no match" and "ambiguous multi-match" to nil. Those two nil
+// cases are NOT equivalent: a genuine zero match is a legitimate fresh-create
+// (admin-manual / late-invite bypass the enrolled gate and may deliberately
+// create), but an ambiguous match must be rejected — left as nil it would flow
+// to the decision service's fresh-create branch and add a THIRD duplicate on
+// top of the two records that already collide, the exact data this flow exists
+// to prevent. So on a nil ID we probe existence to tell the two apart and
+// reject only the ambiguous case.
+func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID int64, phase *enrollmentModels.Phase, childIndex int, child SubmitChild) (*int64, error) {
+	if s.StudentRepo == nil || phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
+		return nil, nil
+	}
+	id, err := s.StudentRepo.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID,
+		child.FirstName, child.LastName, child.DateOfBirth)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve matched student: %w", err)
+	}
+	if id != nil {
+		return id, nil
+	}
+	exists, err := s.StudentRepo.ExistsEnrolledByNameAndBirthday(ctx, tenantID,
+		child.FirstName, child.LastName, child.DateOfBirth)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve matched student ambiguity: %w", err)
+	}
+	if exists {
+		// A match exists but the resolver could not pin a single record:
+		// the identity is ambiguous, so reject rather than duplicate.
+		return nil, fmt.Errorf("%w: child %d", ErrChildEnrollmentAmbiguous, childIndex)
+	}
+	return nil, nil
+}
+
+// assertExistingStudentMatchResolved closes the gap between the pre-write
+// enrolled-student gate and the pinned match (#1663). On an existing_students
+// phase, validatePhaseChildEligibility already proved every child matches an
+// enrolled student; resolveMatchedStudentID then deliberately collapses a zero
+// match to "no pin" because the TRUSTED paths (admin manual / late invite) skip
+// that gate and may legitimately create a fresh record.
+//
+// For an ORDINARY submission the two reads must agree. When they don't — the
+// activation/deactivation scheduler flipped the student out of active/pending
+// between them — storing the request with matched_student_id = NULL would make
+// approval create a duplicate Person + Student for a child the school already
+// has, the exact outcome this audience exists to prevent. Reject instead: the
+// submission is no longer valid for this phase.
+//
+// eligibilityEnforced mirrors whichever gate the caller ran, so a trusted path
+// keeps its override untouched.
+func assertExistingStudentMatchResolved(
+	phase *enrollmentModels.Phase,
+	matchedStudentID *int64,
+	eligibilityEnforced bool,
+	childIndex int,
+) error {
+	if !eligibilityEnforced ||
+		matchedStudentID != nil ||
+		phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
+		return nil
+	}
+	return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, childIndex)
+}
+
+// reEnrollmentSubmitter is the identity a pinned existing-student re-enrollment
+// is authorized against. Exactly one of the two identities decides, and which
+// one is a property of the flow, never of the payload: a parents-portal submit
+// carries the authenticated account, every other flow carries only the guardian
+// email the request is bound to (for a late invite, the email the school minted
+// the token for — findLateInviteForSubmit rejects any mismatch).
+//
+// AdminManaged marks the staff-authorized manual-enrollment flow, the one path
+// that may deliberately pin a student the submitting guardian has no
+// relationship with yet. It is derived from the submission source, which is set
+// by the service (Submit for late invites, CreateManualApprovedEnrollment for
+// admin manual) and is never bound from the wire.
+type reEnrollmentSubmitter struct {
+	GuardianAccountID *int64
+	GuardianEmail     string
+	AdminManaged      bool
+}
+
+// reEnrollmentSubmitterFor builds the identity from a submission's source and
+// guardian fields. Any source other than admin_manual is self-service as far as
+// this gate is concerned — a late invite proves the school invited THIS EMAIL
+// into a closed phase, which is not the same fact as authority over a specific
+// enrolled child.
+func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64, guardianEmail string) reEnrollmentSubmitter {
+	return reEnrollmentSubmitter{
+		GuardianAccountID: guardianAccountID,
+		GuardianEmail:     strings.ToLower(strings.TrimSpace(guardianEmail)),
+		AdminManaged:      normalizedSubmissionSource(submissionSource) == enrollmentModels.RequestSourceAdminManual,
+	}
+}
+
+// assertGuardianMayReEnrollStudent enforces the per-child authorization gate for
+// existing_students re-enrollment (#1663). resolveMatchedStudentID may pin a
+// concrete already-enrolled student that approval would RENEW and attach the
+// submitting guardian to. The invariant this gate holds is therefore:
+//
+//	a request may renew student S only if the guardian identity ON THAT REQUEST
+//	already holds parent_portal.enrollment.submit on its own relationship to S.
+//
+// Because approval attaches that same identity (account ID when present, else
+// guardian email — see decision_service), an approved renewal can never widen
+// anyone's access: whoever gets attached already had authority over S.
+//
+// Both identities are checked, never mixed:
+//
+//   - Authenticated parent submit: the account must hold the permission on S.
+//     The coarse school-wide GuardianSubmitEligible flag admits the parent to the
+//     phase but would otherwise let a parent permitted for child A renew — and
+//     bind themselves to — child B.
+//   - Accountless submit (a late invite, whose recipient typically has no portal
+//     account): the request's guardian email must resolve to a guardian profile at
+//     the school whose relationship to S grants the permission. A late-invite
+//     token is minted per phase and email and says nothing about WHICH child, so
+//     without this probe an invited parent could type a stranger's enrolled child's
+//     name and birthday — both readable off a class list — and be attached to that
+//     child on approval.
+//
+// The single deliberate bypass is AdminManaged: staff act with their own
+// authorization and must be able to re-enroll a child whose guardian is not yet
+// recorded, exactly like the paper form.
+//
+// No-ops when there is no match (nil studentID → fresh create). Fails closed
+// otherwise: no authorizer wired, or a submission carrying neither identity, is
+// a misconfiguration, not a bypass.
+func (s *requestService) assertGuardianMayReEnrollStudent(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
+	if matchedStudentID == nil || submitter.AdminManaged {
+		return nil
+	}
+	if s.GuardianAuthorizer == nil {
+		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	var (
+		granted bool
+		err     error
+	)
+	switch {
+	case submitter.GuardianAccountID != nil:
+		granted, err = s.GuardianAuthorizer.AccountHasStudentPermission(ctx, *submitter.GuardianAccountID,
+			*matchedStudentID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+	case submitter.GuardianEmail != "":
+		granted, err = s.GuardianAuthorizer.GuardianEmailHasStudentPermission(ctx, submitter.GuardianEmail,
+			*matchedStudentID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+	default:
+		// No identity at all on a submission that pinned a live student: nothing
+		// to authorize against, so nothing may be renewed.
+		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	if err != nil {
+		return fmt.Errorf("submit: verify guardian re-enrollment permission for child %d: %w", childIndex, err)
+	}
+	if !granted {
+		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	return nil
+}
+
+// guardMatchedStudentUnique rejects a submission/edit whose child resolved to an
+// already-enrolled student that another active (non-rejected, non-withdrawn)
+// request in the same phase already targets. The email-scoped dedup check keys
+// on guardian_email, so two guardians with different emails submitting the same
+// existing child both slip through it yet pin the same matched_student_id;
+// approving both would renew/overwrite one live student twice and duplicate its
+// care-offering enrollments. The phase-wide advisory lock makes the
+// check-then-insert race-free even across those distinct email locks. No-ops
+// when there is no pin (nil → fresh create, nothing to collide on). Enforced
+// regardless of the block/warn/ignore duplicate policy — it protects a live
+// student record, not just parent convenience (#1663).
+//
+// excludeRequestChildID (0 = none) is for callers re-checking an ALREADY
+// persisted, already-active row — the change-request path — which would
+// otherwise collide with its own pin. Insert paths pass 0.
+func (s *requestService) guardMatchedStudentUnique(ctx context.Context, phaseID int64, matchedStudentID *int64, excludeRequestChildID int64, childIndex int) error {
+	if matchedStudentID == nil {
+		return nil
+	}
+	if err := s.RequestRepo.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
+		return fmt.Errorf("submit: acquire existing-student match lock: %w", err)
+	}
+	has, err := s.RequestRepo.HasActiveRequestForMatchedStudent(ctx, phaseID, *matchedStudentID, excludeRequestChildID)
+	if err != nil {
+		return fmt.Errorf("submit: matched-student duplicate check for child %d: %w", childIndex, err)
+	}
+	if has {
+		return fmt.Errorf("%w: child %d", ErrExistingStudentAlreadyRequested, childIndex)
+	}
+	return nil
+}
+
+// hasRolloverGeneratedChild reports whether any of the persisted children was
+// carried forward by the rollover flow (RolloverSourceChildID set). Rollover
+// requests are generated with submission_source='public' but must not be held
+// to the self-service eligibility gates on renewal (#1663).
+func hasRolloverGeneratedChild(children []*enrollmentModels.RequestChild) bool {
+	for _, child := range children {
+		if child.RolloverSourceChildID != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
 	collect, err := s.CollectsSchoolClass(ctx)
 	if err != nil {
@@ -3066,7 +4052,11 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 		if children[i].TargetGradeLevel != nil {
 			grade = int(*children[i].TargetGradeLevel)
 		}
-		if !collect || grade < 2 {
+		// Grade 1 stays grade-level-only (#1833) UNLESS the phase collects a
+		// grade-1 class (CollectsGrade1Class), in which case it is collected
+		// and validated exactly like grade >= 2 (#1663). Grade-less rows
+		// (grade 0) never collect a class. Grade >= 2 is unchanged.
+		if !collect || grade < 1 || (grade == 1 && !CollectsGrade1Class(phase)) {
 			children[i].TargetSchoolClass = nil
 			continue
 		}
@@ -3114,6 +4104,75 @@ func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
 	want := strconv.Itoa(grade)
 	for class := range allowed {
 		if prefix := schoolclass.GradePrefix(class); prefix == "" || prefix == want {
+			return true
+		}
+	}
+	return false
+}
+
+// CollectsGrade1Class reports whether a grade-1 child's concrete class is
+// collected for this phase. Grade 1 is opt-in — the #1833 default keeps it
+// grade-level-only — and there are exactly two triggers (#1663):
+//
+//   - No class restriction: the phase offers a concrete grade-1 class ("1a"),
+//     i.e. an admin deliberately added one. Prefixless classes ("Bienen")
+//     deliberately do NOT trigger it here, so a phase that never added a
+//     grade-1 class keeps the #1833 default.
+//   - Class restriction active: the eligible list decides, because it is the
+//     only world the submit gate accepts — validateChildClassEligibility
+//     rejects every child that declares no class, and the self-service form
+//     is narrowed to that same list. A grade-1 child can satisfy the
+//     restriction when an eligible class is grade-1-prefixed OR prefixless
+//     ("Bienen" carries no derivable grade and belongs to every grade), so
+//     the class must be collected. Not collecting it would clear the class
+//     and then reject the very submission the config exists for: a phase
+//     limited to "Bienen" accepted no grade-1 submission at all.
+//
+// An eligible list that only names grade >= 2 classes still returns false:
+// such a grade-1 child is genuinely ineligible and is rejected by the class
+// gate with class_not_eligible, not by a missing-pick error.
+//
+// Exported because the form-load responses must present the same decision the
+// submit path makes — a field the form hides and the validator then demands is
+// a dead end. Reads EligibleSchoolClasses (never narrowed) whenever a
+// restriction exists, so it returns the same answer on a form-load phase whose
+// offered list was narrowed to the eligible subset.
+func CollectsGrade1Class(phase *enrollmentModels.Phase) bool {
+	if phase == nil {
+		return false
+	}
+	if hasNonEmptyEligibleClass(phase.EligibleSchoolClasses) {
+		return listHasClassSelectableByGrade(phase.EligibleSchoolClasses, 1)
+	}
+	return listHasGradePrefixedClass(phase.AvailableSchoolClasses, 1)
+}
+
+// listHasGradePrefixedClass reports whether the list holds a concrete class
+// whose numeric prefix equals the grade (e.g. a "1x" class for grade 1).
+// Prefixless classes are ignored on purpose — see CollectsGrade1Class.
+func listHasGradePrefixedClass(classes []string, grade int) bool {
+	want := strconv.Itoa(grade)
+	for _, class := range classes {
+		if schoolclass.GradePrefix(strings.TrimSpace(class)) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// listHasClassSelectableByGrade reports whether a child in the given grade can
+// pick at least one class from the list: a matching numeric prefix, or a
+// prefixless class, which carries no derivable grade and is offered to every
+// grade. Same rule as gradeHasSelectableClass, over a slice instead of the
+// offered-class set.
+func listHasClassSelectableByGrade(classes []string, grade int) bool {
+	want := strconv.Itoa(grade)
+	for _, class := range classes {
+		trimmed := strings.TrimSpace(class)
+		if trimmed == "" {
+			continue
+		}
+		if prefix := schoolclass.GradePrefix(trimmed); prefix == "" || prefix == want {
 			return true
 		}
 	}
@@ -3205,9 +4264,12 @@ func (s *requestService) applyCapacityOverflow(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
-	return s.applyCapacityOverflowWithPreservedClaims(ctx, phase, children, openByID, nil)
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, nil, nil)
 }
 
+// applyCapacityOverflowWithPreservedClaims keeps slots a parent already held
+// while replacing an editable request. Claims are point-in-time selections,
+// not the request's historical offering intervals.
 func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
@@ -3215,9 +4277,67 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	openByID map[int64]*enrollmentModels.CareOffering,
 	preservedClaims map[int64]int,
 ) (map[int]string, error) {
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, preservedClaims, nil)
+}
+
+func (s *requestService) applyCapacityOverflowWithReplacedChildren(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	replacedRequestChildIDs []int64,
+) (map[int]string, error) {
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, nil, replacedRequestChildIDs)
+}
+
+func (s *requestService) applyCapacityOverflowWithCapacityClaims(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
+	replacedRequestChildIDs []int64,
+) (map[int]string, error) {
 	overrides := make(map[int]string)
 	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
+	}
+	// Historical manual approvals and late invites can legitimately target a
+	// completed care period. They create no present or future capacity claim,
+	// so querying from today through the already-ended phase would be empty.
+	if phase.ServiceEndDate.Before(timezone.TodayDate()) {
+		return overrides, nil
+	}
+	// Serialize this count with offering-change approvals and other
+	// submissions. Both paths lock care offerings by ascending id before they
+	// inspect capacity and write the booking links.
+	if s.CareOfferingRepo == nil {
+		return nil, errors.New("care offering repository is not configured")
+	}
+	selectedIDs := make([]int64, 0)
+	seen := make(map[int64]bool)
+	for _, child := range children {
+		for _, offeringID := range child.OfferingIDs {
+			if offeringID > 0 && !seen[offeringID] {
+				seen[offeringID] = true
+				selectedIDs = append(selectedIDs, offeringID)
+			}
+		}
+	}
+	sort.Slice(selectedIDs, func(i, j int) bool { return selectedIDs[i] < selectedIDs[j] })
+	lockedOfferings, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs)
+	if err != nil {
+		return nil, fmt.Errorf("lock care offering capacity: %w", err)
+	}
+	// The catalog was read before entering the write transaction. Replace it
+	// with the locked rows so a concurrent capacity reduction or deactivation
+	// cannot be missed between selection validation and booking creation.
+	openByID = offeringsByID(lockedOfferings)
+	for _, offeringID := range selectedIDs {
+		offering := openByID[offeringID]
+		if offering == nil || !offering.IsActive {
+			return nil, ErrCareOfferingClosed
+		}
 	}
 
 	mode := phase.CareOverflowMode
@@ -3244,7 +4364,7 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	type slot struct {
 		capacity  *int // nil = unlimited
 		current   int  // pre-existing claimants (DB)
-		preserved int  // claims this edit already held before replacement
+		preserved int  // selections the editable request already held
 		queued    int  // count from earlier children in this submission
 	}
 	slots := make(map[int64]*slot)
@@ -3258,19 +4378,19 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 			// Should be impossible (validateOfferingSelections ran first).
 			return nil, fmt.Errorf("submit: offering %d not in open catalog", offeringID)
 		}
-		count, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offeringID)
+		capacityFrom := timezone.TodayDate()
+		if phase.ServiceStartDate.After(capacityFrom) {
+			capacityFrom = phase.ServiceStartDate
+		}
+		capacityUntil := phase.ServiceEndDate.AddDays(1)
+		count, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, capacityFrom, capacityUntil)
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
-		preserved := preservedClaims[offeringID]
-		current := count - preserved
-		if current < 0 {
-			current = 0
-		}
 		s := &slot{
 			capacity:  offering.Capacity,
-			current:   current,
-			preserved: preserved,
+			current:   max(count-preservedClaims[offeringID], 0),
+			preserved: preservedClaims[offeringID],
 		}
 		slots[offeringID] = s
 		return s, nil

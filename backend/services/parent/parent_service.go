@@ -20,18 +20,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,6 +54,12 @@ type Service interface {
 	// schools they're already linked to. Sorted with linked schools
 	// first.
 	ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error)
+
+	// GetEnrollmentSubmitStatus resolves whether the account is linked
+	// to the school and whether its guardian relationships grant
+	// parent_portal.enrollment.submit there (#1663). Reuses a caller-
+	// provided admin transaction when one is in context.
+	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error)
 
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
@@ -192,6 +205,55 @@ type Service interface {
 	// parent-portal sidebar badge. Cross-tenant; a light COUNT, not a projection.
 	UnreadMessageCount(ctx context.Context, accountID int64) (int, error)
 
+	// --- Feedback board to the product team (#1678) ---
+	//
+	// This board is deliberately NOT the school's: entries are addressed to
+	// moto, the school never sees them, and guardian identities are replaced by
+	// a pseudonym before they leave the database. Every method below validates
+	// that the guardian has a child at tenantID and then runs inside a
+	// parent-actor transaction.
+
+	// ListFeedbackSchools returns the schools whose feedback board the guardian
+	// may post to, for the picker shown to multi-school guardians.
+	ListFeedbackSchools(ctx context.Context, accountID int64) ([]*FeedbackSchool, error)
+
+	// ListFeedback returns one school's parent feedback board.
+	// sortBy is "score" (default), "newest" or "status".
+	ListFeedback(ctx context.Context, accountID, tenantID int64, sortBy string) ([]*suggestionsModels.Post, error)
+
+	// CreateFeedback posts new feedback and returns the stored entry.
+	CreateFeedback(ctx context.Context, accountID, tenantID int64, title, description string) (*suggestionsModels.Post, error)
+
+	// GetFeedback returns one entry including vote and comment counts.
+	GetFeedback(ctx context.Context, accountID, tenantID, postID int64) (*suggestionsModels.Post, error)
+
+	// UpdateFeedback edits the guardian's own entry (title/description only).
+	UpdateFeedback(ctx context.Context, accountID, tenantID, postID int64, title, description string) (*suggestionsModels.Post, error)
+
+	// DeleteFeedback removes the guardian's own entry.
+	DeleteFeedback(ctx context.Context, accountID, tenantID, postID int64) error
+
+	// VoteFeedback casts or changes a vote ("up"/"down").
+	VoteFeedback(ctx context.Context, accountID, tenantID, postID int64, direction string) (*suggestionsModels.Post, error)
+
+	// RemoveFeedbackVote withdraws the guardian's vote.
+	RemoveFeedbackVote(ctx context.Context, accountID, tenantID, postID int64) (*suggestionsModels.Post, error)
+
+	// ListFeedbackComments returns one entry's thread, oldest first.
+	ListFeedbackComments(ctx context.Context, accountID, tenantID, postID int64) ([]*suggestionsModels.Comment, error)
+
+	// CreateFeedbackComment appends a comment to a thread.
+	CreateFeedbackComment(ctx context.Context, accountID, tenantID, postID int64, content string) error
+
+	// DeleteFeedbackComment removes the guardian's own comment from one thread.
+	DeleteFeedbackComment(ctx context.Context, accountID, tenantID, postID, commentID int64) error
+
+	// MarkFeedbackCommentsRead clears the unread marker of one thread.
+	MarkFeedbackCommentsRead(ctx context.Context, accountID, tenantID, postID int64) error
+
+	// FeedbackUnreadCount sums unread replies across all the guardian's boards.
+	FeedbackUnreadCount(ctx context.Context, accountID int64) (int, error)
+
 	// GetChildConversation returns the guardian's conversation about one owned
 	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
 	// 0) when no conversation exists yet. Authorization only.
@@ -216,6 +278,26 @@ type Service interface {
 	// withdrawn. Requires parent_portal.request.submit; stays available after
 	// messaging is disabled so outstanding requests can be wound down.
 	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
+
+	// GetChildOfferingCatalog returns the offerings the guardian may pick from
+	// for a change request, prefilled with the current booking. Requires
+	// parent_portal.request.submit.
+	GetChildOfferingCatalog(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.OfferingChangeCatalog, error)
+	GetChildOfferingCatalogAt(ctx context.Context, accountID, studentID int64, effectiveFrom timezone.Date) (*enrollmentSvc.OfferingChangeCatalog, error)
+
+	// CreateOfferingChangeRequest stores a pending post-enrollment offering
+	// change for staff review. Requires parent_portal.request.submit.
+	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string) (*ChildCareOfferings, error)
+
+	// WithdrawOfferingChangeRequest flips the caller's own pending offering
+	// change request to withdrawn.
+	WithdrawOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareOfferings, error)
+
+	// GetChildCareOfferings returns the care offerings and activity groups the
+	// child is booked into, plus whether the guardian may request a change
+	// (#1665). Authorization only — seeing the booking does not depend on the
+	// change feature being switched on.
+	GetChildCareOfferings(ctx context.Context, accountID, studentID int64) (*ChildCareOfferings, error)
 
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
@@ -353,6 +435,10 @@ type ServiceConfig struct {
 	// submission becomes a pending request here instead of a direct status day.
 	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
 
+	// AbsenceNotifier informs the child's group and the office that an absence
+	// was reported. Optional and best-effort, after-commit only.
+	AbsenceNotifier notificationsSvc.AbsenceNotifier
+
 	// Emitter posts notification pills into the child's parent-OGS thread for
 	// self-service actions (sick note, one-day pickup change) and master-data
 	// request submissions. Best-effort, after-commit only.
@@ -361,6 +447,18 @@ type ServiceConfig struct {
 	// Meal plan (Essensplan) read access for the child's school.
 	MealPlanRepo mealplanModels.MealPlanEntryRepository
 
+	// Booked care offerings + activity groups read view (#1665). The offering
+	// side is reached through the approved enrollment behind the child; the
+	// group side is the materialized truth in activities.
+	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	StudentEnrollmentRepo    activitiesModels.StudentEnrollmentRepository
+	ActivityGroupRepo        activitiesModels.GroupRepository
+	// OfferingChanges owns the post-enrollment change-request lifecycle; this
+	// service only authorizes the guardian and hands over.
+	OfferingChanges enrollmentSvc.OfferingChangeRequestService
+
 	// Parent-OGS messaging.
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
 	MessageRepo       usersModels.ParentMessageRepository
@@ -368,6 +466,11 @@ type ServiceConfig struct {
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
+
+	// Suggestions backs the parent feedback board (#1678). It is the same
+	// service the staff board uses; the two are kept apart by the actor-scoped
+	// RLS policy, which tenant.WithParentTx switches to the parent side.
+	Suggestions suggestionsSvc.Service
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
@@ -378,6 +481,7 @@ type ServiceConfig struct {
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).
 	PersonRepo        usersModels.PersonRepository
 	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+	StudentAudit      usersSvc.StudentChangeRecorder
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs both the
 	// caller's primary-phone master-data edit and the wholesale phone-list replace
@@ -400,6 +504,20 @@ func NewService(cfg ServiceConfig) Service {
 		cfg.Logger = slog.Default()
 	}
 	return &service{ServiceConfig: cfg}
+}
+
+// AbsenceNotifierSetter injects the sick/excused producer after construction.
+//
+// Deliberately a standalone interface rather than a method on Service: the
+// notification stack is wired later than this service, and widening Service
+// would force every test double to grow a method none of them call.
+type AbsenceNotifierSetter interface {
+	SetAbsenceNotifier(notifier notificationsSvc.AbsenceNotifier)
+}
+
+// SetAbsenceNotifier implements AbsenceNotifierSetter.
+func (s *service) SetAbsenceNotifier(notifier notificationsSvc.AbsenceNotifier) {
+	s.AbsenceNotifier = notifier
 }
 
 func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, error) {
@@ -538,6 +656,30 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 		slog.Int("count", len(phases)),
 	)
 	return phases, nil
+}
+
+// GetEnrollmentSubmitStatus resolves the (account, school) submit
+// facts for the parent enrollment path (#1663). Uses
+// WithAdminTxOrDirect so the parent submit handler's existing admin
+// transaction is reused instead of opening a nested one.
+func (s *service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error) {
+	if accountID <= 0 || schoolID <= 0 {
+		return nil, fmt.Errorf("parent: account_id and school_id must be positive")
+	}
+
+	var status *parentModels.GuardianSubmitStatus
+	err := tenant.WithAdminTxOrDirect(ctx, s.DB, func(adminCtx context.Context) error {
+		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
+		if stErr != nil {
+			return stErr
+		}
+		status = st
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("parent: enrollment submit status: %w", err)
+	}
+	return status, nil
 }
 
 // ListEnrollmentsForAccount returns the parent's enrollment.requests

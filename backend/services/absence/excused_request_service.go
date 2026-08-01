@@ -25,6 +25,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -123,6 +124,12 @@ type ExcusedAbsenceRequestService interface {
 	Decide(ctx context.Context, input ExcusedRequestDecideInput) (*ExcusedRequestReviewItem, error)
 }
 
+// AbsenceNotifierSetter injects the notification producer after construction.
+// The notification stack is built after this service in the factory.
+type AbsenceNotifierSetter interface {
+	SetAbsenceNotifier(notifier notificationsService.AbsenceNotifier)
+}
+
 type excusedAbsenceRequestService struct {
 	requestRepo   activeModels.ExcusedAbsenceRequestRepository
 	statusDayRepo activeModels.StudentStatusDayRepository
@@ -131,6 +138,7 @@ type excusedAbsenceRequestService struct {
 	userContext   userContextService.UserContextService
 	emitter       *parentmessaging.Emitter
 	broadcaster   realtime.Broadcaster
+	absenceNotify notificationsService.AbsenceNotifier
 	logger        *slog.Logger
 }
 
@@ -158,6 +166,11 @@ func NewExcusedAbsenceRequestService(
 		broadcaster:   broadcaster,
 		logger:        logger,
 	}
+}
+
+// SetAbsenceNotifier implements AbsenceNotifierSetter.
+func (s *excusedAbsenceRequestService) SetAbsenceNotifier(notifier notificationsService.AbsenceNotifier) {
+	s.absenceNotify = notifier
 }
 
 func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studentID, guardianAccountID int64, dates []timezone.Date, note string) (*activeModels.ExcusedAbsenceRequest, error) {
@@ -339,6 +352,13 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 		if !writable(students[r.StudentID]) {
 			continue
 		}
+		// A graduated child is soft-deleted: their pending requests survive the
+		// graduation (the hard delete it replaced cascaded them away), so without
+		// this they would sit in the staff queue and the sidebar badge and could
+		// still be approved onto an alumnus. A revert brings them back (#405 review).
+		if students[r.StudentID].IsAlumnus() {
+			continue
+		}
 		item := &ExcusedRequestReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -383,7 +403,10 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
 	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
 	for studentID, req := range candidates {
-		if writable(students[studentID]) {
+		// Alumni are excluded for the same reason as in the review queue: a
+		// graduated child must not raise a pending-approval marker anywhere on the
+		// staff surface (#405 review).
+		if writable(students[studentID]) && !students[studentID].IsAlumnus() {
 			out[studentID] = req
 		}
 	}
@@ -413,9 +436,25 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 
 	// Per-child write authorization: the caller may decide only if they could
 	// edit the child directly — admin, or the child's group supervisor.
-	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	//
+	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
+	// grade transition cannot change underneath it: the transition apply locks
+	// exactly this row before flipping it to alumnus, so an unlocked read could
+	// see "active", let the approve through, and have the graduation commit
+	// before the status-day writes land — excused rows written for, or cleared
+	// from, a child who is an alumnus by then. Under the lock the two serialize.
+	// This is the only student row this transaction locks, so the ascending-id
+	// order every student-row locker follows is preserved (#405 review).
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("active: load student for excused request decision: %w", err)
+	}
+	// The child graduated after filing this request. The lookup is unfiltered, so
+	// without this gate an approve would still write excused status days for an
+	// alumnus. Same 404 the rest of the child surface returns for graduates
+	// (#405 review).
+	if student.IsAlumnus() {
+		return nil, activeModels.ErrExcusedRequestNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
 		return nil, ErrExcusedRequestForbidden
@@ -471,6 +510,24 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	if input.Approve {
+		if s.absenceNotify != nil {
+			tenantID := req.TenantID
+			if tenantID <= 0 {
+				tenantID = tenant.FromContext(ctx)
+			}
+			report := notificationsService.AbsenceReport{
+				TenantID:           tenantID,
+				StudentIDs:         []int64{req.StudentID},
+				Status:             activeModels.StudentStatusDayExcused,
+				Dates:              req.Dates,
+				FromParent:         true,
+				ActorAccountID:     input.ReviewedBy,
+				ExcludedAccountIDs: []int64{req.SubmittedBy},
+			}
+			tenant.RegisterAfterCommit(ctx, func() {
+				s.absenceNotify.NotifyAbsenceReported(context.Background(), report)
+			})
+		}
 		tenant.RegisterAfterCommit(ctx, func() {
 			s.logger.Info("excused request approved",
 				slog.Int64("request_id", req.ID),

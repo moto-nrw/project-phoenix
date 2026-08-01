@@ -58,6 +58,21 @@ func (r *PhaseRepository) FindByID(ctx context.Context, id int64) (*enrollment.P
 	return row, nil
 }
 
+func (r *PhaseRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.Phase, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var rows []*enrollment.Phase
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".id IN (?)`, bun.List(ids)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list phases by ids: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) error {
 	if err := phase.Validate(); err != nil {
 		return fmt.Errorf("phase validation: %w", err)
@@ -83,6 +98,9 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("is_active = ?", phase.IsActive).
 		Set("available_school_classes = ?", phase.AvailableSchoolClasses).
 		Set("require_school_class = ?", phase.RequireSchoolClass).
+		Set("audience = ?", phase.Audience).
+		Set("eligible_school_classes = ?", phase.EligibleSchoolClasses).
+		Set("eligible_grade_levels = ?", phase.EligibleGradeLevels).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)
@@ -129,12 +147,24 @@ func (r *PhaseRepository) ListByTenant(ctx context.Context) ([]*enrollment.Phase
 // includes `now`. We push the filter down to SQL so the parent-facing
 // path doesn't pull every phase into memory; NULL bounds are treated
 // as "unbounded" via the IS NULL OR ... pattern.
+//
+// Audience-restricted phases (linked_parents AND existing_students) are
+// excluded entirely: their eligibility cannot be verified for an anonymous
+// visitor, so they are only reachable through the authenticated parents
+// portal (#1663). The excluded set must stay identical to the anonymous
+// form-load gate (services/enrollment.audienceRequiresGuardianAccount) —
+// advertising a card whose form the very next request 404s is a guaranteed
+// dead end for the parent.
 func (r *PhaseRepository) ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollment.Phase, error) {
 	var rows []*enrollment.Phase
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(phaseTableExpr).
 		Where(`"phase".is_active = TRUE`).
+		Where(`"phase".audience NOT IN (?)`, bun.List([]string{
+			enrollment.PhaseAudienceLinkedParents,
+			enrollment.PhaseAudienceExistingStudents,
+		})).
 		Where(`("phase".enrollment_open_at IS NULL OR "phase".enrollment_open_at <= ?)`, now).
 		Where(`("phase".enrollment_close_at IS NULL OR "phase".enrollment_close_at > ?)`, now).
 		OrderExpr(`"phase".service_start_date ASC, "phase".id ASC`).
@@ -162,6 +192,67 @@ func (r *PhaseRepository) ListWithExpiredRolloverDeadline(ctx context.Context, a
 		return nil, fmt.Errorf("failed to list phases with expired rollover deadline: %w", err)
 	}
 	return rows, nil
+}
+
+// ExistsActiveWithEligibleClasses reports whether the tenant (via the RLS
+// tx in context) has any active phase whose eligible_school_classes carries
+// at least one non-blank entry. The blank filter mirrors the model's
+// hasNonEmptyEligibleClass so a stored [""] is not treated as a real
+// restriction. Backs the settings guard that refuses to disable
+// concrete-class collection while such a phase exists (#1663).
+func (r *PhaseRepository) ExistsActiveWithEligibleClasses(ctx context.Context) (bool, error) {
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".is_active = TRUE`).
+		Where(`EXISTS (SELECT 1 FROM jsonb_array_elements_text("phase".eligible_school_classes) AS elem WHERE btrim(elem) <> '')`).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check active phases with eligible classes: %w", err)
+	}
+	return exists, nil
+}
+
+// ExistsActiveWithEligibleGradeLevels reports whether the tenant (via the
+// RLS tx in context) has any active phase whose eligible_grade_levels holds
+// at least one entry. Grades are stored as JSON numbers written only through
+// Phase.Validate, so a length check is exact — there is no blank-entry case
+// like the class list has. Backs the settings guard that refuses to disable
+// grade-level collection while such a phase exists (#1663).
+func (r *PhaseRepository) ExistsActiveWithEligibleGradeLevels(ctx context.Context) (bool, error) {
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".is_active = TRUE`).
+		Where(`jsonb_array_length("phase".eligible_grade_levels) > 0`).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check active phases with eligible grade levels: %w", err)
+	}
+	return exists, nil
+}
+
+// MaxActiveEligibleGradeLevel returns the highest grade any active phase of
+// the tenant (via the RLS tx in context) restricts itself to, or 0 when no
+// active phase carries a grade restriction. Backs the settings guard that
+// refuses to lower enrollment.grade_level_max below a restriction that is
+// already live — the form would then offer no eligible grade at all and every
+// submission to that phase would fail (#1663). Grades are stored as JSON
+// numbers written only through Phase.Validate, so the text-extract cast is
+// safe.
+func (r *PhaseRepository) MaxActiveEligibleGradeLevel(ctx context.Context) (int, error) {
+	var highest int
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		ColumnExpr(`COALESCE(MAX((grade.value #>> '{}')::int), 0)`).
+		Join(`CROSS JOIN LATERAL jsonb_array_elements("phase".eligible_grade_levels) AS grade(value)`).
+		Where(`"phase".is_active = TRUE`).
+		Scan(ctx, &highest)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read highest active eligible grade level: %w", err)
+	}
+	return highest, nil
 }
 
 // ExistsByFormSchemaID is the safety check the schema-delete path needs.

@@ -5,13 +5,23 @@ import {
   CalendarOff,
   Clock,
   MapPin,
-  Plus,
   Repeat,
   Thermometer,
   TriangleAlert,
 } from "lucide-react";
-import { useId, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
+import {
+  ClosingDayChip,
+  ClosingDayConfirmModal,
+} from "~/components/planning/closing-day-marker";
 import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
@@ -19,6 +29,7 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
+import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 import { PlanBlock } from "~/components/ui/plan-block";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import {
@@ -26,7 +37,9 @@ import {
   type ResourceGridColumn,
 } from "~/components/ui/resource-grid";
 import { Tooltip } from "~/components/ui/tooltip";
+import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
+import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   formatColumnDate,
@@ -86,6 +99,15 @@ interface DienstplanResourceGridProps {
   readonly weekDays: readonly string[];
   /** Today as "YYYY-MM-DD" for the column tint and the absence-entry jump. */
   readonly todayIso: string;
+  /** OGS-Schließtage der Woche, keyed YYYY-MM-DD → Grund (#2032). Markiert
+   *  die Spalte und löst vor dem Anlegen einer Schicht die Rückfrage aus. */
+  readonly closingDays?: ReadonlyMap<string, string>;
+  /** While the lookup is pending, empty cells stay inactive so creation
+   *  cannot bypass the closing-day confirmation. */
+  readonly closingDaysLoading?: boolean;
+  /** Alle gespeicherten Schließtag-Zeiträume — für den Zieltag im
+   *  „Verschieben nach“-Dialog, der außerhalb der Woche liegen kann. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   /** Shift type lookup (id -> type) for per-shift color + label fallback. */
   readonly typesById: Map<string, ShiftType>;
   /** Every shift type (Schichtart) for the legend. Data source: the view. */
@@ -281,6 +303,9 @@ export function DienstplanResourceGrid({
   summaryByStaff,
   weekDays,
   todayIso,
+  closingDays,
+  closingDaysLoading = false,
+  closingDayRanges,
   typesById,
   shiftTypes,
   reducedPath = false,
@@ -290,6 +315,28 @@ export function DienstplanResourceGrid({
 }: DienstplanResourceGridProps) {
   const router = useTenantRouter();
   const scrollHintId = useId();
+
+  // Schließtag-Rückfrage (#2032): eine NEUE Schicht auf einem Schließtag wird
+  // einmal bestätigt, dann wie gewohnt im Bearbeiten-Dialog geöffnet. Das
+  // Öffnen einer bestehenden Schicht fragt nicht — die liegt schon dort.
+  const [closingDayPrompt, setClosingDayPrompt] = useState<{
+    member: StaffScheduleStaff;
+    date: string;
+    reason: string;
+  } | null>(null);
+
+  const openCell = (
+    member: StaffScheduleStaff,
+    date: string,
+    shift: StaffShift | null,
+  ) => {
+    const reason = shift === null ? closingDays?.get(date) : undefined;
+    if (reason !== undefined) {
+      setClosingDayPrompt({ member, date, reason });
+      return;
+    }
+    onCellClick(member, date, shift);
+  };
 
   // "Verschieben nach" (docs/05 Abschnitt 2.7): the move dialog lives here so
   // the Dienstplan view needs no new prop. After a move (success, or the
@@ -305,13 +352,21 @@ export function DienstplanResourceGrid({
 
   const columns: ResourceGridColumn[] = useMemo(
     () =>
-      weekDays.map((date, i) => ({
-        key: date,
-        label: DAY_LABELS[i] ?? "",
-        sublabel: formatColumnDate(date),
-        isCurrent: date === todayIso,
-      })),
-    [weekDays, todayIso],
+      weekDays.map((date, i) => {
+        const closingReason = closingDays?.get(date);
+        return {
+          key: date,
+          label: DAY_LABELS[i] ?? "",
+          sublabel: formatColumnDate(date),
+          isCurrent: date === todayIso,
+          isMuted: closingReason !== undefined,
+          headerNote:
+            closingReason === undefined ? undefined : (
+              <ClosingDayChip reason={closingReason} />
+            ),
+        };
+      }),
+    [weekDays, todayIso, closingDays],
   );
 
   // Per-day capacity (12–16 window), computed once per data change instead of
@@ -487,7 +542,7 @@ export function DienstplanResourceGrid({
               label={label}
               color={resolveShiftColor(shift, typesById)}
               statusIcon={statusIcon}
-              onClick={() => onCellClick(member, date, shift)}
+              onClick={() => openCell(member, date, shift)}
               aria-label={ariaParts.join(", ")}
             />
           </div>
@@ -542,8 +597,10 @@ export function DienstplanResourceGrid({
       a.startTime.localeCompare(b.startTime),
     );
 
+    // Die Mindesthöhe der Zelle liegt im ResourceGrid, damit leere und gefüllte
+    // Zellen dieselbe Zeilenhöhe ergeben (Issue #2026).
     return (
-      <div className="group flex min-h-14 flex-col gap-1">
+      <div className="group flex flex-1 flex-col gap-1">
         {sortedShifts.map((shift) =>
           renderShiftEntry(member, date, shift, dayIsAbsent),
         )}
@@ -553,17 +610,20 @@ export function DienstplanResourceGrid({
             assignment={assignment}
           />
         ))}
-        {/* Add-shift affordance in a FILLED cell: hidden until the cell is
-            hovered on hover-capable pointers (matches the retired week grid),
-            but always visible on touch and reachable by keyboard
-            (focus / focus-visible force it back to full opacity). */}
+        {/* Anlege-Geste in einer GEFÜLLTEN Zelle: dieselbe Fläche wie in einer
+            leeren Zelle und im Stundenraster des Betreuungsplans (#2031), nur
+            schmaler, weil darüber schon Inhalt steht. Ein- und Ausblendung
+            steckt in PlanAddAffordance; `group` hier am Button, damit auch
+            Tastaturfokus die Fläche zeigt (die Zelle selbst ist nicht
+            fokussierbar). */}
         <button
           type="button"
-          onClick={() => onCellClick(member, date, null)}
+          disabled={closingDaysLoading}
+          onClick={() => openCell(member, date, null)}
           aria-label={createShiftAriaLabel(member, column)}
-          className="flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 opacity-100 transition hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
+          className="group flex w-full rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none disabled:cursor-wait disabled:opacity-40"
         >
-          <Plus className="h-4 w-4" aria-hidden />
+          <PlanAddAffordance size="inline" />
         </button>
       </div>
     );
@@ -589,44 +649,166 @@ export function DienstplanResourceGrid({
     [shiftTypes],
   );
 
+  // Ausgewählter Tag der mobilen Tagesansicht. Voreinstellung ist heute, wenn
+  // es in der gezeigten Woche liegt, sonst der Wochenanfang — dieselbe Regel
+  // wie im Tagesstreifen des Betreuungsplan-Rasters.
+  const todayColumnIndex = weekDays.indexOf(todayIso);
+  const weekStart = weekDays[0];
+  const [mobileDayIndex, setMobileDayIndex] = useState(
+    todayColumnIndex >= 0 ? todayColumnIndex : 0,
+  );
+  const mobileWeekStart = useRef(weekStart);
+  useEffect(() => {
+    if (mobileWeekStart.current === weekStart) return;
+    mobileWeekStart.current = weekStart;
+    setMobileDayIndex(todayColumnIndex >= 0 ? todayColumnIndex : 0);
+  }, [todayColumnIndex, weekStart]);
+  const safeMobileDayIndex = Math.min(
+    Math.max(mobileDayIndex, 0),
+    Math.max(columns.length - 1, 0),
+  );
+  const mobileColumn = columns[safeMobileDayIndex];
+
+  // Tagesansicht und Wochenmatrix schließen einander aus — sie dürfen NICHT
+  // beide im Dokument stehen und per `lg:hidden` weggeblendet werden: jede
+  // Person, jeder Schichtblock und jedes Aktionsmenü läge sonst doppelt im
+  // Baum, Screenreader läsen den Plan zweimal vor und die Tabulator-Reihenfolge
+  // liefe durch eine unsichtbare Kopie.
+  const isCompact = useMediaQuery(BELOW_LG);
+
   return (
     <div>
-      <p id={scrollHintId} className="mb-2 text-xs text-gray-600 sm:hidden">
-        Wische horizontal, um weitere Wochentage zu sehen.
-      </p>
-      <ResourceGrid
-        columns={columns}
-        rows={staff}
-        getRowKey={(member) => member.id}
-        renderRowHeader={renderRowHeader}
-        renderCell={renderCell}
-        columnMode="days"
-        cornerHeader="Person"
-        scrollHintId={scrollHintId}
-        emptyCellLabel={createShiftAriaLabel}
-        onEmptyCellClick={(member, column) =>
-          onCellClick(member, column.key, null)
-        }
-        footer={
-          <CapacityStrip
-            rowLabel={
+      {/* Unterhalb lg ersetzt eine Tagesansicht die Wochenmatrix: Personen×Tage
+          passt nicht auf ein Telefon — die Namensspalte fraß dort die halbe
+          Breite, sichtbar blieb rund eine Tagesspalte, und der Rest der Woche
+          lag hinter einer Wischgeste. Gezeigt wird EIN Tag, die Personen
+          untereinander. Es ist bewusst dieselbe Darstellung wie im
+          Betreuungsplan, damit die drei Planungsflächen sich mobil gleich
+          verhalten. Zeilenkopf und Zelleninhalt sind exakt dieselben
+          Render-Funktionen wie in der Matrix, also bleiben Menüs, Blöcke und
+          die Anlege-Geste identisch. */}
+      {isCompact && mobileColumn ? (
+        <div>
+          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+            <div className="flex gap-1 border-b border-gray-200 bg-white p-2">
+              {columns.map((column, index) => {
+                const isSelected = index === safeMobileDayIndex;
+                return (
+                  <button
+                    key={column.key}
+                    type="button"
+                    onClick={() => setMobileDayIndex(index)}
+                    aria-pressed={isSelected}
+                    className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                      isSelected
+                        ? "bg-gray-900 text-white"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span
+                      className={`text-[10px] font-medium tracking-wide uppercase ${
+                        isSelected ? "text-white/80" : "text-gray-500"
+                      }`}
+                    >
+                      {column.label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {column.sublabel}
+                    </span>
+                    {column.headerNote}
+                    {column.isCurrent && !isSelected && (
+                      <span
+                        aria-hidden
+                        className="h-1 w-1 rounded-full bg-[#FF3130]"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <ul className="divide-y divide-gray-100">
+              {staff.map((member) => (
+                <li key={member.id} className="px-3 py-2.5">
+                  {renderRowHeader(member)}
+                  <div className="mt-1.5">
+                    {renderCell(member, mobileColumn) ?? (
+                      // Leerer Tag: dieselbe Anlege-Fläche, die das Raster in
+                      // einer leeren Zelle rendert — ohne sie ließe sich mobil
+                      // keine Schicht anlegen.
+                      <button
+                        type="button"
+                        disabled={closingDaysLoading}
+                        onClick={() => openCell(member, mobileColumn.key, null)}
+                        aria-label={createShiftAriaLabel(member, mobileColumn)}
+                        className="group flex w-full rounded-md focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none disabled:cursor-wait disabled:opacity-40"
+                      >
+                        <PlanAddAffordance size="inline" />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
               <span title="Übergangslösung: Pausen sind in dieser Zahl nicht herausgerechnet.">
                 Kapazität 12–16
               </span>
-            }
-            cells={weekDays.map((date) => ({
-              key: date,
-              content: capacityByDay.get(date) ?? 0,
-            }))}
+              <span className="font-semibold text-gray-900 tabular-nums">
+                {capacityByDay.get(mobileColumn.key) ?? 0}
+              </span>
+            </div>
+          </div>
+          <PlanLegend
+            className="mt-3 px-1"
+            entries={legendEntries}
+            aria-label="Legende Schichtarten und Zustände"
           />
-        }
-        ariaLabel="Dienstplan-Wochenansicht"
-      />
-      <PlanLegend
-        className="mt-3 px-1"
-        entries={legendEntries}
-        aria-label="Legende Schichtarten und Zustände"
-      />
+        </div>
+      ) : (
+        <div>
+          <p id={scrollHintId} className="mb-2 text-xs text-gray-600 sm:hidden">
+            Wische horizontal, um weitere Wochentage zu sehen.
+          </p>
+          <ResourceGrid
+            columns={columns}
+            rows={staff}
+            getRowKey={(member) => member.id}
+            renderRowHeader={renderRowHeader}
+            renderCell={renderCell}
+            columnMode="days"
+            cornerHeader="Person"
+            scrollHintId={scrollHintId}
+            emptyCellLabel={createShiftAriaLabel}
+            onEmptyCellClick={
+              closingDaysLoading
+                ? undefined
+                : (member, column) => openCell(member, column.key, null)
+            }
+            footer={
+              <CapacityStrip
+                rowLabel={
+                  <span title="Übergangslösung: Pausen sind in dieser Zahl nicht herausgerechnet.">
+                    Kapazität 12–16
+                  </span>
+                }
+                cells={weekDays.map((date) => ({
+                  key: date,
+                  content: capacityByDay.get(date) ?? 0,
+                }))}
+              />
+            }
+            ariaLabel="Dienstplan-Wochenansicht"
+          />
+          <PlanLegend
+            className="mt-3 px-1"
+            entries={legendEntries}
+            aria-label="Legende Schichtarten und Zustände"
+          />
+        </div>
+      )}
+
       {moveTarget && (
         <ShiftMoveDialog
           isOpen
@@ -634,9 +816,23 @@ export function DienstplanResourceGrid({
           sourceMember={moveTarget.member}
           staff={staff}
           shiftTypes={shiftTypes}
+          closingDayRanges={closingDayRanges}
           onClose={() => setMoveTarget(null)}
           onDataChanged={() => {
             void refreshAfterMove();
+          }}
+        />
+      )}
+      {closingDayPrompt && (
+        <ClosingDayConfirmModal
+          dateISO={closingDayPrompt.date}
+          reason={closingDayPrompt.reason}
+          subject="schicht"
+          onCancel={() => setClosingDayPrompt(null)}
+          onConfirm={() => {
+            const { member, date } = closingDayPrompt;
+            setClosingDayPrompt(null);
+            onCellClick(member, date, null);
           }}
         />
       )}

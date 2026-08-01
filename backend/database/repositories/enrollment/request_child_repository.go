@@ -51,6 +51,21 @@ func (r *RequestChildRepository) FindByID(ctx context.Context, id int64) (*enrol
 	return child, nil
 }
 
+func (r *RequestChildRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var children []*enrollment.RequestChild
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&children).
+		ModelTableExpr(requestChildTableExpr).
+		Where(`"request_child".id IN (?)`, bun.List(ids)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list request children by ids: %w", err)
+	}
+	return children, nil
+}
+
 // ListByRequestID returns all children for a request, sorted by sort_order.
 func (r *RequestChildRepository) ListByRequestID(ctx context.Context, requestID int64) ([]*enrollment.RequestChild, error) {
 	return r.listByRequestID(ctx, requestID, "")
@@ -179,6 +194,30 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 	return nil
 }
 
+// UpdateMatchedStudent re-points (or clears) the already-enrolled student an
+// existing_students child is pinned to. Submission and replacement edits write
+// the pin as part of the INSERT; the change-request path edits an already
+// persisted row in place, so an approved identity change needs this to keep the
+// pin describing the same human the row now names (#1663). A nil studentID
+// clears the pin, which sends approval down the fresh-create branch.
+func (r *RequestChildRepository) UpdateMatchedStudent(ctx context.Context, requestChildID int64, studentID *int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("matched_student_id = ?", studentID).
+		Set("updated_at = ?", time.Now()).
+		Where(`"request_child".id = ?`, requestChildID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update request child matched student: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}
+
 // UpdateActivationPlan records the approval-time lifecycle decision on
 // the child row. Submission rows start with the schema default; approval is
 // the first point where the tenant setting and phase dates are authoritative.
@@ -242,6 +281,39 @@ func (r *RequestChildRepository) CountCreatedStudentsByPhaseID(ctx context.Conte
 		return 0, fmt.Errorf("failed to count created students by phase: %w", err)
 	}
 	return count, nil
+}
+
+// ListCarePeriodsByStudentID returns the approved enrollments behind a student
+// together with the care window of their phase, latest window first. Joined
+// rather than filtered because the window lives on enrollment.phases, two joins
+// away from the child row. Tenant RLS applies on all three tables.
+func (r *RequestChildRepository) ListCarePeriodsByStudentID(
+	ctx context.Context,
+	studentID int64,
+) ([]*enrollment.StudentCarePeriod, error) {
+	if studentID <= 0 {
+		return nil, fmt.Errorf("student id must be positive")
+	}
+	periods := make([]*enrollment.StudentCarePeriod, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&periods).
+		ModelTableExpr(requestChildTableExpr).
+		Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+		Join(`INNER JOIN enrollment.phases AS "phase" ON "phase".id = "request".phase_id`).
+		ColumnExpr(`"request_child".id AS request_child_id`).
+		ColumnExpr(`"request".id AS request_id`).
+		ColumnExpr(`"phase".id AS phase_id`).
+		ColumnExpr(`"phase".name AS phase_name`).
+		ColumnExpr(`"phase".service_start_date AS service_start_date`).
+		ColumnExpr(`"phase".service_end_date AS service_end_date`).
+		Where(`"request_child".created_student_id = ?`, studentID).
+		Where(`"request_child".status = ?`, enrollment.ChildStatusApproved).
+		OrderExpr(`"phase".service_start_date DESC, "request_child".id DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care periods by student: %w", err)
+	}
+	return periods, nil
 }
 
 // ListByPhaseAndStatuses joins through enrollment.requests to filter by

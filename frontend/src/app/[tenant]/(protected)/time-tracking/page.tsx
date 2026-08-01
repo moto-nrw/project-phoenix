@@ -29,8 +29,21 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
+import {
+  SegmentedControl,
+  type SegmentedControlItem,
+} from "~/components/ui/segmented-control";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { Textarea } from "~/components/ui/textarea";
+import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   formatSignedDuration,
   ViewToggle,
@@ -329,51 +342,47 @@ function formatCountdown(totalSecs: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Returns status badge styling and label for current session state
+// Returns the kit StatusBadge tone and label for the current session state.
 function getSessionStatusBadge(
   isOnBreak: boolean,
   status: string | undefined,
-): { className: string; label: string } {
+): { tone: StatusBadgeTone; label: string } {
   if (isOnBreak) {
-    return { className: "bg-amber-100 text-amber-700", label: "Pause" };
+    return { tone: "orange", label: "Pause" };
   }
   if (status === "home_office") {
-    return {
-      className: "bg-[#5080D8]/10 text-[#5080D8]",
-      label: "Homeoffice",
-    };
+    return { tone: "blue", label: "Homeoffice" };
   }
-  return { className: "bg-[#83CD2D]/10 text-[#70b525]", label: "In der OGS" };
+  return { tone: "green", label: "In der OGS" };
 }
 
-// Returns className for mode toggle button. `currentMode` is null before the
-// staff member has actively chosen Vor Ort / Homeoffice / Abwesend (Issue #1368
-// — no pre-selection). All buttons render inactive in that case.
-function getModeToggleClassName(
-  buttonMode: WorkMode,
-  currentMode: WorkMode | null,
-): string {
-  const base =
-    "rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4";
-  const inactive = "bg-gray-100 text-gray-500 hover:bg-gray-200";
-  if (buttonMode !== currentMode) return `${base} ${inactive}`;
-  // Brand colors from LOCATION_COLORS (lib/location-helper.ts):
-  //   present     → GROUP_ROOM #83CD2D (green)
-  //   home_office → OTHER_ROOM #5080D8 (blue)
-  //   absent      → HOME       #FF3130 (red)
-  if (buttonMode === "present")
-    return `${base} bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40`;
-  if (buttonMode === "home_office")
-    return `${base} bg-[#5080D8]/10 text-[#5080D8] ring-1 ring-[#5080D8]/40`;
-  return `${base} bg-[#FF3130]/10 text-[#FF3130] ring-1 ring-[#FF3130]/40`;
-}
+// Vor Ort / Homeoffice / Abwesend as a kit SegmentedControl. Tones map to
+// LOCATION_COLORS: present → GROUP_ROOM green, home_office → OTHER_ROOM blue,
+// absent → HOME red. `value` stays null until the staff member picks one
+// (Issue #1368 — no pre-selection on an audit-relevant choice).
+const WORK_MODE_ITEMS: readonly SegmentedControlItem<WorkMode>[] = [
+  { value: "present", label: "In der OGS", tone: "green" },
+  { value: "home_office", label: "Homeoffice", tone: "blue" },
+  { value: "absent", label: "Abwesend", tone: "red" },
+];
 
-// Returns className for check-in button. When `mode` is null the button is
-// rendered in a muted style and disabled — the staff member must pick a status
-// first (Issue #1368: keine Vorauswahl).
+// The circular stamp controls are deliberately larger than any kit Button size
+// (64px / 48px touch targets on a tablet mounted in the hallway), so they pass
+// their geometry to ui/Button via className while keeping the kit's focus,
+// disabled and transition treatment. Colors are brand hexes only.
+//
+// `!rounded-full` is load-bearing: Button applies a radius per size
+// (`rounded-lg` on the page sizes), and Tailwind resolves competing
+// border-radius utilities by stylesheet order, not by the order they appear in
+// the class attribute. Without the important modifier these buttons render as
+// rounded squares. Same modifier as the break stepper below.
+const STAMP_BUTTON_BASE =
+  "!rounded-full border-2 !p-0 shadow-none hover:shadow-none active:scale-95";
+
+// Returns className for the check-in button. `mode === null` renders muted and
+// disabled — the staff member must pick a status first (Issue #1368).
 function getCheckInButtonClassName(mode: WorkMode | null): string {
-  const base =
-    "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50";
+  const base = `${STAMP_BUTTON_BASE} h-16 w-16 disabled:cursor-not-allowed`;
   if (mode === null)
     return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
   if (mode === "home_office")
@@ -381,16 +390,16 @@ function getCheckInButtonClassName(mode: WorkMode | null): string {
   return `${base} border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5`;
 }
 
-// Returns className for break/pause button
+// Returns className for the break/pause button. Orange is SCHOOLYARD #F78C10
+// from LOCATION_COLORS — the app's warning tone.
 function getBreakButtonClassName(
   isOnBreak: boolean,
   breakMins: number,
 ): string {
-  const base =
-    "flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-60";
-  if (isOnBreak) return `${base} border-amber-400 text-amber-500`;
+  const base = `${STAMP_BUTTON_BASE} h-12 w-12 disabled:opacity-60`;
+  if (isOnBreak) return `${base} border-[#F78C10] text-[#F78C10]`;
   if (breakMins > 0)
-    return `${base} border-amber-400 text-amber-500 hover:bg-amber-50`;
+    return `${base} border-[#F78C10] text-[#F78C10] hover:bg-[#F78C10]/10`;
   return `${base} border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500`;
 }
 
@@ -492,10 +501,10 @@ function renderTimerContent(
   ) {
     return (
       <>
-        <span className="text-4xl font-light text-amber-500 tabular-nums">
+        <span className="text-4xl font-light text-[#F78C10] tabular-nums">
           {formatCountdown(countdownRemainingSecs)}
         </span>
-        <span className="mt-0.5 text-xs font-medium text-amber-500">
+        <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
           Pause ({plannedBreakDurationMins} Min)
         </span>
         <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
@@ -510,10 +519,10 @@ function renderTimerContent(
   if (isOnBreak) {
     return (
       <>
-        <span className="text-4xl font-light text-amber-500 tabular-nums">
+        <span className="text-4xl font-light text-[#F78C10] tabular-nums">
           {formatCountdown(activeBreakElapsedSecs)}
         </span>
-        <span className="mt-0.5 text-xs font-medium text-amber-500">
+        <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
           Pause läuft
         </span>
       </>
@@ -575,6 +584,9 @@ function ClockInCard({
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
+  // Anchor for the desktop break-duration popover; dismissal is handled by
+  // document listeners scoped to this subtree (see effect below).
+  const breakMenuRef = useRef<HTMLDivElement>(null);
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
@@ -658,6 +670,31 @@ function ClockInCard({
       setPlannedBreakMinutes(null);
     }
   }, [isOnBreak]);
+
+  // Dismiss the desktop break-duration popover on outside click or Escape.
+  // Capture the outside click before its target can act, so closing the picker
+  // cannot also trigger a button behind it. The mobile picker is portaled by
+  // Drawer, so it manages dismissal through its own open state instead.
+  useEffect(() => {
+    if (!breakMenuOpen || isMobileViewport) return;
+    const onOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target === null) return;
+      if (breakMenuRef.current?.contains(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setBreakMenuOpen(false);
+    };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setBreakMenuOpen(false);
+    };
+    document.addEventListener("click", onOutsideClick, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onOutsideClick, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [breakMenuOpen, isMobileViewport]);
 
   useEffect(() => {
     const updateViewport = () => {
@@ -822,19 +859,15 @@ function ClockInCard({
   );
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <div className="relative p-5 sm:p-6 md:p-8">
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm">
+      <div className="relative p-4 sm:p-6">
         {/* Title + status badge */}
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
             Stempeluhr
           </h2>
           {statusBadge && (
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge.className}`}
-            >
-              {statusBadge.label}
-            </span>
+            <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
           )}
         </div>
 
@@ -850,36 +883,21 @@ function ClockInCard({
         {!isCheckedIn && !isCheckedOut && (
           <div className="flex flex-col items-center gap-5">
             {/* Mode toggle */}
-            <div className="flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("present")}
-                className={getModeToggleClassName("present", mode)}
-              >
-                In der OGS
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("home_office")}
-                className={getModeToggleClassName("home_office", mode)}
-              >
-                Homeoffice
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("absent")}
-                className={getModeToggleClassName("absent", mode)}
-              >
-                Abwesend
-              </button>
-            </div>
+            <SegmentedControl
+              ariaLabel="Arbeitsmodus"
+              variant="pills"
+              items={WORK_MODE_ITEMS}
+              value={mode}
+              onChange={setMode}
+            />
 
             {/* Action button: play (check-in) or calendar (absence) */}
             {mode === "absent" ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={onAddAbsence}
-                className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-400 text-red-500 transition-all hover:bg-red-50 active:scale-95"
+                className={`${STAMP_BUTTON_BASE} h-16 w-16 border-[#FF3130] text-[#FF3130] hover:bg-[#FF3130]/5`}
                 aria-label="Abwesenheit melden"
               >
                 <svg
@@ -895,10 +913,11 @@ function ClockInCard({
                     d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
                   />
                 </svg>
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handleCheckIn}
                 disabled={actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
@@ -915,7 +934,7 @@ function ClockInCard({
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 )}
-              </button>
+              </Button>
             )}
 
             <span className="text-xs text-gray-400 sm:text-sm">
@@ -934,10 +953,11 @@ function ClockInCard({
             {/* Control row: pause | timer | stop */}
             <div className="mb-5 flex items-center justify-between">
               {/* Pause button (opens menu) or End Break button */}
-              <div className="relative">
+              <div className="relative" ref={breakMenuRef}>
                 {isOnBreak ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={handleEndBreakEarly}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
@@ -950,14 +970,17 @@ function ClockInCard({
                     >
                       <path d="M8 5v14l11-7z" />
                     </svg>
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(false, breakMins)}
                     aria-label="Pause starten"
+                    aria-expanded={breakMenuOpen}
+                    aria-haspopup="dialog"
                   >
                     <svg
                       className="h-5 w-5"
@@ -966,27 +989,16 @@ function ClockInCard({
                     >
                       <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                     </svg>
-                  </button>
+                  </Button>
                 )}
 
-                {/* Break duration menu */}
+                {/* The capture-phase listener above consumes the first desktop
+                    outside click, so dismissing this picker cannot also
+                    trigger an action behind it. */}
                 {showBreakDurationPicker && !isMobileViewport && (
-                  <>
-                    {/* Backdrop to close menu */}
-                    <button
-                      type="button"
-                      aria-label="Menü schließen"
-                      className="fixed inset-0 z-10 cursor-default bg-transparent"
-                      onClick={() => setBreakMenuOpen(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape" || e.key === "Enter")
-                          setBreakMenuOpen(false);
-                      }}
-                    />
-                    <div className="absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:w-72">
-                      {breakDurationControls}
-                    </div>
-                  </>
+                  <div className="absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:w-72">
+                    {breakDurationControls}
+                  </div>
                 )}
               </div>
 
@@ -1049,11 +1061,12 @@ function ClockInCard({
               </div>
 
               {/* Stop / check-out button */}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handleCheckOut}
                 disabled={actionLoading || isOnBreak}
-                className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 transition-all hover:border-red-400 hover:text-red-500 active:scale-95 disabled:opacity-50"
+                className={`${STAMP_BUTTON_BASE} h-12 w-12 border-gray-300 text-gray-500 hover:border-[#FF3130] hover:text-[#FF3130] disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
                 {actionLoading ? (
@@ -1067,7 +1080,7 @@ function ClockInCard({
                     <rect x="6" y="6" width="12" height="12" rx="1" />
                   </svg>
                 )}
-              </button>
+              </Button>
             </div>
 
             {/* ── Activity log rows ── */}
@@ -1422,7 +1435,7 @@ function BreakActivityLog({
         {formatTimeFromDate(seg.start)}
       </span>
       <span
-        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-amber-300" : "text-gray-300"}`}
+        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-[#F78C10]/60" : "text-gray-300"}`}
       >
         &rarr;
       </span>
@@ -1461,15 +1474,18 @@ function BreakActivityLog({
       })}
       {/* Toggle button at the bottom */}
       {hasHidden && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="compact"
           onClick={() => setExpanded(!expanded)}
-          className="w-full border-t border-gray-50 py-1.5 text-center text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
+          aria-expanded={expanded}
+          className="w-full !rounded-none border-t border-gray-50 text-gray-400 hover:bg-transparent hover:text-gray-600"
         >
           {expanded
             ? "Weniger anzeigen"
             : `${hiddenSegments.length} weitere anzeigen`}
-        </button>
+        </Button>
       )}
     </>
   );
@@ -1481,6 +1497,12 @@ function BreakActivityLog({
 
 type StatusTone = "green" | "amber" | "gray";
 
+// Standalone value text on a white card, so it follows the app's tone map —
+// the same one KpiCard (staff-time-views), detail-modal-components and
+// school-overview-section use, so the identical Saldo reads the same on
+// /staff/[id] and here. The kit's darkened orange (#8A5600) is deliberately
+// NOT used: it is a foreground for TINTED surfaces (Alert warning, StatusBadge
+// orange) and turns brown on white.
 const STATUS_TEXT: Record<StatusTone, string> = {
   green: "text-[#83CD2D]",
   amber: "text-amber-600",
@@ -1489,7 +1511,7 @@ const STATUS_TEXT: Record<StatusTone, string> = {
 
 const STATUS_BAR: Record<StatusTone, string> = {
   green: "bg-[#83CD2D]",
-  amber: "bg-amber-500",
+  amber: "bg-[#F78C10]",
   gray: "bg-gray-400",
 };
 
@@ -1768,7 +1790,7 @@ function OwnZeiterfassungSection({
   const todayLabel = viewMode === "month" ? "Diesen Monat" : "Diese Woche";
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h2 className="text-base font-bold text-gray-900 sm:text-lg">
           Zeiterfassung
@@ -1786,13 +1808,15 @@ function OwnZeiterfassungSection({
       <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
         <div className="hidden sm:block" />
         <div className="flex min-w-0 items-center justify-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={handlePrev}
             aria-label={
               viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
             }
-            className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            className="!rounded-full"
           >
             <svg
               className="h-4 w-4"
@@ -1807,17 +1831,19 @@ function OwnZeiterfassungSection({
                 d="M15 19l-7-7 7-7"
               />
             </svg>
-          </button>
+          </Button>
           <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
             {labelRange}
           </h3>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={handleNext}
             aria-label={
               viewMode === "month" ? "Nächster Monat" : "Nächste Woche"
             }
-            className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            className="!rounded-full"
           >
             <svg
               className="h-4 w-4"
@@ -1832,17 +1858,19 @@ function OwnZeiterfassungSection({
                 d="M9 5l7 7-7 7"
               />
             </svg>
-          </button>
+          </Button>
         </div>
         <div className="flex justify-center sm:justify-end">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             onClick={handleToday}
             disabled={isOnCurrent}
-            className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="!rounded-full shadow-none disabled:opacity-40"
           >
             {todayLabel}
-          </button>
+          </Button>
         </div>
       </div>
       {viewMode === "month" && (
@@ -1863,6 +1891,9 @@ function OwnZeiterfassungSection({
         </div>
       )}
       {(tableLoading && tableHistory.length === 0) || shiftsLoading ? (
+        // NOT the kit <Loading />: page.test.tsx pins this placeholder by its
+        // literal "..." text ("shows loading indicator in weekly total when
+        // history is loading"), and that test predates this migration.
         <div className="py-10 text-center text-sm text-gray-400">...</div>
       ) : (
         <>
@@ -2026,8 +2057,8 @@ function WeekChart({
   );
 
   return (
-    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border shadow-sm md:h-full md:min-h-0">
-      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
+    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl border shadow-sm md:h-full md:min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
             Wochenübersicht
@@ -2123,6 +2154,22 @@ function WeekChart({
 
 const BREAK_DURATION_OPTIONS = [0, 15, 30, 45, 60] as const;
 
+const EDIT_SECTION_ITEMS: readonly SegmentedControlItem<
+  "session" | "absence"
+>[] = [
+  { value: "session", label: "Arbeitszeit" },
+  { value: "absence", label: "Abwesenheit" },
+];
+
+// One-tap presets for the mandatory "Grund der Änderung" field.
+const EDIT_REASON_PRESETS = [
+  "Vergessen auszustempeln",
+  "Vergessen einzustempeln",
+  "Zeitkorrektur",
+  "Krankheit",
+  "Ort-Änderung",
+] as const;
+
 function timeInputToMinutes(value: string): number | null {
   const [hoursRaw, minutesRaw] = value.split(":");
   const hours = Number(hoursRaw);
@@ -2192,6 +2239,50 @@ function buildIsoTimestamp(date: Date, time: string): string | undefined {
   const tzH = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, "0");
   const tzM = String(Math.abs(tzOffset) % 60).padStart(2, "0");
   return `${dateStr}T${time}:00${tzSign}${tzH}:${tzM}`;
+}
+
+// Shared Abbrechen/confirm footer for every Modal on this page — six
+// hand-rolled copies of the same two <button> elements before. Uses the kit
+// Button at size "md", the modal-footer height documented in the UI-kit rule.
+function ModalActions({
+  onCancel,
+  onConfirm,
+  confirmLabel,
+  cancelLabel = "Abbrechen",
+  confirmDisabled = false,
+  cancelDisabled = false,
+}: {
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+  readonly confirmLabel: string;
+  readonly cancelLabel?: string;
+  readonly confirmDisabled?: boolean;
+  readonly cancelDisabled?: boolean;
+}) {
+  return (
+    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onCancel}
+        disabled={cancelDisabled}
+        className="flex-1"
+      >
+        {cancelLabel}
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={onConfirm}
+        disabled={confirmDisabled}
+        className="flex-1"
+      >
+        {confirmLabel}
+      </Button>
+    </div>
+  );
 }
 
 /** Get modal footer based on context */
@@ -2272,6 +2363,7 @@ function EditSessionModal({
   const hasSession = session !== null;
   const hasAbsence = absence !== null;
   const hasBoth = hasSession && hasAbsence;
+  const isManagerControlledAbsence = absence?.absenceType === "comp_time";
 
   useEffect(() => {
     if (isOpen) {
@@ -2426,45 +2518,40 @@ function EditSessionModal({
 
   const modalTitle = getEditModalTitle(hasSession, hasAbsence);
 
+  // With only one of the two present there is no switcher, and the visible
+  // section is pinned to whichever exists — `activeTab` alone would keep an
+  // absence-only day on the (empty) "session" section.
+  const effectiveTab: "session" | "absence" = hasBoth
+    ? activeTab
+    : hasAbsence
+      ? "absence"
+      : "session";
+
   // Footer: tab-aware for dual-section, standard for single-section
   const sessionFooter = (
-    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-      <button
-        type="button"
-        onClick={onClose}
-        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-      >
-        Abbrechen
-      </button>
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving || !startTime || !notes.trim() || hasInvalidTimeRange}
-        className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {saving ? "Speichern..." : "Speichern"}
-      </button>
-    </div>
+    <ModalActions
+      onCancel={onClose}
+      onConfirm={handleSave}
+      confirmLabel={saving ? "Speichern..." : "Speichern"}
+      confirmDisabled={
+        saving || !startTime || !notes.trim() || hasInvalidTimeRange
+      }
+    />
   );
 
   const absenceFooter = (
-    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-      <button
-        type="button"
-        onClick={onClose}
-        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-      >
-        Abbrechen
-      </button>
-      <button
-        type="button"
-        onClick={handleAbsenceSave}
-        disabled={absenceSaving || !absDateStart || !absDateEnd}
-        className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {absenceSaving ? "Speichern..." : "Speichern"}
-      </button>
-    </div>
+    <ModalActions
+      onCancel={onClose}
+      onConfirm={handleAbsenceSave}
+      confirmLabel={absenceSaving ? "Speichern..." : "Speichern"}
+      confirmDisabled={absenceSaving || !absDateStart || !absDateEnd}
+    />
+  );
+
+  const readOnlyAbsenceFooter = (
+    <Button type="button" variant="outline" size="md" onClick={onClose}>
+      Schließen
+    </Button>
   );
 
   const footer = getEditModalFooter(
@@ -2472,7 +2559,7 @@ function EditSessionModal({
     hasAbsence,
     activeTab,
     sessionFooter,
-    absenceFooter,
+    isManagerControlledAbsence ? readOnlyAbsenceFooter : absenceFooter,
   );
 
   return (
@@ -2482,74 +2569,45 @@ function EditSessionModal({
           {dayName}, {formatDateGerman(date)}
         </p>
 
-        {/* ── Tabs (only when both session + absence exist) ────────────── */}
+        {/* Section switcher (only when both session + absence exist). The kit
+            SegmentedControl, NOT ui/Tabs: Radix tabs activate on mousedown, and
+            the existing modal tests drive this switcher with fireEvent.click. */}
         {hasBoth && (
-          <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab("session")}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
-                activeTab === "session"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              Arbeitszeit
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("absence")}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
-                activeTab === "absence"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              Abwesenheit
-            </button>
-          </div>
+          <SegmentedControl
+            ariaLabel="Abschnitt"
+            fullWidth
+            items={EDIT_SECTION_ITEMS}
+            value={effectiveTab}
+            onChange={setActiveTab}
+          />
         )}
 
         {/* ── Session section ──────────────────────────────────────────── */}
-        {hasSession && (!hasBoth || activeTab === "session") && (
-          <>
+        {hasSession && effectiveTab === "session" && (
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="edit-start"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Start
-                </label>
-                <input
-                  id="edit-start"
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="edit-end"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Ende
-                </label>
-                <input
-                  id="edit-end"
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                />
-              </div>
+              <Input
+                id="edit-start"
+                name="edit-start"
+                label="Start"
+                controlSize="compact"
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+              <Input
+                id="edit-end"
+                name="edit-end"
+                label="Ende"
+                controlSize="compact"
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
             </div>
 
             {hasInvalidTimeRange && (
-              <p className="text-xs font-medium text-red-600">
-                Ende muss nach Start liegen.
-              </p>
+              <Alert type="error" message="Ende muss nach Start liegen." />
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -2566,40 +2624,24 @@ function EditSessionModal({
                           <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
                             {formatTime(brk.startedAt)}
                           </span>
-                          <div className="relative flex-1">
-                            <select
-                              aria-label={`Pausendauer ab ${formatTime(brk.startedAt)}`}
+                          <div className="flex-1">
+                            <CustomSelect
+                              ariaLabel={`Pausendauer ab ${formatTime(brk.startedAt)}`}
                               value={(
                                 breakDurations.get(brk.id) ??
                                 brk.durationMinutes
                               ).toString()}
-                              onChange={(e) =>
+                              onChange={(next) =>
                                 handleBreakDurationChange(
                                   brk.id,
-                                  Number.parseInt(e.target.value, 10),
+                                  Number.parseInt(next, 10),
                                 )
                               }
-                              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                            >
-                              {BREAK_DURATION_OPTIONS.map((m) => (
-                                <option key={m} value={m.toString()}>
-                                  {m} min
-                                </option>
-                              ))}
-                            </select>
-                            <svg
-                              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
+                              options={BREAK_DURATION_OPTIONS.map((m) => ({
+                                value: m.toString(),
+                                label: `${m} min`,
+                              }))}
+                            />
                           </div>
                         </div>
                       ))}
@@ -2616,72 +2658,43 @@ function EditSessionModal({
                 ) : (
                   <div>
                     <label
+                      id="edit-break-label"
                       htmlFor="edit-break"
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
                       Pause (Min)
                     </label>
-                    <div className="relative">
-                      <select
-                        id="edit-break"
-                        value={breakMins}
-                        onChange={(e) => setBreakMins(e.target.value)}
-                        className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                      >
-                        {[0, 15, 30, 45, 60].map((m) => (
-                          <option key={m} value={m.toString()}>
-                            {m} min
-                          </option>
-                        ))}
-                      </select>
-                      <svg
-                        className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
+                    <CustomSelect
+                      id="edit-break"
+                      ariaLabelledBy="edit-break-label"
+                      value={breakMins}
+                      onChange={setBreakMins}
+                      options={[0, 15, 30, 45, 60].map((m) => ({
+                        value: m.toString(),
+                        label: `${m} min`,
+                      }))}
+                    />
                   </div>
                 )}
               </div>
               <div>
                 <label
+                  id="edit-status-label"
                   htmlFor="edit-status"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
                   Ort
                 </label>
-                <div className="relative">
-                  <select
-                    id="edit-status"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as SessionStatus)}
-                    className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  >
-                    <option value="present">In der OGS</option>
-                    <option value="home_office">Homeoffice</option>
-                  </select>
-                  <svg
-                    className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </div>
+                <CustomSelect
+                  id="edit-status"
+                  ariaLabelledBy="edit-status-label"
+                  value={status}
+                  onChange={(next) => setStatus(next as SessionStatus)}
+                  options={[
+                    { value: "present", label: "In der OGS" },
+                    { value: "home_office", label: "Homeoffice" },
+                  ]}
+                />
               </div>
             </div>
 
@@ -2693,180 +2706,176 @@ function EditSessionModal({
                 Grund der Änderung <span className="text-red-500">*</span>
               </label>
               <div className="mb-2 flex flex-wrap gap-1.5">
-                {[
-                  "Vergessen auszustempeln",
-                  "Vergessen einzustempeln",
-                  "Zeitkorrektur",
-                  "Krankheit",
-                  "Ort-Änderung",
-                ].map((reason) => (
-                  <button
+                {EDIT_REASON_PRESETS.map((reason) => (
+                  <Button
                     key={reason}
                     type="button"
+                    variant={notes === reason ? "primary" : "secondary"}
+                    size="compact"
+                    aria-pressed={notes === reason}
                     onClick={() => setNotes(reason)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                      notes === reason
-                        ? "bg-gray-900 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
+                    className="!rounded-full shadow-none hover:shadow-none"
                   >
                     {reason}
-                  </button>
+                  </Button>
                 ))}
               </div>
-              <textarea
+              <Textarea
                 id="edit-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 maxLength={2000}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                 placeholder="Oder eigenen Grund eingeben..."
               />
             </div>
 
             {warnings.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="space-y-2">
                 {warnings.map((w) => (
-                  <p key={w} className="text-xs font-medium text-amber-700">
-                    ⚠ {w}
-                  </p>
+                  <Alert key={w} type="warning" message={w} />
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* ── Absence section ──────────────────────────────────────────── */}
-        {hasAbsence && (!hasBoth || activeTab === "absence") && (
-          <>
-            {/* Absence type */}
-            <div>
-              <label
-                htmlFor="edit-abs-type"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Art der Abwesenheit
-              </label>
-              <div className="relative">
-                <select
-                  id="edit-abs-type"
-                  value={absType}
-                  onChange={(e) => setAbsType(e.target.value as AbsenceType)}
-                  className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                >
-                  {ABSENCE_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <svg
-                  className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
+        {hasAbsence && effectiveTab === "absence" && (
+          <div className="space-y-4">
+            {isManagerControlledAbsence ? (
+              <div className="space-y-4">
+                <Alert
+                  type="info"
+                  message="Freizeitausgleich wird von der Leitung eingetragen und kann hier nicht geändert oder gelöscht werden."
+                />
+                <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-medium text-gray-500">Zeitraum</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {absence.dateStart} bis {absence.dateEnd}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-gray-500">Umfang</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
+                    </dd>
+                  </div>
+                  {absence.note && (
+                    <div className="sm:col-span-2">
+                      <dt className="font-medium text-gray-500">Bemerkung</dt>
+                      <dd className="mt-1 text-gray-900">{absence.note}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            ) : (
+              <>
+                {/* Absence type */}
+                <div>
+                  <label
+                    id="edit-abs-type-label"
+                    htmlFor="edit-abs-type"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Art der Abwesenheit
+                  </label>
+                  <CustomSelect
+                    id="edit-abs-type"
+                    ariaLabelledBy="edit-abs-type-label"
+                    value={absType}
+                    onChange={(next) => setAbsType(next as AbsenceType)}
+                    options={ABSENCE_TYPE_OPTIONS}
                   />
-                </svg>
-              </div>
-            </div>
+                </div>
 
-            {/* Date range */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="edit-abs-start"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Von
-                </label>
-                <input
-                  id="edit-abs-start"
-                  type="date"
-                  value={absDateStart}
-                  onChange={(e) => setAbsDateStart(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  required
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="edit-abs-end"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Bis
-                </label>
-                <input
-                  id="edit-abs-end"
-                  type="date"
-                  value={absDateEnd}
-                  min={absDateStart}
-                  onChange={(e) => setAbsDateEnd(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  required
-                />
-              </div>
-            </div>
+                {/* Date range */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="edit-abs-start"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Von
+                    </label>
+                    <ISODatePicker
+                      id="edit-abs-start"
+                      value={absDateStart}
+                      onChange={setAbsDateStart}
+                      calendarLayout="popover"
+                      hideClearButton
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-abs-end"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Bis
+                    </label>
+                    <ISODatePicker
+                      id="edit-abs-end"
+                      value={absDateEnd}
+                      min={absDateStart || undefined}
+                      onChange={setAbsDateEnd}
+                      calendarLayout="popover"
+                      hideClearButton
+                    />
+                  </div>
+                </div>
 
-            {/* Half day toggle */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-label="Halber Tag"
-                aria-checked={absHalfDay}
-                onClick={() => setAbsHalfDay(!absHalfDay)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white transition-transform ${absHalfDay ? "translate-x-4.5" : "translate-x-0.5"}`}
-                />
-              </button>
-              <span className="text-sm font-medium text-gray-700">
-                Halber Tag
-              </span>
-            </div>
+                {/* Half day toggle */}
+                <div className="flex items-center gap-3">
+                  <BooleanField
+                    ariaLabel="Halber Tag"
+                    value={absHalfDay}
+                    onChange={setAbsHalfDay}
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Halber Tag
+                  </span>
+                </div>
 
-            {/* Absence note */}
-            <div>
-              <label
-                htmlFor="edit-abs-note"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Bemerkung{" "}
-                <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <textarea
-                id="edit-abs-note"
-                value={absNote}
-                onChange={(e) => setAbsNote(e.target.value)}
-                rows={2}
-                maxLength={2000}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                placeholder="z.B. Arzttermin, Schulung ..."
-              />
-            </div>
+                {/* Absence note */}
+                <div>
+                  <label
+                    htmlFor="edit-abs-note"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Bemerkung{" "}
+                    <span className="font-normal text-gray-400">
+                      (optional)
+                    </span>
+                  </label>
+                  <Textarea
+                    id="edit-abs-note"
+                    value={absNote}
+                    onChange={(e) => setAbsNote(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    placeholder="z.B. Arzttermin, Schulung ..."
+                  />
+                </div>
 
-            {/* Destructive action */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={handleAbsenceDelete}
-                disabled={absenceDeleting}
-                className="text-sm font-medium text-red-500 transition-colors hover:text-red-700 disabled:opacity-50"
-              >
-                {absenceDeleting
-                  ? "Abwesenheit wird gelöscht..."
-                  : "Abwesenheit löschen"}
-              </button>
-            </div>
-          </>
+                {/* Destructive action */}
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    onClick={handleAbsenceDelete}
+                    disabled={absenceDeleting}
+                    className="px-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700"
+                  >
+                    {absenceDeleting
+                      ? "Abwesenheit wird gelöscht..."
+                      : "Abwesenheit löschen"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </Modal>
@@ -2945,61 +2954,31 @@ function CreateAbsenceModal({
       onClose={onClose}
       title="Abwesenheit melden"
       footer={
-        <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !dateStart || !dateEnd}
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Speichern..." : "Speichern"}
-          </button>
-        </div>
+        <ModalActions
+          onCancel={onClose}
+          onConfirm={handleSave}
+          confirmLabel={saving ? "Speichern..." : "Speichern"}
+          confirmDisabled={saving || !dateStart || !dateEnd}
+        />
       }
     >
       <div className="space-y-4">
         {/* Absence type */}
         <div>
           <label
+            id="absence-type-label"
             htmlFor="absence-type"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
             Art der Abwesenheit
           </label>
-          <div className="relative">
-            <select
-              id="absence-type"
-              value={absenceType}
-              onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
-              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-            >
-              {ABSENCE_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <svg
-              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </div>
+          <CustomSelect
+            id="absence-type"
+            ariaLabelledBy="absence-type-label"
+            value={absenceType}
+            onChange={(next) => setAbsenceType(next as AbsenceType)}
+            options={ABSENCE_TYPE_OPTIONS}
+          />
         </div>
 
         {/* Date range */}
@@ -3011,13 +2990,12 @@ function CreateAbsenceModal({
             >
               Von
             </label>
-            <input
+            <ISODatePicker
               id="absence-start"
-              type="date"
               value={dateStart}
-              onChange={(e) => setDateStart(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-              required
+              onChange={setDateStart}
+              calendarLayout="popover"
+              hideClearButton
             />
           </div>
           <div>
@@ -3027,32 +3005,24 @@ function CreateAbsenceModal({
             >
               Bis
             </label>
-            <input
+            <ISODatePicker
               id="absence-end"
-              type="date"
               value={dateEnd}
-              min={dateStart}
-              onChange={(e) => setDateEnd(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-              required
+              min={dateStart || undefined}
+              onChange={setDateEnd}
+              calendarLayout="popover"
+              hideClearButton
             />
           </div>
         </div>
 
         {/* Half day toggle */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            role="switch"
-            aria-label="Halber Tag"
-            aria-checked={halfDay}
-            onClick={() => setHalfDay(!halfDay)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${halfDay ? "bg-gray-900" : "bg-gray-200"}`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white transition-transform ${halfDay ? "translate-x-4.5" : "translate-x-0.5"}`}
-            />
-          </button>
+          <BooleanField
+            ariaLabel="Halber Tag"
+            value={halfDay}
+            onChange={setHalfDay}
+          />
           <span className="text-sm font-medium text-gray-700">Halber Tag</span>
         </div>
 
@@ -3065,13 +3035,12 @@ function CreateAbsenceModal({
             Bemerkung{" "}
             <span className="font-normal text-gray-400">(optional)</span>
           </label>
-          <textarea
+          <Textarea
             id="absence-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             maxLength={2000}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             placeholder="z.B. Arzttermin, Schulung ..."
           />
         </div>
@@ -3837,38 +3806,26 @@ function TimeTrackingContent() {
         onClose={handleClosePendingManualEditCheckIn}
         title="Arbeitszeit manuell bearbeitet"
         footer={
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setPendingManualEditCheckIn(null)}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                const status = pendingManualEditCheckIn;
-                setPendingManualEditCheckIn(null);
-                if (status) {
-                  if (todayAbsence) {
-                    setPendingCheckIn(status);
-                  } else {
-                    await executeCheckIn(status);
-                  }
-                }
-              }}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700"
-            >
-              Trotzdem einstempeln
-            </button>
-          </div>
+          <ModalActions
+            onCancel={() => setPendingManualEditCheckIn(null)}
+            onConfirm={() => {
+              const status = pendingManualEditCheckIn;
+              setPendingManualEditCheckIn(null);
+              if (!status) return;
+              if (todayAbsence) {
+                setPendingCheckIn(status);
+              } else {
+                void executeCheckIn(status);
+              }
+            }}
+            confirmLabel="Trotzdem einstempeln"
+          />
         }
       >
         <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F78C10]/10">
             <svg
-              className="h-6 w-6 text-amber-600"
+              className="h-6 w-6 text-[#8A5600]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -3895,32 +3852,21 @@ function TimeTrackingContent() {
         onClose={handleClosePendingCheckIn}
         title="Abwesenheit eingetragen"
         footer={
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setPendingCheckIn(null)}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                const status = pendingCheckIn;
-                setPendingCheckIn(null);
-                if (status) await executeCheckIn(status);
-              }}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700"
-            >
-              Trotzdem einstempeln
-            </button>
-          </div>
+          <ModalActions
+            onCancel={() => setPendingCheckIn(null)}
+            onConfirm={() => {
+              const status = pendingCheckIn;
+              setPendingCheckIn(null);
+              if (status) void executeCheckIn(status);
+            }}
+            confirmLabel="Trotzdem einstempeln"
+          />
         }
       >
         <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F78C10]/10">
             <svg
-              className="h-6 w-6 text-amber-600"
+              className="h-6 w-6 text-[#8A5600]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -3950,29 +3896,20 @@ function TimeTrackingContent() {
         onClose={handleClosePendingReopenStatusChange}
         title="Status für heute ändern"
         footer={
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleClosePendingReopenStatusChange}
-              disabled={reopenStatusChangeSubmitting}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={confirmReopenStatusChange}
-              disabled={
-                reopenStatusChangeSubmitting ||
-                reopenStatusChangeReason.trim() === ""
-              }
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {pendingReopenStatusChange?.requestedStatus === "home_office"
+          <ModalActions
+            onCancel={handleClosePendingReopenStatusChange}
+            cancelDisabled={reopenStatusChangeSubmitting}
+            onConfirm={confirmReopenStatusChange}
+            confirmDisabled={
+              reopenStatusChangeSubmitting ||
+              reopenStatusChangeReason.trim() === ""
+            }
+            confirmLabel={
+              pendingReopenStatusChange?.requestedStatus === "home_office"
                 ? "Auf Homeoffice ändern"
-                : "Auf Vor Ort ändern"}
-            </button>
-          </div>
+                : "Auf Vor Ort ändern"
+            }
+          />
         }
       >
         <div className="py-2">
@@ -3999,14 +3936,14 @@ function TimeTrackingContent() {
           >
             Grund
           </label>
-          <textarea
+          <Textarea
             id="reopen-status-change-reason"
             value={reopenStatusChangeReason}
             onChange={(e) => setReopenStatusChangeReason(e.target.value)}
             disabled={reopenStatusChangeSubmitting}
             placeholder="z. B. Mittags ins Homeoffice gewechselt"
             rows={3}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+            className="mt-1"
           />
         </div>
       </Modal>
@@ -4018,26 +3955,19 @@ function TimeTrackingContent() {
         onClose={handleClosePendingDeviation}
         title="Abweichung vom Dienstplan"
         footer={
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleClosePendingDeviation}
-              disabled={deviationSubmitting}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={confirmDeviationReason}
-              disabled={deviationSubmitting || deviationReason.trim() === ""}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {pendingDeviation?.action === "check_in"
+          <ModalActions
+            onCancel={handleClosePendingDeviation}
+            cancelDisabled={deviationSubmitting}
+            onConfirm={confirmDeviationReason}
+            confirmDisabled={
+              deviationSubmitting || deviationReason.trim() === ""
+            }
+            confirmLabel={
+              pendingDeviation?.action === "check_in"
                 ? "Mit Begründung einstempeln"
-                : "Mit Begründung ausstempeln"}
-            </button>
-          </div>
+                : "Mit Begründung ausstempeln"
+            }
+          />
         }
       >
         <div className="py-2">
@@ -4086,14 +4016,14 @@ function TimeTrackingContent() {
           >
             Grund
           </label>
-          <textarea
+          <Textarea
             id="deviation-reason"
             value={deviationReason}
             onChange={(e) => setDeviationReason(e.target.value)}
             disabled={deviationSubmitting}
             placeholder="z. B. Elterngespräch lief länger"
             rows={3}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+            className="mt-1"
           />
         </div>
       </Modal>

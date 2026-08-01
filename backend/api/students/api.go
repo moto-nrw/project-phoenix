@@ -14,11 +14,14 @@ import (
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -36,12 +39,18 @@ type Resource struct {
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService          userService.PersonService
-	GuardianService        *userService.GuardianService
-	EducationService       educationService.Service
+	PersonService    userService.PersonService
+	GuardianService  *userService.GuardianService
+	EducationService educationService.Service
+	// GradeTransitionService is required by the purge route only: it strips the
+	// child's name from the transition ledger in the same transaction as the
+	// delete. Optional so bare test Resources still compile; the purge handler
+	// refuses rather than silently skipping the anonymization when it is nil.
+	GradeTransitionService *educationService.GradeTransitionService
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
+	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
 	InstanceService        scheduleService.InstanceService
@@ -54,11 +63,17 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	StudentDeletionService  userService.StudentDeletionService
+	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
+	// OfferingChangeService backs the post-enrollment offering-change queue
+	// (#1665).
+	OfferingChangeService   enrollmentService.OfferingChangeRequestService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	OGSGroupLiveService     ogsGroupLiveService.Getter
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
@@ -69,6 +84,7 @@ type ResourceConfig struct {
 	// nil is a no-op (the guardian helper guards on it), so tests that build a
 	// bare Resource keep working.
 	ParentEventEmitter *parentmessaging.Emitter
+	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
 	ListExportService  *listexport.RendererService
 	Logger             *slog.Logger
@@ -94,6 +110,13 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		// Aggregated OGS-group live projection (#2056). Gated on users:read
+		// like the former roster endpoint; the group-derived sections (room
+		// status, transfers, tracking indicators) additionally require
+		// groups:read and degrade to empty inside the service when it is
+		// missing — mirroring the permission split of the replaced single
+		// endpoints instead of failing the whole roster.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
@@ -101,10 +124,17 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-location", rs.getStudentCurrentLocation)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
+		// Group day log ("Tagesauswertung", #1456). Static paths take
+		// precedence over /{id} in chi; gate + scope enforced in the handlers.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log", rs.getStudentsDayLog)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log/export", rs.exportStudentsDayLog)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
+		// Per-child change history (issue #1455). Full access (admin / group
+		// supervisor) is enforced inside the handler.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 
 		// Parent Stammdaten change-request review queue (Track B). Requests can
 		// contain parent-submitted name, birthday, and departure-plan changes.
@@ -123,6 +153,12 @@ func (rs *Resource) Router() chi.Router {
 		// on the same Änderungsanfragen page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+
+		// Post-enrollment offering change requests (#1665). Approving one moves
+		// the child between activity groups on a chosen date, so it shares the
+		// users:update gate of the queues it sits next to on the same page.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
 		// Excused-absence approval requests (#1845): staff review queue.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)
@@ -144,6 +180,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/{id}/delete-impact", rs.getStudentDeleteImpact)
+		// Hard-deletes a child that a grade transition graduated. Separate from
+		// the route above because the alumnus gate that route relies on is
+		// exactly what this one has to bypass — see purgeGraduatedStudent.
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}/purge", rs.purgeGraduatedStudent)
 
 		// Privacy consent routes
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
@@ -207,7 +248,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, nil))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil))
 		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// RFID tag assignment endpoint

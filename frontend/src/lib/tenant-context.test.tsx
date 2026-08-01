@@ -30,6 +30,7 @@ vi.mock("~/lib/tenant-api", async (importOriginal) => {
 
 import {
   TenantProvider,
+  useAttendanceLogEnabled,
   useAttendanceWebEnabled,
   useCareOfferingsEnabled,
   useDisplayEnabled,
@@ -639,6 +640,34 @@ describe("useDisplayEnabled", () => {
       </TenantProvider>
     );
     const { result } = renderHook(() => useDisplayEnabled(), { wrapper });
+    expect(result.current).toBe(false);
+  });
+});
+
+describe("useAttendanceLogEnabled", () => {
+  it("returns true when the attendance log is enabled for the tenant", () => {
+    const logTenant: TenantInfo = { ...mockTenant, attendanceLogEnabled: true };
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={logTenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useAttendanceLogEnabled(), { wrapper });
+    expect(result.current).toBe(true);
+  });
+
+  it("returns false outside any TenantProvider", () => {
+    const { result } = renderHook(() => useAttendanceLogEnabled());
+    expect(result.current).toBe(false);
+  });
+
+  it("returns false when tenant hasn't resolved yet", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={null}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useAttendanceLogEnabled(), { wrapper });
     expect(result.current).toBe(false);
   });
 });

@@ -336,4 +336,29 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, result.Permissions.CanViewDevices)
 	})
+
+	t.Run("grade transitions read permission grants grade transition access", func(t *testing.T) {
+		// ARRANGE
+		ctx := contextWithPermissions(1, permissions.GradeTransitionsRead)
+
+		// ACT
+		result, err := service.GetStats(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.True(t, result.Permissions.CanViewGradeTransitions)
+		assert.False(t, result.Permissions.CanViewStudents)
+	})
+
+	t.Run("no grade transitions permission hides grade transition card", func(t *testing.T) {
+		// ARRANGE
+		ctx := contextWithPermissions(1, permissions.UsersList)
+
+		// ACT
+		result, err := service.GetStats(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.False(t, result.Permissions.CanViewGradeTransitions)
+	})
 }

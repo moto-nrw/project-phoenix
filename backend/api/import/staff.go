@@ -11,7 +11,9 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -134,7 +136,7 @@ func (rs *Resource) PreviewStaffImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
+	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.ClaimsFromCtx(r.Context()).Permissions)
 	request := importModels.ImportRequest[importModels.StaffImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate,
@@ -169,9 +171,10 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID := tenant.FromContext(r.Context())
+	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.ClaimsFromCtx(r.Context()).Permissions)
+	tenantID := tenant.FromContext(ctx)
 	var result *importModels.ImportResult[importModels.StaffImportRow]
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		request := importModels.ImportRequest[importModels.StaffImportRow]{
 			Rows:            uploadResult.Rows,
 			Mode:            importModels.ImportModeCreate,

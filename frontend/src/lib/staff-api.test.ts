@@ -31,6 +31,7 @@ vi.mock("./session-cache", () => {
 import { getCachedSession } from "./session-cache";
 import {
   staffAbsenceService,
+  staffBalanceAdjustmentService,
   staffHistoryService,
   staffMonthSummaryService,
   staffScheduleService,
@@ -922,6 +923,34 @@ describe("staff-api", () => {
       const result = await staffService.getAllStaff();
 
       expect(result[0]?.currentLocation).toBe("Fortbildung");
+    });
+
+    it("returns Freizeitausgleich for comp-time absence", async () => {
+      const staffOnCompTime: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        absence_type: "comp_time",
+      };
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffOnCompTime]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.currentLocation).toBe("Freizeitausgleich");
+      expect(result[0]?.absenceType).toBe("comp_time");
     });
 
     it("returns Abwesend for other absence type", async () => {
@@ -1907,6 +1936,32 @@ describe("staff-api", () => {
       ).rejects.toThrow("overlapping absence");
     });
 
+    it("maps the comp_time overdraft conflict to a German message (#1420)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "comp_time_exceeds_balance",
+              error: "comp_time absence exceeds accrued balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.createAbsence("1", {
+          absence_type: "comp_time",
+          date_start: "2026-07-27",
+          date_end: "2026-07-28",
+          note: "FZA",
+        }),
+      ).rejects.toThrow(
+        "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
+      );
+    });
+
     it("deletes an absence (#1843)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({ ok: true } as Response);
@@ -2033,6 +2088,293 @@ describe("staff-api", () => {
       await expect(
         staffSessionService.createSession("1", payload),
       ).rejects.toThrow("Failed to create session: Bad Request");
+    });
+  });
+
+  describe("staffBalanceAdjustmentService", () => {
+    const backendAdjustment = {
+      id: 17,
+      type: "payout",
+      minutes_delta: -120,
+      effective_date: "2026-07-31",
+      note: "Juligehalt",
+      decided_by: 9,
+      decided_at: "2026-07-24T08:00:00Z",
+    };
+
+    it("lists and maps adjustments, including an empty response", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: [backendAdjustment] }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: null }),
+        } as Response);
+
+      const result = await staffBalanceAdjustmentService.list(
+        "4",
+        "2026-01-01",
+        "9999-12-31",
+      );
+      const empty = await staffBalanceAdjustmentService.list(
+        "4",
+        "2026-01-01",
+        "9999-12-31",
+      );
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/4/time-tracking/adjustments?from=2026-01-01&to=9999-12-31",
+        expect.any(Object),
+      );
+      expect(result).toEqual([
+        {
+          id: "17",
+          type: "payout",
+          minutesDelta: -120,
+          effectiveDate: "2026-07-31",
+          note: "Juligehalt",
+          decidedBy: "9",
+          decidedAt: "2026-07-24T08:00:00Z",
+        },
+      ]);
+      expect(empty).toEqual([]);
+    });
+
+    it("creates and resets adjustments with backend request keys", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: backendAdjustment }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                ...backendAdjustment,
+                id: 18,
+                type: "reset",
+                minutes_delta: 60,
+              },
+            }),
+        } as Response);
+
+      const created = await staffBalanceAdjustmentService.create("4", {
+        type: "payout",
+        minutesDelta: -120,
+        effectiveDate: "2026-07-31",
+        note: "Juligehalt",
+      });
+      const reset = await staffBalanceAdjustmentService.reset("4", {
+        effectiveDate: "2026-07-31",
+        carryoverMinutes: 60,
+        note: "Schuljahreswechsel",
+      });
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/4/time-tracking/adjustments",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            type: "payout",
+            minutes_delta: -120,
+            effective_date: "2026-07-31",
+            note: "Juligehalt",
+          }),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/staff/4/time-tracking/reset",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            effective_date: "2026-07-31",
+            carryover_minutes: 60,
+            note: "Schuljahreswechsel",
+          }),
+        }),
+      );
+      expect(created.id).toBe("17");
+      expect(reset).toMatchObject({
+        id: "18",
+        type: "reset",
+        minutesDelta: 60,
+      });
+    });
+
+    it("deletes an adjustment", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffBalanceAdjustmentService.delete("4", "17");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/4/time-tracking/adjustments/17",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("explains when an adjustment exceeds the accrued balance", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.create("4", {
+          type: "payout",
+          minutesDelta: -120,
+          effectiveDate: "2026-07-31",
+          note: "Juligehalt",
+        }),
+      ).rejects.toThrow(
+        "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
+      );
+    });
+
+    it("explains when a reset would invalidate later balance reductions", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "Schuljahreswechsel",
+        }),
+      ).rejects.toThrow(
+        "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
+      );
+    });
+
+    it("explains when deleting a positive reset would overdraw later entries", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.delete("4", "17"),
+      ).rejects.toThrow(
+        "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
+      );
+    });
+
+    it("surfaces list, create, delete, reset, and coded reset conflicts", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Bad Gateway",
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Ungültige Buchung"),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.reject(new Error("unreadable")),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "duplicate",
+                code: "balance_already_reset",
+              }),
+            ),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "dependent",
+                code: "dependent_balance_reset",
+              }),
+            ),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve("Ungültiger Reset"),
+        } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.list("4", "2026-01-01", "2026-12-31"),
+      ).rejects.toThrow("Failed to fetch adjustments: Bad Gateway");
+      await expect(
+        staffBalanceAdjustmentService.create("4", {
+          type: "payout",
+          minutesDelta: -60,
+          effectiveDate: "2026-07-31",
+          note: "x",
+        }),
+      ).rejects.toThrow("Ungültige Buchung");
+      await expect(
+        staffBalanceAdjustmentService.delete("4", "17"),
+      ).rejects.toThrow("Löschen fehlgeschlagen");
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow(
+        "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
+      );
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow(
+        "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
+      );
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow("Ungültiger Reset");
     });
   });
 });

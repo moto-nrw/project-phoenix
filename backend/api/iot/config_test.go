@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,6 +220,33 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 		map[string]string{},
 	)},
 	}
+
+	req := httptest.NewRequest("GET", "/api/iot/config", nil)
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	rs.getDeviceConfig(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+	data := response["data"].(map[string]any)
+	checkout := data["checkout"].(map[string]any)
+	assert.Equal(t, "14:00", checkout["daily_checkout_time"])
+}
+
+func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	settings := newConfigMock(nil, nil)
+	settings.ResolveManyForTenantFn = func(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error) {
+		return nil, fmt.Errorf("settings unavailable")
+	}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
 	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})

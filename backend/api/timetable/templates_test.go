@@ -3,6 +3,7 @@ package timetable
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,6 +55,25 @@ type mockMaterializationService struct {
 	source scheduleSvc.MaterializationSource
 	// detectFn drives DetectEditedInWindow; nil returns (nil, nil).
 	detectFn func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error)
+}
+
+func TestValidateLegacyTemplateWorkdays(t *testing.T) {
+	existing := []templateScheduleResponse{
+		{Weekday: activitiesModel.WeekdayFriday},
+		{Weekday: activitiesModel.WeekdaySaturday},
+	}
+
+	assert.NoError(t, validateLegacyTemplateWorkdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+		activitiesModel.WeekdaySaturday,
+	}))
+	assert.NoError(t, validateLegacyTemplateWorkdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+	}))
+	assert.Error(t, validateLegacyTemplateWorkdays(existing, []int{
+		activitiesModel.WeekdayFriday,
+		activitiesModel.WeekdaySunday,
+	}))
 }
 
 func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
@@ -343,6 +363,76 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, secondDelW.Code)
 }
 
+// #1565 review: changing a series' Listenart must reach the occurrences that
+// were already materialized for future dates — otherwise the classified daily
+// list omits the series until someone re-plans the week. Per-occurrence
+// classification overrides and past/today rows must survive the propagation.
+func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	// Create the series already classified as "mensa".
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-ListKind-%d", time.Now().UnixNano()))
+	body["list_kind"] = activitiesModel.ListKindMensa
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+	require.NotZero(t, created.TemplateID)
+
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(s.db)
+	today := timezone.TodayDate()
+	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
+		tmplID := created.TemplateID
+		inst := &scheduleModel.ActivityInstance{
+			Date:            date,
+			ActivityGroupID: &tmplID,
+			Title:           name,
+			StartTime:       time.Date(2024, 1, 1, hour, 0, 0, 0, time.UTC),
+			EndTime:         time.Date(2024, 1, 1, hour+1, 0, 0, 0, time.UTC),
+			RoomID:          s.roomID,
+			Status:          scheduleModel.InstanceStatusPlanned,
+			ListKind:        listKind,
+		}
+		inst.SetTenantID(tenant.FromContext(s.ctx))
+		require.NoError(t, instanceRepo.Create(s.ctx, inst))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+		return inst
+	}
+
+	// futureRow still carries the series value → should adopt the new kind.
+	futureRow := mkInstance("Future", today.AddDays(7), 8, testpkg.StrPtr(activitiesModel.ListKindMensa))
+	// overriddenRow was individually re-classified → must be preserved.
+	overriddenRow := mkInstance("Overridden", today.AddDays(7), 9, testpkg.StrPtr(activitiesModel.ListKindActivity))
+	// pastRow is elapsed → must be preserved.
+	pastRow := mkInstance("Past", today.AddDays(-7), 8, testpkg.StrPtr(activitiesModel.ListKindMensa))
+
+	// Re-classify the series to "learning_time" via the template PUT.
+	updateBody := createTemplateBody(s, "Tpl-ListKind-Updated")
+	updateBody["list_kind"] = activitiesModel.ListKindLearningTime
+	updateW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
+
+	gotFuture, err := instanceRepo.FindByID(s.ctx, futureRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotFuture.ListKind)
+	assert.Equal(t, activitiesModel.ListKindLearningTime, *gotFuture.ListKind,
+		"future occurrence must adopt the series' new Listenart")
+
+	gotOverridden, err := instanceRepo.FindByID(s.ctx, overriddenRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotOverridden.ListKind)
+	assert.Equal(t, activitiesModel.ListKindActivity, *gotOverridden.ListKind,
+		"per-occurrence override must survive the series edit")
+
+	gotPast, err := instanceRepo.FindByID(s.ctx, pastRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotPast.ListKind)
+	assert.Equal(t, activitiesModel.ListKindMensa, *gotPast.ListKind,
+		"past occurrence must be left untouched")
+}
+
 func TestListTemplates_CapacityFields(t *testing.T) {
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
@@ -521,6 +611,7 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 	}{
 		{name: "invalid type", mutate: func(b map[string]any) { b["type"] = "party" }},
 		{name: "invalid weekday", mutate: func(b map[string]any) { b["weekdays"] = []int{8} }},
+		{name: "weekend weekday", mutate: func(b map[string]any) { b["weekdays"] = []int{activitiesModel.WeekdaySaturday} }},
 		{name: "invalid start time", mutate: func(b map[string]any) { b["start_time"] = "bad" }},
 		{name: "end before start", mutate: func(b map[string]any) { b["end_time"] = "11:00" }},
 		{name: "invalid week pattern", mutate: func(b map[string]any) { b["week_pattern"] = 9 }},
@@ -576,6 +667,7 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 		{name: "invalid end", path: "/templates/500", mutate: func(b map[string]any) { b["end_time"] = "nope" }, want: http.StatusBadRequest},
 		{name: "end before start", path: "/templates/500", mutate: func(b map[string]any) { b["end_time"] = "11:00" }, want: http.StatusBadRequest},
 		{name: "invalid week pattern", path: "/templates/500", mutate: func(b map[string]any) { b["week_pattern"] = -1 }, want: http.StatusBadRequest},
+		{name: "weekend weekday", path: "/templates/500", mutate: func(b map[string]any) { b["weekdays"] = []int{activitiesModel.WeekdaySunday} }, want: http.StatusBadRequest},
 		{name: "not found", path: "/templates/500", mutate: func(_ map[string]any) {}, want: http.StatusNotFound},
 	}
 
@@ -1396,6 +1488,23 @@ func setCapacityScheduleWindow(
 		Where("weekday = ?", weekday).
 		Exec(s.ctx)
 	require.NoError(t, err)
+}
+
+func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
+	row := templateRow{
+		ScheduleID:         9,
+		Weekday:            1,
+		StartTime:          sql.NullString{String: "14:00", Valid: true},
+		EndTime:            sql.NullString{String: "15:00", Valid: true},
+		WeekPattern:        0,
+		ScheduleValidFrom:  sql.NullString{String: "2026-05-04", Valid: true},
+		ScheduleValidUntil: sql.NullString{String: "2026-06-01", Valid: true},
+	}
+
+	response := templateScheduleResponseFromRow(row)
+
+	assert.Equal(t, "2026-05-04", response.ValidFrom)
+	assert.Equal(t, "2026-06-01", response.ValidUntil)
 }
 
 func listCapacityTemplate(t *testing.T, router chi.Router, periodID, templateID int64) templateResponse {

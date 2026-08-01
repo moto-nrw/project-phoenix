@@ -13,11 +13,13 @@ vi.mock("~/components/ui/modal", () => ({
     onClose,
     title,
     children,
+    footer,
   }: {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="modal">
@@ -26,6 +28,7 @@ vi.mock("~/components/ui/modal", () => ({
           Close
         </button>
         {children}
+        {footer}
       </div>
     ) : null,
 }));
@@ -134,9 +137,16 @@ describe("GroupTransferModal", () => {
       />,
     );
 
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
     await waitFor(() => {
-      expect(screen.getByText("John Doe")).toBeInTheDocument();
-      expect(screen.getByText("Jane Smith")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "John Doe" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Jane Smith" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -171,7 +181,8 @@ describe("GroupTransferModal", () => {
     );
 
     const select = await screen.findByRole("combobox");
-    fireEvent.change(select, { target: { value: "p1" } });
+    fireEvent.click(select);
+    fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
 
     const transferButton = screen.getByText("Übergeben");
     fireEvent.click(transferButton);
@@ -212,7 +223,8 @@ describe("GroupTransferModal", () => {
     );
 
     const select = await screen.findByRole("combobox");
-    fireEvent.change(select, { target: { value: "p1" } });
+    fireEvent.click(select);
+    fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
 
     const transferButton = screen.getByText("Übergeben");
     fireEvent.click(transferButton);
@@ -294,7 +306,8 @@ describe("GroupTransferModal", () => {
 
       // Select a user
       const select = await screen.findByRole("combobox");
-      fireEvent.change(select, { target: { value: "p1" } });
+      fireEvent.click(select);
+      fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
 
       const transferButton = screen.getByText("Übergeben");
       fireEvent.click(transferButton);

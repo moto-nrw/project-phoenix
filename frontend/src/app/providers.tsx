@@ -1,6 +1,8 @@
 "use client";
 
 import { ModalProvider } from "@/components/dashboard/modal-context";
+import { NotificationBridge } from "~/components/notifications/notification-bridge";
+import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
 import { ToastProvider } from "~/contexts/ToastContext";
 
 /**
@@ -17,7 +19,11 @@ export function Providers({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <ModalProvider>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        <NotificationBridge />
+        <ServiceWorkerRegistrar />
+        {children}
+      </ToastProvider>
     </ModalProvider>
   );
 }

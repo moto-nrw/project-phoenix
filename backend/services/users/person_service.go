@@ -2,10 +2,14 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -44,6 +48,9 @@ type PersonServiceDependencies struct {
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
 	TeacherRepo userModels.TeacherRepository
+	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
+	// path refuses to run without it (no change without a trace, #1417).
+	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
 
 	// Infrastructure
 	DB              *bun.DB
@@ -350,6 +357,34 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	return nil
 }
 
+// LinkStudentToRFIDCard assigns a bracelet to a student, refusing a graduated
+// (alumnus) child under a row lock held for the caller's transaction.
+//
+// The alumnus check the handler already ran happened before the write, and the
+// write itself only waits on users.persons. A graduation apply locks the
+// student row first and clears the tag second, so an assignment that passed the
+// handler gate can sit waiting on the person row while the apply commits, and
+// then re-link a bracelet onto a departed child — the exact state graduation
+// releases tags to avoid, and one no staff-facing route can undo because every
+// one of them 404s on an alumnus. Re-reading the student under the SAME lock
+// order the apply uses (student row, then person row) closes the window: either
+// this call wins the row and the apply observes the tag it must release, or the
+// apply wins and this call sees the alumnus status and refuses (#405 review).
+func (s *personService) LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error {
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &UsersError{Op: opLinkToRFIDCard, Err: ErrStudentNotFound}
+		}
+		return &UsersError{Op: opLinkToRFIDCard, Err: err}
+	}
+	if student.Status == userModels.StudentStatusAlumnus {
+		return &UsersError{Op: opLinkToRFIDCard, Err: ErrStudentGraduated}
+	}
+
+	return s.LinkToRFIDCard(ctx, student.PersonID, tagID)
+}
+
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (s *personService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
 	if err := s.PersonRepo.UnlinkFromRFIDCard(ctx, personID); err != nil {
@@ -437,6 +472,14 @@ func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userMode
 	return s.StudentRepo.FindByID(ctx, id)
 }
 
+// GetStudentByIDForUpdate retrieves a student by ID under a row lock held until
+// the caller's transaction ends. Callers that validate the status before writing
+// a row that references the student need it: an unlocked read can be obsolete
+// the moment a grade transition commits.
+func (s *personService) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	return s.StudentRepo.FindByIDForUpdate(ctx, id)
+}
+
 // GetStudentByPersonID retrieves the student record belonging to a person.
 func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
 	return s.StudentRepo.FindByPersonID(ctx, personID)
@@ -455,6 +498,55 @@ func (s *personService) GetStudentsByGroupID(ctx context.Context, groupID int64)
 // GetStudentsByGroupIDs retrieves the students of multiple groups.
 func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
 	return s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+}
+
+// GetEligibleStudentsByGroupIDsOnDate retrieves group students whose
+// enrollment covers the requested date. Current lifecycle status is only used
+// for legacy rows without enrollment dates.
+//
+// today is the caller's calendar day. It is a parameter rather than a fresh
+// timezone.TodayDate() read so a request that spans Berlin midnight keeps one
+// notion of "today": re-reading the process clock here could validate one day
+// and then build the roster for another, dropping a child who was activated
+// immediately and is deliberately part of the current day.
+func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error) {
+	students, err := s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	return filterStudentsEligibleOnDate(students, date, today), nil
+}
+
+// filterStudentsEligibleOnDate mirrors the enrollment rule the slot lists
+// already use (slotlists.eligibleOn, #1565): the enrollment interval is the
+// source of truth, with immediate activation
+// (enrollment.default_activation_mode = "immediate") as the single deliberate
+// exception — the decision service creates an already 'active' student while
+// enrolled_from still points at the phase's future start date, and that child
+// may check in from today. The override therefore lifts the enrolled_from
+// lower bound from today onward only; a past date keeps the bound so nobody is
+// retroactively enrolled. Whether a child whose enrollment has not started yet
+// is REPORTED for the day is a separate question the day log answers on its
+// own — being on the roster only means their records count.
+func filterStudentsEligibleOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
+	eligible := make([]*userModels.Student, 0, len(students))
+	for _, student := range students {
+		if student == nil {
+			continue
+		}
+		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) &&
+			(student.Status != userModels.StudentStatusActive || date.Before(today)) {
+			continue
+		}
+		if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
+			continue
+		}
+		if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModels.StudentStatusInactive {
+			continue
+		}
+		eligible = append(eligible, student)
+	}
+	return eligible
 }
 
 // CountStudentsByGroupIDs counts students per group in a single query.
@@ -554,18 +646,27 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	return staff, teacher, teacherCreationFailed, nil
 }
 
-// UpdateStaffWithTeacher persists the (already mutated) staff row, reloads it
-// with person data, and applies the requested teacher-record change.
-// Teacher-record failures are non-fatal; the staff update always persists.
+// UpdateStaffWithTeacher applies the mutable directory fields to a freshly
+// locked staff row, reloads it with person data, and applies the requested
+// teacher-record change. Teacher-record failures are non-fatal; the staff
+// update always persists.
 func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error) {
 	var teacher *userModels.Teacher
 	action := TeacherActionNone
 
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.StaffRepo.Update(ctx, staff); err != nil {
+		currentStaff, err := s.StaffRepo.FindByIDForUpdate(ctx, staff.ID)
+		if err != nil {
 			return err
 		}
+		currentStaff.PersonID = staff.PersonID
+		currentStaff.StaffNotes = staff.StaffNotes
+
+		if err := s.StaffRepo.Update(ctx, currentStaff); err != nil {
+			return err
+		}
+		*staff = *currentStaff
 
 		// Reload staff with person data; fall back to loading the person alone.
 		if reloaded, err := s.StaffRepo.FindWithPerson(ctx, staff.ID); err == nil {

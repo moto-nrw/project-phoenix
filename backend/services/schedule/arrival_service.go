@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -16,13 +15,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// ArrivalScheduleService defines operations for managing student arrival schedules
+// ArrivalScheduleService defines operations for managing student arrival schedules.
+// The domain-named contract remains stable for all existing consumers.
 type ArrivalScheduleService interface {
-	// Schedule operations
 	GetStudentArrivalSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalSchedule, error)
-	// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly arrival
-	// schedules of many students for one weekday (issue #584 lookup;
-	// repository result returned verbatim — no exception merging).
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentArrivalSchedule, error)
 	GetStudentArrivalScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentArrivalSchedule, error)
 	UpsertStudentArrivalSchedule(ctx context.Context, scheduleData *schedule.StudentArrivalSchedule) error
@@ -30,12 +26,7 @@ type ArrivalScheduleService interface {
 	DeleteStudentArrivalSchedule(ctx context.Context, scheduleID int64) error
 	DeleteAllStudentArrivalSchedules(ctx context.Context, studentID int64) error
 
-	// Exception operations
 	GetStudentArrivalExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentArrivalException, error)
-	// GetStudentArrivalExceptionForDate returns the arrival exception for a
-	// student on a specific date, or nil when the day has none. The create path
-	// uses it under the day lock to turn an insert that would collide with an
-	// existing row (e.g. a guardian-authored one) into an override.
 	GetStudentArrivalExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentArrivalException, error)
 	GetStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error)
 	GetUpcomingStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error)
@@ -43,18 +34,9 @@ type ArrivalScheduleService interface {
 	UpdateStudentArrivalException(ctx context.Context, exception *schedule.StudentArrivalException) error
 	DeleteStudentArrivalException(ctx context.Context, exceptionID int64) error
 	DeleteAllStudentArrivalExceptions(ctx context.Context, studentID int64) error
-
-	// CreateOrReclaimException creates an arrival exception for the day, or, when a
-	// row already exists, resolves the collision under the care-exception day lock:
-	// a guardian-authored row is reclaimed for staff (re-resolving the staff author
-	// via resolveStaffID), a staff-authored row raises ErrCareExceptionDayConflict.
 	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
-	// UpdateException updates an existing arrival exception under the day lock,
-	// applying the guardian-reclaim-on-staff-edit policy and merging the optional
-	// reason/arrival patch onto the locked row.
-	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
+	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, clearArrivalTime bool, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
 
-	// Note operations
 	GetStudentArrivalNoteByID(ctx context.Context, noteID int64) (*schedule.StudentArrivalNote, error)
 	GetStudentArrivalNotes(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalNote, error)
 	GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentArrivalNote, error)
@@ -63,29 +45,23 @@ type ArrivalScheduleService interface {
 	DeleteStudentArrivalNote(ctx context.Context, noteID int64) error
 	DeleteAllStudentArrivalNotes(ctx context.Context, studentID int64) error
 
-	// Computed operations
 	GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error)
 	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
-
-	// Bulk class operation
 	BulkUpsertBySchoolClass(ctx context.Context, schoolClass string, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
 }
 
-// StudentArrivalData contains combined arrival schedule and exception data
 type StudentArrivalData struct {
 	Schedules  []*schedule.StudentArrivalSchedule  `json:"schedules"`
 	Exceptions []*schedule.StudentArrivalException `json:"exceptions"`
 	Notes      []*schedule.StudentArrivalNote      `json:"notes"`
 }
 
-// ArrivalNoteData represents a single note in the effective arrival time response
 type ArrivalNoteData struct {
 	ID      int64  `json:"id"`
 	Content string `json:"content"`
 }
 
-// EffectiveArrivalTime represents the arrival time for a specific date
 type EffectiveArrivalTime struct {
 	Date        timezone.Date     `json:"date"`
 	ArrivalTime *time.Time        `json:"arrival_time"`
@@ -95,24 +71,17 @@ type EffectiveArrivalTime struct {
 	DayNotes    []ArrivalNoteData `json:"day_notes,omitempty"`
 }
 
-// ArrivalScheduleInput represents input for a single weekday's arrival schedule
 type ArrivalScheduleInput struct {
 	Weekday     int    `json:"weekday"`
-	ArrivalTime string `json:"expected_arrival"` // HH:MM
+	ArrivalTime string `json:"expected_arrival"`
 }
 
-// BulkUpsertResult contains the result of a bulk class upsert operation
 type BulkUpsertResult struct {
 	StudentsAffected    int                `json:"students_affected"`
 	OverwrittenStudents []OverwriteWarning `json:"overwritten_students,omitempty"`
-	// AffectedStudentIDs lists every student whose arrival schedule was written,
-	// so the handler can wake each child's guardians for a live parents-app
-	// refresh (#1725). Internal-only (json:"-") — not part of the staff response
-	// contract.
-	AffectedStudentIDs []int64 `json:"-"`
+	AffectedStudentIDs  []int64            `json:"-"`
 }
 
-// OverwriteWarning warns that a student had an existing individual schedule that was overwritten
 type OverwriteWarning struct {
 	StudentID    int64  `json:"student_id"`
 	StudentName  string `json:"student_name"`
@@ -122,29 +91,22 @@ type OverwriteWarning struct {
 	NewTime      string `json:"new_time"`
 }
 
-// Operation names for ScheduleError.
-const (
-	opCreateStudentArrivalException     = "create student arrival exception"
-	opUpdateStudentArrivalException     = "update student arrival exception"
-	opUpsertBulkStudentArrivalSchedules = "upsert bulk student arrival schedules"
-	opGetStudentArrivalData             = "get student arrival data"
-	opGetEffectiveArrivalTime           = "get effective arrival time"
-	opGetBulkEffectiveArrivalTimes      = "get bulk effective arrival times"
-	opBulkUpsertBySchoolClass           = "bulk upsert arrival schedules by school class"
-)
+const opBulkUpsertBySchoolClass = "bulk upsert arrival schedules by school class"
 
-// arrivalScheduleService implements ArrivalScheduleService
 type arrivalScheduleService struct {
-	scheduleRepo  schedule.StudentArrivalScheduleRepository
-	exceptionRepo schedule.StudentArrivalExceptionRepository
-	noteRepo      schedule.StudentArrivalNoteRepository
-	studentRepo   users.StudentRepository
-	personRepo    users.PersonRepository
-	db            *bun.DB
-	logger        *slog.Logger
+	core *effectiveTimeCore[
+		*schedule.StudentArrivalSchedule,
+		*schedule.StudentArrivalException,
+		*schedule.StudentArrivalNote,
+		arrivalTimeDomain,
+	]
+	scheduleRepo schedule.StudentArrivalScheduleRepository
+	studentRepo  users.StudentRepository
+	personRepo   users.PersonRepository
+	db           *bun.DB
+	logger       *slog.Logger
 }
 
-// NewArrivalScheduleService creates a new arrival schedule service
 func NewArrivalScheduleService(
 	scheduleRepo schedule.StudentArrivalScheduleRepository,
 	exceptionRepo schedule.StudentArrivalExceptionRepository,
@@ -155,13 +117,18 @@ func NewArrivalScheduleService(
 	logger *slog.Logger,
 ) ArrivalScheduleService {
 	return &arrivalScheduleService{
-		scheduleRepo:  scheduleRepo,
-		exceptionRepo: exceptionRepo,
-		noteRepo:      noteRepo,
-		studentRepo:   studentRepo,
-		personRepo:    personRepo,
-		db:            db,
-		logger:        logger,
+		core: newEffectiveTimeCore(
+			scheduleRepo,
+			exceptionRepo,
+			noteRepo,
+			db,
+			arrivalTimeDomain{},
+		),
+		scheduleRepo: scheduleRepo,
+		studentRepo:  studentRepo,
+		personRepo:   personRepo,
+		db:           db,
+		logger:       logger,
 	}
 }
 
@@ -169,658 +136,368 @@ func (s *arrivalScheduleService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
 }
 
-// Schedule operations
+func (s *arrivalScheduleService) GetStudentArrivalSchedules(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentArrivalSchedule, error) {
+	return s.core.Schedules(ctx, studentID)
+}
 
-// GetStudentArrivalSchedules returns all arrival schedules for a student
-func (s *arrivalScheduleService) GetStudentArrivalSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalSchedule, error) {
-	schedules, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
+func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
+	ctx context.Context,
+	studentIDs []int64,
+	weekday int,
+) ([]*schedule.StudentArrivalSchedule, error) {
+	return s.core.WeeklySchedulesByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(
+	ctx context.Context,
+	studentID int64,
+	weekday int,
+) (*schedule.StudentArrivalSchedule, error) {
+	return s.core.ScheduleForWeekday(ctx, studentID, weekday)
+}
+
+func (s *arrivalScheduleService) UpsertStudentArrivalSchedule(
+	ctx context.Context,
+	row *schedule.StudentArrivalSchedule,
+) error {
+	return s.core.UpsertSchedule(ctx, row)
+}
+
+func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
+	ctx context.Context,
+	studentID int64,
+	rows []*schedule.StudentArrivalSchedule,
+) error {
+	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+}
+
+func (s *arrivalScheduleService) DeleteStudentArrivalSchedule(
+	ctx context.Context,
+	scheduleID int64,
+) error {
+	return s.core.DeleteSchedule(ctx, scheduleID)
+}
+
+func (s *arrivalScheduleService) DeleteAllStudentArrivalSchedules(
+	ctx context.Context,
+	studentID int64,
+) error {
+	return s.core.DeleteAllSchedules(ctx, studentID)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalExceptionByID(
+	ctx context.Context,
+	exceptionID int64,
+) (*schedule.StudentArrivalException, error) {
+	return s.core.ExceptionByID(ctx, exceptionID)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalExceptionForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) (*schedule.StudentArrivalException, error) {
+	return s.core.ExceptionForDate(ctx, studentID, date)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalExceptions(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentArrivalException, error) {
+	return s.core.Exceptions(ctx, studentID)
+}
+
+func (s *arrivalScheduleService) GetUpcomingStudentArrivalExceptions(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentArrivalException, error) {
+	return s.core.UpcomingExceptions(ctx, studentID)
+}
+
+func (s *arrivalScheduleService) CreateStudentArrivalException(
+	ctx context.Context,
+	row *schedule.StudentArrivalException,
+) error {
+	return s.core.CreateException(ctx, row)
+}
+
+func (s *arrivalScheduleService) UpdateStudentArrivalException(
+	ctx context.Context,
+	row *schedule.StudentArrivalException,
+) error {
+	return s.core.UpdateExceptionRow(ctx, row)
+}
+
+func (s *arrivalScheduleService) CreateOrReclaimException(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	arrivalTime *time.Time,
+	reason *string,
+	staffID int64,
+	resolveStaffID func() (int64, error),
+) (*schedule.StudentArrivalException, error) {
+	return s.core.CreateOrReclaimException(
+		ctx,
+		studentID,
+		date,
+		arrivalTime,
+		reason,
+		staffID,
+		resolveStaffID,
+	)
+}
+
+func (s *arrivalScheduleService) UpdateException(
+	ctx context.Context,
+	exceptionID int64,
+	studentID int64,
+	date timezone.Date,
+	reason *string,
+	arrivalTime *time.Time,
+	clearArrivalTime bool,
+	resolveStaffID func() (int64, error),
+) (*schedule.StudentArrivalException, error) {
+	return s.core.UpdateException(
+		ctx,
+		exceptionID,
+		studentID,
+		date,
+		reason,
+		arrivalTime,
+		clearArrivalTime,
+		resolveStaffID,
+	)
+}
+
+func (s *arrivalScheduleService) DeleteStudentArrivalException(
+	ctx context.Context,
+	exceptionID int64,
+) error {
+	return s.core.DeleteException(ctx, exceptionID)
+}
+
+func (s *arrivalScheduleService) DeleteAllStudentArrivalExceptions(
+	ctx context.Context,
+	studentID int64,
+) error {
+	return s.core.DeleteAllExceptions(ctx, studentID)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalNoteByID(
+	ctx context.Context,
+	noteID int64,
+) (*schedule.StudentArrivalNote, error) {
+	return s.core.NoteByID(ctx, noteID)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalNotes(
+	ctx context.Context,
+	studentID int64,
+) ([]*schedule.StudentArrivalNote, error) {
+	return s.core.Notes(ctx, studentID)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalNotesForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) ([]*schedule.StudentArrivalNote, error) {
+	return s.core.NotesForDate(ctx, studentID, date)
+}
+
+func (s *arrivalScheduleService) CreateStudentArrivalNote(
+	ctx context.Context,
+	row *schedule.StudentArrivalNote,
+) error {
+	return s.core.CreateNote(ctx, row)
+}
+
+func (s *arrivalScheduleService) UpdateStudentArrivalNote(
+	ctx context.Context,
+	row *schedule.StudentArrivalNote,
+) error {
+	return s.core.UpdateNote(ctx, row)
+}
+
+func (s *arrivalScheduleService) DeleteStudentArrivalNote(
+	ctx context.Context,
+	noteID int64,
+) error {
+	return s.core.DeleteNote(ctx, noteID)
+}
+
+func (s *arrivalScheduleService) DeleteAllStudentArrivalNotes(
+	ctx context.Context,
+	studentID int64,
+) error {
+	return s.core.DeleteAllNotes(ctx, studentID)
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalData(
+	ctx context.Context,
+	studentID int64,
+) (*StudentArrivalData, error) {
+	data, err := s.core.Data(ctx, studentID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival schedules", Err: err}
-	}
-	return schedules, nil
-}
-
-// GetStudentArrivalScheduleForWeekday returns the arrival schedule for a specific weekday
-func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentArrivalSchedule, error) {
-	if weekday < schedule.WeekdayMonday || weekday > schedule.WeekdayFriday {
-		return nil, &ScheduleError{Op: "get student arrival schedule for weekday", Err: errors.New("invalid weekday")}
-	}
-
-	arrivalSchedule, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival schedule for weekday", Err: err}
-	}
-	return arrivalSchedule, nil
-}
-
-// UpsertStudentArrivalSchedule creates or updates an arrival schedule
-func (s *arrivalScheduleService) UpsertStudentArrivalSchedule(ctx context.Context, scheduleData *schedule.StudentArrivalSchedule) error {
-	if err := scheduleData.Validate(); err != nil {
-		return &ScheduleError{Op: "upsert student arrival schedule", Err: err}
-	}
-
-	if err := s.scheduleRepo.UpsertSchedule(ctx, scheduleData); err != nil {
-		return &ScheduleError{Op: "upsert student arrival schedule", Err: err}
-	}
-	return nil
-}
-
-// UpsertBulkStudentArrivalSchedules replaces all arrival schedules for a student.
-// This deletes existing schedules and inserts the new ones atomically,
-// ensuring that cleared weekdays are properly removed.
-func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentArrivalSchedule) error {
-	// Delete all existing schedules for this student first. The repository
-	// joins the handler's WithTenantTx transaction via the context.
-	if err := s.scheduleRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: opUpsertBulkStudentArrivalSchedules, Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
-	}
-
-	// Insert new schedules
-	for _, sched := range schedules {
-		sched.StudentID = studentID
-		if err := sched.Validate(); err != nil {
-			return &ScheduleError{Op: opUpsertBulkStudentArrivalSchedules, Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
-		}
-		sched.SetTenantID(tenant.FromContext(ctx))
-
-		if err := s.scheduleRepo.Create(ctx, sched); err != nil {
-			return &ScheduleError{Op: opUpsertBulkStudentArrivalSchedules, Err: err}
-		}
-	}
-	return nil
-}
-
-// DeleteStudentArrivalSchedule deletes an arrival schedule by ID
-func (s *arrivalScheduleService) DeleteStudentArrivalSchedule(ctx context.Context, scheduleID int64) error {
-	if err := s.scheduleRepo.Delete(ctx, scheduleID); err != nil {
-		return &ScheduleError{Op: "delete student arrival schedule", Err: err}
-	}
-	return nil
-}
-
-// DeleteAllStudentArrivalSchedules deletes all arrival schedules for a student
-func (s *arrivalScheduleService) DeleteAllStudentArrivalSchedules(ctx context.Context, studentID int64) error {
-	if err := s.scheduleRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: "delete all student arrival schedules", Err: err}
-	}
-	return nil
-}
-
-// Exception operations
-
-// GetStudentArrivalExceptionByID returns an arrival exception by its ID
-func (s *arrivalScheduleService) GetStudentArrivalExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentArrivalException, error) {
-	exception, err := s.exceptionRepo.FindByID(ctx, exceptionID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival exception by id", Err: err}
-	}
-	return exception, nil
-}
-
-// GetStudentArrivalExceptionForDate returns the arrival exception for a student
-// on a specific date, or nil when none exists.
-func (s *arrivalScheduleService) GetStudentArrivalExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentArrivalException, error) {
-	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival exception for date", Err: err}
-	}
-	return exception, nil
-}
-
-// GetStudentArrivalExceptions returns all arrival exceptions for a student
-func (s *arrivalScheduleService) GetStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error) {
-	exceptions, err := s.exceptionRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival exceptions", Err: err}
-	}
-	return exceptions, nil
-}
-
-// GetUpcomingStudentArrivalExceptions returns upcoming arrival exceptions for a student
-func (s *arrivalScheduleService) GetUpcomingStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error) {
-	exceptions, err := s.exceptionRepo.FindUpcomingByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get upcoming student arrival exceptions", Err: err}
-	}
-	return exceptions, nil
-}
-
-// CreateStudentArrivalException creates a new arrival exception
-func (s *arrivalScheduleService) CreateStudentArrivalException(ctx context.Context, exception *schedule.StudentArrivalException) error {
-	if err := exception.Validate(); err != nil {
-		return &ScheduleError{Op: opCreateStudentArrivalException, Err: err}
-	}
-
-	// Check for existing exception on the same date
-	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
-	if err != nil {
-		return &ScheduleError{Op: opCreateStudentArrivalException, Err: err}
-	}
-	if existing != nil {
-		return &ScheduleError{Op: opCreateStudentArrivalException, Err: errors.New("exception already exists for this date")}
-	}
-
-	exception.SetTenantID(tenant.FromContext(ctx))
-	if err := s.exceptionRepo.Create(ctx, exception); err != nil {
-		return &ScheduleError{Op: opCreateStudentArrivalException, Err: err}
-	}
-	return nil
-}
-
-// UpdateStudentArrivalException updates an existing arrival exception
-func (s *arrivalScheduleService) UpdateStudentArrivalException(ctx context.Context, exception *schedule.StudentArrivalException) error {
-	if err := exception.Validate(); err != nil {
-		return &ScheduleError{Op: opUpdateStudentArrivalException, Err: err}
-	}
-
-	// Check if changing date would conflict with another exception
-	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
-	if err != nil {
-		return &ScheduleError{Op: opUpdateStudentArrivalException, Err: err}
-	}
-	if existing != nil && existing.ID != exception.ID {
-		return &ScheduleError{Op: opUpdateStudentArrivalException, Err: errors.New("exception already exists for this date")}
-	}
-
-	if err := s.exceptionRepo.Update(ctx, exception); err != nil {
-		return &ScheduleError{Op: opUpdateStudentArrivalException, Err: err}
-	}
-	return nil
-}
-
-// CreateOrReclaimException creates a staff arrival exception for the day, or
-// resolves a collision with an already-existing row under the day lock. A
-// guardian-authored row is reclaimed for staff; a staff-authored row is refused
-// with ErrCareExceptionDayConflict so a concurrent staff edit is not silently
-// overwritten.
-func (s *arrivalScheduleService) CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error) {
-	var exception *schedule.StudentArrivalException
-	tenantID := tenant.FromContext(ctx)
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
-			return err
-		}
-
-		existing, err := s.GetStudentArrivalExceptionForDate(txCtx, studentID, date)
-		if err != nil {
-			return err
-		}
-		if existing != nil {
-			if existing.Source != schedule.ExceptionSourceGuardian {
-				return ErrCareExceptionDayConflict
-			}
-			sid, staffErr := resolveStaffID()
-			if staffErr != nil || sid == 0 {
-				return ErrCareExceptionStaffProfileRequired
-			}
-			updated := &schedule.StudentArrivalException{
-				StudentID:       studentID,
-				ExceptionDate:   date,
-				ExpectedArrival: arrivalTime,
-				Reason:          reason,
-				Source:          schedule.ExceptionSourceStaff,
-				CreatedBy:       sid,
-			}
-			updated.ID = existing.ID
-			updated.CreatedAt = existing.CreatedAt
-			updated.SetTenantID(existing.TenantID)
-			exception = updated
-			return s.UpdateStudentArrivalException(txCtx, updated)
-		}
-
-		exception = &schedule.StudentArrivalException{
-			StudentID:       studentID,
-			ExceptionDate:   date,
-			ExpectedArrival: arrivalTime,
-			Reason:          reason,
-			Source:          schedule.ExceptionSourceStaff,
-			CreatedBy:       staffID,
-		}
-		return s.CreateStudentArrivalException(txCtx, exception)
-	}); err != nil {
 		return nil, err
 	}
-	return exception, nil
-}
-
-// UpdateException updates an existing arrival exception under the day lock. A
-// staff edit takes ownership of the day: a guardian-authored row is reclaimed
-// (staff author stamped, guardian link dropped); staff-authored rows keep their
-// original author. The optional reason/arrival patch is merged onto the locked
-// row.
-func (s *arrivalScheduleService) UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error) {
-	var exception *schedule.StudentArrivalException
-	tenantID := tenant.FromContext(ctx)
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
-			return err
-		}
-		freshException, err := s.GetStudentArrivalExceptionByID(txCtx, exceptionID)
-		if err != nil {
-			return err
-		}
-		if freshException == nil {
-			return ErrCareExceptionNotFound
-		}
-		if freshException.StudentID != studentID {
-			return ErrCareExceptionWrongStudent
-		}
-
-		source := freshException.Source
-		createdBy := freshException.CreatedBy
-		createdByGuardian := freshException.CreatedByGuardian
-		if freshException.Source == schedule.ExceptionSourceGuardian {
-			sid, staffErr := resolveStaffID()
-			if staffErr != nil || sid == 0 {
-				return ErrCareExceptionStaffProfileRequired
-			}
-			source = schedule.ExceptionSourceStaff
-			createdBy = sid
-			createdByGuardian = nil
-		}
-
-		expectedArrival := freshException.ExpectedArrival
-		if expectedArrival != nil {
-			normalized := timezone.WallClock(*expectedArrival)
-			expectedArrival = &normalized
-		}
-
-		updated := &schedule.StudentArrivalException{
-			StudentID:         studentID,
-			ExceptionDate:     date,
-			ExpectedArrival:   expectedArrival,
-			Reason:            freshException.Reason,
-			Source:            source,
-			CreatedBy:         createdBy,
-			CreatedByGuardian: createdByGuardian,
-		}
-		updated.ID = exceptionID
-		updated.CreatedAt = freshException.CreatedAt
-		updated.SetTenantID(freshException.TenantID)
-
-		if reason != nil {
-			updated.Reason = reason
-		}
-		if arrivalTime != nil {
-			updated.ExpectedArrival = arrivalTime
-		}
-
-		exception = updated
-		return s.UpdateStudentArrivalException(txCtx, updated)
-	}); err != nil {
-		return nil, err
-	}
-	return exception, nil
-}
-
-// DeleteStudentArrivalException deletes an arrival exception by ID
-func (s *arrivalScheduleService) DeleteStudentArrivalException(ctx context.Context, exceptionID int64) error {
-	if err := s.exceptionRepo.Delete(ctx, exceptionID); err != nil {
-		return &ScheduleError{Op: "delete student arrival exception", Err: err}
-	}
-	return nil
-}
-
-// DeleteAllStudentArrivalExceptions deletes all arrival exceptions for a student
-func (s *arrivalScheduleService) DeleteAllStudentArrivalExceptions(ctx context.Context, studentID int64) error {
-	if err := s.exceptionRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: "delete all student arrival exceptions", Err: err}
-	}
-	return nil
-}
-
-// Note operations
-
-// GetStudentArrivalNoteByID returns an arrival note by its ID
-func (s *arrivalScheduleService) GetStudentArrivalNoteByID(ctx context.Context, noteID int64) (*schedule.StudentArrivalNote, error) {
-	note, err := s.noteRepo.FindByID(ctx, noteID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival note by id", Err: err}
-	}
-	return note, nil
-}
-
-// GetStudentArrivalNotes returns all arrival notes for a student
-func (s *arrivalScheduleService) GetStudentArrivalNotes(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalNote, error) {
-	notes, err := s.noteRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival notes", Err: err}
-	}
-	return notes, nil
-}
-
-// GetStudentArrivalNotesForDate returns arrival notes for a student on a specific date
-func (s *arrivalScheduleService) GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentArrivalNote, error) {
-	notes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get student arrival notes for date", Err: err}
-	}
-	return notes, nil
-}
-
-// CreateStudentArrivalNote creates a new arrival note
-func (s *arrivalScheduleService) CreateStudentArrivalNote(ctx context.Context, note *schedule.StudentArrivalNote) error {
-	if err := note.Validate(); err != nil {
-		return &ScheduleError{Op: "create student arrival note", Err: err}
-	}
-
-	note.SetTenantID(tenant.FromContext(ctx))
-	if err := s.noteRepo.Create(ctx, note); err != nil {
-		return &ScheduleError{Op: "create student arrival note", Err: err}
-	}
-	return nil
-}
-
-// UpdateStudentArrivalNote updates an existing arrival note
-func (s *arrivalScheduleService) UpdateStudentArrivalNote(ctx context.Context, note *schedule.StudentArrivalNote) error {
-	if err := note.Validate(); err != nil {
-		return &ScheduleError{Op: "update student arrival note", Err: err}
-	}
-
-	if err := s.noteRepo.Update(ctx, note); err != nil {
-		return &ScheduleError{Op: "update student arrival note", Err: err}
-	}
-	return nil
-}
-
-// DeleteStudentArrivalNote deletes an arrival note by ID
-func (s *arrivalScheduleService) DeleteStudentArrivalNote(ctx context.Context, noteID int64) error {
-	if err := s.noteRepo.Delete(ctx, noteID); err != nil {
-		return &ScheduleError{Op: "delete student arrival note", Err: err}
-	}
-	return nil
-}
-
-// DeleteAllStudentArrivalNotes deletes all arrival notes for a student
-func (s *arrivalScheduleService) DeleteAllStudentArrivalNotes(ctx context.Context, studentID int64) error {
-	if err := s.noteRepo.DeleteByStudentID(ctx, studentID); err != nil {
-		return &ScheduleError{Op: "delete all student arrival notes", Err: err}
-	}
-	return nil
-}
-
-// Computed operations
-
-// GetStudentArrivalData returns combined schedule, exception, and note data for a student.
-// Returns all exceptions and notes (not just upcoming) to support week view navigation to past weeks.
-func (s *arrivalScheduleService) GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error) {
-	schedules, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetStudentArrivalData, Err: err}
-	}
-
-	exceptions, err := s.exceptionRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetStudentArrivalData, Err: err}
-	}
-
-	notes, err := s.noteRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetStudentArrivalData, Err: err}
-	}
-
 	return &StudentArrivalData{
-		Schedules:  schedules,
-		Exceptions: exceptions,
-		Notes:      notes,
+		Schedules:  data.Schedules,
+		Exceptions: data.Exceptions,
+		Notes:      data.Notes,
 	}, nil
 }
 
-// GetEffectiveArrivalTimeForDate calculates the effective arrival time for a specific date
-func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error) {
-	weekday := int(date.Weekday())
-
-	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
-	if weekday == 0 {
-		weekday = 7
-	}
-
-	result := &EffectiveArrivalTime{
-		Date:        date,
-		WeekdayName: schedule.WeekdayNames[weekday],
-	}
-
-	// Weekend check
-	if weekday > schedule.WeekdayFriday {
-		return result, nil
-	}
-
-	// Check for exception on this date first
-	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) (*EffectiveArrivalTime, error) {
+	result, err := s.core.EffectiveTimeForDate(ctx, studentID, date)
 	if err != nil {
-		return nil, &ScheduleError{Op: opGetEffectiveArrivalTime, Err: err}
+		return nil, err
 	}
-
-	if exception != nil {
-		result.IsException = true
-		result.ArrivalTime = exception.ExpectedArrival
-		if reason := arrivalNoteOverride(exception.Reason); reason != "" {
-			result.Notes = reason
-		} else {
-			sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-			if err != nil {
-				return nil, &ScheduleError{Op: opGetEffectiveArrivalTime, Err: err}
-			}
-			result.Notes = arrivalScheduleNotes(sched)
-		}
-	} else {
-		// Fall back to regular schedule
-		sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-		if err != nil {
-			return nil, &ScheduleError{Op: opGetEffectiveArrivalTime, Err: err}
-		}
-
-		if sched != nil {
-			result.ArrivalTime = &sched.ExpectedArrival
-			result.Notes = arrivalScheduleNotes(sched)
-		}
-	}
-
-	// Load day notes
-	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetEffectiveArrivalTime, Err: err}
-	}
-	for _, n := range dayNotes {
-		result.DayNotes = append(result.DayNotes, ArrivalNoteData{ID: n.ID, Content: n.Content})
-	}
-
-	return result, nil
+	return arrivalEffectiveTime(result), nil
 }
 
-// GetBulkEffectiveArrivalTimesForDate calculates effective arrival times for multiple students on a given date
-// Uses bulk database queries for optimal performance (O(3) queries instead of O(N))
-func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error) {
-	if len(studentIDs) == 0 {
-		return make(map[int64]*EffectiveArrivalTime), nil
-	}
-
-	weekday := int(date.Weekday())
-
-	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
-	if weekday == 0 {
-		weekday = 7
-	}
-
-	result := make(map[int64]*EffectiveArrivalTime, len(studentIDs))
-
-	// Initialize results for all students
-	for _, studentID := range studentIDs {
-		result[studentID] = &EffectiveArrivalTime{
-			Date:        date,
-			WeekdayName: schedule.WeekdayNames[weekday],
-		}
-	}
-
-	// Weekend check - all students have no arrival time
-	if weekday > schedule.WeekdayFriday {
-		return result, nil
-	}
-
-	// Bulk fetch all exceptions for the given date (single query)
-	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetBulkEffectiveArrivalTimes, Err: err}
-	}
-
-	// Build exception map for O(1) lookup
-	exceptionMap := make(map[int64]*schedule.StudentArrivalException, len(exceptions))
-	for _, exc := range exceptions {
-		exceptionMap[exc.StudentID] = exc
-	}
-
-	// Bulk fetch all schedules for the given weekday (single query)
-	schedules, err := s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetBulkEffectiveArrivalTimes, Err: err}
-	}
-
-	// Build schedule map for O(1) lookup
-	scheduleMap := make(map[int64]*schedule.StudentArrivalSchedule, len(schedules))
-	for _, sched := range schedules {
-		scheduleMap[sched.StudentID] = sched
-	}
-
-	// Bulk fetch all notes for the given date (single query)
-	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGetBulkEffectiveArrivalTimes, Err: err}
-	}
-
-	// Build notes map for grouping by student
-	notesMap := make(map[int64][]*schedule.StudentArrivalNote)
-	for _, n := range notes {
-		notesMap[n.StudentID] = append(notesMap[n.StudentID], n)
-	}
-
-	// Merge results: exception takes precedence over schedule
-	mergeArrivalResults(studentIDs, result, exceptionMap, scheduleMap, notesMap)
-
-	return result, nil
-}
-
-// mergeArrivalResults merges exception, schedule, and note data into effective arrival times
-func mergeArrivalResults(
+func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(
+	ctx context.Context,
 	studentIDs []int64,
-	result map[int64]*EffectiveArrivalTime,
-	exceptionMap map[int64]*schedule.StudentArrivalException,
-	scheduleMap map[int64]*schedule.StudentArrivalSchedule,
-	notesMap map[int64][]*schedule.StudentArrivalNote,
-) {
-	for _, studentID := range studentIDs {
-		r := result[studentID]
-		sched := scheduleMap[studentID]
-
-		// Check for exception first (takes priority)
-		if exc, ok := exceptionMap[studentID]; ok {
-			r.IsException = true
-			r.ArrivalTime = exc.ExpectedArrival
-			if reason := arrivalNoteOverride(exc.Reason); reason != "" {
-				r.Notes = reason
-			} else {
-				r.Notes = arrivalScheduleNotes(sched)
-			}
-		} else if sched != nil {
-			// Fall back to regular schedule
-			r.ArrivalTime = &sched.ExpectedArrival
-			r.Notes = arrivalScheduleNotes(sched)
-		}
-
-		// Attach day notes
-		if dayNotes, ok := notesMap[studentID]; ok {
-			for _, n := range dayNotes {
-				r.DayNotes = append(r.DayNotes, ArrivalNoteData{ID: n.ID, Content: n.Content})
-			}
-		}
+	date timezone.Date,
+) (map[int64]*EffectiveArrivalTime, error) {
+	results, err := s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
 	}
+	mapped := make(map[int64]*EffectiveArrivalTime, len(results))
+	for studentID, result := range results {
+		mapped[studentID] = arrivalEffectiveTime(result)
+	}
+	return mapped, nil
 }
 
-// BulkUpsertBySchoolClass upserts arrival schedules for all students in a school class
-func (s *arrivalScheduleService) BulkUpsertBySchoolClass(ctx context.Context, schoolClass string, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error) {
+func arrivalEffectiveTime(result *effectiveTimeResult) *EffectiveArrivalTime {
+	mapped := &EffectiveArrivalTime{
+		Date:        result.Date,
+		ArrivalTime: result.Time,
+		WeekdayName: result.WeekdayName,
+		IsException: result.IsException,
+		Notes:       result.Notes,
+	}
+	for _, note := range result.DayNotes {
+		mapped.DayNotes = append(mapped.DayNotes, ArrivalNoteData(note))
+	}
+	return mapped
+}
+
+func (s *arrivalScheduleService) BulkUpsertBySchoolClass(
+	ctx context.Context,
+	schoolClass string,
+	schedules []ArrivalScheduleInput,
+	createdBy int64,
+) (*BulkUpsertResult, error) {
 	if schoolClass == "" {
-		return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: errors.New("school_class is required")}
+		return nil, &ScheduleError{
+			Op:  opBulkUpsertBySchoolClass,
+			Err: errors.New("school_class is required"),
+		}
 	}
 	if len(schedules) == 0 {
-		return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: errors.New("schedules cannot be empty")}
+		return nil, &ScheduleError{
+			Op:  opBulkUpsertBySchoolClass,
+			Err: errors.New("schedules cannot be empty"),
+		}
 	}
 
-	// Query all students in this school class within the current tenant
 	students, err := s.studentRepo.FindBySchoolClass(ctx, schoolClass)
 	if err != nil {
-		return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: fmt.Errorf("failed to find students for class %s: %w", schoolClass, err)}
+		return nil, &ScheduleError{
+			Op:  opBulkUpsertBySchoolClass,
+			Err: fmt.Errorf("failed to find students for class %s: %w", schoolClass, err),
+		}
 	}
-
 	if len(students) == 0 {
 		return &BulkUpsertResult{StudentsAffected: 0}, nil
 	}
 
 	tenantID := tenant.FromContext(ctx)
 	warnings := make([]OverwriteWarning, 0)
-
-	// Parse arrival times upfront
 	parsedTimes := make(map[int]time.Time, len(schedules))
 	for _, input := range schedules {
-		t, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+input.ArrivalTime)
+		value, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+input.ArrivalTime)
 		if err != nil {
-			return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: fmt.Errorf("invalid expected_arrival %q for weekday %d: %w", input.ArrivalTime, input.Weekday, err)}
+			return nil, &ScheduleError{
+				Op: opBulkUpsertBySchoolClass,
+				Err: fmt.Errorf(
+					"invalid expected_arrival %q for weekday %d: %w",
+					input.ArrivalTime,
+					input.Weekday,
+					err,
+				),
+			}
 		}
-		parsedTimes[input.Weekday] = t
+		parsedTimes[input.Weekday] = value
 	}
 
-	// Wrap everything in a transaction
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		for _, student := range students {
-			// Fetch existing schedules for this student to detect overwrites
 			existing, err := s.scheduleRepo.FindByStudentID(txCtx, student.ID)
 			if err != nil {
-				return fmt.Errorf("failed to fetch existing schedules for student %d: %w", student.ID, err)
+				return fmt.Errorf(
+					"failed to fetch existing schedules for student %d: %w",
+					student.ID,
+					err,
+				)
 			}
 
-			// Build map of existing schedules by weekday for overwrite detection
 			existingByWeekday := make(map[int]*schedule.StudentArrivalSchedule, len(existing))
-			for _, ex := range existing {
-				existingByWeekday[ex.Weekday] = ex
+			for _, row := range existing {
+				existingByWeekday[row.Weekday] = row
 			}
 
-			// Upsert each weekday
 			for _, input := range schedules {
 				arrivalTime := parsedTimes[input.Weekday]
-
-				// Check for overwrite
-				if ex, ok := existingByWeekday[input.Weekday]; ok {
-					if ex.ExpectedArrival.Format("15:04") != arrivalTime.Format("15:04") {
-						// Get student name for the warning
-						studentName := s.getStudentName(txCtx, student)
-						warnings = append(warnings, OverwriteWarning{
-							StudentID:    student.ID,
-							StudentName:  studentName,
-							Weekday:      input.Weekday,
-							WeekdayName:  schedule.WeekdayNames[input.Weekday],
-							PreviousTime: ex.ExpectedArrival.Format("15:04"),
-							NewTime:      arrivalTime.Format("15:04"),
-						})
-					}
+				if existingRow, ok := existingByWeekday[input.Weekday]; ok &&
+					existingRow.ExpectedArrival.Format("15:04") != arrivalTime.Format("15:04") {
+					warnings = append(warnings, OverwriteWarning{
+						StudentID:    student.ID,
+						StudentName:  s.getStudentName(txCtx, student),
+						Weekday:      input.Weekday,
+						WeekdayName:  schedule.WeekdayNames[input.Weekday],
+						PreviousTime: existingRow.ExpectedArrival.Format("15:04"),
+						NewTime:      arrivalTime.Format("15:04"),
+					})
 				}
 
-				sched := &schedule.StudentArrivalSchedule{
+				row := &schedule.StudentArrivalSchedule{
 					StudentID:       student.ID,
 					Weekday:         input.Weekday,
 					ExpectedArrival: arrivalTime,
 					CreatedBy:       createdBy,
 				}
-				sched.SetTenantID(tenantID)
-
-				if err := s.scheduleRepo.UpsertSchedule(txCtx, sched); err != nil {
-					return fmt.Errorf("failed to upsert schedule for student %d weekday %d: %w", student.ID, input.Weekday, err)
+				row.SetTenantID(tenantID)
+				if err := s.scheduleRepo.UpsertSchedule(txCtx, row); err != nil {
+					return fmt.Errorf(
+						"failed to upsert schedule for student %d weekday %d: %w",
+						student.ID,
+						input.Weekday,
+						err,
+					)
 				}
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: err}
 	}
 
-	s.getLogger().Info("bulk upsert arrival schedules by school class",
+	s.getLogger().Info(
+		"bulk upsert arrival schedules by school class",
 		slog.String("school_class", schoolClass),
 		slog.Int("students_affected", len(students)),
 		slog.Int("weekdays_set", len(schedules)),
@@ -831,7 +508,6 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(ctx context.Context, sc
 	for _, student := range students {
 		affectedIDs = append(affectedIDs, student.ID)
 	}
-
 	return &BulkUpsertResult{
 		StudentsAffected:    len(students),
 		OverwrittenStudents: warnings,
@@ -839,9 +515,10 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(ctx context.Context, sc
 	}, nil
 }
 
-// getStudentName resolves a student's display name from their person record.
-// Returns a fallback string on any error so callers can always produce a warning.
-func (s *arrivalScheduleService) getStudentName(ctx context.Context, student *users.Student) string {
+func (s *arrivalScheduleService) getStudentName(
+	ctx context.Context,
+	student *users.Student,
+) string {
 	if s.personRepo == nil {
 		return fmt.Sprintf("Student %d", student.ID)
 	}
@@ -850,26 +527,4 @@ func (s *arrivalScheduleService) getStudentName(ctx context.Context, student *us
 		return fmt.Sprintf("Student %d", student.ID)
 	}
 	return person.FirstName + " " + person.LastName
-}
-
-func arrivalNoteOverride(reason *string) string {
-	if reason == nil {
-		return ""
-	}
-
-	return strings.TrimSpace(*reason)
-}
-
-func arrivalScheduleNotes(sched *schedule.StudentArrivalSchedule) string {
-	if sched == nil || sched.Notes == nil {
-		return ""
-	}
-
-	return strings.TrimSpace(*sched.Notes)
-}
-
-// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly arrival
-// schedules of many students for one weekday.
-func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentArrivalSchedule, error) {
-	return s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
 }

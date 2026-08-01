@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1447,11 +1449,16 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 	// Make name unique
 	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 
+	// base_role is required by the role-create API, so every real custom role
+	// carries one; without it the role has no privilege tier and role-grant
+	// checks fail it closed.
+	baseRole := auth.BaseRoleUser
 	role := &auth.Role{
 		Name:        uniqueName,
 		Description: "Test role: " + name,
 		IsSystem:    false,
 		TenantID:    &tenantID,
+		BaseRole:    &baseRole,
 	}
 
 	err := db.NewInsert().
@@ -1478,6 +1485,15 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 		Description: "System role: " + name,
 		IsSystem:    true,
 		TenantID:    nil,
+	}
+
+	// Real system roles are identified by their canonical name ("admin",
+	// "user"), which this fixture has to uniquify. Carry the tier in base_role
+	// instead so role-grant checks see the same privilege level the caller asked
+	// for rather than an unrecognizable name.
+	if slices.Contains(auth.ValidBaseRoles(), strings.ToLower(strings.TrimSpace(name))) {
+		baseRole := strings.ToLower(strings.TrimSpace(name))
+		role.BaseRole = &baseRole
 	}
 
 	err := db.NewInsert().
@@ -1926,11 +1942,16 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 
 	// Create a new role if not found
 	tenantID := int64(1) // matches TenantContext(1) used by tests
+	// base_role is required by the role-create API, so every real custom role
+	// carries one; without it the role has no privilege tier and role-grant
+	// checks fail it closed.
+	baseRole := auth.BaseRoleUser
 	role = auth.Role{
 		Name:        fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		Description: "Test role for " + name,
 		IsSystem:    false,
 		TenantID:    &tenantID,
+		BaseRole:    &baseRole,
 	}
 
 	err = db.NewInsert().
@@ -2586,6 +2607,7 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		"schedule.timeframes",
 		"iot.devices",
 		"suggestions.votes",
+		"suggestions.comment_reads",
 		"suggestions.comments",
 		"suggestions.posts",
 		"audit.data_deletions",
@@ -2747,6 +2769,13 @@ type ActivityInstanceOpts struct {
 	EndHHMM         string // defaults to "15:00"
 	Title           string // defaults to "Test Instance"
 	IsSpontaneous   bool
+	// CalendarPeriodID marks the row as MATERIALIZED from a template: the
+	// materializer is the only writer that sets it (the manual create path
+	// leaves it NULL even when it links an activity group for metadata). Set it
+	// whenever a test stands in for a materialized instance — readers such as
+	// ActivityInstanceRepository.FindPlannedTemplateBackedFrom use the column to
+	// tell an enrollment-derived roster from a hand-typed one (#405 review).
+	CalendarPeriodID *int64
 }
 
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
@@ -2776,15 +2805,16 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	}
 
 	row := &schedule.ActivityInstance{
-		Date:            date,
-		ActivityGroupID: opts.ActivityGroupID,
-		ActiveGroupID:   opts.ActiveGroupID,
-		Title:           title,
-		StartTime:       parseTimeHHMM(tb, startHHMM),
-		EndTime:         parseTimeHHMM(tb, endHHMM),
-		RoomID:          roomID,
-		Status:          status,
-		IsSpontaneous:   opts.IsSpontaneous,
+		Date:             date,
+		ActivityGroupID:  opts.ActivityGroupID,
+		CalendarPeriodID: opts.CalendarPeriodID,
+		ActiveGroupID:    opts.ActiveGroupID,
+		Title:            title,
+		StartTime:        parseTimeHHMM(tb, startHHMM),
+		EndTime:          parseTimeHHMM(tb, endHHMM),
+		RoomID:           roomID,
+		Status:           status,
+		IsSpontaneous:    opts.IsSpontaneous,
 	}
 	row.SetTenantID(1)
 
@@ -2793,6 +2823,36 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 		ModelTableExpr(`schedule.activity_instances`).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to create test activity instance")
+	return row
+}
+
+// CreateTestCalendarPeriod inserts a schedule.calendar_periods row spanning
+// [start, end]. The period is created INACTIVE so it cannot collide with the
+// active-period invariants other tests rely on; callers that only need an id to
+// stamp on a materialized instance want exactly this. Names must be unique per
+// tenant — pass a suffixed one. Clean up with CleanupTableRecords(…,
+// "schedule.calendar_periods", id).
+func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end timezone.Date) *schedule.CalendarPeriod {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.CalendarPeriod{
+		Name:            name,
+		PeriodType:      schedule.PeriodTypeCustom,
+		StartDate:       start,
+		EndDate:         end,
+		WeekCycleLength: 1,
+		IsActive:        false,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.calendar_periods`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test calendar period")
 	return row
 }
 
@@ -2857,6 +2917,10 @@ type InstanceStudentOpts struct {
 	// status by hand. Completion must leave such a row alone rather than stamp
 	// it as a non-booking (#1747).
 	ManualStatusAt *time.Time
+	// CheckedInAt is the stamp every real check-in path writes. It — not the
+	// 'present' status on its own — is what marks a row as an OBSERVED presence
+	// (#405 review).
+	CheckedInAt *time.Time
 }
 
 // CreateTestInstanceStudent inserts one instance_students row. Status defaults
@@ -2883,6 +2947,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		NotScheduled:       opt.NotScheduled,
 		StudentStatusDayID: opt.StudentStatusDayID,
 		ManualStatusAt:     opt.ManualStatusAt,
+		CheckedInAt:        opt.CheckedInAt,
 	}
 	row.SetTenantID(1)
 

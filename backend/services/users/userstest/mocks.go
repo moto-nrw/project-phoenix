@@ -18,6 +18,7 @@ package userstest
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -37,6 +38,7 @@ type PersonServiceMock struct {
 	LinkToAccountFn                  func(ctx context.Context, personID int64, accountID int64) error
 	UnlinkFromAccountFn              func(ctx context.Context, personID int64) error
 	LinkToRFIDCardFn                 func(ctx context.Context, personID int64, tagID string) error
+	LinkStudentToRFIDCardFn          func(ctx context.Context, studentID int64, tagID string) error
 	UnlinkFromRFIDCardFn             func(ctx context.Context, personID int64) error
 	GetStaffByIDFn                   func(ctx context.Context, id int64) (*userModels.Staff, error)
 	GetStaffByPersonIDFn             func(ctx context.Context, personID int64) (*userModels.Staff, error)
@@ -51,13 +53,16 @@ type PersonServiceMock struct {
 	GetTeacherWithStaffAndPersonFn   func(ctx context.Context, id int64) (*userModels.Teacher, error)
 	ListTeachersWithStaffAndPersonFn func(ctx context.Context) ([]*userModels.Teacher, error)
 	GetStudentByIDFn                 func(ctx context.Context, id int64) (*userModels.Student, error)
+	GetStudentByIDForUpdateFn        func(ctx context.Context, id int64) (*userModels.Student, error)
 	GetStudentByPersonIDFn           func(ctx context.Context, personID int64) (*userModels.Student, error)
 	GetStudentsByIDsFn               func(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
 	GetStudentsByGroupIDFn           func(ctx context.Context, groupID int64) ([]*userModels.Student, error)
 	GetStudentsByGroupIDsFn          func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+	GetEligibleGroupStudentsFn       func(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error)
 	CountStudentsByGroupIDsFn        func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	CreateStaffWithTeacherFn         func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 	UpdateStaffWithTeacherFn         func(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error)
+	UpdatePersonnelNumberFn          func(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
 	GetStudentsWithGroupsByTeacherFn func(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error)
 	GetAllStudentsWithGroupsFn       func(ctx context.Context) ([]users.StudentWithGroup, error)
 }
@@ -144,6 +149,13 @@ func (m *PersonServiceMock) UnlinkFromAccount(ctx context.Context, personID int6
 func (m *PersonServiceMock) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	if m.LinkToRFIDCardFn != nil {
 		return m.LinkToRFIDCardFn(ctx, personID, tagID)
+	}
+	return nil
+}
+
+func (m *PersonServiceMock) LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error {
+	if m.LinkStudentToRFIDCardFn != nil {
+		return m.LinkStudentToRFIDCardFn(ctx, studentID, tagID)
 	}
 	return nil
 }
@@ -246,6 +258,20 @@ func (m *PersonServiceMock) GetStudentByID(ctx context.Context, id int64) (*user
 	return nil, nil
 }
 
+// GetStudentByIDForUpdate falls back to GetStudentByIDFn when no dedicated stub
+// is set: the locked read differs from the plain one only in the row lock, which
+// a mock has nothing to emulate, so a test that stubs the lookup once covers
+// both call sites.
+func (m *PersonServiceMock) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	if m.GetStudentByIDForUpdateFn != nil {
+		return m.GetStudentByIDForUpdateFn(ctx, id)
+	}
+	if m.GetStudentByIDFn != nil {
+		return m.GetStudentByIDFn(ctx, id)
+	}
+	return nil, nil
+}
+
 func (m *PersonServiceMock) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
 	if m.GetStudentByPersonIDFn != nil {
 		return m.GetStudentByPersonIDFn(ctx, personID)
@@ -274,6 +300,13 @@ func (m *PersonServiceMock) GetStudentsByGroupIDs(ctx context.Context, groupIDs 
 	return nil, nil
 }
 
+func (m *PersonServiceMock) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error) {
+	if m.GetEligibleGroupStudentsFn != nil {
+		return m.GetEligibleGroupStudentsFn(ctx, groupIDs, date, today)
+	}
+	return nil, nil
+}
+
 func (m *PersonServiceMock) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
 	if m.CountStudentsByGroupIDsFn != nil {
 		return m.CountStudentsByGroupIDsFn(ctx, groupIDs)
@@ -293,6 +326,13 @@ func (m *PersonServiceMock) UpdateStaffWithTeacher(ctx context.Context, staff *u
 		return m.UpdateStaffWithTeacherFn(ctx, staff, isTeacher, specialization, role, qualifications)
 	}
 	return nil, users.TeacherActionNone, nil
+}
+
+func (m *PersonServiceMock) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error) {
+	if m.UpdatePersonnelNumberFn != nil {
+		return m.UpdatePersonnelNumberFn(ctx, staffID, value, changedByStaffID, note)
+	}
+	return nil, nil
 }
 
 func (m *PersonServiceMock) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error) {

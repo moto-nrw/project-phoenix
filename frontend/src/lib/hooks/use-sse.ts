@@ -156,7 +156,9 @@ export function useSSE(
           "activity_update",
           "active_supervision_changed",
           "dashboard_counts_changed",
+          "staff_time_tracking_changed",
           "arrival_schedule_changed",
+          "pickup_schedule_changed",
           "tenant_settings_changed",
           "instance_started",
           "instance_completed",
@@ -173,6 +175,20 @@ export function useSSE(
           // refresh on focus or manual reload (#1845 review).
           "change_requests_changed",
           "parent_child_updated",
+          // Same defect, same fix: both are broadcast as NAMED events
+          // (instance_service.go / substitute.go for staffing,
+          // student_handlers.go + master_data_review/care_request/offering
+          // services for companions) and both have live handlers in
+          // useGlobalSSE, so without registration those branches never ran.
+          // Timetable caches — including the per-child Betreuungsplan, whose
+          // blocks a substitute or absence changes — only refreshed on focus or
+          // reload, and a remote "läuft mit" edit stayed invisible until
+          // remount (the #1694 bus it drives never fired).
+          "staffing_deviation_changed",
+          "student_companions_changed",
+          // Notification abstraction (#1624): rendered directly as a toast by
+          // NotificationBridge via useGlobalSSE — not a cache trigger.
+          "notification",
         ];
 
         for (const eventType of eventTypes) {
@@ -213,7 +229,12 @@ export function useSSE(
           const currentAttempts = reconnectAttemptsRef.current;
 
           if (currentAttempts < maxReconnectAttempts) {
-            const delay = reconnectInterval * Math.pow(2, currentAttempts);
+            // Exponential backoff with proportional jitter (up to +100% of the
+            // base delay): a backend restart drops every client of the
+            // deployment at the same instant, and without jitter they all
+            // reconnected — and revalidated — in synchronized waves (#2057).
+            const base = reconnectInterval * Math.pow(2, currentAttempts);
+            const delay = base + Math.random() * base; // NOSONAR typescript:S2245 non-cryptographic reconnect jitter, no security context
 
             // Update both ref (for next closure) and state (for UI)
             reconnectAttemptsRef.current = currentAttempts + 1;

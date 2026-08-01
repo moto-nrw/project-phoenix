@@ -181,6 +181,38 @@ describe("FormModal", () => {
     expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
   });
 
+  it("lets a tall footer shrink the content area instead of being clipped", async () => {
+    render(
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Test"
+          footer={<button type="button">Submit</button>}
+        >
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const content = document.querySelector("[data-modal-content]");
+    const dialog = content?.parentElement;
+    const footer = dialog?.lastElementChild;
+
+    // The dialog is capped at max-h and clips its overflow, so the header and
+    // footer may not claim height the content area already reserved. Flex
+    // column plus a shrinkable content area keeps the footer actions on
+    // screen on short viewports (e.g. the expanded delete confirmation).
+    expect(dialog).toHaveClass("flex", "flex-col", "overflow-hidden");
+    expect(content).toHaveClass("min-h-0", "overflow-y-auto");
+    expect(dialog?.firstElementChild).toHaveClass("shrink-0");
+    expect(footer).toHaveClass("shrink-0");
+  });
+
   it("should hide html overflow when open", async () => {
     render(
       <TestWrapper>

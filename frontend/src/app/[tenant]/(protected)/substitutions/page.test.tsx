@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { formatDate, toISODate } from "~/lib/date-helpers";
 import SubstitutionsPage from "./page";
 
 // Hoist mocks
@@ -126,11 +127,13 @@ vi.mock("~/components/ui/modal", () => ({
     onClose,
     title,
     children,
+    footer,
   }: {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="assignment-modal" role="dialog">
@@ -139,6 +142,7 @@ vi.mock("~/components/ui/modal", () => ({
           Close
         </button>
         {children}
+        {footer}
       </div>
     ) : null,
   ConfirmationModal: ({
@@ -168,10 +172,10 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-// Mock Alert
+// Mock Alert — mirrors the real message-prop API
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="alert">{children}</div>
+  Alert: ({ message }: { message: string }) => (
+    <div data-testid="alert">{message}</div>
   ),
 }));
 
@@ -411,11 +415,17 @@ describe("SubstitutionsPage", () => {
       expect(screen.getByText("Gruppe 3B")).toBeInTheDocument();
     });
 
+    // "Verfügbar" ist der Normalfall und wird nicht mehr ausgeschrieben: eine
+    // Fachkraft ohne Zuweisung zeigt nur ihre Stammgruppe. Nur ein tatsächlich
+    // vergebener Zugriff steht in der Zeile.
     it("displays teacher status correctly", () => {
       render(<SubstitutionsPage />);
 
-      expect(screen.getByText("Verfügbar")).toBeInTheDocument();
+      // Ben Schulz hat einen Zugriff auf Gruppe 1A.
       expect(screen.getByText(/Zugriff: Gruppe 1A/)).toBeInTheDocument();
+
+      // Anna Meyer hat keinen; ihre Zeile trägt keinen Status.
+      expect(screen.queryByText("Verfügbar")).not.toBeInTheDocument();
     });
 
     it("shows empty state when no teachers match filter", async () => {
@@ -622,7 +632,11 @@ describe("SubstitutionsPage", () => {
       expect(groupSelect).toBeInTheDocument();
     });
 
-    it("displays days stepper in modal", async () => {
+    // Der Tage-Stepper (Plus/Minus plus Zahlenfeld) wurde durch den
+    // segmentierten Dauer-Umschalter ersetzt. Geprüft wird weiterhin dieselbe
+    // Fachlichkeit: Voreinstellung ist ein Tag, eine längere Dauer verschiebt
+    // das Enddatum, und der freie Wert ist weiterhin erreichbar.
+    it("displays duration options in modal", async () => {
       render(<SubstitutionsPage />);
 
       // Open modal
@@ -633,12 +647,23 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      // Check days stepper exists
-      expect(screen.getByLabelText("Tage verringern")).toBeInTheDocument();
-      expect(screen.getByLabelText("Tage erhöhen")).toBeInTheDocument();
+      const durationGroup = screen.getByRole("tablist");
+      expect(
+        within(durationGroup).getByRole("tab", { name: "Heute" }),
+      ).toHaveAttribute("aria-selected", "true");
+
+      for (const label of ["3 Tage", "1 Woche", "Individuell"]) {
+        expect(
+          within(durationGroup).getByRole("tab", { name: label }),
+        ).toHaveAttribute("aria-selected", "false");
+      }
+
+      expect(
+        screen.getByText("Zugriff nur für heute, endet um 23:59 Uhr."),
+      ).toBeInTheDocument();
     });
 
-    it("increments days when plus button clicked", async () => {
+    it("shows the resulting end date when a longer duration is selected", async () => {
       render(<SubstitutionsPage />);
 
       // Open modal
@@ -649,18 +674,24 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      // Default is 1 day
-      expect(screen.getByText("Zugriff für heute")).toBeInTheDocument();
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "3 Tage" }), {
+        button: 0,
+      });
 
-      // Click plus
-      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+      // Der Starttag zählt mit, drei Tage enden also übermorgen.
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 2);
 
       await waitFor(() => {
-        expect(screen.getByText("Zugriff für 2 Tage")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
+          ),
+        ).toBeInTheDocument();
       });
     });
 
-    it("decrements days when minus button clicked", async () => {
+    it("reveals a day input for the individual duration", async () => {
       render(<SubstitutionsPage />);
 
       // Open modal
@@ -671,20 +702,53 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      // Click plus twice to get to 3
-      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
-      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+      expect(
+        screen.queryByLabelText("Anzahl der Tage"),
+      ).not.toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.getByText("Zugriff für 3 Tage")).toBeInTheDocument();
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Individuell" }), {
+        button: 0,
       });
 
-      // Click minus
-      fireEvent.click(screen.getByLabelText("Tage verringern"));
+      const dayInput = await screen.findByLabelText("Anzahl der Tage");
+      fireEvent.change(dayInput, { target: { value: "5" } });
+
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 4);
 
       await waitFor(() => {
-        expect(screen.getByText("Zugriff für 2 Tage")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
+          ),
+        ).toBeInTheDocument();
       });
+    });
+
+    it("parses the complete custom duration and rejects fractions", async () => {
+      render(<SubstitutionsPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Anna Meyer/i }));
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Individuell" }), {
+        button: 0,
+      });
+      const dayInput = await screen.findByLabelText("Anzahl der Tage");
+
+      fireEvent.change(dayInput, { target: { value: "1e2" } });
+      expect(dayInput).toHaveValue(100);
+
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 99);
+      const expectedMessage = `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`;
+      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
+
+      fireEvent.change(dayInput, { target: { value: "2.5" } });
+      expect(dayInput).toHaveValue(100);
+      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
     });
 
     it("successfully assigns substitution when form is complete", async () => {
@@ -705,9 +769,11 @@ describe("SubstitutionsPage", () => {
       // Get the modal element to scope our queries
       const modal = screen.getByTestId("assignment-modal");
 
-      // Select a group
+      // Select a group — the CustomSelect menu is portaled to document.body,
+      // so options are queried at screen level, not inside the modal element
       const groupSelect = within(modal).getByRole("combobox");
-      fireEvent.change(groupSelect, { target: { value: "Gruppe 1A" } });
+      fireEvent.click(groupSelect);
+      fireEvent.click(screen.getByRole("option", { name: "Gruppe 1A" }));
 
       // Click assign button (the one inside the modal with exact text "Zuweisen")
       const assignButton = within(modal).getByRole("button", {

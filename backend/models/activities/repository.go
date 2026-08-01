@@ -238,6 +238,9 @@ type TemplateFieldsUpdate struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
+	// ListKind classifies the template for printable daily lists (#1565);
+	// nil clears it.
+	ListKind *string
 	// Notes is the durable Wochennotiz for the template; nil clears it.
 	Notes *string
 }
@@ -269,6 +272,8 @@ type TemplateListRow struct {
 	TargetGroupType          string         `bun:"target_group_type"`
 	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
 	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
+	// ListKind classifies the template for printable daily lists (#1565).
+	ListKind sql.NullString `bun:"list_kind"`
 	// Notes is the template's durable Wochennotiz (#1837 follow-up); NULL = none.
 	Notes sql.NullString `bun:"notes"`
 	// ShiftTypeName/ShiftTypeColor come from the category's optional
@@ -297,6 +302,7 @@ type TemplateListRow struct {
 	EndTime                 sql.NullString `bun:"end_time"`
 	WeekPattern             int            `bun:"week_pattern"`
 	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
 }
 

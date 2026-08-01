@@ -59,6 +59,10 @@ var errorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
 	{Target: activeSvc.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
 	{Target: activeSvc.ErrStaffNotFound, Render: statusText(http.StatusNotFound, "Staff Not Found")},
+	// A graduated (alumnus) student is treated like an unknown/absent student
+	// (404), matching the IoT check-in mapper — a stale web/timetable request or
+	// a graduation race must not fall through to a 500 (#405).
+	{Target: activeSvc.ErrStudentGraduated, Render: statusText(http.StatusNotFound, "Student Graduated")},
 }
 
 // ErrorRenderer returns a render.Renderer for the given error

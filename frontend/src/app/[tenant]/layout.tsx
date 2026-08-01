@@ -1,11 +1,11 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { TenantProvider } from "~/lib/tenant-context";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import { normalizePresenceMode } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
 
 interface TenantResolveResponse {
@@ -24,6 +24,7 @@ interface TenantResolveResponse {
   display_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
+  attendance_log_enabled?: boolean;
   group_mode?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
@@ -67,6 +68,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     displayEnabled: data.display_enabled === true,
     careOfferingsEnabled: data.care_offerings_enabled !== false,
     attendanceWebEnabled: data.attendance_web_enabled === true,
+    attendanceLogEnabled: data.attendance_log_enabled === true,
     groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
     showTimetableCounts: data.show_timetable_counts !== false,
     waitlistEnabled: data.waitlist_enabled !== false,
@@ -127,10 +129,10 @@ export default async function TenantLayout({
 }) {
   const { tenant: tenantSlug } = await params;
 
-  // Block reserved slugs from being resolved as tenants. Without this,
-  // Next.js [tenant] dynamic segment catches paths like "/operator" and
-  // renders the tenant dashboard instead of the operator dashboard.
-  if (RESERVED_SLUGS.has(tenantSlug)) {
+  // The dynamic segment also catches scanner probes such as
+  // /wp-trackback.php. Reject values that cannot be tenant subdomains before
+  // they consume the shared tenant-resolution cache or backend rate limit.
+  if (!isValidTenantSlug(tenantSlug) || RESERVED_SLUGS.has(tenantSlug)) {
     notFound();
   }
 
@@ -150,14 +152,12 @@ export default async function TenantLayout({
     : "path";
 
   return (
-    <TenantProviders>
-      <TenantProvider
-        tenantSlug={tenantSlug}
-        tenant={tenant}
-        routingMode={routingMode}
-      >
-        <TenantGuard>{children}</TenantGuard>
-      </TenantProvider>
+    <TenantProviders
+      tenantSlug={tenantSlug}
+      tenant={tenant}
+      routingMode={routingMode}
+    >
+      <TenantGuard>{children}</TenantGuard>
     </TenantProviders>
   );
 }

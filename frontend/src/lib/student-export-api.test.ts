@@ -69,7 +69,7 @@ describe("student export metadata", () => {
     expect(pickupPreset?.columns).toContain("departure");
   });
 
-  it("offers Tagesstatus and includes it in the Tagesliste preset", () => {
+  it("offers Tagesstatus and includes it in the Tagesplanung preset", () => {
     const dailyStatus = STUDENT_EXPORT_COLUMNS.find(
       (column) => column.id === "daily_status",
     );

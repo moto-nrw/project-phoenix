@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -23,6 +24,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -124,6 +126,7 @@ func newDecisionServiceForTest(
 		AccountRoleRepo:          repoFactory.AccountRole,
 		RoleRepo:                 repoFactory.Role,
 		OutboxEnqueuer:           env.outbox,
+		StudentAudit:             usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
 		Settings:                 settings,
@@ -2288,6 +2291,129 @@ func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmit
 	assert.Equal(t, "Asthma", *student.HealthInfo)
 }
 
+func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "student-health-audit", []enrollmentModels.FormField{{
+		Key:         "health_info",
+		Label:       "Gesundheit",
+		Type:        enrollmentModels.FormFieldTextarea,
+		AppliesToCh: true,
+		Target:      enrollmentModels.TargetStudentHealthInfo,
+		SortOrder:   0,
+	}})
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "health-audit@example.com", "Anna", "Audit", map[string]any{
+		"health_info": "Asthma",
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{"health_info": "Diabetes"}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, auditModels.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, env.creatorID, history[0].EditedBy)
+	require.NotNil(t, history[0].OldValue)
+	require.NotNil(t, history[0].NewValue)
+	assert.Equal(t, "Asthma", *history[0].OldValue)
+	assert.Equal(t, "Diabetes", *history[0].NewValue)
+}
+
+func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTargetError(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "partial-student-health-audit", []enrollmentModels.FormField{
+		{
+			Key:         "health_info",
+			Label:       "Gesundheit",
+			Type:        enrollmentModels.FormFieldTextarea,
+			AppliesToCh: true,
+			Target:      enrollmentModels.TargetStudentHealthInfo,
+			SortOrder:   0,
+		},
+		{
+			Key:          "pickup_times",
+			Label:        "Abholzeiten",
+			Type:         enrollmentModels.FormFieldWeekdaySchedule,
+			AppliesToCh:  true,
+			Target:       enrollmentModels.TargetSchedulePickup,
+			AllowedTimes: []string{"14:45"},
+			SortOrder:    1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "partial-health-audit@example.com", "Anna", "Audit", map[string]any{
+		"health_info":  "Asthma",
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{
+		"health_info":  "Diabetes",
+		"pickup_times": map[string]any{"mon": "14:45"},
+	}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	actor := testpkg.CreateTestAccount(t, env.db, "partial-health-audit-reviewer")
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: actor.ID,
+	})
+	require.NoError(t, err, "a best-effort schedule error must not discard a persisted student update")
+
+	student, err := env.repos.Student.FindByID(ctx, studentID)
+	require.NoError(t, err)
+	require.NotNil(t, student.HealthInfo)
+	assert.Equal(t, "Diabetes", *student.HealthInfo)
+
+	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, auditModels.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, actor.ID, history[0].EditedBy)
+	require.NotNil(t, history[0].OldValue)
+	require.NotNil(t, history[0].NewValue)
+	assert.Equal(t, "Asthma", *history[0].OldValue)
+	assert.Equal(t, "Diabetes", *history[0].NewValue)
+}
+
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -2339,6 +2465,319 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "without a staff author, schedule dispatch should skip before inserting")
+}
+
+// TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack
+// locks in the #1663 fix. The existing-student re-enrollment path runs
+// applyTargetedFields with ReplaceSchedules, which DELETES the matched
+// student's live arrival/pickup rows before re-inserting the resubmitted
+// weekdays. A dispatch failure AFTER that delete must be fatal so the
+// surrounding tenant tx rolls the whole approval back: the live schedule must
+// never be committed deleted-but-not-rebuilt. Contrast with
+// TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval
+// above, which is the additive fresh-create path where a skip is harmless.
+func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// A pickup-schedule form field so approval takes the ReplaceSchedules
+	// delete-then-reinsert path.
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+
+	// The already-enrolled student, carrying a live pickup schedule row.
+	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
+	scheduleAuthor := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
+	seededPickup := testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, scheduleModels.WeekdayMonday, scheduleAuthor.ID, "14:45")
+
+	// A fresh submission carrying a resubmitted pickup schedule, matched to the
+	// existing student so approval renews it instead of creating a duplicate.
+	reqID, childID := submitOneChildWithCustomData(t, env, "existing-reenroll@example.com", "Mara", "Bestand", map[string]any{
+		"pickup_times": map[string]any{"mon": "16:00"},
+	})
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChild)(nil)).
+		ModelTableExpr(`enrollment.request_children AS "request_child"`).
+		Set("matched_student_id = ?", existing.ID).
+		Where(`"request_child".id = ?`, childID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Reviewer account with no linked staff → resolveReviewerStaffID fails, so
+	// dispatchWeekdaySchedule errors AFTER DeleteByStudentID has already run.
+	reviewerNoStaff := testpkg.CreateTestAccount(t, env.db, "reviewer-no-staff-existing")
+
+	// Drive Decide inside a tenant tx (production wraps it via middleware) so a
+	// returned error actually rolls the schedule delete back.
+	decideErr := tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := env.decision.Decide(txCtx, enrollmentService.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentService.DecisionApproved,
+			ReviewedBy: reviewerNoStaff.ID,
+		})
+		return err
+	})
+	require.Error(t, decideErr, "a schedule-replacement dispatch failure must abort the existing-student approval")
+
+	// The rollback must preserve the student's original pickup schedule.
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "the live pickup schedule must survive the rolled-back approval")
+	assert.Equal(t, seededPickup.Weekday, rows[0].Weekday)
+
+	// The child must not be left approved — the whole decision rolled back.
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status,
+		"a rolled-back approval must leave the child in its pre-decision status")
+}
+
+// matchChildToExistingStudent pins matched_student_id on a submitted child, the
+// way an existing_students phase does at submission time, so approval takes the
+// re-enrollment branch instead of creating a second Person + Student.
+func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, studentID int64) {
+	t.Helper()
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChild)(nil)).
+		ModelTableExpr(`enrollment.request_children AS "request_child"`).
+		Set("matched_student_id = ?", studentID).
+		Where(`"request_child".id = ?`, childID).
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
+}
+
+// submitReEnrollment submits a full renewal form for an already-enrolled child.
+// Consent flags are caller-supplied because withdrawal is the point of one of
+// the tests below.
+func submitReEnrollment(
+	t *testing.T,
+	env *decisionTestEnv,
+	guardianFirst, guardianLast, guardianEmail string,
+	guardianPhone *string,
+	childFirst, childLast string,
+	consentFlags map[string]any,
+) (requestID, childID int64) {
+	t.Helper()
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(testpkg.TenantContext(1), enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: guardianFirst,
+		GuardianLastName:  guardianLast,
+		GuardianEmail:     guardianEmail,
+		GuardianPhone:     guardianPhone,
+		ConsentFlags:      consentFlags,
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        childFirst,
+			LastName:         childLast,
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+	return res.Request.ID, res.Children[0].ID
+}
+
+// cleanupExistingStudentApproval removes the guardian/student rows an
+// existing-student approval touches. The rollover env's cleanup is phase-scoped
+// and never sees them, so without this they leak into the shared test DB.
+func cleanupExistingStudentApproval(t *testing.T, env *decisionTestEnv, student *usersModels.Student) {
+	t.Helper()
+	bg := context.Background()
+	exec := func(query string, args ...any) {
+		if _, err := env.db.ExecContext(bg, query, args...); err != nil {
+			t.Logf("cleanup warning: %v", err)
+		}
+	}
+	var profileIDs []int64
+	if err := env.db.NewSelect().
+		ColumnExpr("guardian_profile_id").
+		TableExpr("users.students_guardians").
+		Where("student_id = ?", student.ID).
+		Scan(bg, &profileIDs); err != nil {
+		t.Logf("cleanup warning: %v", err)
+	}
+	exec(`DELETE FROM activities.student_enrollments WHERE student_id = ?`, student.ID)
+	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, student.ID)
+	for _, id := range profileIDs {
+		exec(`DELETE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ?`, id)
+		exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, id)
+	}
+	exec(`DELETE FROM users.students WHERE id = ?`, student.ID)
+	exec(`DELETE FROM users.persons WHERE id = ?`, student.PersonID)
+}
+
+// TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent locks in the
+// #1663 fix for consent withdrawal. The re-enrollment form re-asks every
+// configured consent, so a box the guardian leaves unchecked must CLEAR the
+// timestamp the matched student still carries from the original enrollment —
+// otherwise the school keeps acting on a consent that was explicitly withdrawn.
+func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	existing := testpkg.CreateTestStudent(t, env.db, "Nele", "Widerruf", "2a")
+	defer cleanupExistingStudentApproval(t, env, existing)
+
+	// Consent recorded by the ORIGINAL enrollment.
+	stamped := time.Now().Add(-24 * time.Hour)
+	_, err := env.db.NewUpdate().
+		Model((*usersModels.Student)(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("photo_consent_given_at = ?", stamped).
+		Set("photo_consent_given_by = ?", env.creatorID).
+		Set("email_contact_accepted_at = ?", stamped).
+		Where(`"student".id = ?`, existing.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// The renewal withdraws photo + email contact and keeps the required ones.
+	reqID, childID := submitReEnrollment(t, env, "Nina", "Widerruf", "withdraw-consent@example.com", nil,
+		"Nele", "Widerruf", map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   false,
+			"photo":           false,
+		})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Nil(t, student.PhotoConsentGivenAt, "withdrawn photo consent must be cleared on approval")
+	assert.Nil(t, student.PhotoConsentGivenBy, "the photo-consent author must be cleared with the consent")
+	assert.Nil(t, student.EmailContactAcceptedAt, "withdrawn email-contact consent must be cleared on approval")
+	assert.NotNil(t, student.AGBAcceptedAt, "accepted consent must still be stamped")
+	assert.NotNil(t, student.DataProcessingAcceptedAt, "accepted consent must still be stamped")
+}
+
+// TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian locks in the
+// #1663 fix for guardian reconciliation. A matched student can be imported,
+// manually created, or enrolled before guardian links existed — assuming it
+// already carries the submitted guardian silently discards that guardian, their
+// phone number and their portal access.
+func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// An imported child: enrolled, but with no guardian relationship at all.
+	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
+	defer cleanupExistingStudentApproval(t, env, existing)
+
+	guardianEmail := "reenroll-guardian@example.com"
+	guardianPhone := "015126829060"
+	reqID, childID := submitReEnrollment(t, env, "Mara", "Import", guardianEmail, &guardianPhone,
+		"Milo", "Import", map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "the submitted guardian must be linked to the matched student")
+	assert.True(t, links[0].IsPrimary, "the submitted guardian becomes the primary relationship")
+	assert.True(t, links[0].CanPickup)
+
+	profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile.Email)
+	assert.Equal(t, guardianEmail, *profile.Email)
+
+	phones, err := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, profile.ID)
+	require.NoError(t, err)
+	require.Len(t, phones, 1, "the submitted phone number must reach the guardian profile")
+	assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
+
+	require.NotNil(t, outcome.PendingInvite,
+		"a guardian without a portal account must be invited, or the renewal grants no portal access")
+	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
+
+	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.NotNil(t, student.GuardianEmail)
+	assert.Equal(t, guardianEmail, *student.GuardianEmail, "the renewal restates the guardian contact data")
+	require.NotNil(t, student.GuardianPhone)
+	assert.Equal(t, guardianPhone, *student.GuardianPhone)
+}
+
+// TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink is
+// the counterweight to the test above: the submitted guardian becomes primary,
+// but a guardian who held that link from a DIFFERENT source (last year's
+// approval, an import, the other parent) keeps their relationship. Deleting it
+// would strip a real guardian of pickup authority and parent-portal access just
+// because the other parent filed this year's renewal (#1663).
+func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	existing := testpkg.CreateTestStudent(t, env.db, "Jonte", "Zweitkind", "1a")
+	defer cleanupExistingStudentApproval(t, env, existing)
+
+	// The other parent, primary since the original enrollment.
+	otherParent := testpkg.CreateTestGuardianProfile(t, env.db, "other-parent")
+	otherLink := &usersModels.StudentGuardian{
+		StudentID:          existing.ID,
+		GuardianProfileID:  otherParent.ID,
+		RelationshipType:   "guardian",
+		IsPrimary:          true,
+		IsEmergencyContact: true,
+		CanPickup:          true,
+	}
+	authorize.ApplyStudentGuardianRole(otherLink, authorize.GuardianRolePrimaryGuardian)
+	otherLink.SetTenantID(1)
+	require.NoError(t, env.repos.StudentGuardian.Create(ctx, otherLink))
+
+	reqID, childID := submitReEnrollment(t, env, "Sven", "Zweitkind", "submitting-parent@example.com", nil,
+		"Jonte", "Zweitkind", map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 2, "the pre-existing guardian must survive the renewal")
+
+	var kept, submitted *usersModels.StudentGuardian
+	for _, link := range links {
+		if link.GuardianProfileID == otherParent.ID {
+			kept = link
+			continue
+		}
+		submitted = link
+	}
+	require.NotNil(t, kept, "the pre-existing guardian link must not be deleted")
+	require.NotNil(t, submitted, "the submitted guardian must be linked")
+	assert.False(t, kept.IsPrimary, "only one primary link may remain")
+	assert.True(t, kept.CanPickup, "demotion must not strip the kept guardian's pickup authority")
+	assert.True(t, submitted.IsPrimary, "the submitted guardian becomes the primary relationship")
 }
 
 func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {

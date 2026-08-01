@@ -4,10 +4,14 @@ import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
+const POSTHOG_KEY = "phc_test_key_123";
+const POSTHOG_HOST = "https://eu.i.posthog.com";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
+vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
+vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
 
 // Import after env is stubbed , proxy reads the env var at module load
 const { proxy } = await import("./proxy");
@@ -55,9 +59,45 @@ describe("proxy env validation", () => {
     // Restore
     vi.stubEnv("TENANT_DOMAIN", "localhost");
   });
+
+  it("rejects a non-HTTP PostHog ingestion URL", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "data:text/plain,analytics");
+
+    await expect(
+      // @ts-expect-error query string forces fresh module evaluation
+      import("./proxy?invalid-posthog-protocol"),
+    ).rejects.toThrow(
+      "NEXT_PUBLIC_POSTHOG_HOST must use the http or https protocol",
+    );
+
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
+  });
+
+  it("rejects an analytics key without an explicit ingestion host", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "");
+
+    await expect(
+      // @ts-expect-error query string forces fresh module evaluation
+      import("./proxy?missing-posthog-host"),
+    ).rejects.toThrow(
+      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set",
+    );
+
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
+  });
 });
 
 describe("proxy", () => {
+  it("allows the configured PostHog ingestion origin in connect-src", () => {
+    const res = proxy(
+      makeRequest("http://school.localhost:3000/dashboard", "school.localhost"),
+    );
+
+    expect(res.headers.get("Content-Security-Policy")).toContain(
+      `connect-src 'self' ${POSTHOG_HOST}`,
+    );
+  });
+
   it("preserves x-forwarded-host as the original request host", () => {
     const req = new NextRequest(
       "http://next-internal:3000/api/auth/passkeys/login/options",

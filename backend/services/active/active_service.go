@@ -485,16 +485,21 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
+	// Validate the student exists and is not a graduated alumnus before INSERT
+	// (prevents FK errors in logs and, via the FOR UPDATE lock, closes the race
+	// against a concurrent grade-transition apply — see the helper doc, #405).
+	// Runs BEFORE the binary-mode short-circuit: binary-mode check-ins reach
+	// CreateVisit via the timetable path and would otherwise mark a departed
+	// alumnus present without ever hitting this guard.
+	if err := s.ensureStudentCheckinAllowed(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: err}
+	}
+
 	// Binary-mode tenants don't track room visits — attendance is the only
 	// surface. Short-circuit here so every caller (IoT, web, scheduler) stays
 	// consistent without having to resolve the mode at each call site.
 	if s.GetPresenceMode(ctx) == "binary" {
 		return nil
-	}
-
-	// Validate student exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
-		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
 	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
@@ -576,6 +581,31 @@ func (s *service) validateStudentExists(ctx context.Context, studentID int64) er
 			return ErrStudentNotFound
 		}
 		return err
+	}
+	return nil
+}
+
+// ensureStudentCheckinAllowed validates the student exists and is not a
+// graduated (alumnus) soft-deleted record, taking a FOR UPDATE row lock in the
+// process. The lock is held for the caller's request transaction, so it
+// serializes against a concurrent grade-transition apply that flips the same
+// student to alumnus: the two transactions block on the shared row rather than
+// interleaving into a stranded open attendance/visit the kiosk can no longer
+// close (#405). Nil-safe for the partial unit-test services that never wire a
+// StudentRepo; production always does.
+func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int64) error {
+	if s.StudentRepo == nil {
+		return nil
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return ErrStudentNotFound
+		}
+		return err
+	}
+	if student.Status == userModels.StudentStatusAlumnus {
+		return ErrStudentGraduated
 	}
 	return nil
 }
@@ -844,10 +874,14 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
 	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
+	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
 		StudentID:   &studentID,
 		StudentName: &studentName,
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
 	}
 	applyAttendanceSnapshot(&data, snapshot)
 
@@ -860,8 +894,9 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
-	// Notify all clients so dashboard counts refresh
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant so dashboard counts refresh, scoped to
+	// the affected educational group when known (#2057).
+	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
@@ -935,11 +970,24 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 		}
 	}
 
-	// One event to the active-group topic carrying every checked-out student.
+	// Every affected educational group id, for scoped client-side invalidation
+	// (#2057). Students without an OGS group contribute no id; they appear in
+	// no ogs-students-{gid} list, so the scope stays correct.
+	allEduGroupIDs := make([]string, 0, len(eduGroups))
+	for gid := range eduGroups {
+		allEduGroupIDs = append(allEduGroupIDs, strconv.FormatInt(gid, 10))
+	}
+
+	// One event to the active-group topic carrying every checked-out student
+	// and every affected educational group.
+	activeData := realtime.EventData{StudentIDs: &allStudentIDs}
+	if len(allEduGroupIDs) > 0 {
+		activeData.GroupIDs = &allEduGroupIDs
+	}
 	activeEvent := realtime.NewEvent(
 		realtime.EventBulkStudentCheckOut,
 		sessionIDStr,
-		realtime.EventData{StudentIDs: &allStudentIDs},
+		activeData,
 	)
 	s.broadcastWithLogging(ctx, sessionIDStr, "", activeEvent, "bulk_student_checkout")
 
@@ -947,17 +995,19 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// students so each subscribed client invalidates the right detail caches.
 	for gid, ids := range eduGroups {
 		groupIDs := ids
+		eduGroupID := []string{strconv.FormatInt(gid, 10)}
 		eduEvent := realtime.NewEvent(
 			realtime.EventBulkStudentCheckOut,
 			sessionIDStr,
-			realtime.EventData{StudentIDs: &groupIDs},
+			realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
 		)
 		s.broadcastToEducationalGroup(ctx, eduReps[gid], eduEvent)
 	}
 
-	// Single global broadcast for the entire batch.
+	// Single tenant-wide broadcast for the entire batch, scoped to the
+	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
-		_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
 		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
 	}
 }
@@ -986,8 +1036,10 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 
 	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
 
-	// Notify all clients (including zero-topic) so dashboard refreshes
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant (including zero-topic) so dashboards
+	// refresh. No group scope: a session end affects room occupancy across
+	// groups, so clients fall back to a broad refresh (#2057).
+	s.broadcastDashboardCountsChanged(ctx, nil)
 	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonActivityEnded)
 }
 
@@ -1145,6 +1197,18 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if s.SupervisorRepo.Create(ctx, supervisor) != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
+	}
+
+	// Taking over a supervision that starts today means the staff member is
+	// working right now — auto-open their work session so they show as
+	// "Anwesend" (issue #1439). Kiosk-driven session starts already do this
+	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
+	if supervisor.StartDate == timezone.TodayDate() {
+		source := active.WorkSessionSourceApp
+		if device.IsIoTDeviceRequest(ctx) {
+			source = active.WorkSessionSourceNFC
+		}
+		s.ensureStaffPresence(ctx, supervisor.StaffID, source)
 	}
 
 	return nil

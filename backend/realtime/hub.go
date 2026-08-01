@@ -15,11 +15,21 @@ type Client struct {
 	UserID           int64           // User ID for audit logging
 	TenantID         int64           // Tenant ID for multi-tenancy isolation
 	SubscribedGroups map[string]bool // composite key (tenantID:groupID) -> subscribed
+	// IsAdmin mirrors the effective admin scope used by tenant handlers:
+	// literal admins plus accounts with admin:* or *:* permissions.
+	IsAdmin bool
 	// IsParent marks a guardian-portal connection. Parent clients are
 	// cross-tenant and routed by their own account id (UserID): they never
 	// match tenant/group broadcasts, only BroadcastParentMessage addressed to
 	// their guardian account.
 	IsParent bool
+	// AccountID is auth.accounts.id, carried explicitly because UserID is NOT
+	// interchangeable with it: for staff clients UserID is users.staff.id, for
+	// parent clients it is the account id, and for an effective admin without a
+	// staff record it is 0. Address account-scoped notifications through this
+	// field only — indexing on UserID would collide every staff-less admin
+	// under one key.
+	AccountID int64
 }
 
 // tenantGroupKey builds a composite map key for tenant-isolated group lookups.
@@ -53,8 +63,12 @@ type Hub struct {
 	// RegisterParent / Unregister.
 	guardianClients map[int64][]*Client
 	tenantClients   map[int64][]*Client
-	mu              sync.RWMutex
-	logger          *slog.Logger
+	// staffAccountClients indexes staff clients by auth.accounts.id so a
+	// personal notification reaches its recipient without scanning the tenant.
+	// Maintained in Register / Unregister alongside the other indexes.
+	staffAccountClients map[int64][]*Client
+	mu                  sync.RWMutex
+	logger              *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -65,11 +79,12 @@ func (h *Hub) getLogger() *slog.Logger {
 // NewHub creates a new SSE hub
 func NewHub(logger *slog.Logger) *Hub {
 	return &Hub{
-		clients:         make(map[*Client]bool),
-		groupClients:    make(map[string][]*Client),
-		guardianClients: make(map[int64][]*Client),
-		tenantClients:   make(map[int64][]*Client),
-		logger:          logger,
+		clients:             make(map[*Client]bool),
+		groupClients:        make(map[string][]*Client),
+		guardianClients:     make(map[int64][]*Client),
+		tenantClients:       make(map[int64][]*Client),
+		staffAccountClients: make(map[int64][]*Client),
+		logger:              logger,
 	}
 }
 
@@ -90,6 +105,12 @@ func (h *Hub) Register(client *Client, tenantID int64, activeGroupIDs []string) 
 	h.clients[client] = true
 	// Index staff clients by tenant for O(recipients) parent-message fan-out.
 	h.tenantClients[tenantID] = append(h.tenantClients[tenantID], client)
+	// Index by login account so a personal notification can address exactly one
+	// person. Guarded on > 0 because an effective admin without a staff record
+	// may connect before an account id is known.
+	if client.AccountID > 0 {
+		h.staffAccountClients[client.AccountID] = append(h.staffAccountClients[client.AccountID], client)
+	}
 
 	// Subscribe client to each active group using composite keys
 	for _, groupID := range activeGroupIDs {
@@ -150,6 +171,14 @@ func (h *Hub) Unregister(client *Client) {
 		h.tenantClients[client.TenantID] = removeClient(h.tenantClients[client.TenantID], client)
 		if len(h.tenantClients[client.TenantID]) == 0 {
 			delete(h.tenantClients, client.TenantID)
+		}
+		// Must be cleaned up here too: the channel is closed below, and an
+		// entry left behind would make a later broadcast send on it and panic.
+		if client.AccountID > 0 {
+			h.staffAccountClients[client.AccountID] = removeClient(h.staffAccountClients[client.AccountID], client)
+			if len(h.staffAccountClients[client.AccountID]) == 0 {
+				delete(h.staffAccountClients, client.AccountID)
+			}
 		}
 	}
 
@@ -262,6 +291,85 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.Int("recipient_count", recipients),
 	)
 	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant", droppedCount)
+	return nil
+}
+
+// BroadcastToTenantAdmins sends an event only to effective admins in one
+// tenant. This is for user-visible payloads derived from an admin-wide data
+// view; scoped caregivers must not receive counts or links for data outside
+// their own reminder scope.
+func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	for _, client := range h.tenantClients[tenantID] {
+		if !client.IsAdmin {
+			continue
+		}
+		recipients++
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping admin broadcast",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	h.getLogger().Debug("SSE event broadcast to tenant admins",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant_admin", droppedCount)
+	return nil
+}
+
+// BroadcastToStaffAccounts wakes only the addressed staff accounts' clients in
+// ONE tenant.
+//
+// The tenant check is load-bearing rather than defensive: an account can hold
+// staff sessions at several schools, and without it one school's personal
+// counts would land in another school's tab.
+func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error {
+	if len(accountIDs) == 0 {
+		return nil
+	}
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	for _, accountID := range accountIDs {
+		for _, client := range h.staffAccountClients[accountID] {
+			if client.TenantID != tenantID {
+				continue
+			}
+			recipients++
+			select {
+			case client.Channel <- event:
+			default:
+				droppedCount++
+				h.getLogger().Warn("SSE client channel full, skipping staff broadcast",
+					slog.Int64("account_id", accountID),
+					slog.Int64("tenant_id", tenantID),
+					slog.String("event_type", string(event.Type)),
+				)
+			}
+		}
+	}
+
+	h.getLogger().Debug("SSE event broadcast to staff accounts",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "staff_account", droppedCount)
 	return nil
 }
 

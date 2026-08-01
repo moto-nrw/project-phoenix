@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -606,7 +607,24 @@ func TestAuthService_Logout(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		secondaryTenantID := account.ID + 1_000_000_000
+		testpkg.EnsureTestTenant(t, db, secondaryTenantID)
+		testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		staffEndpoint := fmt.Sprintf("https://fcm.googleapis.com/logout-staff-%d", account.ID)
+		for _, tenantID := range []int64{tenant.FromContext(ctx), secondaryTenantID} {
+			subscription := &iotModels.PushSubscription{
+				AccountID: account.ID,
+				Portal:    iotModels.PushPortalStaff,
+				Endpoint:  staffEndpoint,
+				P256dh:    "p256dh-key",
+				Auth:      "auth-key",
+			}
+			subscription.SetTenantID(tenantID)
+			_, err = db.NewInsert().Model(subscription).Exec(ctx)
+			require.NoError(t, err)
+		}
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
@@ -620,6 +638,14 @@ func TestAuthService_Logout(t *testing.T) {
 		// Verify token is invalidated (refresh should fail)
 		_, _, err = service.RefreshToken(ctx, refreshToken)
 		require.Error(t, err)
+
+		staffCount, err := db.NewSelect().
+			Model((*iotModels.PushSubscription)(nil)).
+			Where("account_id = ?", account.ID).
+			Where("portal = ?", iotModels.PushPortalStaff).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Zero(t, staffCount, "logout must remove staff subscriptions across all tenants")
 	})
 
 	t.Run("logout with invalid token returns error", func(t *testing.T) {
@@ -2718,7 +2744,7 @@ func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	// Create a role to assign
-	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()))
+	role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()), tenantID)
 	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
 
 	ctx := testpkg.TenantContext(tenantID)
@@ -2752,6 +2778,31 @@ func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
 		Scan(context.Background(), &roleCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, roleCount, "account_role should be scoped to the correct tenant")
+}
+
+func TestRegister_WithTenantID_AssignsSystemRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	role := testpkg.CreateTestSystemRole(t, db, "registration-system-role")
+	defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+	email, username := uniqueTestCredentials("tenant-register-system-role")
+	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, &role.ID, tenantID)
+	require.NoError(t, err)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "system role should be assigned in the target tenant")
 }
 
 func TestRegister_WithTenantID_NoRole(t *testing.T) {
@@ -2895,7 +2946,9 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
 			Exec(context.Background())
 
-		role := testpkg.GetOrCreateTestRole(t, db, fmt.Sprintf("link-role-%d", time.Now().UnixNano()))
+		// The role has to belong to the school the account is linked into:
+		// a tenant-scoped role of ANOTHER school is rejected since #1021.
+		role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("link-role-%d", time.Now().UnixNano()), tenantID)
 		roleID := role.ID
 
 		// ACT
@@ -2931,6 +2984,29 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			TableExpr("auth.account_roles").
 			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
 			Exec(context.Background())
+	})
+
+	t.Run("links an existing account with a system role", func(t *testing.T) {
+		email, _ := uniqueTestCredentials("link-system-role")
+		account, err := service.Register(context.Background(), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		role := testpkg.CreateTestSystemRole(t, db, "link-system-role")
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+		linked, err := service.LinkAccountToTenant(testpkg.TenantContext(tenantID), email, &role.ID, tenantID)
+		require.NoError(t, err)
+		assert.Equal(t, account.ID, linked.ID)
+
+		var roleCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_roles").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+			Scan(context.Background(), &roleCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, roleCount, "system role should be assigned in the target tenant")
 	})
 
 	t.Run("returns error for non-existent email", func(t *testing.T) {

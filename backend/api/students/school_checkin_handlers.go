@@ -81,6 +81,12 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// One batch query for both access-gate settings read below (issue #2065).
+	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
+		configModel.KeyWebCheckinAccess,
+		configModel.KeyGroupMode,
+	))
+
 	if err := rs.enforceWebCheckinAccess(r.Context(), staffID, student.ID); err != nil {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
@@ -94,6 +100,14 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 
 	resp, changeErr := rs.applySchoolCheckinAction(r.Context(), student, staffID, req.Action, current)
 	if changeErr != nil {
+		// A graduated (alumnus) student — reached via CheckInStudent's
+		// ensureStudentCheckinAllowed guard on a stale request or graduation
+		// race — is treated like an unknown/absent student (404), matching the
+		// IoT and timetable mappers rather than surfacing a 500 (#405).
+		if errors.Is(changeErr, activeService.ErrStudentGraduated) {
+			common.RenderError(w, r, common.ErrorNotFound(changeErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(changeErr))
 		return
 	}

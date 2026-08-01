@@ -14,6 +14,18 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 
 import { ShiftMoveDialog } from "./shift-move-dialog";
 
+const mockUseClosingDaysState = vi.hoisted(() =>
+  vi.fn(() => ({
+    closingDays: new Map<string, string>(),
+    closingDayRanges: [],
+    isLoading: false,
+  })),
+);
+
+vi.mock("~/lib/hooks/use-closing-days", () => ({
+  useClosingDaysState: mockUseClosingDaysState,
+}));
+
 // Spy on the CRUD service while keeping the real ShiftApiError class (the
 // dialog classifies errors against it). vitest hoists this above the imports,
 // so `staffShiftService` above is the mocked singleton.
@@ -114,6 +126,14 @@ async function confirmMove() {
   });
 }
 
+beforeEach(() => {
+  mockUseClosingDaysState.mockReturnValue({
+    closingDays: new Map(),
+    closingDayRanges: [],
+    isLoading: false,
+  });
+});
+
 describe("ShiftMoveDialog prefill", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -135,6 +155,47 @@ describe("ShiftMoveDialog prefill", () => {
     expect(
       screen.getByRole("combobox", { name: "Schichtart" }),
     ).toHaveTextContent("Betreuung");
+  });
+
+  it("loads the target day through closing-day state", () => {
+    mockUseClosingDaysState.mockReturnValue({
+      closingDays: new Map([["2026-07-06", "Pädagogischer Tag"]]),
+      closingDayRanges: [],
+      isLoading: false,
+    });
+
+    renderDialog();
+
+    expect(mockUseClosingDaysState).toHaveBeenCalledWith(
+      "2026-07-06",
+      "2026-07-06",
+    );
+    expect(
+      screen.getByTitle("Schließtag: Pädagogischer Tag"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    expect(
+      screen.getByText(/Am Zieltag ist ein Schließtag hinterlegt/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps move submission disabled while full closing-day ranges load", () => {
+    mockUseClosingDaysState.mockReturnValue({
+      closingDays: new Map(),
+      closingDayRanges: [],
+      isLoading: true,
+    });
+
+    renderDialog();
+
+    expect(mockUseClosingDaysState).toHaveBeenCalledWith(
+      "2026-07-06",
+      "2026-07-06",
+    );
+    expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    expect(staffShiftService.moveShift).not.toHaveBeenCalled();
   });
 });
 

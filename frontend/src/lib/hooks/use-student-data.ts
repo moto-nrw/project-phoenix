@@ -41,7 +41,20 @@ interface StudentDataState {
   student: ExtendedStudent | null;
   loading: boolean;
   error: string | null;
+  /**
+   * READ access to this child's data — the backend's `has_full_access`, which
+   * resolves to `authorize.CanReadStudent` and honours `gdpr.student_data_scope`
+   * (`all_staff` → true for every staff member; `group_supervisors_only` → only
+   * the child's supervisors and admins).
+   *
+   * The name is historical and reads stricter than it is: this is the SCOPE-AWARE
+   * read flag, and `hasWriteAccess` below is the strict supervisor/admin one
+   * (`checkStudentFullAccess`, which deliberately ignores the scope setting).
+   * Gate read-only surfaces on THIS flag — every backend read path for a child
+   * uses the same predicate, so they cannot disagree.
+   */
   hasFullAccess: boolean;
+  /** Supervisor/admin only, scope setting deliberately not applied. */
   hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;

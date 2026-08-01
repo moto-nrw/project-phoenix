@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   listMyChildren,
   listMyEnrollments,
+  listEnrollableSchools,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
   fetchParentProfile,
@@ -13,6 +14,10 @@ import {
   withdrawExcusedRequest,
   getChildFeatures,
   getChildMealPlan,
+  getChildCareOfferings,
+  getChildOfferingCatalog,
+  submitOfferingChangeRequest,
+  withdrawOfferingChangeRequest,
   getChildMasterData,
   updateMasterDataField,
   submitMasterDataRequest,
@@ -96,6 +101,77 @@ function mkEnrollment(id: string): EnrollmentRequest {
   };
 }
 
+describe("parent care offering requests", () => {
+  it("loads the booked offerings and selectable catalog", async () => {
+    mockFetch(async (input) => {
+      if (String(input).endsWith("/catalog")) {
+        return jsonResponse({
+          data: {
+            phase_name: "Schuljahr 2026/27",
+            selection_mode: "at_least_one",
+            earliest_effective_from: "2027-02-01",
+            latest_effective_from: "2027-07-31",
+            items: [],
+          },
+        });
+      }
+      return jsonResponse({
+        data: {
+          offerings: [],
+          groups: [],
+          can_request: true,
+        },
+      });
+    });
+
+    await expect(getChildCareOfferings("child/42")).resolves.toMatchObject({
+      can_request: true,
+    });
+    await expect(getChildOfferingCatalog("child/42")).resolves.toMatchObject({
+      phase_name: "Schuljahr 2026/27",
+    });
+  });
+
+  it("submits and withdraws a complete desired booking", async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    mockFetch(async (input, init) => {
+      requests.push({
+        url: String(input),
+        body: JSON.parse(String(init?.body)) as unknown,
+      });
+      return jsonResponse({
+        data: {
+          offerings: [],
+          groups: [],
+          can_request: false,
+        },
+      });
+    });
+
+    await submitOfferingChangeRequest("child/42", {
+      offerings: [{ offering_id: "7", selected_days: ["mon"] }],
+      effective_from: "2027-02-01",
+      note: "Bitte",
+    });
+    await withdrawOfferingChangeRequest("child/42", "request/77");
+
+    expect(requests).toEqual([
+      {
+        url: "/api/parent/me/children/child%2F42/care-offerings/requests",
+        body: {
+          offerings: [{ offering_id: "7", selected_days: ["mon"] }],
+          effective_from: "2027-02-01",
+          note: "Bitte",
+        },
+      },
+      {
+        url: "/api/parent/me/children/child%2F42/care-offerings/requests/request%2F77/withdraw",
+        body: {},
+      },
+    ]);
+  });
+});
+
 // --- listMyChildren --------------------------------------------------
 
 describe("listMyChildren", () => {
@@ -154,6 +230,47 @@ describe("listMyEnrollments", () => {
   it("throws on non-OK", async () => {
     mockFetch(async () => jsonResponse({ error: "boom" }, { status: 500 }));
     await expect(listMyEnrollments()).rejects.toThrow(/boom/);
+  });
+});
+
+// --- listEnrollableSchools -------------------------------------------
+
+describe("listEnrollableSchools", () => {
+  it("hits the enrollable-schools endpoint and unwraps the data array", async () => {
+    const seen: string[] = [];
+    mockFetch(async (input) => {
+      seen.push(String(input));
+      return jsonResponse({
+        data: [{ phase_id: "5", school_slug: "ogs", audience: "open" }],
+      });
+    });
+
+    const out = await listEnrollableSchools();
+
+    expect(seen).toEqual(["/api/parent/me/enrollable-schools"]);
+    expect(out).toHaveLength(1);
+  });
+
+  it("preserves the backend order, which the picker renders as-is", async () => {
+    // The backend pre-sorts (linked schools first); re-sorting on the client
+    // would silently undo that contract (#1663).
+    mockFetch(async () =>
+      jsonResponse({
+        data: [
+          { phase_id: "2", school_slug: "linked" },
+          { phase_id: "1", school_slug: "unlinked" },
+        ],
+      }),
+    );
+
+    const out = await listEnrollableSchools();
+
+    expect(out.map((p) => p.phase_id)).toEqual(["2", "1"]);
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () => jsonResponse({ error: "boom" }, { status: 500 }));
+    await expect(listEnrollableSchools()).rejects.toThrow(/boom/);
   });
 });
 

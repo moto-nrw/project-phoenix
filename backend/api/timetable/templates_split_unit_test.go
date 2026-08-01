@@ -64,3 +64,69 @@ func TestBuildTemplateSplitInput_RequiredStaffThreeState(t *testing.T) {
 		})
 	}
 }
+
+// The split flow must carry the Listenart (#1565) with the same three-state
+// contract: omitted inherits the source template's list kind, an explicit
+// null/empty clears it, a valid value sets it. Without ListKindProvided a
+// plain "this and following" edit would silently drop the successor from its
+// automatic daily list.
+func TestBuildTemplateSplitInput_ListKindThreeState(t *testing.T) {
+	cases := []struct {
+		name         string
+		fragment     string
+		wantProvided bool
+		wantValueNil bool
+		wantValue    string
+		wantBindErr  bool
+	}{
+		{name: "omitted -> inherit (not provided)", fragment: "", wantProvided: false, wantValueNil: true},
+		{name: "explicit null -> clear (provided, nil)", fragment: `"list_kind": null`, wantProvided: true, wantValueNil: true},
+		{name: "empty string -> clear (provided, nil)", fragment: `"list_kind": ""`, wantProvided: true, wantValueNil: true},
+		{name: "value -> set (provided, mensa)", fragment: `"list_kind": "mensa"`, wantProvided: true, wantValue: "mensa"},
+		{name: "invalid value -> Bind error", fragment: `"list_kind": "kaffeepause"`, wantBindErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := splitBodyJSON("")
+			if tc.fragment != "" {
+				body = splitBodyJSON(tc.fragment)
+			}
+			req := &splitTemplateRequest{}
+			require.NoError(t, json.Unmarshal([]byte(body), req))
+
+			err := req.Bind(nil)
+			if tc.wantBindErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			in, err := buildTemplateSplitInput(100, req)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantProvided, in.ListKindProvided, "ListKindProvided")
+			if tc.wantValueNil {
+				assert.Nil(t, in.ListKind, "ListKind should be nil")
+			} else {
+				require.NotNil(t, in.ListKind)
+				assert.Equal(t, tc.wantValue, *in.ListKind)
+			}
+		})
+	}
+}
+
+func TestSplitTemplateRequestBind_RejectsWeekendWeekdays(t *testing.T) {
+	req := &splitTemplateRequest{}
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"name": "AG Yoga",
+		"type": "activity",
+		"weekdays": [6],
+		"start_time": "14:00",
+		"end_time": "15:00",
+		"room_id": 3,
+		"category_id": 2,
+		"effective_date": "2026-05-04"
+	}`), req))
+
+	require.ErrorContains(t, req.Bind(nil), "Monday to Friday")
+}

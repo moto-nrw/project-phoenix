@@ -158,6 +158,71 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 	return instances, nil
 }
 
+// FindPlannedTemplateBackedFrom returns planned instances dated on or after
+// `from` for the current tenant that were MATERIALIZED from a template. Feeds
+// the grade-transition revert reconciliation (re-adding restored students the
+// materializer skipped).
+//
+// "Materialized" is narrower than "has an activity_group_id". A planner can
+// create a one-off block by hand and link it to a template for its metadata
+// (CreateInstanceInput.ActivityGroupID); its roster is then whatever student
+// IDs that person submitted, NOT a copy of the template's enrollments. Filling
+// such an instance from enrollments would add children the planner never put
+// there. Only the materializer writes calendar_period_id together with
+// is_spontaneous = false — the manual create path leaves the period NULL — so
+// that pair is the marker for "this roster came from enrollments" (#405
+// review).
+//
+// The date bound is inclusive so an instance materialized during the alumnus
+// window and dated today is reconciled too: it carries no archive row (the
+// materializer never created the alumnus's row), so nothing else can repair it
+// afterwards. Instances that already started or finished today drop out via the
+// planned-status filter (#405 review).
+func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*schedule.ActivityInstance, error) {
+	var instances []*schedule.ActivityInstance
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".activity_group_id IS NOT NULL`).
+		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
+		Where(`"activity_instance".is_spontaneous = FALSE`).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find planned template-backed instances from date",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
+// MaxID returns the highest instance id visible to the current tenant, or 0 if
+// the tenant has none. See the interface doc for why the grade transition uses
+// an id high-water mark instead of created_at (#405 review).
+func (r *ActivityInstanceRepository) MaxID(ctx context.Context) (int64, error) {
+	var maxID sql.NullInt64
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		ColumnExpr(`MAX("activity_instance".id)`)
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	if err := query.Scan(ctx, &maxID); err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get max activity instance id",
+			Err: err,
+		}
+	}
+	return maxID.Int64, nil
+}
+
 // FindByTenantAndDateRange returns instances within an inclusive date range.
 func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
@@ -392,4 +457,81 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 	}
 	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
 	return deleted, nil
+}
+
+// DeletePlannedMaterializedWeekendInstances removes future materialized rows
+// for weekdays removed from a legacy template. It deliberately leaves manual,
+// active, cancelled, and historical rows untouched.
+func (r *ActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(ctx context.Context, activityGroupID int64, weekdays []int) (int64, error) {
+	if len(weekdays) == 0 {
+		return 0, nil
+	}
+	q := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
+		Where(`"activity_instance".date > ?`, timezone.TodayDate()).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.List(weekdays))
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete removed legacy weekend instances", Err: err}
+	}
+	deleted, _ := res.RowsAffected()
+	return deleted, nil
+}
+
+// PropagateListKindToFutureInstances re-classifies the future template-backed
+// planned instances of one template whose list_kind still matches the series'
+// previous value, returning the number of rows changed. It closes the gap where
+// editing a series' Listenart (activities.groups.list_kind) left already
+// materialized future occurrences carrying the stale value the classified daily
+// lists filter on, so the series stayed absent from its list until a manual
+// re-plan (#1565 review).
+//
+// Only rows a series edit is allowed to touch are updated:
+//   - date strictly after `after` (today): the materialization/re-plan invariant
+//     that the current and past days are never rewritten is preserved, so a list
+//     already in use today is not reshuffled underneath its readers;
+//   - status = 'planned' and is_spontaneous = false: started/completed/cancelled
+//     and spontaneous rows are never rewritten by a series edit;
+//   - list_kind still equal to `previousKind` (NULL and empty treated alike): an
+//     occurrence individually re-classified via the instance PUT diverges from
+//     the series value and is a single-occurrence edit (EditedChangeListKind that
+//     ReplanWeek reports as lost) — it is left untouched.
+//
+// Custom method (backend-conventions Rule 2): a multi-predicate series-scoped
+// column rewrite the generic filter API cannot express.
+func (r *ActivityInstanceRepository) PropagateListKindToFutureInstances(
+	ctx context.Context,
+	activityGroupID int64,
+	previousKind *string,
+	newKind *string,
+	after timezone.Date,
+) (int64, error) {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Set(`list_kind = ?`, newKind).
+		Set(`updated_at = ?`, time.Now()).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".date > ?`, after).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		Where(`COALESCE("activity_instance".list_kind, '') = COALESCE(?, '')`, previousKind)
+
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "propagate list kind to future instances",
+			Err: err,
+		}
+	}
+	updated, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return updated, nil
 }

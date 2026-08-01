@@ -17,6 +17,7 @@ import (
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -527,4 +528,45 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned covers the P1 fix
+// (#405 review): graduation is a soft delete, so a tag left on a graduate would
+// still resolve here and show the kiosk a name, class and "assigned" state for a
+// child no staff-facing route will act on — the dedicated unassign call 404s
+// through the alumnus gate. Graduation now releases the tag itself; for tags
+// left over from earlier graduations the lookup must report the bracelet as free
+// so it can be handed to a current child.
+func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-alumnus")
+	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Alumnus", "4a")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFIDALUM")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := ctx.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Where("id = ?", student.ID).
+		Exec(dbCtx)
+	require.NoError(t, err)
+
+	router := ctx.resource.Router()
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/"+rfidCard.ID, nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	body := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := body["data"].(map[string]interface{})
+	require.True(t, ok, "response must carry a data object: %s", rr.Body.String())
+	assert.Equal(t, false, data["assigned"], "a graduate's leftover tag must read as free")
+	assert.Nil(t, data["person"], "and must not name the departed child")
 }

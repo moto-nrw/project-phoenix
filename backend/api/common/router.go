@@ -28,6 +28,10 @@ func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		gr.Use(tokenAuth.Verifier())
 		gr.Use(jwt.Authenticator)
 		gr.Use(jwt.TenantMiddleware)
+		// Request-scoped settings memo cache (issue #2065). Unlike withTx this
+		// IS applied group-wide: it opens no transaction and does no DB work,
+		// so running it on requests that later 403 costs one map allocation.
+		gr.Use(RequestSettingsCacheMiddleware)
 		fn(gr, tenant.TenantTxMiddleware(db))
 	})
 }

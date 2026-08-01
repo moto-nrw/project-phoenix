@@ -59,6 +59,10 @@ type StaffShiftRepository interface {
 	// FindByStaffAndDateRange returns one staff member's shifts in the range.
 	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error)
 
+	// FindByStaffIDsAndDateRange is FindByStaffAndDateRange batched over many
+	// staff members, keyed by staff ID.
+	FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, start, end timezone.Date) (map[int64][]*StaffShift, error)
+
 	// FindByStaffIDsAndDate returns the shifts of the given staff members on
 	// one date (batch lookup for the auto-checkout job).
 	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*StaffShift, error)
@@ -109,6 +113,11 @@ type StaffShiftSeriesRepository interface {
 	// CapAllByStaffID bounds every series segment of one staff member at the
 	// exclusive date (staff offboarding).
 	CapAllByStaffID(ctx context.Context, staffID int64, until timezone.Date) (int64, error)
+
+	// FindOverlappingInLineage returns another segment of a split lineage that
+	// is active on or after the given date. A superseded predecessor must not be
+	// reopened across it.
+	FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*StaffShiftSeries, error)
 }
 
 // StaffShiftSeriesExceptionRepository stores deliberately removed single

@@ -30,6 +30,39 @@ const (
 	TargetGroupTypeNone     = "none"
 )
 
+// List kind constants classify timetable templates for printable daily lists.
+// Empty means the template is not tied to a dedicated list kind.
+const (
+	ListKindEdgeHours    = "edge_hours"
+	ListKindLearningTime = "learning_time"
+	ListKindActivity     = "activity"
+	ListKindMensa        = "mensa"
+)
+
+func IsValidListKind(kind string) bool {
+	switch kind {
+	case "", ListKindEdgeHours, ListKindLearningTime, ListKindActivity, ListKindMensa:
+		return true
+	default:
+		return false
+	}
+}
+
+func ListKindLabel(kind string) string {
+	switch kind {
+	case ListKindEdgeHours:
+		return "Randstunden"
+	case ListKindLearningTime:
+		return "Lernzeit"
+	case ListKindActivity:
+		return "AG-Angebote"
+	case ListKindMensa:
+		return "Mensa"
+	default:
+		return ""
+	}
+}
+
 // Group represents an activity group
 type Group struct {
 	base.Model `bun:"schema:activities,table:groups"`
@@ -48,6 +81,7 @@ type Group struct {
 	CreatedBy        *int64     `bun:"created_by" json:"created_by"`
 	Type             string     `bun:"type,notnull,default:'activity'" json:"type"`
 	EducationGroupID *int64     `bun:"education_group_id" json:"education_group_id,omitempty"`
+	ListKind         *string    `bun:"list_kind" json:"list_kind,omitempty"`
 	IsTemplate       bool       `bun:"is_template,notnull,default:false" json:"is_template"`
 	IsSystem         bool       `bun:"is_system,notnull,default:false" json:"is_system"`
 	ArchivedAt       *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
@@ -102,6 +136,17 @@ func (g *Group) Validate() error {
 
 	if g.CategoryID <= 0 {
 		return errors.New("category ID is required")
+	}
+	// A non-nil pointer to "" means "no list kind" for callers that build a
+	// Group{} literal; canonicalize it to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if g.ListKind != nil && *g.ListKind == "" {
+		g.ListKind = nil
+	}
+	if g.ListKind != nil && !IsValidListKind(*g.ListKind) {
+		return errors.New("invalid list kind")
 	}
 
 	if g.RequiredStaff != nil && *g.RequiredStaff < 0 {

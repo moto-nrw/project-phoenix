@@ -1,0 +1,39 @@
+import type { ReactNode } from "react";
+
+// Centered empty-state block: optional muted icon, title, description, and an
+// optional action slot. Extracted from the operator provisioning pages and the
+// tenant list pages, which all hand-rolled this same column (#1629). Pass the
+// icon as a ReactNode (an inline SVG or a lucide icon sized h-12 w-12) so
+// existing screens keep their exact artwork.
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className = "",
+}: {
+  readonly icon?: ReactNode;
+  readonly title: string;
+  readonly description?: string;
+  readonly action?: ReactNode;
+  readonly className?: string;
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center gap-3 py-12 text-center ${className}`}
+    >
+      {icon != null ? (
+        <span className="text-gray-400" aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
+      <p className="text-lg font-medium text-gray-900">{title}</p>
+      {description != null && description !== "" ? (
+        <p className="max-w-md text-sm leading-relaxed text-gray-500">
+          {description}
+        </p>
+      ) : null}
+      {action != null ? <div className="mt-2">{action}</div> : null}
+    </div>
+  );
+}

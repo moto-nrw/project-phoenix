@@ -15,6 +15,16 @@ type Broadcaster interface {
 	// Fire-and-forget.
 	BroadcastToTenant(tenantID int64, event Event) error
 
+	// BroadcastToTenantAdmins sends an event only to connected staff clients
+	// whose effective permissions grant admin scope.
+	// Fire-and-forget.
+	BroadcastToTenantAdmins(tenantID int64, event Event) error
+
+	// BroadcastToStaffAccounts wakes only the addressed staff accounts' clients
+	// within one tenant. This is the transport for personal notifications,
+	// where each recipient gets their own payload. Fire-and-forget.
+	BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error
+
 	// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 	// Used for global dashboard count refreshes. Fire-and-forget.
 	BroadcastToAll(event Event) error

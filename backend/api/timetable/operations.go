@@ -162,6 +162,11 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	if !ok {
 		return
 	}
+	window, err := spontaneousStartWorkdayWindow(rs.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	if len(req.StudentIDs) > 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
 		return
@@ -185,7 +190,6 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}
 
 	isSpontaneous := true
-	window := serverSpontaneousActivityWindow(timezone.Now())
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, scheduleSvc.CreateInstanceInput{
 		Date:             window.date,
@@ -348,6 +352,14 @@ func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 		startTime: clockTimeFromMinutes(startMinutes),
 		endTime:   clockTimeFromMinutes(endMinutes),
 	}
+}
+
+func spontaneousStartWorkdayWindow(now time.Time) (spontaneousActivityWindow, error) {
+	window := serverSpontaneousActivityWindow(now)
+	if err := validateTimetableWorkday(window.date); err != nil {
+		return spontaneousActivityWindow{}, err
+	}
+	return window, nil
 }
 
 func clockTimeFromMinutes(minutes int) time.Time {
@@ -545,7 +557,10 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict):
 		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, activeSvc.ErrStudentNotFound), errors.Is(err, activeSvc.ErrVisitNotFound):
+	case errors.Is(err, activeSvc.ErrStudentNotFound), errors.Is(err, activeSvc.ErrVisitNotFound),
+		// A graduated (alumnus) student left on a roster is treated like an
+		// unknown/absent student (404), matching the IoT check-in mapper (#405).
+		errors.Is(err, activeSvc.ErrStudentGraduated):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, activeSvc.ErrInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

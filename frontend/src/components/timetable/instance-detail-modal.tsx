@@ -42,8 +42,10 @@ import {
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getActivityTypeBadge,
+  getGermanWeekdayAdverb,
   getGermanWeekdayLong,
   getStatusLabel,
 } from "~/lib/timetable-helpers";
@@ -161,10 +163,9 @@ function germanFullDate(iso: string): string {
  */
 function regelterminOriginLabel(instance: EnrichedInstance): string {
   const weekdayLong = getGermanWeekdayLong(parseISODate(instance.date));
-  const weekdayAdverb = weekdayLong ? `${weekdayLong.toLowerCase()}s` : "";
   return [
     `aus Regeltermin ${instance.title},`,
-    weekdayAdverb,
+    getGermanWeekdayAdverb(weekdayLong),
     instance.startTime,
   ]
     .filter(Boolean)
@@ -449,6 +450,7 @@ export function InstanceDetailModal({
   // Tenant-bewusster Pfad: im Path-Routing-Modus muss /vertretung den
   // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
   const tenantPath = useTenantAwarePath();
+  const today = useBerlinToday();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
@@ -465,7 +467,7 @@ export function InstanceDetailModal({
   const poolAvailable =
     instance !== null &&
     (instance.status === "planned" || instance.status === "active") &&
-    instance.date >= berlinTodayISO();
+    instance.date >= today;
   const students = useMemo(() => studentsForInstance(instance), [instance]);
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
@@ -526,12 +528,35 @@ export function InstanceDetailModal({
     }
   };
 
+  // "Ab jetzt dauerhaft" beendet den Regeltermin ab dem Datum des Termins —
+  // das Backend lehnt ein Datum vor heute ab, weil das Vergangenheit löschen
+  // würde (template_split_service: effective_date must not be in the past).
+  // Für einen vergangenen Termin bleibt daher nur das Löschen dieser einen
+  // Woche, also entfällt die Auswahl komplett statt eine Option anzubieten,
+  // die zwangsläufig scheitert.
+  const canEndSeries = (currentToday: string) =>
+    instance !== null &&
+    Boolean(instance.activityGroupId) &&
+    !instance.isSpontaneous &&
+    Boolean(onDeleteFollowing) &&
+    instance.date >= currentToday;
+  const seriesEndAvailable = canEndSeries(today);
+
+  // If the scope dialog was opened before Berlin midnight, its recurring
+  // option becomes invalid at the rollover. Continue with the only valid
+  // deletion flow instead of leaving a stale option that the backend rejects.
+  useEffect(() => {
+    if (deleteScopeOpen && pendingDeleteScope === null && !seriesEndAvailable) {
+      setDeleteScopeOpen(false);
+      setPendingConfirm("delete");
+    }
+  }, [deleteScopeOpen, pendingDeleteScope, seriesEndAvailable]);
+
   const openDeleteFlow = () => {
-    if (
-      instance?.activityGroupId &&
-      !instance.isSpontaneous &&
-      onDeleteFollowing
-    ) {
+    // The hook refreshes once a minute. Re-read Berlin's current date at the
+    // interaction boundary so the short interval after midnight cannot open
+    // an already invalid series-ending flow.
+    if (canEndSeries(berlinTodayISO())) {
       setDeleteScopeOpen(true);
       return;
     }
@@ -549,6 +574,13 @@ export function InstanceDetailModal({
   };
 
   const handleDeleteScopeSelect = async (scope: string) => {
+    // The scope modal may have been open across midnight. Do not send a
+    // stale "following" request that the backend must reject.
+    if (scope === "following" && !canEndSeries(berlinTodayISO())) {
+      setDeleteScopeOpen(false);
+      setPendingConfirm("delete");
+      return;
+    }
     setPendingDeleteScope(scope);
     try {
       const succeeded =

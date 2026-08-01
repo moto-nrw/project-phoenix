@@ -18,25 +18,33 @@ import (
 
 // Mock is a func-field test double for config.SettingsService.
 type Mock struct {
-	GetSchemaFn              func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
-	GetSchemaForOperatorFn   func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
-	ResolveFn                func(ctx context.Context, key string) (any, error)
-	ResolveStringFn          func(ctx context.Context, key string) (string, error)
-	ResolveStringForTenantFn func(ctx context.Context, tenantID int64, key string) (string, error)
-	ResolveBoolFn            func(ctx context.Context, key string) (bool, error)
-	ResolveBoolForTenantFn   func(ctx context.Context, tenantID int64, key string) (bool, error)
-	ResolveIntFn             func(ctx context.Context, key string) (int, error)
-	ResolveIntForTenantFn    func(ctx context.Context, tenantID int64, key string) (int, error)
-	HasTenantOverrideFn      func(ctx context.Context, key string) (bool, error)
-	SetValueFn               func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
-	ResetValueFn             func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
-	CheckOperatorWritableFn  func(key string) error
-	GetLoginImageURLFn       func(ctx context.Context, tenantID int64) (string, error)
-	SetLoginImageURLFn       func(ctx context.Context, tenantID int64, imageURL string) (string, error)
-	ClearLoginImageURLFn     func(ctx context.Context, tenantID int64) (string, error)
+	GetSchemaFn                    func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
+	GetSchemaForOperatorFn         func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
+	ResolveFn                      func(ctx context.Context, key string) (any, error)
+	ResolveManyFn                  func(ctx context.Context, keys []string) (*config.SettingsSnapshot, error)
+	ResolveManyForTenantFn         func(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error)
+	ResolveManyForTenantsFn        func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error)
+	ResolveStringFn                func(ctx context.Context, key string) (string, error)
+	ResolveStringForTenantFn       func(ctx context.Context, tenantID int64, key string) (string, error)
+	ResolveBoolFn                  func(ctx context.Context, key string) (bool, error)
+	ResolveBoolsFn                 func(ctx context.Context, keys []string) (map[string]bool, error)
+	ResolveBoolForTenantFn         func(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveIntFn                   func(ctx context.Context, key string) (int, error)
+	ResolveIntForTenantFn          func(ctx context.Context, tenantID int64, key string) (int, error)
+	HasTenantOverrideFn            func(ctx context.Context, key string) (bool, error)
+	SetValueFn                     func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+	ResetValueFn                   func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+	CheckOperatorWritableFn        func(key string) error
+	GetLoginImageURLFn             func(ctx context.Context, tenantID int64) (string, error)
+	SetLoginImageURLFn             func(ctx context.Context, tenantID int64, imageURL string) (string, error)
+	ClearLoginImageURLFn           func(ctx context.Context, tenantID int64) (string, error)
+	LockSlotListCutoffPairFn       func(ctx context.Context) error
+	LockSlotListCutoffPairSharedFn func(ctx context.Context) error
+	LockClassCollectionPairFn      func(ctx context.Context) error
 }
 
 var _ config.SettingsService = (*Mock)(nil)
+var _ config.BatchSettingsService = (*Mock)(nil)
 
 func (m *Mock) GetSchema(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error) {
 	if m.GetSchemaFn != nil {
@@ -55,6 +63,27 @@ func (m *Mock) GetSchemaForOperator(ctx context.Context, userPermissions []strin
 func (m *Mock) Resolve(ctx context.Context, key string) (any, error) {
 	if m.ResolveFn != nil {
 		return m.ResolveFn(ctx, key)
+	}
+	return nil, nil
+}
+
+func (m *Mock) ResolveMany(ctx context.Context, keys []string) (*config.SettingsSnapshot, error) {
+	if m.ResolveManyFn != nil {
+		return m.ResolveManyFn(ctx, keys)
+	}
+	return nil, nil
+}
+
+func (m *Mock) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error) {
+	if m.ResolveManyForTenantFn != nil {
+		return m.ResolveManyForTenantFn(ctx, tenantID, keys)
+	}
+	return nil, nil
+}
+
+func (m *Mock) ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error) {
+	if m.ResolveManyForTenantsFn != nil {
+		return m.ResolveManyForTenantsFn(ctx, tenantIDs, keys)
 	}
 	return nil, nil
 }
@@ -78,6 +107,21 @@ func (m *Mock) ResolveBool(ctx context.Context, key string) (bool, error) {
 		return m.ResolveBoolFn(ctx, key)
 	}
 	return false, nil
+}
+
+func (m *Mock) ResolveBools(ctx context.Context, keys []string) (map[string]bool, error) {
+	if m.ResolveBoolsFn != nil {
+		return m.ResolveBoolsFn(ctx, keys)
+	}
+	resolved := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		value, err := m.ResolveBool(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		resolved[key] = value
+	}
+	return resolved, nil
 }
 
 func (m *Mock) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {
@@ -148,4 +192,25 @@ func (m *Mock) ClearLoginImageURL(ctx context.Context, tenantID int64) (string, 
 		return m.ClearLoginImageURLFn(ctx, tenantID)
 	}
 	return "", nil
+}
+
+func (m *Mock) LockSlotListCutoffPair(ctx context.Context) error {
+	if m.LockSlotListCutoffPairFn != nil {
+		return m.LockSlotListCutoffPairFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockSlotListCutoffPairShared(ctx context.Context) error {
+	if m.LockSlotListCutoffPairSharedFn != nil {
+		return m.LockSlotListCutoffPairSharedFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockClassCollectionPair(ctx context.Context) error {
+	if m.LockClassCollectionPairFn != nil {
+		return m.LockClassCollectionPairFn(ctx)
+	}
+	return nil
 }

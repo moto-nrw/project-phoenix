@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
@@ -23,6 +24,10 @@ import {
   findPeriodForDate,
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
+import {
+  expandClosingDaysToMap,
+  type ClosingDayRange,
+} from "~/lib/closing-day-helpers";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffShiftService } from "~/lib/shift-api";
 import {
@@ -311,6 +316,7 @@ interface HalbjahrGridInnerProps {
   readonly staff: readonly StaffScheduleStaff[];
   readonly reducedPath: boolean;
   readonly todayIso: string;
+  readonly closingDayRanges: readonly ClosingDayRange[];
   readonly onWeekClick: (mondayISO: string) => void;
 }
 
@@ -321,6 +327,7 @@ function HalbjahrGridInner({
   staff,
   reducedPath,
   todayIso,
+  closingDayRanges,
   onWeekClick,
 }: HalbjahrGridInnerProps) {
   const scrollHintId = useId();
@@ -346,14 +353,70 @@ function HalbjahrGridInner({
     return map;
   }, [weeks]);
 
+  // Schließtage des Zeitraums (#2032). Die Halbjahres-Sicht plant nichts, sie
+  // macht nur sichtbar, in welchen Wochen Schließtage liegen — gezählt werden
+  // Mo–Fr, weil die Wochenansicht dieselben fünf Tage zeigt.
+  const closingDays = useMemo(() => {
+    const firstWeek = weeks[0];
+    const lastWeek = weeks.at(-1);
+    if (!firstWeek || !lastWeek) return new Map<string, string>();
+    // weeksInPeriod has a defensive 400-column guard. Clamp the expansion to
+    // those actually rendered weeks as well, so a mistakenly huge period or
+    // closing-day range cannot allocate entries through its remote end date.
+    return expandClosingDaysToMap(
+      closingDayRanges,
+      firstWeek.shiftsFrom,
+      lastWeek.shiftsTo,
+    );
+  }, [closingDayRanges, weeks]);
+  const closingByWeek = useMemo(() => {
+    const byWeek = new Map<string, string[]>();
+    if (closingDays.size === 0) return byWeek;
+    for (const week of weeks) {
+      const monday = parseISODate(week.monday);
+      const days: string[] = [];
+      for (let offset = 0; offset < 5; offset++) {
+        const day = new Date(monday);
+        day.setDate(day.getDate() + offset);
+        const iso = toISODate(day);
+        const reason = closingDays.get(iso);
+        if (reason !== undefined) {
+          days.push(`${formatColumnDate(iso)} ${reason}`.trim());
+        }
+      }
+      if (days.length > 0) byWeek.set(week.monday, days);
+    }
+    return byWeek;
+  }, [weeks, closingDays]);
+
   const currentMonday = toISODate(startOfWeek(parseISODate(todayIso)));
 
-  const columns: ResourceGridColumn[] = weeks.map((week) => ({
-    key: week.monday,
-    label: `KW ${week.kw}`,
-    sublabel: formatColumnDate(week.monday),
-    isCurrent: week.monday === currentMonday,
-  }));
+  // Jede fertig geladene Woche meldet ihren Zustand hoch, das Raster rendert
+  // während des Ladens also ein gutes Dutzend Mal neu. Die Spalten hängen an
+  // keinem dieser Zustände, sie werden nur einmal je Zeitraum gebaut.
+  const columns: ResourceGridColumn[] = useMemo(
+    () =>
+      weeks.map((week) => {
+        const closing = closingByWeek.get(week.monday);
+        return {
+          key: week.monday,
+          label: `KW ${week.kw}`,
+          sublabel: formatColumnDate(week.monday),
+          isCurrent: week.monday === currentMonday,
+          isMuted: closing?.length === 5,
+          headerNote:
+            closing === undefined ? undefined : (
+              <ClosingDayChip
+                text={String(closing.length)}
+                label={`${closing.length} ${closing.length === 1 ? "Schließtag" : "Schließtage"}`}
+                reason={closing.join(", ")}
+                className="mx-auto flex w-fit"
+              />
+            ),
+        };
+      }),
+    [weeks, closingByWeek, currentMonday],
+  );
 
   const firstStaffId = staff[0]?.id ?? null;
 
@@ -363,6 +426,9 @@ function HalbjahrGridInner({
     </span>
   );
 
+  // Interaktive Zellinhalte tragen flex-1: das ResourceGrid gibt der Zelle eine
+  // Mindesthöhe, ohne Füllen bliebe die Klick-/Hoverfläche kleiner als ihre
+  // Zelle (Issue #2026).
   const renderCell = (
     member: StaffScheduleStaff,
     column: ResourceGridColumn,
@@ -385,7 +451,7 @@ function HalbjahrGridInner({
           type="button"
           onClick={() => state.retry()}
           aria-label={`Woche ${kw} erneut laden`}
-          className="flex min-h-8 w-full items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+          className="flex w-full flex-1 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
         >
           <RotateCw className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -402,7 +468,7 @@ function HalbjahrGridInner({
         type="button"
         onClick={() => onWeekClick(column.key)}
         aria-label={`Woche ${kw} öffnen, ${member.firstName} ${member.lastName}`}
-        className="flex w-full items-center justify-center rounded-md px-1 py-1.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+        className="flex w-full flex-1 items-center justify-center rounded-md px-1 py-1.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
       >
         <CoverageIndicator
           state="covered"
@@ -415,7 +481,8 @@ function HalbjahrGridInner({
   };
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    // Kein zusätzlicher Kartenrahmen um das Raster (#2031) — siehe ResourceGrid.
+    <div>
       {/* Invisible per-week loaders — no DOM, they only feed weekStates. */}
       {weeks.map((week) => (
         <HalbjahrColumnData
@@ -460,15 +527,21 @@ interface DienstplanHalbjahrGridProps {
   readonly reducedPath: boolean;
   /** Today as "YYYY-MM-DD" for the current-week column tint. */
   readonly todayIso: string;
+  /** OGS-Schließtage des Tenants (#2032). Wochen mit Schließtagen werden im
+   *  Spaltenkopf gekennzeichnet; ohne die Liste entfaellt die Kennzeichnung. */
+  readonly closingDayRanges?: readonly ClosingDayRange[];
   /** Jump into the week view for the clicked week (Monday "YYYY-MM-DD"). */
   readonly onWeekClick: (mondayISO: string) => void;
 }
+
+const EMPTY_CLOSING_DAY_RANGES: readonly ClosingDayRange[] = [];
 
 export function DienstplanHalbjahrGrid({
   dayISO,
   staff,
   reducedPath,
   todayIso,
+  closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
   onWeekClick,
 }: DienstplanHalbjahrGridProps) {
   const router = useTenantRouter();
@@ -553,6 +626,7 @@ export function DienstplanHalbjahrGrid({
       staff={staff}
       reducedPath={reducedPath}
       todayIso={todayIso}
+      closingDayRanges={closingDayRanges}
       onWeekClick={onWeekClick}
     />
   );

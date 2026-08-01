@@ -27,6 +27,12 @@ const (
 	EditedChangeTime        = "time"
 	EditedChangeStaff       = "staff"
 	EditedChangeStudents    = "students"
+	// EditedChangeListKind marks a per-occurrence Listenart override (#1565): the
+	// occurrence's list_kind diverges from what the template would materialize. A
+	// series re-plan copies list_kind from the template, so this single-occurrence
+	// classification is discarded exactly like a title or room edit — it must be
+	// reported so the lost-edits warning covers it.
+	EditedChangeListKind = "list_kind"
 	// EditedChangeDeleted marks a date whose occurrence was individually deleted
 	// (a cancelled exception). A same-template re-plan preserves it, but a
 	// following-series split rematerializes it under the successor template, so
@@ -167,6 +173,13 @@ func (s *materializationService) DetectEditedInWindow(
 				studentsByInstance[inst.ID],
 				expected,
 			)
+			// Listenart is a template-level field materialization copies verbatim
+			// onto every occurrence, so it is compared here (template vs occurrence)
+			// rather than per-slot inside diffOccurrence (#1565 review).
+			if !sameListKind(inst.ListKind, tmpl.ListKind) {
+				changes = append(changes, EditedChangeListKind)
+				sort.Strings(changes)
+			}
 			if len(changes) == 0 {
 				continue
 			}
@@ -222,6 +235,14 @@ func (s *materializationService) expectedSlotsOn(
 	exc *schedule.ActivityException,
 	date timezone.Date,
 ) []materialParams {
+	// Keep this projection aligned with materializeTemplate: legacy weekend
+	// schedules remain administrable, but are never materialized into new
+	// instances. Treating them as expected here would hide the warning that a
+	// re-plan will remove a retained weekend instance without recreating it.
+	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		return nil
+	}
+
 	isoWd := isoWeekday(date)
 	out := make([]materialParams, 0, 1)
 	for _, sch := range schedules {
@@ -379,10 +400,12 @@ func diffOccurrence(
 	}
 
 	// Students. Expected = template enrollments valid on this date; actual =
-	// instance_students membership.
+	// instance_students membership. Graduated (alumnus) students are excluded to
+	// mirror copyEnrollments — materialization no longer copies them, so counting
+	// their enrollment here would flag a phantom "students changed" edit (#405).
 	expectedStudents := make(map[int64]struct{})
 	for _, e := range enrollments {
-		if isEnrollmentValidOn(e, inst.Date, periodID) {
+		if isEnrollmentValidOn(e, inst.Date, periodID) && !enrollmentStudentIsAlumnus(e) {
 			expectedStudents[e.StudentID] = struct{}{}
 		}
 	}
@@ -392,6 +415,21 @@ func diffOccurrence(
 
 	sort.Strings(changes)
 	return changes
+}
+
+// sameListKind reports whether two optional list_kind values are equivalent,
+// treating nil and the empty string as the same "no classification" so an
+// occurrence that merely omits the field is not flagged against a template that
+// stores "".
+func sameListKind(a, b *string) bool {
+	av, bv := "", ""
+	if a != nil {
+		av = *a
+	}
+	if b != nil {
+		bv = *b
+	}
+	return av == bv
 }
 
 // sameClock compares two times on their wall-clock components only.

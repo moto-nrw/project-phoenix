@@ -177,16 +177,26 @@ describe("TeacherShellProvider", () => {
   });
 
   it("calls signOut with redirect:false and navigates manually on logout", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", mockFetch);
     mockUseSession.mockReturnValue({
       data: { user: { name: "User", email: "user@example.com", roles: [] } },
       status: "authenticated",
     });
 
-    const { result } = renderHook(() => useShellAuth(), { wrapper });
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
 
-    await result.current.logout();
+      await result.current.logout();
 
-    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(mockFetch).toHaveBeenCalledWith("/api/auth/logout", {
+        method: "POST",
+        signal: expect.any(AbortSignal) as AbortSignal,
+      });
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("fires backend logout and clears session cache on teacher logout", async () => {

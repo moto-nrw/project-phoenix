@@ -2803,6 +2803,7 @@ function SearchPageContent() {
         <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"
+            floatingUntil="xl"
             isActive={schoolCheckin.isActive}
             onToggle={schoolCheckin.toggleActive}
             successCount={schoolCheckin.successCount}

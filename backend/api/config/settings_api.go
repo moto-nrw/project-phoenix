@@ -88,6 +88,13 @@ type SettingsResource struct {
 	db                *bun.DB
 	broadcaster       realtime.Broadcaster
 	onValueSet        ValueSetCallback
+	payrollStatus     configSvc.PayrollStatusGetter
+}
+
+// SetPayrollStatusService wires the payroll configuration status (#1417).
+// Setter instead of a constructor parameter, mirroring OnValueSet.
+func (rs *SettingsResource) SetPayrollStatusService(svc configSvc.PayrollStatusGetter) {
+	rs.payrollStatus = svc
 }
 
 // OnValueSet registers a callback that runs after a setting value change is
@@ -131,6 +138,11 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		settingsWrite := authorize.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 
 		r.With(authorize.RequiresPermission(permissions.ConfigRead), withTx).Get("/schema", rs.getSchema)
+		// Payroll configuration status (#1417): config:manage only — the
+		// same tier that writes the payroll settings; carries a per-tenant
+		// staff-without-Personalnummer count (count only, no names).
+		r.With(authorize.RequiresPermission(permissions.ConfigManage), withTx).Get("/payroll-status", rs.getPayrollStatus)
+
 		r.With(settingsWrite, withTx).Get("/values/{key}/reveal", rs.revealValue)
 		r.With(settingsWrite, withTx).Put("/values/{key}", rs.setValue)
 		r.With(settingsWrite, withTx).Delete("/values/{key}", rs.resetValue)
