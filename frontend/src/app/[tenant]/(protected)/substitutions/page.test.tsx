@@ -721,6 +721,30 @@ describe("SubstitutionsPage", () => {
       });
     });
 
+    it("parses the complete custom duration and rejects fractions", async () => {
+      render(<SubstitutionsPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Anna Meyer/i }));
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("radio", { name: "Individuell" }));
+      const dayInput = await screen.findByLabelText("Anzahl der Tage");
+
+      fireEvent.change(dayInput, { target: { value: "1e2" } });
+      expect(dayInput).toHaveValue(100);
+
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 99);
+      const expectedMessage = `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`;
+      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
+
+      fireEvent.change(dayInput, { target: { value: "2.5" } });
+      expect(dayInput).toHaveValue(100);
+      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
+    });
+
     it("successfully assigns substitution when form is complete", async () => {
       mockCreateSubstitution.mockResolvedValueOnce({ id: "new-sub" });
       mockMutateTeachers.mockResolvedValueOnce(undefined);

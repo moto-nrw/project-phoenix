@@ -726,11 +726,9 @@ function SubstitutionPageContent() {
                   aria-label="Anzahl der Tage"
                   value={customDays}
                   onChange={(e) => {
-                    const parsed = Number.parseInt(e.target.value, 10);
-                    if (Number.isNaN(parsed)) {
-                      setCustomDays(1);
-                      return;
-                    }
+                    const parsed = Number(e.target.value);
+                    if (!Number.isInteger(parsed)) return;
+
                     setCustomDays(
                       Math.min(MAX_DURATION_DAYS, Math.max(1, parsed)),
                     );
