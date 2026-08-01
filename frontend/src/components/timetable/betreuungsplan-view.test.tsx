@@ -826,6 +826,20 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("hides export without the permission to read staff names", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Betreuungsplan drucken oder exportieren",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back to the week for an unknown view value", () => {
     setUrl("view=quatsch");
     render(<BetreuungsplanView />);

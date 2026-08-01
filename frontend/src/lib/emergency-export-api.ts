@@ -1,4 +1,9 @@
 import { trackEvent } from "~/lib/analytics";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 export type EmergencySnapshotExportMode = "download" | "print";
 
@@ -16,36 +21,10 @@ export async function exportEmergencySnapshot(
   trackEvent("data_exported", { export_type: "emergency", format: "pdf" });
 
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
   if (mode === "print") {
-    openForPrint(url);
+    openBlobForPrint(blob);
     return;
   }
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filenameFromDisposition(response) ?? "notfallliste.pdf";
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function openForPrint(url: string) {
-  const target = globalThis.open(url, "_blank");
-  if (!target) {
-    URL.revokeObjectURL(url);
-    throw new Error("Der Druckdialog konnte nicht geöffnet werden.");
-  }
-  globalThis.setTimeout(() => {
-    target.focus();
-    target.print();
-    URL.revokeObjectURL(url);
-  }, 250);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
+  downloadBlob(blob, filenameFromDisposition(response) ?? "notfallliste.pdf");
 }

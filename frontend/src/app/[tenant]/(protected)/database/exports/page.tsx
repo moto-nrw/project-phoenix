@@ -7,8 +7,10 @@ import { useSession } from "next-auth/react";
 import {
   ArrowRight,
   Cake,
+  CalendarCheck,
   CalendarClock,
   CalendarDays,
+  CalendarRange,
   Car,
   ClipboardList,
   Clock,
@@ -108,8 +110,12 @@ export default function DatabaseExportsPage() {
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
+  // Der Dienstplan ist admin-only (die Seite leitet andere auf /staff um), der
+  // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
+  const canEditPlans = isAdmin(session);
   // Slot lists expose named children + presence, so the backend requires
-  // schedules:read AND users:read (#1565) — mirror that here.
+  // schedules:read AND users:read (#1565) — mirror that here. Der
+  // Betreuungsplan-Export verlangt dieselbe Kombination.
   const canUseSlotLists =
     isAdmin(session) ||
     (hasPermission(session, "schedules:read") &&
@@ -272,6 +278,34 @@ export default function DatabaseExportsPage() {
                 liegt im Bereich Planung.
               </ExportDescription>
               <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
+            </InfoCard>
+          )}
+          {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
+              auf ihrer Seite gerade zu sehen ist — ein Datumsdialog hier wäre
+              eine zweite, konkurrierende Bedienung derselben Sache. */}
+          {canEditPlans && !timetableDisabled && (
+            <InfoCard
+              title="Dienstplan"
+              icon={<CalendarRange className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Die Dienstplanwoche zum Aushängen: wer wann wo arbeitet,
+                wahlweise nach Personen oder nach Einsatzbereich. Der Export
+                liegt im Dienstplan.
+              </ExportDescription>
+              <ExportLink href="/dienstplan">Zum Dienstplan</ExportLink>
+            </InfoCard>
+          )}
+          {canUseSlotLists && !timetableDisabled && (
+            <InfoCard
+              title="Betreuungsplan"
+              icon={<CalendarCheck className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Die Betreuungswoche mit Zeiten, Räumen, Personal und Kinderzahl.
+                Der Export liegt im Betreuungsplan.
+              </ExportDescription>
+              <ExportLink href="/betreuungsplan">Zum Betreuungsplan</ExportLink>
             </InfoCard>
           )}
           {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),

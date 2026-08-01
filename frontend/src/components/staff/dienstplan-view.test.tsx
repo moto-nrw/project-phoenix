@@ -682,6 +682,35 @@ describe("DienstplanView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the export action with the full permission triple", () => {
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Dienstplan drucken oder exportieren",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides export without the permission to read staff names", () => {
+    // POST /api/staff-shifts/export verlangt users:read; ohne die Berechtigung
+    // liefe der Dialog in ein 403.
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) => permission !== "users:read",
+    );
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Dienstplan drucken oder exportieren",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the disabled state when timetable.enabled is false", () => {
     // Route-Gate wie Betreuungsplan/Vertretung: Direktaufruf bei
     // ausgeschaltetem Planungsbereich zeigt den Hinweis statt des Rasters.

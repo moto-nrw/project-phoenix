@@ -155,6 +155,43 @@ func TestRenderXLSXWritesGroupHeadingRows(t *testing.T) {
 	}
 }
 
+func TestRenderXLSXStartsEachGroupOnANewPrintedPage(t *testing.T) {
+	doc := sampleDocument()
+	doc.Rows = []Row{
+		{GroupTitle: "Woche 1"},
+		{Values: map[ColumnID]string{ColumnName: "Mila Muster"}},
+		{GroupTitle: "Woche 2"},
+		{Values: map[ColumnID]string{ColumnName: "Finn Beispiel"}},
+	}
+	file, err := NewService().Render(doc, FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	for _, entry := range reader.File {
+		if !strings.HasPrefix(entry.Name, "xl/worksheets/") {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", entry.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		closeErr := rc.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read %s: %v / %v", entry.Name, err, closeErr)
+		}
+		if strings.Contains(string(content), "<rowBreaks") && strings.Contains(string(content), `id="8"`) {
+			return
+		}
+	}
+	t.Fatal("expected a manual page break before the second group")
+}
+
 func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {
@@ -387,4 +424,138 @@ func sampleDocument() Document {
 			{Values: map[ColumnID]string{ColumnName: "Noah Beispiel", ColumnSchoolClass: "1a", ColumnWeeklyMonday: "08:15 bis 16:00"}},
 		},
 	}
+}
+
+// #2079: a multi-line cell must wrap and leave its height automatic, so both
+// explicit and soft line breaks remain visible in fixed-width plan columns.
+func TestRenderXLSXWrapsMultiLineCells(t *testing.T) {
+	doc := sampleDocument()
+	doc.Rows = []Row{
+		{Values: map[ColumnID]string{ColumnName: "07:30–14:00\nKüche\nRaum 2"}},
+	}
+
+	file, err := NewService().Render(doc, FormatXLSX, "plan")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() {
+		if err := workbook.Close(); err != nil {
+			t.Errorf("close xlsx error = %v", err)
+		}
+	}()
+
+	value, err := workbook.GetCellValue("Export", "A7")
+	if err != nil {
+		t.Fatalf("read cell error = %v", err)
+	}
+	if !strings.Contains(value, "\n") {
+		t.Fatalf("cell lost its line breaks: %q", value)
+	}
+
+	styleID, err := workbook.GetCellStyle("Export", "A7")
+	if err != nil {
+		t.Fatalf("read cell style error = %v", err)
+	}
+	style, err := workbook.GetStyle(styleID)
+	if err != nil {
+		t.Fatalf("resolve style error = %v", err)
+	}
+	if style.Alignment == nil || !style.Alignment.WrapText {
+		t.Fatal("expected the body cell to wrap text")
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+	if err != nil {
+		t.Fatalf("open xlsx archive: %v", err)
+	}
+	for _, entry := range reader.File {
+		if !strings.HasPrefix(entry.Name, "xl/worksheets/") {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", entry.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		closeErr := rc.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read %s: %v / %v", entry.Name, err, closeErr)
+		}
+		if strings.Contains(string(content), `<row r="7" ht=`) {
+			t.Fatal("expected the wrapped row to retain automatic height")
+		}
+		return
+	}
+	t.Fatal("worksheet XML not found")
+}
+
+// Single-line rows keep the default height so the existing child lists
+// look exactly as before.
+func TestRenderXLSXKeepsDefaultHeightForSingleLineRows(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() {
+		if err := workbook.Close(); err != nil {
+			t.Errorf("close xlsx error = %v", err)
+		}
+	}()
+
+	height, err := workbook.GetRowHeight("Export", 7)
+	if err != nil {
+		t.Fatalf("read row height error = %v", err)
+	}
+	if height > 15 {
+		t.Fatalf("row height = %v, want the sheet default", height)
+	}
+}
+
+// The DOCX renderer honours the same "\n is a line break" contract, so the
+// three formats cannot disagree about what a composed cell means.
+func TestRenderDOCXWritesLineBreaks(t *testing.T) {
+	doc := sampleDocument()
+	doc.Rows = []Row{
+		{Values: map[ColumnID]string{ColumnName: "07:30–14:00\nKüche"}},
+	}
+
+	file, err := NewService().Render(doc, FormatDOCX, "plan")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	reader, err := zip.NewReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+	if err != nil {
+		t.Fatalf("zip reader error = %v", err)
+	}
+	for _, entry := range reader.File {
+		if entry.Name != "word/document.xml" {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open document.xml error = %v", err)
+		}
+		defer func() {
+			if err := rc.Close(); err != nil {
+				t.Errorf("close document.xml error = %v", err)
+			}
+		}()
+		content, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("read document.xml error = %v", err)
+		}
+		if !strings.Contains(string(content), "<w:br/>") {
+			t.Fatal("expected DOCX cell to carry an explicit line break")
+		}
+		return
+	}
+	t.Fatal("word/document.xml not found")
 }

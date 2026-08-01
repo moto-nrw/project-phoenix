@@ -27,9 +27,10 @@ import {
 } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarOff } from "lucide-react";
+import { CalendarOff, Printer } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -185,6 +186,9 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "users:read");
+  const canExportBetreuungsplan =
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
@@ -209,6 +213,8 @@ function TimetablesContent() {
   const todayTargetISO = useMemo(() => nextWorkdayISO(todayISO), [todayISO]);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  // Drucken/Exportieren der angezeigten Woche (#2079).
+  const [exportOpen, setExportOpen] = useState(false);
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
   // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
   // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
@@ -1054,6 +1060,25 @@ function TimetablesContent() {
                 <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
               </span>
             )}
+            {/* Drucken/Exportieren (#2079): gehört auf die Fläche, weil der
+                Export die Woche meint, die gerade zu sehen ist. Unter sm nur
+                das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
+                und "Neu". */}
+            {canExportBetreuungsplan && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-label="Betreuungsplan drucken oder exportieren"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                onClick={() => setExportOpen(true)}
+              >
+                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Drucken
+                </span>
+              </Button>
+            )}
             <TimetableAddMenu
               onAddInstance={openEventCreate}
               onAddSeries={openSeriesCreate}
@@ -1274,6 +1299,20 @@ function TimetablesContent() {
           setConvertingInstance(null);
         }}
       />
+
+      {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
+          ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
+          dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
+      {canExportBetreuungsplan && exportOpen && (
+        <PlanExportModal
+          isOpen
+          plan="betreuungsplan"
+          weekDay={dayISO}
+          isWeekOnScreen={view === "week"}
+          canExportInternal={canManageSchedules}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       <CalendarPeriodModal
         isOpen={periodModalOpen}
