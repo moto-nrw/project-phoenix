@@ -136,15 +136,19 @@ func TestReminderOccurrences(t *testing.T) {
 // window or a restarted process harmless. It has to separate exactly three
 // things and nothing else.
 func TestAppointmentReminderKey(t *testing.T) {
-	base := appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), 7)
+	effective := helperAppointment()
+	base := appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), effective, 7)
 
-	assert.Equal(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), 7),
+	assert.Equal(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), effective, 7),
 		"the same occurrence and guardian must produce the same key, or the mail repeats")
-	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 12), 7),
+	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 12), effective, 7),
 		"every occurrence of a series gets its own reminder")
-	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), 8),
+	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), effective, 8),
 		"both parents of a child get their own mail")
-	assert.NotEqual(t, base, appointmentReminderKey(43, timezone.NewDate(2026, 1, 5), 7))
+	assert.NotEqual(t, base, appointmentReminderKey(43, timezone.NewDate(2026, 1, 5), effective, 7))
+	moved := *effective
+	moved.StartTime = helperClock(15, 0)
+	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), &moved, 7))
 }
 
 func TestAppointmentNotificationCopyCarriesNoAppointmentTitle(t *testing.T) {

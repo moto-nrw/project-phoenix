@@ -10,6 +10,7 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -254,6 +255,15 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
+		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
+			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
+			if err != nil {
+				return queued, guardianAccountIDs, fmt.Errorf("calendar: filter reminder preferences: %w", err)
+			}
+			if len(optedIn) == 0 {
+				continue
+			}
+		}
 		if profile.Email == nil || *profile.Email == "" {
 			continue
 		}
@@ -273,7 +283,7 @@ func (s *service) enqueueAppointmentReminder(
 			},
 			// One reminder per occurrence per guardian, forever. The key also
 			// carries the guardian so two parents of the same child both get one.
-			IdempotencyKey:    appointmentReminderKey(appointment.ID, occurrence, id),
+			IdempotencyKey:    appointmentReminderKey(appointment.ID, occurrence, effective, id),
 			RelatedEntityType: platformModels.EmailRelatedTypeAppointment,
 			RelatedEntityID:   appointment.ID,
 		})
@@ -299,11 +309,13 @@ func (s *service) enqueueAppointmentReminder(
 	return queued, guardianAccountIDs, nil
 }
 
-func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {
-	return fmt.Sprintf("%s:%d:%s:%d",
+func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, effective *calModels.Appointment, guardianProfileID int64) string {
+	return fmt.Sprintf("%s:%d:%s:%s:%s:%d",
 		platformModels.EmailKindAppointmentReminder,
 		appointmentID,
 		occurrence.String(),
+		effective.StartDate.String(),
+		timezone.WallClock(effective.StartTime).Format("15:04"),
 		guardianProfileID,
 	)
 }
