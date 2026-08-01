@@ -1308,6 +1308,7 @@ function TimetablesContent() {
           isOpen
           plan="betreuungsplan"
           weekDay={dayISO}
+          isWeekOnScreen={view === "week"}
           canExportInternal={canManageSchedules}
           onClose={() => setExportOpen(false)}
         />

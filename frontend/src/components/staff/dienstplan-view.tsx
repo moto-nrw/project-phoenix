@@ -521,6 +521,7 @@ function DienstplanContent() {
           isOpen
           plan="dienstplan"
           weekDay={dayISO}
+          isWeekOnScreen={view === "woche"}
           canExportInternal={canExportInternal}
           onClose={() => setExportOpen(false)}
         />

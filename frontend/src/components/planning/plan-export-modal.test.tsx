@@ -41,6 +41,7 @@ function renderModal(
       isOpen
       plan="dienstplan"
       weekDay="2026-07-29"
+      isWeekOnScreen
       canExportInternal={false}
       onClose={onClose}
       {...props}
@@ -119,6 +120,22 @@ describe("PlanExportModal", () => {
       screen.getByText(
         /27\.07\.2026 bis 31\.07\.2026, Montag bis Freitag\. Samstag und Sonntag nur, wenn dort etwas geplant ist\./,
       ),
+    ).toBeInTheDocument();
+  });
+
+  // Monats-, Serien- und Halbjahresansicht zeigen keine Woche: der Umschalter
+  // darf die exportierte Woche dort nicht "angezeigt" nennen.
+  it("stops calling the week displayed when no week is on screen", () => {
+    renderModal({ isWeekOnScreen: false });
+
+    expect(
+      screen.getByRole("tab", { name: "Einzelne Woche" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Angezeigte Woche" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Woche vom 27\.07\.2026 bis 31\.07\.2026/),
     ).toBeInTheDocument();
   });
 

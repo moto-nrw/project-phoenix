@@ -32,8 +32,15 @@ const MAX_WEEKS = 8;
 interface PlanExportModalProps {
   readonly isOpen: boolean;
   readonly plan: PlanExportPlan;
-  /** Any day of the week currently on screen ("YYYY-MM-DD"). */
+  /** Any day of the exported week ("YYYY-MM-DD"). */
   readonly weekDay: string;
+  /**
+   * Whether that week is the one on screen. False in the Monats-, Serien- und
+   * Halbjahresansicht: dort steht keine Woche im Bild, `weekDay` ist dann nur
+   * der Datumsanker der Seite. Der Umschalter darf die Woche in diesem Fall
+   * nicht "angezeigt" nennen.
+   */
+  readonly isWeekOnScreen: boolean;
   /** Internal exports can contain sensitive absence and cancellation details. */
   readonly canExportInternal: boolean;
   readonly onClose: () => void;
@@ -52,6 +59,7 @@ export function PlanExportModal({
   isOpen,
   plan,
   weekDay,
+  isWeekOnScreen,
   canExportInternal,
   onClose,
 }: PlanExportModalProps) {
@@ -232,7 +240,9 @@ export function PlanExportModal({
             onValueChange={(value) => setRangeMode(value as RangeMode)}
           >
             <TabsList>
-              <TabsTrigger value="week">Angezeigte Woche</TabsTrigger>
+              <TabsTrigger value="week">
+                {isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche"}
+              </TabsTrigger>
               <TabsTrigger value="range">Mehrere Wochen</TabsTrigger>
             </TabsList>
           </Tabs>
