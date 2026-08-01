@@ -10,7 +10,6 @@ import {
   fireEvent,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { todayISO } from "~/lib/date-helpers";
 
 function createLocalStorageMock() {
   const store: Record<string, string> = {};
@@ -360,29 +359,6 @@ vi.mock("~/components/students/student-card", () => ({
   ),
 }));
 
-// Mock pickup schedule API
-const mockFetchBulkPickupTimes = vi.fn(() =>
-  Promise.resolve(
-    new Map<
-      string,
-      {
-        pickupTime: string;
-        isException: boolean;
-        dayNotes?: { id: string; content: string }[];
-      }
-    >(),
-  ),
-);
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: (
-    ...args: Parameters<typeof mockFetchBulkPickupTimes>
-  ) => mockFetchBulkPickupTimes(...args),
-}));
-
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
 // Mock lucide-react icons
 vi.mock("lucide-react", () => ({
   Clock: ({ className }: { className?: string }) => (
@@ -451,9 +427,52 @@ vi.mock("~/lib/swr", () => ({
 
 import { useSWRAuth } from "~/lib/swr";
 import { isHomeLocation } from "~/lib/location-helper";
-import { studentService } from "~/lib/api";
 import { groupTransferService } from "~/lib/group-transfer-api";
+import type {
+  OgsLiveViewData,
+  OgsLiveWireStudent,
+} from "~/lib/ogs-group-live-api";
 import OGSGroupPage from "./page";
+
+// ── Aggregated live-view mock builders (#2056) ──────────────────────────────
+// The page now consumes ONE useSWRAuth call returning OgsLiveViewData (the
+// already-mapped view model — mapping from the backend wire shape is tested
+// separately in src/lib/ogs-group-live-api.test.ts). These builders keep the
+// many mock blocks below readable.
+function liveData(overrides: Partial<OgsLiveViewData> = {}): OgsLiveViewData {
+  return {
+    groups: [
+      {
+        id: "1",
+        name: "OGS Gruppe A",
+        roomId: "10",
+        roomName: "Raum 101",
+        viaSubstitution: false,
+      },
+    ],
+    groupId: "1",
+    students: [],
+    roomStatus: {},
+    pickupTimes: new Map(),
+    trackingIndicators: { labels: [], results: {} },
+    transfers: [],
+    ...overrides,
+  };
+}
+
+function wireStudent(
+  overrides: Partial<OgsLiveWireStudent> &
+    Pick<OgsLiveWireStudent, "id" | "first_name" | "last_name">,
+): OgsLiveWireStudent {
+  return {
+    school_class: "",
+    current_location: "",
+    sick: false,
+    excused: false,
+    class_trip: false,
+    ...overrides,
+  };
+}
 
 describe("OGSGroupPage", () => {
   const mockMutate = vi.fn();
@@ -498,14 +517,7 @@ describe("OGSGroupPage", () => {
   it("shows no access state when user has no OGS groups", async () => {
     // Mock SWR to return empty data indicating no access
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [],
-        students: [],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: null,
-      },
+      data: liveData({ groups: [], groupId: null }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -557,33 +569,17 @@ describe("OGSGroupPage", () => {
 
   it("displays group data when available", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -599,48 +595,35 @@ describe("OGSGroupPage", () => {
 
   it("shows sick and excused counts in the selected group summary", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
+          wireStudent({
             id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
             sick: true,
-          },
-          {
+          }),
+          wireStudent({
             id: 2,
             first_name: "Mia",
             last_name: "Musterfrau",
             current_location: "Zuhause",
             excused: true,
-          },
-          {
+          }),
+          wireStudent({
             id: 3,
             first_name: "Ben",
             last_name: "Beispiel",
             current_location: "Raum 101",
-          },
+          }),
         ],
         roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-            "2": { in_group_room: false },
-            "3": { in_group_room: true },
-          },
+          "1": { in_group_room: true },
+          "2": { in_group_room: false },
+          "3": { in_group_room: true },
         },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -657,47 +640,32 @@ describe("OGSGroupPage", () => {
     });
   });
 
-  it("converts BFF pickup times array to Map and displays pickup time", async () => {
+  it("renders the student card with pickup time from the aggregated pickupTimes Map", async () => {
+    // Array→Map wire conversion is tested in ogs-group-live-api.test.ts;
+    // the page only ever sees the already-mapped Map.
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
-            second_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        // BFF returns pickup times as array (backend format)
-        pickupTimes: [
-          {
-            student_id: 1,
-            date: "2026-02-04",
-            weekday_name: "Mittwoch",
-            pickup_time: "15:30",
-            is_exception: false,
-            day_notes: [{ id: 1, content: "Test note" }],
-            notes: "Parent pickup",
-          },
-        ],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: new Map([
+          [
+            "1",
+            {
+              pickupTime: "15:30",
+              isException: false,
+              notes: "Parent pickup",
+              dayNotes: [{ id: "1", content: "Test note" }],
+            },
+          ],
+        ]),
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -714,49 +682,33 @@ describe("OGSGroupPage", () => {
     });
   });
 
-  it("handles BFF pickup times with day notes correctly", async () => {
+  it("handles pickup times with day notes correctly", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
-            second_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [
-          {
-            student_id: 1,
-            date: "2026-02-04",
-            weekday_name: "Mittwoch",
-            pickup_time: "16:00",
-            is_exception: true,
-            day_notes: [
-              { id: 1, content: "Note 1" },
-              { id: 2, content: "Note 2" },
-            ],
-            notes: "Multiple notes test",
-          },
-        ],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: new Map([
+          [
+            "1",
+            {
+              pickupTime: "16:00",
+              isException: true,
+              notes: "Multiple notes test",
+              dayNotes: [
+                { id: "1", content: "Note 1" },
+                { id: "2", content: "Note 2" },
+              ],
+            },
+          ],
+        ]),
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -771,45 +723,30 @@ describe("OGSGroupPage", () => {
     });
   });
 
-  it("handles BFF pickup times without day notes", async () => {
+  it("handles pickup times without day notes", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
-            second_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [
-          {
-            student_id: 1,
-            date: "2026-02-04",
-            weekday_name: "Mittwoch",
-            pickup_time: "14:00",
-            is_exception: false,
-            // No day_notes - tests null coalescing
-          },
-        ],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: new Map([
+          [
+            "1",
+            {
+              pickupTime: "14:00",
+              isException: false,
+              notes: undefined,
+              dayNotes: [],
+            },
+          ],
+        ]),
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -824,424 +761,78 @@ describe("OGSGroupPage", () => {
     });
   });
 
-  it("syncs pickup times from SWR students data when pickupTimes is a Map", async () => {
-    // This test covers the `instanceof Map` branch in the SWR students sync useEffect.
-    // The second useSWRAuth call (students SWR) returns pickupTimes as a Map,
-    // which triggers `setPickupTimes(swrStudentsData.pickupTimes)`.
-    const pickupMap = new Map([
-      [
-        "1",
-        {
-          studentId: "1",
-          date: "2026-02-05",
-          weekdayName: "Donnerstag",
-          pickupTime: "15:30",
-          isException: false,
-          dayNotes: [],
-          notes: undefined,
-        },
-      ],
-    ]);
-
-    // IMPORTANT: Stable references prevent infinite re-render loops
-    const studentsSwrResult = {
-      data: {
-        students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
-            first_name: "Max",
-            second_name: "Mustermann",
-            current_location: "Raum 101",
-          },
-        ],
-        roomStatus: { "1": { in_group_room: true } },
-        pickupTimes: pickupMap,
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    const dashboardSwrResult = {
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
-        students: [
-          {
-            id: 1,
-            first_name: "Max",
-            last_name: "Mustermann",
-            current_location: "Raum 101",
-          },
-        ],
-        roomStatus: {
-          group_has_room: true,
-          student_room_status: { "1": { in_group_room: true } },
-        },
-        substitutions: [],
-        pickupTimes: [
-          {
-            student_id: 1,
-            date: "2026-02-05",
-            weekday_name: "Donnerstag",
-            pickup_time: "15:30",
-            is_exception: false,
-          },
-        ],
-        firstGroupId: "1",
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
-      if (typeof key === "string" && key.startsWith("ogs-students-")) {
-        return studentsSwrResult;
-      }
-      return dashboardSwrResult;
-    }) as unknown as typeof useSWRAuth);
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-card")).toBeInTheDocument();
-      expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
-    });
-  });
-
-  it("executes SWR students fetcher with pickup times", async () => {
-    // This test captures and directly invokes the fetcher function passed to
-    // the second useSWRAuth call (ogs-students-*), covering the SWR fetcher body
-    // that is normally never executed because useSWRAuth is mocked.
-    interface SwrFetcherResult {
-      students: { id: string }[];
-      pickupTimes: Map<string, unknown>;
-      roomStatus: Record<string, unknown> | undefined;
-    }
-    let capturedStudentsFetcher: (() => Promise<SwrFetcherResult>) | null =
-      null;
-
-    const dashboardResult = {
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
-        students: [
-          {
-            id: 1,
-            first_name: "Max",
-            last_name: "Mustermann",
-            current_location: "Raum 101",
-          },
-        ],
-        roomStatus: {
-          group_has_room: true,
-          student_room_status: { "1": { in_group_room: true } },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    const nullResult = {
-      data: null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
+  it("invokes fetchOgsGroupLive (GET /api/ogs-group-live) via the SWR fetcher", async () => {
+    // Captures and directly invokes the fetcher function passed to
+    // useSWRAuth, covering the SWR fetcher body that is normally never
+    // executed because useSWRAuth is mocked. The wire→view mapping itself
+    // (mapOgsGroupLiveResponse) is covered by ogs-group-live-api.test.ts.
+    let capturedFetcher: (() => Promise<OgsLiveViewData>) | null = null;
+    // IMPORTANT: a stable reference — a new object per render would make
+    // the page's sync effect (which depends on this reference) refire
+    // every render and loop forever.
+    const stableData = liveData();
 
     vi.mocked(useSWRAuth).mockImplementation(((
-      key: string | null,
-      fetcher?: () => Promise<unknown>,
+      _key: string | null,
+      fetcher?: () => Promise<OgsLiveViewData>,
     ) => {
-      if (typeof key === "string" && key.startsWith("ogs-students-")) {
-        capturedStudentsFetcher = fetcher as typeof capturedStudentsFetcher;
-        return nullResult;
-      }
-      if (key === "ogs-dashboard") return dashboardResult;
-      return nullResult;
+      capturedFetcher = fetcher ?? null;
+      return {
+        data: stableData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
     }) as unknown as typeof useSWRAuth);
 
-    render(<OGSGroupPage />);
-
-    // Wait for re-render so the students SWR key becomes non-null
-    await waitFor(() => {
-      expect(capturedStudentsFetcher).not.toBeNull();
-    });
-
-    // Set up mocks for the fetcher's dependencies
-    vi.mocked(studentService.getStudents).mockResolvedValue({
-      students: [
-        {
-          id: "1",
-          name: "Max Mustermann",
-          first_name: "Max",
-          second_name: "Mustermann",
-          school_class: "1a",
-          current_location: "Raum 101",
-        },
-      ] as never,
-      total: 1,
-    } as never);
-
-    vi.mocked(global.fetch).mockResolvedValueOnce({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
+        success: true,
         data: {
-          student_room_status: { "1": { in_group_room: true } },
+          groups: [],
+          students: [],
+          room_status: {},
+          pickup_times: [],
+          tracking_indicators: { labels: [], results: {} },
+          transfers: [],
         },
       }),
-    } as Response);
-
-    const pickupMap = new Map([
-      [
-        "1",
-        {
-          studentId: "1",
-          date: "2026-02-05",
-          weekdayName: "Donnerstag",
-          pickupTime: "15:30",
-          isException: false,
-          dayNotes: [] as { id: string; content: string }[],
-          notes: undefined,
-        },
-      ],
-    ]);
-    mockFetchBulkPickupTimes.mockResolvedValueOnce(pickupMap);
-
-    // Invoke the captured fetcher directly to cover lines 444-496
-    const result = await capturedStudentsFetcher!();
-
-    expect(result.students).toHaveLength(1);
-    expect(result.pickupTimes).toBeInstanceOf(Map);
-    expect(result.pickupTimes.get("1")).toBeDefined();
-    expect(result.roomStatus).toEqual({ "1": { in_group_room: true } });
-  });
-
-  it("SWR students fetcher returns empty pickup times when fetch fails", async () => {
-    // Covers the catch branch in the SWR fetcher for fetchBulkPickupTimes
-    interface SwrFetcherResult {
-      students: { id: string }[];
-      pickupTimes: Map<string, unknown>;
-      roomStatus: Record<string, unknown> | undefined;
-    }
-    let capturedStudentsFetcher: (() => Promise<SwrFetcherResult>) | null =
-      null;
-
-    const dashboardResult = {
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
-        students: [
-          {
-            id: 1,
-            first_name: "Max",
-            last_name: "Mustermann",
-          },
-        ],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    const nullResult = {
-      data: null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    vi.mocked(useSWRAuth).mockImplementation(((
-      key: string | null,
-      fetcher?: () => Promise<unknown>,
-    ) => {
-      if (typeof key === "string" && key.startsWith("ogs-students-")) {
-        capturedStudentsFetcher = fetcher as typeof capturedStudentsFetcher;
-        return nullResult;
-      }
-      if (key === "ogs-dashboard") return dashboardResult;
-      return nullResult;
-    }) as unknown as typeof useSWRAuth);
+    });
 
     render(<OGSGroupPage />);
 
     await waitFor(() => {
-      expect(capturedStudentsFetcher).not.toBeNull();
+      expect(capturedFetcher).not.toBeNull();
     });
 
-    vi.mocked(studentService.getStudents).mockResolvedValue({
-      students: [
-        {
-          id: "1",
-          name: "Max Mustermann",
-          first_name: "Max",
-          second_name: "Mustermann",
-        },
-      ] as never,
-      total: 1,
-    } as never);
+    await capturedFetcher!();
 
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-    } as Response);
-
-    // fetchBulkPickupTimes throws
-    mockFetchBulkPickupTimes.mockRejectedValueOnce(
-      new Error("Pickup times fetch failed"),
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/ogs-group-live"),
+      expect.any(Object),
     );
-
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
-
-    const result = await capturedStudentsFetcher!();
-
-    // Should still return students but with empty pickup times Map
-    expect(result.students).toHaveLength(1);
-    expect(result.pickupTimes).toBeInstanceOf(Map);
-    expect(result.pickupTimes.size).toBe(0);
-    // Room status fetch failed (ok: false), so should be null/undefined
-    expect(result.roomStatus).toBeUndefined();
-
-    consoleSpy.mockRestore();
   });
 
-  it("SWR students fetcher skips pickup times when no students", async () => {
-    // Covers the `if (students.length > 0)` false branch in the SWR fetcher
-    interface SwrFetcherResult {
-      students: { id: string }[];
-      pickupTimes: Map<string, unknown>;
-      roomStatus: Record<string, unknown> | undefined;
-    }
-    let capturedStudentsFetcher: (() => Promise<SwrFetcherResult>) | null =
-      null;
-
-    const dashboardResult = {
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
-        students: [],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    const nullResult = {
-      data: null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-
-    vi.mocked(useSWRAuth).mockImplementation(((
-      key: string | null,
-      fetcher?: () => Promise<unknown>,
-    ) => {
-      if (typeof key === "string" && key.startsWith("ogs-students-")) {
-        capturedStudentsFetcher = fetcher as typeof capturedStudentsFetcher;
-        return nullResult;
-      }
-      if (key === "ogs-dashboard") return dashboardResult;
-      return nullResult;
-    }) as unknown as typeof useSWRAuth);
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(capturedStudentsFetcher).not.toBeNull();
-    });
-
-    vi.mocked(studentService.getStudents).mockResolvedValue({
-      students: [],
-      total: 0,
-    } as never);
-
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: { student_room_status: {} } }),
-    } as Response);
-
-    const result = await capturedStudentsFetcher!();
-
-    expect(result.students).toHaveLength(0);
-    expect(result.pickupTimes).toBeInstanceOf(Map);
-    expect(result.pickupTimes.size).toBe(0);
-    // fetchBulkPickupTimes should NOT have been called
-    expect(mockFetchBulkPickupTimes).not.toHaveBeenCalled();
-  });
-
-  it("maps BFF students with missing optional fields", async () => {
+  it("maps aggregated students with missing optional fields", async () => {
     // Covers null coalescing branches in student mapping (school_class ?? "", etc.)
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
           {
             id: 1,
             first_name: "Max",
             last_name: "Mustermann",
-            // Intentionally missing: school_class, current_location,
-            // location_since, group_id, group_name
+            school_class: "",
+            current_location: "",
+            sick: false,
+            excused: false,
+            class_trip: false,
+            // Intentionally missing: location_since and other optional fields
           },
         ],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1257,35 +848,23 @@ describe("OGSGroupPage", () => {
     });
   });
 
-  it("forwards current_room_color from BFF dashboard data to the badge", async () => {
-    // Regression guard: the dashboard-data → local-state mapping previously
+  it("forwards current_room_color from the aggregated live data to the badge", async () => {
+    // Regression guard: the live-data → local-state mapping previously
     // dropped current_room_color, so navigating away and back into a group
     // reverted custom room badges to the OTHER_ROOM blue fallback.
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
+          wireStudent({
             id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             school_class: "1a",
             current_location: "Anwesend - Raum 101",
             current_room_color: "#A3D977",
-          },
+          }),
         ],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1368,21 +947,7 @@ describe("OGSGroupPage additional scenarios", () => {
 
   it("shows empty students state when group has no students", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
-        students: [], // No students
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      data: liveData({ students: [] }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1398,50 +963,33 @@ describe("OGSGroupPage additional scenarios", () => {
 
   it("renders multiple students in grid", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
-          {
-            id: "2",
-            name: "Erika Schmidt",
+          }),
+          wireStudent({
+            id: 2,
             first_name: "Erika",
             last_name: "Schmidt",
             current_location: "Raum 101",
-          },
-          {
-            id: "3",
-            name: "Hans Mueller",
+          }),
+          wireStudent({
+            id: 3,
             first_name: "Hans",
             last_name: "Mueller",
             current_location: "Raum 101",
-          },
+          }),
         ],
         roomStatus: {
-          group_has_room: true,
-          student_room_status: {
-            "1": { in_group_room: true },
-            "2": { in_group_room: true },
-            "3": { in_group_room: true },
-          },
+          "1": { in_group_room: true },
+          "2": { in_group_room: true },
+          "3": { in_group_room: true },
         },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1474,33 +1022,17 @@ describe("OGSGroupPage additional scenarios", () => {
 
   it("shows transfer modal component", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1516,34 +1048,26 @@ describe("OGSGroupPage additional scenarios", () => {
 
   it("displays via substitution badge when group is via substitution", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
+      data: liveData({
         groups: [
           {
-            id: 1,
+            id: "1",
             name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-            via_substitution: true, // This group is via substitution
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: true, // This group is via substitution
           },
         ],
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1557,47 +1081,31 @@ describe("OGSGroupPage additional scenarios", () => {
     });
   });
 
-  it("converts substitutions to active transfers format", async () => {
+  it("shows the active-transfer badge from the server-provided transfers list", async () => {
+    // The substitutions→transfers filter/mapping now lives server-side
+    // (mapOgsGroupLiveResponse); the page just renders whatever `transfers`
+    // the aggregate response carries.
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [
+        roomStatus: { "1": { in_group_room: true } },
+        transfers: [
           {
-            id: 100,
-            group_id: 1,
-            regular_staff_id: null, // This indicates it's a group transfer
-            substitute_staff_id: 200,
-            substitute_staff: {
-              person: { first_name: "Anna", last_name: "Lehrer" },
-            },
-            start_date: "2024-01-15",
-            end_date: "2024-01-20",
+            substitutionId: "100",
+            groupId: "1",
+            targetStaffId: "200",
+            targetName: "Anna Lehrer",
+            validUntil: "2024-01-20",
           },
         ],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -1608,6 +1116,9 @@ describe("OGSGroupPage additional scenarios", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
+      expect(screen.getByTestId("overflow-Gruppe übergeben")).toHaveTextContent(
+        "(1)",
+      );
     });
   });
 });
@@ -2005,43 +1516,6 @@ describe("OGSGroupPage switchToGroup behavior", () => {
   it("sets error message on fetch failure", () => {
     const errorMessage = "Fehler beim Laden der Gruppendaten.";
     expect(errorMessage).toBe("Fehler beim Laden der Gruppendaten.");
-  });
-});
-
-describe("OGSGroupPage loadGroupRoomStatus behavior", () => {
-  it("extracts student room status from response", () => {
-    const response = {
-      success: true,
-      message: "OK",
-      data: {
-        group_has_room: true,
-        group_room_id: 101,
-        student_room_status: {
-          "1": { in_group_room: true, current_room_id: 101 },
-          "2": { in_group_room: false, current_room_id: 202 },
-        },
-      },
-    };
-
-    const roomStatus = response.data?.student_room_status;
-
-    expect(roomStatus).toBeDefined();
-    expect(roomStatus?.["1"]?.in_group_room).toBe(true);
-    expect(roomStatus?.["2"]?.in_group_room).toBe(false);
-  });
-
-  it("handles missing student room status", () => {
-    const response = {
-      success: true,
-      message: "OK",
-      data: {
-        group_has_room: false,
-        student_room_status: undefined,
-      },
-    };
-
-    const roomStatus = response.data?.student_room_status;
-    expect(roomStatus).toBeUndefined();
   });
 });
 
@@ -2666,91 +2140,63 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       vi.mocked(isHomeLocation).mockReturnValue(false);
     }
 
-    // Return pickup times when fetched (for SWR refetch)
-    mockFetchBulkPickupTimes.mockResolvedValue(pickupMap);
-
-    // Convert pickupMap to BFF response format (array of BackendPickupTime objects)
-    const pickupTimesArray = Array.from(pickupMap.entries()).map(
-      ([studentId, pickup]) => ({
-        student_id: parseInt(studentId, 10),
-        date: todayISO(),
-        weekday_name: "Mittwoch",
-        pickup_time: pickup.pickupTime,
-        is_exception: pickup.isException,
-        day_notes: pickup.dayNotes?.map((n) => ({
-          id: parseInt(n.id, 10),
-          content: n.content,
-        })),
-      }),
+    // Already-mapped pickupTimes Map, as the aggregate response provides it
+    // (array→Map wire conversion is covered by ogs-group-live-api.test.ts).
+    const pickupTimes = new Map(
+      Array.from(pickupMap.entries()).map(([studentId, pickup]) => [
+        studentId,
+        {
+          pickupTime: pickup.pickupTime,
+          isException: pickup.isException,
+          notes: undefined,
+          dayNotes: pickup.dayNotes ?? [],
+        },
+      ]),
     );
 
-    // Two SWR calls: dashboard (first) and students (second)
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: {
-          groups: [
-            {
-              id: 1,
-              name: "OGS Gruppe A",
-              room_id: 10,
-              room: { id: 10, name: "Raum 101" },
-            },
-          ],
-          students: [
-            {
-              id: "1",
-              name: "Anna Becker",
-              first_name: "Anna",
-              last_name: "Becker",
-              current_location: "Raum 101",
-              actual_arrival_time: studentActuals?.["1"]?.actualArrivalTime,
-              actual_pickup_time: studentActuals?.["1"]?.actualPickupTime,
-              ...studentOverrides?.["1"],
-            },
-            {
-              id: "2",
-              name: "Max Zeller",
-              first_name: "Max",
-              last_name: "Zeller",
-              current_location: "Raum 101",
-              actual_arrival_time: studentActuals?.["2"]?.actualArrivalTime,
-              actual_pickup_time: studentActuals?.["2"]?.actualPickupTime,
-              ...studentOverrides?.["2"],
-            },
-            {
-              id: "3",
-              name: "Lena Mueller",
-              first_name: "Lena",
-              last_name: "Mueller",
-              current_location: "Zuhause",
-              actual_arrival_time: studentActuals?.["3"]?.actualArrivalTime,
-              actual_pickup_time: studentActuals?.["3"]?.actualPickupTime,
-              ...studentOverrides?.["3"],
-            },
-          ],
-          roomStatus: {
-            student_room_status: {
-              "1": { in_group_room: true },
-              "2": { in_group_room: true },
-              "3": { in_group_room: false },
-            },
-          },
-          substitutions: [],
-          pickupTimes: pickupTimesArray,
-          firstGroupId: "1",
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Anna",
+            last_name: "Becker",
+            current_location: "Raum 101",
+            actual_arrival_time: studentActuals?.["1"]?.actualArrivalTime,
+            actual_pickup_time: studentActuals?.["1"]?.actualPickupTime,
+            ...studentOverrides?.["1"],
+          }),
+          wireStudent({
+            id: 2,
+            first_name: "Max",
+            last_name: "Zeller",
+            current_location: "Raum 101",
+            actual_arrival_time: studentActuals?.["2"]?.actualArrivalTime,
+            actual_pickup_time: studentActuals?.["2"]?.actualPickupTime,
+            ...studentOverrides?.["2"],
+          }),
+          wireStudent({
+            id: 3,
+            first_name: "Lena",
+            last_name: "Mueller",
+            current_location: "Zuhause",
+            actual_arrival_time: studentActuals?.["3"]?.actualArrivalTime,
+            actual_pickup_time: studentActuals?.["3"]?.actualPickupTime,
+            ...studentOverrides?.["3"],
+          }),
+        ],
+        roomStatus: {
+          "1": { in_group_room: true },
+          "2": { in_group_room: true },
+          "3": { in_group_room: false },
         },
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue({
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never);
+        pickupTimes,
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
   }
 
   it("passes pickup time props to PickupTimeRow", async () => {
@@ -3036,20 +2482,16 @@ describe("OGSGroupPage rendered pickup urgency", () => {
 
     vi.mocked(isHomeLocation).mockImplementation((loc) => loc === "Zuhause");
 
-    mockFetchBulkPickupTimes.mockResolvedValue(pickupMap);
-
-    const pickupTimesArray = Array.from(pickupMap.entries()).map(
-      ([studentId, pickup]) => ({
-        student_id: parseInt(studentId, 10),
-        date: todayISO(),
-        weekday_name: "Mittwoch",
-        pickup_time: pickup.pickupTime,
-        is_exception: pickup.isException,
-        day_notes: pickup.dayNotes?.map((n) => ({
-          id: parseInt(n.id, 10),
-          content: n.content,
-        })),
-      }),
+    const pickupTimes = new Map(
+      Array.from(pickupMap.entries()).map(([studentId, pickup]) => [
+        studentId,
+        {
+          pickupTime: pickup.pickupTime,
+          isException: pickup.isException,
+          notes: undefined,
+          dayNotes: pickup.dayNotes ?? [],
+        },
+      ]),
     );
 
     const roomStatus: Record<string, { in_group_room: boolean }> = {};
@@ -3059,35 +2501,24 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       };
     }
 
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: {
-          groups: [
-            {
-              id: 1,
-              name: "OGS Gruppe A",
-              room_id: 10,
-              room: { id: 10, name: "Raum 101" },
-            },
-          ],
-          students,
-          roomStatus: { student_room_status: roomStatus },
-          substitutions: [],
-          pickupTimes: pickupTimesArray,
-          firstGroupId: "1",
-        },
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue({
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: students.map((s) =>
+          wireStudent({
+            id: Number(s.id),
+            first_name: s.first_name,
+            last_name: s.last_name,
+            current_location: s.current_location,
+          }),
+        ),
+        roomStatus,
+        pickupTimes,
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
   }
 
   it("sorts same-urgency students by pickup time then name", async () => {
@@ -3821,42 +3252,39 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
     cleanup();
   });
 
+  const groupsAB = [
+    {
+      id: "1",
+      name: "Group A",
+      roomId: "10",
+      roomName: "Raum 101",
+      viaSubstitution: false,
+    },
+    {
+      id: "2",
+      name: "Group B",
+      roomId: "20",
+      roomName: "Raum 202",
+      viaSubstitution: false,
+    },
+  ];
+
   it("resets to first group when previously selected group disappears from list", async () => {
     // Initial render: User has Group A (id=1) and Group B (id=2), Group A selected
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
+      data: liveData({
+        groups: groupsAB,
+        groupId: "1",
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -3869,36 +3297,23 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Now simulate SSE update: Group A (id=1) is removed, only Group B (id=2) remains
-    // This covers lines 255-257: if selectedGroupId doesn't exist, reset to first
+    // Now simulate an aggregate refresh: Group A (id=1) is removed, only
+    // Group B (id=2) remains — the response resolves the caller's remaining
+    // group, so groupId flips to "2".
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
+      data: liveData({
+        groups: [groupsAB[1]!],
+        groupId: "2",
         students: [
-          {
-            id: "2",
-            name: "Erika Schmidt",
+          wireStudent({
+            id: 2,
             first_name: "Erika",
             last_name: "Schmidt",
             current_location: "Raum 202",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "2": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "2",
-      },
+        roomStatus: { "2": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -3913,43 +3328,27 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
     });
   });
 
-  it("keeps selection stable when selected group still exists in refreshed list", async () => {
-    // Setup: User has Group A and Group B, Group B is selected
+  it("keeps selection stable when a refresh resolves a different group", async () => {
+    // Simulate a returning user: Group A is already the persisted selection
+    // (matches the URL/localStorage-restore effect so it stays a no-op),
+    // isolating the behavior under test — an unrelated refresh resolving a
+    // different group must not clobber the currently viewed group's data.
+    localStorage.setItem("sidebar-last-group", "1");
+
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
+      data: liveData({
+        groups: groupsAB,
+        groupId: "1",
         students: [
-          {
-            id: "2",
-            name: "Erika Schmidt",
-            first_name: "Erika",
-            last_name: "Schmidt",
-            second_name: "Schmidt",
-            current_location: "Raum 202",
-          },
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "2": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "2", // Group B selected
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -3959,46 +3358,27 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
     const { rerender } = render(<OGSGroupPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
+      expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
     });
 
-    // SSE update with same groups (e.g., student count changed)
-    // Selection should NOT reset even though firstGroupId is different
+    // Refresh resolves Group B's snapshot (e.g. a stale periodic refresh
+    // raced the selection) while the still-selected group is Group A — the
+    // response is self-describing, so the page must not clobber the
+    // currently viewed group's students with another group's data.
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
+      data: liveData({
+        groups: groupsAB,
+        groupId: "2",
         students: [
-          {
-            id: "2",
-            name: "Erika Schmidt",
+          wireStudent({
+            id: 2,
             first_name: "Erika",
             last_name: "Schmidt",
-            second_name: "Schmidt",
             current_location: "Raum 202",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "2": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1", // First group in alphabetical order
-      },
+        roomStatus: { "2": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4007,9 +3387,11 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
 
     rerender(<OGSGroupPage />);
 
-    // Should still show Group B student (selection not reset)
+    // Should still show Group A's student (selection not reset, Group B's
+    // snapshot was not applied)
     await waitFor(() => {
-      expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
+      expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+      expect(screen.queryByText(/Erika Schmidt/)).not.toBeInTheDocument();
     });
   });
 });
@@ -4057,35 +3439,19 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
       configurable: true,
     });
 
-    // First render with no selectedGroupId (lines 259-264)
+    // First render with no selectedGroupId (adopted from the response)
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4098,46 +3464,41 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Verify first group's students are shown (lines 265)
+    // Verify first group's students are shown
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
   });
 
   it("shows first group students only when first group is selected", async () => {
-    // Mock scenario: User has 2 groups, Group B (id=2) is selected
+    // Mock scenario: User has 2 groups, the response resolves Group A
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
+      data: liveData({
         groups: [
           {
-            id: 1,
+            id: "1",
             name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
           },
           {
-            id: 2,
+            id: "2",
             name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
           },
         ],
+        groupId: "1", // Aggregate resolves the first group's data
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1", // BFF returns first group's data
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4153,225 +3514,58 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
     // Should show Group A students since it's the first group
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
   });
-
-  it("applies a newer BFF snapshot while the first group stays selected", async () => {
-    let dashboardData = {
-      groups: [
-        {
-          id: 1,
-          name: "Group A",
-          room_id: 10,
-          room: { id: 10, name: "Raum 101" },
-        },
-      ],
-      students: [
-        {
-          id: "1",
-          name: "Max Mustermann",
-          first_name: "Max",
-          last_name: "Mustermann",
-          current_location: "Raum 101",
-        },
-      ],
-      roomStatus: {
-        student_room_status: {
-          "1": { in_group_room: true },
-        } as Record<string, { in_group_room: boolean }>,
-      },
-      substitutions: [],
-      pickupTimes: [],
-      firstGroupId: "1",
-    };
-    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => ({
-      data: key === "ogs-dashboard" ? dashboardData : null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    })) as unknown as typeof useSWRAuth);
-
-    const { rerender } = render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
-    });
-
-    dashboardData = {
-      ...dashboardData,
-      students: [
-        {
-          id: "2",
-          name: "Erika Schmidt",
-          first_name: "Erika",
-          last_name: "Schmidt",
-          current_location: "Raum 101",
-        },
-      ],
-      roomStatus: {
-        student_room_status: { "2": { in_group_room: true } },
-      },
-    };
-    rerender(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
-      expect(screen.queryByText(/Max Mustermann/)).not.toBeInTheDocument();
-    });
-  });
-
-  it("does not apply a BFF snapshot older than the current group snapshot", async () => {
-    let dashboardData = {
-      groups: [
-        {
-          id: 1,
-          name: "Group A",
-          room_id: 10,
-          room: { id: 10, name: "Raum 101" },
-        },
-      ],
-      students: [
-        {
-          id: "1",
-          name: "Initial Student",
-          first_name: "Initial",
-          last_name: "Student",
-          current_location: "Raum 101",
-        },
-      ],
-      roomStatus: null,
-      substitutions: [],
-      pickupTimes: [],
-      firstGroupId: "1",
-      clientRequestVersion: 1,
-    };
-    const currentGroupData = {
-      groupId: "1",
-      students: [
-        {
-          id: "2",
-          name: "Fresh Student",
-          first_name: "Fresh",
-          second_name: "Student",
-          current_location: "Raum 101",
-        },
-      ],
-      roomStatus: { "2": { in_group_room: true } },
-      pickupTimes: new Map(),
-      clientRequestVersion: 4,
-    };
-    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => ({
-      data:
-        key === "ogs-dashboard"
-          ? dashboardData
-          : key === "ogs-students-1"
-            ? currentGroupData
-            : null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    })) as unknown as typeof useSWRAuth);
-
-    const { rerender } = render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Fresh Student/)).toBeInTheDocument();
-    });
-
-    dashboardData = {
-      ...dashboardData,
-      students: [
-        {
-          id: "3",
-          name: "Stale Student",
-          first_name: "Stale",
-          last_name: "Student",
-          current_location: "Raum 101",
-        },
-      ],
-      clientRequestVersion: 3,
-    };
-    rerender(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Fresh Student/)).toBeInTheDocument();
-      expect(screen.queryByText(/Stale Student/)).not.toBeInTheDocument();
-    });
-  });
 });
 
 describe("OGSGroupPage ID-based selection: URL param matching", () => {
   const mockMutate = vi.fn();
+  const groupsAB = [
+    {
+      id: "1",
+      name: "Group A",
+      roomId: "10",
+      roomName: "Raum 101",
+      viaSubstitution: false,
+    },
+    {
+      id: "2",
+      name: "Group B",
+      roomId: "20",
+      roomName: "Raum 202",
+      viaSubstitution: false,
+    },
+  ];
 
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-group");
     mockSearchParamsGet.mockReturnValue(null);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: {
-          student_room_status: {
-            "2": { in_group_room: true },
-          },
-        },
-      }),
-    });
-    vi.mocked(studentService.getStudents).mockResolvedValue({
-      students: [
-        {
-          id: "2",
-          name: "Erika Schmidt",
-          first_name: "Erika",
-          last_name: "Schmidt",
-          current_location: "Raum 202",
-        },
-      ],
-    } as never);
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("switches to group when URL param matches a valid group ID", async () => {
-    // Setup: URL has ?group=2, user has Group A (id=1) and Group B (id=2)
+  it("seeds the SWR key from the URL param at mount", async () => {
+    // Setup: URL has ?group=2, user has Group A (id=1) and Group B (id=2).
+    // selectedGroupId is seeded synchronously from the URL param, so the
+    // very first SWR call already targets group 2 — no separate switch step.
     mockSearchParamsGet.mockReturnValue("2");
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
+      data: liveData({
+        groups: groupsAB,
+        groupId: "2",
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
-            first_name: "Max",
-            last_name: "Mustermann",
-            current_location: "Raum 101",
-          },
+          wireStudent({
+            id: 2,
+            first_name: "Erika",
+            last_name: "Schmidt",
+            current_location: "Raum 202",
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "2": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4380,46 +3574,30 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
 
     render(<OGSGroupPage />);
 
-    // Verify switchToGroup was called with ID "2" via studentService (lines 300-306)
+    expect(vi.mocked(useSWRAuth).mock.calls[0]?.[0]).toBe("ogs-students-2");
+
     await waitFor(() => {
-      expect(studentService.getStudents).toHaveBeenCalledWith(
-        expect.objectContaining({ groupId: "2" }),
-      );
+      expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
     });
   });
 
   it("ignores URL param when group ID does not exist in list", async () => {
-    // Setup: URL has ?group=999 (invalid), user has Group A (id=1)
+    // Setup: URL has ?group=999 (invalid), user has Group A (id=1). The
+    // fetcher's stale-selection fallback resolves Group A regardless.
     mockSearchParamsGet.mockReturnValue("999");
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4441,39 +3619,18 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
     mockSearchParamsGet.mockReturnValue("1");
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
+      data: liveData({
+        groups: groupsAB,
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4489,8 +3646,12 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
     // Should show Group A student (no unnecessary switch)
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
 
-    // Should NOT make extra API calls (line 305 early return)
-    expect(global.fetch).not.toHaveBeenCalled();
+    // The SWR key never moves off group 1 — no unnecessary switch happened
+    expect(
+      vi
+        .mocked(useSWRAuth)
+        .mock.calls.every((call) => call[0] === "ogs-students-1"),
+    ).toBe(true);
   });
 });
 
@@ -4503,27 +3664,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParamsGet.mockReturnValue(null);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: {
-          student_room_status: {
-            "2": { in_group_room: true },
-          },
-        },
-      }),
-    });
-    vi.mocked(studentService.getStudents).mockResolvedValue({
-      students: [
-        {
-          id: "2",
-          name: "Erika Schmidt",
-          first_name: "Erika",
-          last_name: "Schmidt",
-          current_location: "Raum 202",
-        },
-      ],
-    } as never);
+    global.fetch = vi.fn();
 
     // Mock localStorage
     localStorageMock = {};
@@ -4557,42 +3698,41 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     });
   });
 
-  it("restores saved group by ID from localStorage when no URL param", async () => {
-    // Setup: localStorage has group ID "2", no URL param
+  it("seeds the SWR key from localStorage when no URL param", async () => {
+    // Setup: localStorage has group ID "2", no URL param. selectedGroupId
+    // is seeded synchronously from localStorage, so the very first SWR
+    // call already targets group 2.
     localStorageMock["sidebar-last-group"] = "2";
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
+      data: liveData({
         groups: [
           {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-          {
-            id: 2,
-            name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
-          },
-        ],
-        students: [
-          {
             id: "1",
-            name: "Max Mustermann",
-            first_name: "Max",
-            last_name: "Mustermann",
-            current_location: "Raum 101",
+            name: "Group A",
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
+          },
+          {
+            id: "2",
+            name: "Group B",
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
           },
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-      },
+        groupId: "2",
+        students: [
+          wireStudent({
+            id: 2,
+            first_name: "Erika",
+            last_name: "Schmidt",
+            current_location: "Raum 202",
+          }),
+        ],
+        roomStatus: { "2": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4601,11 +3741,10 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
 
     render(<OGSGroupPage />);
 
-    // Should restore Group B from localStorage (lines 310-315)
+    expect(vi.mocked(useSWRAuth).mock.calls[0]?.[0]).toBe("ogs-students-2");
+
     await waitFor(() => {
-      expect(studentService.getStudents).toHaveBeenCalledWith(
-        expect.objectContaining({ groupId: "2" }),
-      );
+      expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
     });
   });
 
@@ -4615,33 +3754,17 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     mockSearchParamsGet.mockReturnValue(null);
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4654,7 +3777,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Should persist first group to localStorage (lines 317-321)
+    // Should persist first group to localStorage
     await waitFor(() => {
       expect(localStorageMock["sidebar-last-group"]).toBe("1");
     });
@@ -4666,33 +3789,17 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     mockSearchParamsGet.mockReturnValue(null);
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4705,8 +3812,12 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Should NOT make extra API calls (line 323 early return)
-    expect(global.fetch).not.toHaveBeenCalled();
+    // The SWR key never moves off group 1 — no unnecessary switch happened
+    expect(
+      vi
+        .mocked(useSWRAuth)
+        .mock.calls.every((call) => call[0] === "ogs-students-1"),
+    ).toBe(true);
   });
 });
 
@@ -4726,33 +3837,17 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
 
   it("is a no-op when switching to non-existent group ID", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4765,40 +3860,24 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Try to switch to non-existent group ID (lines 633-634)
-    // This should be a no-op — no API calls made
+    // Try to switch to non-existent group ID — this should be a no-op, no
+    // network calls made (the SWR fetcher itself is mocked away)
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("is a no-op when switching to already selected group ID", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -4811,8 +3890,7 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Try to switch to already selected group (line 632)
-    // Should be a no-op
+    // Try to switch to already selected group — should be a no-op
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
@@ -4824,27 +3902,7 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-group");
     mockSearchParamsGet.mockReturnValue(null);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        students: [
-          {
-            id: "2",
-            name: "Erika Schmidt",
-            first_name: "Erika",
-            last_name: "Schmidt",
-            current_location: "Raum 202",
-          },
-          {
-            id: "3",
-            name: "Hans Mueller",
-            first_name: "Hans",
-            last_name: "Mueller",
-            current_location: "Raum 202",
-          },
-        ],
-      }),
-    });
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
@@ -4852,53 +3910,39 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
   });
 
   it("updates student count by group ID after loading students", async () => {
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: {
-          groups: [
-            {
-              id: 1,
-              name: "Group A",
-              room_id: 10,
-              room: { id: 10, name: "Raum 101" },
-            },
-            {
-              id: 2,
-              name: "Group B",
-              room_id: 20,
-              room: { id: 20, name: "Raum 202" },
-            },
-          ],
-          students: [
-            {
-              id: "1",
-              name: "Max Mustermann",
-              first_name: "Max",
-              last_name: "Mustermann",
-              current_location: "Raum 101",
-            },
-          ],
-          roomStatus: {
-            student_room_status: {
-              "1": { in_group_room: true },
-            },
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        groups: [
+          {
+            id: "1",
+            name: "Group A",
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
           },
-          substitutions: [],
-          pickupTimes: [],
-          firstGroupId: "1",
-        },
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue({
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never);
+          {
+            id: "2",
+            name: "Group B",
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
+          },
+        ],
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
 
     render(<OGSGroupPage />);
 
@@ -4906,7 +3950,8 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Verify student count update logic would use group.id === groupId (lines 653-657)
+    // Group A's count (student_count) is derived from the aggregate
+    // response for the loaded group ID.
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
   });
 });
@@ -4918,20 +3963,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParamsGet.mockReturnValue(null);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        students: [
-          {
-            id: "2",
-            name: "Erika Schmidt",
-            first_name: "Erika",
-            last_name: "Schmidt",
-            current_location: "Raum 202",
-          },
-        ],
-      }),
-    });
+    global.fetch = vi.fn();
 
     // Mock localStorage
     const localStorageMock: Record<string, string> = {};
@@ -4966,53 +3998,39 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
 
   it("finds group by ID when tab changes", async () => {
     // Setup: Multiple groups, tabs visible
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: {
-          groups: [
-            {
-              id: 1,
-              name: "Group A",
-              room_id: 10,
-              room: { id: 10, name: "Raum 101" },
-            },
-            {
-              id: 2,
-              name: "Group B",
-              room_id: 20,
-              room: { id: 20, name: "Raum 202" },
-            },
-          ],
-          students: [
-            {
-              id: "1",
-              name: "Max Mustermann",
-              first_name: "Max",
-              last_name: "Mustermann",
-              current_location: "Raum 101",
-            },
-          ],
-          roomStatus: {
-            student_room_status: {
-              "1": { in_group_room: true },
-            },
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        groups: [
+          {
+            id: "1",
+            name: "Group A",
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
           },
-          substitutions: [],
-          pickupTimes: [],
-          firstGroupId: "1",
-        },
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue({
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never);
+          {
+            id: "2",
+            name: "Group B",
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
+          },
+        ],
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
 
     render(<OGSGroupPage />);
 
@@ -5020,14 +4038,15 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // Simulate tab change to Group B (lines 1122-1133)
-    // The tab handler would find group by ID and call switchToGroup
+    // Simulate tab change to Group B — the handler finds the group by ID,
+    // persists it to localStorage, and calls switchToGroup (which just
+    // changes the SWR key; no direct fetch from the page).
     const tabButton = screen.queryByText("Group B");
     if (tabButton) {
       tabButton.click();
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalled();
+        expect(localStorage.getItem("sidebar-last-group")).toBe("2");
       });
     }
   });
@@ -5049,39 +4068,33 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
   it("finds currentGroup by ID, falls back to first group", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
+      data: liveData({
         groups: [
           {
-            id: 1,
+            id: "1",
             name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
           },
           {
-            id: 2,
+            id: "2",
             name: "Group B",
-            room_id: 20,
-            room: { id: 20, name: "Raum 202" },
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
           },
         ],
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -5094,7 +4107,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    // currentGroup should be found by ID (lines 351-355)
+    // currentGroup should be found by ID.
     // When selectedGroupId=null, it falls back to allGroups[0]
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
   });
@@ -5103,33 +4116,17 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
     // Scenario: selectedGroupId was "999" (doesn't exist)
     // currentGroup useMemo should return allGroups[0]
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "Group A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
+      data: liveData({
         students: [
-          {
-            id: "1",
-            name: "Max Mustermann",
+          wireStudent({
+            id: 1,
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
-          },
+          }),
         ],
-        roomStatus: {
-          student_room_status: {
-            "1": { in_group_room: true },
-          },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+        roomStatus: { "1": { in_group_room: true } },
+      }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -5148,14 +4145,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
   it("returns null when no groups exist", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [],
-        students: [],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: null,
-      },
+      data: liveData({ groups: [], groupId: null }),
       isLoading: false,
       error: null,
       mutate: mockMutate,
@@ -5170,7 +4160,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
       ).toBeInTheDocument();
     });
 
-    // currentGroup useMemo should return null (lines 351-355)
+    // currentGroup useMemo should return null
     expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
   });
 
@@ -5209,21 +4199,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
     ]);
 
     vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        groups: [
-          {
-            id: 1,
-            name: "OGS Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 101" },
-          },
-        ],
-        students: [],
-        roomStatus: null,
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
-      },
+      data: liveData({ students: [] }),
       isLoading: false,
       error: null,
       mutate: mockMutate,

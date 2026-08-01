@@ -120,6 +120,25 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
   };
 }
 
+// Content equality for the group list — used to keep a stable array
+// reference across sync-effect runs that change nothing.
+function areOgsGroupsEqual(a: OGSGroup[], b: OGSGroup[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((group, i) => {
+    const other = b[i];
+    return (
+      !!other &&
+      group.id === other.id &&
+      group.name === other.name &&
+      group.room_id === other.room_id &&
+      group.room_name === other.room_name &&
+      group.student_count === other.student_count &&
+      group.present_count === other.present_count &&
+      group.viaSubstitution === other.viaSubstitution
+    );
+  });
+}
+
 function GroupAbsenceOverview({
   totalStudents,
   sickCount,
@@ -308,8 +327,8 @@ function OGSGroupPageContent() {
         group.present_count = presentCount;
       }
     }
-    setAllGroups((previousGroups) =>
-      ogsGroups.map((group) => {
+    setAllGroups((previousGroups) => {
+      const next = ogsGroups.map((group) => {
         if (group.id === dataGroupId) return group;
         const previous = previousGroups.find((p) => p.id === group.id);
         return previous
@@ -319,8 +338,12 @@ function OGSGroupPageContent() {
               present_count: previous.present_count,
             }
           : group;
-      }),
-    );
+      });
+      // Keep the previous array reference when nothing changed: the URL/
+      // localStorage restore effect depends on allGroups, and a fresh array
+      // per sync run would re-fire it on every revalidation.
+      return areOgsGroupsEqual(previousGroups, next) ? previousGroups : next;
+    });
     if (dataGroupId) {
       setGroupAttendanceCount(dataGroupId, {
         present: presentCount,
@@ -331,11 +354,16 @@ function OGSGroupPageContent() {
     // If no group is selected yet (cold start) or the selected group vanished
     // from the refreshed list (access revoked, stale localStorage — the
     // fetcher already fell back to the first supervised group), adopt the
-    // group the response was resolved for.
+    // group the response was resolved for. Persist it immediately so the
+    // localStorage-restore effect below agrees with the adopted selection and
+    // never "switches back" to a different default.
     const selectedGroupExists =
       !!selectedGroupId && ogsGroups.some((g) => g.id === selectedGroupId);
     if (!selectedGroupExists) {
       setSelectedGroupId(dataGroupId);
+      if (dataGroupId) {
+        localStorage.setItem("sidebar-last-group", dataGroupId);
+      }
     }
 
     // Apply the live sections only when they describe the group being viewed.
