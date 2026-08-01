@@ -131,6 +131,41 @@ func registerEnrollmentCareOfferings() {
 	// enrollment.care_offerings_required moved to per-phase
 	// care_offering_selection_mode. Migration 1.15.97 backfills existing
 	// phases from the old setting and then removes stored overrides.
+
+	// Post-enrollment changes (#1665). Deliberately NOT dependent on
+	// enrollment.enabled: a school can close its online enrollment for the year
+	// and still let families change their booking. The gate is off by default —
+	// every approved change moves a child between groups and touches capacity
+	// and staff planning, so a school opts in.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentOfferingChangesEnabled,
+		Label:           "Änderungsanfragen zu Betreuungsangeboten erlauben",
+		Description:     "Eltern können in der Eltern-App eine Änderung der gebuchten Betreuungsangebote und AGs beantragen. Die Änderung gilt erst nach Freigabe durch die OGS.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "betreuungsangebote",
+		SortOrder:       31,
+	})
+
+	minLeadDays := float64(0)
+	maxLeadDays := float64(90)
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentOfferingChangesLeadDays,
+		Label:           "Vorlaufzeit für Änderungen (Tage)",
+		Description:     "Wie viele Tage im Voraus eine beantragte Änderung frühestens wirksam werden darf. 0 bedeutet: ab morgen.",
+		Type:            config.FieldNumber,
+		Default:         14,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "betreuungsangebote",
+		SortOrder:       32,
+		Validation:      &config.ValidationRules{Min: &minLeadDays, Max: &maxLeadDays},
+		DependsOn:       config.DependsOnEq(config.KeyEnrollmentOfferingChangesEnabled, true),
+	})
 }
 
 func registerEnrollmentNotifications() {

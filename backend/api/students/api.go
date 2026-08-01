@@ -66,6 +66,9 @@ type ResourceConfig struct {
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
+	// OfferingChangeService backs the post-enrollment offering-change queue
+	// (#1665).
+	OfferingChangeService   enrollmentService.OfferingChangeRequestService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
@@ -145,6 +148,12 @@ func (rs *Resource) Router() chi.Router {
 		// on the same Änderungsanfragen page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+
+		// Post-enrollment offering change requests (#1665). Approving one moves
+		// the child between activity groups on a chosen date, so it shares the
+		// users:update gate of the queues it sits next to on the same page.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
 		// Excused-absence approval requests (#1845): staff review queue.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)

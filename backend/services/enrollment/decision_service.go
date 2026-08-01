@@ -123,6 +123,12 @@ type UpdateChildOfferingsInput struct {
 	Reason         string
 	ActorAccountID int64
 	ActorRole      string
+	// EffectiveFrom turns the adjustment into a dated switch instead of a
+	// retroactive correction: enrollment rows that already started keep their
+	// history and are capped at this date, and the new selection starts here.
+	// Nil keeps the correction semantics (replace the whole phase window),
+	// which is what an admin fixing a typo in the original submission wants.
+	EffectiveFrom *timezone.Date
 }
 
 type SyncApprovedChildDataInput struct {
@@ -479,13 +485,21 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
+	request, err := s.RequestRepo.FindByID(ctx, requestID)
+	if err != nil || request == nil {
+		return nil, fmt.Errorf("decision: load request for offerings: %w", err)
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil || phase == nil {
+		return nil, fmt.Errorf("decision: load phase for offerings: %w", err)
+	}
 	children, err := s.RequestChildRepo.ListByRequestID(ctx, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
-		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, reportOfferingDate(phase))
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
@@ -589,7 +603,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, reportOfferingDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
@@ -737,7 +751,6 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		}
 	}
 
-	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
 	childrenByRequest := groupChildrenByRequest(filteredChildren, len(reqIDs))
 
 	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
@@ -748,6 +761,16 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		}
 		phases[phaseID] = phase
 	}
+	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(filteredChildren))
+	for _, child := range filteredChildren {
+		childrenByID[child.ID] = child
+	}
+	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	for _, request := range requests {
+		requestsByID[request.ID] = request
+	}
+	links = filterOfferingsAtPhaseDate(links, childrenByID, requestsByID, phases)
+	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
 
 	schemas := make(map[int64]*enrollmentModels.FormSchema)
 	for _, req := range requests {
@@ -795,6 +818,38 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 // file when this errors. The DataAccessLog repo populates tenant_id
 // from the context's tenant transaction, so this must be called inside
 // one.
+
+func filterOfferingsAtPhaseDate(
+	links []*enrollmentModels.RequestChildOffering,
+	childrenByID map[int64]*enrollmentModels.RequestChild,
+	requestsByID map[int64]*enrollmentModels.Request,
+	phases map[int64]*enrollmentModels.Phase,
+) []*enrollmentModels.RequestChildOffering {
+	filtered := make([]*enrollmentModels.RequestChildOffering, 0, len(links))
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		child := childrenByID[link.RequestChildID]
+		if child == nil {
+			continue
+		}
+		request := requestsByID[child.RequestID]
+		if request == nil {
+			continue
+		}
+		phase := phases[request.PhaseID]
+		if phase == nil {
+			continue
+		}
+		onDate := reportOfferingDate(phase)
+		if (link.ValidFrom == nil || !link.ValidFrom.After(onDate)) &&
+			(link.ValidUntil == nil || link.ValidUntil.After(onDate)) {
+			filtered = append(filtered, link)
+		}
+	}
+	return filtered
+}
 
 // groupOfferingsByChild resolves each child->offering link against the
 // offering catalog and groups the rows per request child. Shared by the
@@ -2326,6 +2381,19 @@ func (s *decisionService) materializeEnrollments(
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 ) error {
+	return s.materializeEnrollmentsFrom(ctx, requestChildID, studentID, phase, nil)
+}
+
+// materializeEnrollmentsFrom is materializeEnrollments with an optional start
+// override. startFrom is set when a dated adjustment replaces only the part of
+// the phase window from that date onward; the rows before it were capped, not
+// deleted, so the new rows must not reach back over them.
+func (s *decisionService) materializeEnrollmentsFrom(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+	startFrom *timezone.Date,
+) error {
 	if !s.hasEnrollmentMaterializationDependencies() {
 		// Wired without the offering repos: skip silently. Approvals
 		// will still create the student record; the admin can attach
@@ -2342,7 +2410,7 @@ func (s *decisionService) materializeEnrollments(
 	if err != nil {
 		return err
 	}
-	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts)
+	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, startFrom)
 }
 
 func (s *decisionService) hasEnrollmentMaterializationDependencies() bool {
@@ -2361,10 +2429,25 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 	requestChildID int64,
 	phase *enrollmentModels.Phase,
 ) (map[int64]*careEnrollmentDraft, error) {
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	// A future phase's selections are bounded to its service window and are
+	// therefore not active today while staff approve the request.
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offerings: %w", err)
 	}
+	return s.careEnrollmentDraftsForLinks(ctx, requestChildID, links, phase)
+}
+
+// careEnrollmentDraftsForLinks materializes an explicitly supplied selection.
+// Dated offering changes use it after scheduling their future links: reading
+// the current links at that point would correctly return the old selection,
+// but incorrectly materialize that old selection at the switch date.
+func (s *decisionService) careEnrollmentDraftsForLinks(
+	ctx context.Context,
+	requestChildID int64,
+	links []*enrollmentModels.RequestChildOffering,
+	phase *enrollmentModels.Phase,
+) (map[int64]*careEnrollmentDraft, error) {
 	if len(links) == 0 {
 		return map[int64]*careEnrollmentDraft{}, nil
 	}
@@ -2385,6 +2468,7 @@ func (s *decisionService) persistCareEnrollmentDrafts(
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 	drafts map[int64]*careEnrollmentDraft,
+	startFrom *timezone.Date,
 ) error {
 	groupIDs := make([]int64, 0, len(drafts))
 	for groupID := range drafts {
@@ -2392,7 +2476,7 @@ func (s *decisionService) persistCareEnrollmentDrafts(
 	}
 	slices.Sort(groupIDs)
 	for _, groupID := range groupIDs {
-		row := studentEnrollmentFromCareDraft(requestChildID, studentID, phase, drafts[groupID])
+		row := studentEnrollmentFromCareDraft(requestChildID, studentID, phase, drafts[groupID], startFrom)
 		if err := row.Validate(); err != nil {
 			return fmt.Errorf("decision: validate enrollment: %w", err)
 		}
@@ -2407,12 +2491,20 @@ func studentEnrollmentFromCareDraft(
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 	draft *careEnrollmentDraft,
+	startFrom *timezone.Date,
 ) *activities.StudentEnrollment {
 	validUntil := phase.ServiceEndDate.AddDays(1)
+	validFrom := phase.ServiceStartDate
+	// A dated switch may start mid-phase; a phase that already began must not
+	// pull the new row back to its service start. Clamped so an effective date
+	// before the phase window cannot widen it either.
+	if startFrom != nil && startFrom.After(validFrom) {
+		validFrom = *startFrom
+	}
 	row := &activities.StudentEnrollment{
 		StudentID:                studentID,
 		ActivityGroupID:          draft.activityGroupID,
-		ValidFrom:                phase.ServiceStartDate,
+		ValidFrom:                validFrom,
 		ValidUntil:               &validUntil,
 		CalendarPeriodID:         draft.calendarPeriodID,
 		EnrollmentRequestChildID: &requestChildID,
@@ -2594,24 +2686,7 @@ func effectiveOfferingDaysForEnrollment(
 }
 
 func enrollmentDayToISOWeekday(day string) (int, bool) {
-	switch strings.ToLower(strings.TrimSpace(day)) {
-	case "mon":
-		return 1, true
-	case "tue":
-		return 2, true
-	case "wed":
-		return 3, true
-	case "thu":
-		return 4, true
-	case "fri":
-		return 5, true
-	case "sat":
-		return 6, true
-	case "sun":
-		return 7, true
-	default:
-		return 0, false
-	}
+	return enrollmentModels.CanonicalDayToISOWeekday(day)
 }
 
 func sortedWeekdaySet(days map[int]bool) []int {

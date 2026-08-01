@@ -20,8 +20,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -31,6 +33,7 @@ import (
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -276,6 +279,26 @@ type Service interface {
 	// messaging is disabled so outstanding requests can be wound down.
 	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
 
+	// GetChildOfferingCatalog returns the offerings the guardian may pick from
+	// for a change request, prefilled with the current booking. Requires
+	// parent_portal.request.submit.
+	GetChildOfferingCatalog(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.OfferingChangeCatalog, error)
+	GetChildOfferingCatalogAt(ctx context.Context, accountID, studentID int64, effectiveFrom timezone.Date) (*enrollmentSvc.OfferingChangeCatalog, error)
+
+	// CreateOfferingChangeRequest stores a pending post-enrollment offering
+	// change for staff review. Requires parent_portal.request.submit.
+	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string) (*ChildCareOfferings, error)
+
+	// WithdrawOfferingChangeRequest flips the caller's own pending offering
+	// change request to withdrawn.
+	WithdrawOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareOfferings, error)
+
+	// GetChildCareOfferings returns the care offerings and activity groups the
+	// child is booked into, plus whether the guardian may request a change
+	// (#1665). Authorization only — seeing the booking does not depend on the
+	// change feature being switched on.
+	GetChildCareOfferings(ctx context.Context, accountID, studentID int64) (*ChildCareOfferings, error)
+
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
 	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
@@ -423,6 +446,18 @@ type ServiceConfig struct {
 
 	// Meal plan (Essensplan) read access for the child's school.
 	MealPlanRepo mealplanModels.MealPlanEntryRepository
+
+	// Booked care offerings + activity groups read view (#1665). The offering
+	// side is reached through the approved enrollment behind the child; the
+	// group side is the materialized truth in activities.
+	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	StudentEnrollmentRepo    activitiesModels.StudentEnrollmentRepository
+	ActivityGroupRepo        activitiesModels.GroupRepository
+	// OfferingChanges owns the post-enrollment change-request lifecycle; this
+	// service only authorizes the guardian and hands over.
+	OfferingChanges enrollmentSvc.OfferingChangeRequestService
 
 	// Parent-OGS messaging.
 	MessageThreadRepo usersModels.ParentMessageThreadRepository

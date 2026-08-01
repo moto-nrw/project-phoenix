@@ -733,7 +733,7 @@ func (s *careOfferingService) offeringRequiresMaterialization(
 	if s.RequestChildOfferingRepo == nil {
 		return false, errors.New("request child offering repository is not configured")
 	}
-	count, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+	count, err := s.RequestChildOfferingRepo.CountMaterializableByCareOffering(ctx, offering.ID)
 	if err != nil {
 		return false, fmt.Errorf("count materializable care offering selections: %w", err)
 	}

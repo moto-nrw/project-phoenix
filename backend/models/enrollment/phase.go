@@ -380,6 +380,7 @@ func hasNonEmptySchoolClass(classes []string) bool {
 type PhaseRepository interface {
 	Create(ctx context.Context, phase *Phase) error
 	FindByID(ctx context.Context, id int64) (*Phase, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*Phase, error)
 	Update(ctx context.Context, phase *Phase) error
 	Delete(ctx context.Context, id int64) error
 

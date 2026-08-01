@@ -25,6 +25,7 @@ import {
   updateMasterDataField,
 } from "~/lib/parent-api";
 import { ChildCareScheduleSection } from "~/components/parent/child-care-schedule";
+import { ChildCareOfferingsSection } from "~/components/parent/child-care-offerings";
 import { Section } from "~/components/parent/child-detail-section";
 
 const logger = createLogger({ component: "ChildMasterData" });
@@ -256,6 +257,8 @@ function ChildMasterDataContent({
       />
 
       <ChildCareScheduleSection studentId={studentId} />
+
+      <ChildCareOfferingsSection studentId={studentId} />
     </div>
   );
 }
