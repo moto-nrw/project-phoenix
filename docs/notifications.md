@@ -166,6 +166,12 @@ mechanical: **no row means off**.
 | Web Push | active (#2003) | `webpush-go` (VAPID) → browser push service → service worker notification |
 | E-Mail | future | wrap `email.Mailer` + audience→address resolution as a `Channel` |
 
+E-mail is still not a `Channel`: the features that mail (announcements,
+appointments, appointment reminders) enqueue their own outbox rows next to the
+`Notify` call. That is why the appointment reminder producer writes to the
+outbox AND dispatches a push rather than dispatching once — see the gates
+section above for why the two paths also apply different consent rules.
+
 The existing SSE cache-invalidation events are untouched: the `notification`
 event type is additive. SSE remains the open-app channel; Web Push covers
 closed/locked devices.
@@ -273,6 +279,70 @@ A published announcement notifies its guardian audience as
 `parent_announcement`, narrowed by consent. A nil preference service keeps the
 pre-consent behaviour (it is always wired in the factory); a wired one has the
 final say.
+
+### Parent-facing producers (#1671)
+
+Three more producers address guardians. All of them narrow their audience with
+`FilterOptedIn` and none of them names a child — the deep link into the
+authenticated parents app is where the subject is shown. Parent deep links carry
+no `/parents` prefix: on the parents host that prefix is added by the proxy, and
+the service worker opens the link against the browser origin.
+
+| Producer | Type | Fires when | Deep link |
+|---|---|---|---|
+| `services/messaging` (`notifyGuardianDevice`) | `parent_message` | staff send a message in a child's thread | `/messages` |
+| `services/calendar` (`notifyGuardianDevices`) | `parent_appointment` | an appointment is published, changed or cancelled | `/calendar` |
+| `services/calendar` (reminder scan) | `parent_appointment_reminder` | shortly before an appointment | `/calendar` |
+| `services/parentmessaging` (`notifyRequestDecision`) | `parent_request_decided` | staff decide a care-schedule, master-data or excused-absence request | `/children/{id}` |
+
+Two of these deliberately ride on an existing opt-in rather than introducing a
+new one:
+
+- **Appointments** only notify when the appointment carries the organizer's
+  per-appointment "Eltern benachrichtigen" flag (`appointments.notify_guardians`)
+  — the same flag that governs the e-mails. An organizer who chose not to notify
+  does not get to notify anyway through a second channel.
+- **Request decisions** hook into the pill emitter, where all three request
+  flows already converge, and fire under exactly the condition that fires the
+  guardian's SSE wake. So pill, wake and push always agree on who was reached: a
+  guardian whose access was revoked gets none of the three, and a school with
+  parent messaging switched off gets none either (the pill is that school's
+  in-app channel too, and pushing about something the app does not show would be
+  a dead end).
+
+### Appointment reminders (scheduler task `appointment-reminders`)
+
+`services/scheduler/appointment_reminders.go` — every 5 minutes, per tenant:
+
+1. **Gate** — `calendar.appointment_reminder_enabled` (default **on**) and
+   `calendar.appointment_reminder_lead_hours` (default 24, bounded 1–168).
+   The default is on because the reminder only ever reaches an appointment whose
+   organizer already opted into guardian mail; it is a second notice on an
+   existing channel, not a new one.
+2. **Window** — the tick keeps the upper bound of the last scanned window, so
+   consecutive windows are adjacent and a late or missed tick stretches the
+   window instead of skipping the occurrences in between. After downtime it is
+   clamped to one hour: a reminder whose moment is long gone is noise. Both
+   bounds are shifted by the lead time, so the window stays exactly one tick
+   long.
+3. **Compute** — `calendar.EnqueueDueAppointmentReminders(from, to)` expands
+   occurrences with the same code the calendar and the ICS export use (never a
+   second copy of that arithmetic), applies single-occurrence overrides, skips
+   cancelled occurrences, and keeps the ones whose start instant lies in the
+   half-open window. An all-day appointment is anchored at 08:00 local rather
+   than midnight.
+4. **Deliver** — one outbox row per reachable guardian
+   (`appointment_reminder`, the renderer that already existed for it) plus the
+   `parent_appointment_reminder` push.
+
+Duplicate delivery is impossible by construction: each row carries an
+idempotency key of (appointment, occurrence, guardian) and the outbox insert is
+`ON CONFLICT DO NOTHING`, so a re-run, an overlapping window or a second
+scheduler process cannot produce a second mail. The flip side of that stability
+is a small, deliberate gap: an appointment edited within the few minutes between
+queueing and sending has its pending reminder cancelled with the other pending
+mails and is not re-queued — the parent receives the "Termin geändert" mail
+instead.
 
 ## Verifying a tenant's setup
 
