@@ -5,6 +5,7 @@ import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import { normalizePresenceMode } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
 
 interface TenantResolveResponse {
@@ -128,10 +129,10 @@ export default async function TenantLayout({
 }) {
   const { tenant: tenantSlug } = await params;
 
-  // Block reserved slugs from being resolved as tenants. Without this,
-  // Next.js [tenant] dynamic segment catches paths like "/operator" and
-  // renders the tenant dashboard instead of the operator dashboard.
-  if (RESERVED_SLUGS.has(tenantSlug)) {
+  // The dynamic segment also catches scanner probes such as
+  // /wp-trackback.php. Reject values that cannot be tenant subdomains before
+  // they consume the shared tenant-resolution cache or backend rate limit.
+  if (!isValidTenantSlug(tenantSlug) || RESERVED_SLUGS.has(tenantSlug)) {
     notFound();
   }
 
