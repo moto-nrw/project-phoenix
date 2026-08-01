@@ -1944,6 +1944,27 @@ func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingFull)
 }
 
+func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.phase.ServiceStartDate = timezone.NewDate(2025, 9, 1)
+	env.phase.ServiceEndDate = timezone.NewDate(2026, 7, 31)
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	request := validSubmission(env.phaseID)
+	request.AllowClosedPhase = true
+	request.GuardianEmail = "historical-care-offering@example.com"
+	request.Children[0].OfferingIDs = []int64{offering.ID}
+
+	result, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[0].Status)
+}
+
 // TestRequestService_Submit_CapacityOverflowWaitlist verifies that when
 // the offering is at capacity AND the tenant mode is 'waitlist', the
 // new child lands as 'waitlisted' instead of 'submitted'.

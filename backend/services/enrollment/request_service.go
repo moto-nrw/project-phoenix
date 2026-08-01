@@ -4297,6 +4297,12 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
 	}
+	// Historical manual approvals and late invites can legitimately target a
+	// completed care period. They create no present or future capacity claim,
+	// so querying from today through the already-ended phase would be empty.
+	if phase.ServiceEndDate.Before(timezone.TodayDate()) {
+		return overrides, nil
+	}
 	// Serialize this count with offering-change approvals and other
 	// submissions. Both paths lock care offerings by ascending id before they
 	// inspect capacity and write the booking links.
