@@ -275,7 +275,8 @@ func (rs *Resource) Router() chi.Router {
 
 		// Printable Betreuungsplan week (#2079). Staff names are on the sheet,
 		// so it needs users:read on top of the schedules:read the plan itself
-		// requires — the same pair the slot lists use.
+		// requires — the same pair the slot lists use. exportBetreuungsplan
+		// additionally gates the sensitive internal variant by its request body.
 		r.Route("/betreuungsplan", func(r chi.Router) {
 			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
 				Post("/export", rs.exportBetreuungsplan)

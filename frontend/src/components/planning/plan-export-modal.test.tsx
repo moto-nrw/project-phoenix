@@ -41,6 +41,7 @@ function renderModal(
       isOpen
       plan="dienstplan"
       weekDay="2026-07-29"
+      canExportInternal={false}
       onClose={onClose}
       {...props}
     />,
@@ -81,19 +82,17 @@ describe("PlanExportModal", () => {
   it("defaults to the Aushang variant", () => {
     renderModal();
 
-    expect(screen.getByRole("button", { name: /Aushang/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.getByRole("radio", { name: /Aushang/ })).toBeChecked();
+    expect(
+      screen.queryByRole("radio", { name: /Interne Fassung/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("passes the chosen row axis and variant through", async () => {
-    renderModal();
+    renderModal({ canExportInternal: true });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Nach Einsatzbereich/ }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Interne Fassung/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Nach Einsatzbereich/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Interne Fassung/ }));
     fireEvent.click(screen.getByRole("button", { name: "XLSX" }));
 
     await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
@@ -124,7 +123,7 @@ describe("PlanExportModal", () => {
   it("refuses a range beyond the eight-week cap instead of failing server-side", async () => {
     renderModal();
 
-    fireEvent.click(screen.getByRole("button", { name: "Mehrere Wochen" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Mehrere Wochen" }));
     fireEvent.change(screen.getByLabelText("Von"), {
       target: { value: "2026-07-27" },
     });

@@ -52,6 +52,10 @@ func (rs *Resource) exportBetreuungsplan(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if params.Variant == planexport.VariantInternal && !common.CanExportInternalPlan(r.Context()) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("internal plan exports require schedules:manage")))
+		return
+	}
 
 	file, err := rs.PlanExportService.ExportBetreuungsplan(r.Context(), params)
 	if err != nil {

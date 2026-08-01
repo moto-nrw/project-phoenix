@@ -61,8 +61,9 @@ func (rs *Resource) Router() chi.Router {
 			authorize.RequiresPermission(permissions.UsersRead),
 			withTx,
 		).Get("/overview", rs.overview)
-		// Printable Dienstplan week (#2079). Same permission triple as
-		// /overview: it renders exactly that projection, nothing more.
+		// Printable Dienstplan week (#2079). The wall-sheet variant uses the
+		// same permission triple as /overview; export.go additionally requires
+		// schedules:manage for the sensitive internal variant.
 		r.With(
 			authorize.RequiresPermission(permissions.TimeTrackingManage),
 			authorize.RequiresPermission(permissions.SchedulesRead),

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { Download, FileSpreadsheet, Printer } from "lucide-react";
 
 import { Modal } from "~/components/ui/modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { Button } from "~/components/ui/button";
+import { Radio } from "~/components/ui/radio";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -32,6 +34,8 @@ interface PlanExportModalProps {
   readonly plan: PlanExportPlan;
   /** Any day of the week currently on screen ("YYYY-MM-DD"). */
   readonly weekDay: string;
+  /** Internal exports can contain sensitive absence and cancellation details. */
+  readonly canExportInternal: boolean;
   readonly onClose: () => void;
 }
 
@@ -48,10 +52,14 @@ export function PlanExportModal({
   isOpen,
   plan,
   weekDay,
+  canExportInternal,
   onClose,
 }: PlanExportModalProps) {
   const toast = useToast();
   const templates = PLAN_EXPORT_TEMPLATES[plan];
+  const variants = canExportInternal
+    ? PLAN_EXPORT_VARIANTS
+    : PLAN_EXPORT_VARIANTS.filter((item) => item.id === "aushang");
   const defaultTemplate = templates[0]?.id ?? "persons";
 
   const [template, setTemplate] = useState<PlanExportTemplate>(defaultTemplate);
@@ -133,28 +141,36 @@ export function PlanExportModal({
 
   const footer = (
     <>
-      <ActionButton
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
         onClick={() => void run("print", "pdf", "print")}
         disabled={busy !== null || rangeError !== null}
-        icon={<Printer className="h-4 w-4" aria-hidden />}
       >
+        <Printer className="h-4 w-4" aria-hidden />
         {busy === "print" ? "Wird geöffnet..." : "Drucken"}
-      </ActionButton>
-      <ActionButton
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
         onClick={() => void run("xlsx", "xlsx", "download")}
         disabled={busy !== null || rangeError !== null}
-        icon={<FileSpreadsheet className="h-4 w-4" aria-hidden />}
       >
+        <FileSpreadsheet className="h-4 w-4" aria-hidden />
         {busy === "xlsx" ? "Erstellt..." : "XLSX"}
-      </ActionButton>
-      <ActionButton
-        primary
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
         onClick={() => void run("pdf", "pdf", "download")}
         disabled={busy !== null || rangeError !== null}
-        icon={<Download className="h-4 w-4" aria-hidden />}
       >
+        <Download className="h-4 w-4" aria-hidden />
         {busy === "pdf" ? "Erstellt..." : "PDF"}
-      </ActionButton>
+      </Button>
     </>
   );
 
@@ -178,8 +194,10 @@ export function PlanExportModal({
             <p className="text-sm font-medium text-gray-900">Vorlage</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {templates.map((item) => (
-                <OptionCard
+                <RadioOption
                   key={item.id}
+                  id={`plan-export-template-${item.id}`}
+                  name="plan-export-template"
                   selected={template === item.id}
                   label={item.label}
                   description={item.description}
@@ -193,9 +211,11 @@ export function PlanExportModal({
         <section>
           <p className="text-sm font-medium text-gray-900">Fassung</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {PLAN_EXPORT_VARIANTS.map((item) => (
-              <OptionCard
+            {variants.map((item) => (
+              <RadioOption
                 key={item.id}
+                id={`plan-export-variant-${item.id}`}
+                name="plan-export-variant"
                 selected={variant === item.id}
                 label={item.label}
                 description={item.description}
@@ -207,20 +227,15 @@ export function PlanExportModal({
 
         <section>
           <p className="text-sm font-medium text-gray-900">Zeitraum</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Pill
-              selected={rangeMode === "week"}
-              onClick={() => setRangeMode("week")}
-            >
-              Angezeigte Woche
-            </Pill>
-            <Pill
-              selected={rangeMode === "range"}
-              onClick={() => setRangeMode("range")}
-            >
-              Mehrere Wochen
-            </Pill>
-          </div>
+          <Tabs
+            value={rangeMode}
+            onValueChange={(value) => setRangeMode(value as RangeMode)}
+          >
+            <TabsList>
+              <TabsTrigger value="week">Angezeigte Woche</TabsTrigger>
+              <TabsTrigger value="range">Mehrere Wochen</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {rangeMode === "range" && (
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -306,89 +321,39 @@ function describeRange(
     : `Gedruckt werden ${weekCount} Wochen (${span}), je Woche ein Blatt.`;
 }
 
-function OptionCard({
+function RadioOption({
+  id,
+  name,
   selected,
   label,
   description,
   onClick,
 }: Readonly<{
+  id: string;
+  name: string;
   selected: boolean;
   label: string;
   description: string;
   onClick: () => void;
 }>) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`rounded-lg border px-3 py-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+    <label
+      htmlFor={id}
+      className={`flex cursor-pointer gap-3 rounded-lg border px-3 py-3 text-left shadow-sm transition-colors ${
         selected
           ? "border-gray-900 bg-gray-950 text-white"
           : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
       }`}
     >
-      <span className="block text-sm font-semibold">{label}</span>
-      <span
-        className={`mt-1 block text-xs ${selected ? "text-gray-200" : "text-gray-500"}`}
-      >
-        {description}
+      <Radio id={id} name={name} checked={selected} onChange={onClick} />
+      <span>
+        <span className="block text-sm font-semibold">{label}</span>
+        <span
+          className={`mt-1 block text-xs ${selected ? "text-gray-200" : "text-gray-500"}`}
+        >
+          {description}
+        </span>
       </span>
-    </button>
-  );
-}
-
-function Pill({
-  selected,
-  onClick,
-  children,
-}: Readonly<{
-  selected: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}>) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-        selected
-          ? "border-gray-900 bg-gray-950 text-white"
-          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ActionButton({
-  onClick,
-  disabled,
-  icon,
-  primary = false,
-  children,
-}: Readonly<{
-  onClick: () => void;
-  disabled: boolean;
-  icon: ReactNode;
-  primary?: boolean;
-  children: ReactNode;
-}>) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-        primary
-          ? "bg-gray-900 text-white hover:bg-gray-700"
-          : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-      }`}
-    >
-      {icon}
-      {children}
-    </button>
+    </label>
   );
 }

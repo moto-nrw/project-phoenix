@@ -97,6 +97,7 @@ function DienstplanContent() {
   const canViewHalbjahr =
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "schedules:read");
+  const canExportInternal = hasPermission(session, "schedules:manage");
   const today = useBerlinToday();
 
   // URL-State: der angezeigte Tag und die Ansicht werden bei jedem Render aus
@@ -520,6 +521,7 @@ function DienstplanContent() {
           isOpen
           plan="dienstplan"
           weekDay={dayISO}
+          canExportInternal={canExportInternal}
           onClose={() => setExportOpen(false)}
         />
       )}
