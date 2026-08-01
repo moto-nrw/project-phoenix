@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -84,8 +85,12 @@ type Config struct {
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	InstanceStudentRepo  scheduleModels.InstanceStudentRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
-	StaffShiftRepo       scheduleModels.StaffShiftRepository
-	ShiftTypeRepo        scheduleModels.ShiftTypeRepository
+	// RoomRepo resolves room names for timetable events in one batch per
+	// window (#2078). Optional: nil leaves Location empty instead of failing
+	// the whole calendar, mirroring StaffShiftRepo/ShiftTypeRepo below.
+	RoomRepo       facilitiesModels.RoomRepository
+	StaffShiftRepo scheduleModels.StaffShiftRepository
+	ShiftTypeRepo  scheduleModels.ShiftTypeRepository
 	// CareDays judges unfinished timetable blocks against the care plan; a
 	// completed block is read from its persisted marker instead (#1747).
 	CareDays    scheduleSvc.CareDayService
@@ -1207,8 +1212,70 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 	return events, nil
 }
 
-func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
-	events := []Event{}
+// staffTimetableAssignment pairs a timetable instance with the staff row that
+// put this staff member on it — the row carries the per-person room override.
+type staffTimetableAssignment struct {
+	instance   *scheduleModels.ActivityInstance
+	assignment *scheduleModels.InstanceStaff
+}
+
+// timetableRoomID resolves the room the staff member is actually in: the
+// per-person override on instance_staff wins over the instance's own room
+// (the Lernzeit split pattern), matching the Dienstplan overview in
+// services/schedule/staff_schedule_overview.go.
+func timetableRoomID(instance *scheduleModels.ActivityInstance, assignment *scheduleModels.InstanceStaff) int64 {
+	if assignment != nil && assignment.RoomID != nil {
+		return *assignment.RoomID
+	}
+	if instance == nil {
+		return 0
+	}
+	return instance.RoomID
+}
+
+func distinctTimetableRoomIDs(assigned []staffTimetableAssignment) []int64 {
+	seen := make(map[int64]struct{}, len(assigned))
+	roomIDs := make([]int64, 0, len(assigned))
+	for _, entry := range assigned {
+		roomID := timetableRoomID(entry.instance, entry.assignment)
+		if roomID <= 0 {
+			continue
+		}
+		if _, ok := seen[roomID]; ok {
+			continue
+		}
+		seen[roomID] = struct{}{}
+		roomIDs = append(roomIDs, roomID)
+	}
+	return roomIDs
+}
+
+// timetableRoomNames resolves every room in the window with one query so the
+// room name does not cost one read per event (#2078). An unwired room
+// repository yields an empty map: events keep an empty Location instead of
+// failing the calendar, mirroring the ShiftTypeRepo guard in staffShiftEvents.
+func (s *service) timetableRoomNames(ctx context.Context, roomIDs []int64) (map[int64]string, error) {
+	names := make(map[int64]string, len(roomIDs))
+	if s.cfg.RoomRepo == nil || len(roomIDs) == 0 {
+		return names, nil
+	}
+	rooms, err := s.cfg.RoomRepo.FindByIDs(ctx, roomIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, room := range rooms {
+		if room != nil {
+			names[room.ID] = room.Name
+		}
+	}
+	return names, nil
+}
+
+// collectStaffTimetableAssignments walks the window day by day and keeps the
+// first assignment per instance; cancelled instances drop out here, so their
+// rooms never reach the batch lookup.
+func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date) ([]staffTimetableAssignment, error) {
+	collected := []staffTimetableAssignment{}
 	seen := make(map[int64]struct{})
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, d)
@@ -1227,20 +1294,43 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 			if instance.Status == scheduleModels.InstanceStatusCancelled {
 				continue
 			}
-			id := formatID(instance.ID)
-			events = append(events, Event{
-				ID:          fmt.Sprintf("timetable:%d", instance.ID),
-				Source:      EventSourceTimetable,
-				TimetableID: &id,
-				Title:       instance.Title,
-				Description: instance.Description,
-				StartDate:   instance.Date.String(),
-				EndDate:     instance.Date.String(),
-				StartTime:   formatClock(instance.StartTime),
-				EndTime:     formatClock(instance.EndTime),
-				AllDay:      false,
-			})
+			collected = append(collected, staffTimetableAssignment{instance: instance, assignment: assignment})
 		}
+	}
+	return collected, nil
+}
+
+func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	assigned, err := s.collectStaffTimetableAssignments(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	roomNames, err := s.timetableRoomNames(ctx, distinctTimetableRoomIDs(assigned))
+	if err != nil {
+		return nil, err
+	}
+	events := make([]Event, 0, len(assigned))
+	for _, entry := range assigned {
+		instance := entry.instance
+		id := formatID(instance.ID)
+		event := Event{
+			ID:          fmt.Sprintf("timetable:%d", instance.ID),
+			Source:      EventSourceTimetable,
+			TimetableID: &id,
+			Title:       instance.Title,
+			Description: instance.Description,
+			StartDate:   instance.Date.String(),
+			EndDate:     instance.Date.String(),
+			StartTime:   formatClock(instance.StartTime),
+			EndTime:     formatClock(instance.EndTime),
+			AllDay:      false,
+		}
+		// A room deleted between assignment and this read misses the map;
+		// Location then stays nil rather than becoming an empty string.
+		if name := roomNames[timetableRoomID(instance, entry.assignment)]; name != "" {
+			event.Location = &name
+		}
+		events = append(events, event)
 	}
 	return events, nil
 }
@@ -1262,6 +1352,8 @@ func shiftsReferenceTypes(shifts []*scheduleModels.StaffShift) bool {
 // range finder does not load the ShiftType relation, so names come from one
 // batch ListAll (the tenant's shift-type table is small); a type missing from
 // the map (concurrently deleted) falls back to the generic title.
+// Location stays deliberately empty: schedule.staff_shifts carries no room
+// column, so there is nothing to resolve (#2078).
 func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
 	if s.cfg.StaffShiftRepo == nil {
 		return []Event{}, nil
