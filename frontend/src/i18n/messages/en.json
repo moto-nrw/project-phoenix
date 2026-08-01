@@ -62,7 +62,8 @@
     "role": "Parent",
     "childProfile": "Child profile",
     "loading": "Loading...",
-    "feedback": "Feedback"
+    "feedback": "Feedback",
+    "settings": "Settings"
   },
   "parentMealPlan": {
     "title": "Meal plan",
@@ -119,6 +120,11 @@
     "newsActionError": "Action failed. Please try again.",
     "newsStaleError": "This announcement is no longer current. Please reload the page.",
     "newEnrollment": "New enrollment"
+  },
+  "parentSettings": {
+    "eyebrow": "Your account",
+    "title": "Settings",
+    "description": "Choose what moto informs you about and on which device."
   },
   "parentEnroll": {
     "back": "Back to the parent portal",
