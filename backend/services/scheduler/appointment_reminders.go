@@ -102,7 +102,10 @@ func (s *Scheduler) advanceAppointmentReminderWindow(now time.Time) (time.Time, 
 
 	from := s.appointmentReminderScannedAt
 	if from.IsZero() {
-		from = now.Add(-appointmentReminderInterval)
+		// A fresh process has no persisted watermark. Recover the same bounded
+		// interval as a long downtime so reminders due shortly before startup are
+		// not silently lost.
+		from = now.Add(-appointmentReminderMaxLookback)
 	} else {
 		from = from.Add(-appointmentReminderInterval)
 	}

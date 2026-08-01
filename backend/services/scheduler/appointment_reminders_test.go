@@ -36,15 +36,15 @@ func (f *fakeReminderQueuer) EnqueueDueAppointmentReminders(_ context.Context, f
 }
 
 func TestAdvanceAppointmentReminderWindow(t *testing.T) {
-	t.Run("the first window after boot is one interval long", func(t *testing.T) {
+	t.Run("the first window after boot recovers the bounded lookback", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		now := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 
 		from, to := s.advanceAppointmentReminderWindow(now)
 
 		assert.Equal(t, now, to)
-		assert.Equal(t, appointmentReminderInterval, to.Sub(from),
-			"a zero-valued last-scan must not scan since the beginning of time")
+		assert.Equal(t, appointmentReminderMaxLookback, to.Sub(from),
+			"a zero-valued last-scan recovers useful reminders without scanning indefinitely")
 	})
 
 	t.Run("consecutive windows overlap once, so a failed tenant is retried", func(t *testing.T) {
