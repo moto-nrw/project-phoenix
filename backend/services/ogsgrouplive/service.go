@@ -40,7 +40,7 @@ var ErrForbiddenGroup = errors.New("caller does not supervise the requested grou
 
 const studentPhotoStoredURLPrefix = "/uploads/student-photos/"
 
-type Service interface {
+type Getter interface {
 	Get(ctx context.Context, requestedGroupID int64) (*Projection, error)
 }
 
@@ -66,7 +66,7 @@ type boolSettingResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
-func NewService(deps Dependencies) Service {
+func NewService(deps Dependencies) Getter {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}

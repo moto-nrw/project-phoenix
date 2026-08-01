@@ -31,7 +31,11 @@ func LoadStudentDataSnapshot(
 	personIDs []int64,
 	groupIDs []int64,
 ) (*StudentDataSnapshot, error) {
-	return loadStudentDataSnapshot(ctx, personService, educationSvc, activeSvc, studentIDs, personIDs, groupIDs, false)
+	return loadStudentDataSnapshot(ctx, personService, educationSvc, activeSvc, studentDataSnapshotRequest{
+		studentIDs: studentIDs,
+		personIDs:  personIDs,
+		groupIDs:   groupIDs,
+	})
 }
 
 // LoadStudentDataSnapshotStrict loads the same bulk projection as
@@ -46,7 +50,19 @@ func LoadStudentDataSnapshotStrict(
 	personIDs []int64,
 	groupIDs []int64,
 ) (*StudentDataSnapshot, error) {
-	return loadStudentDataSnapshot(ctx, personService, educationSvc, activeSvc, studentIDs, personIDs, groupIDs, true)
+	return loadStudentDataSnapshot(ctx, personService, educationSvc, activeSvc, studentDataSnapshotRequest{
+		studentIDs: studentIDs,
+		personIDs:  personIDs,
+		groupIDs:   groupIDs,
+		strict:     true,
+	})
+}
+
+type studentDataSnapshotRequest struct {
+	studentIDs []int64
+	personIDs  []int64
+	groupIDs   []int64
+	strict     bool
 }
 
 func loadStudentDataSnapshot(
@@ -54,23 +70,20 @@ func loadStudentDataSnapshot(
 	personService userService.PersonService,
 	educationSvc educationService.Service,
 	activeSvc activeService.Service,
-	studentIDs []int64,
-	personIDs []int64,
-	groupIDs []int64,
-	strict bool,
+	request studentDataSnapshotRequest,
 ) (*StudentDataSnapshot, error) {
 	snapshot := &StudentDataSnapshot{
 		Persons: make(map[int64]*userModels.Person),
 		Groups:  make(map[int64]*educationModels.Group),
 	}
 
-	if err := loadSnapshotPersons(ctx, snapshot, personService, personIDs, strict); err != nil {
+	if err := loadSnapshotPersons(ctx, snapshot, personService, request.personIDs, request.strict); err != nil {
 		return nil, err
 	}
-	if err := loadSnapshotGroups(ctx, snapshot, educationSvc, groupIDs, strict); err != nil {
+	if err := loadSnapshotGroups(ctx, snapshot, educationSvc, request.groupIDs, request.strict); err != nil {
 		return nil, err
 	}
-	if err := loadSnapshotLocations(ctx, snapshot, activeSvc, studentIDs, strict); err != nil {
+	if err := loadSnapshotLocations(ctx, snapshot, activeSvc, request.studentIDs, request.strict); err != nil {
 		return nil, err
 	}
 

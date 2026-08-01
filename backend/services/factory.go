@@ -156,7 +156,7 @@ type Factory struct {
 	ExcusedRequests      absence.ExcusedAbsenceRequestService
 	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
-	OGSGroupLive         ogsgrouplive.Service
+	OGSGroupLive         ogsgrouplive.Getter
 	TimetableData        *schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService

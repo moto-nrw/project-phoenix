@@ -73,7 +73,7 @@ type ResourceConfig struct {
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
-	OGSGroupLiveService     ogsGroupLiveService.Service
+	OGSGroupLiveService     ogsGroupLiveService.Getter
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService

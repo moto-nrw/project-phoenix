@@ -351,6 +351,21 @@ describe("SWR Hooks", () => {
 
       expect(mockSwrMutate).toHaveBeenCalledWith("some-key");
     });
+
+    it("passes seeded data and revalidation options to swr mutate", () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const data = { groupId: "42" };
+      const options = { revalidate: false };
+
+      const { result } = renderHook(() => useTenantMutate());
+      void result.current("ogs-students-42", data, options);
+
+      expect(mockSwrMutate).toHaveBeenCalledWith(
+        "school-a:ogs-students-42",
+        data,
+        options,
+      );
+    });
   });
 
   // ===========================================================================
