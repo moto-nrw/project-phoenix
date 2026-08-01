@@ -79,17 +79,27 @@ export function recordVisit(win: Window): number {
 }
 
 /**
- * Install promotion for iOS Safari and Android users browsing the tenant app
- * in a normal browser tab: add moto to the home screen from THIS subdomain so
- * the installed app keeps its standalone scope (issue #2010 — both platforms
- * show browser chrome after a cross-origin redirect, so installing on the
- * root host breaks fullscreen).
+ * Floating, dismissible install promotion for iOS Safari and Android users
+ * browsing the tenant app in a normal browser tab: add moto to the home
+ * screen from THIS subdomain so the installed app keeps its standalone scope
+ * (issue #2010 — both platforms show browser chrome after a cross-origin
+ * redirect, so installing on the root host breaks fullscreen).
  *
- * Renders as a normal in-flow card, not a floating overlay, so it never
- * overlaps the mobile bottom nav, the check-in FAB, or page content, and
- * needs no offset arithmetic against them. Mount it inside page content, not
- * in a layout: web.dev advises keeping install promotions out of the flow of
- * user journeys.
+ * Mounted in the protected layout on purpose. The audience is staff on phones
+ * and tablets, and most of them never reach the admin-only dashboard, so a
+ * single in-page slot would not reach them.
+ *
+ * Geometry, all of it previously wrong:
+ * - Switches at `lg`, the same breakpoint at which AppShell drops its mobile
+ *   bottom padding and the bottom nav and FAB become `lg:hidden`. The old
+ *   `xl` switch left the card floating over nothing between 1024 and 1280px,
+ *   which is exactly where iPad landscape sits.
+ * - Below lg the offset clears the bottom nav (~4.75rem visible) plus a 1rem
+ *   gap, and adds `--moto-floating-fab-offset` only on the two pages that
+ *   actually render the check-in FAB. The old fixed 10.5rem reserved FAB
+ *   space everywhere.
+ * - Horizontally centered at every width instead of jumping from an
+ *   edge-to-edge mobile banner to a right-anchored card at `sm`.
  *
  * Never rendered on desktop, inside an already-installed PWA, before the
  * second visit, or after the user dismissed it.
@@ -158,7 +168,7 @@ export function PwaInstallHint() {
   return (
     <section
       aria-labelledby="pwa-install-hint-title"
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
+      className="moto-content-surface fixed bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border p-4 shadow-lg lg:bottom-8"
     >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10">

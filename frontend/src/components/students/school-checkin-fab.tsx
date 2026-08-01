@@ -1,9 +1,19 @@
 "use client";
 
+import { useEffect } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare, Loader2 } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+
+/**
+ * Published while a floating FAB is on screen so other bottom-anchored
+ * elements (currently the PWA install hint) can stack above it instead of
+ * hardcoding a gap for a button that exists on two pages only.
+ * Value = FAB height (3.5rem) + gap (1rem).
+ */
+const FAB_STACK_OFFSET_VAR = "--moto-floating-fab-offset";
+const FAB_STACK_OFFSET = "4.5rem";
 
 interface SchoolCheckinFabProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -48,6 +58,18 @@ export function SchoolCheckinFab({
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const reduceMotion = useReducedMotion();
   const resolved = variant;
+
+  // Announce the space this FAB occupies for as long as it is mounted. Runs
+  // before the early return below so the hook order stays stable.
+  const occupiesBottomSpace = attendanceWebEnabled && variant === "floating";
+  useEffect(() => {
+    if (!occupiesBottomSpace) return;
+    const root = document.documentElement;
+    root.style.setProperty(FAB_STACK_OFFSET_VAR, FAB_STACK_OFFSET);
+    return () => {
+      root.style.removeProperty(FAB_STACK_OFFSET_VAR);
+    };
+  }, [occupiesBottomSpace]);
 
   if (!attendanceWebEnabled) return null;
 

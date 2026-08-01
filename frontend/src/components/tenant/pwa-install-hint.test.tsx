@@ -190,7 +190,7 @@ describe("PwaInstallHint", () => {
     resetInstallPromptForTests();
   });
 
-  it("renders Safari instructions as an in-flow card, not a floating overlay", () => {
+  it("renders Safari instructions in a centered floating card", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     const { container } = render(<PwaInstallHint />);
@@ -198,12 +198,30 @@ describe("PwaInstallHint", () => {
     expect(screen.getByText("Zum Home-Bildschirm")).toBeInTheDocument();
 
     const card = container.firstElementChild;
-    expect(card).toHaveClass("moto-content-surface", "rounded-2xl");
-    // The whole point of the redesign: no fixed positioning, so no offset
-    // arithmetic against the bottom nav or the check-in FAB.
-    expect(card?.className).not.toMatch(/\bfixed\b/);
-    expect(card?.className).not.toMatch(/\bbottom-/);
-    expect(card?.className).not.toMatch(/\bz-\d/);
+    expect(card).toHaveClass("moto-content-surface", "fixed", "rounded-2xl");
+    // Centered at every width, not an edge-to-edge banner that snaps to the
+    // right at sm.
+    expect(card).toHaveClass("left-1/2", "-translate-x-1/2", "max-w-md");
+    expect(card?.className).not.toMatch(/\binset-x-/);
+    expect(card?.className).not.toMatch(/\bsm:right-/);
+  });
+
+  it("clears the bottom nav and only reserves FAB space when a FAB is mounted", () => {
+    stubNavigator({ userAgent: IPHONE_UA });
+    stubMatchMedia(false);
+    const { container } = render(<PwaInstallHint />);
+    const card = container.firstElementChild;
+
+    // The FAB contribution is a CSS variable defaulting to 0, so pages
+    // without a FAB do not reserve room for one.
+    expect(card).toHaveClass(
+      "bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+env(safe-area-inset-bottom))]",
+    );
+    // Switches with the shell (AppShell drops its mobile padding at lg and
+    // the bottom nav is lg:hidden), not one breakpoint later at xl.
+    expect(card).toHaveClass("lg:bottom-8");
+    expect(card?.className).not.toMatch(/\bxl:bottom-/);
+    expect(card?.className).not.toMatch(/10\.5rem/);
   });
 
   it("stays hidden on the very first visit", () => {
