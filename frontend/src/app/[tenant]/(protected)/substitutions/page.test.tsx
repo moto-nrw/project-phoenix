@@ -647,15 +647,15 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      const durationGroup = screen.getByRole("radiogroup");
+      const durationGroup = screen.getByRole("tablist");
       expect(
-        within(durationGroup).getByRole("radio", { name: "Heute" }),
-      ).toHaveAttribute("aria-checked", "true");
+        within(durationGroup).getByRole("tab", { name: "Heute" }),
+      ).toHaveAttribute("aria-selected", "true");
 
       for (const label of ["3 Tage", "1 Woche", "Individuell"]) {
         expect(
-          within(durationGroup).getByRole("radio", { name: label }),
-        ).toHaveAttribute("aria-checked", "false");
+          within(durationGroup).getByRole("tab", { name: label }),
+        ).toHaveAttribute("aria-selected", "false");
       }
 
       expect(
@@ -674,7 +674,9 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("radio", { name: "3 Tage" }));
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "3 Tage" }), {
+        button: 0,
+      });
 
       // Der Starttag zählt mit, drei Tage enden also übermorgen.
       const expectedEnd = new Date();
@@ -704,7 +706,9 @@ describe("SubstitutionsPage", () => {
         screen.queryByLabelText("Anzahl der Tage"),
       ).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("radio", { name: "Individuell" }));
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Individuell" }), {
+        button: 0,
+      });
 
       const dayInput = await screen.findByLabelText("Anzahl der Tage");
       fireEvent.change(dayInput, { target: { value: "5" } });
@@ -729,7 +733,9 @@ describe("SubstitutionsPage", () => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("radio", { name: "Individuell" }));
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Individuell" }), {
+        button: 0,
+      });
       const dayInput = await screen.findByLabelText("Anzahl der Tage");
 
       fireEvent.change(dayInput, { target: { value: "1e2" } });
