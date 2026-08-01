@@ -64,6 +64,20 @@ func TestNormalizePollOptions_TrimsAndPositionsOptions(t *testing.T) {
 	}
 }
 
+func TestNormalizePollOptions_ClearsAcknowledgementForPoll(t *testing.T) {
+	in := Input{
+		ResponseType:            usersModels.ParentAnnouncementResponseSingleChoice,
+		Options:                 []string{"Ja", "Nein"},
+		RequiresAcknowledgement: true,
+	}
+	if _, err := normalizePollOptions(&in); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if in.RequiresAcknowledgement {
+		t.Fatal("expected a poll response to replace acknowledgement")
+	}
+}
+
 func TestNormalizePollOptions_RejectsDuplicateLabels(t *testing.T) {
 	in := Input{
 		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,

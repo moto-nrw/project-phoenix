@@ -64,6 +64,10 @@ func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, e
 		in.ResponseDeadline = nil
 		return []*usersModels.ParentAnnouncementOption{}, nil
 	}
+	// A poll response is the parent's explicit confirmation. Requiring a second
+	// acknowledgement for the same announcement only creates an impossible-to-
+	// explain extra step in the portal.
+	in.RequiresAcknowledgement = false
 
 	seen := make(map[string]bool, len(in.Options))
 	out := make([]*usersModels.ParentAnnouncementOption, 0, len(in.Options))

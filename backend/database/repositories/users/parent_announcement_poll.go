@@ -32,12 +32,13 @@ import (
 // the announcement id expression. accountFilter is either "" (all reached
 // children) or "AND gp.account_id = ?" (only one guardian's children).
 //
-// The join chain mirrors reachedPredicate exactly: a live, non-graduated student
-// whose person is not soft-deleted, a students_guardians link granting
-// parent_portal.access, a guardian profile with a linked account, and an ACTIVE
-// account_tenants membership.
+// The join chain mirrors the normal student-backed announcement audience: a
+// live, non-graduated student whose person is not soft-deleted, a
+// parent_portal.access guardian link, a guardian profile with a linked account,
+// and an ACTIVE account_tenants membership. Staff results must include every
+// child the announcement reaches, even if no guardian may answer the poll.
 func pollAudienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
-	return audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, `sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`)
+	return audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, "")
 }
 
 // audienceStudentsSQLForPermission is the permission-specific variant used by
