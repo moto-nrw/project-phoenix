@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	requestChildOfferingValidityVersion     = "1.15.243"
+	requestChildOfferingValidityVersion     = "1.15.247"
 	requestChildOfferingValidityDescription = "Add effective intervals to child care-offering selections."
 )
 
@@ -26,7 +26,7 @@ func init() {
 // in force. The interval is deliberately nullable at either end so existing
 // enrollment selections retain their open-ended semantics.
 func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.243: Adding validity intervals to request child offerings...")
+	fmt.Println("Migration 1.15.247: Adding validity intervals to request child offerings...")
 	if _, err := db.NewRaw(`
 		CREATE EXTENSION IF NOT EXISTS btree_gist;
 
@@ -75,14 +75,14 @@ func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func requestChildOfferingValidityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.243: Removing validity intervals from request child offerings...")
+	fmt.Println("Rolling back migration 1.15.247: Removing validity intervals from request child offerings...")
 	if _, err := db.NewRaw(`
 		-- Expired-only intervals must stay absent in the legacy model: retaining
 		-- their last row would resurrect a removed booking on rollback.
 		DELETE FROM enrollment.request_child_offerings
 		WHERE valid_until IS NOT NULL AND valid_until <= CURRENT_DATE;
 
-		-- A pre-1.15.243 schema has one row per child/offering pair. Keep the
+		-- A pre-1.15.247 schema has one row per child/offering pair. Keep the
 		-- interval active today; when none is active, keep the latest scheduled
 		-- interval before restoring its UNIQUE key.
 		WITH ranked AS (
