@@ -302,9 +302,11 @@ vi.mock("~/lib/hooks/use-user-context", () => ({
   }),
 }));
 
+const mockTenantMutate = vi.hoisted(() => vi.fn());
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  useTenantMutate: () => vi.fn(),
+  useTenantMutate: () => mockTenantMutate,
 }));
 
 vi.mock("./ogs-group-helpers", () => ({

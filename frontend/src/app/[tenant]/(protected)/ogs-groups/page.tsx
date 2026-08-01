@@ -42,7 +42,7 @@ import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -252,6 +252,7 @@ function OGSGroupPageContent() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
   const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
+  const tenantMutate = useTenantMutate();
 
   // Single aggregated live fetch (#2056): one backend request returns groups,
   // students, room status, pickup times, tracking indicators, and transfers
@@ -360,6 +361,14 @@ function OGSGroupPageContent() {
     const selectedGroupExists =
       !!selectedGroupId && ogsGroups.some((g) => g.id === selectedGroupId);
     if (!selectedGroupExists) {
+      // The cold-start `auto` response already is the complete projection for
+      // dataGroupId. Seed that group-specific key before changing state so SWR
+      // reuses the response instead of issuing the identical request again.
+      if (dataGroupId) {
+        void tenantMutate(`ogs-students-${dataGroupId}`, liveData, {
+          revalidate: false,
+        });
+      }
       setSelectedGroupId(dataGroupId);
       if (dataGroupId) {
         localStorage.setItem("sidebar-last-group", dataGroupId);
@@ -375,7 +384,7 @@ function OGSGroupPageContent() {
       setError(null);
       setIsLoading(false);
     }
-  }, [liveData, selectedGroupId, setGroupAttendanceCount]);
+  }, [liveData, selectedGroupId, setGroupAttendanceCount, tenantMutate]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,

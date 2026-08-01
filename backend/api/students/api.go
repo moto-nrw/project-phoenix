@@ -21,6 +21,7 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -72,6 +73,7 @@ type ResourceConfig struct {
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	OGSGroupLiveService     ogsGroupLiveService.Service
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService

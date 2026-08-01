@@ -419,10 +419,12 @@ vi.mock("~/lib/hooks/use-user-context", () => ({
   useUserContext: () => mockUserContext(),
 }));
 
+const mockTenantMutate = vi.hoisted(() => vi.fn());
+
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutate: vi.fn(() => mockTenantMutate),
 }));
 
 import { useSWRAuth } from "~/lib/swr";
@@ -3544,6 +3546,28 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("seeds the resolved group key from the cold-start projection", async () => {
+    const initialProjection = liveData();
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: initialProjection,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(vi.mocked(useSWRAuth).mock.calls[0]?.[0]).toBe("ogs-students-auto");
+    await waitFor(() => {
+      expect(mockTenantMutate).toHaveBeenCalledWith(
+        "ogs-students-1",
+        initialProjection,
+        { revalidate: false },
+      );
+    });
   });
 
   it("seeds the SWR key from the URL param at mount", async () => {
