@@ -205,6 +205,90 @@ describe("Umfrage answering in the detail view", () => {
     );
   });
 
+  it("reconciles earlier child responses when a later save fails", async () => {
+    vi.spyOn(parentApi, "respondToAnnouncement")
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("boom"));
+    const onUpdated = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <NewsDetailModal
+        item={poll({
+          children: [
+            {
+              student_id: "10",
+              first_name: "Felix",
+              last_name: "Schneider",
+              selected_options: [],
+            },
+            {
+              student_id: "11",
+              first_name: "Mila",
+              last_name: "Schneider",
+              selected_options: [],
+            },
+          ],
+        })}
+        onClose={onClose}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    const yesButtons = screen.getAllByRole("button", { name: "Ja" });
+    const noButtons = screen.getAllByRole("button", { name: "Nein" });
+    expect(yesButtons[0]).toBeDefined();
+    expect(noButtons[1]).toBeDefined();
+    fireEvent.click(yesButtons[0]!);
+    fireEvent.click(noButtons[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
+
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalledWith("42", {
+        children: [
+          expect.objectContaining({
+            student_id: "10",
+            selected_options: ["1"],
+          }),
+          expect.objectContaining({ student_id: "11", selected_options: [] }),
+        ],
+      });
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("resets drafts when a corrected poll has different options", () => {
+    const { rerender } = render(
+      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ja" }));
+    expect(
+      screen.getByRole("button", { name: "Antwort speichern" }),
+    ).toBeEnabled();
+
+    rerender(
+      <NewsDetailModal
+        item={poll({
+          published_at: "2026-07-02T08:00:00Z",
+          options: [
+            { id: "3", label: "Vielleicht" },
+            { id: "4", label: "Nein" },
+          ],
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Ja" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Antwort speichern" }),
+    ).toBeDisabled();
+  });
+
   it("flags an open poll on the feed card without answering there", () => {
     render(<NewsCard item={poll()} onOpen={vi.fn()} />);
     expect(screen.getByText("Antwort erforderlich")).toBeInTheDocument();

@@ -182,11 +182,11 @@ func (s *service) RemindUnanswered(ctx context.Context, id int64) (int, error) {
 		return 0, nil
 	}
 
-	pushed, err := s.pushPollReminder(ctx, a, recipients)
+	emailed, err := s.enqueuePollReminderEmails(ctx, a, recipients)
 	if err != nil {
 		return 0, err
 	}
-	emailed, err := s.enqueuePollReminderEmails(ctx, a, recipients)
+	pushed, err := s.pushPollReminder(ctx, a, recipients)
 	if err != nil {
 		return 0, err
 	}

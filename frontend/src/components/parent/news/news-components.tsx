@@ -144,6 +144,12 @@ function usePollAnswers(
   const savedSignature = children
     .map((c) => `${c.student_id}:${[...c.selected_options].sort().join(",")}`)
     .join("|");
+  const pollVersionSignature = [
+    item.id,
+    item.published_at ?? "",
+    item.response_type,
+    ...(item.options ?? []).map((option) => `${option.id}:${option.label}`),
+  ].join("|");
   const [draft, setDraft] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(
       children.map((c) => [c.student_id, [...c.selected_options]]),
@@ -159,7 +165,7 @@ function usePollAnswers(
     // children is derived from item; savedSignature captures the values that
     // matter, so it is the dependency rather than a new array identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedSignature]);
+  }, [savedSignature, pollVersionSignature]);
 
   const selectionFor = (child: ParentAnnouncementPollChild): string[] =>
     draft[child.student_id] ?? [];
@@ -188,6 +194,7 @@ function usePollAnswers(
     if (!item.published_at || dirtyChildren.length === 0) return false;
     setSaving(true);
     setError(null);
+    const savedSelections = new Map<string, string[]>();
     try {
       for (const child of dirtyChildren) {
         await respondToAnnouncement(
@@ -196,13 +203,19 @@ function usePollAnswers(
           selectionFor(child),
           item.published_at,
         );
+        savedSelections.set(child.student_id, selectionFor(child));
+        // Responses are persisted one child at a time. Reconcile each success
+        // immediately, so a later failure leaves the parent with the saved
+        // responses shown as saved and only the remaining child to retry.
+        onUpdated(item.id, {
+          children: children.map((candidate) => ({
+            ...candidate,
+            selected_options:
+              savedSelections.get(candidate.student_id) ??
+              candidate.selected_options,
+          })),
+        });
       }
-      onUpdated(item.id, {
-        children: children.map((c) => ({
-          ...c,
-          selected_options: selectionFor(c),
-        })),
-      });
       refreshUnreadBadge();
       return true;
     } catch (err: unknown) {

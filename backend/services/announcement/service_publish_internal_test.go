@@ -121,6 +121,7 @@ func (f *fakeSettings) GetLoginImageURL(_ context.Context, _ int64) (string, err
 type fakeOutbox struct {
 	requests           []platformService.EnqueueRequest
 	cancelRelatedTypes []string
+	enqueueErr         error
 }
 
 type fakeNotifier struct {
@@ -134,6 +135,9 @@ func (f *fakeNotifier) Notify(_ context.Context, event notifications.Event) erro
 }
 
 func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	if f.enqueueErr != nil {
+		return nil, f.enqueueErr
+	}
 	f.requests = append(f.requests, req)
 	return &platformModels.EmailOutbox{}, nil
 }
@@ -283,6 +287,36 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 	}
 	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
 		t.Fatalf("unexpected push recipients: %+v", notifier.events)
+	}
+}
+
+func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
+	poll := draftAnnouncement(false)
+	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	now := time.Now()
+	poll.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{
+		announcement: poll,
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 101, Email: "parent@example.test"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     &fakeOutbox{enqueueErr: errors.New("outbox unavailable")},
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	_, err := svc.RemindUnanswered(context.Background(), poll.ID)
+	if err == nil {
+		t.Fatal("expected reminder to fail when e-mail queueing fails")
+	}
+	if len(notifier.events) != 0 {
+		t.Fatalf("expected no push before e-mail queueing succeeds, got %d", len(notifier.events))
 	}
 }
 
