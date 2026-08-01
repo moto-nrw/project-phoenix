@@ -93,11 +93,17 @@ func renderXLSX(doc Document) ([]byte, error) {
 
 	excelRow := headerRow + 1
 	currentGroup := ""
+	hasPrintedGroup := false
 	for _, row := range doc.Rows {
 		hasValues := len(row.Values) > 0
 		if row.GroupTitle != "" && (!hasValues || row.GroupTitle != currentGroup) {
 			currentGroup = row.GroupTitle
 			startCell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			if hasPrintedGroup {
+				if err := f.InsertPageBreak(sheet, startCell); err != nil {
+					return nil, err
+				}
+			}
 			lastColumn := len(doc.Columns)
 			if lastColumn < 1 {
 				lastColumn = 1
@@ -112,6 +118,7 @@ func renderXLSX(doc Document) ([]byte, error) {
 			if err := f.SetCellStyle(sheet, startCell, endCell, groupStyle); err != nil {
 				return nil, err
 			}
+			hasPrintedGroup = true
 			excelRow++
 		}
 		if !hasValues {

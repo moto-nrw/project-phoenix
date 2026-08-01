@@ -42,7 +42,7 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 	doc := s.document(
 		"Betreuungsplan", "Angebot",
 		"Fett: Zeit und Raum · darunter das Personal",
-		params, weeks, data.rows,
+		params, weeks, data.rows, data.emptyWeekRows,
 	)
 
 	s.getLogger().Info("betreuungsplan export rendered",
@@ -101,6 +101,9 @@ func (s *service) loadBetreuungsplanData(
 		}
 		staffByInst[row.InstanceID] = append(staffByInst[row.InstanceID], row)
 		staffIDs = append(staffIDs, row.StaffID)
+		if row.RoomID != nil {
+			roomIDs = append(roomIDs, *row.RoomID)
+		}
 	}
 
 	data := &betreuungsplanData{
@@ -291,6 +294,10 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 	return rows
 }
 
+func (d *betreuungsplanData) emptyWeekRows(w week) []listexport.Row {
+	return emptyWeekRows(w, d.closedDays)
+}
+
 func (d *betreuungsplanData) closedDayLines(day timezone.Date) []listexport.Line {
 	if label, ok := d.closedDays[day]; ok {
 		return []listexport.Line{strong(label)}
@@ -322,7 +329,7 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 
 	lines := []listexport.Line{accented(head, d.blockColors[instance.ID])}
 
-	if names := d.staffLine(instance.ID); names != "" {
+	if names := d.staffLine(instance.ID, instance.RoomID); names != "" {
 		lines = append(lines, normal(names))
 	}
 	if count := d.childCounts[instance.ID]; count > 0 {
@@ -336,7 +343,7 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 
 // staffLine lists who runs the block. Absent staff are dropped from the wall
 // sheet (they are not there) and marked on the internal one.
-func (d *betreuungsplanData) staffLine(instanceID int64) string {
+func (d *betreuungsplanData) staffLine(instanceID, primaryRoomID int64) string {
 	rows := d.staffByInst[instanceID]
 	names := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -352,6 +359,11 @@ func (d *betreuungsplanData) staffLine(instanceID int64) string {
 		}
 		if row.IsAbsent {
 			name += " (abwesend)"
+		}
+		if row.RoomID != nil && *row.RoomID != primaryRoomID {
+			if room := d.roomNames[*row.RoomID]; room != "" {
+				name += " (" + room + ")"
+			}
 		}
 		names = append(names, name)
 	}

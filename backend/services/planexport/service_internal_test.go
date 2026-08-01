@@ -469,6 +469,46 @@ func TestDienstplanLabelsNonWorkingDays(t *testing.T) {
 	}
 }
 
+func TestDienstplanKeepsNonWorkingDaysForAnOtherwiseEmptyWeek(t *testing.T) {
+	renderer := &captureRenderer{}
+	service := NewService(Dependencies{
+		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{}},
+		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{
+			closingRange(monday, monday.AddDays(4), "Betriebsferien"),
+		}},
+		Renderer: renderer,
+	}, nil)
+
+	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	if got := cellFor(t, renderer.doc, "Keine Einträge in dieser Woche", listexport.ColumnPlanMonday); got != "Schließtag: Betriebsferien" {
+		t.Fatalf("closed week cell = %q", got)
+	}
+}
+
+func TestDienstplanAreaInternalVariantShowsCancellationReason(t *testing.T) {
+	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
+	cancelled.Cancelled = true
+	cancelled.ChangeReason = ptr("Fortbildung")
+	typeID := int64(1)
+	cancelled.ShiftTypeID = &typeID
+	service, renderer := newDienstplanService(&scheduleSvc.StaffScheduleOverview{
+		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*scheduleModel.StaffShift{cancelled},
+	}, []*scheduleModel.ShiftType{shiftType(1, "Frühdienst")})
+	params := defaultParams()
+	params.Template = TemplateByArea
+	params.Variant = VariantInternal
+
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	if cell := cellFor(t, renderer.doc, "Frühdienst", listexport.ColumnPlanMonday); !strings.Contains(cell, "Grund: Fortbildung") {
+		t.Fatalf("area cell = %q, want the cancellation reason", cell)
+	}
+}
+
 type stubClosingDays struct {
 	scheduleSvc.ClosingDayService
 	days []*scheduleModel.ClosingDay

@@ -155,6 +155,43 @@ func TestRenderXLSXWritesGroupHeadingRows(t *testing.T) {
 	}
 }
 
+func TestRenderXLSXStartsEachGroupOnANewPrintedPage(t *testing.T) {
+	doc := sampleDocument()
+	doc.Rows = []Row{
+		{GroupTitle: "Woche 1"},
+		{Values: map[ColumnID]string{ColumnName: "Mila Muster"}},
+		{GroupTitle: "Woche 2"},
+		{Values: map[ColumnID]string{ColumnName: "Finn Beispiel"}},
+	}
+	file, err := NewService().Render(doc, FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	for _, entry := range reader.File {
+		if !strings.HasPrefix(entry.Name, "xl/worksheets/") {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", entry.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		closeErr := rc.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read %s: %v / %v", entry.Name, err, closeErr)
+		}
+		if strings.Contains(string(content), "<rowBreaks") && strings.Contains(string(content), `id="8"`) {
+			return
+		}
+	}
+	t.Fatal("expected a manual page break before the second group")
+}
+
 func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {

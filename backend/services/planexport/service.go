@@ -142,6 +142,7 @@ func (s *service) document(
 	params Params,
 	weeks []week,
 	buildWeek func(w week) []listexport.Row,
+	emptyWeekRows func(w week) []listexport.Row,
 ) listexport.Document {
 	rows := make([]listexport.Row, 0, len(weeks)*8)
 	multiWeek := len(weeks) > 1
@@ -151,7 +152,7 @@ func (s *service) document(
 		}
 		weekRows := buildWeek(w)
 		if len(weekRows) == 0 {
-			weekRows = []listexport.Row{emptyWeekRow()}
+			weekRows = emptyWeekRows(w)
 		}
 		rows = append(rows, weekRows...)
 	}
@@ -169,10 +170,14 @@ func (s *service) document(
 
 // emptyWeekRow states that the week is empty instead of leaving the sheet
 // blank.
-func emptyWeekRow() listexport.Row {
-	return listexport.Row{Values: map[listexport.ColumnID]string{
-		listexport.ColumnPlanRowLabel: "Keine Einträge in dieser Woche",
-	}}
+func emptyWeekRows(w week, closedDays map[timezone.Date]string) []listexport.Row {
+	cells := dayCells{label: "Keine Einträge in dieser Woche"}
+	for i, day := range w.days {
+		if label, ok := closedDays[day]; ok {
+			cells.days[i] = []listexport.Line{strong(label)}
+		}
+	}
+	return []listexport.Row{cells.toRow()}
 }
 
 // rangeSubtitle names the printed window: one week by its label, several by

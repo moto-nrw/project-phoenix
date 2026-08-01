@@ -186,6 +186,9 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "users:read");
+  const canExportBetreuungsplan =
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
@@ -1061,19 +1064,21 @@ function TimetablesContent() {
                 Export die Woche meint, die gerade zu sehen ist. Unter sm nur
                 das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
                 und "Neu". */}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              aria-label="Betreuungsplan drucken oder exportieren"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-              onClick={() => setExportOpen(true)}
-            >
-              <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Drucken
-              </span>
-            </Button>
+            {canExportBetreuungsplan && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-label="Betreuungsplan drucken oder exportieren"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                onClick={() => setExportOpen(true)}
+              >
+                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Drucken
+                </span>
+              </Button>
+            )}
             <TimetableAddMenu
               onAddInstance={openEventCreate}
               onAddSeries={openSeriesCreate}
@@ -1298,7 +1303,7 @@ function TimetablesContent() {
       {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
           ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
           dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
-      {exportOpen && (
+      {canExportBetreuungsplan && exportOpen && (
         <PlanExportModal
           isOpen
           plan="betreuungsplan"

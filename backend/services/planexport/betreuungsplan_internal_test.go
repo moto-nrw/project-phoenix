@@ -141,6 +141,23 @@ func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {
 	}
 }
 
+func TestBetreuungsplanShowsStaffRoomOverride(t *testing.T) {
+	overridden := instanceStaff(11, 8)
+	overridden.RoomID = ptr(int64(4))
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Lernzeit", 3)},
+		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7), overridden}, nil,
+	)
+
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	cell := cellFor(t, renderer.doc, "Lernzeit", listexport.ColumnPlanMonday)
+	if !strings.Contains(cell, "Müller, A. (Gruppenraum 1)") {
+		t.Fatalf("cell = %q, want the staff room override", cell)
+	}
+}
+
 // A block nobody is assigned to yet must still print — this is exactly the
 // case StaffScheduleOverview cannot see, which is why the care plan reads
 // the instances directly.

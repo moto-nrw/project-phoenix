@@ -55,7 +55,7 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 		build = data.rowsByArea
 	}
 
-	doc := s.document(title, rowLabel, legend, params, weeks, build)
+	doc := s.document(title, rowLabel, legend, params, weeks, build, data.emptyWeekRows)
 
 	s.getLogger().Info("dienstplan export rendered",
 		"from", from.String(),
@@ -359,7 +359,7 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				// its blocks by Kategorie, where that is the useful axis.
 				areaFor(areas, assignment.ActivityTitle).add(
 					i, assignment.StartTime, assignment.EndTime,
-					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label)
+					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label, "")
 			}
 
 			for _, shift := range d.shifts[key] {
@@ -375,9 +375,13 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				if shift.Cancelled {
 					label += " (entfällt)"
 				}
+				detail := ""
+				if d.variant.internal() && shift.Cancelled && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
+					detail = "Grund: " + strings.TrimSpace(*shift.ChangeReason)
+				}
 				area := areaFor(areas, title)
 				area.color = info.color
-				area.add(i, shift.StartTime, shift.EndTime, "", label)
+				area.add(i, shift.StartTime, shift.EndTime, "", label, detail)
 			}
 		}
 	}
@@ -406,6 +410,10 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 	return rows
 }
 
+func (d *dienstplanData) emptyWeekRows(w week) []listexport.Row {
+	return emptyWeekRows(w, d.closedDays)
+}
+
 func areaFor(areas map[string]*areaRow, title string) *areaRow {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -432,9 +440,10 @@ type areaRow struct {
 type areaEntry struct {
 	heading string
 	names   []string
+	details []string
 }
 
-func (r *areaRow) add(dayIndex int, start, end time.Time, room, name string) {
+func (r *areaRow) add(dayIndex int, start, end time.Time, room, name, detail string) {
 	heading := timeRange(start, end)
 	// "HH:MM" sorts correctly as a string, so the row order needs no extra
 	// time parsing; "99:99" is the sentinel that loses to every real clock.
@@ -447,10 +456,17 @@ func (r *areaRow) add(dayIndex int, start, end time.Time, room, name string) {
 	for i := range r.days[dayIndex] {
 		if r.days[dayIndex][i].heading == heading {
 			r.days[dayIndex][i].names = append(r.days[dayIndex][i].names, name)
+			if detail != "" {
+				r.days[dayIndex][i].details = append(r.days[dayIndex][i].details, detail)
+			}
 			return
 		}
 	}
-	r.days[dayIndex] = append(r.days[dayIndex], areaEntry{heading: heading, names: []string{name}})
+	entry := areaEntry{heading: heading, names: []string{name}}
+	if detail != "" {
+		entry.details = []string{detail}
+	}
+	r.days[dayIndex] = append(r.days[dayIndex], entry)
 }
 
 func (r *areaRow) lines(dayIndex int) []listexport.Line {
@@ -466,6 +482,10 @@ func (r *areaRow) lines(dayIndex int) []listexport.Line {
 		lines = append(lines, accented(entry.heading, r.color))
 		for _, name := range entry.names {
 			lines = append(lines, normal(name))
+		}
+		sort.Strings(entry.details)
+		for _, detail := range entry.details {
+			lines = append(lines, muted(detail))
 		}
 	}
 	return lines
