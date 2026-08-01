@@ -4314,8 +4314,19 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 		}
 	}
 	sort.Slice(selectedIDs, func(i, j int) bool { return selectedIDs[i] < selectedIDs[j] })
-	if _, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs); err != nil {
+	lockedOfferings, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs)
+	if err != nil {
 		return nil, fmt.Errorf("lock care offering capacity: %w", err)
+	}
+	// The catalog was read before entering the write transaction. Replace it
+	// with the locked rows so a concurrent capacity reduction or deactivation
+	// cannot be missed between selection validation and booking creation.
+	openByID = offeringsByID(lockedOfferings)
+	for _, offeringID := range selectedIDs {
+		offering := openByID[offeringID]
+		if offering == nil || !offering.IsActive {
+			return nil, ErrCareOfferingClosed
+		}
 	}
 
 	mode := phase.CareOverflowMode

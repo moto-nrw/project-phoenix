@@ -134,6 +134,7 @@ func (r *recordingOutbox) ByKind(kind string) []platformModels.OutboxEnqueueRequ
 type requestTestEnv struct {
 	db        *bun.DB
 	svc       enrollmentService.RequestService
+	config    enrollmentService.RequestServiceConfig
 	phase     *enrollmentModels.Phase
 	schemaID  int64
 	creatorID int64
@@ -161,7 +162,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 
 	outbox := &recordingOutbox{}
-	svc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
+	config := enrollmentService.RequestServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
 		RequestGuardianRepo:      repoFactory.RequestGuardian,
@@ -176,7 +177,8 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		FrontendURL:              "http://localhost:3000",
 		DB:                       db,
 		Logger:                   slog.Default(),
-	})
+	}
+	svc := enrollmentService.NewRequestService(config)
 
 	ctx := testpkg.TenantContext(1)
 
@@ -211,6 +213,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	env := &requestTestEnv{
 		db:        db,
 		svc:       svc,
+		config:    config,
 		phase:     phase,
 		schemaID:  schema.ID,
 		creatorID: account.ID,
@@ -1866,6 +1869,15 @@ func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.
 
 // --- Capacity overflow ---
 
+type lockedCareOfferingRepo struct {
+	enrollmentModels.CareOfferingRepository
+	lockedOfferings []*enrollmentModels.CareOffering
+}
+
+func (r *lockedCareOfferingRepo) ListByIDsForUpdate(_ context.Context, _ []int64) ([]*enrollmentModels.CareOffering, error) {
+	return r.lockedOfferings, nil
+}
+
 func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity int) *enrollmentModels.CareOffering {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
@@ -1906,6 +1918,30 @@ func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 	env.phase.CareOverflowMode = mode
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+}
+
+func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	lockedOffering := *offering
+	lockedCapacity := 0
+	lockedOffering.Capacity = &lockedCapacity
+	config := env.config
+	config.CareOfferingRepo = &lockedCareOfferingRepo{
+		CareOfferingRepository: config.CareOfferingRepo,
+		lockedOfferings:        []*enrollmentModels.CareOffering{&lockedOffering},
+	}
+	svc := enrollmentService.NewRequestService(config)
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "locked-capacity@example.com"
+	request.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := svc.Submit(ctx, request)
+	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingFull)
 }
 
 // TestRequestService_Submit_CapacityOverflowWaitlist verifies that when
