@@ -25,13 +25,17 @@ type informationSchemaRecorder struct {
 }
 
 func (h *informationSchemaRecorder) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if strings.Contains(query, "information_schema") {
+	if isSchemaIntrospectionQuery(event.Query) {
 		h.mu.Lock()
 		h.queries = append(h.queries, event.Query)
 		h.mu.Unlock()
 	}
 	return ctx
+}
+
+func isSchemaIntrospectionQuery(query string) bool {
+	query = strings.ToLower(query)
+	return strings.Contains(query, "information_schema") || strings.Contains(query, "pg_catalog")
 }
 
 func (h *informationSchemaRecorder) AfterQuery(context.Context, *bun.QueryEvent) {}
@@ -40,6 +44,25 @@ func (h *informationSchemaRecorder) recorded() []string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return append([]string(nil), h.queries...)
+}
+
+func TestInformationSchemaRecorderMatchesSchemaCatalogs(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  bool
+	}{
+		{name: "information schema", query: "SELECT * FROM information_schema.columns", want: true},
+		{name: "PostgreSQL catalog", query: "SELECT * FROM pg_catalog.pg_attribute", want: true},
+		{name: "quoted PostgreSQL catalog", query: `SELECT * FROM "pg_catalog"."pg_class"`, want: true},
+		{name: "application table", query: "SELECT * FROM users.students", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isSchemaIntrospectionQuery(tt.query))
+		})
+	}
 }
 
 // TestStudentRequestsNoInformationSchemaQueries is the query-budget guard for
@@ -79,5 +102,5 @@ func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
 	})
 
 	assert.Empty(t, recorder.recorded(),
-		"student requests must not run schema-detection queries (information_schema) in the request path — resolve schema capabilities at startup instead (#2059)")
+		"student requests must not run schema-detection queries (information_schema or pg_catalog) in the request path — resolve schema capabilities at startup instead (#2059)")
 }
