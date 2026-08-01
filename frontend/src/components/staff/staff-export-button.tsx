@@ -37,6 +37,7 @@ export function StaffExportButton({
     <div className="relative" ref={containerRef}>
       <OverflowMenu
         ariaLabel="Menü öffnen"
+        onOpen={() => setFormOpen(false)}
         items={[
           {
             label: "Exportieren",

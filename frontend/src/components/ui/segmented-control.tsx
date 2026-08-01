@@ -69,6 +69,7 @@ export function SegmentedControl<T extends string>({
   if (variant === "pills") {
     return (
       <div
+        role="group"
         aria-label={ariaLabel}
         className={`flex flex-wrap justify-center gap-2 ${className}`}
       >
@@ -97,6 +98,7 @@ export function SegmentedControl<T extends string>({
   // segment); the inline one is the compact bordered switcher.
   return (
     <div
+      role="group"
       aria-label={ariaLabel}
       className={
         fullWidth
