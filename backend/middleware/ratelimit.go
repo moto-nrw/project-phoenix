@@ -11,6 +11,12 @@ import (
 )
 
 // RateLimiter manages rate limiting by request key.
+//
+// Counters are in-memory and per-process: each backend replica enforces the
+// configured limit independently, so with N replicas the effective quota per
+// key is N × limit. Phoenix currently runs a single backend process per
+// environment; before scaling to multiple replicas, a shared store (e.g.
+// Redis) is required if aggregate limits must hold (#2064).
 type RateLimiter struct {
 	visitors map[string]*visitor
 	mu       sync.RWMutex
