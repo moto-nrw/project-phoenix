@@ -1,10 +1,32 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { SchoolCheckinModeMobile } from "./school-checkin-mode-mobile";
 
+function stubMatchMedia(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+
 describe("SchoolCheckinModeMobile", () => {
+  beforeEach(() => {
+    stubMatchMedia(true);
+    document.documentElement.style.removeProperty("--moto-checkin-bar-offset");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.style.removeProperty("--moto-checkin-bar-offset");
+  });
+
   describe("inactive (OFF) state", () => {
     it("renders an inline pill with the idle label", () => {
       render(
@@ -120,6 +142,49 @@ describe("SchoolCheckinModeMobile", () => {
         }),
       );
       expect(onToggle).toHaveBeenCalledOnce();
+    });
+
+    it("publishes install-hint clearance only below md", () => {
+      const { unmount } = render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+        />,
+      );
+
+      expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-checkin-bar-offset",
+        ),
+      ).toBe("4.5rem");
+
+      unmount();
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-checkin-bar-offset",
+        ),
+      ).toBe("");
+    });
+
+    it("does not publish install-hint clearance at md and above", () => {
+      stubMatchMedia(false);
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+        />,
+      );
+
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-checkin-bar-offset",
+        ),
+      ).toBe("");
     });
   });
 });

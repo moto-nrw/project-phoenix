@@ -1581,6 +1581,7 @@ function OGSGroupPageContent() {
         <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"
+            floatingUntil="lg"
             isActive={schoolCheckin.isActive}
             onToggle={schoolCheckin.toggleActive}
             successCount={schoolCheckin.successCount}

@@ -20,6 +20,7 @@ interface BeforeInstallPromptEvent extends Event {
 export type InstallOutcome = "accepted" | "dismissed" | "unavailable";
 
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
+let installationCompleted = false;
 const subscribers = new Set<() => void>();
 
 function notify(): void {
@@ -36,6 +37,7 @@ if (typeof window !== "undefined") {
   });
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
+    installationCompleted = true;
     notify();
   });
 }
@@ -51,6 +53,11 @@ export function subscribeInstallPrompt(onChange: () => void): () => void {
 /** True once Chrome has offered an installable event we can replay. */
 export function canPromptInstall(): boolean {
   return deferredPrompt !== null;
+}
+
+/** True after this browser tab reports a completed app installation. */
+export function isInstallationCompleted(): boolean {
+  return installationCompleted;
 }
 
 /**
@@ -73,5 +80,6 @@ export async function triggerInstallPrompt(): Promise<InstallOutcome> {
 /** Test seam: drops any captured event so cases start from a clean slate. */
 export function resetInstallPromptForTests(): void {
   deferredPrompt = null;
+  installationCompleted = false;
   notify();
 }

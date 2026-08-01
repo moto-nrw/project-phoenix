@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -40,7 +40,29 @@ vi.mock("framer-motion", () => ({
 
 import { SchoolCheckinFab } from "./school-checkin-fab";
 
+function stubMatchMedia(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+
 describe("SchoolCheckinFab", () => {
+  beforeEach(() => {
+    stubMatchMedia(true);
+    document.documentElement.style.removeProperty("--moto-floating-fab-offset");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.style.removeProperty("--moto-floating-fab-offset");
+  });
+
   describe("inline variant", () => {
     it("renders the idle label when inactive", () => {
       render(
@@ -115,6 +137,7 @@ describe("SchoolCheckinFab", () => {
       const { container } = render(
         <SchoolCheckinFab
           variant="floating"
+          floatingUntil="lg"
           isActive={false}
           onToggle={() => undefined}
           successCount={0}
@@ -136,6 +159,7 @@ describe("SchoolCheckinFab", () => {
       render(
         <SchoolCheckinFab
           variant="floating"
+          floatingUntil="lg"
           isActive={false}
           onToggle={() => undefined}
           successCount={0}
@@ -145,6 +169,55 @@ describe("SchoolCheckinFab", () => {
 
       const button = screen.getByRole("button");
       expect(button).toHaveAttribute("data-checkin-fab-variant", "floating");
+    });
+
+    it("publishes stack clearance only within its visible breakpoint range", () => {
+      const { unmount } = render(
+        <SchoolCheckinFab
+          variant="floating"
+          floatingUntil="xl"
+          isActive={false}
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+        />,
+      );
+
+      expect(window.matchMedia).toHaveBeenCalledWith(
+        "(min-width: 768px) and (max-width: 1279px)",
+      );
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-floating-fab-offset",
+        ),
+      ).toBe("4.5rem");
+
+      unmount();
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-floating-fab-offset",
+        ),
+      ).toBe("");
+    });
+
+    it("does not publish stack clearance while CSS hides the FAB", () => {
+      stubMatchMedia(false);
+      render(
+        <SchoolCheckinFab
+          variant="floating"
+          floatingUntil="lg"
+          isActive={false}
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+        />,
+      );
+
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-floating-fab-offset",
+        ),
+      ).toBe("");
     });
   });
 

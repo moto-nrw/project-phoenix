@@ -8,6 +8,7 @@ import {
   isStandaloneDisplay,
   recordVisit,
 } from "./pwa-install-hint";
+import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { resetInstallPromptForTests } from "~/lib/pwa-install-prompt";
 
 const IPHONE_UA =
@@ -202,7 +203,11 @@ describe("PwaInstallHint", () => {
     // Brand-tinted surface with a 2px brand border so the promotion is
     // distinguishable from the neutral gray content cards. `moto-content-surface`
     // is deliberately absent: it is unlayered and would force white + gray-200.
-    expect(card).toHaveClass("border-2", "border-[#83CD2D]", "bg-[#f0f9e4]");
+    expect(card).toHaveClass("border-2");
+    expect(card).toHaveStyle({
+      borderColor: GROUP_ROOM_SHADES.base,
+      backgroundColor: GROUP_ROOM_SHADES.bgHover,
+    });
     expect(card?.className).not.toMatch(/moto-content-surface/);
     // Centered at every width, not an edge-to-edge banner that snaps to the
     // right at sm.
@@ -211,7 +216,7 @@ describe("PwaInstallHint", () => {
     expect(card?.className).not.toMatch(/\bsm:right-/);
   });
 
-  it("clears the bottom nav and only reserves FAB space when a FAB is mounted", () => {
+  it("clears responsive bottom controls only while they are visible", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     const { container } = render(<PwaInstallHint />);
@@ -220,10 +225,10 @@ describe("PwaInstallHint", () => {
     // The FAB contribution is a CSS variable defaulting to 0, so pages
     // without a FAB do not reserve room for one.
     expect(card).toHaveClass(
-      "bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+env(safe-area-inset-bottom))]",
+      "bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+var(--moto-checkin-bar-offset,0rem)+env(safe-area-inset-bottom))]",
     );
-    // Switches with the shell (AppShell drops its mobile padding at lg and
-    // the bottom nav is lg:hidden), not one breakpoint later at xl.
+    // At lg the centered card and right-aligned FAB no longer intersect, so
+    // the hint can use the shell's normal desktop bottom spacing.
     expect(card).toHaveClass("lg:bottom-8");
     expect(card?.className).not.toMatch(/\bxl:bottom-/);
     expect(card?.className).not.toMatch(/10\.5rem/);
@@ -328,6 +333,19 @@ describe("PwaInstallHint", () => {
     // Falls back to the manual instructions because the one-shot event is
     // spent, but the promotion itself must not disappear silently.
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
+  });
+
+  it("hides and persistently dismisses the card after browser-menu installation", async () => {
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(false);
+    render(<PwaInstallHint />);
+
+    fireEvent(window, new Event("appinstalled"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+    });
+    expect(localStorage.getItem("moto-pwa-install-hint-dismissed")).toBe("1");
   });
 
   it("does not render inside Android WebViews", () => {

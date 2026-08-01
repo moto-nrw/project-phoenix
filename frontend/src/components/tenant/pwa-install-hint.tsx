@@ -3,9 +3,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Download, EllipsisVertical, Share, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   canPromptInstall,
+  isInstallationCompleted,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
@@ -90,14 +92,14 @@ export function recordVisit(win: Window): number {
  * single in-page slot would not reach them.
  *
  * Geometry, all of it previously wrong:
- * - Switches at `lg`, the same breakpoint at which AppShell drops its mobile
- *   bottom padding and the bottom nav and FAB become `lg:hidden`. The old
- *   `xl` switch left the card floating over nothing between 1024 and 1280px,
- *   which is exactly where iPad landscape sits.
+ * - Switches at `lg`, where AppShell drops its mobile bottom padding and the
+ *   bottom nav disappears. The centered card and right-aligned search-page
+ *   FAB do not intersect at `lg` widths, so no FAB clearance is needed there.
  * - Below lg the offset clears the bottom nav (~4.75rem visible) plus a 1rem
  *   gap, and adds `--moto-floating-fab-offset` only on the two pages that
- *   actually render the check-in FAB. The old fixed 10.5rem reserved FAB
- *   space everywhere.
+ *   actually show the check-in FAB. An active mobile check-in bar publishes
+ *   `--moto-checkin-bar-offset` in the same way. The old fixed 10.5rem
+ *   reserved FAB space everywhere.
  * - Horizontally centered at every width instead of jumping from an
  *   edge-to-edge mobile banner to a right-anchored card at `sm`.
  *
@@ -112,6 +114,11 @@ export function PwaInstallHint() {
   const oneTapInstallReady = useSyncExternalStore(
     subscribeInstallPrompt,
     canPromptInstall,
+    () => false,
+  );
+  const installationCompleted = useSyncExternalStore(
+    subscribeInstallPrompt,
+    isInstallationCompleted,
     () => false,
   );
 
@@ -130,7 +137,17 @@ export function PwaInstallHint() {
     setPlatform(detected);
   }, []);
 
-  if (!platform) return null;
+  useEffect(() => {
+    if (!installationCompleted) return;
+    setPlatform(null);
+    try {
+      window.localStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      // The published state still hides the hint for the current page.
+    }
+  }, [installationCompleted]);
+
+  if (!platform || installationCompleted) return null;
 
   const dismiss = () => {
     setPlatform(null);
@@ -173,13 +190,21 @@ export function PwaInstallHint() {
     // separate the promotion from the neutral content cards around it.
     <section
       aria-labelledby="pwa-install-hint-title"
-      className="fixed bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border-2 border-[#83CD2D] bg-[#f0f9e4] p-4 shadow-lg lg:bottom-8"
+      className="fixed bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+var(--moto-checkin-bar-offset,0rem)+env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border-2 p-4 shadow-lg lg:bottom-8"
+      style={{
+        borderColor: GROUP_ROOM_SHADES.base,
+        backgroundColor: GROUP_ROOM_SHADES.bgHover,
+      }}
     >
       <div className="flex items-start gap-3">
         {/* White bubble, because the previous #83CD2D/10 tint is invisible on
             the green card background. */}
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white">
-          <PlatformIcon className="h-4 w-4 text-[#4a7a15]" aria-hidden="true" />
+          <PlatformIcon
+            className="h-4 w-4"
+            style={{ color: GROUP_ROOM_SHADES.text }}
+            aria-hidden="true"
+          />
         </div>
         <div className="min-w-0 flex-1 text-sm text-gray-700">
           <h2
