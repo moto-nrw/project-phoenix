@@ -124,6 +124,10 @@
     "newsPollMulti": "Mund të zgjidhni disa përgjigje",
     "newsPollOpen": "Përgjigje në pritje",
     "newsPollAnswered": "Përgjigja u ruajt",
+    "newsPollSave": "Ruaj përgjigjen",
+    "newsPollSaving": "Po ruhet …",
+    "newsPollUnsaved": "Ende e paruajtur",
+    "newsPollNeedsAnswer": "Kërkohet përgjigje",
     "newEnrollment": "Regjistrim i ri"
   },
   "parentEnroll": {

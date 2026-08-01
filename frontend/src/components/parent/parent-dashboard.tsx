@@ -429,8 +429,6 @@ function StartNewsPanel() {
                 <NewsCard
                   item={item}
                   onOpen={(opened) => setOpenId(opened.id)}
-                  onUpdated={applyState}
-                  onStale={refetchOnStale}
                 />
               </li>
             ))}

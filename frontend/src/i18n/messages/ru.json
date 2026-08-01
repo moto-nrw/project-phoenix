@@ -124,6 +124,10 @@
     "newsPollMulti": "Можно выбрать несколько вариантов",
     "newsPollOpen": "Ответ не дан",
     "newsPollAnswered": "Ответ сохранён",
+    "newsPollSave": "Сохранить ответ",
+    "newsPollSaving": "Сохранение …",
+    "newsPollUnsaved": "Ещё не сохранено",
+    "newsPollNeedsAnswer": "Требуется ответ",
     "newEnrollment": "Новая заявка"
   },
   "parentEnroll": {

@@ -124,6 +124,10 @@
     "newsPollMulti": "Mehrfachauswahl möglich",
     "newsPollOpen": "Antwort offen",
     "newsPollAnswered": "Antwort gespeichert",
+    "newsPollSave": "Antwort speichern",
+    "newsPollSaving": "Wird gespeichert …",
+    "newsPollUnsaved": "Noch nicht gespeichert",
+    "newsPollNeedsAnswer": "Antwort erforderlich",
     "newEnrollment": "Neue Anmeldung"
   },
   "parentEnroll": {

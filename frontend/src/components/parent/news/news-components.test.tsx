@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { NewsCard, isOpenPoll } from "./news-components";
+import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
 
-// Poll (Umfrage, #1371) behaviour of the parent news card: the answer buttons
-// live ON the card, one row per child, and a closed poll stops accepting taps.
+// Poll (Umfrage, #1371) behaviour in the parent portal: the feed card only
+// flags that an answer is due, the detail view is where it is given — one row
+// per child, saved explicitly, and refused once the poll is closed.
 
 function poll(overrides: Partial<ParentAnnouncement> = {}): ParentAnnouncement {
   return {
@@ -40,16 +41,27 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("NewsCard poll answering", () => {
-  it("submits the tapped option for the child and marks it answered", async () => {
+describe("Umfrage answering in the detail view", () => {
+  it("selects locally and only writes once the answer is saved", async () => {
     const respond = vi
       .spyOn(parentApi, "respondToAnnouncement")
       .mockResolvedValue(undefined);
     const onUpdated = vi.fn();
 
-    render(<NewsCard item={poll()} onOpen={vi.fn()} onUpdated={onUpdated} />);
+    render(
+      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={onUpdated} />,
+    );
 
+    // Picking an option must not write anything yet.
     fireEvent.click(screen.getByRole("button", { name: "Ja" }));
+    expect(respond).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Ja" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("Noch nicht gespeichert")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
 
     await waitFor(() => {
       expect(respond).toHaveBeenCalledWith(
@@ -59,12 +71,20 @@ describe("NewsCard poll answering", () => {
         "2026-07-01T08:00:00Z",
       );
     });
-    // Optimistic patch: the card shows the new selection before the round trip.
     expect(onUpdated).toHaveBeenCalledWith("42", {
       children: [
         expect.objectContaining({ student_id: "10", selected_options: ["1"] }),
       ],
     });
+  });
+
+  it("keeps the save button disabled while nothing changed", () => {
+    render(
+      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Antwort speichern" }),
+    ).toBeDisabled();
   });
 
   it("withdraws the answer when the selected option is tapped again", async () => {
@@ -73,7 +93,7 @@ describe("NewsCard poll answering", () => {
       .mockResolvedValue(undefined);
 
     render(
-      <NewsCard
+      <NewsDetailModal
         item={poll({
           children: [
             {
@@ -84,12 +104,13 @@ describe("NewsCard poll answering", () => {
             },
           ],
         })}
-        onOpen={vi.fn()}
+        onClose={vi.fn()}
         onUpdated={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Ja" }));
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
 
     await waitFor(() => {
       expect(respond).toHaveBeenCalledWith(
@@ -107,7 +128,7 @@ describe("NewsCard poll answering", () => {
       .mockResolvedValue(undefined);
 
     render(
-      <NewsCard
+      <NewsDetailModal
         item={poll({
           response_type: "multi_choice",
           children: [
@@ -119,12 +140,13 @@ describe("NewsCard poll answering", () => {
             },
           ],
         })}
-        onOpen={vi.fn()}
+        onClose={vi.fn()}
         onUpdated={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Nein" }));
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
 
     await waitFor(() => {
       expect(respond).toHaveBeenCalledWith(
@@ -138,43 +160,56 @@ describe("NewsCard poll answering", () => {
 
   it("disables the options and shows the closed badge past the deadline", () => {
     render(
-      <NewsCard
+      <NewsDetailModal
         item={poll({ response_deadline: "2020-01-01T00:00:00Z" })}
-        onOpen={vi.fn()}
+        onClose={vi.fn()}
         onUpdated={vi.fn()}
       />,
     );
 
     expect(screen.getByText("Umfrage geschlossen")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ja" })).toBeDisabled();
+    // Nothing left to save, so the action is gone entirely.
+    expect(
+      screen.queryByRole("button", { name: "Antwort speichern" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("reverts the optimistic patch when the write fails", async () => {
+  it("keeps the selection and reports the error when saving fails", async () => {
     vi.spyOn(parentApi, "respondToAnnouncement").mockRejectedValue(
       new Error("boom"),
     );
     const onUpdated = vi.fn();
 
-    render(<NewsCard item={poll()} onOpen={vi.fn()} onUpdated={onUpdated} />);
+    render(
+      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={onUpdated} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Ja" }));
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
 
-    await waitFor(() => {
-      // Second call restores the pre-tap children array.
-      expect(onUpdated).toHaveBeenLastCalledWith("42", {
-        children: [
-          expect.objectContaining({ student_id: "10", selected_options: [] }),
-        ],
-      });
-    });
     expect(
       await screen.findByText("Aktion fehlgeschlagen. Bitte erneut versuchen."),
     ).toBeInTheDocument();
+    // Nothing was committed, and the choice stays on screen so it can be retried.
+    expect(onUpdated).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Ja" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("flags an open poll on the feed card without answering there", () => {
+    render(<NewsCard item={poll()} onOpen={vi.fn()} />);
+    expect(screen.getByText("Antwort erforderlich")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ja" }),
+    ).not.toBeInTheDocument();
   });
 
   it("names each child when the guardian has more than one", () => {
     render(
-      <NewsCard
+      <NewsDetailModal
         item={poll({
           children: [
             {
@@ -191,7 +226,7 @@ describe("NewsCard poll answering", () => {
             },
           ],
         })}
-        onOpen={vi.fn()}
+        onClose={vi.fn()}
         onUpdated={vi.fn()}
       />,
     );

@@ -81,6 +81,11 @@ function NewsBadges({
           {t("newsPoll")}
         </span>
       )}
+      {isOpenPoll(item) && (
+        <span className="inline-flex items-center rounded-full bg-[#FEF4E7] px-2 py-0.5 text-xs font-semibold text-[#B45309]">
+          {t("newsPollNeedsAnswer")}
+        </span>
+      )}
       {poll && item.response_deadline && !isPollClosed(item) && (
         <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
           {t("newsPollDeadline", { date: formatDate(item.response_deadline) })}
@@ -113,26 +118,26 @@ function NewsBadges({
 
 /**
  * The answer control of an Umfrage: one row per child the poll reaches, each
- * with the options as toggle buttons (#1371).
+ * with the options as toggle buttons plus an explicit save (#1371).
  *
- * It lives directly on the feed card, not only behind the detail modal: an
- * answer that costs one tap gets given, an answer that costs three taps does
- * not — and the school needs the number.
+ * Selecting is local; nothing is sent until the guardian saves. A tap that
+ * writes straight through reads as a slip waiting to happen — the answer is a
+ * commitment the school plans with, so it gets a deliberate confirmation.
+ *
+ * It lives in the detail view, where the guardian has the full question in
+ * front of them rather than a two-line preview in a list.
  */
 function PollAnswerBlock({
   item,
   onUpdated,
   onStale,
-  compact = false,
 }: Readonly<{
   item: ParentAnnouncement;
   onUpdated: (id: string, patch: Partial<ParentAnnouncement>) => void;
   onStale?: (id: string) => void;
-  /** Card variant: tighter spacing, no heading. */
-  compact?: boolean;
 }>) {
   const t = useTranslations("parentDashboard");
-  const [busyChild, setBusyChild] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const children = item.children ?? [];
@@ -140,61 +145,93 @@ function PollAnswerBlock({
   const closed = isPollClosed(item);
   const multi = item.response_type === "multi_choice";
 
-  const submit = async (
-    child: ParentAnnouncementPollChild,
-    optionId: string,
-  ) => {
-    if (closed || !item.published_at) return;
-    const selected = child.selected_options;
+  // What is selected on screen, per child. Seeded from the saved answers and
+  // reset whenever those change (a refetch, or our own save landing).
+  const savedSignature = children
+    .map((c) => `${c.student_id}:${[...c.selected_options].sort().join(",")}`)
+    .join("|");
+  const [draft, setDraft] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(
+      children.map((c) => [c.student_id, [...c.selected_options]]),
+    ),
+  );
+  useEffect(() => {
+    setDraft(
+      Object.fromEntries(
+        children.map((c) => [c.student_id, [...c.selected_options]]),
+      ),
+    );
+    setError(null);
+    // children is derived from item; savedSignature captures the values that
+    // matter, so it is the dependency rather than a new array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSignature]);
+
+  const selectionFor = (child: ParentAnnouncementPollChild): string[] =>
+    draft[child.student_id] ?? [];
+
+  const toggle = (child: ParentAnnouncementPollChild, optionId: string) => {
+    if (closed) return;
+    const selected = selectionFor(child);
     const next = multi
       ? selected.includes(optionId)
         ? selected.filter((id) => id !== optionId)
         : [...selected, optionId]
       : selected.includes(optionId)
-        ? [] // tapping the chosen option again withdraws the answer
+        ? [] // tapping the chosen option again clears it
         : [optionId];
+    setDraft((prev) => ({ ...prev, [child.student_id]: next }));
+  };
 
-    setBusyChild(child.student_id);
+  const isDirty = (child: ParentAnnouncementPollChild): boolean => {
+    const saved = [...child.selected_options].sort().join(",");
+    const current = [...selectionFor(child)].sort().join(",");
+    return saved !== current;
+  };
+  const dirtyChildren = children.filter(isDirty);
+
+  const save = async () => {
+    if (!item.published_at || dirtyChildren.length === 0) return;
+    setSaving(true);
     setError(null);
-    // Optimistic: the button state flips immediately and is reverted below if
-    // the write fails, so a slow connection never feels like a dead tap.
-    const previous = children;
-    onUpdated(item.id, {
-      children: children.map((c) =>
-        c.student_id === child.student_id
-          ? { ...c, selected_options: next }
-          : c,
-      ),
-    });
     try {
-      await respondToAnnouncement(
-        item.id,
-        child.student_id,
-        next,
-        item.published_at,
-      );
+      for (const child of dirtyChildren) {
+        await respondToAnnouncement(
+          item.id,
+          child.student_id,
+          selectionFor(child),
+          item.published_at,
+        );
+      }
+      onUpdated(item.id, {
+        children: children.map((c) => ({
+          ...c,
+          selected_options: selectionFor(c),
+        })),
+      });
       refreshUnreadBadge();
     } catch (err: unknown) {
       logger.error("parent_news_poll_answer_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      onUpdated(item.id, { children: previous });
       if (isStaleAnnouncementError(err)) {
         onStale?.(item.id);
       }
       setError(t("newsActionError"));
     } finally {
-      setBusyChild(null);
+      setSaving(false);
     }
   };
 
   if (children.length === 0 || options.length === 0) return null;
 
   return (
-    <div className={compact ? "space-y-2" : "space-y-3"}>
+    <div className="space-y-3">
       {multi && <p className="text-xs text-gray-500">{t("newsPollMulti")}</p>}
       {children.map((child) => {
+        const selected = selectionFor(child);
         const answered = child.selected_options.length > 0;
+        const dirty = isDirty(child);
         return (
           <div key={child.student_id}>
             <div className="flex items-center justify-between gap-2">
@@ -206,21 +243,31 @@ function PollAnswerBlock({
                 </span>
               )}
               <span
-                className={`ml-auto text-xs ${answered ? "text-[#4d7719]" : "text-gray-500"}`}
+                className={`ml-auto text-xs ${
+                  dirty
+                    ? "text-[#B45309]"
+                    : answered
+                      ? "text-[#4d7719]"
+                      : "text-gray-500"
+                }`}
               >
-                {answered ? t("newsPollAnswered") : t("newsPollOpen")}
+                {dirty
+                  ? t("newsPollUnsaved")
+                  : answered
+                    ? t("newsPollAnswered")
+                    : t("newsPollOpen")}
               </span>
             </div>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {options.map((option) => {
-                const active = child.selected_options.includes(option.id);
+                const active = selected.includes(option.id);
                 return (
                   <button
                     key={option.id}
                     type="button"
-                    disabled={closed || busyChild === child.student_id}
+                    disabled={closed || saving}
                     aria-pressed={active}
-                    onClick={() => void submit(child, option.id)}
+                    onClick={() => toggle(child, option.id)}
                     className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60 ${
                       active
                         ? "bg-[#83CD2D] text-white"
@@ -235,6 +282,18 @@ function PollAnswerBlock({
           </div>
         );
       })}
+
+      {!closed && (
+        <button
+          type="button"
+          disabled={dirtyChildren.length === 0 || saving}
+          onClick={() => void save()}
+          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? t("newsPollSaving") : t("newsPollSave")}
+        </button>
+      )}
+
       {error && (
         <p
           role="alert"
@@ -247,21 +306,28 @@ function PollAnswerBlock({
   );
 }
 
-/** Compact feed card: badges, title, school + date, two preview lines. */
+/**
+ * Compact feed card: badges, title, school + date, two preview lines.
+ *
+ * A poll is NOT answered here — the card only flags that an answer is due and
+ * opens the detail view. Answering in a list, next to four other items, is how
+ * you tap the wrong card; the detail view shows the full question first.
+ */
 export function NewsCard({
   item,
   onOpen,
-  onUpdated,
-  onStale,
 }: Readonly<{
   item: ParentAnnouncement;
   onOpen: (item: ParentAnnouncement) => void;
-  /** Required for polls: answering happens inline on the card. */
-  onUpdated?: (id: string, patch: Partial<ParentAnnouncement>) => void;
-  onStale?: (id: string) => void;
 }>) {
-  const summary = (
-    <>
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      className={`flex w-full items-center gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 ${
+        item.read ? "border-gray-200" : "border-gray-300"
+      }`}
+    >
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
           <NewsBadges item={item} />
@@ -281,44 +347,6 @@ export function NewsCard({
         className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </>
-  );
-
-  const borderClass = item.read ? "border-gray-200" : "border-gray-300";
-
-  // A poll card cannot be one big <button>: the answer buttons would nest
-  // inside it. So the summary stays a button and the answers sit beside it.
-  if (isPoll(item) && onUpdated) {
-    return (
-      <div
-        className={`rounded-xl border bg-white p-4 shadow-sm ${borderClass}`}
-      >
-        <button
-          type="button"
-          onClick={() => onOpen(item)}
-          className="flex w-full items-center gap-3 text-left"
-        >
-          {summary}
-        </button>
-        <div className="mt-3 border-t border-gray-100 pt-3">
-          <PollAnswerBlock
-            item={item}
-            onUpdated={onUpdated}
-            onStale={onStale}
-            compact
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(item)}
-      className={`flex w-full items-center gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 ${borderClass}`}
-    >
-      {summary}
     </button>
   );
 }

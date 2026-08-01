@@ -124,6 +124,10 @@
     "newsPollMulti": "Multiple answers possible",
     "newsPollOpen": "Answer pending",
     "newsPollAnswered": "Answer saved",
+    "newsPollSave": "Save answer",
+    "newsPollSaving": "Saving …",
+    "newsPollUnsaved": "Not saved yet",
+    "newsPollNeedsAnswer": "Answer required",
     "newEnrollment": "New enrollment"
   },
   "parentEnroll": {

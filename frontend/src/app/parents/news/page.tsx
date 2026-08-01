@@ -114,12 +114,7 @@ export default function ParentNewsPage() {
         <ul className="space-y-3">
           {items.map((item) => (
             <li key={item.id}>
-              <NewsCard
-                item={item}
-                onOpen={(opened) => setOpenId(opened.id)}
-                onUpdated={applyState}
-                onStale={refetchOnStale}
-              />
+              <NewsCard item={item} onOpen={(opened) => setOpenId(opened.id)} />
             </li>
           ))}
         </ul>
