@@ -501,6 +501,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_not_a_poll"))
 	case errors.Is(err, parentService.ErrPollClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_closed"))
+	case errors.Is(err, parentService.ErrInvalidPollResponse):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_poll_response"))
 	case errors.Is(err, parentService.ErrChildNotAnswerable):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrNoDates),

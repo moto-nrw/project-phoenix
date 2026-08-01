@@ -42,6 +42,11 @@ var (
 	// it to 409 so the portal refetches and shows the closed state instead of
 	// silently dropping the answer.
 	ErrPollClosed = errors.New("parent: the answer deadline for this poll has passed")
+	// ErrInvalidPollResponse is returned when a selection is not made up of this
+	// poll's options, repeats an option, or violates the poll's response type.
+	// Handler maps it to 400; importantly, validation happens before a prior
+	// answer can be replaced.
+	ErrInvalidPollResponse = errors.New("parent: invalid poll response")
 	// ErrChildNotAnswerable is returned when the guardian may not answer for the
 	// given child — not their child, or a child this poll does not reach. It
 	// collapses with "unknown child" on purpose so a parent token cannot probe
@@ -296,6 +301,7 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	var announcementTenantID int64
 	var announcementPublishedAt time.Time
 	var isPoll bool
+	var responseType string
 	var deadline *time.Time
 	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
@@ -329,6 +335,7 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 		announcementTenantID = a.GetTenantID()
 		announcementPublishedAt = *a.PublishedAt
 		isPoll = a.IsPoll()
+		responseType = a.ResponseType
 		deadline = a.ResponseDeadline
 		return nil
 	}); err != nil {
@@ -360,6 +367,13 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	if deadline != nil && !deadline.After(time.Now()) {
 		return ErrPollClosed
 	}
+	options, err := s.AnnouncementRepo.ListOptions(ctx, announcementID)
+	if err != nil {
+		return fmt.Errorf("parent: load poll options: %w", err)
+	}
+	if !validPollSelection(responseType, options, optionIDs) {
+		return ErrInvalidPollResponse
+	}
 	// Phase 2: the write re-evaluates liveness, version AND deadline inside the
 	// same statement, so a deadline that passes between here and the write cannot
 	// let a late answer through. A missed guard is a 409, never a silent 200.
@@ -379,6 +393,31 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 		)
 		return nil
 	})
+}
+
+func validPollSelection(responseType string, options []*usersModels.ParentAnnouncementOption, optionIDs []int64) bool {
+	if responseType != usersModels.ParentAnnouncementResponseSingleChoice &&
+		responseType != usersModels.ParentAnnouncementResponseMultiChoice {
+		return false
+	}
+	if len(optionIDs) == 0 {
+		return true
+	}
+	optionSet := make(map[int64]struct{}, len(options))
+	for _, option := range options {
+		optionSet[option.ID] = struct{}{}
+	}
+	seen := make(map[int64]struct{}, len(optionIDs))
+	for _, optionID := range optionIDs {
+		if _, exists := optionSet[optionID]; !exists {
+			return false
+		}
+		if _, duplicate := seen[optionID]; duplicate {
+			return false
+		}
+		seen[optionID] = struct{}{}
+	}
+	return responseType != usersModels.ParentAnnouncementResponseSingleChoice || len(optionIDs) == 1
 }
 
 // newsEnabledTenants returns the distinct tenants a guardian can receive news

@@ -35,7 +35,17 @@ import (
 // whose person is not soft-deleted, a students_guardians link granting
 // parent_portal.access, a guardian profile with a linked account, and an ACTIVE
 // account_tenants membership.
-func audienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
+func pollAudienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
+	return audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, `sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`)
+}
+
+// audienceStudentsSQLForPermission is the permission-specific variant used by
+// actions that need stronger authority than merely seeing a child in the
+// portal. permissionPredicate is a trusted SQL predicate over sg.
+func audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, permissionPredicate string) string {
+	if permissionPredicate != "" {
+		permissionPredicate = " AND " + permissionPredicate
+	}
 	return fmt.Sprintf(`
 		SELECT DISTINCT s.id AS student_id
 		FROM users.parent_announcement_targets pt
@@ -50,12 +60,13 @@ func audienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
 		AND s.status <> 'alumnus'
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
 			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			%[5]s
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
 			AND gp.account_id IS NOT NULL %[4]s
 		JOIN auth.account_tenants act ON act.account_id = gp.account_id
 			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 		WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s`,
-		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr), accountFilter)
+		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr), accountFilter, permissionPredicate)
 }
 
 // audienceStudentArgs returns the bind args for audienceStudentsSQL("?","?",...)
@@ -103,7 +114,7 @@ func openPollForAccountPredicate(annExpr, tenantExpr, accPlace string) string {
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
-				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
 				AND gp.account_id = %[3]s
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
@@ -223,7 +234,7 @@ func (r *ParentAnnouncementRepository) AnswerableChildren(ctx context.Context, a
 		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			AND s.status <> 'alumnus'
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
-			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
 			AND gp.account_id = ?
 		JOIN auth.account_tenants act ON act.account_id = gp.account_id
@@ -249,7 +260,7 @@ func (r *ParentAnnouncementRepository) AnswerableChildren(ctx context.Context, a
 // not reach, nor for a reached child that is not theirs.
 func (r *ParentAnnouncementRepository) AccountMayAnswerForStudent(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error) {
 	var allowed bool
-	inner := audienceStudentsSQL("?", "?", "AND gp.account_id = ?")
+	inner := audienceStudentsSQLForPermission("?", "?", "AND gp.account_id = ?", `sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`)
 	sqlStr := "SELECT EXISTS (SELECT 1 FROM (" + inner + ") reached WHERE reached.student_id = ?)"
 	args := append(audienceStudentArgs(announcementID, tenantID, &accountID), studentID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &allowed); err != nil {
@@ -264,57 +275,111 @@ func (r *ParentAnnouncementRepository) AccountMayAnswerForStudent(ctx context.Co
 // answers (no deadline, or a deadline in the future). An empty optionIDs
 // withdraws the answer.
 //
-// The guard is evaluated inside the same statement as the writes (mirroring
-// MarkRead's liveVersionGuardCTE) so a correction or a deadline that passes
-// between the service's authorize phase and this write cannot slip an answer in.
-// It returns whether the guard matched; false makes the service answer 409.
-//
-// Option ids are verified to belong to THIS announcement in the insert's SELECT,
-// so a client cannot vote with another poll's option id.
+// A transaction-scoped advisory lock serializes replacements for one poll and
+// child. Each write has its own live/version/relationship/selection guard, so
+// a correction, revocation, or deadline that changes between the delete and
+// insert rolls the transaction back instead of storing a stale answer. It
+// returns whether the guard and selection matched; false makes the service
+// answer 409.
 func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
 	db := base.GetDB(ctx, r.DB)
-	var live bool
-	guard := `WITH guard AS (
-			SELECT 1 FROM users.parent_announcements a
+	// The advisory transaction lock serializes all replacements for this
+	// announcement/child pair.  The response table's option-level uniqueness is
+	// insufficient: two guardians could otherwise both delete and then insert a
+	// different option for the same child.
+	//
+	// Each guarded write repeats audience/relationship authorization and poll
+	// liveness. Revoking poll.response after Phase 1 therefore prevents the
+	// write, rather than leaving a TOCTOU window.
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(?, ?)`, announcementID, studentID).Exec(ctx); err != nil {
+		return false, &modelBase.DatabaseError{Op: "lock parent announcement response", Err: err}
+	}
+	guard := `
+		WITH guard AS (
+			SELECT a.response_type
+			FROM users.parent_announcements a
+			JOIN users.parent_announcement_targets pt
+				ON pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
+			JOIN users.students s ON s.id = ? AND s.tenant_id = a.tenant_id AND (
+				pt.target_type = 'school_all'
+				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+				OR ` + activeActivityGroupExists("a.tenant_id") + `
+			)
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL AND s.status <> 'alumnus'
+			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
+				AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
+				AND gp.account_id = ?
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE a.id = ? AND a.tenant_id = ?
-				AND a.active
-				AND a.published_at = ?
-				AND a.published_at <= NOW()
+				AND a.active AND a.published_at = ? AND a.published_at <= NOW()
 				AND (a.expires_at IS NULL OR a.expires_at > NOW())
 				AND a.response_type <> 'none'
 				AND (a.response_deadline IS NULL OR a.response_deadline > NOW())
 		)`
-	if err := db.NewRaw(guard+`,
-		del AS (
-			DELETE FROM users.parent_announcement_responses
-			WHERE announcement_id = ? AND student_id = ? AND tenant_id = ?
-				AND EXISTS (SELECT 1 FROM guard)
-		)
-		SELECT EXISTS (SELECT 1 FROM guard)`,
-		announcementID, tenantID, expectedPublishedAt,
+	var live bool
+	if err := db.NewRaw(guard+`, requested AS (
+		SELECT option_id FROM unnest(ARRAY[?]::bigint[]) AS selection(option_id)
+	), selection_valid AS (
+		SELECT EXISTS (SELECT 1 FROM guard)
+			AND (SELECT count(*) FROM requested) = (SELECT count(DISTINCT option_id) FROM requested)
+			AND (SELECT count(*) FROM requested) = (
+				SELECT count(*) FROM requested
+				JOIN users.parent_announcement_options o ON o.id = requested.option_id
+				WHERE o.announcement_id = ? AND o.tenant_id = ?
+			)
+			AND ((SELECT response_type FROM guard LIMIT 1) <> 'single_choice'
+				OR (SELECT count(*) FROM requested) <= 1)
+	), del AS (
+		DELETE FROM users.parent_announcement_responses
+		WHERE announcement_id = ? AND student_id = ? AND tenant_id = ?
+			AND (SELECT selection_valid FROM selection_valid)
+	)
+	SELECT selection_valid FROM selection_valid`,
+		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
+		bun.List(optionIDs), announcementID, tenantID,
 		announcementID, studentID, tenantID,
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "clear parent announcement response", Err: err}
+		return false, &modelBase.DatabaseError{Op: "replace parent announcement response", Err: err}
 	}
 	if !live || len(optionIDs) == 0 {
 		return live, nil
 	}
-	// Insert the new selection. The SELECT ... FROM options join is what pins the
-	// option ids to this announcement (and this tenant); an id from another poll
-	// simply produces no row rather than a foreign vote.
-	if _, err := db.NewRaw(`
+	// Reapply the complete liveness, relationship, and selection guard to this
+	// insert: if the deadline closes or access is revoked after the delete, this
+	// transaction returns false and the caller rolls the delete back.
+	if err := db.NewRaw(guard+`, requested AS (
+		SELECT option_id FROM unnest(ARRAY[?]::bigint[]) AS selection(option_id)
+	), selection_valid AS (
+		SELECT EXISTS (SELECT 1 FROM guard)
+			AND (SELECT count(*) FROM requested) = (SELECT count(DISTINCT option_id) FROM requested)
+			AND (SELECT count(*) FROM requested) = (
+				SELECT count(*) FROM requested
+				JOIN users.parent_announcement_options o ON o.id = requested.option_id
+				WHERE o.announcement_id = ? AND o.tenant_id = ?
+			)
+			AND ((SELECT response_type FROM guard LIMIT 1) <> 'single_choice'
+				OR (SELECT count(*) FROM requested) <= 1)
+	), ins AS (
 		INSERT INTO users.parent_announcement_responses
 			(tenant_id, announcement_id, option_id, student_id, account_id, responded_at)
 		SELECT ?, ?, o.id, ?, ?, ?
 		FROM users.parent_announcement_options o
 		WHERE o.announcement_id = ? AND o.tenant_id = ? AND o.id IN (?)
-		ON CONFLICT (announcement_id, student_id, option_id) DO NOTHING`,
-		tenantID, announcementID, studentID, accountID, time.Now(),
-		announcementID, tenantID, bun.List(optionIDs),
-	).Exec(ctx); err != nil {
+			AND (SELECT selection_valid FROM selection_valid)
+		ON CONFLICT (announcement_id, student_id, option_id) DO NOTHING
+	)
+	SELECT selection_valid FROM selection_valid`,
+		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
+		bun.List(optionIDs), announcementID, tenantID,
+		tenantID, announcementID, studentID, accountID, time.Now(), announcementID, tenantID, bun.List(optionIDs),
+	).Scan(ctx, &live); err != nil {
 		return false, &modelBase.DatabaseError{Op: "insert parent announcement response", Err: err}
 	}
-	return true, nil
+	return live, nil
 }
 
 // PollResults returns the per-option tally plus how many children the poll
@@ -322,7 +387,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 // CURRENT audience, so a child who left the school stops counting — the staff
 // "X von Y" can never show more answers than reached children.
 func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID, announcementID int64) (*users.AnnouncementPollResults, error) {
-	audience := audienceStudentsSQL("?", "?", "")
+	audience := pollAudienceStudentsSQL("?", "?", "")
 	args := audienceStudentArgs(announcementID, tenantID, nil)
 
 	results := &users.AnnouncementPollResults{}
@@ -363,7 +428,7 @@ func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID
 // This is the per-child list behind PollResults, so staff can chase the missing
 // answers by name.
 func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementPollChildStatus, error) {
-	audience := audienceStudentsSQL("?", "?", "")
+	audience := pollAudienceStudentsSQL("?", "?", "")
 	args := audienceStudentArgs(announcementID, tenantID, nil)
 	sqlStr := `WITH audience AS (` + audience + `)
 		SELECT s.id AS student_id,
@@ -411,7 +476,7 @@ func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.
 		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 		AND s.status <> 'alumnus'
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
-			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 			AND gp.account_id IS NOT NULL
 			AND gp.email IS NOT NULL AND length(btrim(gp.email)) > 0

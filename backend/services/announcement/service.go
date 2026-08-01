@@ -395,6 +395,9 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 		if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
 			return nil, fmt.Errorf("%w: expires_at is already in the past", ErrValidation)
 		}
+		if a.ResponseDeadline != nil && !a.ResponseDeadline.After(now) {
+			return nil, fmt.Errorf("%w: response_deadline is already in the past", ErrValidation)
+		}
 		// Atomic publish: PublishIfDraft's UPDATE is guarded by
 		// published_at IS NULL, so only ONE of two concurrent publishes flips the
 		// row. Enqueue the opt-in e-mails only for that winner — a double-click or
@@ -423,6 +426,9 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			// with a 5xx: the tenant tx rolls back the flip and staff can retry.
 			if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(now) {
 				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
+			}
+			if fresh.ResponseDeadline != nil && !fresh.ResponseDeadline.After(now) {
+				return nil, fmt.Errorf("announcement: draft response deadline elapsed concurrently during publish; rolled back")
 			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
 			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {
