@@ -86,6 +86,15 @@ interface SSEEventData {
   // Affected students on a bulk_student_checkout event (whole-session end).
   student_ids?: string[];
 
+  // Affected educational (OGS) group ids on dashboard_counts_changed /
+  // student_checkin / student_checkout / bulk_student_checkout (#2057).
+  // Group ids only — never student identity — so the tenant-wide
+  // dashboard_counts_changed stays GDPR-safe. Clients scope their
+  // ogs-students-{gid} revalidation to these ids; an ABSENT field means
+  // "scope unknown → refresh broadly" (old backends, activity events,
+  // students without an OGS group). The backend never sends an empty array.
+  group_ids?: string[];
+
   // Activity session fields (for activity_start/end/update events)
   activity_name?: string;
   room_id?: string;

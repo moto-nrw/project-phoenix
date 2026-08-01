@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { SSEHookOptions } from "~/lib/sse-types";
+import type { SSEEvent, SSEHookOptions } from "~/lib/sse-types";
 import { renderHook } from "@testing-library/react";
 
 // Mock dependencies
@@ -40,7 +40,12 @@ vi.mock("~/lib/hooks/use-sse", () => ({
 }));
 
 // Import after mocking
-import { useGlobalSSE } from "../use-global-sse";
+import {
+  useGlobalSSE,
+  DEBOUNCE_MS,
+  FLUSH_JITTER_MS,
+  MAX_FLUSH_WAIT_MS,
+} from "../use-global-sse";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
@@ -49,6 +54,10 @@ describe("useGlobalSSE", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    // Pin the per-burst flush jitter (#2057) to 0 so the existing
+    // advanceTimersByTime(500) timing assertions stay deterministic. Jitter
+    // bounds get their own explicit tests.
+    vi.spyOn(Math, "random").mockReturnValue(0);
   });
 
   afterEach(() => {
@@ -280,10 +289,19 @@ describe("useGlobalSSE", () => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          )
         );
       });
       expect(dashboardCall).toBeDefined();
+
+      // #2057: the count-dashboard invalidation is an explicit key list — it
+      // must NOT drag the OGS BFF or staff time tracking into every check-in.
+      const matcher = dashboardCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      expect(matcher("tenant:ogs-dashboard")).toBe(false);
+      expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
     });
 
     it("invalidates dashboard caches on student_checkout event as a fallback", () => {
@@ -471,8 +489,25 @@ describe("useGlobalSSE", () => {
       expect(matcher("tenant:room-detail-12")).toBe(true);
       expect(matcher("tenant:tracking-supervisions-1")).toBe(true);
       expect(matcher("tenant:tracking-indicators-search")).toBe(true);
-      expect(matcher("tenant:dashboard")).toBe(true);
+      // #2057: no bare "dashboard" substring any more — dashboard-analytics
+      // is covered by the count-dashboard block, and the substring dragged
+      // ogs-dashboard + staff-dashboard-summary into every check-in.
+      expect(matcher("tenant:dashboard")).toBe(false);
+      expect(matcher("tenant:ogs-dashboard")).toBe(false);
       expect(matcher("tenant:timetable-week")).toBe(false);
+
+      // active_supervision_changed alone must NOT invalidate the per-group
+      // OGS student lists: it fires tenant-wide alongside every scoped
+      // dashboard_counts_changed, and honoring it would re-broaden every
+      // scoped event (#2057).
+      const ogsStudentsCall = mutateCalls.find((call) => {
+        const m = call[0];
+        return (
+          typeof m === "function" &&
+          (m as (key: string) => boolean)("tenant:ogs-students-5")
+        );
+      });
+      expect(ogsStudentsCall).toBeUndefined();
 
       const studentDetailCall = mutateCalls.find((call) => {
         const matcher = call[0];
@@ -503,10 +538,19 @@ describe("useGlobalSSE", () => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          )
         );
       });
       expect(dashboardCall).toBeDefined();
+
+      const matcher = dashboardCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      // #2057: the OGS BFF must not ride the count events — its live data is
+      // covered by the (scoped) ogs-students refetch.
+      expect(matcher("tenant:ogs-dashboard")).toBe(false);
+      expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
     });
 
     it("invalidates staff time-account caches after a work-session change", () => {
@@ -578,7 +622,9 @@ describe("useGlobalSSE", () => {
 
       vi.advanceTimersByTime(500);
 
-      // Find the mutate call with the ogs-students matcher
+      // Find the mutate call with the ogs-students matcher. The event carries
+      // no group_ids (old backend / student without OGS group), so the broad
+      // fallback must invalidate every group's list (#2057).
       const mutateCalls = vi.mocked(mutate).mock.calls;
       const ogsStudentCall = mutateCalls.find((call) => {
         const matcher = call[0];
@@ -592,9 +638,22 @@ describe("useGlobalSSE", () => {
       // Matcher must work with tenant-prefixed keys (useSWRAuth adds tenant slug prefix)
       const matcher = ogsStudentCall![0] as (key: string) => boolean;
       expect(matcher("my-tenant:ogs-students-5")).toBe(true);
-      expect(matcher("my-tenant:rooms-list")).toBe(true);
-      expect(matcher("my-tenant:tracking-supervisions-1-42,43")).toBe(true);
-      expect(matcher("my-tenant:tracking-indicators-search-group1")).toBe(true);
+
+      // The cross-group list caches live in their own mutate call since the
+      // ogs-students split (#2057) — same trigger, separate matcher.
+      const listCall = mutateCalls.find((call) => {
+        const m = call[0];
+        return (
+          typeof m === "function" &&
+          (m as (key: string) => boolean)("my-tenant:rooms-list")
+        );
+      });
+      expect(listCall).toBeDefined();
+      const listMatcher = listCall![0] as (key: string) => boolean;
+      expect(listMatcher("my-tenant:tracking-supervisions-1-42,43")).toBe(true);
+      expect(listMatcher("my-tenant:tracking-indicators-search-group1")).toBe(
+        true,
+      );
     });
 
     it("student_checkout without active_group_id invalidates dashboard caches", () => {
@@ -616,10 +675,16 @@ describe("useGlobalSSE", () => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          )
         );
       });
       expect(dashboardCall).toBeDefined();
+
+      const matcher = dashboardCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      expect(matcher("tenant:ogs-dashboard")).toBe(false);
     });
 
     it("student_checkout without active_group_id invalidates student-detail cache", () => {
@@ -677,11 +742,18 @@ describe("useGlobalSSE", () => {
       });
       expect(studentListCall).toBeDefined();
 
-      const studentListMatcher = studentListCall![0] as (
-        key: string,
-      ) => boolean;
-      expect(studentListMatcher("my-tenant:search-students--")).toBe(true);
-      expect(studentListMatcher("my-tenant:database-students-list")).toBe(true);
+      // The cross-group list caches live in their own mutate call since the
+      // ogs-students split (#2057) — same trigger, separate matcher.
+      const searchListCall = mutateCalls.find((call) => {
+        const m = call[0];
+        return (
+          typeof m === "function" &&
+          (m as (key: string) => boolean)("my-tenant:search-students--")
+        );
+      });
+      expect(searchListCall).toBeDefined();
+      const searchListMatcher = searchListCall![0] as (key: string) => boolean;
+      expect(searchListMatcher("my-tenant:database-students-list")).toBe(true);
 
       const studentDetailCall = mutateCalls.find((call) => {
         const matcher = call[0];
@@ -1331,6 +1403,234 @@ describe("useGlobalSSE", () => {
       } finally {
         window.removeEventListener("phoenix:notification", listener);
       }
+    });
+  });
+
+  // #2057: scoped invalidation, jitter, and the request-herd regression guard.
+  describe("scoped OGS invalidation (#2057)", () => {
+    /** Fires an event through the captured onMessage callback. */
+    function fire(event: {
+      type: SSEEvent["type"];
+      active_group_id?: string;
+      data?: SSEEvent["data"];
+    }) {
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: event.type,
+        active_group_id: event.active_group_id ?? "",
+        data: event.data ?? {},
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    /** Every key from the inventory that ANY recorded mutate matcher accepts. */
+    function matchedKeys(inventory: readonly string[]): string[] {
+      const matchers = vi
+        .mocked(mutate)
+        .mock.calls.map((call) => call[0])
+        .filter((m): m is (key: string) => boolean => typeof m === "function");
+      return inventory.filter((key) => matchers.some((m) => m(key)));
+    }
+
+    it("scopes ogs-students invalidation to the event's group_ids", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        data: { group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(500);
+
+      const keys = matchedKeys([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        // Exact-boundary matching: gid "7" must not hit group 70.
+        "tenant:ogs-students-70",
+        "tenant:ogs-dashboard",
+        "tenant:staff-dashboard-summary-month",
+        "tenant:dashboard-analytics",
+      ]);
+      expect(keys).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:dashboard-analytics",
+      ]);
+    });
+
+    it("falls back to broad ogs-students invalidation when group_ids are absent", () => {
+      // Mixed-version safety: an old backend (or a student without an OGS
+      // group) sends no group_ids — every group's list must still refresh.
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "dashboard_counts_changed" });
+      vi.advanceTimersByTime(500);
+
+      const keys = matchedKeys([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-dashboard",
+      ]);
+      expect(keys).toEqual(["tenant:ogs-students-7", "tenant:ogs-students-8"]);
+    });
+
+    it("keeps the backpressure fallback scoped: student_checkin with group_ids", () => {
+      // dashboard_counts_changed is best-effort; a delivered scoped
+      // student_checkin may be the only signal — it must invalidate the
+      // affected group without re-broadening.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42", group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(500);
+
+      const keys = matchedKeys([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-dashboard",
+        "tenant:student-detail-42",
+      ]);
+      expect(keys).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:student-detail-42",
+      ]);
+    });
+
+    it("student_checkin without group_ids falls back to broad ogs-students invalidation", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42" },
+      });
+      vi.advanceTimersByTime(500);
+
+      const keys = matchedKeys([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-dashboard",
+      ]);
+      expect(keys).toEqual(["tenant:ogs-students-7", "tenant:ogs-students-8"]);
+    });
+
+    it("bulk_student_checkout scopes to every carried group id", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "bulk_student_checkout",
+        active_group_id: "123",
+        data: { student_ids: ["42", "77"], group_ids: ["7", "9"] },
+      });
+      vi.advanceTimersByTime(500);
+
+      const keys = matchedKeys([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-students-9",
+        "tenant:ogs-dashboard",
+      ]);
+      expect(keys).toEqual(["tenant:ogs-students-7", "tenant:ogs-students-9"]);
+    });
+
+    it("activity lifecycle events refresh ogs-students broadly and ogs-dashboard structurally", () => {
+      // Session lifecycle changes current_location across groups but carries
+      // no educational scope.
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "activity_end", active_group_id: "456" });
+      vi.advanceTimersByTime(500);
+
+      const keys = matchedKeys([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-dashboard",
+      ]);
+      expect(keys).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-dashboard",
+      ]);
+    });
+
+    it("request-budget guard: one scoped event touches nothing on a tab viewing another group", () => {
+      // The herd regression guard for the acceptance criteria: an OGS tab
+      // viewing group 8 while group 7's student checks in must refetch NOTHING
+      // (previously: 9 Go-API calls via ogs-dashboard + ogs-students-8).
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        data: { group_ids: ["7"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", student_id: "42" },
+      });
+      vi.advanceTimersByTime(500);
+
+      // Mounted-key inventory of an OGS tab viewing group 8.
+      const keys = matchedKeys([
+        "tenant:ogs-dashboard",
+        "tenant:ogs-students-8",
+      ]);
+      expect(keys).toEqual([]);
+    });
+
+    it("spreads the flush by the per-burst jitter", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.999);
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
+
+      // Not at the bare debounce...
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+      expect(mutate).not.toHaveBeenCalled();
+
+      // ...but within DEBOUNCE_MS + FLUSH_JITTER_MS.
+      vi.advanceTimersByTime(FLUSH_JITTER_MS);
+      expect(mutate).toHaveBeenCalled();
+    });
+
+    it("collapses a jittered burst into a single flush", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      renderHook(() => useGlobalSSE());
+
+      for (let i = 0; i < 5; i++) {
+        fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
+        vi.advanceTimersByTime(100);
+      }
+      expect(mutate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(DEBOUNCE_MS + FLUSH_JITTER_MS);
+      const flushes = vi
+        .mocked(mutate)
+        .mock.calls.filter(
+          (call) =>
+            typeof call[0] === "function" &&
+            (call[0] as (key: string) => boolean)("tenant:ogs-students-7"),
+        );
+      expect(flushes).toHaveLength(1);
+    });
+
+    it("caps a sustained event stream at MAX_FLUSH_WAIT_MS", () => {
+      // A morning check-in rush must not starve the flush: the trailing
+      // debounce keeps resetting, but the first flush arrives no later than
+      // MAX_FLUSH_WAIT_MS after the burst began.
+      renderHook(() => useGlobalSSE());
+
+      // Events every 400ms past the cap — each re-arms the debounce, so an
+      // uncapped implementation would not have flushed by MAX_FLUSH_WAIT_MS.
+      const step = 400;
+      const steps = Math.ceil(MAX_FLUSH_WAIT_MS / step) + 1;
+      for (let i = 0; i < steps; i++) {
+        fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
+        vi.advanceTimersByTime(step);
+      }
+      // Elapsed > MAX_FLUSH_WAIT_MS: the capped flush has fired.
+      expect(mutate).toHaveBeenCalled();
     });
   });
 });
