@@ -671,24 +671,27 @@ function ClockInCard({
     }
   }, [isOnBreak]);
 
-  // Dismiss the desktop break-duration popover on outside pointerdown or
-  // Escape. The mobile picker is portaled by Drawer, so it manages dismissal
-  // through its own open state rather than this desktop-only listener.
+  // Dismiss the desktop break-duration popover on outside click or Escape.
+  // Capture the outside click before its target can act, so closing the picker
+  // cannot also trigger a button behind it. The mobile picker is portaled by
+  // Drawer, so it manages dismissal through its own open state instead.
   useEffect(() => {
     if (!breakMenuOpen || isMobileViewport) return;
-    const onPointer = (event: MouseEvent) => {
+    const onOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (target === null) return;
       if (breakMenuRef.current?.contains(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
       setBreakMenuOpen(false);
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") setBreakMenuOpen(false);
     };
-    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("click", onOutsideClick, true);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("click", onOutsideClick, true);
       document.removeEventListener("keydown", onKey);
     };
   }, [breakMenuOpen, isMobileViewport]);
@@ -989,10 +992,9 @@ function ClockInCard({
                   </Button>
                 )}
 
-                {/* Break duration menu. Dismissal runs on document listeners
-                    (outside pointerdown + Escape) like ui/OverflowMenu — a
-                    full-viewport click-catcher element is the hand-rolled
-                    overlay the UI-kit ratchet exists to stop. */}
+                {/* The capture-phase listener above consumes the first desktop
+                    outside click, so dismissing this picker cannot also
+                    trigger an action behind it. */}
                 {showBreakDurationPicker && !isMobileViewport && (
                   <div className="absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:w-72">
                     {breakDurationControls}
