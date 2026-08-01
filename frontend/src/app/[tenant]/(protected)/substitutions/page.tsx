@@ -1,22 +1,31 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { CalendarDays, Clock, Users } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { type ReactNode, Suspense, useMemo, useState } from "react";
+
 import { RoleGuard } from "~/components/auth/role-guard";
+import { Alert } from "~/components/ui/alert";
+import { Avatar } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Input } from "~/components/ui/input";
+import { Loading } from "~/components/ui/loading";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
-  FilterConfig,
   ActiveFilter,
+  FilterConfig,
 } from "~/components/ui/page-header/types";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { CustomSelect } from "~/components/ui/custom-select";
-import { substitutionService } from "~/lib/substitution-api";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
+import { formatDate, toISODate } from "~/lib/date-helpers";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { createLogger } from "~/lib/logger";
+import { substitutionService } from "~/lib/substitution-api";
 import type {
   Substitution,
   TeacherAvailability,
@@ -24,18 +33,40 @@ import type {
 import {
   formatTeacherName,
   getTeacherStatus,
-  getSubstitutionCounts,
 } from "~/lib/substitution-helpers";
-import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { useImmutableSWR, useSWRAuth } from "~/lib/swr";
 import { useOpenCareGroupMode } from "~/lib/tenant-context";
-
-import { Loading } from "~/components/ui/loading";
-import { useToast } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "SubstitutionsPage" });
 
-// Helper function to resolve substitute teacher name
+/** Wert des Dauer-Umschalters, der das freie Zahlenfeld einblendet. */
+const CUSTOM_DURATION = "custom";
+
+/**
+ * Voreinstellungen des Dauer-Umschalters. Die Werte sind Tageszahlen, weil der
+ * erste Tag mitzählt: "Heute" ist ein Tag, nicht null.
+ */
+const DURATION_PRESETS = [
+  { value: "1", label: "Heute" },
+  { value: "3", label: "3 Tage" },
+  { value: "7", label: "1 Woche" },
+  { value: CUSTOM_DURATION, label: "Individuell" },
+];
+
+const MAX_DURATION_DAYS = 365;
+
+/**
+ * Enddatum eines heute beginnenden Zugriffs. Der Starttag zählt mit, ein
+ * Zugriff über einen Tag endet also heute — dieselbe Rechnung, die auch an das
+ * Backend geht.
+ */
+function accessEndDate(days: number): Date {
+  const end = new Date();
+  end.setDate(end.getDate() + days - 1);
+  return end;
+}
+
 function getSubstituteName(
   teachers: TeacherAvailability[],
   substitution: Substitution,
@@ -48,71 +79,107 @@ function getSubstituteName(
     : (substitution.substituteStaffName ?? "Unbekannt");
 }
 
-// Helper component for rendering substitution count badges
-function SubstitutionBadges({
-  teacher,
-}: Readonly<{ teacher: TeacherAvailability }>) {
-  const counts = getSubstitutionCounts(teacher);
-  const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
-
-  const transfersBadgePosition = hasBoth
-    ? "-top-2 right-2.5 z-10"
-    : "-top-1 -right-1";
+/**
+ * Meta-Zeile unter einem Namen oder Gruppennamen: durch Mittelpunkte getrennte
+ * Textstücke, leere Werte fallen weg.
+ *
+ * Bewusst ohne farbige Pillen. Eine getönte Pille ist im Produkt einem echten
+ * Ausnahmezustand vorbehalten (etwa "Abwesend" in der Mitarbeiterliste); hier
+ * hätte fast jede Zeile eine getragen, die meisten davon für den Normalfall
+ * "Verfügbar". Farbe, die auf jeder Zeile steht, unterscheidet nichts mehr und
+ * macht aus einer Arbeitsliste ein Schaubild.
+ */
+function MetaLine({ parts }: Readonly<{ parts: (string | null)[] }>) {
+  const visible = parts.filter((part): part is string => Boolean(part));
+  if (visible.length === 0) return null;
 
   return (
-    <>
-      {counts.transfers > 0 && (
-        <span
-          className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${transfersBadgePosition}`}
-        >
-          {counts.transfers}
+    <p className="mt-1 truncate text-xs text-gray-500">
+      {visible.map((part, index) => (
+        <span key={part}>
+          {index > 0 && <span className="mx-1.5 text-gray-300">·</span>}
+          {part}
         </span>
-      )}
-      {counts.substitutions > 0 && (
-        <span className="absolute -top-1 -right-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm">
-          {counts.substitutions}
-        </span>
-      )}
-    </>
+      ))}
+    </p>
   );
 }
 
-// Helper component for rendering status indicators
-function StatusIndicator({
-  teacher,
-  size = "default",
-}: Readonly<{
-  teacher: TeacherAvailability;
-  size?: "default" | "large";
-}>) {
-  const counts = getSubstitutionCounts(teacher);
-  const dotSize = size === "large" ? "h-2.5 w-2.5" : "h-2 w-2";
+/** Gemeinsame Listenfläche: eine weiße Karte mit Trennlinien statt einzelner Karten. */
+function ListSurface({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
+      {children}
+    </ul>
+  );
+}
 
-  if (counts.transfers > 0 && counts.substitutions > 0) {
-    return (
-      <div className="flex gap-0.5">
-        <span
-          className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
-        ></span>
-        <span
-          className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
-        ></span>
+function SectionHeading({
+  icon,
+  title,
+  count,
+  hint,
+}: Readonly<{
+  icon: ReactNode;
+  title: string;
+  count: number;
+  hint?: string;
+}>) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2 md:mb-4">
+      <span className="text-gray-500" aria-hidden="true">
+        {icon}
+      </span>
+      <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+        {title}
+      </h2>
+      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold text-gray-700 tabular-nums">
+        {count}
+      </span>
+      {hint ? <span className="text-xs text-gray-500">{hint}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * Eine Zeile in den beiden Zugriffs-Abschnitten. Die Art des Zugriffs steht
+ * schon in der Abschnittsüberschrift, deshalb trägt die Zeile sie nicht noch
+ * einmal als Kennzeichnung; nur das Enddatum kommt hinzu, wo es eines gibt.
+ */
+function AccessRow({
+  groupName,
+  personName,
+  until,
+  onEnd,
+  disabled,
+}: Readonly<{
+  groupName: string;
+  personName: string;
+  until: string | null;
+  onEnd: () => void;
+  disabled: boolean;
+}>) {
+  return (
+    <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-gray-900">
+          {groupName}
+        </p>
+        <MetaLine parts={[`Zugriff für ${personName}`, until]} />
       </div>
-    );
-  } else if (counts.transfers > 0) {
-    return (
-      <span
-        className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
-      ></span>
-    );
-  } else if (counts.substitutions > 0) {
-    return (
-      <span
-        className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
-      ></span>
-    );
-  }
-  return <span className={`${dotSize} rounded-full bg-[#83CD2D]`}></span>;
+      <Button
+        type="button"
+        variant="outline_danger"
+        size="md"
+        onClick={onEnd}
+        disabled={disabled}
+        aria-label={`Zugriff von ${personName} auf ${groupName} beenden`}
+        className="w-full sm:w-auto"
+      >
+        Beenden
+      </Button>
+    </li>
+  );
 }
 
 function SubstitutionPageContent() {
@@ -129,9 +196,12 @@ function SubstitutionPageContent() {
   // Navigation blendet den Eintrag aus, das hier fängt Direktaufrufe ab.
   const openCareGroupMode = useOpenCareGroupMode();
 
+  // Der Seitenkopf trägt den Titel nur im Telefonformat; auf breiten Schirmen
+  // steht er bereits in der Kopfleiste der Anwendung.
+  const isMobile = useMediaQuery(BELOW_MD);
+
   const { success: showSuccessToast } = useToast();
 
-  // Data fetching with SWR - automatic caching and revalidation
   const {
     data: teachers = [],
     isLoading: teachersLoading,
@@ -155,21 +225,25 @@ function SubstitutionPageContent() {
       { keepPreviousData: true },
     );
 
-  // UI State
+  // UI-Zustand
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isMutating, setIsMutating] = useState(false);
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
 
-  // Popup states
+  // Ladefehler gehören auf die Seite, Fehler einer Aktion in den Dialog, in dem
+  // die Aktion ausgelöst wurde. Vorher war das eine gemeinsame Variable, wodurch
+  // ein Ladefehler mitten im Zuweisen-Dialog auftauchte.
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  // Zuweisen-Dialog
   const [showPopup, setShowPopup] = useState(false);
   const [selectedTeacher, setSelectedTeacher] =
     useState<TeacherAvailability | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [substitutionDays, setSubstitutionDays] = useState(1);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [durationPreset, setDurationPreset] = useState("1");
+  const [customDays, setCustomDays] = useState(2);
 
-  // Confirmation modal states
+  // Beenden-Bestätigung
   const [showEndConfirmation, setShowEndConfirmation] = useState(false);
   const [substitutionToEnd, setSubstitutionToEnd] = useState<{
     id: string;
@@ -177,25 +251,15 @@ function SubstitutionPageContent() {
     teacherName: string;
   } | null>(null);
 
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  // Derive loading and error states from SWR
   const isLoading = teachersLoading;
-  const error = teachersError ? "Fehler beim Laden der Daten." : mutationError;
+  const loadError = teachersError ? "Fehler beim Laden der Daten." : null;
 
-  // Apply filters to teachers
+  const substitutionDays =
+    durationPreset === CUSTOM_DURATION ? customDays : Number(durationPreset);
+
   const filteredTeachers = useMemo(() => {
     let filtered = [...teachers];
 
-    // Apply search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter((teacher) => {
@@ -208,7 +272,6 @@ function SubstitutionPageContent() {
       });
     }
 
-    // Apply status filter
     if (statusFilter !== "all") {
       const isInSubstitution = statusFilter === "substitution";
       filtered = filtered.filter(
@@ -219,24 +282,30 @@ function SubstitutionPageContent() {
     return filtered;
   }, [teachers, searchTerm, statusFilter]);
 
-  // Open popup for substitution assignment
   const openSubstitutionPopup = (teacher: TeacherAvailability) => {
     setSelectedTeacher(teacher);
-    setSelectedGroup("");
-    setSubstitutionDays(1);
+    setSelectedGroupId("");
+    setDurationPreset("1");
+    setCustomDays(2);
+    setMutationError(null);
     setShowPopup(true);
   };
 
-  // Close popup
   const closePopup = () => {
     setShowPopup(false);
     setSelectedTeacher(null);
+    setMutationError(null);
   };
 
-  // Handle substitution assignment
   const handleAssignSubstitution = async () => {
-    if (!selectedTeacher || !selectedGroup) {
-      setMutationError("Bitte wählen Sie eine Gruppe aus.");
+    if (!selectedTeacher || !selectedGroupId) {
+      setMutationError("Bitte wähle eine Gruppe aus.");
+      return;
+    }
+
+    const group = groups.find((g) => g.id === selectedGroupId);
+    if (!group) {
+      setMutationError("Gruppe nicht gefunden.");
       return;
     }
 
@@ -244,36 +313,22 @@ function SubstitutionPageContent() {
       setIsMutating(true);
       setMutationError(null);
 
-      // Find the selected group to get its ID
-      const group = groups.find((g) => g.name === selectedGroup);
-      if (!group) {
-        setMutationError("Gruppe nicht gefunden.");
-        return;
-      }
-
-      // For general group coverage, we don't need to specify who is being replaced
+      // Kein regular_staff_id: der Zugriff ersetzt niemanden, er kommt zusätzlich
+      // zu den bestehenden Berechtigungen der Gruppe.
       const regularStaffId = null;
 
-      // Calculate end date based on substitution days
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + substitutionDays - 1);
-
-      // Create the substitution
       await substitutionService.createSubstitution(
         group.id,
         regularStaffId,
         selectedTeacher.id,
-        startDate,
-        endDate,
-        "Gruppenzugriff", // reason
-        `Gruppenzugriff für ${substitutionDays} Tag(e)`, // notes
+        new Date(),
+        accessEndDate(substitutionDays),
+        "Gruppenzugriff",
+        `Gruppenzugriff für ${substitutionDays} Tag(e)`,
       );
 
-      // Invalidate SWR cache to trigger refetch
       await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
 
-      // Show success message (use group.name from the found group)
       const teacherName = formatTeacherName(selectedTeacher);
       const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
       showSuccessToast(
@@ -291,17 +346,16 @@ function SubstitutionPageContent() {
     }
   };
 
-  // Handle ending substitution - show confirmation first
   const handleEndSubstitutionClick = (
     substitutionId: string,
     groupName: string,
     teacherName: string,
   ) => {
+    setMutationError(null);
     setSubstitutionToEnd({ id: substitutionId, groupName, teacherName });
     setShowEndConfirmation(true);
   };
 
-  // Confirm and execute ending substitution
   const confirmEndSubstitution = async () => {
     if (!substitutionToEnd) return;
 
@@ -310,10 +364,8 @@ function SubstitutionPageContent() {
       setMutationError(null);
       await substitutionService.deleteSubstitution(substitutionToEnd.id);
 
-      // Invalidate SWR cache to trigger refetch
       await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
 
-      // Show success message
       showSuccessToast(`Zugriff auf "${substitutionToEnd.groupName}" beendet`);
 
       setShowEndConfirmation(false);
@@ -328,7 +380,6 @@ function SubstitutionPageContent() {
     }
   };
 
-  // Prepare filter configurations
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
       {
@@ -347,7 +398,6 @@ function SubstitutionPageContent() {
     [statusFilter],
   );
 
-  // Prepare active filters
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const filters: ActiveFilter[] = [];
 
@@ -396,132 +446,146 @@ function SubstitutionPageContent() {
     );
   }
 
-  // Helper to render teacher list content (extracted from nested ternary - S3358)
-  const renderTeacherListContent = () => {
-    if (filteredTeachers.length > 0) {
+  const transfers = activeSubstitutions.filter((s) => s.isTransfer);
+  const longTermAccess = activeSubstitutions.filter((s) => !s.isTransfer);
+
+  const renderTeacherList = () => {
+    if (isLoading) {
+      return <Loading fullPage={false} />;
+    }
+
+    if (filteredTeachers.length === 0) {
       return (
-        <div className="space-y-3">
-          {filteredTeachers.map((teacher) => (
-            <button
-              type="button"
+        <EmptyState
+          icon={<Users className="h-12 w-12" />}
+          title="Keine Fachkräfte gefunden"
+          description="Versuche deine Suchkriterien anzupassen."
+        />
+      );
+    }
+
+    return (
+      <ListSurface>
+        {filteredTeachers.map((teacher) => {
+          const name = formatTeacherName(teacher);
+          return (
+            <li
               key={teacher.id}
-              onClick={() => openSubstitutionPopup(teacher)}
-              className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+              className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
-
-              <div className="relative flex items-center justify-between p-4 md:p-5">
-                {/* Left content - Avatar + Info */}
-                <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4">
-                  {/* Teacher initial circle with count badge */}
-                  <div className="relative">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md md:h-12 md:w-12 md:text-lg">
-                      {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
-                    </div>
-                    {/* Dual badges: Orange für Tagesübergaben, Lila für längerfristige Zugriffe */}
-                    <SubstitutionBadges teacher={teacher} />
-                  </div>
-
-                  {/* Teacher info */}
-                  <div className="min-w-0 flex-1">
-                    <h3 className="inline-block origin-left truncate text-base font-semibold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:text-lg md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
-                      {formatTeacherName(teacher)}
-                    </h3>
-                    {/* Meta info row: Group + Status */}
-                    <div className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500 md:mt-1">
-                      {teacher.regularGroup && (
-                        <>
-                          <span className="truncate">
-                            {teacher.regularGroup}
-                          </span>
-                          <span className="text-gray-300">·</span>
-                        </>
-                      )}
-                      <StatusIndicator teacher={teacher} />
-                      <span className="truncate text-gray-600">
-                        {getTeacherStatus(teacher)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right content - "Zuweisen" + Plus icon */}
-                <div className="ml-3 flex items-center gap-2 md:ml-4 md:gap-3">
-                  {/* Desktop hint */}
-                  <span className="hidden text-xs text-gray-400 transition-colors group-hover:text-gray-600 lg:block">
-                    Zuweisen
-                  </span>
-
-                  {/* Plus icon button (visual only - parent button handles click) */}
-                  <span className="relative" aria-hidden="true">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:h-10 md:w-10 md:group-hover:bg-gray-200">
-                      <svg
-                        className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 4.5v15m7.5-7.5h-15"
-                        />
-                      </svg>
-                    </div>
-                  </span>
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar name={name} size="md" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-gray-900">
+                    {name}
+                  </p>
+                  {/* "Verfügbar" ist der Normalfall und bekommt keine eigene
+                      Auszeichnung: wo nichts steht, ist nichts zugewiesen. */}
+                  <MetaLine
+                    parts={[
+                      teacher.regularGroup ?? null,
+                      teacher.substitutionCount > 0
+                        ? getTeacherStatus(teacher)
+                        : null,
+                    ]}
+                  />
                 </div>
               </div>
-            </button>
-          ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => openSubstitutionPopup(teacher)}
+                aria-label={`${name} Zugriff auf eine Gruppe geben`}
+                className="w-full sm:w-auto"
+              >
+                Zuweisen
+              </Button>
+            </li>
+          );
+        })}
+      </ListSurface>
+    );
+  };
+
+  const renderAccessSection = (
+    substitutions: Substitution[],
+    emptyText: string,
+    untilFor: (substitution: Substitution) => string | null,
+  ) => {
+    // Eine leere Liste bekommt dieselbe Fläche wie eine gefüllte, damit der
+    // Abschnitt nicht als freischwebender Text im Raster steht. Bewusst knapp:
+    // das ist eine Liste ohne Einträge, kein leerer Seitenbereich, für den
+    // EmptyState mit seiner grossen zentrierten Überschrift gedacht ist.
+    if (substitutions.length === 0) {
+      return (
+        <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-500">
+          {emptyText}
         </div>
       );
     }
+
     return (
-      <EmptyState
-        icon={
-          <svg
-            className="h-12 w-12"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+      <ListSurface>
+        {substitutions.map((substitution) => {
+          const group = groups.find((g) => g.id === substitution.groupId);
+          if (!group) return null;
+
+          const substituteName = getSubstituteName(teachers, substitution);
+
+          return (
+            <AccessRow
+              key={substitution.id}
+              groupName={group.name}
+              personName={substituteName}
+              until={untilFor(substitution)}
+              disabled={isMutating}
+              onEnd={() =>
+                handleEndSubstitutionClick(
+                  substitution.id,
+                  group.name,
+                  substituteName,
+                )
+              }
             />
-          </svg>
-        }
-        title="Keine Fachkräfte gefunden"
-        description="Versuche deine Suchkriterien anzupassen."
-      />
+          );
+        })}
+      </ListSurface>
     );
   };
+
+  const assignFooter = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={closePopup}
+        disabled={isMutating}
+      >
+        Abbrechen
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={() => void handleAssignSubstitution()}
+        isLoading={isMutating}
+        loadingText="Wird zugewiesen…"
+        disabled={!selectedGroupId || isMutating}
+      >
+        Zuweisen
+      </Button>
+    </>
+  );
 
   return (
     <>
       <div className="-mt-1.5 w-full">
-        {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={isMobile ? "Gruppenzugriff" : ""}
           badge={{
-            icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-            ),
+            icon: <Users className="h-5 w-5 text-gray-600" />,
             count: filteredTeachers.length,
             label: "Fachkräfte",
           }}
@@ -538,337 +602,79 @@ function SubstitutionPageContent() {
           }}
         />
 
-        {/* Error Alert */}
-        {error && (
+        {loadError && (
           <div className="mb-6">
-            <Alert type="error" message={error} />
+            <Alert type="error" message={loadError} />
           </div>
         )}
 
-        {/* Available Teachers Section */}
+        {/* Die Anzahl steht bereits im Zähler des Seitenkopfs, deshalb hier
+            eine schlichte Überschrift ohne Zählpille. */}
         <div className="mb-6">
           <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4 md:text-lg">
             Verfügbare pädagogische Fachkräfte
           </h2>
-
-          {isLoading ? (
-            <Loading fullPage={false} />
-          ) : (
-            renderTeacherListContent()
-          )}
+          {renderTeacherList()}
         </div>
 
-        {/* Active Assignments Section - Split by Type */}
         <div className="space-y-6">
-          {/* Day Transfers Section (Tagesübergaben) */}
-          {(() => {
-            const transfers = activeSubstitutions.filter((s) => s.isTransfer);
-            return (
-              <div>
-                <div className="mb-3 flex items-center gap-2 md:mb-4">
-                  <svg
-                    className="h-5 w-5 text-orange-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-                    Tagesübergaben
-                  </h2>
-                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                    {transfers.length}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    (enden heute 23:59)
-                  </span>
-                </div>
+          <section>
+            <SectionHeading
+              icon={<Clock className="h-5 w-5" />}
+              title="Tagesübergaben"
+              count={transfers.length}
+              hint="(enden heute 23:59)"
+            />
+            {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
+                steht bereits in der Überschrift. */}
+            {renderAccessSection(
+              transfers,
+              "Keine aktiven Tagesübergaben",
+              () => null,
+            )}
+          </section>
 
-                {transfers.length > 0 ? (
-                  <div className="space-y-3">
-                    {transfers.map((substitution) => {
-                      const group = groups.find(
-                        (g) => g.id === substitution.groupId,
-                      );
-                      if (!group) return null;
-
-                      const substituteName = getSubstituteName(
-                        teachers,
-                        substitution,
-                      );
-
-                      return (
-                        <div
-                          key={substitution.id}
-                          className="group relative overflow-hidden rounded-2xl border border-orange-200 bg-orange-50/70 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-orange-300 hover:bg-orange-50 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)]"
-                        >
-                          <div className="relative p-4 md:p-5">
-                            {/* Mobile layout */}
-                            <div className="md:hidden">
-                              <div className="mb-3 flex items-start gap-3">
-                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-base font-semibold text-white shadow-md">
-                                  {(group.name?.charAt(0) || "G").toUpperCase()}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="truncate text-base font-semibold text-gray-900">
-                                    {group.name}
-                                  </h3>
-                                  <p className="mt-1 text-sm text-gray-500">
-                                    <span className="text-gray-400">an:</span>{" "}
-                                    <span className="font-medium text-gray-700">
-                                      {substituteName}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline_danger"
-                                size="md"
-                                onClick={() =>
-                                  handleEndSubstitutionClick(
-                                    substitution.id,
-                                    group.name,
-                                    substituteName,
-                                  )
-                                }
-                                disabled={isMutating}
-                                className="w-full"
-                              >
-                                Beenden
-                              </Button>
-                            </div>
-
-                            {/* Desktop layout */}
-                            <div className="hidden items-center justify-between md:flex">
-                              <div className="flex min-w-0 flex-1 items-center gap-4">
-                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-lg font-semibold text-white shadow-md">
-                                  {(group.name?.charAt(0) || "G").toUpperCase()}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="truncate text-lg font-semibold text-gray-900">
-                                    {group.name}
-                                  </h3>
-                                  <p className="mt-1 text-sm text-gray-500">
-                                    <span className="text-gray-400">
-                                      Übergeben an:
-                                    </span>{" "}
-                                    <span className="font-medium text-gray-700">
-                                      {substituteName}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline_danger"
-                                size="md"
-                                onClick={() =>
-                                  handleEndSubstitutionClick(
-                                    substitution.id,
-                                    group.name,
-                                    substituteName,
-                                  )
-                                }
-                                disabled={isMutating}
-                                className="ml-4 whitespace-nowrap"
-                              >
-                                Beenden
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
-                    <p className="text-sm text-gray-500">
-                      Keine aktiven Tagesübergaben
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Regular Substitutions Section (längerfristige Zugriffe) */}
-          {(() => {
-            const regularSubs = activeSubstitutions.filter(
-              (s) => !s.isTransfer,
-            );
-            return (
-              <div>
-                <div className="mb-3 flex items-center gap-2 md:mb-4">
-                  <svg
-                    className="h-5 w-5 text-purple-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-                    Längerfristige Zugriffe
-                  </h2>
-                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
-                    {regularSubs.length}
-                  </span>
-                  <span className="text-xs text-gray-400">(mehrtägig)</span>
-                </div>
-
-                {regularSubs.length > 0 ? (
-                  <div className="space-y-3">
-                    {regularSubs.map((substitution) => {
-                      const group = groups.find(
-                        (g) => g.id === substitution.groupId,
-                      );
-                      if (!group) return null;
-
-                      const substituteName = getSubstituteName(
-                        teachers,
-                        substitution,
-                      );
-
-                      // Format end date
-                      const endDateStr =
-                        substitution.endDate.toLocaleDateString("de-DE", {
-                          timeZone: "Europe/Berlin",
-                          day: "2-digit",
-                          month: "2-digit",
-                        });
-
-                      return (
-                        <div
-                          key={substitution.id}
-                          className="group relative overflow-hidden rounded-2xl border border-purple-200 bg-purple-50/70 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-purple-300 hover:bg-purple-50 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)]"
-                        >
-                          <div className="relative p-4 md:p-5">
-                            {/* Mobile layout */}
-                            <div className="md:hidden">
-                              <div className="mb-3 flex items-start gap-3">
-                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-500 text-base font-semibold text-white shadow-md">
-                                  {(group.name?.charAt(0) || "G").toUpperCase()}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="truncate text-base font-semibold text-gray-900">
-                                    {group.name}
-                                  </h3>
-                                  <p className="mt-1 text-sm text-gray-500">
-                                    <span className="text-gray-400">für:</span>{" "}
-                                    <span className="font-medium text-gray-700">
-                                      {substituteName}
-                                    </span>
-                                  </p>
-                                  <p className="mt-0.5 text-xs text-purple-600">
-                                    bis {endDateStr}
-                                  </p>
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline_danger"
-                                size="md"
-                                onClick={() =>
-                                  handleEndSubstitutionClick(
-                                    substitution.id,
-                                    group.name,
-                                    substituteName,
-                                  )
-                                }
-                                disabled={isMutating}
-                                className="w-full"
-                              >
-                                Beenden
-                              </Button>
-                            </div>
-
-                            {/* Desktop layout */}
-                            <div className="hidden items-center justify-between md:flex">
-                              <div className="flex min-w-0 flex-1 items-center gap-4">
-                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-purple-500 text-lg font-semibold text-white shadow-md">
-                                  {(group.name?.charAt(0) || "G").toUpperCase()}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="truncate text-lg font-semibold text-gray-900">
-                                      {group.name}
-                                    </h3>
-                                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
-                                      bis {endDateStr}
-                                    </span>
-                                  </div>
-                                  <p className="mt-1 text-sm text-gray-500">
-                                    <span className="text-gray-400">
-                                      Zugriff für:
-                                    </span>{" "}
-                                    <span className="font-medium text-gray-700">
-                                      {substituteName}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline_danger"
-                                size="md"
-                                onClick={() =>
-                                  handleEndSubstitutionClick(
-                                    substitution.id,
-                                    group.name,
-                                    substituteName,
-                                  )
-                                }
-                                disabled={isMutating}
-                                className="ml-4 whitespace-nowrap"
-                              >
-                                Beenden
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
-                    <p className="text-sm text-gray-500">
-                      Keine aktiven längerfristigen Zugriffe
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          <section>
+            <SectionHeading
+              icon={<CalendarDays className="h-5 w-5" />}
+              title="Längerfristige Zugriffe"
+              count={longTermAccess.length}
+              hint="(mehrtägig)"
+            />
+            {renderAccessSection(
+              longTermAccess,
+              "Keine aktiven längerfristigen Zugriffe",
+              (substitution) =>
+                `bis ${substitution.endDate.toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
+                  day: "2-digit",
+                  month: "2-digit",
+                })}`,
+            )}
+          </section>
         </div>
       </div>
 
-      {/* Substitution Assignment Modal */}
-      <Modal isOpen={showPopup} onClose={closePopup} title="Zugriff gewähren">
-        {error && <Alert type="error" message={error} />}
+      <Modal
+        isOpen={showPopup}
+        onClose={closePopup}
+        title="Zugriff gewähren"
+        footer={assignFooter}
+        isDismissDisabled={isMutating}
+      >
+        <div className="space-y-6">
+          {mutationError ? (
+            <Alert type="error" message={mutationError} />
+          ) : null}
 
-        <div className="space-y-4">
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">
-              Pädagogische Fachkraft:
-            </p>
-            <p className="font-semibold text-gray-900">
+          <p className="text-sm text-gray-600">
+            <span className="font-medium text-gray-900">
               {selectedTeacher ? formatTeacherName(selectedTeacher) : ""}
-            </p>
-          </div>
+            </span>{" "}
+            erhält zusätzlichen Zugriff auf die Kinder der gewählten Gruppe. Die
+            bestehenden Berechtigungen der Gruppe bleiben unverändert.
+          </p>
 
-          {/* Group selection */}
           <div>
             <label
               id="substitution-group-select-label"
@@ -880,146 +686,80 @@ function SubstitutionPageContent() {
             <CustomSelect
               id="substitution-group-select"
               ariaLabelledBy="substitution-group-select-label"
-              value={selectedGroup}
-              onChange={setSelectedGroup}
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
               placeholder="Gruppe auswählen..."
               options={[
                 { value: "", label: "Gruppe auswählen..." },
                 ...groups.map((group) => ({
-                  value: group.name,
+                  value: group.id,
                   label: group.name,
                 })),
               ]}
             />
           </div>
 
-          {/* Days selection with stepper */}
           <div>
-            <label
-              htmlFor="substitution-days-input"
+            <p
+              id="substitution-duration-label"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
-              Anzahl der Tage
-            </label>
-            <div className="flex items-center justify-center gap-3">
-              {/* Minus button */}
-              <button
-                type="button"
-                onClick={() =>
-                  setSubstitutionDays((prev) => Math.max(1, prev - 1))
-                }
-                disabled={substitutionDays <= 1}
-                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-colors duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white"
-                aria-label="Tage verringern"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M20 12H4"
-                  />
-                </svg>
-              </button>
-
-              {/* Editable input */}
-              <input
-                id="substitution-days-input"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={substitutionDays}
-                onChange={(e) => {
-                  const val = e.target.value.replaceAll(/\D/g, "");
-                  if (val === "") {
-                    setSubstitutionDays(1);
-                  } else {
-                    const num = Number.parseInt(val, 10);
-                    if (num >= 1 && num <= 365) {
-                      setSubstitutionDays(num);
-                    }
-                  }
-                }}
-                onBlur={() => {
-                  if (substitutionDays < 1) {
-                    setSubstitutionDays(1);
-                  }
-                }}
-                className="w-20 rounded-xl border-2 border-gray-200 bg-white py-3 text-center text-xl font-semibold text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
-              />
-
-              {/* Plus button */}
-              <button
-                type="button"
-                onClick={() =>
-                  setSubstitutionDays((prev) => Math.min(365, prev + 1))
-                }
-                disabled={substitutionDays >= 365}
-                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-colors duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Tage erhöhen"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-              </button>
-            </div>
-            <p className="mt-2 text-center text-xs text-gray-500">
-              {substitutionDays === 1
-                ? "Zugriff für heute"
-                : `Zugriff für ${substitutionDays} Tage`}
+              Dauer
             </p>
-          </div>
+            <Tabs value={durationPreset} onValueChange={setDurationPreset}>
+              <TabsList
+                variant="default"
+                aria-labelledby="substitution-duration-label"
+                className="h-auto flex-wrap"
+              >
+                {DURATION_PRESETS.map((preset) => (
+                  <TabsTrigger key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={closePopup}
-              className="flex-1"
-            >
-              Abbrechen
-            </Button>
+            {durationPreset === CUSTOM_DURATION ? (
+              <div className="mt-3 max-w-40">
+                <Input
+                  id="substitution-days-input"
+                  name="substitution-days-input"
+                  type="number"
+                  min={1}
+                  max={MAX_DURATION_DAYS}
+                  controlSize="compact"
+                  aria-label="Anzahl der Tage"
+                  value={customDays}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    if (!Number.isInteger(parsed)) return;
 
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={handleAssignSubstitution}
-              isLoading={isMutating}
-              loadingText="Wird zugewiesen..."
-              className="flex-1"
-            >
-              Zuweisen
-            </Button>
+                    setCustomDays(
+                      Math.min(MAX_DURATION_DAYS, Math.max(1, parsed)),
+                    );
+                  }}
+                />
+              </div>
+            ) : null}
+
+            <p className="mt-2 text-sm text-gray-500">
+              {substitutionDays === 1
+                ? "Zugriff nur für heute, endet um 23:59 Uhr."
+                : `Zugriff bis ${formatDate(toISODate(accessEndDate(substitutionDays)), true)}, 23:59 Uhr.`}
+            </p>
           </div>
         </div>
       </Modal>
 
-      {/* End Substitution Confirmation Modal */}
       <ConfirmationModal
         isOpen={showEndConfirmation}
         onClose={() => {
           setShowEndConfirmation(false);
           setSubstitutionToEnd(null);
+          setMutationError(null);
         }}
-        onConfirm={confirmEndSubstitution}
+        onConfirm={() => void confirmEndSubstitution()}
         title="Zugriff beenden?"
         confirmText="Beenden"
         cancelText="Abbrechen"
@@ -1027,16 +767,20 @@ function SubstitutionPageContent() {
         confirmButtonClass="bg-[#FF3130] hover:bg-[#FF3130]/90"
       >
         {substitutionToEnd && (
-          <div className="space-y-2">
-            <p className="text-gray-700">
-              Möchtest du den Zugriff wirklich beenden?
+          <div className="space-y-4">
+            {mutationError ? (
+              <Alert type="error" message={mutationError} />
+            ) : null}
+            <p className="text-sm text-gray-600">
+              Möchtest du den Zugriff wirklich beenden? Die Person sieht die
+              Kinder der Gruppe danach nicht mehr.
             </p>
-            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <p className="mb-1 text-sm text-gray-600">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm text-gray-600">
                 <span className="font-medium text-gray-900">Gruppe:</span>{" "}
                 {substitutionToEnd.groupName}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="mt-1 text-sm text-gray-600">
                 <span className="font-medium text-gray-900">Zugriff für:</span>{" "}
                 {substitutionToEnd.teacherName}
               </p>
@@ -1048,7 +792,6 @@ function SubstitutionPageContent() {
   );
 }
 
-// Main component with Suspense wrapper
 export default function SubstitutionPage() {
   return (
     <RoleGuard variant="adminOnly">

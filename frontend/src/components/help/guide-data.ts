@@ -845,9 +845,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Gewährt verfügbaren Fachkräften vorübergehend Zugriff auf eine OGS-Gruppe, etwa wenn jemand kurzfristig einspringt (nur für Admins, nur bei Arbeit mit festen Gruppen).",
         steps: [
           "`Gruppenzugriff` öffnen.",
-          "Filter `Verfügbar` wählen und eine Person auswählen.",
-          "`Zugriff gewähren` öffnen.",
-          "`OGS-Gruppe` und `Anzahl der Tage` festlegen.",
+          "Filter `Verfügbar` wählen und eine Person suchen.",
+          "In der Zeile der Person auf `Zuweisen` klicken.",
+          "`OGS-Gruppe` wählen und unter `Dauer` zwischen `Heute`, `3 Tage`, `1 Woche` oder `Individuell` entscheiden. Unter der Auswahl steht, bis wann der Zugriff gilt.",
           "Mit `Zuweisen` speichern.",
           "Nach Ende im aktiven Eintrag auf `Beenden` klicken.",
         ],
