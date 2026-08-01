@@ -113,6 +113,55 @@ describe("instrumentation-client", () => {
   });
 
   it.each([
+    "/",
+    "/display",
+    "/enroll",
+    "/enroll/phase-1",
+    "/invite",
+    "/reset-password",
+  ])(
+    "keeps Chrome's native prompt on public tenant path %s while caching the event",
+    async (path) => {
+      window.location.href = `https://school-a.moto-app.de${path}`;
+      await import("./instrumentation-client");
+      const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+      const event = Object.assign(
+        new Event("beforeinstallprompt", { cancelable: true }),
+        {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          userChoice: Promise.resolve({ outcome: "accepted" as const }),
+        },
+      );
+
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(canPromptInstall()).toBe(true);
+    },
+  );
+
+  it.each(["/invitations", "/enrollment-form"])(
+    "suppresses Chrome's native prompt on protected tenant path %s",
+    async (path) => {
+      window.location.href = `https://school-a.moto-app.de${path}`;
+      await import("./instrumentation-client");
+      const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+      const event = Object.assign(
+        new Event("beforeinstallprompt", { cancelable: true }),
+        {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          userChoice: Promise.resolve({ outcome: "accepted" as const }),
+        },
+      );
+
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(canPromptInstall()).toBe(true);
+    },
+  );
+
+  it.each([
     "https://operator.moto-app.de/",
     "https://eltern.moto-app.de/",
     "https://moto-app.de/",

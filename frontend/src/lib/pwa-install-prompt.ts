@@ -33,6 +33,14 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
 const subscribers = new Set<() => void>();
 
+const PUBLIC_TENANT_PATHS = [
+  "/",
+  "/display",
+  "/enroll",
+  "/invite",
+  "/reset-password",
+] as const;
+
 function notify(): void {
   for (const subscriber of subscribers) subscriber();
 }
@@ -58,6 +66,14 @@ function isCurrentTenantInstallHost(): boolean {
   return isTenantInstallHost(window.location.hostname, tenantDomain);
 }
 
+function isCurrentProtectedTenantPath(): boolean {
+  const pathname = window.location.pathname;
+  return !PUBLIC_TENANT_PATHS.some((publicPath) => {
+    if (publicPath === "/") return pathname === publicPath;
+    return pathname === publicPath || pathname.startsWith(`${publicPath}/`);
+  });
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
     // Only Android tenant surfaces render our one-tap UI. Chrome must retain
@@ -65,11 +81,12 @@ if (typeof window !== "undefined") {
     if (!isCurrentTenantInstallHost() || !isAndroidDevice(window.navigator)) {
       return;
     }
-    // Suppress Chrome's own mini-infobar so our in-flow card is the single
-    // install surface instead of two competing prompts.
-    event.preventDefault();
+    // Cache the one-shot event even on public routes so it survives a later
+    // login navigation. Suppress Chrome's native UI only where the protected
+    // layout renders our replacement card.
     deferredPrompt = event as BeforeInstallPromptEvent;
     notify();
+    if (isCurrentProtectedTenantPath()) event.preventDefault();
   });
   window.addEventListener("appinstalled", () => {
     if (!isCurrentTenantInstallHost() || !isAndroidDevice(window.navigator)) {

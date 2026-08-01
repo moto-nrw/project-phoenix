@@ -350,6 +350,29 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("");
+  });
+
+  it("does not publish FAB clearance during the authenticated-to-SWR transition", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("");
   });
 
   it("shows error state when fetch fails", () => {

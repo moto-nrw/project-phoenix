@@ -126,8 +126,12 @@ function ActivitiesPageContent() {
       revalidateOnFocus: false,
     },
   );
+  const showSkeleton =
+    status === "loading" ||
+    isLoading ||
+    (pageData === undefined && !fetchError);
   useFloatingFabOffset({
-    active: !isLoading,
+    active: !showSkeleton,
     mediaQuery: MOBILE_CREATE_FAB_MEDIA_QUERY,
   });
 
@@ -301,11 +305,7 @@ function ActivitiesPageContent() {
   // visits redirect via the required-session guard, and expired/tokenless
   // sessions redirect via the effect above, so this cannot show the skeleton
   // indefinitely.
-  if (
-    status === "loading" ||
-    isLoading ||
-    (pageData === undefined && !fetchError)
-  ) {
+  if (showSkeleton) {
     return <ActivitiesSkeleton />;
   }
 
