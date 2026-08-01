@@ -97,6 +97,14 @@ function DienstplanContent() {
   const canViewHalbjahr =
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "schedules:read");
+  // POST /api/staff-shifts/export verlangt dieselbe Dreierkombination wie
+  // /overview — der Ausdruck nennt Namen und liest die Schichtprojektion. Ohne
+  // `users:read` liefe der Dialog in ein 403, darum wird der Knopf gar nicht
+  // erst angeboten (gleiche Schranke wie im Betreuungsplan).
+  const canExportPlan =
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
   const canExportInternal = hasPermission(session, "schedules:manage");
   const today = useBerlinToday();
 
@@ -423,19 +431,21 @@ function DienstplanContent() {
             {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
                 Exportseite, weil der Export immer die Woche meint, die gerade
                 auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              aria-label="Dienstplan drucken oder exportieren"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-              onClick={() => setExportOpen(true)}
-            >
-              <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Drucken
-              </span>
-            </Button>
+            {canExportPlan && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-label="Dienstplan drucken oder exportieren"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                onClick={() => setExportOpen(true)}
+              >
+                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Drucken
+                </span>
+              </Button>
+            )}
             <Button
               type="button"
               variant="primary"
@@ -516,7 +526,7 @@ function DienstplanContent() {
       {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
           ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
           dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
-      {exportOpen && (
+      {canExportPlan && exportOpen && (
         <PlanExportModal
           isOpen
           plan="dienstplan"
