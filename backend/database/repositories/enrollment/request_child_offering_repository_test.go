@@ -109,6 +109,23 @@ func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T
 	assert.Equal(t, window.End.AddDays(1), *row.ValidUntil)
 }
 
+func TestRequestChildOfferingRepository_Create_BoundsPartialValidityWindow(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	validFrom := timezone.NewDate(2026, 10, 1)
+	row := &enrollmentModels.RequestChildOffering{
+		RequestChildID: childID,
+		CareOfferingID: offeringID,
+		ValidFrom:      &validFrom,
+	}
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, row)
+	}))
+
+	require.NotNil(t, row.ValidUntil)
+	assert.Equal(t, timezone.NewDate(2027, 8, 1), *row.ValidUntil)
+}
+
 func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 

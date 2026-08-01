@@ -175,8 +175,10 @@ func setRequestChildOfferingValidity(
 	row *enrollment.RequestChildOffering,
 	phaseStart, phaseEndExclusive timezone.Date,
 ) {
-	if row.ValidFrom == nil && row.ValidUntil == nil {
+	if row.ValidFrom == nil {
 		row.ValidFrom = &phaseStart
+	}
+	if row.ValidUntil == nil {
 		row.ValidUntil = &phaseEndExclusive
 	}
 }
