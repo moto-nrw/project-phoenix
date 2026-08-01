@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockInit = vi.fn();
+const ANDROID_UA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36";
+const DESKTOP_CHROME_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 vi.mock("posthog-js", () => ({
   default: {
@@ -13,11 +17,13 @@ describe("instrumentation-client", () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
+    vi.stubGlobal("navigator", { userAgent: ANDROID_UA });
     window.location.href = "https://school-a.moto-app.de/dashboard";
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("initializes PostHog with remote configuration disabled", async () => {
@@ -86,6 +92,24 @@ describe("instrumentation-client", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(canPromptInstall()).toBe(true);
+  });
+
+  it("leaves Chrome's native install prompt enabled on desktop tenant hosts", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(false);
   });
 
   it.each([

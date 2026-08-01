@@ -1,19 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare, Loader2 } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
-
-/**
- * Published while a floating FAB is on screen so other bottom-anchored
- * elements (currently the PWA install hint) can stack above it instead of
- * hardcoding a gap for a button that exists on two pages only.
- * Value = FAB height (3.5rem) + gap (1rem).
- */
-const FAB_STACK_OFFSET_VAR = "--moto-floating-fab-offset";
-const FAB_STACK_OFFSET = "4.5rem";
+import { useFloatingFabOffset } from "~/lib/hooks/use-floating-fab-offset";
 
 interface SchoolCheckinFabBaseProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -72,27 +63,11 @@ export function SchoolCheckinFab({
   // its parent wrapper displays it. The two pages intentionally stop at
   // different breakpoints (`lg` for OGS groups, `xl` for student search).
   const occupiesBottomSpace = attendanceWebEnabled && variant === "floating";
-  useEffect(() => {
-    if (!occupiesBottomSpace) return;
-    const root = document.documentElement;
-    const maxWidth = floatingUntil === "lg" ? 1023 : 1279;
-    const mediaQuery = window.matchMedia(
-      `(min-width: 768px) and (max-width: ${maxWidth}px)`,
-    );
-    const publishOffset = () => {
-      if (mediaQuery.matches) {
-        root.style.setProperty(FAB_STACK_OFFSET_VAR, FAB_STACK_OFFSET);
-      } else {
-        root.style.removeProperty(FAB_STACK_OFFSET_VAR);
-      }
-    };
-    publishOffset();
-    mediaQuery.addEventListener("change", publishOffset);
-    return () => {
-      mediaQuery.removeEventListener("change", publishOffset);
-      root.style.removeProperty(FAB_STACK_OFFSET_VAR);
-    };
-  }, [floatingUntil, occupiesBottomSpace]);
+  const maxFloatingWidth = floatingUntil === "lg" ? 1023 : 1279;
+  useFloatingFabOffset({
+    active: occupiesBottomSpace,
+    mediaQuery: `(min-width: 768px) and (max-width: ${maxFloatingWidth}px)`,
+  });
 
   if (!attendanceWebEnabled) return null;
 

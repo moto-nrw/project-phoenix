@@ -21,6 +21,14 @@ interface BeforeInstallPromptEvent extends Event {
 
 export type InstallOutcome = "accepted" | "dismissed" | "unavailable";
 
+/** True in Android browsers where the custom install card can render. */
+export function isAndroidDevice(nav: Navigator): boolean {
+  return (
+    /android/i.test(nav.userAgent) &&
+    !/(?:;\s*wv\b|version\/4\.0)/i.test(nav.userAgent)
+  );
+}
+
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
 const subscribers = new Set<() => void>();
@@ -52,9 +60,11 @@ function isCurrentTenantInstallHost(): boolean {
 
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
-    // Operator, parents, root, and infrastructure hosts do not render our
-    // install UI, so Chrome must retain its native install promotion there.
-    if (!isCurrentTenantInstallHost()) return;
+    // Only Android tenant surfaces render our one-tap UI. Chrome must retain
+    // its native install promotion on desktop and every other portal.
+    if (!isCurrentTenantInstallHost() || !isAndroidDevice(window.navigator)) {
+      return;
+    }
     // Suppress Chrome's own mini-infobar so our in-flow card is the single
     // install surface instead of two competing prompts.
     event.preventDefault();
@@ -62,7 +72,9 @@ if (typeof window !== "undefined") {
     notify();
   });
   window.addEventListener("appinstalled", () => {
-    if (!isCurrentTenantInstallHost()) return;
+    if (!isCurrentTenantInstallHost() || !isAndroidDevice(window.navigator)) {
+      return;
+    }
     deferredPrompt = null;
     installationCompleted = true;
     notify();

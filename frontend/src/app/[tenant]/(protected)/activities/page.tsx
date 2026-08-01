@@ -25,6 +25,10 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
+import {
+  MOBILE_CREATE_FAB_MEDIA_QUERY,
+  useFloatingFabOffset,
+} from "~/lib/hooks/use-floating-fab-offset";
 import { ActivitiesSkeleton } from "./page-skeleton";
 import { redirect } from "next/navigation";
 
@@ -122,6 +126,10 @@ function ActivitiesPageContent() {
       revalidateOnFocus: false,
     },
   );
+  useFloatingFabOffset({
+    active: !isLoading,
+    mediaQuery: MOBILE_CREATE_FAB_MEDIA_QUERY,
+  });
 
   // Extract data with defaults (memoized to prevent dependency issues)
   const activities = useMemo(

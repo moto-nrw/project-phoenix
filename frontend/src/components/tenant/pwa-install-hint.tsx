@@ -7,10 +7,13 @@ import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   canPromptInstall,
+  isAndroidDevice,
   isInstallationCompleted,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
+
+export { isAndroidDevice } from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PwaInstallHint" });
 
@@ -39,14 +42,6 @@ export function isIosSafari(nav: Navigator): boolean {
   return (
     /version\/[\d.]+.*safari\//i.test(nav.userAgent) &&
     !/(crios|fxios|edgios|opios)/i.test(nav.userAgent)
-  );
-}
-
-/** True in Android browsers that can expose an install action. */
-export function isAndroidDevice(nav: Navigator): boolean {
-  return (
-    /android/i.test(nav.userAgent) &&
-    !/(?:;\s*wv\b|version\/4\.0)/i.test(nav.userAgent)
   );
 }
 
@@ -96,10 +91,10 @@ export function recordVisit(win: Window): number {
  *   bottom nav disappears. The centered card and right-aligned search-page
  *   FAB do not intersect at `lg` widths, so no FAB clearance is needed there.
  * - Below lg the offset clears the bottom nav (~4.75rem visible) plus a 1rem
- *   gap, and adds `--moto-floating-fab-offset` only on the two pages that
- *   actually show the check-in FAB. An active mobile check-in bar publishes
- *   `--moto-checkin-bar-offset` in the same way. The old fixed 10.5rem
- *   reserved FAB space everywhere.
+ *   gap, and adds `--moto-floating-fab-offset` only on pages that actually
+ *   show a check-in or create FAB. An active mobile check-in bar publishes
+ *   `--moto-checkin-bar-offset` in the same way. The old fixed 10.5rem reserved
+ *   FAB space everywhere.
  * - Horizontally centered at every width instead of jumping from an
  *   edge-to-edge mobile banner to a right-anchored card at `sm`.
  *
