@@ -90,12 +90,23 @@ vi.mock("./header/profile-dropdown", () => ({
 }));
 
 vi.mock("./header/breadcrumb-components", () => ({
-  DatabaseBreadcrumb: () => <div data-testid="database-breadcrumb">DB</div>,
+  SectionBreadcrumb: ({
+    sectionLabel,
+    pageLabel,
+    deepLabel,
+  }: {
+    sectionLabel: string;
+    pageLabel: string;
+    deepLabel?: string;
+  }) => (
+    <div data-testid="section-breadcrumb">
+      {[sectionLabel, pageLabel, deepLabel].filter(Boolean).join(" / ")}
+    </div>
+  ),
   OgsGroupsBreadcrumb: () => <div data-testid="ogs-groups-breadcrumb">OGS</div>,
   ActiveSupervisionsBreadcrumb: () => (
     <div data-testid="active-supervisions-breadcrumb">Active</div>
   ),
-  RoomBreadcrumb: () => <div data-testid="room-breadcrumb">Room</div>,
   StudentHistoryBreadcrumb: () => (
     <div data-testid="student-history-breadcrumb">History</div>
   ),
@@ -112,13 +123,19 @@ vi.mock("./header/breadcrumb-utils", () => ({
     if (pathname === "/rooms") return "Rooms";
     return "Dashboard";
   },
-  getSubPageLabel: () => "Sub Page",
   getBreadcrumbLabel: () => "Breadcrumb",
   getHistoryType: () => "history",
+  // Gruppierte Navigationssektionen laufen jetzt hierüber statt über
+  // PageTypeInfo; /database/groups ist der Fall, den die Tests abdecken.
+  getSectionBreadcrumb: (pathname: string) =>
+    pathname.startsWith("/database/")
+      ? {
+          sectionLabel: "Datenverwaltung",
+          sectionHref: "/database",
+          pageLabel: "Gruppen",
+        }
+      : null,
   getPageTypeInfo: (pathname: string) => ({
-    isDatabaseSubPage: pathname.includes("/database/"),
-    isDatabaseDeepPage: pathname.includes("/database/groups/"),
-    isRoomDetailPage: pathname.includes("/rooms/") && pathname !== "/rooms",
     isStudentHistoryPage:
       pathname.includes("/students/") && pathname.includes("/history"),
     isStudentDetailPage:
@@ -238,11 +255,34 @@ describe("Header", () => {
     expect(screen.getByTestId("page-title")).toHaveTextContent("Rooms");
   });
 
+  it("normalizes tenant-prefixed paths before resolving page titles", () => {
+    mockUsePathname.mockReturnValue("/test-tenant/rooms");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Rooms");
+  });
+
   it("renders database breadcrumb for database pages", () => {
     mockUsePathname.mockReturnValue("/database/groups");
 
     render(<Header />);
-    expect(screen.getByTestId("database-breadcrumb")).toBeInTheDocument();
+    const breadcrumb = screen.getByTestId("section-breadcrumb");
+    expect(breadcrumb).toBeInTheDocument();
+    // Die Sektionswurzel heißt wie der Seitenleisten-Eintrag
+    // ("Datenverwaltung", nicht mehr "Datenbank").
+    expect(breadcrumb).toHaveTextContent("Datenverwaltung");
+    expect(breadcrumb).toHaveTextContent("Gruppen");
+  });
+
+  it("normalizes tenant-prefixed paths before resolving breadcrumbs", () => {
+    mockUsePathname.mockReturnValue("/test-tenant/database/groups");
+
+    render(<Header />);
+
+    const breadcrumb = screen.getByTestId("section-breadcrumb");
+    expect(breadcrumb).toHaveTextContent("Datenverwaltung");
+    expect(breadcrumb).toHaveTextContent("Gruppen");
   });
 
   it("renders OGS groups breadcrumb", () => {
@@ -259,16 +299,6 @@ describe("Header", () => {
     expect(
       screen.getByTestId("active-supervisions-breadcrumb"),
     ).toBeInTheDocument();
-  });
-
-  it("renders room breadcrumb for room detail pages", () => {
-    mockUsePathname.mockReturnValue("/rooms/123");
-    mockUseBreadcrumb.mockReturnValue({
-      breadcrumb: { roomName: "Test Room" },
-    });
-
-    render(<Header />);
-    expect(screen.getByTestId("room-breadcrumb")).toBeInTheDocument();
   });
 
   it("renders student history breadcrumb", () => {

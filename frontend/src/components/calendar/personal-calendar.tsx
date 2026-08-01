@@ -1238,16 +1238,18 @@ function CalendarEventDetail({
           />
           <span>{dateLabel}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-          <span>{eventTime(event)}</span>
-        </div>
-        {event.location ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-            <span>{event.location}</span>
+            <Clock className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+            <span>{eventTime(event)}</span>
           </div>
-        ) : null}
+          {event.location ? (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+              <span>{event.location}</span>
+            </div>
+          ) : null}
+        </div>
         {subtitle ? (
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />

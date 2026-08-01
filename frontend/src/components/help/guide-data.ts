@@ -281,16 +281,17 @@ export const setupChapters: readonly GuideChapter[] = [
           "Auch auf Android-Geräten lässt sich moto als App installieren und startet dann im Vollbild ohne Browserleisten.",
         steps: [
           "moto in Chrome öffnen und in der eigenen Einrichtung anmelden.",
-          "Auf der Seite der Einrichtung das Browser-Menü mit den drei Punkten öffnen.",
-          "`App installieren` oder `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "Ab dem zweiten Besuch im Hinweis `moto als App nutzen` auf `App installieren` tippen.",
+          "Die Installation in Chrome bestätigen.",
           "moto künftig über das neue Symbol auf dem Startbildschirm starten.",
         ],
         callout: {
           title: "Erst anmelden, dann installieren",
-          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
+          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Fehlt der Installationsbutton, im Chrome-Menü `App installieren` oder `Zum Startbildschirm hinzufügen` wählen. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
           tone: "blue",
         },
-        screenshot: "Chrome-Menü auf Android mit der Option App installieren.",
+        screenshot:
+          "Installationshinweis in moto mit dem Button App installieren.",
         printCompact: true,
       },
       {
@@ -846,9 +847,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Gewährt verfügbaren Fachkräften vorübergehend Zugriff auf eine OGS-Gruppe, etwa wenn jemand kurzfristig einspringt (nur für Admins, nur bei Arbeit mit festen Gruppen).",
         steps: [
           "`Gruppenzugriff` öffnen.",
-          "Filter `Verfügbar` wählen und eine Person auswählen.",
-          "`Zugriff gewähren` öffnen.",
-          "`OGS-Gruppe` und `Anzahl der Tage` festlegen.",
+          "Filter `Verfügbar` wählen und eine Person suchen.",
+          "In der Zeile der Person auf `Zuweisen` klicken.",
+          "`OGS-Gruppe` wählen und unter `Dauer` zwischen `Heute`, `3 Tage`, `1 Woche` oder `Individuell` entscheiden. Unter der Auswahl steht, bis wann der Zugriff gilt.",
           "Mit `Zuweisen` speichern.",
           "Nach Ende im aktiven Eintrag auf `Beenden` klicken.",
         ],
@@ -866,9 +867,9 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Abrechnung vorbereiten (DATEV)",
         icon: ClipboardList,
         summary:
-          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit der DATEV-Export in der Zeitkonten-Ansicht Dateien für die Lohnabrechnung erzeugen kann (nur mit Berechtigung `config:manage`).",
+          "Lohnarten, DATEV-Mandantendaten und Personalnummern pflegen, damit der DATEV-Export in der Zeitkonten-Ansicht Dateien für die Lohnabrechnung erzeugen kann. Die Seite liegt in der Seitenleiste unter `Planung` und ist Admins vorbehalten.",
         steps: [
-          "`Abrechnung` in der Seitenleiste öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
+          "In der Seitenleiste `Planung` -> `Abrechnung` öffnen. Die Karte `Vollständigkeit` zeigt, welche Angaben noch fehlen.",
           "Unter `Lohnarten` für jede Kategorie (Regelarbeit, Plus-Stunden, Auszahlung, Freizeitausgleich, Krank, Urlaub, Fortbildung) die Lohnartnummer aus dem Lohnsystem des Trägers eintragen. Die Nummern liefert das Lohnbüro; es gibt bewusst keine Vorbelegung. Eine Kategorie ohne Nummer wird später einfach nicht exportiert.",
           "Bei Krank, Urlaub und Fortbildung zusätzlich die `Einheit` wählen: ob die Lohnart im Lohnsystem Stunden oder Tage erwartet.",
           "Unter `DATEV-Mandant` die Beraternummer und Mandantennummer eintragen. Beide stehen im DATEV-Bestand des Lohnbüros und werden nur für den LODAS-Export benötigt.",
@@ -925,7 +926,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Wochenansicht zeigt Montag bis Freitag. Die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
           "Der `Zeitraum`-Chip in der Kontextzeile zeigt den Planungszeitraum des sichtbaren Datums; ein Klick öffnet eine Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Der Chip `Bedarf: …` daneben zeigt, welche Anmeldephase den Bedarf des Zeitraums liefert.",
           "Der Lücken-Chip in der Kontextzeile zählt offene Personal-Lücken des sichtbaren Zeitraums; ein Klick öffnet eine Sprungliste mit Uhrzeit, Titel und Soll/Ist je Lücke, die direkt zum betroffenen Termin springt.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`). Das Formular öffnet sich als dreistufiger Assistent mit den Schritten `Termin`, `Wiederholung` und `Personal und Kinder`.",
@@ -991,7 +992,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen, bearbeiten und sagen Termine für Team, Eltern oder ganze Gruppen ab und benachrichtigen Eltern optional per E-Mail.",
         steps: [
-          "In der Seitenleiste `Kalender` öffnen. Die Seite selbst heißt `Mein Kalender`.",
+          "In der Seitenleiste `Mein Kalender` öffnen.",
           "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen. Samstag und Sonntag sind standardmäßig ausgeblendet; über `Sa/So` blendest du sie ein — steht dort ein Zähler, liegen Einträge am Wochenende.",
           "Die Tages- und Wochenansicht ordnen Einträge auf einer Stunden-Zeitachse an; Dienstplan-Schichten hinterlegen ihren Zeitraum als farbiges Band im Hintergrund, Termine und Betreuungsblöcke liegen darüber.",
           "Einträge an der Farbe unterscheiden: grüne Karten sind Termine (`Termin`), blaue Karten Betreuungsblöcke (`Betreuung`), orangefarbene die eigenen Dienstplan-Schichten (`Dienst`). Schichten kommen aus dem Dienstplan und lassen sich hier nicht bearbeiten.",
@@ -1030,8 +1031,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Optional lassen sich einer Schichtart eine oder mehrere `Timetable-Kategorien` zuordnen. Betreuungsblöcke dieser Kategorien werden dadurch der Schichtart zugeordnet und zeigen sie im Betreuungsplan als Kennzeichnung. Eine Kategorie kann nur einer Schichtart zugeordnet sein.",
           "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen, optional eine `Schichtart` auswählen und speichern. Jede Schicht erscheint als eigener Block mit der Farbkante der Schichtart; mehrere Schichten am selben Tag stapeln sich chronologisch, die Pause bleibt als sichtbare Lücke zwischen den Blöcken.",
           "Mit `Als Serie wiederholen` schreibt sich die Schicht automatisch fort: Wochentage anhaken, einen Kalenderzeitraum wählen und den Wochenrhythmus festlegen (`Jede Woche` oder bei zweiwöchigem Zyklus `Woche A`/`Woche B`). Die Serie plant die Schicht ab dem Folgetag für jede passende Woche bis zum Ende des Zeitraums oder bis zum optionalen Enddatum ein; Tage mit einer bereits vorhandenen Schicht werden übersprungen und nach dem Speichern aufgelistet.",
-          "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen. Serien-Schichten (graues Wiederhol-Symbol auf dem Block) zeigen im Fenster direkt die Serie selbst, zum Beispiel `Di, Do · 08:00–15:00 · bis Ende des Kalenderzeitraums`. Beim Speichern fragt die App nach dem Umfang: `Nur diese Woche` ändert genau diesen Termin (die Serie plant ihn nicht erneut ein, das Symbol färbt sich gelb), `Ab jetzt dauerhaft` übernimmt die geänderten Zeiten für diesen und alle weiteren Termine.",
-          "Die Serie selbst ändern Sie über `Serie bearbeiten` im Serien-Hinweis. Dort lassen sich neben Zeiten und Pause auch `Wochentage`, `Wochenrhythmus` und `Gültig bis` anpassen, zum Beispiel wenn eine Schicht künftig auch freitags stattfindet. Die Änderung gilt ab dem geöffneten Termin für alle weiteren Termine der Serie; frühere Termine und Termine bis heute bleiben unverändert, ebenso einzeln angepasste Termine.",
+          "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen. Serien-Schichten (graues Wiederhol-Symbol auf dem Block) zeigen im Fenster direkt die Serie selbst, zum Beispiel `Di, Do · 08:00–15:00 · bis Ende des Kalenderzeitraums`. Beim Speichern fragt die App nach dem Umfang: `Nur diese Woche` ändert genau diesen Termin (die Serie plant ihn nicht erneut ein, das Symbol färbt sich gelb), `Ab jetzt dauerhaft` übernimmt die geänderten Zeiten ab dem geöffneten Termin. Bei einer heute geöffneten Schicht gilt die Änderung mit demselben Speichern auch heute.",
+          "Die Serie selbst ändern Sie über `Serie bearbeiten` im Serien-Hinweis. Dort lassen sich neben Zeiten und Pause auch `Wochentage`, `Wochenrhythmus` und `Gültig bis` anpassen, zum Beispiel wenn eine Schicht künftig auch freitags stattfindet. Wird eine heutige Schicht geöffnet, übernimmt Phoenix ihre neuen Werte als einzelne Tagesabweichung und plant die Serie ab morgen neu; frühere Termine und bereits einzeln angepasste Termine bleiben unverändert.",
 
           "Beim Bearbeiten `Beginn`, `Ende`, `Pause` oder `Schichtart` anpassen, um eine Schicht zu verlängern oder zu verkürzen. Im Feld `Grund der Änderung (optional)` lässt sich kurz festhalten, warum (z. B. Krankheit, Fortbildung, Tausch).",
           "Fällt eine Schicht aus, `Diese Schicht fällt aus` anhaken. Der Block erscheint danach durchgestrichen mit dem Vermerk `Fällt aus` samt Grund und zählt nicht mehr zur geplanten Zeit. Ohne Ersatzeintrag bleibt die Lücke bewusst offen.",
@@ -1171,6 +1172,26 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
         image: "/help/screens/datenverwaltung.webp",
+      },
+      {
+        id: "kind-dauerhaft-loeschen",
+        title: "Kind dauerhaft löschen",
+        summary:
+          "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt mehrere Bestätigungen.",
+        steps: [
+          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen.",
+          "Oben in der Detailansicht `Löschen` wählen und warten, bis die Auswirkungs-Vorschau vollständig geladen ist.",
+          "Die aufgeführten Datensätze prüfen. Stundenplan-Zuordnungen, Anwesenheitsdaten, Betreuungszeiten, Einwilligungen und weitere kindbezogene Verknüpfungen werden gelöscht oder vom Kind getrennt.",
+          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen.",
+          "Den Namen des Kindes exakt wie angezeigt erneut eingeben und erst dann `Kind endgültig löschen` wählen.",
+        ],
+        callout: {
+          title: "Gemeinsam genutzte Daten bleiben erhalten",
+          body: "Elternkonten und Profile der Erziehungsberechtigten, andere Kinder sowie gemeinsam genutzte Stundenplan-Termine werden nicht gelöscht. Nur die Zuordnungen des gelöschten Kindes verschwinden. Ändern sich Daten zwischen Vorschau und Bestätigung, lädt moto die Vorschau neu und verlangt die Bestätigung erneut.",
+          tone: "red",
+        },
+        screenshot:
+          "Mehrstufiger Löschdialog mit Auswirkungs-Vorschau, Löschgrund, Bestätigung und Eingabe des vollständigen Kindernamens.",
       },
       {
         id: "jahrgangswechsel",
@@ -1559,16 +1580,16 @@ export const appChapters: readonly GuideChapter[] = [
           "In Chrome auf Android lässt sich moto in wenigen Schritten installieren. Danach öffnet sich die App vom Startbildschirm aus im Vollbild, ohne Browserleiste.",
         steps: [
           "moto in Chrome öffnen und anmelden.",
-          "Oben rechts das Menü (drei Punkte) antippen.",
-          "`App installieren` bzw. `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "Ab dem zweiten Besuch im Hinweis `moto als App nutzen` auf `App installieren` tippen.",
+          "Die Installation in Chrome bestätigen.",
           "Die App künftig über das neue moto-Symbol auf dem Startbildschirm öffnen.",
         ],
         callout: {
           title: "Kein App Store nötig",
-          body: "moto steht nicht im Play Store. Die Installation läuft direkt über den Browser; Updates kommen automatisch, es muss nichts aktualisiert werden.",
+          body: "moto steht nicht im Play Store. Fehlt der Installationsbutton, im Chrome-Menü `App installieren` oder `Zum Startbildschirm hinzufügen` wählen. Updates kommen automatisch, es muss nichts aktualisiert werden.",
         },
         screenshot:
-          "Chrome-Menü auf Android mit dem Eintrag zum Installieren der App.",
+          "Installationshinweis in moto mit dem Button App installieren.",
       },
       {
         id: "iphone-ipad-installieren",

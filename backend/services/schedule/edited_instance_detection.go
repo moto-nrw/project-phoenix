@@ -235,6 +235,14 @@ func (s *materializationService) expectedSlotsOn(
 	exc *schedule.ActivityException,
 	date timezone.Date,
 ) []materialParams {
+	// Keep this projection aligned with materializeTemplate: legacy weekend
+	// schedules remain administrable, but are never materialized into new
+	// instances. Treating them as expected here would hide the warning that a
+	// re-plan will remove a retained weekend instance without recreating it.
+	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		return nil
+	}
+
 	isoWd := isoWeekday(date)
 	out := make([]materialParams, 0, 1)
 	for _, sch := range schedules {

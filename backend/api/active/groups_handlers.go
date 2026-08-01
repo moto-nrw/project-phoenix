@@ -242,6 +242,15 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// One batch query for every setting this handler and its downstream
+	// helpers (DetermineStudentAccess included) resolve (issue #2065).
+	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
+		configModel.KeyAdminSupervisionOverview,
+		configModel.KeyGroupMode,
+		configModel.KeyStudentDataScope,
+		configModel.KeyStudentPhotosEnabled,
+	))
+
 	// Admin overview and open-care both broaden the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
 	// never broadened by group mode.

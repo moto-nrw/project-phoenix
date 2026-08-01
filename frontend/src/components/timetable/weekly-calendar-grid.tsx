@@ -53,7 +53,10 @@ const smGridTemplate = (dayCount: number) =>
   `${SM_TIME_GUTTER_PX}px repeat(${dayCount}, minmax(0,1fr))`;
 
 interface WeeklyCalendarGridProps {
-  weekDays: Date[]; // Mo-So (7 dates)
+  // The caller chooses the visible dates (e.g. Mo-Fr in planning, a single
+  // day or Mo-Fr in substitutions). The grid deliberately has no fixed week
+  // length.
+  weekDays: Date[];
   instances: EnrichedInstance[];
   selectedId: string | null;
   onInstanceClick: (instance: EnrichedInstance) => void;

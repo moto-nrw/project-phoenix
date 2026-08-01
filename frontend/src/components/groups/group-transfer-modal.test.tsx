@@ -13,11 +13,13 @@ vi.mock("~/components/ui/modal", () => ({
     onClose,
     title,
     children,
+    footer,
   }: {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="modal">
@@ -26,6 +28,7 @@ vi.mock("~/components/ui/modal", () => ({
           Close
         </button>
         {children}
+        {footer}
       </div>
     ) : null,
 }));

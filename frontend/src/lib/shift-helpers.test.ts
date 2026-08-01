@@ -20,7 +20,7 @@ import {
 describe("mapStaffShift", () => {
   it("maps snake_case backend shape to camelCase with string ids", () => {
     const backend: BackendStaffShift = {
-      id: 42,
+      id: "9223372036854775807",
       staff_id: 7,
       date: "2026-07-06",
       start_time: "08:00",
@@ -30,7 +30,7 @@ describe("mapStaffShift", () => {
     };
 
     expect(mapStaffShift(backend)).toEqual({
-      id: "42",
+      id: "9223372036854775807",
       staffId: "7",
       date: "2026-07-06",
       startTime: "08:00",
@@ -50,7 +50,7 @@ describe("mapStaffShift", () => {
 
   it("maps the embedded Schichtart name and color (#1844)", () => {
     const mapped = mapStaffShift({
-      id: 42,
+      id: "42",
       staff_id: 7,
       date: "2026-07-06",
       start_time: "08:00",
@@ -66,7 +66,7 @@ describe("mapStaffShift", () => {
 
   it("maps shift_type_id to a string id and defaults it to null", () => {
     const typed = mapStaffShift({
-      id: 42,
+      id: "42",
       staff_id: 7,
       date: "2026-07-06",
       start_time: "08:00",
@@ -77,7 +77,7 @@ describe("mapStaffShift", () => {
     expect(typed.shiftTypeId).toBe("5");
 
     const untyped = mapStaffShift({
-      id: 43,
+      id: "43",
       staff_id: 7,
       date: "2026-07-06",
       start_time: "08:00",
@@ -89,28 +89,28 @@ describe("mapStaffShift", () => {
 
   it("maps a series-backed shift to a string series id and keeps detached", () => {
     const mapped = mapStaffShift({
-      id: 44,
+      id: "44",
       staff_id: 7,
       date: "2026-07-06",
       start_time: "08:00",
       end_time: "16:00",
       break_minutes: 0,
-      series_id: 12,
+      series_id: "9223372036854775807",
       detached: true,
     });
-    expect(mapped.seriesId).toBe("12");
+    expect(mapped.seriesId).toBe("9223372036854775807");
     expect(mapped.detached).toBe(true);
   });
 
   it("maps the source date of a moved series occurrence", () => {
     const mapped = mapStaffShift({
-      id: 44,
+      id: "44",
       staff_id: 7,
       date: "2026-07-07",
       start_time: "08:00",
       end_time: "16:00",
       break_minutes: 0,
-      series_id: 12,
+      series_id: "12",
       series_occurrence_date: "2026-07-06",
     });
 
@@ -119,7 +119,7 @@ describe("mapStaffShift", () => {
 
   it("truncates HH:MM:SS times and defaults missing notes", () => {
     const backend: BackendStaffShift = {
-      id: 1,
+      id: "1",
       staff_id: 2,
       date: "2026-07-06",
       start_time: "08:00:00",
@@ -159,7 +159,7 @@ describe("mapStaffScheduleOverview", () => {
       staff: [{ id: 7, first_name: "Ada", last_name: "Lovelace" }],
       shifts: [
         {
-          id: 42,
+          id: "42",
           staff_id: 7,
           date: "2026-07-06",
           start_time: "08:00:00",
@@ -406,7 +406,7 @@ describe("formatDeltaHours", () => {
 describe("formatShiftLabel", () => {
   it("renders start–end", () => {
     const shift = mapStaffShift({
-      id: 1,
+      id: "1",
       staff_id: 2,
       date: "2026-07-06",
       start_time: "08:00",
@@ -482,10 +482,10 @@ describe("summaryLabel", () => {
 describe("groupShiftsByStaffAndDate", () => {
   it("groups by staff id then date, preserving order", () => {
     const shifts = [
-      { id: 1, staff_id: 7, date: "2026-07-06" },
-      { id: 2, staff_id: 7, date: "2026-07-06" },
-      { id: 3, staff_id: 7, date: "2026-07-07" },
-      { id: 4, staff_id: 8, date: "2026-07-06" },
+      { id: "1", staff_id: 7, date: "2026-07-06" },
+      { id: "2", staff_id: 7, date: "2026-07-06" },
+      { id: "3", staff_id: 7, date: "2026-07-07" },
+      { id: "4", staff_id: 8, date: "2026-07-06" },
     ].map((s) =>
       mapStaffShift({
         ...s,

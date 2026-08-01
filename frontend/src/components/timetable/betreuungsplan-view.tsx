@@ -92,6 +92,7 @@ import {
   getMonthRange,
   getWeekRange,
   getWeekdays,
+  nextWorkdayISO,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -194,13 +195,18 @@ function TimetablesContent() {
   // mehr). Ein ungültiges `d` fällt still auf heute zurück, ein unbekanntes
   // `view` auf die Woche.
   const rawDay = params.d;
-  const dayISO =
+  const requestedDayISO =
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
   const view: TimetableView = parseViewParam(params.view);
+  // The monthly calendar and series period lookup retain their requested
+  // calendar date. Only the workweek view snaps weekend anchors to Monday.
+  const dayISO =
+    view === "week" ? nextWorkdayISO(requestedDayISO) : requestedDayISO;
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
   const todayISO = useMemo(() => berlinTodayISO(), []);
+  const todayTargetISO = useMemo(() => nextWorkdayISO(todayISO), [todayISO]);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
@@ -276,8 +282,12 @@ function TimetablesContent() {
     [visibleDate, updateUrlParams],
   );
   const goToToday = useCallback(
-    () => updateUrlParams({ d: todayISO, block: null }),
-    [todayISO, updateUrlParams],
+    () =>
+      updateUrlParams({
+        d: view === "week" ? todayTargetISO : todayISO,
+        block: null,
+      }),
+    [todayISO, todayTargetISO, updateUrlParams, view],
   );
 
   const handlePrev = useCallback(() => {
@@ -301,7 +311,7 @@ function TimetablesContent() {
   // Monatsklick auf einen Tag: in die Woche wechseln und `d` auf den Tag setzen.
   const openWeekForDay = useCallback(
     (dateISO: string) => {
-      updateUrlParams({ view: null, d: dateISO, block: null });
+      updateUrlParams({ view: null, d: nextWorkdayISO(dateISO), block: null });
     },
     [updateUrlParams],
   );
@@ -316,21 +326,28 @@ function TimetablesContent() {
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht
   // lädt keine Instanzen. Die Jahresansicht ist ersatzlos entfallen.
   const fromISO = toISODate(weekRange.from);
-  const toISO = toISODate(weekRange.to);
   const monthRange = useMemo(() => getMonthRange(visibleDate), [visibleDate]);
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
-  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
-  const fetchToISO = view === "month" ? toISODate(monthRange.to) : toISO;
-  const weekDays = useMemo(() => getWeekdays(weekRange.from), [weekRange.from]);
+  // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
+  // Vertretung: geplant und angezeigt wird nur Mo–Fr. Die Monatsansicht
+  // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
+  const weekDays = useMemo(
+    () => getWeekdays(weekRange.from).slice(0, 5),
+    [weekRange.from],
+  );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
+  const workweekToISO = weekDayISOs[4]!;
+  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
+  const fetchToISO =
+    view === "month" ? toISODate(monthRange.to) : workweekToISO;
   const periodContextDays = view === "month" ? monthDays : weekDays;
   const periodContextDayISOs = useMemo(
     () => periodContextDays.map(toISODate),
     [periodContextDays],
   );
   const weekLabel = useMemo(
-    () => formatWeekLabel(weekRange.from, weekRange.to),
-    [weekRange.from, weekRange.to],
+    () => formatWeekLabel(weekRange.from, weekDays[4]!),
+    [weekRange.from, weekDays],
   );
   const monthLabel = useMemo(
     () => formatMonthLabel(visibleDate),
@@ -354,8 +371,12 @@ function TimetablesContent() {
   // Spec 06 §5.2): GET /gaps begrenzt das Fenster hart auf 14 Tage und lehnt
   // das Monatsfenster mit 400 ab — ein leerer Zähler wäre in der
   // Monatsansicht eine falsche "Keine Lücken"-Aussage.
-  const gapsFromISO = fetchFromISO < todayISO ? todayISO : fetchFromISO;
-  const shouldLoadGaps = view === "week" && fetchToISO >= todayISO;
+  // The workweek has no Saturday/Sunday destination. On weekends, start at
+  // Monday so the gap list cannot offer a retained legacy weekend block that
+  // the week view deliberately does not expose.
+  const gapsFromISO =
+    fetchFromISO < todayTargetISO ? todayTargetISO : fetchFromISO;
+  const shouldLoadGaps = view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
@@ -940,12 +961,12 @@ function TimetablesContent() {
     );
   }
 
-  const todayDate = parseISODate(todayISO);
+  const todayDate = parseISODate(view === "month" ? todayISO : todayTargetISO);
   const isOnToday =
     view === "series"
       ? true
       : view === "week"
-        ? todayISO >= fromISO && todayISO <= toISO
+        ? todayTargetISO >= fromISO && todayTargetISO <= workweekToISO
         : visibleDate.getFullYear() === todayDate.getFullYear() &&
           visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
@@ -1100,6 +1121,7 @@ function TimetablesContent() {
                 todayISO={todayISO}
                 closingDays={closingDays}
                 onDayClick={openWeekForDay}
+                onInstanceClick={handleSelectInstance}
               />
             ))}
 
@@ -1220,11 +1242,11 @@ function TimetablesContent() {
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
         }}
-        defaultDate={quickPrefill?.date ?? dayISO}
+        defaultDate={nextWorkdayISO(quickPrefill?.date ?? dayISO)}
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
-        weekTo={toISO}
+        weekTo={workweekToISO}
         calendarPeriods={modalCalendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}

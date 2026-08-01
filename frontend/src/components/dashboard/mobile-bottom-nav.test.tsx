@@ -90,7 +90,7 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
@@ -106,6 +106,7 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
@@ -182,6 +183,7 @@ describe("MobileBottomNav", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockHasPermission.mockReturnValue(false);
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
     // Re-establish tenant defaults each test so per-test subdomain/slug
@@ -369,6 +371,54 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+    });
+
+    it("labels the staff calendar entry 'Mein Kalender' in the overflow menu", () => {
+      // Der Staff-Eintrag auf /calendar heißt wie die H1 der Seite. Der
+      // gleichnamige Eltern-Eintrag (/parents/calendar) bleibt "Kalender" —
+      // siehe "parent mode navigation" unten.
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      // Nur Planungs- und Eltern-Hub-Links tragen das Tenant-Präfix; /calendar
+      // bleibt bar.
+      expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
+        "href",
+        "/calendar",
+      );
+      expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
+    });
+
+    it("lists Abrechnung in the overflow menu like every other planning page", () => {
+      // Abrechnung ist jetzt Unterpunkt des Planung-Bereichs und steht damit
+      // auch mobil in der flachen Navigation — PLANNING_SUB_PAGES verlangt das
+      // für jede Planungsseite (siehe planning-navigation.test.ts).
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/test-tenant/payroll");
+    });
+
+    it("lists only Abrechnung for non-admins holding config:manage", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "config:manage",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Abrechnung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/payroll",
+      );
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
 
     it("prefixes all planning links in tenant path-routing mode", () => {
@@ -963,6 +1013,40 @@ describe("MobileBottomNav", () => {
     });
   });
 
+  describe("parent mode navigation", () => {
+    beforeEach(() => {
+      mockUseShellAuth.mockReturnValue({
+        user: { name: "Parent", email: "parent@example.com", roles: [] },
+        profile: { firstName: "Parent" },
+        status: "authenticated",
+        isSessionExpired: false,
+        logout: vi.fn(),
+        mode: "parent",
+        homeUrl: "/parents",
+
+        profileUrl: "/parents/profile",
+      });
+      mockUsePathname.mockReturnValue("/parents/calendar");
+    });
+
+    it("keeps the parents calendar entry labelled 'Kalender'", () => {
+      // Bewusst NICHT umbenannt: der Eltern-Eintrag kommt aus dem eigenen
+      // Übersetzungsschlüssel parentNav.calendar. Nur der Staff-Eintrag auf
+      // /calendar heißt jetzt "Mein Kalender".
+      render(<MobileBottomNav />);
+
+      // Haupteinträge tragen ihr Label immer als aria-label (sichtbar nur,
+      // wenn aktiv), deshalb per Rolle+Name gesucht.
+      expect(screen.getByRole("link", { name: "Kalender" })).toHaveAttribute(
+        "href",
+        "/parents/calendar",
+      );
+      expect(
+        screen.queryByRole("link", { name: "Mein Kalender" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("Icon component", () => {
     it("renders SVG icons correctly", () => {
       render(<MobileBottomNav />);
@@ -1045,7 +1129,7 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/ogs-groups");
     });
 
-    it("keeps calendar periods reachable when timetable.enabled is false", () => {
+    it("keeps calendar periods and payroll reachable when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1069,6 +1153,7 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+      expect(screen.getByText("Abrechnung")).toBeInTheDocument();
       // Gruppenzugriff bleibt sichtbar (fixed_groups default).
       expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
     });

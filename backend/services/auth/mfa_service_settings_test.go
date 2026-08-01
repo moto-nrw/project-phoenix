@@ -76,6 +76,29 @@ func (r *mfaTestValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64
 	return out, nil
 }
 
+func (r *mfaTestValueRepo) FindByTenantsAndKeys(_ context.Context, tenantIDs []int64, settingKeys []string) ([]*configModel.SettingValue, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tenants := make(map[int64]struct{}, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		tenants[tenantID] = struct{}{}
+	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
+	var out []*configModel.SettingValue
+	for _, value := range r.values {
+		if _, ok := tenants[value.GetTenantID()]; !ok {
+			continue
+		}
+		if _, ok := requested[value.SettingKey]; ok {
+			out = append(out, value)
+		}
+	}
+	return out, nil
+}
+
 func (r *mfaTestValueRepo) Upsert(_ context.Context, sv *configModel.SettingValue) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

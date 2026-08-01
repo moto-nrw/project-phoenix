@@ -9,10 +9,15 @@ import type { Suggestion } from "~/lib/suggestions-helpers";
 
 const mockVoteSuggestion = vi.hoisted(() => vi.fn());
 const mockRemoveVote = vi.hoisted(() => vi.fn());
+const mockTrackEvent = vi.hoisted(() => vi.fn());
 
 vi.mock("~/lib/suggestions-api", () => ({
   voteSuggestion: mockVoteSuggestion,
   removeVote: mockRemoveVote,
+}));
+
+vi.mock("~/lib/analytics", () => ({
+  trackEvent: mockTrackEvent,
 }));
 
 // ============================================================================
@@ -126,6 +131,28 @@ describe("VoteButtons", () => {
     // Wait for async call
     await vi.waitFor(() => {
       expect(mockVoteSuggestion).toHaveBeenCalledWith("1", "up");
+      expect(mockTrackEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  it("tracks votes only when tenant analytics are enabled", async () => {
+    const updated = createSuggestion({ userVote: "up", upvotes: 5, score: 4 });
+    mockVoteSuggestion.mockResolvedValue(updated);
+
+    render(
+      <VoteButtons
+        suggestion={createSuggestion()}
+        onVoteChange={onVoteChange}
+        analyticsEnabled
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Positiv bewerten"));
+
+    await vi.waitFor(() => {
+      expect(mockTrackEvent).toHaveBeenCalledWith("suggestion_voted", {
+        direction: "up",
+      });
     });
   });
 

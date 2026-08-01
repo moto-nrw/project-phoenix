@@ -71,6 +71,21 @@ export function StepWiederholung({
   dateWeekdayName,
   manualWeekPattern,
 }: Readonly<StepWiederholungProps>) {
+  const legacyWeekendWeekdays = form.weekdays.filter((iso) => iso > 5);
+  const normalizeLegacyWeekend = (legacyWeekday: number) => {
+    const weekdays = form.weekdays.filter((iso) => iso !== legacyWeekday);
+    // This control explicitly migrates the selected legacy day to Monday. A
+    // different workday (for example Friday) must not turn that migration into
+    // a silent deletion of future weekend appointments.
+    if (!weekdays.includes(1)) {
+      weekdays.push(1);
+    }
+    update(
+      "weekdays",
+      weekdays.sort((a, b) => a - b),
+    );
+  };
+
   return (
     <>
       {expanded ? (
@@ -185,7 +200,26 @@ export function StepWiederholung({
                   </Button>
                 );
               })}
+              {legacyWeekendWeekdays.map((iso) => (
+                <Button
+                  key={iso}
+                  type="button"
+                  variant="outline_danger"
+                  size="compact"
+                  className="min-w-[44px]"
+                  onClick={() => normalizeLegacyWeekend(iso)}
+                  aria-label={`Alten Wochenendtag ${weekdayLabel(iso)} zu Montag ändern`}
+                >
+                  {weekdayLabel(iso)} zu Mo
+                </Button>
+              ))}
             </div>
+            {legacyWeekendWeekdays.length > 0 && (
+              <p className="text-xs text-gray-500">
+                Wochenendtermine aus bestehenden Serien werden zu Montag
+                verschoben oder entfernt, wenn ein Werktag verbleibt.
+              </p>
+            )}
             {fieldErrors.weekdays && (
               <p role="alert" className="mt-1 text-xs text-[#FF3130]">
                 {fieldErrors.weekdays}

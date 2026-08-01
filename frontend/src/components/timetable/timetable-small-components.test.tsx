@@ -341,6 +341,7 @@ describe("small timetable components", () => {
   it("renders week/month grids and forwards date selections", () => {
     const onInstanceClick = vi.fn();
     const onDayClick = vi.fn();
+    const onMonthInstanceClick = vi.fn();
     const weekDays = [
       new Date("2026-05-04T00:00:00"),
       new Date("2026-05-05T00:00:00"),
@@ -374,10 +375,13 @@ describe("small timetable components", () => {
         instances={[instance]}
         todayISO="2026-05-04"
         onDayClick={onDayClick}
+        onInstanceClick={onMonthInstanceClick}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /4/i }));
     expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
+    fireEvent.click(screen.getByRole("button", { name: /mensa/i }));
+    expect(onMonthInstanceClick).toHaveBeenCalledWith(instance);
   });
 
   it("keeps week events outside configured hours reachable", () => {

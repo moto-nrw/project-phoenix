@@ -10,6 +10,8 @@ const validBuildEnv = {
   TENANT_DOMAIN: "moto-app.de",
   NEXT_PUBLIC_API_URL: "https://api.moto-app.de",
   NEXT_PUBLIC_TENANT_DOMAIN: "moto-app.de",
+  NEXT_PUBLIC_POSTHOG_KEY: "",
+  NEXT_PUBLIC_POSTHOG_HOST: "",
   NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.moto-app.de",
   NEXT_PUBLIC_PARENTS_HOSTNAME: "eltern.moto-app.de",
   NEXT_PUBLIC_SENTRY_DSN: "",
@@ -24,8 +26,6 @@ const validRuntimeEnv = {
   NEXTAUTH_URL: "https://moto-app.de",
   NEXTAUTH_SECRET: "test-nextauth-secret",
   NEXT_PUBLIC_LOG_LEVEL: "info",
-  NEXT_PUBLIC_POSTHOG_KEY: "",
-  NEXT_PUBLIC_POSTHOG_HOST: "",
   METRICS_BEARER_TOKEN: "test-token-with-enough-length",
 };
 
@@ -47,6 +47,42 @@ describe("env validation", () => {
 
   it("does not require runtime secrets during build validation", () => {
     expect(() => validateBuildEnv(validBuildEnv)).not.toThrow();
+  });
+
+  it("fails build validation when a PostHog key has no ingestion host", () => {
+    expect(() =>
+      validateBuildEnv({
+        ...validBuildEnv,
+        NEXT_PUBLIC_POSTHOG_KEY: "phc_test_key_123",
+        NEXT_PUBLIC_POSTHOG_HOST: "",
+      }),
+    ).toThrow(
+      "Frontend build env validation failed: NEXT_PUBLIC_POSTHOG_HOST: Required when NEXT_PUBLIC_POSTHOG_KEY is set",
+    );
+  });
+
+  it("fails build validation when the PostHog host is invalid", () => {
+    expect(() =>
+      validateBuildEnv({
+        ...validBuildEnv,
+        NEXT_PUBLIC_POSTHOG_KEY: "phc_test_key_123",
+        NEXT_PUBLIC_POSTHOG_HOST: "not-a-url",
+      }),
+    ).toThrow(
+      "Frontend build env validation failed: NEXT_PUBLIC_POSTHOG_HOST: Invalid URL",
+    );
+  });
+
+  it("fails build validation when the PostHog host is not HTTP(S)", () => {
+    expect(() =>
+      validateBuildEnv({
+        ...validBuildEnv,
+        NEXT_PUBLIC_POSTHOG_KEY: "phc_test_key_123",
+        NEXT_PUBLIC_POSTHOG_HOST: "data:text/plain,analytics",
+      }),
+    ).toThrow(
+      "Frontend build env validation failed: NEXT_PUBLIC_POSTHOG_HOST: Must use the http or https protocol",
+    );
   });
 
   it("fails runtime validation when a server secret is missing", () => {

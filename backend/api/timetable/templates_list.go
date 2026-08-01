@@ -42,14 +42,6 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 	return mapTemplateRows(rows, childrenPerStaffRatio), nil
 }
 
-func (rs *Resource) templateExists(ctx context.Context, templateID int64) (bool, error) {
-	templates, err := rs.loadTemplates(ctx, &templateID)
-	if err != nil {
-		return false, err
-	}
-	return len(templates) > 0, nil
-}
-
 func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateResponse {
 	templates := make([]templateResponse, 0)
 	byID := make(map[int64]int)

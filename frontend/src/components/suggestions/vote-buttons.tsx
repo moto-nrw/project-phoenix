@@ -15,12 +15,15 @@ interface VoteButtonsProps {
   readonly onVoteChange: (updated: Suggestion) => void;
   /** Which board to vote on. Defaults to the school's staff board. */
   readonly api?: SuggestionsBoardApi;
+  /** Enable analytics only from the authenticated tenant board. */
+  readonly analyticsEnabled?: boolean;
 }
 
 export function VoteButtons({
   suggestion,
   onVoteChange,
   api = staffBoardApi,
+  analyticsEnabled = false,
 }: VoteButtonsProps) {
   const [optimistic, setOptimistic] = useState<{
     upvotes: number;
@@ -87,7 +90,9 @@ export function VoteButtons({
 
       try {
         const updated = await api.vote(suggestion.id, direction);
-        trackEvent("suggestion_voted", { direction });
+        if (analyticsEnabled) {
+          trackEvent("suggestion_voted", { direction });
+        }
         setOptimistic(null);
         onVoteChange(updated);
       } catch (err) {
@@ -103,7 +108,15 @@ export function VoteButtons({
         });
       }
     },
-    [suggestion, upvotes, downvotes, userVote, onVoteChange, api],
+    [
+      suggestion,
+      upvotes,
+      downvotes,
+      userVote,
+      onVoteChange,
+      api,
+      analyticsEnabled,
+    ],
   );
 
   const upClasses =

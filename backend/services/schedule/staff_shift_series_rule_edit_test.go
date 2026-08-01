@@ -253,8 +253,7 @@ func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 	oldEnd := effective
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &oldEnd, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
-		_, err := env.series.CreateSeries(ctx, series)
-		return err
+		return env.repos.StaffShiftSeries.Create(ctx, series)
 	})
 
 	rootID := series.ID
@@ -297,8 +296,7 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	storedEnd := today.AddDays(1)
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
-		_, err := env.series.CreateSeries(ctx, series)
-		return err
+		return env.repos.StaffShiftSeries.Create(ctx, series)
 	})
 
 	newEnd := today.AddDays(15)
@@ -340,8 +338,7 @@ func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
 	storedEnd := today.AddDays(1)
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
-		_, err := env.series.CreateSeries(ctx, series)
-		return err
+		return env.repos.StaffShiftSeries.Create(ctx, series)
 	})
 
 	err := env.inTxExpectErr(t, func(ctx context.Context) error {
@@ -373,8 +370,7 @@ func TestStaffShiftSeries_SplitRejectsExtensionWithoutRecurrenceOccurrence(t *te
 	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
 	series.Weekdays = []int16{weekday}
 	env.inTx(t, func(ctx context.Context) error {
-		_, err := env.series.CreateSeries(ctx, series)
-		return err
+		return env.repos.StaffShiftSeries.Create(ctx, series)
 	})
 
 	err := env.inTxExpectErr(t, func(ctx context.Context) error {

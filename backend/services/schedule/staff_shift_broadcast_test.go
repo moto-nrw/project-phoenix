@@ -63,6 +63,34 @@ func TestStaffShiftCreateDoesNotBroadcastAfterFailure(t *testing.T) {
 	assert.Empty(t, broadcaster.Events())
 }
 
+func TestStaffShiftUpdateCanDeferTimeTrackingBroadcast(t *testing.T) {
+	existing := validShift(7)
+	existing.ID = 1
+	service := NewStaffShiftService(
+		&shiftMockRepo{findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+			return existing, nil
+		}},
+		&shiftMockStaffRepo{},
+		nil,
+		nil,
+		nil,
+	).(*staffShiftService)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	service.SetBroadcaster(broadcaster)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
+
+	update := *existing
+	_, err := service.UpdateShiftWithOptions(ctx, &update, StaffShiftUpdateOptions{
+		SuppressTimeTrackingBroadcast: true,
+	})
+	require.NoError(t, err)
+
+	commit()
+	assert.Empty(t, broadcaster.Events())
+}
+
 func TestStaffShiftSeriesCreateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 	service := newSeriesServiceForTest(seriesServiceMocks{}).(*staffShiftSeriesService)
 	broadcaster := testpkg.NewRecordingBroadcaster()

@@ -597,25 +597,31 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 
 	studentIDStr := fmt.Sprintf("%d", studentID)
 	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	source := "daily_checkout"
+	data := realtime.EventData{
+		StudentID:   &studentIDStr,
+		StudentName: &studentName,
+		Source:      &source,
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
+	}
 	event := realtime.NewEvent(
 		realtime.EventStudentCheckOut,
 		"", // no active group — student already left their room
-		realtime.EventData{
-			StudentID:   &studentIDStr,
-			StudentName: &studentName,
-			Source:      &source,
-		},
+		data,
 	)
 
 	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
-	// Notify all clients so dashboard counts and search page refresh —
-	// the educational group broadcast only reaches staff in that group,
-	// but the search page is used by all staff.
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant so dashboard counts and the search
+	// page refresh — the educational group broadcast only reaches staff in
+	// that group, but the search page is used by all staff. Scoped to the
+	// student's educational group when known (#2057).
+	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
 }
 
 // ConfirmDailyCheckout processes the deferred daily-checkout confirmation for an

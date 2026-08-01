@@ -737,6 +737,57 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 		"deviated instance must be deleted by the destructive series operation")
 }
 
+func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+	legacyWeekendRepo, ok := repo.(interface {
+		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
+	})
+	require.True(t, ok, "activity-instance repository must support legacy weekend cleanup")
+	fx := newActivityInstanceFixtures(t, db, "legacy-weekend-delete")
+	defer fx.cleanup()
+
+	saturday := timezone.TodayDate().AddDays(1)
+	for saturday.Weekday() != time.Saturday {
+		saturday = saturday.AddDays(1)
+	}
+	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Legacy weekend %d", time.Now().UnixNano()), saturday, saturday.AddDays(1))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID) })
+
+	materialized := buildInstance(1, fx.roomID, &fx.activityID, saturday,
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "legacy saturday")
+	materialized.CalendarPeriodID = &period.ID
+	require.NoError(t, repo.Create(ctx, materialized))
+
+	manual := buildInstance(1, fx.roomID, &fx.activityID, saturday,
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), "manual saturday")
+	require.NoError(t, repo.Create(ctx, manual))
+
+	sunday := buildInstance(1, fx.roomID, &fx.activityID, saturday.AddDays(1),
+		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 17, 0, 0, 0, time.UTC), "legacy sunday")
+	sunday.CalendarPeriodID = &period.ID
+	require.NoError(t, repo.Create(ctx, sunday))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", materialized.ID, manual.ID, sunday.ID)
+
+	deleted, err := legacyWeekendRepo.DeletePlannedMaterializedWeekendInstances(ctx, fx.activityID, []int{6})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted)
+
+	_, err = repo.FindByID(ctx, materialized.ID)
+	assert.True(t, modelBase.IsNoRows(err), "the removed Saturday slot must be deleted")
+	_, err = repo.FindByID(ctx, manual.ID)
+	require.NoError(t, err, "manual weekend instances must remain")
+	_, err = repo.FindByID(ctx, sunday.ID)
+	require.NoError(t, err, "weekend days retained by the template must remain")
+
+	deleted, err = legacyWeekendRepo.DeletePlannedMaterializedWeekendInstances(ctx, fx.activityID, nil)
+	require.NoError(t, err)
+	assert.Zero(t, deleted, "an empty weekday set must be a no-op")
+}
+
 // #1565 review: editing a series' Listenart must carry onto its already
 // materialized FUTURE occurrences that still hold the old value, while leaving
 // today/past rows, non-planned/spontaneous rows, and per-occurrence overrides

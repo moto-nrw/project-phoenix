@@ -74,7 +74,10 @@ type StaffShiftService interface {
 }
 
 type StaffShiftUpdateOptions struct {
-	PreserveExistingNotes bool
+	// SuppressTimeTrackingBroadcast lets a larger operation send one shared
+	// invalidation after all of its shift writes have completed.
+	SuppressTimeTrackingBroadcast bool
+	PreserveExistingNotes         bool
 	// PreserveExistingShiftType keeps the stored shift type when the update
 	// request omitted shift_type_id entirely (stale client / third-party
 	// consumer), so an unrelated edit does not silently clear the label. An
@@ -480,7 +483,9 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	if err != nil {
 		return nil, err
 	}
-	s.broadcastTimeTrackingChanged(ctx)
+	if !opts.SuppressTimeTrackingBroadcast {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return updated, nil
 }
 

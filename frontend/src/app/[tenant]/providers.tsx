@@ -5,6 +5,8 @@ import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
+import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
+import type { TenantInfo } from "~/lib/tenant-api";
 
 /**
  * Tenant-scoped providers.
@@ -15,15 +17,29 @@ import { PushSubscriptionSync } from "~/components/notifications/service-worker-
  */
 export function TenantProviders({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  tenantSlug,
+  tenant,
+  routingMode,
+}: Readonly<{
+  children: React.ReactNode;
+  tenantSlug: string;
+  tenant: TenantInfo;
+  routingMode: TenantRoutingMode;
+}>) {
   return (
     <SessionProvider refetchInterval={4 * 60} refetchOnWindowFocus={false}>
       <PushSubscriptionSync portal="tenant" />
-      <TenantAuthWrapper>
-        <ProfileProvider>
-          <SupervisionProvider>{children}</SupervisionProvider>
-        </ProfileProvider>
-      </TenantAuthWrapper>
+      <TenantProvider
+        tenantSlug={tenantSlug}
+        tenant={tenant}
+        routingMode={routingMode}
+      >
+        <TenantAuthWrapper>
+          <ProfileProvider>
+            <SupervisionProvider>{children}</SupervisionProvider>
+          </ProfileProvider>
+        </TenantAuthWrapper>
+      </TenantProvider>
     </SessionProvider>
   );
 }

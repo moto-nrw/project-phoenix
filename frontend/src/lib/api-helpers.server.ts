@@ -348,12 +348,14 @@ export async function apiPatch<T, B = unknown>(
  * @param token Authentication token
  * @returns Promise with the response data, or void for 204 No Content responses
  */
-export async function apiDelete<T>(
+export async function apiDelete<T, B = unknown>(
   endpoint: string,
   token: string,
+  body?: B,
 ): Promise<T | void> {
   return serverFetchWithRetry<T>(endpoint, token, {
     method: "DELETE",
+    body,
     returnVoidOn204: true,
   });
 }

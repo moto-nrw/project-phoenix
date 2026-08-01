@@ -213,6 +213,11 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
 	router.Use(sentryMiddleware.Handle)
 	router.Use(customMiddleware.SecurityHeaders)
+	// Request-scoped settings memo cache (issue #2065). Router-wide so routes
+	// outside ProtectedTenantGroup (/auth incl. /auth/tenant/resolve,
+	// /operator, /parent, public enrollment) dedupe their settings lookups
+	// too. Idempotent with the group-wide attachment in api/common.
+	router.Use(apiCommon.RequestSettingsCacheMiddleware)
 }
 
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
@@ -408,6 +413,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
 		StudentService:          api.Services.Students,
+		StudentDeletionService:  api.Services.StudentDeletion,
 		StudentAuditService:     api.Services.StudentAudit,
 		EducationService:        api.Services.Education,
 		GradeTransitionService:  api.Services.GradeTransition,

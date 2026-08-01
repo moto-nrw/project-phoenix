@@ -24,6 +24,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -136,6 +137,18 @@ type settingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveInt(ctx context.Context, key string) (int, error)
 	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+var reminderSettingKeys = []string{
+	configModel.KeyRemindersPickupUpcomingEnabled,
+	configModel.KeyRemindersPickupOverdueEnabled,
+	configModel.KeyRemindersActivityStartEnabled,
+	configModel.KeyRemindersActivityOverdueEnabled,
+	configModel.KeyRemindersPickupUpcomingLeadMinutes,
+	configModel.KeyRemindersActivityStartLeadMinutes,
+	configModel.KeyTimetableOverdueThresholdMinutes,
+	configModel.KeyPresenceMode,
+	configModel.KeyStudentDataScope,
 }
 
 type attendanceReader interface {
@@ -255,6 +268,11 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	if s.Settings == nil {
 		return empty, nil
 	}
+	var err error
+	ctx, err = s.withSettingsSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// A resolution failure (DB/RLS/tenant-tx error) must surface, not be treated
 	// as "disabled" — otherwise a broken config read looks like a healthy empty
@@ -337,6 +355,20 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	}
 
 	return assembleResult(pickupPart, activityPart, nextChange), nil
+}
+
+func (s *service) withSettingsSnapshot(ctx context.Context) (context.Context, error) {
+	batch, ok := s.Settings.(interface {
+		ResolveMany(context.Context, []string) (*configService.SettingsSnapshot, error)
+	})
+	if !ok {
+		return ctx, nil
+	}
+	snapshot, err := batch.ResolveMany(ctx, reminderSettingKeys)
+	if err != nil {
+		return ctx, fmt.Errorf("resolve reminder settings: %w", err)
+	}
+	return configService.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
 // errActivityRoomReaderMissing is returned when overdue activity reminders are

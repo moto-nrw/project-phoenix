@@ -243,15 +243,3 @@ export function getTeacherStatus(teacher: TeacherAvailability): string {
   }
   return "Verfügbar";
 }
-
-// Get counts for transfers vs substitutions
-export function getSubstitutionCounts(teacher: TeacherAvailability): {
-  transfers: number;
-  substitutions: number;
-} {
-  const transfers = teacher.substitutions.filter((s) => s.isTransfer).length;
-  const substitutions = teacher.substitutions.filter(
-    (s) => !s.isTransfer,
-  ).length;
-  return { transfers, substitutions };
-}

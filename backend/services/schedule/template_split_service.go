@@ -653,6 +653,9 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 		if !activitiesModel.IsValidWeekday(w) {
 			return fmt.Errorf("%w: invalid weekday %d (must be 1=Mon … 7=Sun)", ErrSplitInvalidInput, w)
 		}
+		if w > activitiesModel.WeekdayFriday {
+			return fmt.Errorf("%w: timetable templates can only be scheduled from Monday to Friday", ErrSplitInvalidInput)
+		}
 	}
 	if !in.EndTime.After(in.StartTime) {
 		return fmt.Errorf("%w: end_time must be after start_time", ErrSplitInvalidInput)

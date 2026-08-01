@@ -25,6 +25,7 @@ type mockValueRepo struct {
 	values        map[string]*config.SettingValue // key: "tenantID:settingKey"
 	err           error
 	findManyCalls int
+	findManyKeys  [][]string // per FindByTenantAndKeys call, the requested keys
 }
 
 func newMockValueRepo() *mockValueRepo {
@@ -48,6 +49,7 @@ func (m *mockValueRepo) FindByTenantAndKey(_ context.Context, tenantID int64, se
 
 func (m *mockValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64, settingKeys []string) ([]*config.SettingValue, error) {
 	m.findManyCalls++
+	m.findManyKeys = append(m.findManyKeys, append([]string(nil), settingKeys...))
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -64,6 +66,31 @@ func (m *mockValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64, s
 			continue
 		}
 		result = append(result, v)
+	}
+	return result, nil
+}
+
+func (m *mockValueRepo) FindByTenantsAndKeys(_ context.Context, tenantIDs []int64, settingKeys []string) ([]*config.SettingValue, error) {
+	m.findManyCalls++
+	if m.err != nil {
+		return nil, m.err
+	}
+	tenants := make(map[int64]struct{}, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		tenants[tenantID] = struct{}{}
+	}
+	requested := make(map[string]struct{}, len(settingKeys))
+	for _, key := range settingKeys {
+		requested[key] = struct{}{}
+	}
+	var result []*config.SettingValue
+	for _, value := range m.values {
+		if _, ok := tenants[value.GetTenantID()]; !ok {
+			continue
+		}
+		if _, ok := requested[value.SettingKey]; ok {
+			result = append(result, value)
+		}
 	}
 	return result, nil
 }

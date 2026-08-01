@@ -4,7 +4,7 @@ import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPutHandler,
-  createDeleteHandler,
+  createDeleteWithBodyHandler,
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
@@ -396,9 +396,20 @@ export const PATCH = PUT;
  * Handler for DELETE /api/students/[id]
  * Deletes a student
  */
-export const DELETE = createDeleteHandler(
+interface StudentDeletionRequest {
+  expected_fingerprint?: string;
+  confirmation_name?: string;
+  reason?: string;
+  acknowledged?: boolean;
+}
+
+export const DELETE = createDeleteWithBodyHandler<
+  { success: true; message: string },
+  StudentDeletionRequest
+>(
   async (
     _request: NextRequest,
+    body: StudentDeletionRequest,
     token: string,
     params: Record<string, unknown>,
   ) => {
@@ -410,10 +421,14 @@ export const DELETE = createDeleteHandler(
 
     try {
       // Call backend API to delete student
-      const response = await apiDelete<{ message: string }>(
-        `/api/students/${id}`,
-        token,
-      );
+      const hasConfirmationBody = Object.keys(body).length > 0;
+      const response = hasConfirmationBody
+        ? await apiDelete<{ message: string }, StudentDeletionRequest>(
+            `/api/students/${id}`,
+            token,
+            body,
+          )
+        : await apiDelete<{ message: string }>(`/api/students/${id}`, token);
 
       return {
         success: true,

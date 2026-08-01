@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -134,5 +134,27 @@ describe("MonthPlannerGrid closing days (#2032)", () => {
 
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
     expect(screen.getAllByText("Leer")).toHaveLength(monthDays.length);
+  });
+
+  it("keeps the empty day action keyboard-accessible beside instance buttons", () => {
+    const onDayClick = vi.fn();
+
+    render(
+      <MonthPlannerGrid
+        days={monthDays}
+        monthDate={new Date("2026-05-01T00:00:00")}
+        instances={[instance]}
+        todayISO="2026-05-04"
+        onDayClick={onDayClick}
+        onInstanceClick={vi.fn()}
+      />,
+    );
+
+    const dayAction = screen.getByRole("button", { name: "Mo 4.5.2026" });
+    dayAction.focus();
+    expect(dayAction).toHaveFocus();
+    fireEvent.click(dayAction);
+
+    expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
   });
 });

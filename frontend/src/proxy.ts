@@ -41,6 +41,25 @@ const TENANT_DOMAIN: string = (() => {
   return val;
 })();
 
+const POSTHOG_INGESTION_ORIGIN: string | null = (() => {
+  const configuredKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const configuredHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  if (!configuredKey) return null;
+  if (!configuredHost) {
+    throw new Error(
+      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set.",
+    );
+  }
+
+  const url = new URL(configuredHost);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(
+      "NEXT_PUBLIC_POSTHOG_HOST must use the http or https protocol.",
+    );
+  }
+  return url.origin;
+})();
+
 // --- CSP Headers ---
 
 const CSP_HEADER = [
@@ -48,7 +67,7 @@ const CSP_HEADER = [
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
-  "connect-src 'self'",
+  `connect-src 'self'${POSTHOG_INGESTION_ORIGIN ? ` ${POSTHOG_INGESTION_ORIGIN}` : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

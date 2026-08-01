@@ -103,6 +103,10 @@ function fireSSE(event: SSEEvent) {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.clearAllMocks();
+  // Pin the per-burst flush jitter (#2057) to 0 so the existing
+  // advanceTimersByTime(500) timing assertions stay deterministic. Jitter
+  // bounds get their own explicit tests.
+  vi.spyOn(Math, "random").mockReturnValue(0);
   mockUseSession.mockReturnValue(authenticatedSession());
   // Re-wire the useSSE mock after clearAllMocks
   mockUseSSE.mockImplementation(
@@ -120,6 +124,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -395,10 +400,10 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
 // Reminders revalidation (issue #1457)
 // ---------------------------------------------------------------------------
 
-// useGlobalSSE runs ABOVE TenantProvider, so it cannot build the tenant-prefixed
-// "{slug}:reminders" SWR key. Instead of mutating the wrong key it dispatches a
-// window event; useReminders() (which runs under TenantProvider and owns the
-// correctly-scoped key + the enabled gate) performs the actual revalidation.
+// useGlobalSSE does not own the tenant-prefixed "{slug}:reminders" SWR key.
+// Instead of mutating the wrong key it dispatches a window event; useReminders()
+// owns the correctly scoped key and enabled gate, so it performs the actual
+// revalidation.
 describe("useGlobalSSE — reminders revalidation", () => {
   function listenForRemindersStale() {
     const listener = vi.fn();

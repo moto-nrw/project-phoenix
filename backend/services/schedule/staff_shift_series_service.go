@@ -43,11 +43,16 @@ type SeriesResult struct {
 type SplitSeriesInput struct {
 	SeriesID      int64
 	EffectiveDate timezone.Date
-	Weekdays      []int16 // nil = keep predecessor weekdays
-	StartTime     time.Time
-	EndTime       time.Time
-	BreakMinutes  int
-	ShiftTypeID   *int64
+	// OccurrenceShiftID identifies the concrete occurrence opened by the
+	// planner. When EffectiveDate is today, this row is updated in place before
+	// the series is split from tomorrow, so its identity and audit references
+	// survive the permanent rule change.
+	OccurrenceShiftID int64
+	Weekdays          []int16 // nil = keep predecessor weekdays
+	StartTime         time.Time
+	EndTime           time.Time
+	BreakMinutes      int
+	ShiftTypeID       *int64
 	// ShiftTypeIDSet distinguishes "clear the type" (true, nil value) from
 	// "keep the predecessor's type" (false) — same tri-state as the single
 	// shift update payload.
@@ -68,7 +73,8 @@ type SplitSeriesInput struct {
 // every existing reader keeps working on concrete rows only.
 type StaffShiftSeriesService interface {
 	// CreateSeries validates the series, persists it, and materializes its
-	// concrete shifts from max(valid_from, tomorrow).
+	// concrete shifts from max(valid_from, tomorrow). Past and current dates are
+	// never changed.
 	CreateSeries(ctx context.Context, series *scheduleModels.StaffShiftSeries) (*SeriesResult, error)
 	// SplitSeries caps the series at the effective date and creates a
 	// successor with the edited fields ("Ab jetzt dauerhaft"). Detached rows
@@ -91,6 +97,7 @@ type staffShiftSeriesService struct {
 	staffRepo     usersModels.StaffRepository
 	periodRepo    scheduleModels.CalendarPeriodRepository
 	shiftTypes    ShiftTypeService
+	shiftService  StaffShiftService
 	db            *bun.DB
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
@@ -107,7 +114,12 @@ func NewStaffShiftSeriesService(
 	shiftTypes ShiftTypeService,
 	db *bun.DB,
 	logger *slog.Logger,
+	shiftService ...StaffShiftService,
 ) StaffShiftSeriesService {
+	var occurrenceUpdater StaffShiftService
+	if len(shiftService) > 0 {
+		occurrenceUpdater = shiftService[0]
+	}
 	return &staffShiftSeriesService{
 		seriesRepo:    seriesRepo,
 		exceptionRepo: exceptionRepo,
@@ -115,9 +127,70 @@ func NewStaffShiftSeriesService(
 		staffRepo:     staffRepo,
 		periodRepo:    periodRepo,
 		shiftTypes:    shiftTypes,
+		shiftService:  occurrenceUpdater,
 		db:            db,
 		logger:        logger,
 	}
+}
+
+// updateTodayOccurrence keeps a currently planned series occurrence as the
+// same concrete row while applying a permanent rule change. UpdateShift marks
+// it detached, so the successor re-plan beginning tomorrow cannot replace it.
+// Existing deviations, including rows moved away from today, remain untouched
+// for the split to preserve and re-point. RetainedOccurrenceShiftID explicitly
+// identifies the row retained by an earlier same-day permanent edit; Detached
+// alone is also used for independent one-off deviations.
+// The caller already runs inside the request's tenant transaction.
+func (s *staffShiftSeriesService) updateTodayOccurrence(
+	ctx context.Context,
+	input SplitSeriesInput,
+	updateRetainedOccurrence bool,
+) (bool, error) {
+	if input.OccurrenceShiftID <= 0 {
+		return false, nil
+	}
+	if s.shiftService == nil {
+		return false, fmt.Errorf("%w: concrete occurrence updater is not configured", ErrSeriesInvalid)
+	}
+
+	occurrence, err := s.shiftRepo.FindByID(ctx, input.OccurrenceShiftID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, fmt.Errorf("%w: current series occurrence not found", ErrSeriesInvalid)
+		}
+		return false, fmt.Errorf("find current series occurrence: %w", err)
+	}
+	if occurrence == nil || occurrence.SeriesID == nil || *occurrence.SeriesID != input.SeriesID ||
+		occurrence.SeriesOccurrenceDate == nil || *occurrence.SeriesOccurrenceDate != input.EffectiveDate {
+		return false, fmt.Errorf("%w: current occurrence does not belong to this series date", ErrSeriesInvalid)
+	}
+	// A cancellation (and its replacement coverage) is a deliberate current-day
+	// deviation. Resizing it through UpdateShift can invalidate its covers, so
+	// retain the cancellation and apply the permanent rule only from tomorrow.
+	if occurrence.Date != timezone.TodayDate() || occurrence.Cancelled ||
+		(occurrence.Detached && !updateRetainedOccurrence) {
+		return false, nil
+	}
+
+	updated := *occurrence
+	updated.StartTime = input.StartTime
+	updated.EndTime = input.EndTime
+	updated.BreakMinutes = input.BreakMinutes
+	if input.ShiftTypeIDSet {
+		updated.ShiftTypeID = input.ShiftTypeID
+	}
+	if input.Notes != nil {
+		updated.Notes = *input.Notes
+	}
+	if input.ActorStaffID > 0 {
+		updated.UpdatedBy = &input.ActorStaffID
+	}
+	if _, err := s.shiftService.UpdateShiftWithOptions(ctx, &updated, StaffShiftUpdateOptions{
+		SuppressTimeTrackingBroadcast: true,
+	}); err != nil {
+		return false, fmt.Errorf("update current series occurrence: %w", err)
+	}
+	return true, nil
 }
 
 func (s *staffShiftSeriesService) getLogger() *slog.Logger {
@@ -325,6 +398,12 @@ func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *sche
 	if err != nil {
 		return nil, err
 	}
+	if !hasFutureSeriesOccurrence(series, period) {
+		return nil, fmt.Errorf(
+			"%w: no occurrences left to create for the selected weekdays and week pattern",
+			ErrSeriesInvalid,
+		)
+	}
 	if err := s.lockShiftWrites(ctx, series.StaffID); err != nil {
 		return nil, err
 	}
@@ -384,6 +463,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		return nil, err
 	}
 
+	updateToday := input.EffectiveDate == timezone.TodayDate()
 	effective := input.EffectiveDate
 	tomorrow := timezone.TodayDate().AddDays(1)
 	if tomorrow.After(effective) {
@@ -476,6 +556,18 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 			ErrSeriesInvalid,
 		)
 	}
+	if updateToday {
+		updateRetainedOccurrence := old.RetainedOccurrenceShiftID != nil &&
+			*old.RetainedOccurrenceShiftID == input.OccurrenceShiftID
+		updated, err := s.updateTodayOccurrence(ctx, input, updateRetainedOccurrence)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			retainedID := input.OccurrenceShiftID
+			successor.RetainedOccurrenceShiftID = &retainedID
+		}
+	}
 	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
 		return nil, err
 	}
@@ -488,7 +580,14 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	}
 	// Deviation preservation (#1890 counterpart): detached rows and removed
 	// occurrences from the effective date onward belong to the successor now.
-	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, old.ID, successor.ID, effective); err != nil {
+	// A retained today occurrence was just detached in place, so it must join
+	// the successor too; otherwise reopening it would submit the capped segment
+	// ID and a second permanent edit would be rejected as superseded.
+	repointFrom := effective
+	if updateToday {
+		repointFrom = input.EffectiveDate
+	}
+	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, old.ID, successor.ID, repointFrom); err != nil {
 		return nil, err
 	}
 	if _, err := s.exceptionRepo.RepointToSeriesFrom(ctx, old.ID, successor.ID, effective); err != nil {

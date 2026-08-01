@@ -110,12 +110,16 @@ type Dependencies struct {
 	Broadcaster            realtime.Broadcaster
 	Logger                 *slog.Logger
 	DB                     *bun.DB
+	Now                    func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
 // Nil deps are tolerated at construction time; the dependent handler returns
 // 500 at request time if one of its deps is unset.
 func NewResource(deps Dependencies) *Resource {
+	if deps.Now == nil {
+		deps.Now = timezone.Now
+	}
 	return &Resource{Dependencies: deps}
 }
 

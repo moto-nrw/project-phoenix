@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
@@ -10,6 +19,26 @@ const logger = createLogger({ component: "GroupTransfer" });
 const EMPTY_TRANSFERS: NonNullable<
   GroupTransferModalProps["existingTransfers"]
 > = [];
+
+/**
+ * Holt aus einem Fehler die Meldung heraus, die der Nutzerin gezeigt werden
+ * kann: die Klienten werfen `API error (409): {"error":"..."}`, interessant ist
+ * nur der innere Text.
+ */
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) {
+    return fallback;
+  }
+
+  const withoutPrefix = err.message.replace(/^API error \(\d+\):\s*/, "");
+
+  try {
+    const parsed = JSON.parse(withoutPrefix) as { error?: string };
+    return parsed.error ?? withoutPrefix;
+  } catch {
+    return withoutPrefix;
+  }
+}
 
 interface GroupTransferModalProps {
   readonly isOpen: boolean;
@@ -71,7 +100,6 @@ export function GroupTransferModal({
       return;
     }
 
-    // Find selected user name
     const selectedUser = availableUsers.find(
       (user) => user.personId === selectedPersonId,
     );
@@ -81,33 +109,19 @@ export function GroupTransferModal({
       setLoading(true);
       setError(null);
       await onTransfer(selectedPersonId, targetName);
-      setSelectedPersonId(""); // Reset selection after successful transfer
-      setError(null); // Clear any previous errors
+      setSelectedPersonId("");
+      setError(null);
     } catch (err) {
       logger.error("group_transfer_failed", {
         error: err instanceof Error ? err.message : String(err),
         group_id: group?.id,
       });
-      // Extract clean error message
-      let errorMessage =
-        "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.";
-
-      if (err instanceof Error) {
-        // Remove "API error (XXX):" prefix if present
-        errorMessage = err.message.replace(/^API error \(\d+\):\s*/, "");
-
-        // Try to parse JSON error if it's still wrapped
-        try {
-          const parsed = JSON.parse(errorMessage) as { error?: string };
-          if (parsed.error) {
-            errorMessage = parsed.error;
-          }
-        } catch {
-          // Not JSON, use message as-is
-        }
-      }
-
-      setError(errorMessage);
+      setError(
+        extractErrorMessage(
+          err,
+          "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.",
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -120,32 +134,18 @@ export function GroupTransferModal({
       setDeletingId(substitutionId);
       setError(null);
       await onCancelTransfer(substitutionId);
-      setError(null); // Clear any previous errors
+      setError(null);
     } catch (err) {
       logger.error("group_transfer_cancel_failed", {
         error: err instanceof Error ? err.message : String(err),
         substitution_id: substitutionId,
       });
-      // Extract clean error message
-      let errorMessage =
-        "Fehler beim Zurücknehmen. Bitte versuchen Sie es erneut.";
-
-      if (err instanceof Error) {
-        // Remove "API error (XXX):" prefix if present
-        errorMessage = err.message.replace(/^API error \(\d+\):\s*/, "");
-
-        // Try to parse JSON error if it's still wrapped
-        try {
-          const parsed = JSON.parse(errorMessage) as { error?: string };
-          if (parsed.error) {
-            errorMessage = parsed.error;
-          }
-        } catch {
-          // Not JSON, use message as-is
-        }
-      }
-
-      setError(errorMessage);
+      setError(
+        extractErrorMessage(
+          err,
+          "Fehler beim Zurücknehmen. Bitte versuchen Sie es erneut.",
+        ),
+      );
     } finally {
       setDeletingId(null);
     }
@@ -153,127 +153,103 @@ export function GroupTransferModal({
 
   if (!group) return null;
 
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onClose}
+        disabled={loading}
+      >
+        Abbrechen
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={() => void handleTransfer()}
+        isLoading={loading}
+        loadingText="Wird übergeben..."
+        disabled={!selectedPersonId || loading || availableUsers.length === 0}
+      >
+        Übergeben
+      </Button>
+    </>
+  );
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={`Gruppe "${group.name}" übergeben`}
+      footer={footer}
+      isDismissDisabled={loading}
     >
-      <div className="space-y-4 md:space-y-5">
-        {/* Error Alert */}
-        {error && (
-          <div
-            ref={errorRef}
-            className="rounded-lg border border-red-200 bg-red-50 p-3 md:p-4"
-          >
-            <div className="flex items-start gap-3">
-              <svg
-                className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <p className="flex-1 text-sm text-red-800">{error}</p>
-            </div>
+      <div className="space-y-6">
+        {error ? (
+          <div ref={errorRef}>
+            <Alert type="error" message={error} />
           </div>
-        )}
+        ) : null}
 
-        {/* Info Box */}
-        <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 md:p-4">
-          <div className="flex items-start gap-3">
-            <svg
-              className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div className="flex-1">
-              <p className="text-sm text-gray-700">
-                Der ausgewählte Betreuer erhält{" "}
-                <strong>zusätzliche Berechtigungen</strong> für diese Gruppe bis{" "}
-                <strong>heute 23:59 Uhr</strong>.
-              </p>
-              <p className="mt-2 text-sm text-gray-600">
-                Du behältst weiterhin vollen Zugriff auf die Gruppe.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Group Info */}
-        <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 md:p-4">
+        <InfoSection
+          title="Was die Übergabe bewirkt"
+          icon={<Clock className="h-full w-full" />}
+        >
           <p className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">Gruppe:</span>{" "}
-            {group.name}
+            Der ausgewählte Betreuer erhält{" "}
+            <strong className="font-medium text-gray-900">
+              zusätzliche Berechtigungen
+            </strong>{" "}
+            für diese Gruppe bis{" "}
+            <strong className="font-medium text-gray-900">
+              heute 23:59 Uhr
+            </strong>
+            . Du behältst weiterhin vollen Zugriff auf die Gruppe.
           </p>
-          {group.studentCount !== undefined && (
-            <p className="mt-1 text-sm text-gray-600">
-              <span className="font-medium text-gray-900">Gruppengröße:</span>{" "}
-              {group.studentCount} Kinder insgesamt
-            </p>
-          )}
-        </div>
+        </InfoSection>
 
-        {/* Existing Transfers List */}
-        {existingTransfers && existingTransfers.length > 0 && (
-          <div className="space-y-2">
+        <DataGrid>
+          <DataField label="Gruppe">{group.name}</DataField>
+          {group.studentCount !== undefined && (
+            <DataField label="Gruppengröße">
+              {group.studentCount} Kinder insgesamt
+            </DataField>
+          )}
+        </DataGrid>
+
+        {existingTransfers.length > 0 && (
+          <section className="space-y-2">
             <p className="text-sm font-medium text-gray-700">
               Aktuell übergeben an:
             </p>
-            {existingTransfers.map((transfer) => (
-              <div
-                key={transfer.substitutionId}
-                className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-3"
-              >
-                <div className="flex items-center gap-2">
-                  <svg
-                    className="h-5 w-5 flex-shrink-0 text-orange-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-orange-900">
+            <ul className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+              {existingTransfers.map((transfer) => (
+                <li
+                  key={transfer.substitutionId}
+                  className="flex items-center justify-between gap-3 p-3"
+                >
+                  <span className="min-w-0 truncate text-sm font-medium text-gray-900">
                     {transfer.targetName}
                   </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCancel(transfer.substitutionId)}
-                  disabled={deletingId === transfer.substitutionId}
-                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors duration-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deletingId === transfer.substitutionId
-                    ? "Wird entfernt..."
-                    : "Entfernen"}
-                </button>
-              </div>
-            ))}
-          </div>
+                  <Button
+                    type="button"
+                    variant="outline_danger"
+                    size="compact"
+                    onClick={() => void handleCancel(transfer.substitutionId)}
+                    isLoading={deletingId === transfer.substitutionId}
+                    loadingText="Wird entfernt..."
+                    disabled={deletingId === transfer.substitutionId}
+                  >
+                    Entfernen
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
-        {/* New Transfer Form */}
-        {/* User Dropdown */}
         <div>
           <label
             id="transfer-user-select-label"
@@ -302,54 +278,6 @@ export function GroupTransferModal({
               Lehrkräfte im System angelegt sind.
             </p>
           )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 pt-2 md:pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-
-          <button
-            type="button"
-            onClick={handleTransfer}
-            disabled={
-              !selectedPersonId || loading || availableUsers.length === 0
-            }
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-gray-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4 animate-spin text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Wird übergeben...
-              </span>
-            ) : (
-              "Übergeben"
-            )}
-          </button>
         </div>
       </div>
     </Modal>

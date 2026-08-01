@@ -29,6 +29,8 @@ interface SuggestionFormProps {
   readonly editSuggestion?: Suggestion | null;
   /** Which board to write to. Defaults to the school's staff board. */
   readonly api?: SuggestionFormApi;
+  /** Enable analytics only from the authenticated tenant board. */
+  readonly analyticsEnabled?: boolean;
   /** Optional note above the fields, e.g. who will read this. */
   readonly hint?: ReactNode;
   /** Example wording. The staff default names a staff feature. */
@@ -42,6 +44,7 @@ export function SuggestionForm({
   onSuccess,
   editSuggestion,
   api = staffFormApi,
+  analyticsEnabled = false,
   hint,
   titlePlaceholder = "z.B. 'PDF-Export für Vertretungsplan'",
   descriptionPlaceholder = "Beschreibe dein Feedback...",
@@ -96,7 +99,9 @@ export function SuggestionForm({
         toastSuccess("Beitrag wurde aktualisiert.");
       } else {
         await api.create(trimmedTitle, trimmedDescription);
-        trackEvent("suggestion_created");
+        if (analyticsEnabled) {
+          trackEvent("suggestion_created");
+        }
         toastSuccess("Beitrag wurde eingereicht.");
       }
       onSuccess();

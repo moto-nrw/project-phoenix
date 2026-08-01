@@ -69,7 +69,13 @@ const (
 	// "instance_delete").
 	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
 
-	// Global refresh event — tells all clients to re-fetch dashboard counts
+	// Tenant-wide refresh event — tells every client of the tenant to re-fetch
+	// dashboard counts. Broadcast via BroadcastToTenant (issue #2057; it was
+	// BroadcastToAll before, which fanned every school's check-in traffic out to
+	// every OTHER school's clients). Carries GroupIDs (educational group ids,
+	// never student identity) when the emitting site knows them, so clients can
+	// scope their ogs-students-{gid} revalidation; without GroupIDs clients fall
+	// back to a broad refresh.
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 
 	// EventStaffTimeTrackingChanged is a tenant-wide invalidation trigger for
@@ -181,6 +187,18 @@ type EventData struct {
 	// (whole-session end). The client adds each to its per-student
 	// detail-cache invalidation set; the refetch itself is topic-driven.
 	StudentIDs *[]string `json:"student_ids,omitempty"`
+
+	// GroupIDs carries the affected educational (OGS) group ids on
+	// dashboard_counts_changed / student_checkin / student_checkout /
+	// bulk_student_checkout (#2057). Group ids only — NEVER student identity —
+	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
+	// gdpr.student_data_scope: it reveals "counts in group X changed", nothing
+	// about who. Clients scope their ogs-students-{gid} revalidation to these
+	// ids. Contract: absence of the field means "scope unknown → refresh
+	// broadly"; emitters MUST omit the field entirely (nil) instead of sending
+	// an empty array, which clients would read as "scope to nothing" and
+	// silently drop the invalidation.
+	GroupIDs *[]string `json:"group_ids,omitempty"`
 
 	// Activity session fields (for activity_start/end/update events)
 	ActivityName  *string   `json:"activity_name,omitempty"`

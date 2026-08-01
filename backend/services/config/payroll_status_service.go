@@ -85,12 +85,33 @@ var payrollCategories = []payrollCategory{
 }
 
 func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*PayrollStatus, error) {
-	categories, configuredCategories, err := s.resolvePayrollCategories(ctx)
+	keys := []string{
+		configModel.KeyPayrollDatevBeraternummer,
+		configModel.KeyPayrollDatevMandantennummer,
+	}
+	for _, category := range payrollCategories {
+		keys = append(keys, category.key)
+		if category.unitKey != "" {
+			keys = append(keys, category.unitKey)
+		}
+	}
+	var snapshot *SettingsSnapshot
+	if batch, ok := s.settings.(interface {
+		ResolveMany(context.Context, []string) (*SettingsSnapshot, error)
+	}); ok {
+		var err error
+		snapshot, err = batch.ResolveMany(ctx, keys)
+		if err != nil {
+			return nil, fmt.Errorf("resolve payroll settings: %w", err)
+		}
+	}
+
+	categories, configuredCategories, err := s.resolvePayrollCategories(ctx, snapshot)
 	if err != nil {
 		return nil, err
 	}
 
-	berater, mandant, err := s.resolveLodasHeader(ctx)
+	berater, mandant, err := s.resolveLodasHeader(ctx, snapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +133,11 @@ func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*PayrollSt
 	}, nil
 }
 
-func (s *payrollStatusService) resolvePayrollCategories(ctx context.Context) ([]PayrollCategoryStatus, int, error) {
+func (s *payrollStatusService) resolvePayrollCategories(ctx context.Context, snapshot *SettingsSnapshot) ([]PayrollCategoryStatus, int, error) {
 	categories := make([]PayrollCategoryStatus, 0, len(payrollCategories))
 	configuredCategories := 0
 	for _, category := range payrollCategories {
-		entry, err := s.resolvePayrollCategory(ctx, category)
+		entry, err := s.resolvePayrollCategory(ctx, snapshot, category)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -128,8 +149,8 @@ func (s *payrollStatusService) resolvePayrollCategories(ctx context.Context) ([]
 	return categories, configuredCategories, nil
 }
 
-func (s *payrollStatusService) resolvePayrollCategory(ctx context.Context, category payrollCategory) (PayrollCategoryStatus, error) {
-	number, err := s.settings.ResolveString(ctx, category.key)
+func (s *payrollStatusService) resolvePayrollCategory(ctx context.Context, snapshot *SettingsSnapshot, category payrollCategory) (PayrollCategoryStatus, error) {
+	number, err := resolvedPayrollString(ctx, s.settings, snapshot, category.key)
 	if err != nil {
 		return PayrollCategoryStatus{}, fmt.Errorf("resolve %s: %w", category.key, err)
 	}
@@ -143,7 +164,7 @@ func (s *payrollStatusService) resolvePayrollCategory(ctx context.Context, categ
 		return entry, nil
 	}
 
-	unit, err := s.settings.ResolveString(ctx, category.unitKey)
+	unit, err := resolvedPayrollString(ctx, s.settings, snapshot, category.unitKey)
 	if err != nil {
 		return PayrollCategoryStatus{}, fmt.Errorf("resolve %s: %w", category.unitKey, err)
 	}
@@ -153,16 +174,23 @@ func (s *payrollStatusService) resolvePayrollCategory(ctx context.Context, categ
 	return entry, nil
 }
 
-func (s *payrollStatusService) resolveLodasHeader(ctx context.Context) (string, string, error) {
-	berater, err := s.settings.ResolveString(ctx, configModel.KeyPayrollDatevBeraternummer)
+func (s *payrollStatusService) resolveLodasHeader(ctx context.Context, snapshot *SettingsSnapshot) (string, string, error) {
+	berater, err := resolvedPayrollString(ctx, s.settings, snapshot, configModel.KeyPayrollDatevBeraternummer)
 	if err != nil {
 		return "", "", fmt.Errorf("resolve beraternummer: %w", err)
 	}
-	mandant, err := s.settings.ResolveString(ctx, configModel.KeyPayrollDatevMandantennummer)
+	mandant, err := resolvedPayrollString(ctx, s.settings, snapshot, configModel.KeyPayrollDatevMandantennummer)
 	if err != nil {
 		return "", "", fmt.Errorf("resolve mandantennummer: %w", err)
 	}
 	return berater, mandant, nil
+}
+
+func resolvedPayrollString(ctx context.Context, settings SettingsService, snapshot *SettingsSnapshot, key string) (string, error) {
+	if snapshot != nil {
+		return snapshot.String(key)
+	}
+	return settings.ResolveString(ctx, key)
 }
 
 func (s *payrollStatusService) countStaffPersonnelNumbers(ctx context.Context) (int, int, error) {

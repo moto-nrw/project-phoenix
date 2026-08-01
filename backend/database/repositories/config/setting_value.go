@@ -73,6 +73,30 @@ func (r *SettingValueRepository) FindByTenantAndKeys(ctx context.Context, tenant
 	return values, nil
 }
 
+// FindByTenantsAndKeys retrieves stored overrides for several tenants and keys
+// in one query. The service layer wraps this privileged read in an admin
+// transaction; repository code deliberately does not change database roles.
+func (r *SettingValueRepository) FindByTenantsAndKeys(ctx context.Context, tenantIDs []int64, keys []string) ([]*config.SettingValue, error) {
+	if len(tenantIDs) == 0 || len(keys) == 0 {
+		return nil, nil
+	}
+
+	var values []*config.SettingValue
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&values).
+		ModelTableExpr(tableSettingValuesAlias).
+		Where(`"setting_value".tenant_id IN (?)`, bun.List(tenantIDs)).
+		Where(`"setting_value".setting_key IN (?)`, bun.List(keys)).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find setting values by tenants and keys",
+			Err: err,
+		}
+	}
+	return values, nil
+}
+
 // Upsert inserts or updates a setting value.
 func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingValue) error {
 	if sv == nil {

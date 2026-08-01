@@ -68,6 +68,7 @@ func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		RoomRepo:             repos.Room,
 		StaffShiftRepo:       repos.StaffShift,
 		ShiftTypeRepo:        repos.ShiftType,
 		CareDays: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
@@ -2710,4 +2711,62 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 	// Removing a single occurrence clears the still-pending notice.
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
 	assert.Equal(t, 1, outbox.cancelled, "single-occurrence cancel must clear pending notifications")
+}
+
+func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Room", "Staff")
+	mainRoom := testpkg.CreateTestRoom(t, db, "Calendar Main Room")
+	overrideRoom := testpkg.CreateTestRoom(t, db, "Calendar Override Room")
+
+	day := timezone.NewDate(2026, 3, 10)
+	plainInstance := testpkg.CreateTestActivityInstance(t, db, day, mainRoom.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "09:00",
+		EndHHMM:   "10:00",
+		Title:     "Betreuung Hauptraum",
+	})
+	splitInstance := testpkg.CreateTestActivityInstance(t, db, day, mainRoom.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "11:00",
+		EndHHMM:   "12:00",
+		Title:     "Betreuung Split",
+	})
+	plainAssignment := testpkg.CreateTestInstanceStaff(t, db, plainInstance.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	splitAssignment := testpkg.CreateTestInstanceStaff(t, db, splitInstance.ID, staff.ID, testpkg.InstanceStaffOpts{
+		IsPrimary: true,
+		RoomID:    &overrideRoom.ID,
+	})
+	shift := testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM: "14:00",
+		EndHHMM:   "15:00",
+	})
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", shift.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", plainAssignment.ID, splitAssignment.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", plainInstance.ID, splitInstance.ID)
+		testpkg.CleanupActivityFixtures(t, db, mainRoom.ID, overrideRoom.ID)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	})
+
+	events, err := service.ListMyStaffEvents(calendarContext(account.ID), day, day)
+	require.NoError(t, err)
+	require.Len(t, events, 3)
+
+	// Instance room, no override.
+	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
+	require.NotNil(t, events[0].Location)
+	assert.Equal(t, mainRoom.Name, *events[0].Location)
+
+	// Per-person override wins over the instance room (Lernzeit split, #2078).
+	assert.Equal(t, calModels.EventSourceTimetable, events[1].Source)
+	require.NotNil(t, events[1].Location)
+	assert.Equal(t, overrideRoom.Name, *events[1].Location)
+
+	// Shifts carry no room column, so Location stays deliberately empty.
+	assert.Equal(t, calModels.EventSourceShift, events[2].Source)
+	assert.Nil(t, events[2].Location)
 }

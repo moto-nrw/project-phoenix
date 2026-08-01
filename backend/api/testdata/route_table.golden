@@ -327,6 +327,7 @@ GET /api/students/{id}/change-history
 GET /api/students/{id}/companions
 GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
+GET /api/students/{id}/delete-impact
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/in-group-room
 GET /api/students/{id}/photo/{filename}

@@ -874,10 +874,14 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
 	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
+	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
 		StudentID:   &studentID,
 		StudentName: &studentName,
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
 	}
 	applyAttendanceSnapshot(&data, snapshot)
 
@@ -890,8 +894,9 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
-	// Notify all clients so dashboard counts refresh
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant so dashboard counts refresh, scoped to
+	// the affected educational group when known (#2057).
+	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
@@ -965,11 +970,24 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 		}
 	}
 
-	// One event to the active-group topic carrying every checked-out student.
+	// Every affected educational group id, for scoped client-side invalidation
+	// (#2057). Students without an OGS group contribute no id; they appear in
+	// no ogs-students-{gid} list, so the scope stays correct.
+	allEduGroupIDs := make([]string, 0, len(eduGroups))
+	for gid := range eduGroups {
+		allEduGroupIDs = append(allEduGroupIDs, strconv.FormatInt(gid, 10))
+	}
+
+	// One event to the active-group topic carrying every checked-out student
+	// and every affected educational group.
+	activeData := realtime.EventData{StudentIDs: &allStudentIDs}
+	if len(allEduGroupIDs) > 0 {
+		activeData.GroupIDs = &allEduGroupIDs
+	}
 	activeEvent := realtime.NewEvent(
 		realtime.EventBulkStudentCheckOut,
 		sessionIDStr,
-		realtime.EventData{StudentIDs: &allStudentIDs},
+		activeData,
 	)
 	s.broadcastWithLogging(ctx, sessionIDStr, "", activeEvent, "bulk_student_checkout")
 
@@ -977,17 +995,19 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// students so each subscribed client invalidates the right detail caches.
 	for gid, ids := range eduGroups {
 		groupIDs := ids
+		eduGroupID := []string{strconv.FormatInt(gid, 10)}
 		eduEvent := realtime.NewEvent(
 			realtime.EventBulkStudentCheckOut,
 			sessionIDStr,
-			realtime.EventData{StudentIDs: &groupIDs},
+			realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
 		)
 		s.broadcastToEducationalGroup(ctx, eduReps[gid], eduEvent)
 	}
 
-	// Single global broadcast for the entire batch.
+	// Single tenant-wide broadcast for the entire batch, scoped to the
+	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
-		_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
 		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
 	}
 }
@@ -1016,8 +1036,10 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 
 	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
 
-	// Notify all clients (including zero-topic) so dashboard refreshes
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant (including zero-topic) so dashboards
+	// refresh. No group scope: a session end affects room occupancy across
+	// groups, so clients fall back to a broad refresh (#2057).
+	s.broadcastDashboardCountsChanged(ctx, nil)
 	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonActivityEnded)
 }
 

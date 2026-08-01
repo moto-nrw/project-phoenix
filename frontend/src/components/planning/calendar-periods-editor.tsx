@@ -353,11 +353,14 @@ export function CalendarPeriodsEditor() {
 
       <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-600">
+          <p className="min-w-0 text-sm text-gray-600">
             Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für
             Anmeldung und Betreuungsplan.
           </p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {/* The page content can be narrower than the viewport beside the
+              persistent sidebar. Let actions wrap in that constrained space
+              instead of forcing the header surface wider than its container. */}
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
             <Button
               type="button"
               variant="primary"

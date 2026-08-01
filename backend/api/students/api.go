@@ -62,6 +62,7 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	StudentDeletionService  userService.StudentDeletionService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
@@ -170,6 +171,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/{id}/delete-impact", rs.getStudentDeleteImpact)
 		// Hard-deletes a child that a grade transition graduated. Separate from
 		// the route above because the alumnus gate that route relies on is
 		// exactly what this one has to bypass — see purgeGraduatedStudent.
