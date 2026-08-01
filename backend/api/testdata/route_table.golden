@@ -607,6 +607,7 @@ POST /api/settings/login-image
 POST /api/shift-types/
 POST /api/shift-types/defaults
 POST /api/staff-shifts/
+POST /api/staff-shifts/export
 POST /api/staff-shifts/series
 POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
@@ -649,6 +650,7 @@ POST /api/time-tracking/break/start
 POST /api/time-tracking/check-in
 POST /api/time-tracking/check-out
 POST /api/time-tracking/vacation/request
+POST /api/timetable/betreuungsplan/export
 POST /api/timetable/closing-days/
 POST /api/timetable/instances/
 POST /api/timetable/instances/re-plan-week

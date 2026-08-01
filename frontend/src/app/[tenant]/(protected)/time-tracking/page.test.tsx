@@ -947,6 +947,19 @@ describe("TimeTrackingPage", () => {
       expect(screen.getByRole("button", { name: "Starten" })).toBeEnabled();
     });
 
+    it("consumes the first desktop outside click before checkout", () => {
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      render(<TimeTrackingPage />);
+      fireEvent.click(screen.getByLabelText("Pause starten"));
+
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+
+      expect(
+        screen.queryByRole("button", { name: "Pausendauer verringern" }),
+      ).not.toBeInTheDocument();
+      expect(timeTrackingService.checkOut).not.toHaveBeenCalled();
+    });
+
     it("uses a bottom sheet for break duration on mobile", async () => {
       Object.defineProperty(window, "innerWidth", {
         writable: true,

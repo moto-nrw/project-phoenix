@@ -4,8 +4,9 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Settings2 } from "lucide-react";
+import { Printer, Settings2 } from "lucide-react";
 
+import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -96,6 +97,15 @@ function DienstplanContent() {
   const canViewHalbjahr =
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "schedules:read");
+  // POST /api/staff-shifts/export verlangt dieselbe Dreierkombination wie
+  // /overview — der Ausdruck nennt Namen und liest die Schichtprojektion. Ohne
+  // `users:read` liefe der Dialog in ein 403, darum wird der Knopf gar nicht
+  // erst angeboten (gleiche Schranke wie im Betreuungsplan).
+  const canExportPlan =
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
+  const canExportInternal = hasPermission(session, "schedules:manage");
   const today = useBerlinToday();
 
   // URL-State: der angezeigte Tag und die Ansicht werden bei jedem Render aus
@@ -110,6 +120,7 @@ function DienstplanContent() {
 
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
@@ -410,25 +421,46 @@ function DienstplanContent() {
           ) : undefined
         }
         actions={
-          // Unter sm nur das Zahnrad: der volle Text brach in der Kopfzeile
+          // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
           // zweizeilig um und schob zusammen mit dem Ansichtsumschalter die
-          // ganze Zeile aus dem Viewport. EIN Button mit ausgeblendetem Label
-          // statt zweier Breakpoint-Varianten — das `aria-label` hält ihn für
-          // Screenreader und Tests unter demselben Namen auffindbar.
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            aria-label="Schichtarten verwalten"
-            className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-            onClick={() => setManageOpen(true)}
-            disabled={Boolean(shiftTypesError)}
-          >
-            <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-            <span className="hidden whitespace-nowrap sm:inline">
-              Schichtarten verwalten
-            </span>
-          </Button>
+          // ganze Zeile aus dem Viewport. EIN Button je Aktion mit
+          // ausgeblendetem Label statt zweier Breakpoint-Varianten — das
+          // `aria-label` hält sie für Screenreader und Tests unter demselben
+          // Namen auffindbar.
+          <>
+            {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
+                Exportseite, weil der Export immer die Woche meint, die gerade
+                auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
+            {canExportPlan && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-label="Dienstplan drucken oder exportieren"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                onClick={() => setExportOpen(true)}
+              >
+                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Drucken
+                </span>
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              aria-label="Schichtarten verwalten"
+              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+              onClick={() => setManageOpen(true)}
+              disabled={Boolean(shiftTypesError)}
+            >
+              <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+              <span className="hidden whitespace-nowrap sm:inline">
+                Schichtarten verwalten
+              </span>
+            </Button>
+          </>
         }
       >
         {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
@@ -489,6 +521,19 @@ function DienstplanContent() {
             setPeriodModalOpen(false);
             void mutatePeriods();
           }}
+        />
+      )}
+      {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
+          ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
+          dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
+      {canExportPlan && exportOpen && (
+        <PlanExportModal
+          isOpen
+          plan="dienstplan"
+          weekDay={dayISO}
+          isWeekOnScreen={view === "woche"}
+          canExportInternal={canExportInternal}
+          onClose={() => setExportOpen(false)}
         />
       )}
       <ShiftTypeManageModal

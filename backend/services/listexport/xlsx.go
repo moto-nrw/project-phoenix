@@ -44,6 +44,16 @@ func renderXLSX(doc Document) ([]byte, error) {
 		return nil, err
 	}
 
+	// Body cells wrap and align to the top so a multi-line cell (a plan cell
+	// carries its time, task, and room on separate lines) stays readable
+	// instead of running past its neighbour or centring one long line.
+	bodyStyle, err := f.NewStyle(&excelize.Style{
+		Alignment: &excelize.Alignment{WrapText: true, Vertical: "top"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	if err := f.SetCellValue(sheet, "A1", doc.Title); err != nil {
 		return nil, err
 	}
@@ -78,11 +88,17 @@ func renderXLSX(doc Document) ([]byte, error) {
 
 	excelRow := headerRow + 1
 	currentGroup := ""
+	hasPrintedGroup := false
 	for _, row := range doc.Rows {
 		hasValues := len(row.Values) > 0
 		if row.GroupTitle != "" && (!hasValues || row.GroupTitle != currentGroup) {
 			currentGroup = row.GroupTitle
 			startCell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			if hasPrintedGroup {
+				if err := f.InsertPageBreak(sheet, startCell); err != nil {
+					return nil, err
+				}
+			}
 			lastColumn := len(doc.Columns)
 			if lastColumn < 1 {
 				lastColumn = 1
@@ -97,6 +113,7 @@ func renderXLSX(doc Document) ([]byte, error) {
 			if err := f.SetCellStyle(sheet, startCell, endCell, groupStyle); err != nil {
 				return nil, err
 			}
+			hasPrintedGroup = true
 			excelRow++
 		}
 		if !hasValues {
@@ -104,10 +121,23 @@ func renderXLSX(doc Document) ([]byte, error) {
 		}
 		for colIdx, column := range doc.Columns {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
-			if err := f.SetCellValue(sheet, cell, row.Values[column.ID]); err != nil {
+			// XLSX has no per-line emphasis, so the markers are stripped;
+			// the wrapped line structure survives.
+			value := StripStyleMarkers(row.Values[column.ID])
+			if err := f.SetCellValue(sheet, cell, value); err != nil {
 				return nil, err
 			}
 		}
+		if len(doc.Columns) > 0 {
+			firstCell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			lastCell, _ := excelize.CoordinatesToCellName(len(doc.Columns), excelRow)
+			if err := f.SetCellStyle(sheet, firstCell, lastCell, bodyStyle); err != nil {
+				return nil, err
+			}
+		}
+		// Do not set an explicit height: a fixed height based only on explicit
+		// line breaks clips text that wraps softly in the fixed-width columns.
+		// Excel can calculate both kinds of wrapping only for auto-sized rows.
 		excelRow++
 	}
 
@@ -119,6 +149,11 @@ func renderXLSX(doc Document) ([]byte, error) {
 			width = 26
 		case ColumnDeparture, ColumnGuardianContacts:
 			width = 32
+		case ColumnPlanRowLabel:
+			width = 24
+		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday,
+			ColumnPlanFriday, ColumnPlanSaturday, ColumnPlanSunday:
+			width = 30
 		}
 		if err := f.SetColWidth(sheet, col, col, width); err != nil {
 			return nil, err

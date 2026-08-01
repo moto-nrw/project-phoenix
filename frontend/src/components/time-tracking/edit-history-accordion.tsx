@@ -2,6 +2,7 @@
 
 import { SquarePen } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatTime } from "~/lib/time-tracking-helpers";
 
@@ -191,14 +192,16 @@ export function EditHistoryAccordion({
         </tbody>
       </table>
       {onEdit && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="compact"
           onClick={onEdit}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-400 transition-colors hover:border-gray-400 hover:bg-gray-50 hover:text-gray-600"
+          className="mt-2 w-full border border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600"
         >
           <SquarePen className="h-3.5 w-3.5" />
           Weitere Änderung vornehmen
-        </button>
+        </Button>
       )}
     </div>
   );

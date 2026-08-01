@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -35,13 +36,15 @@ type Resource struct {
 	SeriesService scheduleSvc.StaffShiftSeriesService
 	Overview      scheduleSvc.StaffScheduleOverviewGetter
 	PersonService usersSvc.PersonService
-	db            *bun.DB
-	logger        *slog.Logger
+	// PlanExport renders the printable Dienstplan week (#2079).
+	PlanExport planexport.Service
+	db         *bun.DB
+	logger     *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, seriesService scheduleSvc.StaffShiftSeriesService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, SeriesService: seriesService, Overview: overview, PersonService: personService, db: db, logger: logger}
+func NewResource(service scheduleSvc.StaffShiftService, seriesService scheduleSvc.StaffShiftSeriesService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, planExport planexport.Service, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, SeriesService: seriesService, Overview: overview, PersonService: personService, PlanExport: planExport, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -58,6 +61,15 @@ func (rs *Resource) Router() chi.Router {
 			authorize.RequiresPermission(permissions.UsersRead),
 			withTx,
 		).Get("/overview", rs.overview)
+		// Printable Dienstplan week (#2079). The wall-sheet variant uses the
+		// same permission triple as /overview; export.go additionally requires
+		// schedules:manage for the sensitive internal variant.
+		r.With(
+			authorize.RequiresPermission(permissions.TimeTrackingManage),
+			authorize.RequiresPermission(permissions.SchedulesRead),
+			authorize.RequiresPermission(permissions.UsersRead),
+			withTx,
+		).Post("/export", rs.exportPlan)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/move", rs.move)
