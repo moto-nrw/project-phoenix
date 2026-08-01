@@ -50,7 +50,30 @@ const (
 	ColumnAge               ColumnID = "age"
 	ColumnSlot              ColumnID = "slot"
 	ColumnPresenceStatus    ColumnID = "presence_status"
+
+	// Plan-matrix columns (#2079). Deliberately distinct from the
+	// ColumnWeekly* family: those carry one short care marker per weekday in
+	// a child list and are weighted narrower than the name column, while a
+	// plan cell carries a time window plus its task and room and needs the
+	// opposite balance. Sharing the IDs would have meant re-weighting the
+	// child lists.
+	ColumnPlanRowLabel  ColumnID = "plan_row_label"
+	ColumnPlanMonday    ColumnID = "plan_monday"
+	ColumnPlanTuesday   ColumnID = "plan_tuesday"
+	ColumnPlanWednesday ColumnID = "plan_wednesday"
+	ColumnPlanThursday  ColumnID = "plan_thursday"
+	ColumnPlanFriday    ColumnID = "plan_friday"
 )
+
+// PlanDayColumns are the Monday–Friday plan columns in weekday order, so
+// callers index by weekday instead of repeating the list.
+var PlanDayColumns = [5]ColumnID{
+	ColumnPlanMonday,
+	ColumnPlanTuesday,
+	ColumnPlanWednesday,
+	ColumnPlanThursday,
+	ColumnPlanFriday,
+}
 
 type Preset string
 

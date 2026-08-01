@@ -746,3 +746,70 @@ func TestDesignedPDFUngroupedPagesFillBody(t *testing.T) {
 		t.Fatalf("dead space below a full card = %.1fpt, want <= one row (%.1fpt)", gap, maxGap)
 	}
 }
+
+// #2079: a cell composed from several facts separates them with "\n" and
+// gets one line each, regardless of how much width is left over. Without
+// this the plan matrix ("07:30–14:00", task, room) reads as one run-on
+// line, because wrap() used to tokenize with strings.Fields.
+func TestDesignedPDFWrapHonoursExplicitLineBreaks(t *testing.T) {
+	r, err := newDesignRenderer(designGroupedDocument())
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatalf("setFont: %v", err)
+	}
+
+	lines := r.wrap("07:30–14:00\nKüche\nRaum 2", 400) // wide: width alone would keep one line
+	want := []string{"07:30–14:00", "Küche", "Raum 2"}
+	if len(lines) != len(want) {
+		t.Fatalf("wrap lines = %v, want %v", lines, want)
+	}
+	for i, line := range lines {
+		if line != want[i] {
+			t.Fatalf("wrap line %d = %q, want %q", i, line, want[i])
+		}
+	}
+}
+
+// A segment that is itself too wide still wraps inside its own line break,
+// so the two mechanisms compose instead of one disabling the other.
+func TestDesignedPDFWrapWrapsWithinLineBreaks(t *testing.T) {
+	r, err := newDesignRenderer(designGroupedDocument())
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatalf("setFont: %v", err)
+	}
+
+	lines := r.wrap("07:30–14:00\nBetreuung der Randstunde mit Frühstück", 60)
+	if len(lines) < 3 {
+		t.Fatalf("wrap lines = %v, want the second segment to wrap further", lines)
+	}
+	if lines[0] != "07:30–14:00" {
+		t.Fatalf("wrap line 0 = %q, want the untouched first segment", lines[0])
+	}
+	if joined := strings.Join(lines[1:], " "); joined != "Betreuung der Randstunde mit Frühstück" {
+		t.Fatalf("wrap altered the wrapped segment: %q", joined)
+	}
+}
+
+// Line breaks must survive pagination too: a three-line cell is a
+// three-line row, otherwise rows overlap on the page.
+func TestDesignedPDFLineBreaksGrowRowHeight(t *testing.T) {
+	doc := designGroupedDocument()
+	doc.Rows = []Row{
+		{Values: map[ColumnID]string{ColumnName: "Kessener, Franziska", ColumnSchoolClass: "a\nb\nc"}},
+	}
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatalf("setFont: %v", err)
+	}
+	if got := r.buildRow(doc.Rows[0]).lines; got != 3 {
+		t.Fatalf("row lines = %d, want 3", got)
+	}
+}

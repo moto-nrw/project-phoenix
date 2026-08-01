@@ -237,12 +237,21 @@ func writeCell(b *bytes.Buffer, text string, bold bool) {
 	if bold {
 		b.WriteString(`<w:rPr><w:b/></w:rPr>`)
 	}
-	b.WriteString(`<w:t>`)
 	if text == "" {
 		text = " "
 	}
-	b.WriteString(xmlText(text))
-	b.WriteString(`</w:t></w:r></w:p></w:tc>`)
+	// "\n" is a line break in a cell across all three renderers (the PDF
+	// wrapper and the XLSX wrap style honour it too); Word collapses raw
+	// whitespace inside <w:t>, so it needs an explicit <w:br/>.
+	for i, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+		if i > 0 {
+			b.WriteString(`<w:br/>`)
+		}
+		b.WriteString(`<w:t xml:space="preserve">`)
+		b.WriteString(xmlText(line))
+		b.WriteString(`</w:t>`)
+	}
+	b.WriteString(`</w:r></w:p></w:tc>`)
 }
 
 func xmlText(text string) string {

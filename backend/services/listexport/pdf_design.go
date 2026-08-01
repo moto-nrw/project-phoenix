@@ -259,6 +259,12 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 			weight = 1.5
 		case ColumnGuardianContacts:
 			weight = 2.7
+		case ColumnPlanRowLabel:
+			// A plan matrix inverts the child-list balance: the row label is
+			// one name or one area, the five day cells carry everything else.
+			weight = 1.1
+		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday, ColumnPlanFriday:
+			weight = 1.6
 		}
 		weights[i] = weight
 		sum += weight
@@ -475,11 +481,37 @@ func (r *designRenderer) headerLineCount() int {
 	return maxLines
 }
 
-// wrap greedily breaks text to fit maxW, measured with the current font.
-// A single word wider than maxW (long German compounds — "Schmetterlings-
-// gruppe" in a narrow column) is hard-split at character level so no cell
-// ever overflows into its neighbour.
+// wrap breaks text to fit maxW, honouring explicit newlines first and
+// greedily wrapping each resulting segment. Callers that compose a cell
+// from several facts (a plan cell is "07:30–14:00", the task, the room)
+// separate them with "\n" and get one line each; everything else behaves
+// exactly as before, since no other caller emits newlines.
 func (c *pageChrome) wrap(s string, maxW float64) []string {
+	// Normalize the line-break spellings a caller can realistically produce
+	// before splitting, so a CRLF does not leave a stray \r inside a line.
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	if strings.TrimSpace(s) == "" {
+		return []string{""}
+	}
+	if !strings.Contains(s, "\n") {
+		return c.wrapSegment(s, maxW)
+	}
+	lines := []string{}
+	for _, segment := range strings.Split(s, "\n") {
+		// An empty segment is a deliberate blank line (a cell ending in "\n"
+		// would otherwise silently lose its trailing break). wrapSegment
+		// returns []string{""} for it, which is exactly one blank line.
+		lines = append(lines, c.wrapSegment(segment, maxW)...)
+	}
+	return lines
+}
+
+// wrapSegment greedily breaks one newline-free run of text to fit maxW,
+// measured with the current font. A single word wider than maxW (long German
+// compounds — "Schmetterlingsgruppe" in a narrow column) is hard-split at
+// character level so no cell ever overflows into its neighbour.
+func (c *pageChrome) wrapSegment(s string, maxW float64) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return []string{""}
