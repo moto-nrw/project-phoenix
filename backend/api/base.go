@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -63,6 +64,7 @@ import (
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -129,6 +131,14 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
 	if err != nil {
+		return nil, err
+	}
+
+	// Fail fast on a partially migrated schema: the student repository selects
+	// and writes its departure columns unconditionally (no per-request
+	// information_schema probes, #2059), so the server must only start against
+	// a fully migrated database.
+	if err := usersRepo.VerifyStudentSchema(context.Background(), db); err != nil {
 		return nil, err
 	}
 
