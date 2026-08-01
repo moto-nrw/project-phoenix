@@ -219,9 +219,10 @@ func (r *RequestChildOfferingRepository) ListHistoryByRequestChildID(ctx context
 	return rows, nil
 }
 
-// ListByRequestChildIDAtDate returns the selection active on onDate. It
-// deliberately returns no rows before a future selection or in a gap between
-// selections: callers use it to evaluate the booking at that exact date.
+// ListByRequestChildIDAtDate returns the selection active on onDate. Before a
+// phase starts it returns the upcoming selection so a future enrollment stays
+// visible. It deliberately returns no rows for a gap in an active phase:
+// callers use it to evaluate the booking at that exact date.
 func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*enrollment.RequestChildOffering, error) {
 	var rows []*enrollment.RequestChildOffering
 	db := base.GetDB(ctx, r.db)
@@ -239,7 +240,38 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.
 	if len(rows) > 0 {
 		return rows, nil
 	}
-	return nil, nil
+
+	var phaseStart timezone.Date
+	err = db.NewSelect().
+		TableExpr(`enrollment.request_children AS "request_child"`).
+		Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+		Join(`INNER JOIN enrollment.phases AS "phase" ON "phase".id = "request".phase_id`).
+		ColumnExpr(`"phase".service_start_date`).
+		Where(`"request_child".id = ?`, requestChildID).
+		Scan(ctx, &phaseStart)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find request child care period: %w", err)
+	}
+	if !onDate.Before(phaseStart) {
+		return nil, nil
+	}
+
+	nextValidFrom := db.NewSelect().
+		TableExpr(`enrollment.request_child_offerings AS "next_request_child_offering"`).
+		ColumnExpr(`MIN("next_request_child_offering".valid_from)`).
+		Where(`"next_request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"next_request_child_offering".valid_from > ?`, onDate)
+	err = db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"request_child_offering".valid_from = (?)`, nextValidFrom).
+		OrderExpr(`"request_child_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list upcoming request child offerings: %w", err)
+	}
+	return rows, nil
 }
 
 // ListByRequestChildIDs returns every historical offering link across the
