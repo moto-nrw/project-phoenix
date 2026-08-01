@@ -458,7 +458,7 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
 		priority = notifications.PriorityHigh
 	}
-	accountIDs := make([]int64, 0)
+	var accountIDs []int64
 	seen := make(map[int64]struct{})
 	if a.IsPoll() {
 		recipients, err := s.repo.UnansweredReminderRecipients(ctx, a.GetTenantID(), a.ID)
