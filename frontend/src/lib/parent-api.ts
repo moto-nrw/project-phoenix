@@ -681,7 +681,7 @@ export interface ParentAnnouncement {
   readonly children?: readonly ParentAnnouncementPollChild[];
 }
 
-export interface ParentAnnouncementOption {
+interface ParentAnnouncementOption {
   readonly id: string;
   readonly label: string;
 }

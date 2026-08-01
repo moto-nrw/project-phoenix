@@ -1488,7 +1488,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Eine kurze Frage an ausgewählte Elterngruppen, die pro Kind beantwortet wird – zum Beispiel „Kommt Ihr Kind zur Murmelparty?“. Die Antworten laufen aggregiert in der App zusammen, sodass Sie mit einer verlässlichen Zahl planen können.",
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen, oben auf `Umfragen` wechseln und auf `Umfrage` tippen.",
-          "Schritt `Inhalt`: Unter `Frage` die Frage eingeben und im Text ergänzen, worum es geht. Die `Antwortmöglichkeiten` sind mit `Ja` und `Nein` vorbelegt; über `Antwort hinzufügen` kommen weitere dazu (bis zu zehn), das `×` entfernt eine.",
+          "Schritt `Inhalt`: Unter `Frage` die Frage eingeben und im Text ergänzen, worum es geht. Die `Antwortmöglichkeiten` sind mit `Ja` und `Nein` vorbelegt; über `Antwort hinzufügen` kommen weitere dazu (bis zu zehn), das Papierkorb-Symbol entfernt eine. Zwei Antworten sind das Minimum.",
           "Sollen Eltern mehrere Antworten gleichzeitig auswählen dürfen (z. B. mehrere mögliche Termine), `Mehrfachauswahl erlauben` aktivieren.",
           "Optional eine `Antwortfrist` setzen. Nach Ablauf nimmt die Umfrage keine Antworten mehr an, bleibt für die Eltern aber lesbar.",
           "Schritt `Empfänger`: wie bei einer Mitteilung die Zielgruppe wählen (ganze Schule, Klassen, Gruppen, AGs oder einzelne Kinder), dann `Veröffentlichen`.",
@@ -1497,7 +1497,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Pro Kind, nicht pro Konto",
-          body: "Eltern beantworten die Umfrage für jedes ihrer Kinder einzeln, und die Auswertung zählt Kinder. Das ist die Zahl, mit der Sie planen. Bezugspersonen ohne betreutes Kind (z. B. mit einer noch offenen Anmeldung) können deshalb nicht antworten.",
+          body: "Eltern sehen die Umfrage unter `Neuigkeiten` mit dem Hinweis `Antwort erforderlich`, öffnen sie und antworten dort für jedes ihrer Kinder einzeln; gespeichert wird erst mit `Antwort speichern`. Die Auswertung zählt entsprechend Kinder, nicht Konten – das ist die Zahl, mit der Sie planen. Bezugspersonen ohne betreutes Kind (z. B. mit einer noch offenen Anmeldung) können nicht antworten.",
           tone: "blue",
         },
         screenshot:

@@ -29,7 +29,7 @@ export interface AnnouncementTarget {
 export type AnnouncementResponseType =
   "none" | "single_choice" | "multi_choice";
 
-export interface AnnouncementOption {
+interface AnnouncementOption {
   id: string;
   label: string;
 }
@@ -60,7 +60,7 @@ export function isPoll(announcement: Announcement): boolean {
 }
 
 /** One option's tally: how many reached children picked it. */
-export interface PollOptionResult {
+interface PollOptionResult {
   option_id: string;
   label: string;
   count: number;
