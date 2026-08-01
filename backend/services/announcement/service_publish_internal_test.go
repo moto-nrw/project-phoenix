@@ -43,6 +43,10 @@ func (f *fakeAnnouncementRepo) ReplaceOptions(_ context.Context, _, _ int64, _ [
 	return nil
 }
 
+func (f *fakeAnnouncementRepo) ListOptions(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementOption, error) {
+	return nil, nil
+}
+
 func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *usersModels.ParentAnnouncement) error {
 	f.updateCalls++
 	return nil
@@ -392,6 +396,40 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		event.Priority != notifications.PriorityNormal ||
 		event.DeepLink != "/" {
 		t.Fatalf("unexpected guardian notification metadata: %+v", event)
+	}
+}
+
+func TestPublish_PollNotifiesOnlyResponsePermittedGuardians(t *testing.T) {
+	poll := draftAnnouncement(true)
+	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	repo := &fakeAnnouncementRepo{
+		announcement: poll,
+		// The general audience contains a portal-visible guardian who may not
+		// respond. Poll publication must ignore that broader audience.
+		audience: []*usersModels.AnnouncementRecipientStatus{{AccountID: 999}},
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 101, Email: "permitted@example.test"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	outbox := &fakeOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     outbox,
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), poll.ID); err != nil {
+		t.Fatalf("publish poll: %v", err)
+	}
+	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
+		t.Fatalf("unexpected poll push audience: %+v", notifier.events)
+	}
+	if len(outbox.requests) != 1 || outbox.requests[0].Payload[emailPayloadRecipient] != "permitted@example.test" {
+		t.Fatalf("unexpected poll e-mail audience: %+v", outbox.requests)
 	}
 }
 
