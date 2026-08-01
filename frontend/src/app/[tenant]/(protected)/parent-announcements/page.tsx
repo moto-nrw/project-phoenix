@@ -1168,15 +1168,7 @@ function AnnouncementFormModal({
                       // Rows have no id before saving; the list is short and
                       // edited in place, so the index is the stable key.
                       // eslint-disable-next-line react/no-array-index-key
-                      <li key={index} className="flex items-center gap-3">
-                        {/* Shows what the parents will see: a circle for one
-                            answer, a box when several may be picked. */}
-                        <span
-                          aria-hidden
-                          className={`h-5 w-5 shrink-0 border-2 border-gray-300 ${
-                            multiChoice ? "rounded-sm" : "rounded-full"
-                          }`}
-                        />
+                      <li key={index} className="flex items-center gap-2">
                         {/* Input's className lands on the control, not on its
                             wrapper, so the wrapper carries the flex sizing. */}
                         <div className="min-w-0 flex-1">
@@ -1193,9 +1185,8 @@ function AnnouncementFormModal({
                         <button
                           type="button"
                           onClick={() => removeOptionAt(index)}
-                          disabled={optionRows.length <= 2}
                           aria-label={`Antwort ${index + 1} entfernen`}
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden />
                         </button>
