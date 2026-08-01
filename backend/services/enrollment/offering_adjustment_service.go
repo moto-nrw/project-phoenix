@@ -218,7 +218,7 @@ func (s *decisionService) updateChildOfferings(
 		return nil, afterSnapshotErr
 	}
 
-	scheduled, err := s.scheduledOfferingReplacements(ctx, child.ID, effectiveFrom)
+	scheduled, err := s.scheduledOfferingReplacements(ctx, child.ID, selectionDate, effectiveFrom)
 	if err != nil {
 		return nil, err
 	}
@@ -304,6 +304,7 @@ type scheduledOfferingReplacement struct {
 func (s *decisionService) scheduledOfferingReplacements(
 	ctx context.Context,
 	requestChildID int64,
+	selectionDate timezone.Date,
 	effectiveFrom *timezone.Date,
 ) ([]scheduledOfferingReplacement, error) {
 	if effectiveFrom != nil {
@@ -313,10 +314,9 @@ func (s *decisionService) scheduledOfferingReplacements(
 	if err != nil {
 		return nil, fmt.Errorf("decision: list scheduled child offerings: %w", err)
 	}
-	today := timezone.TodayDate()
 	byDate := make(map[timezone.Date][]*enrollmentModels.RequestChildOffering)
 	for _, row := range history {
-		if row == nil || row.ValidFrom == nil || !row.ValidFrom.After(today) {
+		if row == nil || row.ValidFrom == nil || !row.ValidFrom.After(selectionDate) {
 			continue
 		}
 		date := *row.ValidFrom

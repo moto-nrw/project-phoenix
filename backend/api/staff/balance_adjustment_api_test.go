@@ -59,7 +59,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	resetDate := today.AddDays(-1)
 	adjustmentsPath := fmt.Sprintf("/staff/%d/time-tracking/adjustments", subject.ID)
 	resetPath := fmt.Sprintf("/staff/%d/time-tracking/reset", subject.ID)
-	summaryPath := fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=%d&month=%d", subject.ID, today.Year, int(today.Month))
+	summaryPath := fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=%d&month=%d", subject.ID, resetDate.Year, int(resetDate.Month))
 	listPath := fmt.Sprintf("%s?from=%d-01-01&to=%d-12-31", adjustmentsPath, today.Year, today.Year)
 	var payoutID int64
 
