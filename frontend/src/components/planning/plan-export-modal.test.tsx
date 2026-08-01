@@ -116,7 +116,9 @@ describe("PlanExportModal", () => {
     renderModal();
 
     expect(
-      screen.getByText(/27\.07\.2026 bis 31\.07\.2026, Montag bis Freitag/),
+      screen.getByText(
+        /27\.07\.2026 bis 31\.07\.2026, Montag bis Freitag\. Samstag und Sonntag nur, wenn dort etwas geplant ist\./,
+      ),
     ).toBeInTheDocument();
   });
 

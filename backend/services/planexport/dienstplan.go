@@ -36,7 +36,7 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 	if err != nil {
 		return listexport.File{}, err
 	}
-	from, to := weeks[0].days[0], weeks[len(weeks)-1].days[4]
+	from, to := weeks[0].days[0], weeks[len(weeks)-1].last()
 
 	overview, err := s.deps.Overview.GetOverview(ctx, from, to)
 	if err != nil {
@@ -44,6 +44,9 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 	}
 
 	data := newDienstplanData(overview, s.shiftTypes(ctx), s.nonWorkingDays(ctx, from, to), params.Variant)
+	// The range is loaded Monday–Sunday; the sheet keeps the weekend only
+	// where the roster actually uses it.
+	weeks = narrowWeeks(weeks, data.plannedDays())
 
 	title := "Dienstplan"
 	rowLabel := "Mitarbeitende"
@@ -162,6 +165,21 @@ func newDienstplanData(
 	return data
 }
 
+// plannedDays are the calendar days the roster puts something on, whichever
+// weekday they fall on. It decides whether the sheet carries a Saturday and
+// Sunday column: a weekend shift exists whenever somebody planned one, and a
+// plan that omits it is wrong in the way that sends nobody to work.
+func (d *dienstplanData) plannedDays() map[timezone.Date]bool {
+	days := make(map[timezone.Date]bool, len(d.shifts)+len(d.assignments))
+	for key := range d.shifts {
+		days[key.date] = true
+	}
+	for key := range d.assignments {
+		days[key.date] = true
+	}
+	return days
+}
+
 func sortShifts(shifts []*scheduleModel.StaffShift) {
 	sort.SliceStable(shifts, func(i, j int) bool {
 		return shifts[i].StartTime.Before(shifts[j].StartTime)
@@ -195,7 +213,7 @@ func (d *dienstplanData) rowsByPerson(w week) []listexport.Row {
 		if member == nil {
 			continue
 		}
-		cells := dayCells{label: memberFullName(member)}
+		cells := newDayCells(memberFullName(member), w)
 		content := false
 		for i, day := range w.days {
 			lines := d.personDayLines(member.ID, day)
@@ -404,7 +422,7 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 
 	rows := make([]listexport.Row, 0, len(ordered))
 	for _, row := range ordered {
-		cells := dayCells{label: row.title}
+		cells := newDayCells(row.title, w)
 		for i, day := range w.days {
 			cells.days[i] = append(d.closedDayLines(day), row.lines(i)...)
 		}
@@ -443,7 +461,7 @@ func areaFor(areas map[areaKey]*areaRow, kind areaKind, title string) *areaRow {
 	return row
 }
 
-// areaRow collects one Einsatzbereich across the five days. Entries sharing
+// areaRow collects one Einsatzbereich across the week's days. Entries sharing
 // a time window and room are grouped under one heading line, which is what
 // turns five separate "12:00–13:00 Name" lines into a readable block.
 type areaRow struct {
@@ -451,7 +469,7 @@ type areaRow struct {
 	title    string
 	color    string
 	earliest string
-	days     [5][]areaEntry
+	days     [fullWeekDays][]areaEntry
 }
 
 type areaEntry struct {

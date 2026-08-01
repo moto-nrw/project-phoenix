@@ -63,16 +63,22 @@ const (
 	ColumnPlanWednesday ColumnID = "plan_wednesday"
 	ColumnPlanThursday  ColumnID = "plan_thursday"
 	ColumnPlanFriday    ColumnID = "plan_friday"
+	ColumnPlanSaturday  ColumnID = "plan_saturday"
+	ColumnPlanSunday    ColumnID = "plan_sunday"
 )
 
-// PlanDayColumns are the Monday–Friday plan columns in weekday order, so
-// callers index by weekday instead of repeating the list.
-var PlanDayColumns = [5]ColumnID{
+// PlanDayColumns are the plan columns in weekday order, so callers index by
+// weekday instead of repeating the list. Saturday and Sunday exist because a
+// shift may be planned on them (a series accepts ISO weekdays 1–7); a
+// document that plans neither simply stops after Friday.
+var PlanDayColumns = [7]ColumnID{
 	ColumnPlanMonday,
 	ColumnPlanTuesday,
 	ColumnPlanWednesday,
 	ColumnPlanThursday,
 	ColumnPlanFriday,
+	ColumnPlanSaturday,
+	ColumnPlanSunday,
 }
 
 type Preset string

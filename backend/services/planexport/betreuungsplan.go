@@ -32,12 +32,15 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 	if err != nil {
 		return listexport.File{}, err
 	}
-	from, to := weeks[0].days[0], weeks[len(weeks)-1].days[4]
+	from, to := weeks[0].days[0], weeks[len(weeks)-1].last()
 
 	data, err := s.loadBetreuungsplanData(ctx, from, to, params.Variant)
 	if err != nil {
 		return listexport.File{}, err
 	}
+	// The range is loaded Monday–Sunday; the sheet keeps the weekend only
+	// where blocks actually run on it.
+	weeks = narrowWeeks(weeks, data.plannedDays())
 
 	doc := s.document(
 		"Betreuungsplan", "Angebot",
@@ -240,7 +243,7 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 	type offering struct {
 		title    string
 		earliest string
-		days     [5][]*scheduleModel.ActivityInstance
+		days     [fullWeekDays][]*scheduleModel.ActivityInstance
 	}
 	offerings := map[string]*offering{}
 
@@ -277,7 +280,7 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 
 	rows := make([]listexport.Row, 0, len(ordered))
 	for _, row := range ordered {
-		cells := dayCells{label: row.title}
+		cells := newDayCells(row.title, w)
 		for i, day := range w.days {
 			lines := d.closedDayLines(day)
 			instances := row.days[i]
@@ -292,6 +295,16 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 		rows = append(rows, cells.toRow())
 	}
 	return rows
+}
+
+// plannedDays are the days blocks run on, so a Saturday Angebot gets its own
+// column instead of vanishing from the printed plan.
+func (d *betreuungsplanData) plannedDays() map[timezone.Date]bool {
+	days := make(map[timezone.Date]bool, len(d.instances))
+	for _, instance := range d.instances {
+		days[instance.Date] = true
+	}
+	return days
 }
 
 func (d *betreuungsplanData) emptyWeekRows(w week) []listexport.Row {

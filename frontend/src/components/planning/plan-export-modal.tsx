@@ -316,9 +316,12 @@ function describeRange(
   const friday = startOfWeek(parseISODate(to));
   friday.setDate(friday.getDate() + 4);
   const span = `${formatDate(toISODate(monday))} bis ${formatDate(toISODate(friday))}`;
+  // Samstag und Sonntag stehen nicht im Text, weil sie nicht vom Zeitraum
+  // abhängen, sondern davon, ob dort überhaupt etwas geplant ist.
+  const weekend = "Samstag und Sonntag nur, wenn dort etwas geplant ist.";
   return weekCount === 1
-    ? `Gedruckt wird die Woche vom ${span}, Montag bis Freitag.`
-    : `Gedruckt werden ${weekCount} Wochen (${span}), je Woche ein Blatt.`;
+    ? `Gedruckt wird die Woche vom ${span}, Montag bis Freitag. ${weekend}`
+    : `Gedruckt werden ${weekCount} Wochen (${span}), je Woche ein Blatt. ${weekend}`;
 }
 
 function RadioOption({

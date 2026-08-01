@@ -175,7 +175,7 @@ func (s *service) document(
 // emptyWeekRow states that the week is empty instead of leaving the sheet
 // blank.
 func emptyWeekRows(w week, closedDays map[timezone.Date]string) []listexport.Row {
-	cells := dayCells{label: "Keine Einträge in dieser Woche"}
+	cells := newDayCells("Keine Einträge in dieser Woche", w)
 	for i, day := range w.days {
 		if label, ok := closedDays[day]; ok {
 			cells.days[i] = []listexport.Line{strong(label)}
@@ -195,7 +195,7 @@ func rangeSubtitle(weeks []week) string {
 	}
 	return fmt.Sprintf("%s – %s (%d Wochen)",
 		weeks[0].days[0].Format("02.01.2006"),
-		weeks[len(weeks)-1].days[4].Format("02.01.2006"),
+		weeks[len(weeks)-1].last().Format("02.01.2006"),
 		len(weeks),
 	)
 }
@@ -222,5 +222,5 @@ func filename(plan string, weeks []week) string {
 	if len(weeks) == 1 {
 		return fmt.Sprintf("%s %s", plan, weeks[0].monday.String())
 	}
-	return fmt.Sprintf("%s %s bis %s", plan, weeks[0].monday.String(), weeks[len(weeks)-1].days[4].String())
+	return fmt.Sprintf("%s %s bis %s", plan, weeks[0].monday.String(), weeks[len(weeks)-1].last().String())
 }

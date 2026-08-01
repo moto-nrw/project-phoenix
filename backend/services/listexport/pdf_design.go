@@ -293,9 +293,10 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 			weight = 2.7
 		case ColumnPlanRowLabel:
 			// A plan matrix inverts the child-list balance: the row label is
-			// one name or one area, the five day cells carry everything else.
+			// one name or one area, the day cells carry everything else.
 			weight = 1.1
-		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday, ColumnPlanFriday:
+		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday,
+			ColumnPlanFriday, ColumnPlanSaturday, ColumnPlanSunday:
 			weight = 1.6
 		}
 		weights[i] = weight

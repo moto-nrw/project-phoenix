@@ -9,15 +9,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
-// weekdayLabels are the five printed day columns. Saturdays and Sundays are
-// left out on purpose: neither plan schedules them, and two permanently
-// empty columns would cost a fifth of the page width.
-var weekdayLabels = [5]string{"Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"}
+// weekdayLabels are the printed day columns in weekday order.
+var weekdayLabels = [7]string{
+	"Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag",
+}
 
-// week is one printed sheet: its Monday and the five weekdays it covers.
+const (
+	// workweekDays is the ordinary sheet: Monday–Friday. Saturday and Sunday
+	// are dropped whenever nothing is planned on them, because two
+	// permanently empty columns cost a quarter of the page width.
+	workweekDays = 5
+	// fullWeekDays is the widened sheet. A staff shift may be planned on any
+	// ISO weekday (1–7) and the overview counts weekend shifts, so a sheet
+	// fixed at Monday–Friday would silently drop a Dienst somebody is
+	// actually rostered for — the one failure a printed plan must not have.
+	fullWeekDays = 7
+)
+
+// week is one printed sheet: its Monday and the days it covers — five, or
+// seven once the exported range plans a weekend.
 type week struct {
 	monday timezone.Date
-	days   [5]timezone.Date
+	days   []timezone.Date
+}
+
+// last is the final printed day of the week: Friday, or Sunday on a widened
+// sheet.
+func (w week) last() timezone.Date {
+	return w.days[len(w.days)-1]
 }
 
 // label reads "KW 31 · 27.07.–31.07.2026", matching how the planning screens
@@ -27,7 +46,7 @@ func (w week) label() string {
 	return fmt.Sprintf("KW %d · %s–%s",
 		isoWeek,
 		w.days[0].Format("02.01."),
-		w.days[4].Format("02.01.2006"),
+		w.last().Format("02.01.2006"),
 	)
 }
 
@@ -37,9 +56,11 @@ func mondayOf(d timezone.Date) timezone.Date {
 	return d.AddDays(-offset)
 }
 
-// expandWeeks widens [from, to] to whole Monday–Friday weeks and returns
+// expandWeeks widens [from, to] to whole Monday–Sunday weeks and returns
 // them in order. A wall plan is printed by the week, so a request for a
-// Wednesday prints that Wednesday's whole week.
+// Wednesday prints that Wednesday's whole week. The weeks come back full so
+// the callers load the weekend too; narrowWeeks then drops it again unless
+// the loaded data actually uses it.
 func expandWeeks(from, to timezone.Date) ([]week, error) {
 	first := mondayOf(from)
 	last := mondayOf(to)
@@ -50,13 +71,36 @@ func expandWeeks(from, to timezone.Date) ([]week, error) {
 
 	weeks := make([]week, 0, count)
 	for monday := first; !monday.After(last); monday = monday.AddDays(7) {
-		w := week{monday: monday}
-		for i := range w.days {
-			w.days[i] = monday.AddDays(i)
+		days := make([]timezone.Date, fullWeekDays)
+		for i := range days {
+			days[i] = monday.AddDays(i)
 		}
-		weeks = append(weeks, w)
+		weeks = append(weeks, week{monday: monday, days: days})
 	}
 	return weeks, nil
+}
+
+// narrowWeeks cuts every sheet back to Monday–Friday unless something is
+// planned on a Saturday or Sunday anywhere in the range.
+//
+// Columns are document-level and cannot change per sheet, so a single
+// weekend entry widens every week of the export. That is the right trade:
+// the alternative is either printing two empty columns on every ordinary
+// week, or dropping a rostered weekend Dienst from the plan without a trace.
+func narrowWeeks(weeks []week, planned map[timezone.Date]bool) []week {
+	for _, w := range weeks {
+		for _, day := range w.days[workweekDays:] {
+			if planned[day] {
+				return weeks
+			}
+		}
+	}
+
+	narrowed := make([]week, 0, len(weeks))
+	for _, w := range weeks {
+		narrowed = append(narrowed, week{monday: w.monday, days: w.days[:workweekDays]})
+	}
+	return narrowed
 }
 
 // columnsFor builds the document's column set. A single-week export puts the
@@ -65,9 +109,14 @@ func expandWeeks(from, to timezone.Date) ([]week, error) {
 // generic and dates each week in its group heading instead, since columns are
 // document-level and cannot change per sheet.
 func columnsFor(rowLabel string, weeks []week) []listexport.Column {
-	columns := make([]listexport.Column, 0, 6)
+	dayCount := workweekDays
+	if len(weeks) > 0 {
+		dayCount = len(weeks[0].days)
+	}
+
+	columns := make([]listexport.Column, 0, dayCount+1)
 	columns = append(columns, listexport.Column{ID: listexport.ColumnPlanRowLabel, Label: rowLabel})
-	for i, id := range listexport.PlanDayColumns {
+	for i, id := range listexport.PlanDayColumns[:dayCount] {
 		label := weekdayLabels[i]
 		if len(weeks) == 1 {
 			label = fmt.Sprintf("%s, %s", label, weeks[0].days[i].Format("02.01."))
@@ -88,7 +137,16 @@ func columnsFor(rowLabel string, weeks []week) []listexport.Column {
 // version, and it could not be read.
 type dayCells struct {
 	label string
-	days  [5][]listexport.Line
+	// count is how many of days are printed — the sheet's day columns. The
+	// array stays full-week so a caller can fill by weekday index without
+	// knowing the width.
+	count int
+	days  [fullWeekDays][]listexport.Line
+}
+
+// newDayCells starts a row sized to the sheet the week describes.
+func newDayCells(label string, w week) dayCells {
+	return dayCells{label: label, count: len(w.days)}
 }
 
 // strong, normal and muted build the three ranks of line a cell uses.
@@ -118,7 +176,7 @@ func (c dayCells) toRow() listexport.Row {
 	values := map[listexport.ColumnID]string{
 		listexport.ColumnPlanRowLabel: listexport.StyledCell([]listexport.Line{strong(c.label)}),
 	}
-	for i, id := range listexport.PlanDayColumns {
+	for i, id := range listexport.PlanDayColumns[:c.count] {
 		if len(c.days[i]) == 0 {
 			values[id] = listexport.StyledCell([]listexport.Line{muted("—")})
 			continue

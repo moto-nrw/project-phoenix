@@ -382,6 +382,8 @@ func TestDienstplanWeekHeadingsAndColumns(t *testing.T) {
 }
 
 // A request for any weekday prints that whole week: a wall plan is a week.
+// The week is expanded Monday–Sunday so the weekend gets loaded, then cut
+// back to Monday–Friday because nothing is planned on it.
 func TestExpandWeeksWidensToFullWeeks(t *testing.T) {
 	weeks, err := expandWeeks(wednesday, wednesday)
 	if err != nil {
@@ -390,10 +392,36 @@ func TestExpandWeeksWidensToFullWeeks(t *testing.T) {
 	if len(weeks) != 1 {
 		t.Fatalf("weeks = %d, want 1", len(weeks))
 	}
-	if weeks[0].days[0] != monday || weeks[0].days[4] != monday.AddDays(4) {
-		t.Fatalf("week = %v–%v, want Monday–Friday", weeks[0].days[0], weeks[0].days[4])
+	if weeks[0].days[0] != monday || weeks[0].last() != monday.AddDays(6) {
+		t.Fatalf("loaded week = %v–%v, want Monday–Sunday", weeks[0].days[0], weeks[0].last())
 	}
-	if got := weeks[0].label(); got != "KW 31 · 27.07.–31.07.2026" {
+
+	printed := narrowWeeks(weeks, nil)
+	if printed[0].days[0] != monday || printed[0].last() != monday.AddDays(4) {
+		t.Fatalf("printed week = %v–%v, want Monday–Friday", printed[0].days[0], printed[0].last())
+	}
+	if got := printed[0].label(); got != "KW 31 · 27.07.–31.07.2026" {
+		t.Fatalf("label = %q", got)
+	}
+}
+
+// A Saturday shift keeps the weekend on the sheet — dropping it would print
+// a plan that silently misses a Dienst somebody is rostered for.
+func TestNarrowWeeksKeepsTheWeekendWhenItIsPlanned(t *testing.T) {
+	weeks, err := expandWeeks(monday, monday.AddDays(7))
+	if err != nil {
+		t.Fatalf("expandWeeks: %v", err)
+	}
+	saturday := monday.AddDays(12) // in the second week
+
+	printed := narrowWeeks(weeks, map[timezone.Date]bool{saturday: true})
+	// Columns are document-level, so one weekend entry widens every sheet.
+	for _, w := range printed {
+		if len(w.days) != fullWeekDays {
+			t.Fatalf("week %v has %d days, want the full week", w.monday, len(w.days))
+		}
+	}
+	if got := printed[0].label(); got != "KW 31 · 27.07.–02.08.2026" {
 		t.Fatalf("label = %q", got)
 	}
 }

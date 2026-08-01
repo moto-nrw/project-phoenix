@@ -388,14 +388,14 @@ func TestBetreuungsplanUnderstaffedNoteOnlyInternal(t *testing.T) {
 	}
 }
 
-// A weekend block falls inside the requested range but on no printed day. It
-// must not land in some other column.
-func TestBetreuungsplanIgnoresDaysOutsideThePrintedWeek(t *testing.T) {
+// A weekend block gets its own column instead of being dropped or folded
+// into a weekday.
+func TestBetreuungsplanPrintsWeekendBlocksInTheirOwnColumn(t *testing.T) {
 	saturday := monday.AddDays(5)
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
-			instance(12, saturday, clock(12, 0), clock(13, 0), "Mensa", 3),
+			instance(12, saturday, clock(9, 0), clock(11, 0), "Mensa", 3),
 		},
 		nil,
 		nil,
@@ -405,12 +405,61 @@ func TestBetreuungsplanIgnoresDaysOutsideThePrintedWeek(t *testing.T) {
 	if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
 		t.Fatalf("ExportBetreuungsplan: %v", err)
 	}
-	for _, column := range listexport.PlanDayColumns {
+
+	if got := columnIDs(renderer.doc); len(got) != fullWeekDays+1 {
+		t.Fatalf("columns = %v, want the row label plus the whole week", got)
+	}
+	if got := cellFor(t, renderer.doc, "Mensa", listexport.ColumnPlanSaturday); !strings.Contains(got, "09:00–11:00") {
+		t.Fatalf("Saturday cell = %q, want the Saturday block", got)
+	}
+	for _, column := range listexport.PlanDayColumns[:workweekDays] {
 		cell := cellFor(t, renderer.doc, "Mensa", column)
-		if strings.Count(cell, "12:00–13:00") > 1 {
+		if strings.Contains(cell, "09:00–11:00") {
 			t.Fatalf("column %s = %q, the Saturday block leaked into a weekday", column, cell)
 		}
 	}
+}
+
+// The ordinary week has no weekend to print, and two permanently empty
+// columns would cost a quarter of the page.
+func TestBetreuungsplanStopsAfterFridayWithoutWeekendBlocks(t *testing.T) {
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		nil,
+		nil,
+	)
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	if got := columnIDs(renderer.doc); len(got) != workweekDays+1 {
+		t.Fatalf("columns = %v, want the row label plus Monday–Friday", got)
+	}
+}
+
+// A Saturday shift is valid (a series accepts ISO weekdays 1–7) and has to
+// reach the printed roster.
+func TestDienstplanPrintsWeekendShifts(t *testing.T) {
+	saturday := monday.AddDays(5)
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*scheduleModel.StaffShift{shift(1, 7, saturday, clock(9, 0), clock(12, 0))},
+	}
+	service, renderer := newDienstplanService(overview, nil)
+
+	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	if got := cellFor(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanSaturday); !strings.Contains(got, "09:00–12:00") {
+		t.Fatalf("Saturday cell = %q, want the weekend shift", got)
+	}
+}
+
+func columnIDs(doc listexport.Document) []listexport.ColumnID {
+	ids := make([]listexport.ColumnID, 0, len(doc.Columns))
+	for _, column := range doc.Columns {
+		ids = append(ids, column.ID)
+	}
+	return ids
 }
 
 // A shift without a Schichtart still needs a row on the deployment sheet;
@@ -757,10 +806,12 @@ func TestDocumentHelpersTolerateAnEmptyRange(t *testing.T) {
 	if got := filename("Dienstplan", nil); got != "Dienstplan" {
 		t.Fatalf("filename with no weeks = %q", got)
 	}
+	// The helpers see the printed weeks, so they name the last printed day.
 	weeks, err := expandWeeks(monday, monday.AddDays(7))
 	if err != nil {
 		t.Fatalf("expandWeeks: %v", err)
 	}
+	weeks = narrowWeeks(weeks, nil)
 	if got := filename("Dienstplan", weeks); got != "Dienstplan 2026-07-27 bis 2026-08-07" {
 		t.Fatalf("multi-week filename = %q", got)
 	}

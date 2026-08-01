@@ -151,7 +151,8 @@ func renderXLSX(doc Document) ([]byte, error) {
 			width = 32
 		case ColumnPlanRowLabel:
 			width = 24
-		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday, ColumnPlanFriday:
+		case ColumnPlanMonday, ColumnPlanTuesday, ColumnPlanWednesday, ColumnPlanThursday,
+			ColumnPlanFriday, ColumnPlanSaturday, ColumnPlanSunday:
 			width = 30
 		}
 		if err := f.SetColWidth(sheet, col, col, width); err != nil {
