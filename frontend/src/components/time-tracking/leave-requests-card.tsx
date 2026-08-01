@@ -184,7 +184,7 @@ export function LeaveRequestsCard() {
 
   return (
     <>
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
             Urlaub
@@ -237,14 +237,16 @@ export function LeaveRequestsCard() {
           <p className="text-xs text-gray-500">
             Urlaubsanträge stellen, Status verfolgen und stornieren.
           </p>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => setModalOpen(true)}
             disabled={loading}
-            className="rounded-full bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+            className="rounded-full"
           >
             Urlaub beantragen
-          </button>
+          </Button>
         </div>
 
         {sortedQuestionedVacations.length > 0 && (
@@ -306,7 +308,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        confirmButtonClass="bg-[#CC2626] hover:bg-[#9F1F1E]"
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">
@@ -369,13 +371,15 @@ function AbsenceRequestItem({
         <div className="flex items-center gap-3">
           <StatusDotBadge label={meta.label} color={meta.color} />
           {cancelable && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="compact"
               onClick={() => onCancel(absence)}
-              className="text-xs font-medium text-red-600 hover:text-red-700"
+              className="px-0 text-[#CC2626] hover:bg-transparent hover:text-[#9F1F1E]"
             >
               Stornieren
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -462,14 +466,16 @@ function Tile({
   readonly hint: string;
   readonly tone: "primary" | "success" | "amber" | "muted";
 }) {
+  // Brand hexes from LOCATION_COLORS (green GROUP_ROOM, orange SCHOOLYARD in
+  // its darkened Alert foreground) — never generic Tailwind hues.
   const valueClass = {
     primary: "text-gray-900",
     success: "text-[#70b525]",
-    amber: "text-amber-600",
+    amber: "text-[#8A5600]",
     muted: "text-gray-400",
   }[tone];
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/70 p-4">
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
       <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
         {label}
       </p>
