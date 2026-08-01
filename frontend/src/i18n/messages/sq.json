@@ -118,6 +118,12 @@
     "newsRead": "Lexuar",
     "newsActionError": "Veprimi dështoi. Provoni përsëri.",
     "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
+    "newsPoll": "Sondazh",
+    "newsPollDeadline": "Përgjigjuni deri më {date}",
+    "newsPollClosed": "Sondazhi është mbyllur",
+    "newsPollMulti": "Mund të zgjidhni disa përgjigje",
+    "newsPollOpen": "Përgjigje në pritje",
+    "newsPollAnswered": "Përgjigja u ruajt",
     "newEnrollment": "Regjistrim i ri"
   },
   "parentEnroll": {

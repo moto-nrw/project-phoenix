@@ -35,6 +35,18 @@ var (
 	// first), so it never reveals an announcement to a non-audience caller or one
 	// whose school disabled the feature.
 	ErrAnnouncementStale = errors.New("parent: announcement changed since it was loaded")
+	// ErrAnnouncementNotAPoll is returned when an answer is submitted for an
+	// announcement that asks no question. Handler maps it to 400.
+	ErrAnnouncementNotAPoll = errors.New("parent: announcement does not accept answers")
+	// ErrPollClosed is returned when the answer deadline has passed. Handler maps
+	// it to 409 so the portal refetches and shows the closed state instead of
+	// silently dropping the answer.
+	ErrPollClosed = errors.New("parent: the answer deadline for this poll has passed")
+	// ErrChildNotAnswerable is returned when the guardian may not answer for the
+	// given child — not their child, or a child this poll does not reach. It
+	// collapses with "unknown child" on purpose so a parent token cannot probe
+	// student ids. Handler maps it to 404.
+	ErrChildNotAnswerable = errors.New("parent: no answerable child for this poll")
 )
 
 // ListAnnouncements returns the guardian's parent-news feed: published, active,
@@ -60,11 +72,51 @@ func (s *service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 			return err
 		}
 		out = rows
-		return nil
+		return s.attachPollData(adminCtx, accountID, rows)
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: list announcements: %w", txErr)
 	}
 	return out, nil
+}
+
+// attachPollData loads the answer options and the guardian's answerable children
+// for the poll items of a feed page, in two batched queries rather than one per
+// item. Plain Mitteilungen are skipped entirely, so a feed without polls costs
+// nothing extra.
+func (s *service) attachPollData(ctx context.Context, accountID int64, items []*usersModels.AnnouncementFeedItem) error {
+	pollIDs := make([]int64, 0, len(items))
+	byID := make(map[int64]*usersModels.AnnouncementFeedItem, len(items))
+	for _, item := range items {
+		if !item.IsPoll() {
+			continue
+		}
+		pollIDs = append(pollIDs, item.ID)
+		byID[item.ID] = item
+		item.Options = []*usersModels.ParentAnnouncementOption{}
+		item.Children = []*usersModels.AnnouncementPollChild{}
+	}
+	if len(pollIDs) == 0 {
+		return nil
+	}
+	options, err := s.AnnouncementRepo.ListOptionsForAnnouncements(ctx, pollIDs)
+	if err != nil {
+		return fmt.Errorf("parent: load poll options: %w", err)
+	}
+	for _, o := range options {
+		if item, ok := byID[o.AnnouncementID]; ok {
+			item.Options = append(item.Options, o)
+		}
+	}
+	children, err := s.AnnouncementRepo.AnswerableChildren(ctx, accountID, pollIDs)
+	if err != nil {
+		return fmt.Errorf("parent: load answerable children: %w", err)
+	}
+	for _, c := range children {
+		if item, ok := byID[c.AnnouncementID]; ok {
+			item.Children = append(item.Children, c)
+		}
+	}
+	return nil
 }
 
 // UnreadAnnouncementCount returns how many feed announcements the guardian has
@@ -226,6 +278,105 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		if !applied {
 			return ErrAnnouncementStale
 		}
+		return nil
+	})
+}
+
+// RespondToAnnouncement records the guardian's answer to a poll for ONE child.
+// optionIDs replaces the child's previous selection; an empty slice withdraws
+// the answer. The resolution mirrors stampAnnouncement — audience/feature-flag
+// checks collapse to 404 before any other 4xx so a parent token can neither
+// enumerate announcement ids nor probe student ids — and adds the poll-specific
+// checks: it must be a poll, the deadline must not have passed, and the account
+// must be a portal-enabled guardian of a child the poll actually reaches.
+func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announcementID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error {
+	if accountID <= 0 || announcementID <= 0 || studentID <= 0 {
+		return fmt.Errorf("parent: account_id, announcement_id and student_id must be positive")
+	}
+	var announcementTenantID int64
+	var announcementPublishedAt time.Time
+	var isPoll bool
+	var deadline *time.Time
+	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
+		if err != nil {
+			return fmt.Errorf("parent: load announcement: %w", err)
+		}
+		if a == nil || !announcementIsLive(a) {
+			return ErrAnnouncementNotFound
+		}
+		// Authorize the CHILD, not just the account: AccountMayAnswerForStudent
+		// checks the guardian link and the poll's audience in one query, so a
+		// guardian can neither answer for someone else's child nor for a child the
+		// poll does not target.
+		allowed, err := s.AnnouncementRepo.AccountMayAnswerForStudent(adminCtx, a.GetTenantID(), announcementID, accountID, studentID)
+		if err != nil {
+			return fmt.Errorf("parent: check answer permission: %w", err)
+		}
+		if !allowed {
+			// A guardian outside the audience entirely must not be able to tell
+			// "wrong child" from "no such announcement", so both are 404 — but a
+			// guardian who IS in the audience gets the more useful child error.
+			matched, matchErr := s.AnnouncementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
+			if matchErr != nil {
+				return fmt.Errorf("parent: match announcement audience: %w", matchErr)
+			}
+			if !matched {
+				return ErrAnnouncementNotFound
+			}
+			return ErrChildNotAnswerable
+		}
+		announcementTenantID = a.GetTenantID()
+		announcementPublishedAt = *a.PublishedAt
+		isPoll = a.IsPoll()
+		deadline = a.ResponseDeadline
+		return nil
+	}); err != nil {
+		return err
+	}
+	// Same fail-closed feature check as the read/ack path: a school that turned
+	// parent news off must stop collecting answers, not just stop showing them.
+	if s.Settings == nil {
+		return ErrAnnouncementNotFound
+	}
+	on, err := s.Settings.ResolveBoolForTenant(ctx, announcementTenantID, configModel.KeyParentNewsEnabled)
+	if err != nil {
+		s.Logger.Warn("parent: resolve parent_news_enabled failed, refusing poll answer",
+			slog.Int64("tenant_id", announcementTenantID),
+			slog.Int64("announcement_id", announcementID),
+			slog.String("error", err.Error()),
+		)
+		return ErrAnnouncementNotFound
+	}
+	if !on {
+		return ErrAnnouncementNotFound
+	}
+	if !announcementPublishedAt.Equal(expectedPublishedAt) {
+		return ErrAnnouncementStale
+	}
+	if !isPoll {
+		return ErrAnnouncementNotAPoll
+	}
+	if deadline != nil && !deadline.After(time.Now()) {
+		return ErrPollClosed
+	}
+	// Phase 2: the write re-evaluates liveness, version AND deadline inside the
+	// same statement, so a deadline that passes between here and the write cannot
+	// let a late answer through. A missed guard is a 409, never a silent 200.
+	return tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		applied, err := s.AnnouncementRepo.SetResponse(adminCtx, announcementTenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			return ErrAnnouncementStale
+		}
+		s.Logger.Info("parent answered announcement poll",
+			slog.Int64("account_id", accountID),
+			slog.Int64("announcement_id", announcementID),
+			slog.Int64("student_id", studentID),
+			slog.Int("option_count", len(optionIDs)),
+		)
 		return nil
 	})
 }

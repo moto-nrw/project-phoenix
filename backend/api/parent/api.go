@@ -213,6 +213,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/news/unread-count", rs.unreadAnnouncementCount)
 		r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
 		r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
+		// Poll answer, one child per call (#1371).
+		r.Post("/me/news/{announcementId}/respond", rs.respondToAnnouncement)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)

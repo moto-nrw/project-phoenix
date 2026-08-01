@@ -17,6 +17,7 @@ import {
 import {
   NewsCard,
   NewsDetailModal,
+  isOpenPoll,
 } from "~/components/parent/news/news-components";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
@@ -383,7 +384,12 @@ function StartNewsPanel() {
       });
   }, []);
 
-  const visible = items.slice(0, NEWS_PANEL_LIMIT);
+  // Open surveys first: the dashboard panel only shows a handful of items, and
+  // a survey that scrolled out of the panel is a survey nobody answers (#1371).
+  // Within each group the server order (newest published first) is preserved.
+  const visible = [...items]
+    .sort((a, b) => Number(isOpenPoll(b)) - Number(isOpenPoll(a)))
+    .slice(0, NEWS_PANEL_LIMIT);
   const openItem = items.find((item) => item.id === openId) ?? null;
 
   if (!newsEnabled) return null;
@@ -423,6 +429,8 @@ function StartNewsPanel() {
                 <NewsCard
                   item={item}
                   onOpen={(opened) => setOpenId(opened.id)}
+                  onUpdated={applyState}
+                  onStale={refetchOnStale}
                 />
               </li>
             ))}

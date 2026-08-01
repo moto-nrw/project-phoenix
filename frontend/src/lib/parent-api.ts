@@ -671,6 +671,27 @@ export interface ParentAnnouncement {
   readonly expires_at?: string; // ISO timestamp
   readonly read: boolean;
   readonly acknowledged: boolean;
+
+  // Umfrage fields (#1371). "none" is a plain Mitteilung; a choice type comes
+  // with the answer options and the guardian's own children this poll reaches
+  // (one answer row per child).
+  readonly response_type: "none" | "single_choice" | "multi_choice";
+  readonly response_deadline?: string; // ISO timestamp
+  readonly options?: readonly ParentAnnouncementOption[];
+  readonly children?: readonly ParentAnnouncementPollChild[];
+}
+
+export interface ParentAnnouncementOption {
+  readonly id: string;
+  readonly label: string;
+}
+
+/** One of the guardian's children, with the options selected for that child. */
+export interface ParentAnnouncementPollChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly selected_options: readonly string[];
 }
 
 // A child's full conversation (messages oldest-first). `thread_id` is empty
@@ -763,6 +784,28 @@ export async function acknowledgeAnnouncement(
   await postJson<{ acknowledged: boolean }>(
     `/api/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
     { published_at: publishedAt },
+  );
+}
+
+/**
+ * Records the guardian's answer to an Umfrage for ONE child (#1371).
+ * `optionIds` replaces whatever was selected for that child; an empty array
+ * withdraws the answer. Same `publishedAt` version guard as the read/ack calls,
+ * plus the server-side answer deadline.
+ */
+export async function respondToAnnouncement(
+  announcementId: string,
+  studentId: string,
+  optionIds: readonly string[],
+  publishedAt: string,
+): Promise<void> {
+  await postJson<{ answered: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/respond`,
+    {
+      student_id: studentId,
+      option_ids: optionIds,
+      published_at: publishedAt,
+    },
   );
 }
 

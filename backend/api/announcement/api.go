@@ -59,6 +59,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(announce, withTx).Post("/{announcementId}/unpublish", rs.unpublish)
 		r.With(announce, withTx).Get("/{announcementId}/stats", rs.stats)
 		r.With(announce, withTx).Get("/{announcementId}/recipients", rs.recipients)
+		// Poll (Umfrage, #1371): evaluation and the manual reminder to the
+		// guardians of children that have not answered.
+		r.With(announce, withTx).Get("/{announcementId}/poll-results", rs.pollResults)
+		r.With(announce, withTx).Get("/{announcementId}/poll-children", rs.pollChildren)
+		r.With(announce, withTx).Post("/{announcementId}/remind", rs.remindUnanswered)
 	})
 
 	return r
@@ -81,6 +86,17 @@ type announcementRequest struct {
 	SendEmail               bool            `json:"send_email"`
 	ExpiresAt               *time.Time      `json:"expires_at,omitempty"`
 	Targets                 []targetRequest `json:"targets"`
+	// Poll fields (#1371). response_type "" or "none" keeps the announcement a
+	// plain Mitteilung; the choice types require options.
+	ResponseType     string     `json:"response_type,omitempty"`
+	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
+	Options          []string   `json:"options,omitempty"`
+}
+
+// optionResponse is one answer option of a poll.
+type optionResponse struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 type targetResponse struct {
@@ -104,6 +120,9 @@ type announcementResponse struct {
 	CreatedAt               time.Time        `json:"created_at"`
 	UpdatedAt               time.Time        `json:"updated_at"`
 	Targets                 []targetResponse `json:"targets"`
+	ResponseType            string           `json:"response_type"`
+	ResponseDeadline        *time.Time       `json:"response_deadline,omitempty"`
+	Options                 []optionResponse `json:"options"`
 }
 
 type statsResponse struct {
@@ -135,6 +154,17 @@ func toTargetResponses(targets []*usersModels.ParentAnnouncementTarget) []target
 	return out
 }
 
+func toOptionResponses(options []*usersModels.ParentAnnouncementOption) []optionResponse {
+	out := make([]optionResponse, 0, len(options))
+	for _, o := range options {
+		out = append(out, optionResponse{
+			ID:    strconv.FormatInt(o.ID, 10),
+			Label: o.Label,
+		})
+	}
+	return out
+}
+
 func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementResponse {
 	return announcementResponse{
 		ID:                      strconv.FormatInt(a.ID, 10),
@@ -151,6 +181,9 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 		CreatedAt:               a.CreatedAt,
 		UpdatedAt:               a.UpdatedAt,
 		Targets:                 toTargetResponses(a.Targets),
+		ResponseType:            a.ResponseType,
+		ResponseDeadline:        a.ResponseDeadline,
+		Options:                 toOptionResponses(a.Options),
 	}
 }
 
@@ -165,6 +198,9 @@ func toInput(req announcementRequest) (announcementService.Input, error) {
 		RequiresAcknowledgement: req.RequiresAcknowledgement,
 		SendEmail:               req.SendEmail,
 		ExpiresAt:               req.ExpiresAt,
+		ResponseType:            req.ResponseType,
+		ResponseDeadline:        req.ResponseDeadline,
+		Options:                 req.Options,
 		Targets:                 make([]announcementService.TargetInput, 0, len(req.Targets)),
 	}
 	for _, t := range req.Targets {
@@ -337,6 +373,98 @@ func (rs *Resource) recipients(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Recipients retrieved")
 }
 
+// --- poll (Umfrage) ---
+
+type pollOptionResultResponse struct {
+	OptionID string `json:"option_id"`
+	Label    string `json:"label"`
+	Count    int    `json:"count"`
+}
+
+type pollResultsResponse struct {
+	ChildCount    int                        `json:"child_count"`
+	AnsweredCount int                        `json:"answered_count"`
+	Options       []pollOptionResultResponse `json:"options"`
+}
+
+// pollChildResponse is one reached child with the answer given for them.
+// answer_labels is empty while the answer is still open, which is what the staff
+// list filters on.
+type pollChildResponse struct {
+	StudentID    string     `json:"student_id"`
+	FirstName    string     `json:"first_name"`
+	LastName     string     `json:"last_name"`
+	SchoolClass  string     `json:"school_class"`
+	AnswerLabels []string   `json:"answer_labels"`
+	RespondedAt  *time.Time `json:"responded_at,omitempty"`
+}
+
+func (rs *Resource) pollResults(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	results, err := rs.Service.PollResults(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	out := pollResultsResponse{
+		ChildCount:    results.ChildCount,
+		AnsweredCount: results.AnsweredCount,
+		Options:       make([]pollOptionResultResponse, 0, len(results.Options)),
+	}
+	for _, o := range results.Options {
+		out.Options = append(out.Options, pollOptionResultResponse{
+			OptionID: strconv.FormatInt(o.OptionID, 10),
+			Label:    o.Label,
+			Count:    o.Count,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Poll results retrieved")
+}
+
+func (rs *Resource) pollChildren(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	rows, err := rs.Service.PollChildren(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	out := make([]pollChildResponse, 0, len(rows))
+	for _, c := range rows {
+		labels := c.AnswerLabels
+		if labels == nil {
+			labels = []string{}
+		}
+		out = append(out, pollChildResponse{
+			StudentID:    strconv.FormatInt(c.StudentID, 10),
+			FirstName:    c.FirstName,
+			LastName:     c.LastName,
+			SchoolClass:  c.SchoolClass,
+			AnswerLabels: labels,
+			RespondedAt:  c.RespondedAt,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Poll children retrieved")
+}
+
+func (rs *Resource) remindUnanswered(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	count, err := rs.Service.RemindUnanswered(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{"reminded_count": count}, "Reminder sent")
+}
+
 func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.Input, bool) {
 	var req announcementRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -364,6 +492,10 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "parent_news_disabled"))
 	case errors.Is(err, announcementService.ErrPublishedImmutable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_published_immutable"))
+	case errors.Is(err, announcementService.ErrNotAPoll):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, announcementService.ErrPollNotOpen):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_not_open"))
 	case errors.Is(err, announcementService.ErrValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

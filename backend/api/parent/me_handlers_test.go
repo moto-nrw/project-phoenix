@@ -207,6 +207,10 @@ func (f *fakeParentService) AcknowledgeAnnouncement(context.Context, int64, int6
 	return nil
 }
 
+func (f *fakeParentService) RespondToAnnouncement(context.Context, int64, int64, int64, []int64, time.Time) error {
+	return nil
+}
+
 // Feedback board (#1678) — stubs so the fake keeps satisfying parent.Service.
 // The board's own handler tests drive the real service against the database.
 

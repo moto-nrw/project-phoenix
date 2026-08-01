@@ -118,6 +118,12 @@
     "newsRead": "Gelesen",
     "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
     "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
+    "newsPoll": "Umfrage",
+    "newsPollDeadline": "Antwort bis {date}",
+    "newsPollClosed": "Umfrage geschlossen",
+    "newsPollMulti": "Mehrfachauswahl möglich",
+    "newsPollOpen": "Antwort offen",
+    "newsPollAnswered": "Antwort gespeichert",
     "newEnrollment": "Neue Anmeldung"
   },
   "parentEnroll": {

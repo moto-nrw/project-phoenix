@@ -3,14 +3,17 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
+  BellRing,
   Check,
   ExternalLink,
+  ListChecks,
   Megaphone,
   Pencil,
   Plus,
   Send,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -32,6 +35,8 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate } from "~/lib/date-helpers";
@@ -47,7 +52,11 @@ import {
   fetchAnnouncements,
   fetchAnnouncementRecipients,
   fetchAnnouncementStats,
+  fetchPollChildren,
+  fetchPollResults,
+  isPoll,
   publishAnnouncement,
+  remindUnanswered,
   unpublishAnnouncement,
   updateAnnouncement,
 } from "~/lib/parent-announcements-api";
@@ -56,10 +65,13 @@ import type {
   AnnouncementInput,
   AnnouncementPriority,
   AnnouncementRecipient,
+  AnnouncementResponseType,
   AnnouncementStats,
   AnnouncementStatus,
   AnnouncementTarget,
   AnnouncementTargetType,
+  PollChild,
+  PollResults,
 } from "~/lib/parent-announcements-api";
 
 const logger = createLogger({ component: "ParentAnnouncementsPage" });
@@ -79,6 +91,52 @@ const STATUS_META: Record<
   draft: { label: "Entwurf", color: LOCATION_COLORS.UNKNOWN },
   published: { label: "Veröffentlicht", color: LOCATION_COLORS.GROUP_ROOM },
   expired: { label: "Abgelaufen", color: LOCATION_COLORS.SCHOOLYARD },
+};
+
+/**
+ * The two things this page manages. Both are the same entity in the backend
+ * (an Umfrage is an announcement with answer options, #1371) — the split is a
+ * UI one, because writing an information and asking a question are different
+ * jobs with different follow-up work (Statistik vs Auswertung).
+ */
+type AnnouncementKind = "announcement" | "poll";
+
+const KIND_ITEMS: ReadonlyArray<SegmentedControlItem<AnnouncementKind>> = [
+  { value: "announcement", label: "Mitteilungen" },
+  { value: "poll", label: "Umfragen" },
+];
+
+const KIND_COPY: Record<
+  AnnouncementKind,
+  {
+    title: string;
+    action: string;
+    ariaLabel: string;
+    emptyTitle: string;
+    emptyBody: string;
+  }
+> = {
+  announcement: {
+    title: "Elternmitteilungen",
+    action: "Mitteilung",
+    ariaLabel: "Neue Elternmitteilung erstellen",
+    emptyTitle: "Keine Mitteilungen",
+    emptyBody: "Erstellen Sie eine neue Mitteilung für die Eltern.",
+  },
+  poll: {
+    title: "Elternumfragen",
+    action: "Umfrage",
+    ariaLabel: "Neue Umfrage erstellen",
+    emptyTitle: "Keine Umfragen",
+    emptyBody:
+      "Stellen Sie den Eltern eine Frage, zum Beispiel ob ihr Kind zum Sommerfest kommt.",
+  },
+};
+
+const RESPONSE_TYPE_LABEL: Record<AnnouncementResponseType, string> = {
+  none: "Keine Rückmeldung",
+  single_choice: "Eine Antwort",
+  multi_choice: "Mehrere Antworten",
 };
 
 const TARGET_TYPE_PLURAL: Record<AnnouncementTargetType, string> = {
@@ -171,6 +229,7 @@ export default function ParentAnnouncementsPage() {
 }
 
 function ParentAnnouncementsContent() {
+  const [kind, setKind] = useState<AnnouncementKind>("announcement");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | AnnouncementStatus>(
     "all",
@@ -189,6 +248,9 @@ function ParentAnnouncementsContent() {
   );
   const [unpublishError, setUnpublishError] = useState("");
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  // Confirmation for the poll reminder, shown above the list because the detail
+  // modal closes right after sending.
+  const [reminderNotice, setReminderNotice] = useState("");
 
   const {
     data: announcements,
@@ -225,11 +287,33 @@ function ParentAnnouncementsContent() {
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return list.filter((a) => {
+      if (isPoll(a) !== (kind === "poll")) return false;
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
       if (term && !a.title.toLowerCase().includes(term)) return false;
       return true;
     });
-  }, [list, searchTerm, statusFilter]);
+  }, [list, kind, searchTerm, statusFilter]);
+
+  // Counts for the tab labels: both lists come from one fetch, so switching
+  // tabs costs nothing and the user sees where the work is.
+  const kindCounts = useMemo(
+    () => ({
+      announcement: list.filter((a) => !isPoll(a)).length,
+      poll: list.filter((a) => isPoll(a)).length,
+    }),
+    [list],
+  );
+
+  const kindItems = useMemo(
+    () =>
+      KIND_ITEMS.map((item) => ({
+        ...item,
+        label: `${item.label} (${kindCounts[item.value]})`,
+      })),
+    [kindCounts],
+  );
+
+  const copy = KIND_COPY[kind];
 
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
@@ -395,7 +479,8 @@ function ParentAnnouncementsContent() {
     },
     {
       key: "dates",
-      header: "Veröffentlicht / Ablauf",
+      header:
+        kind === "poll" ? "Veröffentlicht / Frist" : "Veröffentlicht / Ablauf",
       render: (row) => (
         <div className="text-xs text-gray-600">
           <p>
@@ -403,7 +488,11 @@ function ParentAnnouncementsContent() {
               ? `Veröffentlicht ${formatDate(row.published_at)}`
               : "Noch nicht veröffentlicht"}
           </p>
-          {row.expires_at && <p>Läuft ab {formatDate(row.expires_at)}</p>}
+          {row.response_deadline ? (
+            <p>Antwort bis {formatDate(row.response_deadline)}</p>
+          ) : (
+            row.expires_at && <p>Läuft ab {formatDate(row.expires_at)}</p>
+          )}
         </div>
       ),
     },
@@ -489,9 +578,14 @@ function ParentAnnouncementsContent() {
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
-        title="Elternmitteilungen"
+        title={copy.title}
         badge={{
-          icon: <Megaphone className="h-5 w-5 text-gray-600" aria-hidden />,
+          icon:
+            kind === "poll" ? (
+              <ListChecks className="h-5 w-5 text-gray-600" aria-hidden />
+            ) : (
+              <Megaphone className="h-5 w-5 text-gray-600" aria-hidden />
+            ),
           count: filtered.length,
         }}
         search={{
@@ -511,18 +605,33 @@ function ParentAnnouncementsContent() {
             variant="primary"
             size="md"
             onClick={openCreate}
-            aria-label="Neue Elternmitteilung erstellen"
+            aria-label={copy.ariaLabel}
             className="gap-1.5"
           >
             <Plus className="h-4 w-4" aria-hidden />
-            Elternmitteilung
+            {copy.action}
           </Button>
         }
       />
 
+      <div className="mb-4">
+        <SegmentedControl
+          items={kindItems}
+          value={kind}
+          onChange={setKind}
+          ariaLabel="Mitteilungen oder Umfragen"
+        />
+      </div>
+
       {loadError && (
         <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
           Elternmitteilungen konnten nicht geladen werden.
+        </div>
+      )}
+
+      {reminderNotice && (
+        <div className="mb-4 rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/10 p-4 text-sm text-[#4d7719]">
+          {reminderNotice}
         </div>
       )}
 
@@ -531,14 +640,16 @@ function ParentAnnouncementsContent() {
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
-            <Megaphone className="h-12 w-12 text-gray-400" aria-hidden />
+            {kind === "poll" ? (
+              <ListChecks className="h-12 w-12 text-gray-400" aria-hidden />
+            ) : (
+              <Megaphone className="h-12 w-12 text-gray-400" aria-hidden />
+            )}
             <div>
               <h3 className="text-lg font-medium text-gray-900">
-                Keine Elternmitteilungen
+                {copy.emptyTitle}
               </h3>
-              <p className="text-gray-600">
-                Erstellen Sie eine neue Mitteilung für die Eltern.
-              </p>
+              <p className="text-gray-600">{copy.emptyBody}</p>
             </div>
           </div>
         </div>
@@ -576,6 +687,7 @@ function ParentAnnouncementsContent() {
       {isFormOpen && (
         <AnnouncementFormModal
           announcement={editing}
+          kind={editing ? (isPoll(editing) ? "poll" : "announcement") : kind}
           groups={groups ?? []}
           activities={activities ?? []}
           schoolClasses={schoolClasses ?? []}
@@ -596,6 +708,14 @@ function ParentAnnouncementsContent() {
           groups={groups ?? []}
           activities={activities ?? []}
           onClose={() => setDetailFor(null)}
+          onReminded={(count) => {
+            setReminderNotice(
+              count === 0
+                ? "Alle erreichten Kinder haben bereits geantwortet — es wurde niemand erinnert."
+                : `${count} ${count === 1 ? "Elternteil wurde" : "Eltern wurden"} an die offene Umfrage erinnert.`,
+            );
+            setDetailFor(null);
+          }}
         />
       )}
 
@@ -700,6 +820,12 @@ function ParentAnnouncementsContent() {
 
 interface AnnouncementFormModalProps {
   readonly announcement: Announcement | null;
+  /**
+   * Which of the two things is being written. Decided by the caller (the active
+   * tab for a new entry, the entry's own type when editing) so the modal never
+   * has to guess and a poll can never silently lose its options.
+   */
+  readonly kind: AnnouncementKind;
   readonly groups: Group[];
   readonly activities: Activity[];
   readonly schoolClasses: string[];
@@ -723,6 +849,7 @@ const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
  */
 function AnnouncementFormModal({
   announcement,
+  kind,
   groups,
   activities,
   schoolClasses,
@@ -731,6 +858,7 @@ function AnnouncementFormModal({
   onRefresh,
 }: AnnouncementFormModalProps) {
   const isEdit = announcement !== null;
+  const isPollForm = kind === "poll";
   const [step, setStep] = useState(0);
   // Tracks the id of the draft once it exists in the backend. Seeded from an
   // existing draft when editing; set after a create so that a publish-retry
@@ -758,6 +886,27 @@ function AnnouncementFormModal({
   );
   const [studentNames, setStudentNames] = useState<Record<string, string>>({});
 
+  // Poll state. A fresh poll starts as the question schools ask most often, so
+  // the common case is two clicks away instead of two text fields.
+  const [multiChoice, setMultiChoice] = useState(
+    announcement?.response_type === "multi_choice",
+  );
+  const [options, setOptions] = useState<string[]>(() => {
+    const existing = announcement?.options?.map((o) => o.label) ?? [];
+    if (existing.length > 0) return existing;
+    return isPollForm ? ["Ja", "Nein"] : [];
+  });
+  const [deadline, setDeadline] = useState<Date | null>(
+    announcement?.response_deadline
+      ? new Date(announcement.response_deadline)
+      : null,
+  );
+
+  const setOptionAt = (index: number, value: string) =>
+    setOptions((prev) => prev.map((o, i) => (i === index ? value : o)));
+  const removeOptionAt = (index: number) =>
+    setOptions((prev) => prev.filter((_, i) => i !== index));
+
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
   );
@@ -776,6 +925,24 @@ function AnnouncementFormModal({
     if (linkProblem) {
       setFormError(linkProblem);
       return false;
+    }
+    if (isPollForm) {
+      const filled = options.map((o) => o.trim()).filter(Boolean);
+      if (filled.length < 2) {
+        setFormError("Bitte mindestens zwei Antwortmöglichkeiten angeben.");
+        return false;
+      }
+      const seen = new Set(filled.map((o) => o.toLowerCase()));
+      if (seen.size !== filled.length) {
+        setFormError("Antwortmöglichkeiten dürfen sich nicht wiederholen.");
+        return false;
+      }
+      if (deadline && expiresAt && deadline > expiresAt) {
+        setFormError(
+          "Die Antwortfrist darf nicht nach dem Ablaufdatum liegen — sonst können Eltern nicht mehr antworten.",
+        );
+        return false;
+      }
     }
     setFormError("");
     return true;
@@ -801,10 +968,23 @@ function AnnouncementFormModal({
       body: body.trim(),
       priority,
       link_url: trimmedLink ? trimmedLink : null,
-      requires_acknowledgement: requiresAck,
+      // A poll never also carries a read confirmation (the field is hidden for
+      // polls, so a value left over from a converted draft must not leak).
+      requires_acknowledgement: isPollForm ? false : requiresAck,
       send_email: sendEmail,
       expires_at: expiresAt ? endOfDayISO(expiresAt) : null,
       targets,
+      response_type: isPollForm
+        ? multiChoice
+          ? "multi_choice"
+          : "single_choice"
+        : "none",
+      // The chosen day is the LAST day parents can answer, so the cut-off is
+      // its end — not midnight, which would close the poll a day early.
+      response_deadline: isPollForm && deadline ? endOfDayISO(deadline) : null,
+      options: isPollForm
+        ? options.map((o) => o.trim()).filter(Boolean)
+        : undefined,
     };
 
     setSubmitting(publish ? "publish" : "draft");
@@ -900,7 +1080,15 @@ function AnnouncementFormModal({
     <FormModal
       isOpen
       onClose={onClose}
-      title={isEdit ? "Elternmitteilung bearbeiten" : "Neue Elternmitteilung"}
+      title={
+        isPollForm
+          ? isEdit
+            ? "Umfrage bearbeiten"
+            : "Neue Umfrage"
+          : isEdit
+            ? "Elternmitteilung bearbeiten"
+            : "Neue Elternmitteilung"
+      }
       footer={footer}
       size="xl"
     >
@@ -910,11 +1098,15 @@ function AnnouncementFormModal({
         {step === 0 ? (
           <div className="space-y-5">
             <Input
-              label="Titel"
+              label={isPollForm ? "Frage" : "Titel"}
               name="announcement-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="z. B. Sommerfest am Freitag"
+              placeholder={
+                isPollForm
+                  ? "z. B. Kommt Ihr Kind zur Murmelparty?"
+                  : "z. B. Sommerfest am Freitag"
+              }
             />
 
             <div>
@@ -944,7 +1136,93 @@ function AnnouncementFormModal({
               placeholder="https://..."
             />
 
+            {isPollForm && (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <span className="block text-sm font-medium text-gray-700">
+                  Antwortmöglichkeiten
+                </span>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Eltern antworten für jedes Kind einzeln.
+                </p>
+
+                <ul className="mt-3 space-y-2">
+                  {options.map((option, index) => (
+                    // Options have no id before saving, so the index is the only
+                    // stable key here; the list is short and edited in place.
+                    // eslint-disable-next-line react/no-array-index-key
+                    <li key={index} className="flex items-center gap-2">
+                      <Input
+                        name={`announcement-option-${index}`}
+                        value={option}
+                        onChange={(e) => setOptionAt(index, e.target.value)}
+                        placeholder={`Antwort ${index + 1}`}
+                        aria-label={`Antwortmöglichkeit ${index + 1}`}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeOptionAt(index)}
+                        disabled={options.length <= 2}
+                        aria-label={`Antwortmöglichkeit ${index + 1} entfernen`}
+                      >
+                        <X className="size-4" aria-hidden />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setOptions((prev) => [...prev, ""])}
+                  disabled={options.length >= 10}
+                  className="mt-2 gap-1.5"
+                >
+                  <Plus className="size-4" aria-hidden />
+                  Antwort hinzufügen
+                </Button>
+
+                <label
+                  htmlFor="announcement-multi"
+                  className="mt-4 flex cursor-pointer items-start gap-3"
+                >
+                  <Checkbox
+                    id="announcement-multi"
+                    checked={multiChoice}
+                    onChange={(e) => setMultiChoice(e.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-700">
+                      Mehrfachauswahl erlauben
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      Eltern können pro Kind mehrere Antworten auswählen.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+
             <div className="grid gap-5 sm:grid-cols-2">
+              {isPollForm && (
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Antwortfrist (optional)
+                  </span>
+                  <DatePicker
+                    value={deadline}
+                    onChange={setDeadline}
+                    placeholder="Keine Frist"
+                    dropdownPlacement="down"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Danach ist die Umfrage geschlossen, bleibt aber lesbar.
+                  </p>
+                </div>
+              )}
               <div>
                 <span
                   id="announcement-priority-label"
@@ -988,25 +1266,29 @@ function AnnouncementFormModal({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label
-                htmlFor="announcement-ack"
-                className="flex cursor-pointer items-start gap-3"
-              >
-                <Checkbox
-                  id="announcement-ack"
-                  checked={requiresAck}
-                  onChange={(e) => setRequiresAck(e.target.checked)}
-                />
-                <span>
-                  <span className="block text-sm font-medium text-gray-700">
-                    Lesebestätigung erforderlich
+              {/* A poll answer already IS the confirmation — offering a second,
+                  weaker "gelesen" checkbox on top only muddies the result. */}
+              {!isPollForm && (
+                <label
+                  htmlFor="announcement-ack"
+                  className="flex cursor-pointer items-start gap-3"
+                >
+                  <Checkbox
+                    id="announcement-ack"
+                    checked={requiresAck}
+                    onChange={(e) => setRequiresAck(e.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-700">
+                      Lesebestätigung erforderlich
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      Eltern bestätigen ausdrücklich, dass sie die Mitteilung
+                      gelesen haben.
+                    </span>
                   </span>
-                  <span className="block text-xs text-gray-500">
-                    Eltern bestätigen ausdrücklich, dass sie die Mitteilung
-                    gelesen haben.
-                  </span>
-                </span>
-              </label>
+                </label>
+              )}
 
               <label
                 htmlFor="announcement-email"
@@ -1040,6 +1322,7 @@ function AnnouncementFormModal({
             onSetStudentName={(id, name) =>
               setStudentNames((prev) => ({ ...prev, [id]: name }))
             }
+            kindLabel={isPollForm ? "diese Umfrage" : "diese Mitteilung"}
           />
         )}
 
@@ -1096,6 +1379,8 @@ interface TargetingStepProps {
   readonly studentNames: Record<string, string>;
   readonly onChange: (targets: AnnouncementTarget[]) => void;
   readonly onSetStudentName: (id: string, name: string) => void;
+  /** Names the thing being addressed in the heading (Mitteilung vs Umfrage). */
+  readonly kindLabel: string;
 }
 
 function TargetingStep({
@@ -1106,6 +1391,7 @@ function TargetingStep({
   studentNames,
   onChange,
   onSetStudentName,
+  kindLabel,
 }: TargetingStepProps) {
   // Single source of truth is `targets`; each control derives its selection
   // from it and rebuilds it on change.
@@ -1195,7 +1481,7 @@ function TargetingStep({
     <div className="space-y-4">
       <div>
         <h4 className="text-sm font-semibold text-gray-900">
-          Wer soll diese Mitteilung erhalten?
+          Wer soll {kindLabel} erhalten?
         </h4>
         <p className="mt-0.5 text-xs text-gray-500">
           Mehrere Zielgruppen lassen sich kombinieren; jedes Elternteil erhält
@@ -1600,6 +1886,196 @@ interface DetailModalProps {
   readonly groups: Group[];
   readonly activities: Activity[];
   readonly onClose: () => void;
+  /** Called with the number of guardians reached by a poll reminder. */
+  readonly onReminded: (count: number) => void;
+}
+
+/**
+ * Poll evaluation: one bar per option over the reached children, plus the
+ * per-child list so staff can chase the open answers by name, plus the manual
+ * reminder. Counts are children, not parents — that is the number the school
+ * plans with.
+ */
+function PollResultsPanel({
+  announcement,
+  onReminded,
+}: {
+  readonly announcement: Announcement;
+  readonly onReminded: (count: number) => void;
+}) {
+  const [results, setResults] = useState<PollResults | null>(null);
+  const [children, setChildren] = useState<PollChild[] | null>(null);
+  const [error, setError] = useState("");
+  const [onlyOpen, setOnlyOpen] = useState(false);
+  const [reminding, setReminding] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError("");
+    Promise.all([
+      fetchPollResults(announcement.id),
+      fetchPollChildren(announcement.id),
+    ])
+      .then(([resultsData, childrenData]) => {
+        if (cancelled) return;
+        setResults(resultsData);
+        setChildren(childrenData);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Umfrageergebnis konnte nicht geladen werden";
+        setError(message);
+        logger.error("announcement_poll_results_failed", { error: message });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [announcement.id]);
+
+  const deadlinePassed =
+    announcement.response_deadline !== undefined &&
+    new Date(announcement.response_deadline) <= new Date();
+  const canRemind =
+    announcement.status === "published" &&
+    !deadlinePassed &&
+    (results?.answered_count ?? 0) < (results?.child_count ?? 0);
+
+  const handleRemind = async () => {
+    setReminding(true);
+    setError("");
+    try {
+      const count = await remindUnanswered(announcement.id);
+      onReminded(count);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Erinnerung konnte nicht gesendet werden";
+      setError(message);
+      logger.error("announcement_poll_reminder_failed", { error: message });
+    } finally {
+      setReminding(false);
+    }
+  };
+
+  const visibleChildren = (children ?? []).filter(
+    (child) => !onlyOpen || child.answer_labels.length === 0,
+  );
+
+  return (
+    <div>
+      <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+        <ListChecks className="h-4 w-4 text-gray-500" aria-hidden />
+        Auswertung
+      </h4>
+
+      {error && <p className="mb-2 text-sm text-[#CC2626]">{error}</p>}
+
+      {results === null || children === null ? (
+        <Loading fullPage={false} />
+      ) : (
+        <>
+          <p className="text-sm text-gray-700">
+            {results.answered_count} von {results.child_count}{" "}
+            {results.child_count === 1 ? "Kind" : "Kindern"} beantwortet
+          </p>
+
+          <ul className="mt-3 space-y-2">
+            {results.options.map((option) => {
+              const share =
+                results.child_count > 0
+                  ? Math.round((option.count / results.child_count) * 100)
+                  : 0;
+              return (
+                <li key={option.option_id}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="truncate text-sm text-gray-800">
+                      {option.label}
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-gray-900">
+                      {option.count}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${share}%`,
+                        backgroundColor: LOCATION_COLORS.GROUP_ROOM,
+                      }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {children.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-gray-700">
+                  Antworten pro Kind
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setOnlyOpen((prev) => !prev)}
+                >
+                  {onlyOpen ? "Alle anzeigen" : "Nur offene"}
+                </Button>
+              </div>
+              <ul className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+                {visibleChildren.map((child) => (
+                  <li
+                    key={child.student_id}
+                    className="flex items-center justify-between gap-3 px-3 py-2"
+                  >
+                    <span className="min-w-0 truncate text-sm text-gray-800">
+                      {child.first_name} {child.last_name}
+                      {child.school_class && (
+                        <span className="text-gray-500">
+                          {" "}
+                          · {child.school_class}
+                        </span>
+                      )}
+                    </span>
+                    {child.answer_labels.length > 0 ? (
+                      <span className="shrink-0 text-xs font-medium text-[#4d7719]">
+                        {child.answer_labels.join(", ")}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-xs text-gray-500">
+                        Offen
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {canRemind && (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => void handleRemind()}
+              isLoading={reminding}
+              loadingText="Wird gesendet..."
+              className="mt-4 gap-1.5"
+            >
+              <BellRing className="size-4" aria-hidden />
+              Eltern ohne Antwort erinnern
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -1612,6 +2088,7 @@ function DetailModal({
   groups,
   activities,
   onClose,
+  onReminded,
 }: DetailModalProps) {
   const [stats, setStats] = useState<AnnouncementStats | null>(null);
   const [recipients, setRecipients] = useState<AnnouncementRecipient[] | null>(
@@ -1623,7 +2100,14 @@ function DetailModal({
   >("all");
   const [nameFilter, setNameFilter] = useState("");
 
+  // A published poll renders its Auswertung instead of the read/ack statistics
+  // (see below), so it must not pay for the two requests behind them either.
+  const showReadStats = !(
+    isPoll(announcement) && announcement.status !== "draft"
+  );
+
   useEffect(() => {
+    if (!showReadStats) return;
     let cancelled = false;
     setError("");
     Promise.all([
@@ -1654,9 +2138,10 @@ function DetailModal({
     return () => {
       cancelled = true;
     };
-  }, [announcement.id]);
+  }, [announcement.id, showReadStats]);
 
   const isPublished = announcement.status !== "draft";
+  const poll = isPoll(announcement);
   const chips = targetChips(announcement.targets, groups, activities);
 
   return (
@@ -1714,54 +2199,73 @@ function DetailModal({
             ))}
           </div>
           <p className="mt-2 text-xs text-gray-500">
-            {announcement.requires_acknowledgement
-              ? "Lesebestätigung erforderlich"
-              : "Keine Lesebestätigung erforderlich"}
+            {poll
+              ? RESPONSE_TYPE_LABEL[announcement.response_type]
+              : announcement.requires_acknowledgement
+                ? "Lesebestätigung erforderlich"
+                : "Keine Lesebestätigung erforderlich"}
             {" · "}
             {announcement.send_email
               ? "E-Mail-Benachrichtigung aktiviert"
               : "Keine E-Mail-Benachrichtigung"}
+            {poll && announcement.response_deadline && (
+              <> · Antwort bis {formatDate(announcement.response_deadline)}</>
+            )}
           </p>
         </div>
 
-        <div>
-          <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-            <BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />
-            {isPublished ? "Statistik" : "Aktuelle Reichweite"}
-          </h4>
-          {error ? (
-            <p className="text-sm text-[#CC2626]">{error}</p>
-          ) : stats === null || recipients === null ? (
-            <Loading fullPage={false} />
-          ) : (
-            <>
-              <p className="text-sm text-gray-700">
-                {isPublished ? (
-                  <>
-                    {stats.read_count} von {stats.target_count} gelesen
-                    {announcement.requires_acknowledgement &&
-                      ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
-                  </>
-                ) : (
-                  <>
-                    Erreicht aktuell {stats.target_count}{" "}
-                    {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
-                  </>
+        {poll && (
+          <PollResultsPanel
+            announcement={announcement}
+            onReminded={onReminded}
+          />
+        )}
+
+        {/* A published poll shows its Auswertung instead of the read/ack
+            statistics: the two count different things (children vs guardian
+            accounts), and two different denominators in one modal is a support
+            ticket waiting to happen. A DRAFT poll still shows the reach, which
+            is the number staff check before publishing. */}
+        {showReadStats && (
+          <div>
+            <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+              <BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />
+              {isPublished ? "Statistik" : "Aktuelle Reichweite"}
+            </h4>
+            {error ? (
+              <p className="text-sm text-[#CC2626]">{error}</p>
+            ) : stats === null || recipients === null ? (
+              <Loading fullPage={false} />
+            ) : (
+              <>
+                <p className="text-sm text-gray-700">
+                  {isPublished ? (
+                    <>
+                      {stats.read_count} von {stats.target_count} gelesen
+                      {announcement.requires_acknowledgement &&
+                        ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
+                    </>
+                  ) : (
+                    <>
+                      Erreicht aktuell {stats.target_count}{" "}
+                      {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
+                    </>
+                  )}
+                </p>
+                {recipients.length > 0 && (
+                  <RecipientList
+                    recipients={recipients}
+                    showStatus={isPublished}
+                    statusFilter={statusFilter}
+                    onStatusFilter={setStatusFilter}
+                    nameFilter={nameFilter}
+                    onNameFilter={setNameFilter}
+                  />
                 )}
-              </p>
-              {recipients.length > 0 && (
-                <RecipientList
-                  recipients={recipients}
-                  showStatus={isPublished}
-                  statusFilter={statusFilter}
-                  onStatusFilter={setStatusFilter}
-                  nameFilter={nameFilter}
-                  onNameFilter={setNameFilter}
-                />
-              )}
-            </>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

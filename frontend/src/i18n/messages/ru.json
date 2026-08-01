@@ -118,6 +118,12 @@
     "newsRead": "Прочитано",
     "newsActionError": "Не удалось выполнить действие. Повторите попытку.",
     "newsStaleError": "Это объявление больше не актуально. Пожалуйста, обновите страницу.",
+    "newsPoll": "Опрос",
+    "newsPollDeadline": "Ответ до {date}",
+    "newsPollClosed": "Опрос завершён",
+    "newsPollMulti": "Можно выбрать несколько вариантов",
+    "newsPollOpen": "Ответ не дан",
+    "newsPollAnswered": "Ответ сохранён",
     "newEnrollment": "Новая заявка"
   },
   "parentEnroll": {

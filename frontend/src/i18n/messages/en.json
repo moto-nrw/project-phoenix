@@ -118,6 +118,12 @@
     "newsRead": "Read",
     "newsActionError": "Action failed. Please try again.",
     "newsStaleError": "This announcement is no longer current. Please reload the page.",
+    "newsPoll": "Survey",
+    "newsPollDeadline": "Reply by {date}",
+    "newsPollClosed": "Survey closed",
+    "newsPollMulti": "Multiple answers possible",
+    "newsPollOpen": "Answer pending",
+    "newsPollAnswered": "Answer saved",
     "newEnrollment": "New enrollment"
   },
   "parentEnroll": {

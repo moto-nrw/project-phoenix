@@ -22,6 +22,18 @@ export interface AnnouncementTarget {
   ref_text?: string;
 }
 
+/**
+ * "none" is a plain Mitteilung; the two choice types make it an Umfrage that
+ * parents answer per child (#1371).
+ */
+export type AnnouncementResponseType =
+  "none" | "single_choice" | "multi_choice";
+
+export interface AnnouncementOption {
+  id: string;
+  label: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;
@@ -37,6 +49,37 @@ export interface Announcement {
   created_at: string;
   updated_at: string;
   targets: AnnouncementTarget[];
+  response_type: AnnouncementResponseType;
+  response_deadline?: string;
+  options: AnnouncementOption[];
+}
+
+/** True when the announcement asks the parents a question. */
+export function isPoll(announcement: Announcement): boolean {
+  return announcement.response_type !== "none";
+}
+
+/** One option's tally: how many reached children picked it. */
+export interface PollOptionResult {
+  option_id: string;
+  label: string;
+  count: number;
+}
+
+export interface PollResults {
+  child_count: number;
+  answered_count: number;
+  options: PollOptionResult[];
+}
+
+/** One reached child with the answer given for them (empty = still open). */
+export interface PollChild {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  answer_labels: string[];
+  responded_at?: string;
 }
 
 export interface AnnouncementStats {
@@ -66,6 +109,11 @@ export interface AnnouncementInput {
   send_email: boolean;
   expires_at?: string | null;
   targets: AnnouncementTarget[];
+  /** Omit or "none" for a plain Mitteilung; a choice type requires options. */
+  response_type?: AnnouncementResponseType;
+  response_deadline?: string | null;
+  /** Answer labels in display order — the backend assigns the option ids. */
+  options?: string[];
 }
 
 interface ApiResponse<T> {
@@ -194,6 +242,41 @@ export async function fetchAnnouncementStats(
     "Statistik konnte nicht geladen werden",
   );
   return data ?? { target_count: 0, read_count: 0, acknowledged_count: 0 };
+}
+
+export async function fetchPollResults(id: string): Promise<PollResults> {
+  const data = await request<PollResults>(
+    `${BASE}/${encodeURIComponent(id)}/poll-results`,
+    undefined,
+    "Umfrageergebnis konnte nicht geladen werden",
+  );
+  return data ?? { child_count: 0, answered_count: 0, options: [] };
+}
+
+export async function fetchPollChildren(id: string): Promise<PollChild[]> {
+  const data = await request<PollChild[]>(
+    `${BASE}/${encodeURIComponent(id)}/poll-children`,
+    undefined,
+    "Antwortliste konnte nicht geladen werden",
+  );
+  return data ?? [];
+}
+
+/**
+ * Notifies the guardians of children without an answer. Returns how many people
+ * were reached so the UI can say "8 Eltern erinnert" instead of a silent OK.
+ */
+export async function remindUnanswered(id: string): Promise<number> {
+  const data = await request<{ reminded_count: number }>(
+    `${BASE}/${encodeURIComponent(id)}/remind`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    },
+    "Erinnerung konnte nicht gesendet werden",
+  );
+  return data?.reminded_count ?? 0;
 }
 
 export async function fetchAnnouncementRecipients(
