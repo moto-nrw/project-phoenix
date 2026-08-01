@@ -507,7 +507,7 @@ function renderTimerContent(
         <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
           Pause ({plannedBreakDurationMins} Min)
         </span>
-        <span className="mt-0.5 text-center text-xs font-medium text-[#8A5600]">
+        <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
           {plannedBreakEndsAt
             ? `Automatisch weiter um ${formatTime(plannedBreakEndsAt)}`
             : "Automatisch weiter nach der Pause"}
@@ -535,7 +535,7 @@ function renderTimerContent(
         {formatDuration(displayMinutes)}
       </span>
       {breakWarning && (
-        <span className="mt-0.5 text-xs font-medium text-[#8A5600]">
+        <span className="mt-0.5 text-xs font-medium text-amber-600">
           {breakWarning}
         </span>
       )}
@@ -1386,7 +1386,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "break" && seg.isActive) return "text-[#8A5600]";
+    if (seg.type === "break" && seg.isActive) return "text-amber-600";
     if (seg.type === "break") return "text-gray-500";
     return "";
   };
@@ -1495,11 +1495,15 @@ function BreakActivityLog({
 
 type StatusTone = "green" | "amber" | "gray";
 
-// Brand hexes from LOCATION_COLORS: GROUP_ROOM green, SCHOOLYARD orange
-// (with the darkened Alert-warning foreground for legible text).
+// Standalone value text on a white card, so it follows the app's tone map —
+// the same one KpiCard (staff-time-views), detail-modal-components and
+// school-overview-section use, so the identical Saldo reads the same on
+// /staff/[id] and here. The kit's darkened orange (#8A5600) is deliberately
+// NOT used: it is a foreground for TINTED surfaces (Alert warning, StatusBadge
+// orange) and turns brown on white.
 const STATUS_TEXT: Record<StatusTone, string> = {
   green: "text-[#83CD2D]",
-  amber: "text-[#8A5600]",
+  amber: "text-amber-600",
   gray: "text-gray-700",
 };
 
@@ -2697,7 +2701,7 @@ function EditSessionModal({
                 htmlFor="edit-notes"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
-                Grund der Änderung <span className="text-[#FF3130]">*</span>
+                Grund der Änderung <span className="text-red-500">*</span>
               </label>
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {EDIT_REASON_PRESETS.map((reason) => (
@@ -2860,7 +2864,7 @@ function EditSessionModal({
                     size="compact"
                     onClick={handleAbsenceDelete}
                     disabled={absenceDeleting}
-                    className="px-0 text-sm text-[#CC2626] hover:bg-transparent hover:text-[#9F1F1E]"
+                    className="px-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700"
                   >
                     {absenceDeleting
                       ? "Abwesenheit wird gelöscht..."

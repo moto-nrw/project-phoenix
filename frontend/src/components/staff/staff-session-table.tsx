@@ -870,14 +870,16 @@ function HintBadges({
   );
 }
 
-// Brand hexes from LOCATION_COLORS, in the darkened StatusBadge foregrounds so
-// the values stay legible as running text: over = SCHOOLYARD orange, clearly
-// under = HOME red, on target = GROUP_ROOM green.
+// Saldo values sit as plain text on a white row, so they follow the app's tone
+// map — identical to KpiCard in staff-time-views, which prices the same figure
+// on /staff/[id]. The kit's darkened badge foregrounds (#8A5600 / #9F1F1E) are
+// for TINTED surfaces and read brown/maroon on white. Green is the brand green
+// because it is legible and unambiguous at this size.
 function deltaClass(delta: number): string {
-  if (delta > 0) return "font-medium text-[#8A5600]";
-  if (delta < -15) return "font-medium text-[#9F1F1E]";
+  if (delta > 0) return "font-medium text-amber-600";
+  if (delta < -15) return "font-medium text-red-600";
   if (delta < 0) return "font-medium text-gray-500";
-  return "font-medium text-[#5A8B1F]";
+  return "font-medium text-[#70b525]";
 }
 
 function toDateKey(d: Date): string {

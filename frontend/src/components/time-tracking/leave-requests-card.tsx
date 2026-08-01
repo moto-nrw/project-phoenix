@@ -308,7 +308,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
-        confirmButtonClass="bg-[#CC2626] hover:bg-[#9F1F1E]"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">
@@ -376,7 +376,7 @@ function AbsenceRequestItem({
               variant="ghost"
               size="compact"
               onClick={() => onCancel(absence)}
-              className="px-0 text-[#CC2626] hover:bg-transparent hover:text-[#9F1F1E]"
+              className="px-0 text-red-600 hover:bg-transparent hover:text-red-700"
             >
               Stornieren
             </Button>
@@ -471,7 +471,7 @@ function Tile({
   const valueClass = {
     primary: "text-gray-900",
     success: "text-[#70b525]",
-    amber: "text-[#8A5600]",
+    amber: "text-amber-600",
     muted: "text-gray-400",
   }[tone];
   return (

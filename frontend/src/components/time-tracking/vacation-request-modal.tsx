@@ -337,9 +337,7 @@ export function VacationRequestModal({
                 </span>
                 {" beantragt · "}
                 <span
-                  className={
-                    exceedsBalance ? "text-[#CC2626]" : "text-gray-500"
-                  }
+                  className={exceedsBalance ? "text-red-600" : "text-gray-500"}
                 >
                   {remainingDays} Tage verfügbar
                 </span>

@@ -43,11 +43,11 @@ function formatDays(days: number): string {
   return `${value} ${days === 1 ? "Tag" : "Tage"}`;
 }
 
-// Brand hexes from LOCATION_COLORS: GROUP_ROOM green for a positive balance,
-// HOME red (darkened for legibility) for a negative one.
+// Plain text on the white card: brand green for a positive balance, the app's
+// red-600 for a negative one — same tone map as the table rows and KpiCard.
 function deltaClass(minutes: number): string {
   if (minutes > 0) return "text-[#70b525]";
-  if (minutes < 0) return "text-[#CC2626]";
+  if (minutes < 0) return "text-red-600";
   return "text-gray-700";
 }
 
