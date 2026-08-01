@@ -127,12 +127,11 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 			if startsAt.Before(from) || !startsAt.Before(to) {
 				continue
 			}
-			count, accountIDs, err := s.enqueueAppointmentReminder(ctx, appointment, effective, occurrence)
+			count, _, err := s.enqueueAppointmentReminder(ctx, appointment, effective, occurrence)
 			if err != nil {
 				return queued, err
 			}
 			queued += count
-			s.notifyGuardianAccountDevices(ctx, appointment, platformModels.EmailKindAppointmentReminder, accountIDs)
 		}
 	}
 	return queued, nil
@@ -243,9 +242,7 @@ func (s *service) enqueueAppointmentReminder(
 	}
 
 	queued := 0
-	guardianAccountIDs := make([]int64, 0, len(guardianIDs))
-	seenAccountIDs := make(map[int64]struct{}, len(guardianIDs))
-	pushOnlyProfilesByAccount := make(map[int64][]int64, len(guardianIDs))
+	pushProfilesByAccount := make(map[int64][]int64, len(guardianIDs))
 	seen := make(map[int64]struct{}, len(guardianIDs))
 	for _, id := range guardianIDs {
 		if _, done := seen[id]; done {
@@ -259,20 +256,16 @@ func (s *service) enqueueAppointmentReminder(
 		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
 			notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
-				return queued, guardianAccountIDs, fmt.Errorf("calendar: filter reminder preferences: %w", err)
+				return queued, nil, fmt.Errorf("calendar: filter reminder preferences: %w", err)
 			}
 			if len(notOptedOut) == 0 {
 				continue
 			}
+			if s.cfg.Notifier != nil {
+				pushProfilesByAccount[*profile.AccountID] = append(pushProfilesByAccount[*profile.AccountID], id)
+			}
 		}
 		if profile.Email == nil || *profile.Email == "" {
-			// Push delivery is addressed to the portal account, not the e-mail
-			// address. Track the profile IDs until dispatch succeeds; writing a
-			// durable claim first would turn a transient notifier failure into a
-			// permanent missed reminder.
-			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Notifier != nil && s.cfg.Preferences != nil {
-				pushOnlyProfilesByAccount[*profile.AccountID] = append(pushOnlyProfilesByAccount[*profile.AccountID], id)
-			}
 			continue
 		}
 		row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
@@ -296,51 +289,43 @@ func (s *service) enqueueAppointmentReminder(
 			RelatedEntityID:   appointment.ID,
 		})
 		if err != nil {
-			return queued, guardianAccountIDs, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
+			return queued, nil, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
 		}
 		if row.ID != 0 {
 			queued++
-			if profile.AccountID != nil && *profile.AccountID > 0 {
-				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
-					seenAccountIDs[*profile.AccountID] = struct{}{}
-					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
-				}
-			}
 		}
 	}
-	for accountID, profileIDs := range pushOnlyProfilesByAccount {
-		undeliveredProfileIDs := profileIDs[:0]
+	for accountID, profileIDs := range pushProfilesByAccount {
+		claimedProfileIDs := profileIDs[:0]
 		for _, profileID := range profileIDs {
-			delivered, err := s.cfg.RecipientRepo.HasReminderPush(ctx, appointment.ID, occurrence, profileID)
+			claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, occurrence, profileID)
 			if err != nil {
-				return queued, guardianAccountIDs, fmt.Errorf("calendar: check reminder push delivery: %w", err)
+				return queued, nil, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
 			}
-			if !delivered {
-				undeliveredProfileIDs = append(undeliveredProfileIDs, profileID)
+			if claimed {
+				claimedProfileIDs = append(claimedProfileIDs, profileID)
 			}
 		}
-		if len(undeliveredProfileIDs) == 0 {
+		if len(claimedProfileIDs) == 0 {
 			continue
 		}
 		dispatched, err := s.dispatchGuardianAccountDevices(ctx, appointment, platformModels.EmailKindAppointmentReminder, []int64{accountID})
-		if err != nil {
+		if err != nil || !dispatched {
 			s.logger().Warn("calendar: appointment reminder push failed",
 				slog.Int64("appointment_id", appointment.ID),
 				slog.Int64("guardian_account_id", accountID),
-				slog.String("error", err.Error()),
 			)
-			continue
-		}
-		if !dispatched {
-			continue
-		}
-		for _, profileID := range undeliveredProfileIDs {
-			claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, occurrence, profileID)
 			if err != nil {
-				return queued, guardianAccountIDs, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
+				s.logger().Warn("calendar: appointment reminder push error",
+					slog.Int64("appointment_id", appointment.ID),
+					slog.Int64("guardian_account_id", accountID),
+					slog.String("error", err.Error()),
+				)
 			}
-			if claimed {
-				break
+			for _, profileID := range claimedProfileIDs {
+				if releaseErr := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, occurrence, profileID); releaseErr != nil {
+					return queued, nil, fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
+				}
 			}
 		}
 	}
@@ -348,9 +333,9 @@ func (s *service) enqueueAppointmentReminder(
 	s.logger().Info("appointment reminders queued",
 		slog.Int64("appointment_id", appointment.ID),
 		slog.String("occurrence_date", occurrence.String()),
-		slog.Int("recipient_count", len(guardianAccountIDs)),
+		slog.Int("recipient_count", len(pushProfilesByAccount)),
 	)
-	return queued, guardianAccountIDs, nil
+	return queued, nil, nil
 }
 
 func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {
