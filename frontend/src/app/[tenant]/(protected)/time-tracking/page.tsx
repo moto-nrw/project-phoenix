@@ -377,7 +377,7 @@ const WORK_MODE_ITEMS: readonly SegmentedControlItem<WorkMode>[] = [
 // the class attribute. Without the important modifier these buttons render as
 // rounded squares. Same modifier as the break stepper below.
 const STAMP_BUTTON_BASE =
-  "!rounded-full border-2 p-0 shadow-none hover:shadow-none active:scale-95";
+  "!rounded-full border-2 !p-0 shadow-none hover:shadow-none active:scale-95";
 
 // Returns className for the check-in button. `mode === null` renders muted and
 // disabled — the staff member must pick a status first (Issue #1368).
@@ -672,10 +672,10 @@ function ClockInCard({
   }, [isOnBreak]);
 
   // Dismiss the desktop break-duration popover on outside pointerdown or
-  // Escape. Mirrors ui/OverflowMenu instead of rendering a full-viewport
-  // click-catcher element.
+  // Escape. The mobile picker is portaled by Drawer, so it manages dismissal
+  // through its own open state rather than this desktop-only listener.
   useEffect(() => {
-    if (!breakMenuOpen) return;
+    if (!breakMenuOpen || isMobileViewport) return;
     const onPointer = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (target === null) return;
@@ -691,7 +691,7 @@ function ClockInCard({
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [breakMenuOpen]);
+  }, [breakMenuOpen, isMobileViewport]);
 
   useEffect(() => {
     const updateViewport = () => {
