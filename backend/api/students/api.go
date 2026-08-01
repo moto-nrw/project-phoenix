@@ -105,6 +105,10 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		// Aggregated OGS-group live projection (#2056). Requires both the
+		// students-read and groups-read permissions its constituent single
+		// endpoints (student list, room status, substitutions) require.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
