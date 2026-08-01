@@ -412,28 +412,43 @@ func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 	return period, phase, earliest, nil
 }
 
-// latestApprovedCarePeriodEnd returns the farthest date for which this child
-// has an approved care enrollment. The picker may span consecutive approved
-// periods; CatalogAt resolves the matching period and catalog after a date is
-// chosen.
-func (s *offeringChangeRequestService) latestApprovedCarePeriodEnd(
+// latestContiguousApprovedCarePeriodEnd returns the end of the uninterrupted
+// approved care period beginning with initial. The date picker cannot offer a
+// date in a gap because CatalogAt requires an enrollment on the chosen date.
+func (s *offeringChangeRequestService) latestContiguousApprovedCarePeriodEnd(
 	ctx context.Context,
 	studentID int64,
+	initial *enrollmentModels.StudentCarePeriod,
 ) (timezone.Date, error) {
 	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
 	if err != nil {
 		return timezone.Date{}, fmt.Errorf("offering change: list care periods: %w", err)
 	}
-	var latest timezone.Date
-	for _, period := range periods {
-		if period != nil && (latest.IsZero() || latest.Before(period.ServiceEndDate)) {
-			latest = period.ServiceEndDate
-		}
-	}
-	if latest.IsZero() {
+	if initial == nil {
 		return timezone.Date{}, ErrOfferingChangeNoEnrollment
 	}
-	return latest, nil
+	return contiguousCarePeriodEnd(periods, initial), nil
+}
+
+func contiguousCarePeriodEnd(
+	periods []*enrollmentModels.StudentCarePeriod,
+	initial *enrollmentModels.StudentCarePeriod,
+) timezone.Date {
+	latest := initial.ServiceEndDate
+	// Periods are returned newest first. Repeat the scan because an earlier
+	// overlapping period can extend the range far enough to join another one.
+	for extended := true; extended; {
+		extended = false
+		for _, period := range periods {
+			if period != nil &&
+				!period.ServiceStartDate.After(latest.AddDays(1)) &&
+				latest.Before(period.ServiceEndDate) {
+				latest = period.ServiceEndDate
+				extended = true
+			}
+		}
+	}
+	return latest
 }
 
 func (s *offeringChangeRequestService) Catalog(
@@ -447,7 +462,7 @@ func (s *offeringChangeRequestService) Catalog(
 	if err != nil {
 		return nil, err
 	}
-	latest, err := s.latestApprovedCarePeriodEnd(ctx, studentID)
+	latest, err := s.latestContiguousApprovedCarePeriodEnd(ctx, studentID, period)
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +494,7 @@ func (s *offeringChangeRequestService) CatalogAt(
 	if earliest.Before(phase.ServiceStartDate) {
 		earliest = phase.ServiceStartDate
 	}
-	latest, err := s.latestApprovedCarePeriodEnd(ctx, studentID)
+	latest, err := s.latestContiguousApprovedCarePeriodEnd(ctx, studentID, period)
 	if err != nil {
 		return nil, err
 	}
