@@ -211,19 +211,19 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHist
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return offeringRepo.Create(ctx, currentOffering)
 	}))
-	today := timezone.TodayDate()
+	onDate := timezone.NewDate(2026, 10, 1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
-			ValidUntil:     &today,
+			ValidUntil:     &onDate,
 		}); err != nil {
 			return err
 		}
 		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: currentOffering.ID,
-			ValidFrom:      &today,
+			ValidFrom:      &onDate,
 		})
 	}))
 
@@ -234,7 +234,7 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHist
 		if err != nil {
 			return err
 		}
-		active, err = repo.ListByRequestChildIDsAtDate(ctx, []int64{childID}, today)
+		active, err = repo.ListByRequestChildIDsAtDate(ctx, []int64{childID}, onDate)
 		return err
 	}))
 	require.Len(t, history, 2, "batch history must retain expired offering intervals")
