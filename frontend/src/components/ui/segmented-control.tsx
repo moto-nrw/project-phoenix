@@ -23,7 +23,9 @@
 // Tones map to LOCATION_COLORS (lib/location-helper.ts) — never generic
 // Tailwind hues.
 
-export type SegmentedControlTone = "neutral" | "green" | "blue" | "red";
+// Not exported: callers reach it through the exported SegmentedControlItem,
+// which is the type they actually annotate their items array with.
+type SegmentedControlTone = "neutral" | "green" | "blue" | "red";
 
 export interface SegmentedControlItem<T extends string> {
   readonly value: T;
