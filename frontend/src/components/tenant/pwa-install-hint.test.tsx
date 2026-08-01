@@ -6,10 +6,12 @@ import {
   isIosDevice,
   isIosSafari,
   isStandaloneDisplay,
-  recordVisit,
 } from "./pwa-install-hint";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
-import { resetInstallPromptForTests } from "~/lib/pwa-install-prompt";
+import {
+  recordVisit,
+  resetInstallPromptForTests,
+} from "~/lib/pwa-install-prompt";
 
 const IPHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";

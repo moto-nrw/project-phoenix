@@ -19,6 +19,9 @@ describe("instrumentation-client", () => {
     vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
     vi.stubGlobal("navigator", { userAgent: ANDROID_UA });
     window.location.href = "https://school-a.moto-app.de/dashboard";
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("moto-pwa-install-hint-visits", "1");
   });
 
   afterEach(() => {
@@ -120,7 +123,7 @@ describe("instrumentation-client", () => {
     "/invite",
     "/reset-password",
   ])(
-    "keeps Chrome's native prompt on public tenant path %s while caching the event",
+    "leaves the native prompt uncaptured on public tenant path %s",
     async (path) => {
       window.location.href = `https://school-a.moto-app.de${path}`;
       await import("./instrumentation-client");
@@ -136,9 +139,47 @@ describe("instrumentation-client", () => {
       window.dispatchEvent(event);
 
       expect(event.defaultPrevented).toBe(false);
-      expect(canPromptInstall()).toBe(true);
+      expect(canPromptInstall()).toBe(false);
     },
   );
+
+  it("leaves the native prompt enabled when the custom hint is not eligible yet", async () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(false);
+    expect(localStorage.getItem("moto-pwa-install-hint-visits")).toBe("1");
+  });
+
+  it("leaves the native prompt enabled after the custom hint was dismissed", async () => {
+    localStorage.setItem("moto-pwa-install-hint-dismissed", "1");
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(false);
+  });
 
   it.each(["/invitations", "/enrollment-form"])(
     "suppresses Chrome's native prompt on protected tenant path %s",

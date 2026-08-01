@@ -7,7 +7,9 @@ import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   canPromptInstall,
+  dismissInstallHint,
   isAndroidDevice,
+  isInstallHintEligible,
   isInstallationCompleted,
   subscribeInstallPrompt,
   triggerInstallPrompt,
@@ -16,17 +18,6 @@ import {
 export { isAndroidDevice } from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PwaInstallHint" });
-
-const DISMISS_KEY = "moto-pwa-install-hint-dismissed";
-const VISIT_COUNT_KEY = "moto-pwa-install-hint-visits";
-const SESSION_COUNTED_KEY = "moto-pwa-install-hint-session-counted";
-
-/**
- * web.dev "Patterns for promoting PWA installation": promote after a few
- * interactions, never on the first page load, or the promotion is missed and
- * reads as noise. One visit = one browser session.
- */
-const MIN_VISITS = 2;
 
 export type InstallPlatform = "ios" | "android";
 
@@ -50,29 +41,6 @@ export function isStandaloneDisplay(win: Window): boolean {
   if (win.matchMedia("(display-mode: standalone)").matches) return true;
   const nav = win.navigator as Navigator & { standalone?: boolean };
   return nav.standalone === true;
-}
-
-/**
- * Counts this browser session as one visit, exactly once, and returns the
- * running total. The sessionStorage flag makes the call idempotent, so a
- * StrictMode double-effect or a remount does not inflate the count.
- */
-export function recordVisit(win: Window): number {
-  try {
-    const stored = Number(win.localStorage.getItem(VISIT_COUNT_KEY) ?? "0");
-    const previous = Number.isFinite(stored) && stored > 0 ? stored : 0;
-    if (win.sessionStorage.getItem(SESSION_COUNTED_KEY) === "1") {
-      return previous;
-    }
-    const next = previous + 1;
-    win.localStorage.setItem(VISIT_COUNT_KEY, String(next));
-    win.sessionStorage.setItem(SESSION_COUNTED_KEY, "1");
-    return next;
-  } catch {
-    // Private mode can block storage. Treat the visit as sufficient rather
-    // than hiding the hint forever on browsers that deny storage.
-    return MIN_VISITS;
-  }
 }
 
 /**
@@ -123,34 +91,20 @@ export function PwaInstallHint() {
     else if (isAndroidDevice(window.navigator)) detected = "android";
     if (!detected) return;
     if (isStandaloneDisplay(window)) return;
-    try {
-      if (window.localStorage.getItem(DISMISS_KEY) === "1") return;
-    } catch {
-      // Private mode can block storage access; show the hint anyway.
-    }
-    if (recordVisit(window) < MIN_VISITS) return;
+    if (!isInstallHintEligible(window)) return;
     setPlatform(detected);
   }, []);
 
   useEffect(() => {
     if (!installationCompleted) return;
     setPlatform(null);
-    try {
-      window.localStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      // The published state still hides the hint for the current page.
-    }
   }, [installationCompleted]);
 
   if (!platform || installationCompleted) return null;
 
   const dismiss = () => {
     setPlatform(null);
-    try {
-      window.localStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      // Without storage the hint reappears next visit; acceptable.
-    }
+    dismissInstallHint(window);
   };
 
   const install = () => {
