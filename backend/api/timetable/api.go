@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -107,10 +108,12 @@ type Dependencies struct {
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	SlotListsService       slotlists.Service
-	Broadcaster            realtime.Broadcaster
-	Logger                 *slog.Logger
-	DB                     *bun.DB
-	Now                    func() time.Time
+	// PlanExportService renders the printable Betreuungsplan week (#2079).
+	PlanExportService planexport.Service
+	Broadcaster       realtime.Broadcaster
+	Logger            *slog.Logger
+	DB                *bun.DB
+	Now               func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -268,6 +271,14 @@ func (rs *Resource) Router() chi.Router {
 				Post("/preview", rs.previewSlotList)
 			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
 				Post("/export", rs.exportSlotList)
+		})
+
+		// Printable Betreuungsplan week (#2079). Staff names are on the sheet,
+		// so it needs users:read on top of the schedules:read the plan itself
+		// requires — the same pair the slot lists use.
+		r.Route("/betreuungsplan", func(r chi.Router) {
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/export", rs.exportBetreuungsplan)
 		})
 
 		r.Route("/operations", func(r chi.Router) {

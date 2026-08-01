@@ -48,6 +48,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -122,6 +123,7 @@ type Factory struct {
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
+	PlanExport               planexport.Service
 	Reminders                reminders.Computer
 	Notifications            notifications.Notifier
 	PushSubscriptions        notifications.PushSubscriptionService
@@ -1783,6 +1785,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              logger.With("service", "slot_lists"),
 	})
 
+	// Printable weekly plans (#2079). A pure projection over the same reads
+	// the two planning screens use — it renders, it never writes.
+	planExportService := planexport.NewService(planexport.Dependencies{
+		Overview:      staffScheduleOverviewService,
+		ShiftTypes:    repos.ShiftType,
+		Instances:     repos.ActivityInstance,
+		InstanceStaff: repos.InstanceStaff,
+		Students:      repos.InstanceStudent,
+		Rooms:         repos.Room,
+		Staff:         repos.Staff,
+		ClosingDays:   closingDayService,
+		Holidays:      holidayService,
+		Renderer:      listExportService,
+	}, logger.With("service", "plan_export"))
+
 	pushSubscriptionsService := notifications.NewPushSubscriptionService(
 		db,
 		repos.PushSubscription,
@@ -1897,6 +1914,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Import:                   studentImportService, // Student import service
 		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
+		PlanExport:               planExportService,
 		Emergency:                emergencyService,
 		SlotLists:                slotListsService,
 		Reminders:                remindersService,
