@@ -68,4 +68,21 @@ describe("instrumentation-client", () => {
 
     expect(mockInit).not.toHaveBeenCalled();
   });
+
+  it("captures the install prompt before React hydration", async () => {
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(canPromptInstall()).toBe(true);
+  });
 });
