@@ -819,7 +819,9 @@ func (s *changeRequestService) prepareProposed(
 	var offeringCatalogs []map[int64]*enrollmentModels.CareOffering
 	if capabilities.CareOfferingsEnabled {
 		var catalogErr error
-		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(ctx, children, openByID, phase.ServiceStartDate)
+		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(
+			ctx, children, openByID, currentOfferingSelectionDate(phase),
+		)
 		if catalogErr != nil {
 			return editReq, nil, nil, nil, catalogErr
 		}
@@ -848,7 +850,12 @@ func (s *changeRequestService) prepareProposed(
 		for _, child := range children {
 			childIDs = append(childIDs, child.ID)
 		}
-		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+		// The selection this preserves is the one in force now, not every
+		// interval the child ever held: a superseded booking restored here
+		// would be written back as a live one.
+		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			ctx, childIDs, currentOfferingSelectionDate(phase),
+		)
 		if linkErr != nil {
 			return editReq, nil, nil, nil, fmt.Errorf("change request: preserve child offerings: %w", linkErr)
 		}
@@ -1130,7 +1137,12 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	if phase == nil {
 		return nil, ErrEnrollmentDisabled
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, phase.ServiceStartDate)
+	// Read at today, not at the service start: the snapshot is the base a
+	// staff diff is rendered against and the conflict guard compares an
+	// approval to. Pinned to the phase start it would keep reporting a booking
+	// an approved dated change has already replaced - and the approval would
+	// then write that stale selection back over the newer one.
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, currentOfferingSelectionDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}

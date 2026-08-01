@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -434,4 +435,140 @@ func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(
 			require.ErrorIs(t, err, enrollmentService.ErrOfferingAdjustmentInvalid)
 		})
 	}
+}
+
+// startRunningCarePeriodForTest moves the fixture phase so that today lies
+// inside its care period. The dated paths below only differ from the
+// undated ones once a switch date can be reached, which a phase starting in
+// the future never allows.
+func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	env.sourcePhase.ServiceStartDate = timezone.TodayDate().AddDays(-60)
+	env.sourcePhase.ServiceEndDate = timezone.TodayDate().AddDays(240)
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+}
+
+// A dated switch splits the child's offering links into intervals. Everything
+// that reads them as "the current booking" has to read them at a date -
+// otherwise the reopened form offers the superseded selection back and
+// approving an unrelated correction writes it over the switch.
+func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	startRunningCarePeriodForTest(t, env)
+
+	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestOld")
+	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestNew")
+	defer testpkg.CleanupActivityFixtures(t, env.db,
+		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
+		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
+	)
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisheriges Angebot", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &oldGroup.ID
+		o.SortOrder = 151
+	})
+	newOffering := createAdjustmentCareOfferingWith(t, env, "Neues Angebot", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &newGroup.ID
+		o.SortOrder = 152
+	})
+
+	requestID, childID, studentID := submitApprovedAdjustmentChild(
+		t, env, "change-request-switch@example.com", "SwitchKeeper",
+		[]*enrollmentModels.CareOffering{oldOffering},
+	)
+
+	switchDate := timezone.TodayDate()
+	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      requestID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Wechsel ab heute",
+		EffectiveFrom:  &switchDate,
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	requestRow, err := env.repos.Request.FindByID(ctx, requestID)
+	require.NoError(t, err)
+
+	draft, err := env.requestSvc.GetEditDraft(ctx, requestRow.StatusToken)
+	require.NoError(t, err)
+	draftLinks := draft.OfferingsByChild[childID]
+	require.Len(t, draftLinks, 1, "the reopened form must show the booking in force, not the interval history")
+	assert.Equal(t, newOffering.ID, draftLinks[0].CareOfferingID)
+
+	proposed := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Elternteil",
+		GuardianLastName:  "SwitchKeeper",
+		GuardianEmail:     "change-request-switch@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				ID:               childID,
+				FirstName:        "Kind",
+				LastName:         "SwitchKeeper",
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{draftLinks[0].CareOfferingID},
+				OfferingDays: []enrollmentService.SubmitOfferingDays{
+					{OfferingID: draftLinks[0].CareOfferingID, SelectedDays: []string{"mon"}},
+				},
+			},
+		},
+	}
+
+	changeRequests := newChangeRequestServiceWithDecisionForTest(t, env)
+	created, err := changeRequests.Create(ctx, requestRow.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte den Vornamen des Elternteils korrigieren.",
+	})
+	require.NoError(t, err)
+
+	// The base the staff diff is rendered against is today's booking. Pinned to
+	// the service start it would report an offering change the parent never
+	// proposed - and miss a real one.
+	// The base the staff diff is rendered against, and that the approval
+	// compares against for conflicts, is today's booking. Pinned to the service
+	// start it would describe the superseded one.
+	baseChildren, ok := created.ChangeRequest.BaseSnapshot["children"].([]any)
+	require.True(t, ok)
+	require.Len(t, baseChildren, 1)
+	baseChild, ok := baseChildren[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{strconv.FormatInt(newOffering.ID, 10)}, baseChild["offering_ids"])
+
+	_, err = changeRequests.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, currentLinks, 1)
+	assert.Equal(t, newOffering.ID, currentLinks[0].CareOfferingID,
+		"approving an unrelated correction must not restore the superseded booking")
+
+	// An undated correction stays retroactive by design, so it rewrites the
+	// group enrollment over the whole care period. What it must not do is
+	// rewrite it to the group the child left.
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, studentID)
+	byGroup := rowsByGroupForAdjustmentTest(rows)
+	_, enrolledInNew := byGroup[newGroup.ID]
+	assert.True(t, enrolledInNew, "the switched-to group must stay enrolled")
+	_, enrolledInOld := byGroup[oldGroup.ID]
+	assert.False(t, enrolledInOld, "the group the child left must not be re-enrolled")
 }

@@ -1809,6 +1809,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	var (
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
+		childIDs  []int64
 		guardians []*enrollmentModels.RequestGuardian
 		links     []*enrollmentModels.RequestChildOffering
 		school    *platformModels.School
@@ -1836,15 +1837,9 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			}
 			guardians = loadedGuardians
 		}
-		childIDs := make([]int64, 0, len(children))
 		for _, c := range children {
 			childIDs = append(childIDs, c.ID)
 		}
-		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(tenantCtx, childIDs)
-		if err != nil {
-			return fmt.Errorf("edit draft: list child offerings: %w", err)
-		}
-		links = loadedLinks
 		if s.SchoolRepo != nil {
 			loadedSchool, err := s.SchoolRepo.FindByID(adminCtx, req.GetTenantID())
 			if err != nil {
@@ -1855,11 +1850,6 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil
 	}); err != nil {
 		return nil, err
-	}
-
-	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
-	for _, link := range links {
-		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
 	var (
@@ -1900,6 +1890,18 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			return ErrEnrollmentWindowClosed
 		}
 		phase = loadedPhase
+		// Loaded here rather than with the other request data above because it
+		// needs the phase: the form has to reopen on the booking in force now.
+		// The unscoped read returns every interval, so after a dated change the
+		// parent would find the superseded and the current selection both
+		// ticked - and saving that would book both.
+		loadedLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			txCtx, childIDs, currentOfferingSelectionDate(phase),
+		)
+		if linkErr != nil {
+			return fmt.Errorf("edit draft: list child offerings: %w", linkErr)
+		}
+		links = loadedLinks
 		// Reopening the form is a self-service load like the public one, so it
 		// must present exactly the world the save will accept. Both edit paths
 		// (ReplaceEditable, prepareProposed) re-run the per-child eligibility
@@ -1973,6 +1975,11 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
+	for _, link := range links {
+		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
 	return &EditDraft{
@@ -2191,17 +2198,15 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				return err
 			}
 		}
-		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
+		// One point-in-time read serves both consumers below. Preserving a
+		// hidden selection means preserving the one in force now: across the
+		// full interval history a superseded booking would be restored
+		// alongside the live one and written back as current.
+		activeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			txCtx, existingChildIDs, currentOfferingSelectionDate(phase),
+		)
 		if err != nil {
-			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
-		}
-		capacityFrom := timezone.TodayDate()
-		if phase.ServiceStartDate.After(capacityFrom) {
-			capacityFrom = phase.ServiceStartDate
-		}
-		activeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(txCtx, existingChildIDs, capacityFrom)
-		if err != nil {
-			return fmt.Errorf("edit replace: load active child offerings for capacity: %w", err)
+			return fmt.Errorf("edit replace: load active child offerings: %w", err)
 		}
 		preservedClaims := make(map[int64]int, len(activeLinks))
 		seenClaims := make(map[[2]int64]struct{}, len(activeLinks))
@@ -2217,7 +2222,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			preservedClaims[link.CareOfferingID]++
 		}
 		if !capabilities.CareOfferingsEnabled {
-			materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
+			materializedSelections = preservedOfferingSelections(children, editReq.Children, activeLinks)
 		}
 
 		childStatusOverrides := map[int]string{}

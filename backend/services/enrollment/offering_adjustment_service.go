@@ -105,12 +105,12 @@ func (s *decisionService) updateChildOfferings(
 	if err != nil {
 		return nil, err
 	}
-	selectionDate := timezone.TodayDate()
+	selectionDate := currentOfferingSelectionDate(phase)
 	if effectiveFrom != nil {
 		selectionDate = *effectiveFrom
-	}
-	if selectionDate.Before(phase.ServiceStartDate) {
-		selectionDate = phase.ServiceStartDate
+		if selectionDate.Before(phase.ServiceStartDate) {
+			selectionDate = phase.ServiceStartDate
+		}
 	}
 
 	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, req.PhaseID)
@@ -291,6 +291,28 @@ func validateAdjustmentEffectiveFrom(
 		return nil, fmt.Errorf("%w: effective_from must not be after the care period ends", ErrOfferingAdjustmentInvalid)
 	}
 	return effectiveFrom, nil
+}
+
+// currentOfferingSelectionDate returns the day a child's persisted offering
+// links have to be read at to yield the booking that is in force right now.
+// Since a dated change splits those links into intervals, reading them without
+// a date returns the whole history and reading them at the service start
+// returns the superseded booking - both of which a caller asking for "the
+// current selection" would misread as a live one. The window clamp keeps the
+// answer meaningful outside the service period too: before it starts that is
+// the initial selection, after it ended the last one.
+func currentOfferingSelectionDate(phase *enrollmentModels.Phase) timezone.Date {
+	today := timezone.TodayDate()
+	if phase == nil {
+		return today
+	}
+	if today.Before(phase.ServiceStartDate) {
+		return phase.ServiceStartDate
+	}
+	if today.After(phase.ServiceEndDate) {
+		return phase.ServiceEndDate
+	}
+	return today
 }
 
 type scheduledOfferingReplacement struct {
