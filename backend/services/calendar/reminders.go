@@ -253,49 +253,40 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
-		if profile.AccountID == nil || *profile.AccountID <= 0 || s.cfg.Preferences == nil {
-			continue
+		if profile.Email != nil && *profile.Email != "" {
+			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
+				notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
+				if err != nil {
+					return queued, nil, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
+				}
+				if len(notOptedOut) == 0 {
+					continue
+				}
+			}
+			row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
+				Kind: platformModels.EmailKindAppointmentReminder,
+				Payload: map[string]any{
+					apptPayloadRecipient: *profile.Email, apptPayloadFirstName: profile.FirstName, apptPayloadLastName: profile.LastName,
+					apptPayloadTitle: effective.Title, apptPayloadWhen: whenText, apptPayloadLocation: location,
+					apptPayloadSchoolName: schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: logoURL, apptPayloadMotoLogoURL: motoLogoURL,
+				},
+				IdempotencyKey: appointmentReminderKey(appointment.ID, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
+			})
+			if err != nil {
+				return queued, nil, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
+			}
+			if row.ID != 0 {
+				queued++
+			}
 		}
-		if profile.AccountID != nil && *profile.AccountID > 0 {
+		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Notifier != nil && s.cfg.Preferences != nil {
 			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
-				return queued, nil, fmt.Errorf("calendar: filter reminder preferences: %w", err)
+				return queued, nil, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
 			}
-			if len(optedIn) == 0 {
-				continue
-			}
-			if s.cfg.Notifier != nil {
+			if len(optedIn) > 0 {
 				pushProfilesByAccount[*profile.AccountID] = append(pushProfilesByAccount[*profile.AccountID], id)
 			}
-		}
-		if profile.Email == nil || *profile.Email == "" {
-			continue
-		}
-		row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
-			Kind: platformModels.EmailKindAppointmentReminder,
-			Payload: map[string]any{
-				apptPayloadRecipient:   *profile.Email,
-				apptPayloadFirstName:   profile.FirstName,
-				apptPayloadLastName:    profile.LastName,
-				apptPayloadTitle:       effective.Title,
-				apptPayloadWhen:        whenText,
-				apptPayloadLocation:    location,
-				apptPayloadSchoolName:  schoolName,
-				apptPayloadPortalURL:   s.cfg.ParentsURL,
-				apptPayloadLogoURL:     logoURL,
-				apptPayloadMotoLogoURL: motoLogoURL,
-			},
-			// One reminder per occurrence per guardian, forever. The key also
-			// carries the guardian so two parents of the same child both get one.
-			IdempotencyKey:    appointmentReminderKey(appointment.ID, occurrence, id),
-			RelatedEntityType: platformModels.EmailRelatedTypeAppointment,
-			RelatedEntityID:   appointment.ID,
-		})
-		if err != nil {
-			return queued, nil, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
-		}
-		if row.ID != 0 {
-			queued++
 		}
 	}
 	for accountID, profileIDs := range pushProfilesByAccount {
