@@ -167,6 +167,7 @@ func (r *ParentAnnouncementRepository) ReplaceOptions(ctx context.Context, tenan
 	if _, err := db.NewInsert().
 		Model(&options).
 		ModelTableExpr("users.parent_announcement_options").
+		Returning("*").
 		Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "insert parent announcement options", Err: err}
 	}
@@ -178,7 +179,7 @@ func (r *ParentAnnouncementRepository) ListOptions(ctx context.Context, announce
 	var rows []*users.ParentAnnouncementOption
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
-		ModelTableExpr("users.parent_announcement_options AS pao").
+		ModelTableExpr(`users.parent_announcement_options AS "pao"`).
 		Where("pao.announcement_id = ?", announcementID).
 		OrderExpr("pao.position ASC, pao.id ASC")
 	query = base.WithTenantFilter(ctx, query, "pao")
@@ -199,7 +200,7 @@ func (r *ParentAnnouncementRepository) ListOptionsForAnnouncements(ctx context.C
 	var rows []*users.ParentAnnouncementOption
 	if err := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
-		ModelTableExpr("users.parent_announcement_options AS pao").
+		ModelTableExpr(`users.parent_announcement_options AS "pao"`).
 		Where("pao.announcement_id IN (?)", bun.List(announcementIDs)).
 		OrderExpr("pao.announcement_id ASC, pao.position ASC, pao.id ASC").
 		Scan(ctx); err != nil {

@@ -139,11 +139,10 @@ function usePollAnswers(
   const closed = isPollClosed(item);
   const multi = item.response_type === "multi_choice";
 
-  // What is selected on screen, per child. Seeded from the saved answers and
-  // reset whenever those change (a refetch, or our own save landing).
-  const savedSignature = children
-    .map((c) => `${c.student_id}:${[...c.selected_options].sort().join(",")}`)
-    .join("|");
+  // What is selected on screen, per child. A corrected poll is a new immutable
+  // version, so reset drafts for a changed version/options. Ordinary response
+  // updates do not reset them: while a multi-child save is in progress, one
+  // child may have persisted while another still needs a retry.
   const pollVersionSignature = [
     item.id,
     item.published_at ?? "",
@@ -162,10 +161,10 @@ function usePollAnswers(
       ),
     );
     setError(null);
-    // children is derived from item; savedSignature captures the values that
-    // matter, so it is the dependency rather than a new array identity.
+    // The version includes every option id and label, rather than the children:
+    // response updates must preserve drafts for unresolved children.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedSignature, pollVersionSignature]);
+  }, [pollVersionSignature]);
 
   const selectionFor = (child: ParentAnnouncementPollChild): string[] =>
     draft[child.student_id] ?? [];

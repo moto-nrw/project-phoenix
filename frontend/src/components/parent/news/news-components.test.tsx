@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -209,31 +210,37 @@ describe("Umfrage answering in the detail view", () => {
     vi.spyOn(parentApi, "respondToAnnouncement")
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("boom"));
-    const onUpdated = vi.fn();
     const onClose = vi.fn();
+    const initial = poll({
+      children: [
+        {
+          student_id: "10",
+          first_name: "Felix",
+          last_name: "Schneider",
+          selected_options: [],
+        },
+        {
+          student_id: "11",
+          first_name: "Mila",
+          last_name: "Schneider",
+          selected_options: [],
+        },
+      ],
+    });
+    function StatefulModal() {
+      const [item, setItem] = useState(initial);
+      return (
+        <NewsDetailModal
+          item={item}
+          onClose={onClose}
+          onUpdated={(_id, patch) =>
+            setItem((current) => ({ ...current, ...patch }))
+          }
+        />
+      );
+    }
 
-    render(
-      <NewsDetailModal
-        item={poll({
-          children: [
-            {
-              student_id: "10",
-              first_name: "Felix",
-              last_name: "Schneider",
-              selected_options: [],
-            },
-            {
-              student_id: "11",
-              first_name: "Mila",
-              last_name: "Schneider",
-              selected_options: [],
-            },
-          ],
-        })}
-        onClose={onClose}
-        onUpdated={onUpdated}
-      />,
-    );
+    render(<StatefulModal />);
 
     const yesButtons = screen.getAllByRole("button", { name: "Ja" });
     const noButtons = screen.getAllByRole("button", { name: "Nein" });
@@ -244,15 +251,9 @@ describe("Umfrage answering in the detail view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
 
     await waitFor(() => {
-      expect(onUpdated).toHaveBeenCalledWith("42", {
-        children: [
-          expect.objectContaining({
-            student_id: "10",
-            selected_options: ["1"],
-          }),
-          expect.objectContaining({ student_id: "11", selected_options: [] }),
-        ],
-      });
+      expect(
+        screen.getAllByRole("button", { name: "Nein" })[1],
+      ).toHaveAttribute("aria-pressed", "true");
     });
     expect(onClose).not.toHaveBeenCalled();
   });
