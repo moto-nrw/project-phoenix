@@ -255,12 +255,18 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
+		if profile.AccountID != nil && *profile.AccountID > 0 {
+			if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
+				seenAccountIDs[*profile.AccountID] = struct{}{}
+				guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
+			}
+		}
 		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
-			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
+			notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
 				return queued, guardianAccountIDs, fmt.Errorf("calendar: filter reminder preferences: %w", err)
 			}
-			if len(optedIn) == 0 {
+			if len(notOptedOut) == 0 {
 				continue
 			}
 		}
@@ -292,12 +298,6 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		if row.ID != 0 {
 			queued++
-			if profile.AccountID != nil && *profile.AccountID > 0 {
-				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
-					seenAccountIDs[*profile.AccountID] = struct{}{}
-					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
-				}
-			}
 		}
 	}
 
