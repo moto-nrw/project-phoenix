@@ -8,7 +8,6 @@ import {
   formatDateForBackend,
   formatTeacherName,
   getTeacherStatus,
-  getSubstitutionCounts,
   type BackendSubstitution,
   type BackendStaffWithSubstitutionStatus,
   type TeacherAvailability,
@@ -666,112 +665,6 @@ describe("substitution-helpers", () => {
       };
 
       expect(getTeacherStatus(teacher)).toBe("3 Zuweisungen aktiv");
-    });
-  });
-
-  describe("getSubstitutionCounts", () => {
-    it("should count transfers and substitutions correctly", () => {
-      const teacher = {
-        id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        inSubstitution: true,
-        substitutionCount: 4,
-        substitutions: [
-          {
-            id: "1",
-            groupId: "100",
-            groupName: "Group A",
-            isTransfer: true,
-            startDate: new Date("2024-01-15"),
-            endDate: new Date("2024-01-15"),
-          },
-          {
-            id: "2",
-            groupId: "200",
-            groupName: "Group B",
-            isTransfer: false,
-            startDate: new Date("2024-01-15"),
-            endDate: new Date("2024-01-20"),
-          },
-          {
-            id: "3",
-            groupId: "300",
-            groupName: "Group C",
-            isTransfer: true,
-            startDate: new Date("2024-01-16"),
-            endDate: new Date("2024-01-16"),
-          },
-          {
-            id: "4",
-            groupId: "400",
-            groupName: "Group D",
-            isTransfer: false,
-            startDate: new Date("2024-01-17"),
-            endDate: new Date("2024-01-19"),
-          },
-        ],
-      };
-
-      const result = getSubstitutionCounts(teacher);
-
-      expect(result).toEqual({
-        transfers: 2,
-        substitutions: 2,
-      });
-    });
-
-    it("should handle all transfers", () => {
-      const teacher = {
-        id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        inSubstitution: true,
-        substitutionCount: 2,
-        substitutions: [
-          {
-            id: "1",
-            groupId: "100",
-            groupName: "Group A",
-            isTransfer: true,
-            startDate: new Date("2024-01-15"),
-            endDate: new Date("2024-01-15"),
-          },
-          {
-            id: "2",
-            groupId: "200",
-            groupName: "Group B",
-            isTransfer: true,
-            startDate: new Date("2024-01-16"),
-            endDate: new Date("2024-01-16"),
-          },
-        ],
-      };
-
-      const result = getSubstitutionCounts(teacher);
-
-      expect(result).toEqual({
-        transfers: 2,
-        substitutions: 0,
-      });
-    });
-
-    it("should handle no substitutions", () => {
-      const teacher = {
-        id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        inSubstitution: false,
-        substitutionCount: 0,
-        substitutions: [],
-      };
-
-      const result = getSubstitutionCounts(teacher);
-
-      expect(result).toEqual({
-        transfers: 0,
-        substitutions: 0,
-      });
     });
   });
 });
