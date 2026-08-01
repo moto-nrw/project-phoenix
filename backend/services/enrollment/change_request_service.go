@@ -819,7 +819,7 @@ func (s *changeRequestService) prepareProposed(
 	var offeringCatalogs []map[int64]*enrollmentModels.CareOffering
 	if capabilities.CareOfferingsEnabled {
 		var catalogErr error
-		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(ctx, children, openByID)
+		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(ctx, children, openByID, phase.ServiceStartDate)
 		if catalogErr != nil {
 			return editReq, nil, nil, nil, catalogErr
 		}
@@ -949,6 +949,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 	ctx context.Context,
 	children []*enrollmentModels.RequestChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
+	onDate timezone.Date,
 ) ([]map[int64]*enrollmentModels.CareOffering, map[int64]*enrollmentModels.CareOffering, error) {
 	childIDs := make([]int64, 0, len(children))
 	childIndexByID := make(map[int64]int, len(children))
@@ -960,7 +961,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		childIndexByID[child.ID] = i
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, onDate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -1122,7 +1123,14 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, timezone.TodayDate())
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("change request: load phase for current snapshot: %w", err)
+	}
+	if phase == nil {
+		return nil, ErrEnrollmentDisabled
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, phase.ServiceStartDate)
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
