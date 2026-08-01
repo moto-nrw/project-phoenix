@@ -1935,10 +1935,10 @@ interface DetailModalProps {
 }
 
 /**
- * Poll evaluation: one bar per option over the reached children, plus the
- * per-child list so staff can chase the open answers by name, plus the manual
- * reminder. Counts are children, not parents — that is the number the school
- * plans with.
+ * Poll evaluation: one bar per option over the children with an eligible
+ * respondent, plus the full per-child list so staff can distinguish open
+ * answers from children who currently cannot answer. Counts are children, not
+ * parents — that is the number the school plans with.
  */
 function PollResultsPanel({
   announcement,
@@ -2006,7 +2006,8 @@ function PollResultsPanel({
   };
 
   const visibleChildren = (children ?? []).filter(
-    (child) => !onlyOpen || child.answer_labels.length === 0,
+    (child) =>
+      !onlyOpen || (child.can_answer && child.answer_labels.length === 0),
   );
 
   return (
@@ -2028,6 +2029,15 @@ function PollResultsPanel({
             {results.answered_count} von {results.child_count}{" "}
             {results.child_count === 1 ? "Kind" : "Kindern"} beantwortet
           </p>
+          {results.target_child_count > results.child_count && (
+            <p className="mt-1 text-xs text-gray-500">
+              {results.target_child_count - results.child_count}{" "}
+              {results.target_child_count - results.child_count === 1
+                ? "weiteres Zielkind hat"
+                : "weitere Zielkinder haben"}{" "}
+              derzeit keine antwortberechtigte Person.
+            </p>
+          )}
 
           <ul className="mt-3 space-y-2">
             {results.options.map((option) => {
@@ -2093,9 +2103,13 @@ function PollResultsPanel({
                       <span className="shrink-0 text-xs font-medium text-[#4d7719]">
                         {child.answer_labels.join(", ")}
                       </span>
-                    ) : (
+                    ) : child.can_answer ? (
                       <span className="shrink-0 text-xs text-gray-500">
                         Offen
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-xs text-gray-500">
+                        Nicht beantwortbar
                       </span>
                     )}
                   </li>

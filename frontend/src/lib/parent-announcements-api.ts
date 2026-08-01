@@ -68,6 +68,7 @@ interface PollOptionResult {
 
 export interface PollResults {
   child_count: number;
+  target_child_count: number;
   answered_count: number;
   options: PollOptionResult[];
 }
@@ -80,6 +81,7 @@ export interface PollChild {
   school_class: string;
   answer_labels: string[];
   responded_at?: string;
+  can_answer: boolean;
 }
 
 export interface AnnouncementStats {
@@ -250,7 +252,14 @@ export async function fetchPollResults(id: string): Promise<PollResults> {
     undefined,
     "Umfrageergebnis konnte nicht geladen werden",
   );
-  return data ?? { child_count: 0, answered_count: 0, options: [] };
+  return (
+    data ?? {
+      child_count: 0,
+      target_child_count: 0,
+      answered_count: 0,
+      options: [],
+    }
+  );
 }
 
 export async function fetchPollChildren(id: string): Promise<PollChild[]> {

@@ -119,6 +119,39 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	assert.Empty(t, pending, "an answered child must not be reminded")
 }
 
+// A portal-visible child without a guardian who may answer remains visible to
+// staff, but cannot make completion or reminders look permanently outstanding.
+func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
+	_, db, repos := buildAnnouncementService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	_, err := db.NewUpdate().
+		TableExpr("users.students_guardians").
+		Set("permissions = ?", `{"parent_portal.access": true}`).
+		Where("student_id = ?", chain.StudentID).
+		Where("guardian_profile_id = ?", chain.GuardianProfileID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	results, err := repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, results.TargetChildCount)
+	assert.Zero(t, results.ChildCount)
+	assert.Zero(t, results.AnsweredCount)
+
+	children, err := repos.ParentAnnouncement.PollChildren(seedCtx, chain.TenantID, poll.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.False(t, children[0].CanAnswer)
+
+	pending, err := repos.ParentAnnouncement.UnansweredReminderRecipients(seedCtx, chain.TenantID, poll.ID)
+	require.NoError(t, err)
+	assert.Empty(t, pending)
+}
+
 // Re-answering replaces the previous selection rather than adding a second vote:
 // a single-choice poll must never count one child twice.
 func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {

@@ -204,14 +204,16 @@ type AnnouncementPollOptionResult struct {
 	Count    int    `bun:"count" json:"count"`
 }
 
-// AnnouncementPollResults is the staff-facing evaluation of a poll: how many
-// children the poll currently reaches, how many of them have an answer, and the
-// per-option tally. Reach is resolved live against current relationships, so the
-// numbers reflect "right now" rather than a publish-time snapshot.
+// AnnouncementPollResults is the staff-facing evaluation of a poll. ChildCount
+// is the number of currently reached children with at least one guardian who
+// may respond; TargetChildCount is the full portal-visible target audience.
+// Reach is resolved live against current relationships, so the numbers reflect
+// "right now" rather than a publish-time snapshot.
 type AnnouncementPollResults struct {
-	ChildCount    int                             `json:"child_count"`
-	AnsweredCount int                             `json:"answered_count"`
-	Options       []*AnnouncementPollOptionResult `json:"options"`
+	ChildCount       int                             `json:"child_count"`
+	TargetChildCount int                             `json:"target_child_count"`
+	AnsweredCount    int                             `json:"answered_count"`
+	Options          []*AnnouncementPollOptionResult `json:"options"`
 }
 
 // AnnouncementPollChildStatus is one reached child in the staff-facing answer
@@ -223,6 +225,7 @@ type AnnouncementPollChildStatus struct {
 	SchoolClass   string     `bun:"school_class" json:"school_class"`
 	AnswerLabels  []string   `bun:"answer_labels,array" json:"answer_labels"`
 	RespondedAt   *time.Time `bun:"responded_at" json:"responded_at,omitempty"`
+	CanAnswer     bool       `bun:"can_answer" json:"can_answer"`
 	GuardianCount int        `bun:"guardian_count" json:"-"`
 }
 

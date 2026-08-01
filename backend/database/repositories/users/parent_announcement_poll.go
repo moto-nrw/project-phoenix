@@ -41,6 +41,20 @@ func pollAudienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
 	return audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, "")
 }
 
+// pollAnswerableStudentsSQL is the subset of the normal portal-visible
+// audience for which at least one guardian currently has poll.response. It is
+// the completion denominator and reminder source; the broader audience remains
+// available to staff so inaccessible targets are visible rather than appearing
+// as permanently unanswered.
+func pollAnswerableStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
+	return audienceStudentsSQLForPermission(
+		annExpr,
+		tenantExpr,
+		accountFilter,
+		`sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`,
+	)
+}
+
 // audienceStudentsSQLForPermission is the permission-specific variant used by
 // actions that need stronger authority than merely seeing a child in the
 // portal. permissionPredicate is a trusted SQL predicate over sg.
@@ -389,30 +403,35 @@ func parentAnnouncementResponseLockKey(announcementID, studentID int64) string {
 	return fmt.Sprintf("parent-announcement-response:%d:%d", announcementID, studentID)
 }
 
-// PollResults returns the per-option tally plus how many children the poll
-// reaches and how many of them have answered. Answers are intersected with the
-// CURRENT audience, so a child who left the school stops counting — the staff
-// "X von Y" can never show more answers than reached children.
+// PollResults returns the per-option tally plus how many answerable children
+// the poll reaches and how many of them have answered. TargetChildCount retains
+// the full portal-visible audience so staff can distinguish unavailable
+// respondents from missing answers. Answers are intersected with the CURRENT
+// answerable audience, so a child who left the school or lost response
+// permission stops counting toward completion.
 func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID, announcementID int64) (*users.AnnouncementPollResults, error) {
-	audience := pollAudienceStudentsSQL("?", "?", "")
+	targetAudience := pollAudienceStudentsSQL("?", "?", "")
+	answerableAudience := pollAnswerableStudentsSQL("?", "?", "")
 	args := audienceStudentArgs(announcementID, tenantID, nil)
 
 	results := &users.AnnouncementPollResults{}
-	countSQL := `WITH audience AS (` + audience + `)
+	countSQL := `WITH target_audience AS (` + targetAudience + `),
+		answerable_audience AS (` + answerableAudience + `)
 		SELECT
-			(SELECT COUNT(*) FROM audience) AS child_count,
+			(SELECT COUNT(*) FROM target_audience) AS target_child_count,
+			(SELECT COUNT(*) FROM answerable_audience) AS child_count,
 			(SELECT COUNT(DISTINCT resp.student_id)
 				FROM users.parent_announcement_responses resp
 				WHERE resp.announcement_id = ? AND resp.tenant_id = ?
-					AND resp.student_id IN (SELECT student_id FROM audience)) AS answered_count`
-	countArgs := append(append([]any{}, args...), announcementID, tenantID)
+					AND resp.student_id IN (SELECT student_id FROM answerable_audience)) AS answered_count`
+	countArgs := append(append(append([]any{}, args...), args...), announcementID, tenantID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(countSQL, countArgs...).
-		Scan(ctx, &results.ChildCount, &results.AnsweredCount); err != nil {
+		Scan(ctx, &results.TargetChildCount, &results.ChildCount, &results.AnsweredCount); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "parent announcement poll counts", Err: err}
 	}
 
 	var options []*users.AnnouncementPollOptionResult
-	optionSQL := `WITH audience AS (` + audience + `)
+	optionSQL := `WITH audience AS (` + answerableAudience + `)
 		SELECT o.id AS option_id, o.label, o.position,
 			COUNT(DISTINCT resp.student_id) AS count
 		FROM users.parent_announcement_options o
@@ -430,20 +449,22 @@ func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID
 	return results, nil
 }
 
-// PollChildren returns every child the poll reaches with the option labels
-// answered for them (empty array = still open) and when the answer was given.
-// This is the per-child list behind PollResults, so staff can chase the missing
-// answers by name.
+// PollChildren returns every portal-visible child the poll reaches with the
+// option labels answered for them and whether someone may currently answer.
+// This lets staff see inaccessible targets without treating them as overdue.
 func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementPollChildStatus, error) {
 	audience := pollAudienceStudentsSQL("?", "?", "")
+	answerableAudience := pollAnswerableStudentsSQL("?", "?", "")
 	args := audienceStudentArgs(announcementID, tenantID, nil)
-	sqlStr := `WITH audience AS (` + audience + `)
+	sqlStr := `WITH audience AS (` + audience + `),
+		answerable_audience AS (` + answerableAudience + `)
 		SELECT s.id AS student_id,
 			COALESCE(p.first_name, '') AS first_name,
 			COALESCE(p.last_name, '') AS last_name,
 			COALESCE(s.school_class, '') AS school_class,
 			COALESCE(ans.labels, ARRAY[]::text[]) AS answer_labels,
-			ans.responded_at AS responded_at
+			ans.responded_at AS responded_at,
+			EXISTS (SELECT 1 FROM answerable_audience aa WHERE aa.student_id = s.id) AS can_answer
 		FROM audience
 		JOIN users.students s ON s.id = audience.student_id
 		JOIN users.persons p ON p.id = s.person_id
@@ -455,7 +476,7 @@ func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantI
 			WHERE resp.announcement_id = ? AND resp.tenant_id = ? AND resp.student_id = s.id
 		) ans ON TRUE
 		ORDER BY last_name ASC, first_name ASC, student_id ASC`
-	sqlArgs := append(append([]any{}, args...), announcementID, tenantID)
+	sqlArgs := append(append(append([]any{}, args...), args...), announcementID, tenantID)
 	var rows []*users.AnnouncementPollChildStatus
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "parent announcement poll children", Err: err}
