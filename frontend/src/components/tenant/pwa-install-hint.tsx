@@ -166,13 +166,20 @@ export function PwaInstallHint() {
       : EllipsisVertical;
 
   return (
+    // Deliberately NOT `moto-content-surface`: that utility is unlayered and
+    // hardcodes a white background plus a gray-200 border, which Tailwind
+    // utilities cannot override and which made this card blend into the page.
+    // A brand-green tint (GROUP_ROOM_SHADES.bgHover) and a 2px brand border
+    // separate the promotion from the neutral content cards around it.
     <section
       aria-labelledby="pwa-install-hint-title"
-      className="moto-content-surface fixed bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border p-4 shadow-lg lg:bottom-8"
+      className="fixed bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border-2 border-[#83CD2D] bg-[#f0f9e4] p-4 shadow-lg lg:bottom-8"
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10">
-          <PlatformIcon className="h-4 w-4 text-[#669f21]" aria-hidden="true" />
+        {/* White bubble, because the previous #83CD2D/10 tint is invisible on
+            the green card background. */}
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white">
+          <PlatformIcon className="h-4 w-4 text-[#4a7a15]" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1 text-sm text-gray-700">
           <h2

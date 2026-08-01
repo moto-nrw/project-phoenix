@@ -198,7 +198,12 @@ describe("PwaInstallHint", () => {
     expect(screen.getByText("Zum Home-Bildschirm")).toBeInTheDocument();
 
     const card = container.firstElementChild;
-    expect(card).toHaveClass("moto-content-surface", "fixed", "rounded-2xl");
+    expect(card).toHaveClass("fixed", "rounded-2xl");
+    // Brand-tinted surface with a 2px brand border so the promotion is
+    // distinguishable from the neutral gray content cards. `moto-content-surface`
+    // is deliberately absent: it is unlayered and would force white + gray-200.
+    expect(card).toHaveClass("border-2", "border-[#83CD2D]", "bg-[#f0f9e4]");
+    expect(card?.className).not.toMatch(/moto-content-surface/);
     // Centered at every width, not an edge-to-edge banner that snaps to the
     // right at sm.
     expect(card).toHaveClass("left-1/2", "-translate-x-1/2", "max-w-md");
@@ -337,6 +342,32 @@ describe("PwaInstallHint", () => {
 
   it("does not render on desktop devices", () => {
     stubNavigator({ userAgent: DESKTOP_UA });
+    stubMatchMedia(false);
+    render(<PwaInstallHint />);
+    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+  });
+
+  it("does not render in desktop Safari on macOS", () => {
+    // Closest thing to a false positive: iPadOS Safari sends this exact UA.
+    // Only maxTouchPoints tells the two apart, so a Mac must stay excluded
+    // even though the wide iPad layout looks the same.
+    stubNavigator({
+      userAgent: IPAD_SAFARI_DESKTOP_UA,
+      platform: "MacIntel",
+      maxTouchPoints: 0,
+    });
+    stubMatchMedia(false);
+    render(<PwaInstallHint />);
+    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+  });
+
+  it("does not render on a touchscreen Windows laptop", () => {
+    stubNavigator({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+      platform: "Win32",
+      maxTouchPoints: 10,
+    });
     stubMatchMedia(false);
     render(<PwaInstallHint />);
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
