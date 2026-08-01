@@ -138,14 +138,19 @@ func TestWrapStyledKeepsRanksAndOpensOneAccentGroup(t *testing.T) {
 }
 
 // The bar colour comes straight from the colour columns of the database, which
-// store "#RRGGBB". Anything else is ignored rather than guessed at — a broken
-// value costs the bar, never the row.
+// store "#RRGGBB" or the "#RGB" shorthand. Anything else is ignored rather than
+// guessed at — a broken value costs the bar, never the row.
 func TestParseHexColor(t *testing.T) {
 	if got, ok := parseHexColor(" #83CD2D "); !ok || got != (rgb{0x83, 0xCD, 0x2D}) {
 		t.Fatalf("parseHexColor = %v, %v", got, ok)
 	}
 	if got, ok := parseHexColor("83CD2D"); !ok || got != (rgb{0x83, 0xCD, 0x2D}) {
 		t.Fatalf("a hash-less value must still parse, got %v, %v", got, ok)
+	}
+	// The colour columns validate against ^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$,
+	// so the shorthand reaches the renderer and must keep its bar.
+	if got, ok := parseHexColor("#abc"); !ok || got != (rgb{0xAA, 0xBB, 0xCC}) {
+		t.Fatalf("the #RGB shorthand must expand, got %v, %v", got, ok)
 	}
 	for _, bad := range []string{"", "#83CD2", "#83CD2DFF", "#GGCD2D", "rot"} {
 		if _, ok := parseHexColor(bad); ok {

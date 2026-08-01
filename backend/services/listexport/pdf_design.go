@@ -1180,10 +1180,21 @@ func (r *designRenderer) drawAccentBars(x, top float64, lines []styledLine) {
 	flush(len(lines))
 }
 
-// parseHexColor reads "#RRGGBB" — the shape every colour column in this
-// codebase stores. Anything else is ignored rather than guessed at.
+// parseHexColor reads "#RRGGBB" and the shorthand "#RGB" — both shapes the
+// colour columns accept (activities.Category, schedule.ShiftType,
+// facilities.Room all validate against the same pattern). Anything else is
+// ignored rather than guessed at.
 func parseHexColor(value string) (rgb, bool) {
 	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
+	if len(value) == 3 {
+		// "#abc" means "#aabbcc": each digit stands for both nibbles.
+		var expanded strings.Builder
+		for _, digit := range value {
+			expanded.WriteRune(digit)
+			expanded.WriteRune(digit)
+		}
+		value = expanded.String()
+	}
 	if len(value) != 6 {
 		return rgb{}, false
 	}
