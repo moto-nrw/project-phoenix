@@ -21,6 +21,9 @@ type Service interface {
 	ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error)
 	CountGroups(ctx context.Context, options *base.QueryOptions) (int, error)
 	FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error)
+	// GetGroupsWithRoomsByIDs bulk-loads groups with their room relation in
+	// one query — use instead of per-group FindGroupWithRoom loops.
+	GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error)
 
 	// Group-Teacher operations
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error

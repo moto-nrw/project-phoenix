@@ -284,17 +284,28 @@ func selectGroup(groups []*educationModels.Group, requestedGroupID int64) *educa
 }
 
 func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group, substituted map[int64]bool) ([]Group, error) {
+	// One bulk query resolves every room name; a per-group FindGroupWithRoom
+	// loop would run on every aggregate refresh including SSE revalidations.
+	roomGroupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		if group.RoomID != nil {
+			roomGroupIDs = append(roomGroupIDs, group.ID)
+		}
+	}
+	withRooms := map[int64]*educationModels.Group{}
+	if len(roomGroupIDs) > 0 {
+		loaded, err := s.deps.Education.GetGroupsWithRoomsByIDs(ctx, roomGroupIDs)
+		if err != nil {
+			return nil, fmt.Errorf("load group rooms: %w", err)
+		}
+		withRooms = loaded
+	}
+
 	result := make([]Group, 0, len(groups))
 	for _, group := range groups {
 		item := Group{ID: group.ID, Name: group.Name, RoomID: group.RoomID, ViaSubstitution: substituted[group.ID]}
-		if group.RoomID != nil {
-			withRoom, err := s.deps.Education.FindGroupWithRoom(ctx, group.ID)
-			if err != nil {
-				return nil, fmt.Errorf("load group room: %w", err)
-			}
-			if withRoom.Room != nil {
-				item.RoomName = withRoom.Room.Name
-			}
+		if withRoom := withRooms[group.ID]; withRoom != nil && withRoom.Room != nil {
+			item.RoomName = withRoom.Room.Name
 		}
 		result = append(result, item)
 	}

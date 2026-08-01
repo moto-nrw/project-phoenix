@@ -268,6 +268,15 @@ func (s *service) FindGroupWithRoom(ctx context.Context, groupID int64) (*educat
 	return group, nil
 }
 
+// GetGroupsWithRoomsByIDs bulk-loads groups with their room relation preloaded.
+func (s *service) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
+	groups, err := s.groupRepo.FindByIDsWithRooms(ctx, ids)
+	if err != nil {
+		return nil, &EducationError{Op: "GetGroupsWithRoomsByIDs", Err: err}
+	}
+	return groups, nil
+}
+
 // Group-Teacher operations
 
 // RemoveTeacherFromGroup removes a teacher from a group

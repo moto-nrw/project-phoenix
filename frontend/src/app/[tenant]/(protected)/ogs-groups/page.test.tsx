@@ -3548,7 +3548,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
     cleanup();
   });
 
-  it("seeds the resolved group key from the cold-start projection", async () => {
+  it("seeds the resolved group key from the cold-start projection and revalidates it in the background", async () => {
     const initialProjection = liveData();
     vi.mocked(useSWRAuth).mockReturnValue({
       data: initialProjection,
@@ -3562,10 +3562,13 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
 
     expect(vi.mocked(useSWRAuth).mock.calls[0]?.[0]).toBe("ogs-students-auto");
     await waitFor(() => {
+      // revalidate: true closes the cold-start staleness window: the "auto"
+      // key sits outside the scoped SSE invalidation, so an event arriving
+      // while the initial request was in flight must not pin a stale seed.
       expect(mockTenantMutate).toHaveBeenCalledWith(
         "ogs-students-1",
         initialProjection,
-        { revalidate: false },
+        { revalidate: true },
       );
     });
   });

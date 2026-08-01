@@ -362,11 +362,16 @@ function OGSGroupPageContent() {
       !!selectedGroupId && ogsGroups.some((g) => g.id === selectedGroupId);
     if (!selectedGroupExists) {
       // The cold-start `auto` response already is the complete projection for
-      // dataGroupId. Seed that group-specific key before changing state so SWR
-      // reuses the response instead of issuing the identical request again.
+      // dataGroupId. Seed that group-specific key before changing state so the
+      // page paints from it immediately instead of blocking on the identical
+      // request again. The seed still revalidates in the background: the
+      // `auto` key is outside the scoped SSE invalidation (#2057 targets
+      // numeric group ids), so an event arriving while the cold-start request
+      // was in flight would otherwise leave a stale seed pinned until the
+      // next event or the five-minute poll.
       if (dataGroupId) {
         void tenantMutate(`ogs-students-${dataGroupId}`, liveData, {
-          revalidate: false,
+          revalidate: true,
         });
       }
       setSelectedGroupId(dataGroupId);
