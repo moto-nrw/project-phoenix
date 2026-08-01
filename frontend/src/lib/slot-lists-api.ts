@@ -2,6 +2,12 @@
 // timetable slots or Ganztag pickup cohorts with three data modes
 // (Plan / Ist / Abgleich) and PDF/XLSX export.
 
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
+
 export type SlotListTarget = "slots" | "pickup_cohort";
 
 export type SlotListPickupCohort = "short_day" | "long_day";
@@ -270,20 +276,15 @@ export async function exportSlotList(
       throw new SlotListExportSupersededError();
     }
 
-    const url = URL.createObjectURL(blob);
     if (printTarget) {
-      openForPrint(printTarget, url);
+      openBlobForPrint(blob, printTarget);
       return;
     }
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download =
-      filenameFromDisposition(response) ?? fallbackFilename(request, format);
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(
+      blob,
+      filenameFromDisposition(response) ?? fallbackFilename(request, format),
+    );
   } catch (error) {
     printTarget?.close();
     throw error;
@@ -309,23 +310,6 @@ function fallbackFilename(
         ? request.list_kind
         : "angebote";
   return `tagesliste-${source}-${target}-${request.date}.${format}`;
-}
-
-function openForPrint(target: Window, url: string) {
-  target.location.href = url;
-  // The PDF viewer document fires no reliable load event cross-browser, so
-  // printing keeps the pragmatic delay the other print exports use.
-  globalThis.setTimeout(() => {
-    target.focus();
-    target.print();
-    URL.revokeObjectURL(url);
-  }, 250);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
