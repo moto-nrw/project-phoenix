@@ -1710,21 +1710,6 @@ func offeringDiffEntry(
 	}, changed
 }
 
-func (s *offeringChangeRequestService) studentName(ctx context.Context, studentID int64) string {
-	if s.StudentRepo == nil || s.PersonRepo == nil {
-		return ""
-	}
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
-		return ""
-	}
-	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
-	if err != nil || person == nil {
-		return ""
-	}
-	return strings.TrimSpace(person.GetFullName())
-}
-
 func (s *offeringChangeRequestService) emitDecisionPill(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
