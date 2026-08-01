@@ -301,6 +301,7 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 	if affected == 0 {
 		return calModels.ErrAppointmentLifecycleConflict
 	}
+	appointment.Revision++
 	return nil
 }
 
