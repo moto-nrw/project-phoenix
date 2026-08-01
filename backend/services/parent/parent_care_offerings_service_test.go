@@ -685,6 +685,21 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	assert.Equal(t, [3]int64{77, 11, 22}, changes.withdrawn)
 }
 
+func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *testing.T) {
+	db := careOfferingsTestDB(t)
+	child := permittedCareOfferingsChild()
+	child.GuardianPermissions = map[string]interface{}{
+		authorize.GuardianPermissionPortalAccess: true,
+	}
+	changes := &offeringChangesStub{}
+	svc := careOfferingsService(db, child, changes)
+	svc.RequestChildRepo = carePeriodRepoStub{}
+
+	_, err := svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 77)
+	require.NoError(t, err)
+	assert.Equal(t, [3]int64{77, 11, 22}, changes.withdrawn)
+}
+
 func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateErrors(t *testing.T) {
 	delegateErr := errors.New("delegate failed")
 	tests := []struct {

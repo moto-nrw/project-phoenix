@@ -305,7 +305,7 @@ func (s *service) WithdrawOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
 ) (*ChildCareOfferings, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
