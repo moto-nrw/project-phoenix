@@ -23,6 +23,7 @@ type fakeAnnouncementRepo struct {
 	announcement *usersModels.ParentAnnouncement
 	recipients   []*usersModels.AnnouncementRecipient
 	audience     []*usersModels.AnnouncementRecipientStatus
+	reminders    []*usersModels.AnnouncementPollReminderRecipient
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
@@ -97,6 +98,10 @@ func (f *fakeAnnouncementRepo) SchoolName(_ context.Context, _ int64) (string, e
 	return "OGS Testschule", nil
 }
 
+func (f *fakeAnnouncementRepo) UnansweredReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return f.reminders, nil
+}
+
 // fakeSettings answers the parent-news feature flag; everything else panics.
 type fakeSettings struct {
 	configService.SettingsService
@@ -114,8 +119,8 @@ func (f *fakeSettings) GetLoginImageURL(_ context.Context, _ int64) (string, err
 
 // fakeOutbox captures enqueued e-mails.
 type fakeOutbox struct {
-	requests    []platformService.EnqueueRequest
-	cancelCalls int
+	requests           []platformService.EnqueueRequest
+	cancelRelatedTypes []string
 }
 
 type fakeNotifier struct {
@@ -133,8 +138,8 @@ func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueReque
 	return &platformModels.EmailOutbox{}, nil
 }
 
-func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
-	f.cancelCalls++
+func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
+	f.cancelRelatedTypes = append(f.cancelRelatedTypes, relatedType)
 	return 0, nil
 }
 
@@ -224,8 +229,8 @@ func TestUnpublish_CancelsPendingEmails(t *testing.T) {
 	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
 	}
-	if outbox.cancelCalls != 1 {
-		t.Fatalf("expected unpublish to cancel pending e-mails once, got %d", outbox.cancelCalls)
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+		t.Fatalf("unpublish cancelled related types %v, want %v", got, want)
 	}
 }
 
@@ -240,11 +245,44 @@ func TestDelete_CancelsPendingEmails(t *testing.T) {
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if outbox.cancelCalls != 1 {
-		t.Fatalf("expected delete to cancel pending e-mails once, got %d", outbox.cancelCalls)
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+		t.Fatalf("delete cancelled related types %v, want %v", got, want)
 	}
 	if repo.deleteCalls != 1 {
 		t.Fatalf("expected exactly one repo delete, got %d", repo.deleteCalls)
+	}
+}
+
+func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
+	poll := draftAnnouncement(false)
+	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	now := time.Now()
+	poll.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{
+		announcement: poll,
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 101, Email: ""},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     &fakeOutbox{},
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	delivered, err := svc.RemindUnanswered(context.Background(), poll.ID)
+	if err != nil {
+		t.Fatalf("remind unanswered: %v", err)
+	}
+	if delivered != 1 {
+		t.Fatalf("expected one push recipient, got %d", delivered)
+	}
+	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
+		t.Fatalf("unexpected push recipients: %+v", notifier.events)
 	}
 }
 

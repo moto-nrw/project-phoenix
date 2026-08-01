@@ -9,6 +9,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the parent-announcement
@@ -322,7 +323,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 		)`
 	var live bool
 	if err := db.NewRaw(guard+`, requested AS (
-		SELECT option_id FROM unnest(ARRAY[?]::bigint[]) AS selection(option_id)
+		SELECT option_id FROM unnest(?::bigint[]) AS selection(option_id)
 	), selection_valid AS (
 		SELECT EXISTS (SELECT 1 FROM guard)
 			AND (SELECT count(*) FROM requested) = (SELECT count(DISTINCT option_id) FROM requested)
@@ -340,7 +341,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 	)
 	SELECT selection_valid FROM selection_valid`,
 		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
-		bun.List(optionIDs), announcementID, tenantID,
+		pgdialect.Array(optionIDs), announcementID, tenantID,
 		announcementID, studentID, tenantID,
 	).Scan(ctx, &live); err != nil {
 		return false, &modelBase.DatabaseError{Op: "replace parent announcement response", Err: err}
@@ -352,7 +353,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 	// insert: if the deadline closes or access is revoked after the delete, this
 	// transaction returns false and the caller rolls the delete back.
 	if err := db.NewRaw(guard+`, requested AS (
-		SELECT option_id FROM unnest(ARRAY[?]::bigint[]) AS selection(option_id)
+		SELECT option_id FROM unnest(?::bigint[]) AS selection(option_id)
 	), selection_valid AS (
 		SELECT EXISTS (SELECT 1 FROM guard)
 			AND (SELECT count(*) FROM requested) = (SELECT count(DISTINCT option_id) FROM requested)
@@ -374,7 +375,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 	)
 	SELECT selection_valid FROM selection_valid`,
 		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
-		bun.List(optionIDs), announcementID, tenantID,
+		pgdialect.Array(optionIDs), announcementID, tenantID,
 		tenantID, announcementID, studentID, accountID, time.Now(), announcementID, tenantID, bun.List(optionIDs),
 	).Scan(ctx, &live); err != nil {
 		return false, &modelBase.DatabaseError{Op: "insert parent announcement response", Err: err}
@@ -462,7 +463,7 @@ func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantI
 // per child.
 func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementPollReminderRecipient, error) {
 	sqlStr := fmt.Sprintf(`
-		SELECT DISTINCT gp.account_id, lower(gp.email) AS email,
+		SELECT DISTINCT gp.account_id, COALESCE(lower(gp.email), '') AS email,
 			COALESCE(gp.first_name, '') AS first_name,
 			COALESCE(gp.last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
@@ -479,7 +480,6 @@ func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.
 			AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 			AND gp.account_id IS NOT NULL
-			AND gp.email IS NOT NULL AND length(btrim(gp.email)) > 0
 		JOIN auth.account_tenants act ON act.account_id = gp.account_id
 			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ?

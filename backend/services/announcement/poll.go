@@ -340,9 +340,8 @@ func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.
 				emailPayloadKicker:      pollReminderEmailKicker,
 				emailPayloadIntro:       intro,
 			},
-			// A distinct related type keeps reminders out of the publish-cancel
-			// sweep: cancelling a retracted announcement must not also cancel a
-			// reminder that already went out for a different reason.
+			// Reminders have their own related type so cleanup can cancel pending
+			// reminder mail alongside the announcement's publish mail.
 			RelatedEntityType: relatedEntityTypePollReminder,
 			RelatedEntityID:   a.ID,
 		}); err != nil {

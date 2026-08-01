@@ -367,9 +367,16 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	if deadline != nil && !deadline.After(time.Now()) {
 		return ErrPollClosed
 	}
-	options, err := s.AnnouncementRepo.ListOptions(ctx, announcementID)
-	if err != nil {
-		return fmt.Errorf("parent: load poll options: %w", err)
+	var options []*usersModels.ParentAnnouncementOption
+	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		var err error
+		options, err = s.AnnouncementRepo.ListOptions(adminCtx, announcementID)
+		if err != nil {
+			return fmt.Errorf("parent: load poll options: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	if !validPollSelection(responseType, options, optionIDs) {
 		return ErrInvalidPollResponse
