@@ -62,6 +62,7 @@ type AppointmentRecipientRepository interface {
 	// and guardian. It returns false when a prior scheduler scan already claimed
 	// the same delivery.
 	ClaimReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error)
+	HasReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error)
 }
 
 type AppointmentRecipientStudentRepository interface {

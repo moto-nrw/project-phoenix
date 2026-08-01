@@ -245,6 +245,7 @@ func (s *service) enqueueAppointmentReminder(
 	queued := 0
 	guardianAccountIDs := make([]int64, 0, len(guardianIDs))
 	seenAccountIDs := make(map[int64]struct{}, len(guardianIDs))
+	pushOnlyProfilesByAccount := make(map[int64][]int64, len(guardianIDs))
 	seen := make(map[int64]struct{}, len(guardianIDs))
 	for _, id := range guardianIDs {
 		if _, done := seen[id]; done {
@@ -266,20 +267,11 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		if profile.Email == nil || *profile.Email == "" {
 			// Push delivery is addressed to the portal account, not the e-mail
-			// address. Claim the durable per-occurrence delivery record before
-			// dispatching so the scheduler's overlapping scans cannot repeat it.
+			// address. Track the profile IDs until dispatch succeeds; writing a
+			// durable claim first would turn a transient notifier failure into a
+			// permanent missed reminder.
 			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Notifier != nil && s.cfg.Preferences != nil {
-				claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, occurrence, id)
-				if err != nil {
-					return queued, guardianAccountIDs, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
-				}
-				if !claimed {
-					continue
-				}
-				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
-					seenAccountIDs[*profile.AccountID] = struct{}{}
-					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
-				}
+				pushOnlyProfilesByAccount[*profile.AccountID] = append(pushOnlyProfilesByAccount[*profile.AccountID], id)
 			}
 			continue
 		}
@@ -299,7 +291,7 @@ func (s *service) enqueueAppointmentReminder(
 			},
 			// One reminder per occurrence per guardian, forever. The key also
 			// carries the guardian so two parents of the same child both get one.
-			IdempotencyKey:    appointmentReminderKey(appointment.ID, occurrence, effective, id),
+			IdempotencyKey:    appointmentReminderKey(appointment.ID, occurrence, id),
 			RelatedEntityType: platformModels.EmailRelatedTypeAppointment,
 			RelatedEntityID:   appointment.ID,
 		})
@@ -316,6 +308,42 @@ func (s *service) enqueueAppointmentReminder(
 			}
 		}
 	}
+	for accountID, profileIDs := range pushOnlyProfilesByAccount {
+		undeliveredProfileIDs := profileIDs[:0]
+		for _, profileID := range profileIDs {
+			delivered, err := s.cfg.RecipientRepo.HasReminderPush(ctx, appointment.ID, occurrence, profileID)
+			if err != nil {
+				return queued, guardianAccountIDs, fmt.Errorf("calendar: check reminder push delivery: %w", err)
+			}
+			if !delivered {
+				undeliveredProfileIDs = append(undeliveredProfileIDs, profileID)
+			}
+		}
+		if len(undeliveredProfileIDs) == 0 {
+			continue
+		}
+		dispatched, err := s.dispatchGuardianAccountDevices(ctx, appointment, platformModels.EmailKindAppointmentReminder, []int64{accountID})
+		if err != nil {
+			s.logger().Warn("calendar: appointment reminder push failed",
+				slog.Int64("appointment_id", appointment.ID),
+				slog.Int64("guardian_account_id", accountID),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+		if !dispatched {
+			continue
+		}
+		for _, profileID := range undeliveredProfileIDs {
+			claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, occurrence, profileID)
+			if err != nil {
+				return queued, guardianAccountIDs, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
+			}
+			if claimed {
+				break
+			}
+		}
+	}
 
 	s.logger().Info("appointment reminders queued",
 		slog.Int64("appointment_id", appointment.ID),
@@ -325,13 +353,11 @@ func (s *service) enqueueAppointmentReminder(
 	return queued, guardianAccountIDs, nil
 }
 
-func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, effective *calModels.Appointment, guardianProfileID int64) string {
-	return fmt.Sprintf("%s:%d:%s:%s:%s:%d",
+func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {
+	return fmt.Sprintf("%s:%d:%s:%d",
 		platformModels.EmailKindAppointmentReminder,
 		appointmentID,
 		occurrence.String(),
-		effective.StartDate.String(),
-		timezone.WallClock(effective.StartTime).Format("15:04"),
 		guardianProfileID,
 	)
 }

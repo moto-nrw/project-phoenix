@@ -225,8 +225,27 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 }
 
 func (s *service) notifyGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs []int64) {
+	_, err := s.dispatchGuardianAccountDevices(ctx, appointment, kind, accountIDs)
+	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",
+			slog.Int64("appointment_id", appointment.ID),
+			slog.Int("recipient_count", len(accountIDs)),
+			slog.String("reason", err.Error()),
+		)
+	} else if err != nil {
+		s.logger().Warn("calendar: appointment push failed",
+			slog.Int64("appointment_id", appointment.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// dispatchGuardianAccountDevices dispatches a guardian push and reports whether
+// it was accepted for delivery. Callers that need durable delivery tracking use
+// the result to record a delivery only after this returns true.
+func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs []int64) (bool, error) {
 	if s.cfg.Notifier == nil || len(accountIDs) == 0 {
-		return
+		return false, nil
 	}
 	notificationType := notifications.TypeParentAppointment
 	if kind == platformModels.EmailKindAppointmentReminder {
@@ -238,19 +257,14 @@ func (s *service) notifyGuardianAccountDevices(ctx context.Context, appointment 
 	// factory always wires it, so treat that as "do not push" rather than
 	// pushing to people who never agreed.
 	if s.cfg.Preferences == nil {
-		return
+		return false, nil
 	}
 	accountIDs, err := s.cfg.Preferences.FilterOptedIn(ctx, notificationType, accountIDs)
 	if err != nil {
-		s.logger().Warn("calendar: filter opted-in guardians failed",
-			slog.Int64("appointment_id", appointment.ID),
-			slog.String("notification_type", notificationType),
-			slog.String("error", err.Error()),
-		)
-		return
+		return false, fmt.Errorf("filter opted-in guardians: %w", err)
 	}
 	if len(accountIDs) == 0 {
-		return
+		return false, nil
 	}
 
 	title, body := appointmentNotificationCopy(kind)
@@ -271,19 +285,10 @@ func (s *service) notifyGuardianAccountDevices(ctx context.Context, appointment 
 			GuardianAccountIDs: accountIDs,
 		},
 	})
-	switch {
-	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
-		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",
-			slog.Int64("appointment_id", appointment.ID),
-			slog.Int("recipient_count", len(accountIDs)),
-			slog.String("reason", err.Error()),
-		)
-	case err != nil:
-		s.logger().Warn("calendar: appointment push failed",
-			slog.Int64("appointment_id", appointment.ID),
-			slog.String("error", err.Error()),
-		)
+	if err != nil {
+		return false, err
 	}
+	return true, nil
 }
 
 func (s *service) logger() *slog.Logger {

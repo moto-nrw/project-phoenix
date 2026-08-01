@@ -591,6 +591,24 @@ func (r *AppointmentRecipientRepository) ClaimReminderPush(ctx context.Context, 
 	return id > 0, nil
 }
 
+func (r *AppointmentRecipientRepository) HasReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error) {
+	if appointmentID <= 0 || guardianProfileID <= 0 || occurrenceDate.IsZero() {
+		return false, errors.New("appointment id, occurrence date, and guardian profile id are required")
+	}
+
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`calendar.appointment_reminder_push_deliveries AS "delivery"`).
+		Where(`"delivery".tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint`).
+		Where(`"delivery".appointment_id = ?`, appointmentID).
+		Where(`"delivery".occurrence_date = ?`, occurrenceDate).
+		Where(`"delivery".guardian_profile_id = ?`, guardianProfileID).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check calendar appointment reminder push delivery: %w", err)
+	}
+	return exists, nil
+}
+
 type AppointmentRecipientStudentRepository struct {
 	db *bun.DB
 }

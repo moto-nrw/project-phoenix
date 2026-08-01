@@ -2,6 +2,7 @@ package calendar_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,9 +19,13 @@ import (
 
 type reminderCaptureNotifier struct {
 	events []notifications.Event
+	err    error
 }
 
 func (n *reminderCaptureNotifier) Notify(_ context.Context, event notifications.Event) error {
+	if n.err != nil {
+		return n.err
+	}
 	n.events = append(n.events, event)
 	return nil
 }
@@ -187,6 +192,65 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	require.NoError(t, err)
 	assert.Zero(t, queued)
 	assert.Len(t, notifier.events, 1, "the overlapping scheduler scan must not repeat the push")
+}
+
+func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchFailure(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	notifier := &reminderCaptureNotifier{err: errors.New("temporary notification failure")}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.ParentsURL = "https://parents.test"
+	cfg.Notifier = notifier
+	cfg.Preferences = reminderPreferences{}
+	service := calendarSvc.NewService(cfg)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	ctx := calendarContext(organizerAccount.ID)
+	_, err := db.NewUpdate().
+		TableExpr(`users.guardian_profiles`).
+		Set(`email = NULL`).
+		Where(`id = ?`, parentChain.GuardianProfileID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    appointmentDate,
+		EndDate:      appointmentDate,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	notifier.events = nil
+
+	startsAt := berlinInstant(t, appointmentDate, 18, 0)
+	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued)
+	assert.Empty(t, notifier.events, "a failed dispatch must not be marked delivered")
+
+	notifier.err = nil
+	queued, err = service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued)
+	require.Len(t, notifier.events, 1, "the next scan must retry the unclaimed push")
+	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
 func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *testing.T) {
