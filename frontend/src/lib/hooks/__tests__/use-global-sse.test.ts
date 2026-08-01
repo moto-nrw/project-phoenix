@@ -773,6 +773,9 @@ describe("useGlobalSSE", () => {
         ),
       ).toBe(true);
 
+      // The former ogs-dashboard BFF key is gone (#2056): the aggregated OGS
+      // live view rides the ogs-students-{gid} keys, so no matcher may target
+      // the retired key any more.
       const dashboardCall = mutateCalls.find((call) => {
         const matcher = call[0];
         return (
@@ -780,7 +783,7 @@ describe("useGlobalSSE", () => {
           (matcher as (key: string) => boolean)("ogs-dashboard")
         );
       });
-      expect(dashboardCall).toBeDefined();
+      expect(dashboardCall).toBeUndefined();
     });
 
     it("handles mutate rejection in student_updated detail scope gracefully", async () => {
@@ -958,6 +961,9 @@ describe("useGlobalSSE", () => {
       expect(matcher("tenant:arrival-data-42")).toBe(true);
       expect(matcher("tenant:unrelated-key")).toBe(false);
 
+      // Arrival changes reach the OGS page through the broad ogs-students
+      // trigger; the retired ogs-dashboard key must no longer be targeted
+      // (#2056).
       const dashboardCall = mutateCalls.find((call) => {
         const matcher = call[0];
         return (
@@ -965,7 +971,7 @@ describe("useGlobalSSE", () => {
           (matcher as (key: string) => boolean)("ogs-dashboard")
         );
       });
-      expect(dashboardCall).toBeDefined();
+      expect(dashboardCall).toBeUndefined();
     });
 
     it("handles mutate rejection in arrival_schedule scope gracefully", async () => {
@@ -1534,9 +1540,10 @@ describe("useGlobalSSE", () => {
       expect(keys).toEqual(["tenant:ogs-students-7", "tenant:ogs-students-9"]);
     });
 
-    it("activity lifecycle events refresh ogs-students broadly and ogs-dashboard structurally", () => {
+    it("activity lifecycle events refresh ogs-students broadly", () => {
       // Session lifecycle changes current_location across groups but carries
-      // no educational scope.
+      // no educational scope. The former ogs-dashboard BFF key is retired
+      // (#2056) — the aggregated view lives under ogs-students-{gid}.
       renderHook(() => useGlobalSSE());
 
       fire({ type: "activity_end", active_group_id: "456" });
@@ -1547,11 +1554,7 @@ describe("useGlobalSSE", () => {
         "tenant:ogs-students-8",
         "tenant:ogs-dashboard",
       ]);
-      expect(keys).toEqual([
-        "tenant:ogs-students-7",
-        "tenant:ogs-students-8",
-        "tenant:ogs-dashboard",
-      ]);
+      expect(keys).toEqual(["tenant:ogs-students-7", "tenant:ogs-students-8"]);
     });
 
     it("request-budget guard: one scoped event touches nothing on a tab viewing another group", () => {
