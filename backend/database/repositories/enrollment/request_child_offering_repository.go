@@ -219,10 +219,13 @@ func (r *RequestChildOfferingRepository) ListHistoryByRequestChildID(ctx context
 	return rows, nil
 }
 
-// ListByRequestChildIDAtDate returns the selection active on onDate.
+// ListByRequestChildIDAtDate returns the selection active on onDate. Before a
+// care period starts, it returns the first upcoming selection instead, so a
+// child with a future booking remains visible to parent and review flows.
 func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*enrollment.RequestChildOffering, error) {
 	var rows []*enrollment.RequestChildOffering
-	err := base.GetDB(ctx, r.db).NewSelect().
+	db := base.GetDB(ctx, r.db)
+	err := db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
@@ -232,6 +235,25 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.
 		Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list request child offerings: %w", err)
+	}
+	if len(rows) > 0 {
+		return rows, nil
+	}
+
+	nextValidFrom := db.NewSelect().
+		TableExpr(`enrollment.request_child_offerings AS "next_request_child_offering"`).
+		ColumnExpr(`MIN("next_request_child_offering".valid_from)`).
+		Where(`"next_request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"next_request_child_offering".valid_from > ?`, onDate)
+	err = db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"request_child_offering".valid_from = (?)`, nextValidFrom).
+		OrderExpr(`"request_child_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list upcoming request child offerings: %w", err)
 	}
 	return rows, nil
 }

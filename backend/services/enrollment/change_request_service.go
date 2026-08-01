@@ -1318,7 +1318,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 		selections := materializedSelections[i]
 		if s.approvedChildUsesDecisionSync(existing) {
-			if capabilities.CareOfferingsEnabled {
+			// The proposal's offering capability is frozen when the change
+			// request is created. A later setting change must not silently
+			// discard a valid, already reviewed offering change.
+			if row.CareOfferingsEnabledAtCreation {
 				offeringInput := UpdateChildOfferingsInput{
 					RequestID:      req.ID,
 					ChildID:        existing.ID,
