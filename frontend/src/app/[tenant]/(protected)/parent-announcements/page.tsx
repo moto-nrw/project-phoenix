@@ -630,7 +630,11 @@ function ParentAnnouncementsContent() {
       )}
 
       {reminderNotice && (
-        <div className="mb-4 rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/10 p-4 text-sm text-[#4d7719]">
+        // Opaque tints, not alpha on the brand green: the page background is a
+        // dotted pattern, and a translucent banner lets the dots show through,
+        // which reads as a rendering glitch. The hexes are #83CD2D composited
+        // over white at 10% (fill) and 40% (border).
+        <div className="mb-4 rounded-lg border border-[#CDEBAB] bg-[#F3FAEA] p-4 text-sm text-[#4d7719]">
           {reminderNotice}
         </div>
       )}
@@ -1092,223 +1096,245 @@ function AnnouncementFormModal({
       footer={footer}
       size="xl"
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         <WizardStepper steps={WIZARD_STEPS} current={step} />
 
         {step === 0 ? (
-          <div className="space-y-5">
-            <Input
-              label={isPollForm ? "Frage" : "Titel"}
-              name="announcement-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={
-                isPollForm
-                  ? "z. B. Kommt Ihr Kind zur Murmelparty?"
-                  : "z. B. Sommerfest am Freitag"
-              }
-            />
+          // Two columns from lg up: writing (question + text + link) on the
+          // left, configuration (answers, dates, delivery) on the right. As one
+          // stack the form was a narrow ribbon down the middle of a 900px modal
+          // that scrolled for content which fits side by side. Below lg the
+          // columns stack in the same order.
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-6">
+            <div className="space-y-4">
+              <Input
+                label={isPollForm ? "Frage" : "Titel"}
+                name="announcement-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={
+                  isPollForm
+                    ? "z. B. Kommt Ihr Kind zur Murmelparty?"
+                    : "z. B. Sommerfest am Freitag"
+                }
+              />
 
-            <div>
-              <label
-                htmlFor="announcement-body"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Text
-              </label>
-              <textarea
-                id="announcement-body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={5}
-                maxLength={4000}
-                placeholder="Inhalt der Mitteilung... Links im Text werden für Eltern klickbar."
-                className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+              <div>
+                <label
+                  htmlFor="announcement-body"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Text
+                </label>
+                <textarea
+                  id="announcement-body"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={7}
+                  maxLength={4000}
+                  placeholder="Inhalt der Mitteilung... Links im Text werden für Eltern klickbar."
+                  className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+                />
+              </div>
+
+              <Input
+                label="Link (optional)"
+                name="announcement-link"
+                type="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://..."
               />
             </div>
 
-            <Input
-              label="Link (optional)"
-              name="announcement-link"
-              type="url"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://..."
-            />
-
-            {isPollForm && (
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <span className="block text-sm font-medium text-gray-700">
-                  Antwortmöglichkeiten
-                </span>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Eltern antworten für jedes Kind einzeln.
-                </p>
-
-                <ul className="mt-3 space-y-2">
-                  {options.map((option, index) => (
-                    // Options have no id before saving, so the index is the only
-                    // stable key here; the list is short and edited in place.
-                    // eslint-disable-next-line react/no-array-index-key
-                    <li key={index} className="flex items-center gap-2">
-                      <Input
-                        name={`announcement-option-${index}`}
-                        value={option}
-                        onChange={(e) => setOptionAt(index, e.target.value)}
-                        placeholder={`Antwort ${index + 1}`}
-                        aria-label={`Antwortmöglichkeit ${index + 1}`}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeOptionAt(index)}
-                        disabled={options.length <= 2}
-                        aria-label={`Antwortmöglichkeit ${index + 1} entfernen`}
-                      >
-                        <X className="size-4" aria-hidden />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => setOptions((prev) => [...prev, ""])}
-                  disabled={options.length >= 10}
-                  className="mt-2 gap-1.5"
-                >
-                  <Plus className="size-4" aria-hidden />
-                  Antwort hinzufügen
-                </Button>
-
-                <label
-                  htmlFor="announcement-multi"
-                  className="mt-4 flex cursor-pointer items-start gap-3"
-                >
-                  <Checkbox
-                    id="announcement-multi"
-                    checked={multiChoice}
-                    onChange={(e) => setMultiChoice(e.target.checked)}
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-gray-700">
-                      Mehrfachauswahl erlauben
-                    </span>
-                    <span className="block text-xs text-gray-500">
-                      Eltern können pro Kind mehrere Antworten auswählen.
-                    </span>
-                  </span>
-                </label>
-              </div>
-            )}
-
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-4">
               {isPollForm && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Antwortfrist (optional)
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <span className="block text-sm font-medium text-gray-700">
+                    Antwortmöglichkeiten
                   </span>
-                  <DatePicker
-                    value={deadline}
-                    onChange={setDeadline}
-                    placeholder="Keine Frist"
-                    dropdownPlacement="down"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Danach ist die Umfrage geschlossen, bleibt aber lesbar.
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Eltern antworten für jedes Kind einzeln.
                   </p>
+
+                  {/* Two per row: an answer is a word or two, so a full-width
+                    field per option is mostly empty space and pushes the rest
+                    of the form below the fold. */}
+                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {options.map((option, index) => (
+                      // Options have no id before saving, so the index is the only
+                      // stable key here; the list is short and edited in place.
+                      // eslint-disable-next-line react/no-array-index-key
+                      <li key={index} className="flex items-center gap-2">
+                        <Input
+                          name={`announcement-option-${index}`}
+                          value={option}
+                          onChange={(e) => setOptionAt(index, e.target.value)}
+                          placeholder={`Antwort ${index + 1}`}
+                          aria-label={`Antwortmöglichkeit ${index + 1}`}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeOptionAt(index)}
+                          disabled={options.length <= 2}
+                          aria-label={`Antwortmöglichkeit ${index + 1} entfernen`}
+                        >
+                          <X className="size-4" aria-hidden />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    onClick={() => setOptions((prev) => [...prev, ""])}
+                    disabled={options.length >= 10}
+                    className="mt-2 gap-1.5"
+                  >
+                    <Plus className="size-4" aria-hidden />
+                    Antwort hinzufügen
+                  </Button>
+
+                  <label
+                    htmlFor="announcement-multi"
+                    className="mt-4 flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="announcement-multi"
+                      checked={multiChoice}
+                      onChange={(e) => setMultiChoice(e.target.checked)}
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-gray-700">
+                        Mehrfachauswahl erlauben
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        Eltern können pro Kind mehrere Antworten auswählen.
+                      </span>
+                    </span>
+                  </label>
                 </div>
               )}
-              <div>
-                <span
-                  id="announcement-priority-label"
-                  className="mb-1.5 block text-sm font-medium text-gray-700"
-                >
-                  Priorität
-                </span>
-                <div
-                  className="flex flex-wrap gap-2"
-                  role="group"
-                  aria-labelledby="announcement-priority-label"
-                >
-                  {PRIORITY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setPriority(opt.value)}
-                      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                        priority === opt.value
-                          ? "bg-gray-900 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+
+              {/* One row for every small setting, so no half-empty grid row is
+                left over: a poll adds the Antwortfrist as a third column
+                instead of a second line. */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {isPollForm && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                      Antwortfrist (optional)
+                    </span>
+                    <DatePicker
+                      value={deadline}
+                      onChange={setDeadline}
+                      placeholder="Keine Frist"
+                      dropdownPlacement="down"
+                    />
+                  </div>
+                )}
+                <div>
+                  <span
+                    id="announcement-priority-label"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                  >
+                    Priorität
+                  </span>
+                  <div
+                    className="flex flex-wrap gap-2"
+                    role="group"
+                    aria-labelledby="announcement-priority-label"
+                  >
+                    {PRIORITY_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPriority(opt.value)}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                          priority === opt.value
+                            ? "bg-gray-900 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Ablaufdatum (optional)
+                  </span>
+                  <DatePicker
+                    value={expiresAt}
+                    onChange={setExpiresAt}
+                    placeholder="Kein Ablaufdatum"
+                    dropdownPlacement="down"
+                  />
                 </div>
               </div>
 
-              <div>
-                <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Ablaufdatum (optional)
-                </span>
-                <DatePicker
-                  value={expiresAt}
-                  onChange={setExpiresAt}
-                  placeholder="Kein Ablaufdatum"
-                  dropdownPlacement="down"
-                />
-              </div>
-            </div>
+              {isPollForm && (
+                <p className="-mt-2 text-xs text-gray-500">
+                  Nach der Antwortfrist ist die Umfrage geschlossen, bleibt aber
+                  lesbar.
+                </p>
+              )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {/* A poll answer already IS the confirmation — offering a second,
+              {/* Stacked, not side by side: these sit in the narrower settings
+                  column, where two columns would break each label across three
+                  lines. */}
+              <div className="space-y-3">
+                {/* A poll answer already IS the confirmation — offering a second,
                   weaker "gelesen" checkbox on top only muddies the result. */}
-              {!isPollForm && (
+                {!isPollForm && (
+                  <label
+                    htmlFor="announcement-ack"
+                    className="flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="announcement-ack"
+                      checked={requiresAck}
+                      onChange={(e) => setRequiresAck(e.target.checked)}
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-gray-700">
+                        Lesebestätigung erforderlich
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        Eltern bestätigen ausdrücklich, dass sie die Mitteilung
+                        gelesen haben.
+                      </span>
+                    </span>
+                  </label>
+                )}
+
                 <label
-                  htmlFor="announcement-ack"
+                  htmlFor="announcement-email"
                   className="flex cursor-pointer items-start gap-3"
                 >
                   <Checkbox
-                    id="announcement-ack"
-                    checked={requiresAck}
-                    onChange={(e) => setRequiresAck(e.target.checked)}
+                    id="announcement-email"
+                    checked={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.checked)}
                   />
                   <span>
                     <span className="block text-sm font-medium text-gray-700">
-                      Lesebestätigung erforderlich
+                      Eltern zusätzlich per E-Mail benachrichtigen
                     </span>
                     <span className="block text-xs text-gray-500">
-                      Eltern bestätigen ausdrücklich, dass sie die Mitteilung
-                      gelesen haben.
+                      Beim Veröffentlichen erhalten die erreichten Eltern eine
+                      E-Mail mit Titel und Link ins Elternportal.
                     </span>
                   </span>
                 </label>
-              )}
-
-              <label
-                htmlFor="announcement-email"
-                className="flex cursor-pointer items-start gap-3"
-              >
-                <Checkbox
-                  id="announcement-email"
-                  checked={sendEmail}
-                  onChange={(e) => setSendEmail(e.target.checked)}
-                />
-                <span>
-                  <span className="block text-sm font-medium text-gray-700">
-                    Eltern zusätzlich per E-Mail benachrichtigen
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Beim Veröffentlichen erhalten die erreichten Eltern eine
-                    E-Mail mit Titel und Link ins Elternportal.
-                  </span>
-                </span>
-              </label>
+              </div>
             </div>
           </div>
         ) : (
