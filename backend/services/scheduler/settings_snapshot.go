@@ -64,6 +64,8 @@ var schedulerPollingSettingKeys = []string{
 	configModel.KeyRemindersActivityOverdueEnabled,
 	configModel.KeyRemindersPickupUpcomingLeadMinutes,
 	configModel.KeyRemindersActivityStartLeadMinutes,
+	configModel.KeyCalendarAppointmentReminderEnabled,
+	configModel.KeyCalendarAppointmentReminderLeadHours,
 	configModel.KeyPresenceMode,
 	configModel.KeyStudentDataScope,
 	configModel.KeyEnrollmentWaitlistEnabled,

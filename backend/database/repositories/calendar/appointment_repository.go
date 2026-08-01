@@ -214,6 +214,22 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			    rr.ends_on IS NULL
 			    OR rr.ends_on + ("appointment".end_date - "appointment".start_date) >= ?
 			  )
+			  AND (
+			    rr.occurrence_count IS NULL
+			    -- Count-bounded rules have no ends_on. Use a conservative final-date
+			    -- bound so historical series stop reaching the reminder expansion;
+			    -- the service still decides the exact occurrence dates. The extra
+			    -- monthly/yearly periods account for invalid calendar days and leap
+			    -- years, so this predicate can only retain extra candidates, never
+			    -- discard a live occurrence.
+			    OR CASE rr.frequency
+			      WHEN 'daily' THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
+			      WHEN 'weekly' THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
+			      WHEN 'monthly' THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
+			      WHEN 'yearly' THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
+			      ELSE 'infinity'::date
+			    END + ("appointment".end_date - "appointment".start_date) >= ?
+			  )
 		)
 		OR EXISTS (
 			SELECT 1
@@ -222,7 +238,7 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			  AND aoo.tenant_id = "appointment".tenant_id
 			  AND aoo.start_date BETWEEN ? AND ?
 		)
-	)`, from, to, to, from, from, to)
+	)`, from, to, to, from, from, from, to)
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		query = query.Where(where, val)
 	}
