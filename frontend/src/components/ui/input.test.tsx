@@ -82,4 +82,20 @@ describe("Input", () => {
     const label = screen.getByText("Email");
     expect(label).toHaveAttribute("for", "email");
   });
+
+  it("associates label with input when only id is given", () => {
+    render(<Input label="Start" id="edit-start" type="time" />);
+
+    expect(screen.getByText("Start")).toHaveAttribute("for", "edit-start");
+    expect(screen.getByLabelText("Start")).toHaveAttribute("id", "edit-start");
+  });
+
+  it("prefers an explicit id over name for the association", () => {
+    render(<Input label="Ende" id="edit-end" name="endTime" />);
+
+    expect(screen.getByText("Ende")).toHaveAttribute("for", "edit-end");
+    const input = screen.getByLabelText("Ende");
+    expect(input).toHaveAttribute("id", "edit-end");
+    expect(input).toHaveAttribute("name", "endTime");
+  });
 });
