@@ -318,6 +318,7 @@ GET /api/students/day-log/export
 GET /api/students/excused-absence-requests
 GET /api/students/master-data-change-requests
 GET /api/students/offering-change-requests
+GET /api/students/ogs-group-live
 GET /api/students/school-classes
 GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules

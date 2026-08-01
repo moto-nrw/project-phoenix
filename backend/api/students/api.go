@@ -21,6 +21,7 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -72,6 +73,7 @@ type ResourceConfig struct {
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	OGSGroupLiveService     ogsGroupLiveService.Getter
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
@@ -108,6 +110,13 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		// Aggregated OGS-group live projection (#2056). Gated on users:read
+		// like the former roster endpoint; the group-derived sections (room
+		// status, transfers, tracking indicators) additionally require
+		// groups:read and degrade to empty inside the service when it is
+		// missing — mirroring the permission split of the replaced single
+		// endpoints instead of failing the whole roster.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)

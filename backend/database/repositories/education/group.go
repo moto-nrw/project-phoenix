@@ -300,6 +300,51 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	return group, nil
 }
 
+// FindByIDsWithRooms retrieves groups (keyed by ID) with their room relation
+// preloaded via one LEFT JOIN — the bulk sibling of FindWithRoom, added so the
+// OGS live projection resolves every supervised group's room name in a single
+// query instead of one per group (#2094 review).
+func (r *GroupRepository) FindByIDsWithRooms(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
+	result := make(map[int64]*education.Group, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	type row struct {
+		*education.Group `bun:",extend"`
+		Room             *facilities.Room `bun:"rel:belongs-to,join:room_id=id"`
+	}
+
+	var rows []row
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`education.groups AS "group"`).
+		ColumnExpr(`"group".*`).
+		ColumnExpr(`"room".id AS "room__id", "room".created_at AS "room__created_at", "room".updated_at AS "room__updated_at"`).
+		ColumnExpr(`"room".name AS "room__name", "room".building AS "room__building", "room".floor AS "room__floor"`).
+		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
+		Where(`"group".id IN (?)`, bun.List(ids))
+
+	query = base.WithTenantFilter(ctx, query, "group")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs with rooms",
+			Err: err,
+		}
+	}
+
+	for _, r := range rows {
+		group := r.Group
+		if r.Room != nil && r.Room.ID != 0 {
+			group.Room = r.Room
+		}
+		result[group.ID] = group
+	}
+	return result, nil
+}
+
 // List retrieves groups matching the provided query options
 func (r *GroupRepository) List(ctx context.Context, filters map[string]interface{}) ([]*education.Group, error) {
 	options := modelBase.NewQueryOptions()

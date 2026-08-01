@@ -116,7 +116,20 @@ export function useImmutableSWR<T, E = Error>(
 export function useTenantMutate() {
   const slug = useTenantSlugSafe();
 
-  return useCallback((key: string) => swrMutate(tenantKey(key, slug)), [slug]);
+  return useCallback(
+    (
+      key: string,
+      data?: unknown,
+      options?: { revalidate?: boolean },
+    ): Promise<unknown> => {
+      const scopedKey = tenantKey(key, slug);
+      if (data === undefined) {
+        return swrMutate(scopedKey);
+      }
+      return swrMutate(scopedKey, data, options);
+    },
+    [slug],
+  );
 }
 
 /**

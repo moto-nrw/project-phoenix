@@ -46,6 +46,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
@@ -155,6 +156,7 @@ type Factory struct {
 	ExcusedRequests      absence.ExcusedAbsenceRequestService
 	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
+	OGSGroupLive         ogsgrouplive.Getter
 	TimetableData        *schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
@@ -1883,6 +1885,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
 	workTimeModelService.SetBroadcaster(realtimeHub)
+	studentStatusDayService := active.NewStudentStatusDayService(repos.StudentStatusDay)
+	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+		People:          usersService,
+		Education:       educationService,
+		UserContext:     userContextService,
+		Active:          activeService,
+		Settings:        settingsService,
+		Pickups:         pickupScheduleService,
+		Arrivals:        arrivalScheduleService,
+		Instances:       instanceService,
+		CareDays:        careDayService,
+		ExcusedRequests: excusedRequestService,
+		StatusDays:      studentStatusDayService,
+		Logger:          logger.With("service", "ogs-group-live"),
+	})
 
 	factory := &Factory{
 		Auth:                     authService,
@@ -1981,8 +1998,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareRequests:         careRequestService,
 		OfferingChanges:      offeringChangeRequestService,
 		ExcusedRequests:      excusedRequestService,
-		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
+		StudentStatusDays:    studentStatusDayService,
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		OGSGroupLive:         ogsGroupLiveService,
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
 			InstanceStudentRepo:        repos.InstanceStudent,
 			ActivityInstanceRepo:       repos.ActivityInstance,

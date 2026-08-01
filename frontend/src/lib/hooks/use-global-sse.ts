@@ -51,8 +51,8 @@ export const MAX_FLUSH_WAIT_MS = 3000;
 
 // The dashboard caches that reflect live check-in/out counts. Deliberately an
 // explicit list instead of the old `key.includes("dashboard")`: that substring
-// also matched "ogs-dashboard" (the OGS page's 5-request BFF, whose live data
-// is already covered by the scoped ogs-students-{gid} refetch) and
+// also matched "ogs-dashboard" (the OGS page's former 5-request BFF, since
+// replaced by the aggregated ogs-students-{gid} live view, #2056) and
 // "staff-dashboard-summary-" (staff time tracking, which has its own
 // staff_time_tracking_changed trigger + refresh interval) — refetching both on
 // every check-in was a large part of the #2057 request herd.
@@ -332,7 +332,7 @@ export function useGlobalSSE(): SSEHookState {
             // though the Room entity itself did not change.
             // (ROOM_LIST_CACHE_KEYS = the three /api/rooms list caches —
             // NOT room-derived-caches' ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
-            // which contains "ogs-dashboard"/"ogs-students-" and would
+            // which contains "ogs-students-" and would
             // silently re-broaden the #2057 scoping if swapped in.)
             ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
       ).catch((err) => {
@@ -530,28 +530,10 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // The OGS BFF ("ogs-dashboard") aggregates the group list, substitutions,
-    // and the first group's students/arrival/pickup data. Its live per-group
-    // half is covered by the scoped ogs-students-{gid} refetch above, so it
-    // deliberately does NOT ride the check-in/count events any more (#2057 —
-    // that double fetch was the 9-requests-per-tab herd). It still refetches
-    // on the low-frequency structural events whose writes change its payload:
-    // student edits (name/group membership), arrival plans, and activity
-    // lifecycle (room occupancy of the group room).
-    if (
-      hasPendingStudentUpdateEvent.current ||
-      hasPendingArrivalScheduleEvent.current ||
-      hasPendingActivityEvent.current
-    ) {
-      mutate(
-        (key) => typeof key === "string" && key.includes("ogs-dashboard"),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "ogs_dashboard",
-        });
-      });
-    }
+    // The OGS page's former 5-request BFF ("ogs-dashboard") is gone (#2056):
+    // the aggregated live view rides the ogs-students-{gid} keys above, whose
+    // trigger set already includes the structural events (student edits,
+    // arrival plans, activity lifecycle via hasPendingBroadOgsEvent).
 
     // Activity events also need room/supervision refresh
     if (hasPendingActivityEvent.current) {

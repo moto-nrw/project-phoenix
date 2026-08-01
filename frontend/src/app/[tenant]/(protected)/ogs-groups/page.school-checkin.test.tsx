@@ -302,9 +302,11 @@ vi.mock("~/lib/hooks/use-user-context", () => ({
   }),
 }));
 
+const mockTenantMutate = vi.hoisted(() => vi.fn());
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  useTenantMutate: () => vi.fn(),
+  useTenantMutate: () => mockTenantMutate,
 }));
 
 vi.mock("./ogs-group-helpers", () => ({
@@ -355,26 +357,30 @@ describe("OGSGroupPage — school check-in wiring", () => {
       data: {
         groups: [
           {
-            id: 1,
+            id: "1",
             name: "Gruppe A",
-            room_id: 10,
-            room: { id: 10, name: "Raum 1" },
+            roomId: "10",
+            roomName: "Raum 1",
+            viaSubstitution: false,
           },
         ],
+        groupId: "1",
         students: [
           {
             id: 42,
             first_name: "Max",
             last_name: "Mustermann",
+            school_class: "",
             current_location: "Anwesend",
+            sick: false,
+            excused: false,
+            class_trip: false,
           },
         ],
-        roomStatus: {
-          student_room_status: { "42": { in_group_room: true } },
-        },
-        substitutions: [],
-        pickupTimes: [],
-        firstGroupId: "1",
+        roomStatus: { "42": { in_group_room: true } },
+        pickupTimes: new Map(),
+        trackingIndicators: { labels: [], results: {} },
+        transfers: [],
       },
       isLoading: false,
       error: null,
