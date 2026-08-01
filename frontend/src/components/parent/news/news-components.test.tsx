@@ -47,9 +47,10 @@ describe("Umfrage answering in the detail view", () => {
       .spyOn(parentApi, "respondToAnnouncement")
       .mockResolvedValue(undefined);
     const onUpdated = vi.fn();
+    const onClose = vi.fn();
 
     render(
-      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={onUpdated} />,
+      <NewsDetailModal item={poll()} onClose={onClose} onUpdated={onUpdated} />,
     );
 
     // Picking an option must not write anything yet.
@@ -76,6 +77,8 @@ describe("Umfrage answering in the detail view", () => {
         expect.objectContaining({ student_id: "10", selected_options: ["1"] }),
       ],
     });
+    // A successful write closes the dialog, like every other parent modal.
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it("keeps the save button disabled while nothing changed", () => {
@@ -180,9 +183,10 @@ describe("Umfrage answering in the detail view", () => {
       new Error("boom"),
     );
     const onUpdated = vi.fn();
+    const onClose = vi.fn();
 
     render(
-      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={onUpdated} />,
+      <NewsDetailModal item={poll()} onClose={onClose} onUpdated={onUpdated} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Ja" }));
@@ -191,8 +195,10 @@ describe("Umfrage answering in the detail view", () => {
     expect(
       await screen.findByText("Aktion fehlgeschlagen. Bitte erneut versuchen."),
     ).toBeInTheDocument();
-    // Nothing was committed, and the choice stays on screen so it can be retried.
+    // Nothing was committed, the dialog stays open, and the choice stays on
+    // screen so it can be retried.
     expect(onUpdated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Ja" })).toHaveAttribute(
       "aria-pressed",
       "true",

@@ -184,8 +184,8 @@ function usePollAnswers(
   };
   const dirtyChildren = children.filter(isDirty);
 
-  const save = async () => {
-    if (!item.published_at || dirtyChildren.length === 0) return;
+  const save = async (): Promise<boolean> => {
+    if (!item.published_at || dirtyChildren.length === 0) return false;
     setSaving(true);
     setError(null);
     try {
@@ -204,6 +204,7 @@ function usePollAnswers(
         })),
       });
       refreshUnreadBadge();
+      return true;
     } catch (err: unknown) {
       logger.error("parent_news_poll_answer_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -212,6 +213,7 @@ function usePollAnswers(
         onStale?.(item.id);
       }
       setError(t("newsActionError"));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -420,6 +422,9 @@ export function NewsDetailModal({
       await acknowledgeAnnouncement(item.id, item.published_at);
       onUpdated(item.id, { read: true, acknowledged: true });
       refreshUnreadBadge();
+      // Done — like every other parent-portal modal, a successful write closes
+      // the dialog and hands the confirmation back to the list behind it.
+      onClose();
     } catch (err: unknown) {
       logger.error("parent_news_acknowledge_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -434,7 +439,7 @@ export function NewsDetailModal({
     } finally {
       setBusy(false);
     }
-  }, [item.id, item.published_at, onUpdated, onStale, t]);
+  }, [item.id, item.published_at, onUpdated, onStale, onClose, t]);
 
   // A stale announcement can't be acknowledged (the backend rejects the write),
   // so hide the button and surface the stale banner instead.
@@ -456,7 +461,11 @@ export function NewsDetailModal({
             <Button
               type="button"
               size="md"
-              onClick={() => void poll.save()}
+              onClick={() => {
+                void poll.save().then((saved) => {
+                  if (saved) onClose();
+                });
+              }}
               disabled={!poll.canSave || poll.saving}
               isLoading={poll.saving}
               loadingText={t("newsPollSaving")}
