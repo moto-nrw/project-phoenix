@@ -361,8 +361,22 @@ function OGSGroupPageContent() {
     {
       keepPreviousData: true, // Show cached data while revalidating
       revalidateOnFocus: false, // Handled by global SSE
+      // Safety net (#2057): group transfers/substitutions emit NO SSE event
+      // today, and this BFF no longer rides the check-in-driven invalidation
+      // (its live per-group data is covered by ogs-students-{gid}). Without a
+      // periodic refresh, a group transferred to this user would stay
+      // invisible until a hard reload.
+      refreshInterval: 5 * 60_000,
     },
   );
+
+  // One-shot guard (#2057): the BFF seeds students/pickup/roomStatus exactly
+  // once for the fast first paint; afterwards ogs-students-{currentGroupId}
+  // is the sole writer of those states. Without the guard, this effect re-ran
+  // on every selectedGroupId change and re-applied the (now only
+  // periodically refreshed, so possibly minutes-old) BFF snapshot over
+  // fresher SSE-driven data when switching back to the first group.
+  const hasSeededFirstGroupRef = useRef(false);
 
   // Sync SWR dashboard data with local state
   useEffect(() => {
@@ -417,8 +431,13 @@ function OGSGroupPageContent() {
 
     // If the previously selected group no longer exists in the refreshed list
     // (e.g., access revoked, group removed), reset to the first group so
-    // the student data stays in sync with what the UI displays.
+    // the student data stays in sync with what the UI displays. Allow a
+    // re-seed for this case: the reset can only fire when a NEW BFF response
+    // arrived (this effect's dashboardData dep changed), so its data is fresh
+    // and bridges the gap until the ogs-students fetch for the new group
+    // resolves.
     if (selectedGroupId && !ogsGroups.some((g) => g.id === selectedGroupId)) {
+      hasSeededFirstGroupRef.current = false;
       setSelectedGroupId(firstGroupId ?? null);
     }
 
@@ -429,31 +448,38 @@ function OGSGroupPageContent() {
         setSelectedGroupId(firstGroupId);
       }
 
-      // Map backend students to frontend format (last_name → second_name)
-      const mappedStudents = studentsData.map(mapStudentForOgsPage);
-      setStudents(mappedStudents);
+      // Seed students/pickup/roomStatus from the BFF exactly once (see
+      // hasSeededFirstGroupRef above) — after that, the SSE-driven
+      // ogs-students-{gid} SWR owns these states.
+      if (!hasSeededFirstGroupRef.current) {
+        hasSeededFirstGroupRef.current = true;
 
-      // Set pickup times from BFF response (prevents loading flash)
-      // Convert backend format to Map for O(1) lookup
-      const pickupMap = new Map<string, BulkPickupTime>();
-      for (const pt of pickupTimesData ?? []) {
-        pickupMap.set(pt.student_id.toString(), {
-          studentId: pt.student_id.toString(),
-          date: pt.date,
-          weekdayName: pt.weekday_name,
-          pickupTime: pt.pickup_time,
-          isException: pt.is_exception,
-          dayNotes: (pt.day_notes ?? []).map((n) => ({
-            id: n.id.toString(),
-            content: n.content,
-          })),
-          notes: pt.notes,
-        });
-      }
-      setPickupTimes(pickupMap);
+        // Map backend students to frontend format (last_name → second_name)
+        const mappedStudents = studentsData.map(mapStudentForOgsPage);
+        setStudents(mappedStudents);
 
-      if (rs?.student_room_status) {
-        setRoomStatus(rs.student_room_status);
+        // Set pickup times from BFF response (prevents loading flash)
+        // Convert backend format to Map for O(1) lookup
+        const pickupMap = new Map<string, BulkPickupTime>();
+        for (const pt of pickupTimesData ?? []) {
+          pickupMap.set(pt.student_id.toString(), {
+            studentId: pt.student_id.toString(),
+            date: pt.date,
+            weekdayName: pt.weekday_name,
+            pickupTime: pt.pickup_time,
+            isException: pt.is_exception,
+            dayNotes: (pt.day_notes ?? []).map((n) => ({
+              id: n.id.toString(),
+              content: n.content,
+            })),
+            notes: pt.notes,
+          });
+        }
+        setPickupTimes(pickupMap);
+
+        if (rs?.student_room_status) {
+          setRoomStatus(rs.student_room_status);
+        }
       }
     }
 

@@ -103,6 +103,10 @@ function fireSSE(event: SSEEvent) {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.clearAllMocks();
+  // Pin the per-burst flush jitter (#2057) to 0 so the existing
+  // advanceTimersByTime(500) timing assertions stay deterministic. Jitter
+  // bounds get their own explicit tests.
+  vi.spyOn(Math, "random").mockReturnValue(0);
   mockUseSession.mockReturnValue(authenticatedSession());
   // Re-wire the useSSE mock after clearAllMocks
   mockUseSSE.mockImplementation(
@@ -120,6 +124,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------

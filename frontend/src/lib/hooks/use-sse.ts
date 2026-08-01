@@ -229,7 +229,12 @@ export function useSSE(
           const currentAttempts = reconnectAttemptsRef.current;
 
           if (currentAttempts < maxReconnectAttempts) {
-            const delay = reconnectInterval * Math.pow(2, currentAttempts);
+            // Exponential backoff with proportional jitter (up to +100% of the
+            // base delay): a backend restart drops every client of the
+            // deployment at the same instant, and without jitter they all
+            // reconnected — and revalidated — in synchronized waves (#2057).
+            const base = reconnectInterval * Math.pow(2, currentAttempts);
+            const delay = base + Math.random() * base;
 
             // Update both ref (for next closure) and state (for UI)
             reconnectAttemptsRef.current = currentAttempts + 1;
