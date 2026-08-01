@@ -47,18 +47,16 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 			"a zero-valued last-scan recovers useful reminders without scanning indefinitely")
 	})
 
-	t.Run("consecutive windows overlap once, so a failed tenant is retried", func(t *testing.T) {
+	t.Run("every tick retries the bounded recovery window", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-		// A tick that fires late: the window must stretch to cover the gap rather
-		// than stay a fixed interval long and skip the occurrences in between.
 		second := first.Add(7 * time.Minute)
 
-		_, firstTo := s.advanceAppointmentReminderWindow(first)
+		_, _ = s.advanceAppointmentReminderWindow(first)
 		secondFrom, secondTo := s.advanceAppointmentReminderWindow(second)
 
-		assert.Equal(t, firstTo.Add(-appointmentReminderInterval), secondFrom,
-			"the next window revisits the prior interval before scanning new time")
+		assert.Equal(t, secondTo.Add(-appointmentReminderMaxLookback), secondFrom,
+			"every tick retries the full bounded recovery window")
 		assert.Equal(t, second, secondTo)
 	})
 

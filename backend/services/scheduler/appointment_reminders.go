@@ -100,22 +100,10 @@ func (s *Scheduler) advanceAppointmentReminderWindow(now time.Time) (time.Time, 
 	s.appointmentReminderScanMu.Lock()
 	defer s.appointmentReminderScanMu.Unlock()
 
-	from := s.appointmentReminderScannedAt
-	if from.IsZero() {
-		// A fresh process has no persisted watermark. Recover the same bounded
-		// interval as a long downtime so reminders due shortly before startup are
-		// not silently lost.
-		from = now.Add(-appointmentReminderMaxLookback)
-	} else {
-		from = from.Add(-appointmentReminderInterval)
-	}
-	if oldest := now.Add(-appointmentReminderMaxLookback); from.Before(oldest) {
-		s.getLogger().Warn("appointment reminder scan window clamped after downtime",
-			slog.Time("would_have_started_at", from),
-			slog.Time("clamped_to", oldest),
-		)
-		from = oldest
-	}
+	// Re-scan the full bounded recovery window on every tick. A tenant that
+	// failed in a previous pass must be retried even if the failure happened
+	// before the normal polling overlap.
+	from := now.Add(-appointmentReminderMaxLookback)
 	s.appointmentReminderScannedAt = now
 	return from, now
 }

@@ -255,12 +255,6 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
-		if profile.AccountID != nil && *profile.AccountID > 0 {
-			if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
-				seenAccountIDs[*profile.AccountID] = struct{}{}
-				guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
-			}
-		}
 		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
 			notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
@@ -298,6 +292,12 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		if row.ID != 0 {
 			queued++
+			if profile.AccountID != nil && *profile.AccountID > 0 {
+				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
+					seenAccountIDs[*profile.AccountID] = struct{}{}
+					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
+				}
+			}
 		}
 	}
 
