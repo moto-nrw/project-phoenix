@@ -894,13 +894,14 @@ function AnnouncementFormModal({
   const [multiChoice, setMultiChoice] = useState(
     announcement?.response_type === "multi_choice",
   );
-  // One answer per line, the same way the enrollment form builder edits the
-  // options of a select field. A row of small inputs with remove buttons is
-  // more chrome than a two-word answer deserves.
-  const [optionsDraft, setOptionsDraft] = useState(() => {
+  // Each answer is its own row, mirroring the "Feste Auswahlzeiten" editor in
+  // the enrollment form builder: an input plus a remove button, added through
+  // an explicit button. Answers are a fixed set the parents pick from, so they
+  // have to look like a set — not like free text.
+  const [optionRows, setOptionRows] = useState<string[]>(() => {
     const existing = announcement?.options?.map((o) => o.label) ?? [];
-    if (existing.length > 0) return existing.join("\n");
-    return isPollForm ? "Ja\nNein" : "";
+    if (existing.length > 0) return existing;
+    return isPollForm ? ["Ja", "Nein"] : [];
   });
   const [deadline, setDeadline] = useState<Date | null>(
     announcement?.response_deadline
@@ -908,14 +909,17 @@ function AnnouncementFormModal({
       : null,
   );
 
+  // The persisted set: trimmed, blanks dropped. Rows stay editable as typed.
   const options = useMemo(
-    () =>
-      optionsDraft
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
-    [optionsDraft],
+    () => optionRows.map((row) => row.trim()).filter(Boolean),
+    [optionRows],
   );
+
+  const setOptionAt = (index: number, value: string) =>
+    setOptionRows((prev) => prev.map((row, i) => (i === index ? value : row)));
+  const addOption = () => setOptionRows((prev) => [...prev, ""]);
+  const removeOptionAt = (index: number) =>
+    setOptionRows((prev) => prev.filter((_, i) => i !== index));
 
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
@@ -1159,18 +1163,59 @@ function AnnouncementFormModal({
                   Antwortmöglichkeiten
                 </h3>
                 <div>
-                  <textarea
-                    id="announcement-options"
-                    value={optionsDraft}
-                    onChange={(e) => setOptionsDraft(e.target.value)}
-                    rows={4}
-                    aria-label="Antwortmöglichkeiten, eine pro Zeile"
-                    placeholder={"Eine Antwort pro Zeile\nJa\nNein"}
-                    className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-                  />
+                  <ul className="space-y-2">
+                    {optionRows.map((option, index) => (
+                      // Rows have no id before saving; the list is short and
+                      // edited in place, so the index is the stable key.
+                      // eslint-disable-next-line react/no-array-index-key
+                      <li key={index} className="flex items-center gap-3">
+                        {/* Shows what the parents will see: a circle for one
+                            answer, a box when several may be picked. */}
+                        <span
+                          aria-hidden
+                          className={`h-5 w-5 shrink-0 border-2 border-gray-300 ${
+                            multiChoice ? "rounded-sm" : "rounded-full"
+                          }`}
+                        />
+                        {/* Input's className lands on the control, not on its
+                            wrapper, so the wrapper carries the flex sizing. */}
+                        <div className="min-w-0 flex-1">
+                          <Input
+                            controlSize="compact"
+                            name={`announcement-option-${index}`}
+                            value={option}
+                            onChange={(e) => setOptionAt(index, e.target.value)}
+                            placeholder={`Antwort ${index + 1}`}
+                            aria-label={`Antwort ${index + 1}`}
+                            maxLength={120}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeOptionAt(index)}
+                          disabled={optionRows.length <= 2}
+                          aria-label={`Antwort ${index + 1} entfernen`}
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    type="button"
+                    onClick={addOption}
+                    disabled={optionRows.length >= 10}
+                    className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                    Antwort hinzufügen
+                  </button>
+
                   <p className="mt-2 text-xs text-gray-500">
-                    Eine Antwort pro Zeile, zwei bis zehn Antworten. Eltern
-                    antworten für jedes Kind einzeln.
+                    Zwei bis zehn Antworten. Eltern antworten für jedes Kind
+                    einzeln.
                   </p>
                 </div>
 
