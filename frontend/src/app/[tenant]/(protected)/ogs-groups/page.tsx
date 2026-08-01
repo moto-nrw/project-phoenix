@@ -370,13 +370,12 @@ function OGSGroupPageContent() {
     },
   );
 
-  // One-shot guard (#2057): the BFF seeds students/pickup/roomStatus exactly
-  // once for the fast first paint; afterwards ogs-students-{currentGroupId}
-  // is the sole writer of those states. Without the guard, this effect re-ran
-  // on every selectedGroupId change and re-applied the (now only
-  // periodically refreshed, so possibly minutes-old) BFF snapshot over
-  // fresher SSE-driven data when switching back to the first group.
-  const hasSeededFirstGroupRef = useRef(false);
+  // Apply each BFF snapshot at most once (#2057). This keeps its five-minute
+  // polling fallback useful while the first group stays selected, but prevents
+  // a selectedGroupId change from replaying the same (possibly minutes-old)
+  // snapshot over fresher ogs-students-{currentGroupId} data.
+  const lastHandledDashboardSnapshotRef =
+    useRef<OGSDashboardBFFResponse | null>(null);
 
   // Sync SWR dashboard data with local state
   useEffect(() => {
@@ -429,31 +428,35 @@ function OGSGroupPageContent() {
     // overwrite their current view with the first group's data.
     const firstGroupId = ogsGroups[0]?.id;
 
+    const isNewDashboardSnapshot =
+      lastHandledDashboardSnapshotRef.current !== dashboardData;
+    lastHandledDashboardSnapshotRef.current = dashboardData;
+
     // If the previously selected group no longer exists in the refreshed list
     // (e.g., access revoked, group removed), reset to the first group so
-    // the student data stays in sync with what the UI displays. Allow a
-    // re-seed for this case: the reset can only fire when a NEW BFF response
-    // arrived (this effect's dashboardData dep changed), so its data is fresh
-    // and bridges the gap until the ogs-students fetch for the new group
-    // resolves.
-    if (selectedGroupId && !ogsGroups.some((g) => g.id === selectedGroupId)) {
-      hasSeededFirstGroupRef.current = false;
+    // the student data stays in sync with what the UI displays. The new BFF
+    // snapshot is fresh and bridges the gap until the ogs-students fetch for
+    // the replacement group resolves.
+    const selectedGroupExists =
+      !!selectedGroupId && ogsGroups.some((g) => g.id === selectedGroupId);
+    if (selectedGroupId && !selectedGroupExists) {
       setSelectedGroupId(firstGroupId ?? null);
     }
 
-    if (!selectedGroupId || selectedGroupId === firstGroupId) {
+    const isFirstGroupSelected =
+      !selectedGroupId ||
+      selectedGroupId === firstGroupId ||
+      !selectedGroupExists;
+    if (isFirstGroupSelected) {
       // When no group is explicitly selected yet, lock in the first group's ID
       // so the URL-sync effect won't try to "switch" to it via localStorage.
       if (!selectedGroupId && firstGroupId) {
         setSelectedGroupId(firstGroupId);
       }
 
-      // Seed students/pickup/roomStatus from the BFF exactly once (see
-      // hasSeededFirstGroupRef above) — after that, the SSE-driven
-      // ogs-students-{gid} SWR owns these states.
-      if (!hasSeededFirstGroupRef.current) {
-        hasSeededFirstGroupRef.current = true;
-
+      // Apply only a newly fetched BFF snapshot. Re-renders caused by group
+      // selection keep the SSE-driven ogs-students-{gid} SWR as sole writer.
+      if (isNewDashboardSnapshot) {
         // Map backend students to frontend format (last_name → second_name)
         const mappedStudents = studentsData.map(mapStudentForOgsPage);
         setStudents(mappedStudents);

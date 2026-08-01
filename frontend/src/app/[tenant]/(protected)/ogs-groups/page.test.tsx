@@ -4153,6 +4153,71 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
     // Should show Group A students since it's the first group
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
   });
+
+  it("applies a newer BFF snapshot while the first group stays selected", async () => {
+    let dashboardData = {
+      groups: [
+        {
+          id: 1,
+          name: "Group A",
+          room_id: 10,
+          room: { id: 10, name: "Raum 101" },
+        },
+      ],
+      students: [
+        {
+          id: "1",
+          name: "Max Mustermann",
+          first_name: "Max",
+          last_name: "Mustermann",
+          current_location: "Raum 101",
+        },
+      ],
+      roomStatus: {
+        student_room_status: {
+          "1": { in_group_room: true },
+        } as Record<string, { in_group_room: boolean }>,
+      },
+      substitutions: [],
+      pickupTimes: [],
+      firstGroupId: "1",
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => ({
+      data: key === "ogs-dashboard" ? dashboardData : null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    })) as unknown as typeof useSWRAuth);
+
+    const { rerender } = render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+    });
+
+    dashboardData = {
+      ...dashboardData,
+      students: [
+        {
+          id: "2",
+          name: "Erika Schmidt",
+          first_name: "Erika",
+          last_name: "Schmidt",
+          current_location: "Raum 101",
+        },
+      ],
+      roomStatus: {
+        student_room_status: { "2": { in_group_room: true } },
+      },
+    };
+    rerender(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
+      expect(screen.queryByText(/Max Mustermann/)).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("OGSGroupPage ID-based selection: URL param matching", () => {
