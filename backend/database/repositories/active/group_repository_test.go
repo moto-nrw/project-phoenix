@@ -111,6 +111,51 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 	})
 }
 
+func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+	repo := repositories.NewFactory(db).ActiveGroup
+
+	group := testpkg.CreateTestActiveGroupForTenant(t, db, tenantID)
+	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "abandoned-session-tenant")
+	group.DeviceID = &device.ID
+	group.LastActivity = time.Now().Add(-10 * time.Minute)
+	_, err := db.NewUpdate().
+		TableExpr("active.groups").
+		Set("device_id = ?", group.DeviceID).
+		Set("last_activity = ?", group.LastActivity).
+		Where("id = ?", group.ID).
+		Where("tenant_id = ?", tenantID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	defer func() {
+		_, _ = db.NewDelete().
+			TableExpr("active.groups").
+			Where("id = ?", group.ID).
+			Where("tenant_id = ?", tenantID).
+			Exec(context.Background())
+		testpkg.CleanupTenantTestData(t, db, tenantID)
+	}()
+
+	sessions, err := repo.FindActiveSessionsOlderThan(context.Background(), time.Now().Add(-5*time.Minute))
+	require.NoError(t, err)
+
+	var found *active.Group
+	for _, session := range sessions {
+		if session.ID == group.ID {
+			found = session
+			break
+		}
+	}
+	require.NotNil(t, found)
+	assert.Equal(t, tenantID, found.TenantID)
+}
+
 func TestActiveGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
