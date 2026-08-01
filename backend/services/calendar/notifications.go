@@ -203,11 +203,6 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 	if s.cfg.Notifier == nil {
 		return
 	}
-	notificationType := notifications.TypeParentAppointment
-	if kind == platformModels.EmailKindAppointmentReminder {
-		notificationType = notifications.TypeParentAppointmentReminder
-	}
-
 	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
 		s.logger().Warn("calendar: resolve guardian recipients for push failed",
@@ -217,8 +212,16 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 		return
 	}
 	accountIDs := guardianAccountIDs(guardianIDs, profiles)
-	if len(accountIDs) == 0 {
+	s.notifyGuardianAccountDevices(ctx, appointment, kind, accountIDs)
+}
+
+func (s *service) notifyGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs []int64) {
+	if s.cfg.Notifier == nil || len(accountIDs) == 0 {
 		return
+	}
+	notificationType := notifications.TypeParentAppointment
+	if kind == platformModels.EmailKindAppointmentReminder {
+		notificationType = notifications.TypeParentAppointmentReminder
 	}
 
 	// Consent narrows the audience the appointment already defined, never widens
@@ -228,7 +231,7 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 	if s.cfg.Preferences == nil {
 		return
 	}
-	accountIDs, err = s.cfg.Preferences.FilterOptedIn(ctx, notificationType, accountIDs)
+	accountIDs, err := s.cfg.Preferences.FilterOptedIn(ctx, notificationType, accountIDs)
 	if err != nil {
 		s.logger().Warn("calendar: filter opted-in guardians failed",
 			slog.Int64("appointment_id", appointment.ID),

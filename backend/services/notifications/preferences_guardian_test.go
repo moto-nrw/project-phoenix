@@ -15,12 +15,15 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGuardianPreferencesAcrossSchools(t *testing.T) {
+	const secondTenantID int64 = 2
+
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
@@ -36,9 +39,13 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		testpkg.CleanupParentGuardianChain(t, db, chain)
 	})
 
+	reminderEnabled := map[int64]bool{1: true, 2: true}
 	settings := &configtest.Mock{
-		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-			return key == configModel.KeyNotificationsDispatchEnabled, nil
+		ResolveBoolFn: func(settingsCtx context.Context, key string) (bool, error) {
+			if key == configModel.KeyNotificationsDispatchEnabled {
+				return true, nil
+			}
+			return reminderEnabled[tenant.FromContext(settingsCtx)], nil
 		},
 	}
 	svc := notifications.NewPreferenceService(repos.NotificationPreference, settings, db, repos.AccountTenant)
@@ -84,7 +91,6 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	})
 
 	t.Run("a new school mapping keeps the shared switch off until consent covers it", func(t *testing.T) {
-		const secondTenantID int64 = 2
 		testpkg.EnsureTestTenant(t, db, secondTenantID)
 		testpkg.MapAccountToTenant(t, db, chain.AccountID, secondTenantID)
 
@@ -130,6 +136,13 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		optedIn, err := svc.FilterOptedIn(tenantCtx, notifications.TypeParentAnnouncement, []int64{chain.AccountID})
 		require.NoError(t, err)
 		assert.Empty(t, optedIn, "an opt-out reaches nobody")
+	})
+
+	t.Run("a school-wide reminder gate is unavailable when any mapped school disables it", func(t *testing.T) {
+		reminderEnabled[secondTenantID] = false
+		overview, err := svc.GetForParent(ctx, chain.AccountID)
+		require.NoError(t, err)
+		assert.False(t, parentTypeState(t, overview, notifications.TypeParentAppointmentReminder).Available)
 	})
 
 	t.Run("an unknown type is rejected before any write", func(t *testing.T) {

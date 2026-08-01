@@ -74,6 +74,10 @@ type AppointmentOccurrenceOverrideRepository interface {
 	Create(ctx context.Context, override *AppointmentOccurrenceOverride) error
 	Update(ctx context.Context, override *AppointmentOccurrenceOverride) error
 	FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
+	// FindByAppointmentIDsAndStartDates returns moved occurrences whose effective
+	// start falls in the supplied dates. Reminder scans use it to find an
+	// occurrence moved outside its rule's normal expansion window.
+	FindByAppointmentIDsAndStartDates(ctx context.Context, appointmentIDs []int64, startDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
 	// FindCancelledByAppointmentIDs returns every cancelled occurrence override
 	// for the given appointments — used to emit iCalendar EXDATEs so subscribed
 	// external calendars drop occurrences cancelled via "Nur diesen Termin".

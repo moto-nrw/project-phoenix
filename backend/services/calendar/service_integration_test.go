@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -98,11 +99,23 @@ func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarSvc
 type recordingOutbox struct {
 	enqueued  []platformService.EnqueueRequest
 	cancelled int
+	nextID    int64
+	keys      map[string]struct{}
 }
 
 func (r *recordingOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	if req.IdempotencyKey != "" {
+		if r.keys == nil {
+			r.keys = make(map[string]struct{})
+		}
+		if _, exists := r.keys[req.IdempotencyKey]; exists {
+			return &platformModels.EmailOutbox{}, nil
+		}
+		r.keys[req.IdempotencyKey] = struct{}{}
+	}
 	r.enqueued = append(r.enqueued, req)
-	return &platformModels.EmailOutbox{}, nil
+	r.nextID++
+	return &platformModels.EmailOutbox{Model: base.Model{ID: r.nextID}}, nil
 }
 
 func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error) {

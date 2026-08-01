@@ -64,6 +64,13 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 	}
 
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, fromDate, toDate)
+	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, dateRange(fromDate, toDate))
+	if err != nil {
+		return 0, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
+	}
+	for _, override := range movedOverrides {
+		occurrenceDates = append(occurrenceDates, override.OccurrenceDate)
+	}
 	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, occurrenceDates)
 	if err != nil {
 		return 0, fmt.Errorf("calendar: load reminder overrides: %w", err)
@@ -75,7 +82,18 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 
 	queued := 0
 	for _, appointment := range appointments {
-		for _, occurrence := range reminderOccurrences(appointment, recurrenceByAppointment[appointment.ID], fromDate, toDate) {
+		occurrences := reminderOccurrences(appointment, recurrenceByAppointment[appointment.ID], fromDate, toDate)
+		for _, override := range movedOverrides {
+			if override.AppointmentID == appointment.ID {
+				occurrences = append(occurrences, override.OccurrenceDate)
+			}
+		}
+		seenOccurrences := make(map[timezone.Date]struct{}, len(occurrences))
+		for _, occurrence := range occurrences {
+			if _, seen := seenOccurrences[occurrence]; seen {
+				continue
+			}
+			seenOccurrences[occurrence] = struct{}{}
 			override := overrideByAppointmentDate[fmt.Sprintf("%d:%s", appointment.ID, occurrence.String())]
 			if override != nil && override.Cancelled {
 				continue
@@ -85,12 +103,12 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 			if startsAt.Before(from) || !startsAt.Before(to) {
 				continue
 			}
-			count, err := s.enqueueAppointmentReminder(ctx, appointment, effective, occurrence)
+			count, accountIDs, err := s.enqueueAppointmentReminder(ctx, appointment, effective, occurrence)
 			if err != nil {
 				return queued, err
 			}
 			queued += count
-			s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentReminder)
+			s.notifyGuardianAccountDevices(ctx, appointment, platformModels.EmailKindAppointmentReminder, accountIDs)
 		}
 	}
 	return queued, nil
@@ -106,6 +124,14 @@ func reminderOccurrences(appointment *calModels.Appointment, rule *calModels.Rec
 		return []timezone.Date{appointment.StartDate}
 	}
 	return expandOccurrences(appointment, rule, from, to)
+}
+
+func dateRange(from, to timezone.Date) []timezone.Date {
+	dates := make([]timezone.Date, 0, from.DaysUntil(to)+1)
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		dates = append(dates, date)
+	}
+	return dates
 }
 
 // appointmentWithOverride returns a copy of the appointment as this occurrence
@@ -153,7 +179,11 @@ func appointmentWithOverride(appointment *calModels.Appointment, occurrence time
 func occurrenceStartInstant(appointment *calModels.Appointment) time.Time {
 	midnight := appointment.StartDate.BerlinMidnight()
 	if appointment.AllDay {
-		return midnight.Add(allDayReminderHour * time.Hour)
+		return time.Date(
+			midnight.Year(), midnight.Month(), midnight.Day(),
+			allDayReminderHour, 0, 0, 0,
+			midnight.Location(),
+		)
 	}
 	clock := timezone.WallClock(appointment.StartTime)
 	return time.Date(
@@ -170,13 +200,13 @@ func (s *service) enqueueAppointmentReminder(
 	appointment *calModels.Appointment,
 	effective *calModels.Appointment,
 	occurrence timezone.Date,
-) (int, error) {
+) (int, []int64, error) {
 	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
-		return 0, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
+		return 0, nil, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
 	}
 	if len(guardianIDs) == 0 {
-		return 0, nil
+		return 0, nil, nil
 	}
 
 	schoolName := s.resolveSchoolName(ctx, appointment.TenantID)
@@ -189,6 +219,8 @@ func (s *service) enqueueAppointmentReminder(
 	}
 
 	queued := 0
+	queuedAccountIDs := make([]int64, 0, len(guardianIDs))
+	seenAccountIDs := make(map[int64]struct{}, len(guardianIDs))
 	seen := make(map[int64]struct{}, len(guardianIDs))
 	for _, id := range guardianIDs {
 		if _, done := seen[id]; done {
@@ -199,7 +231,7 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok || profile.Email == nil || *profile.Email == "" {
 			continue
 		}
-		if _, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
+		row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindAppointmentReminder,
 			Payload: map[string]any{
 				apptPayloadRecipient:   *profile.Email,
@@ -218,18 +250,27 @@ func (s *service) enqueueAppointmentReminder(
 			IdempotencyKey:    appointmentReminderKey(appointment.ID, occurrence, id),
 			RelatedEntityType: platformModels.EmailRelatedTypeAppointment,
 			RelatedEntityID:   appointment.ID,
-		}); err != nil {
-			return queued, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
+		})
+		if err != nil {
+			return queued, queuedAccountIDs, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
 		}
-		queued++
+		if row.ID != 0 {
+			queued++
+			if profile.AccountID != nil && *profile.AccountID > 0 {
+				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
+					seenAccountIDs[*profile.AccountID] = struct{}{}
+					queuedAccountIDs = append(queuedAccountIDs, *profile.AccountID)
+				}
+			}
+		}
 	}
 
 	s.logger().Info("appointment reminders queued",
 		slog.Int64("appointment_id", appointment.ID),
 		slog.String("occurrence_date", occurrence.String()),
-		slog.Int("recipient_count", queued),
+		slog.Int("recipient_count", len(queuedAccountIDs)),
 	)
-	return queued, nil
+	return queued, queuedAccountIDs, nil
 }
 
 func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {

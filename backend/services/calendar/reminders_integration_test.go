@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -241,14 +242,62 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 	// The same window again must add nothing: the idempotency key is what makes a
 	// re-run, an overlapping window or a second scheduler process harmless.
 	sameWindowCount := len(outbox.enqueued)
-	_, err = service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err = service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
-	assert.Len(t, outbox.enqueued, sameWindowCount+1,
-		"the recorder sees the second enqueue; the database key is what suppresses it")
-	assert.Equal(t,
-		outbox.enqueued[sameWindowCount-1].IdempotencyKey,
-		outbox.enqueued[sameWindowCount].IdempotencyKey,
-		"the same occurrence must produce the same key, so the insert is a no-op")
+	assert.Zero(t, queued)
+	assert.Len(t, outbox.enqueued, sameWindowCount)
 
 	assert.Greater(t, len(outbox.enqueued), before)
+}
+
+func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	repos := repositories.NewFactory(db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MovedReminder", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	ctx := calendarContext(organizerAccount.ID)
+	seriesStart := timezone.NewDate(2026, 1, 7)
+	endsOn := timezone.NewDate(2026, 1, 7)
+	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+		Title:        "Verschobener Termin",
+		StartDate:    seriesStart,
+		EndDate:      seriesStart,
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"wednesday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	movedDate := timezone.NewDate(2026, 2, 4)
+	require.NoError(t, repos.CalendarOccurrenceOverride.Create(ctx, &calModels.AppointmentOccurrenceOverride{
+		AppointmentID:  detail.Appointment.ID,
+		OccurrenceDate: seriesStart,
+		StartDate:      &movedDate,
+		EndDate:        &movedDate,
+	}))
+
+	startsAt := berlinInstant(t, movedDate, 14, 0)
+	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, 1, queued)
+	assert.Contains(t, outbox.enqueued[len(outbox.enqueued)-1].Payload["when_text"], "04.02.2026")
 }

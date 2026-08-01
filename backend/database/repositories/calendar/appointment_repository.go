@@ -200,7 +200,29 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			)`, calModels.RecipientTypeGuardianProfile).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
-	query = applyAppointmentWindow(query, from, to)
+	query = query.Where(`(
+		(
+			"appointment".end_date >= ? AND "appointment".start_date <= ?
+		)
+		OR EXISTS (
+			SELECT 1
+			FROM calendar.recurrence_rules rr
+			WHERE rr.appointment_id = "appointment".id
+			  AND rr.tenant_id = "appointment".tenant_id
+			  AND "appointment".start_date <= ?
+			  AND (
+			    rr.ends_on IS NULL
+			    OR rr.ends_on + ("appointment".end_date - "appointment".start_date) >= ?
+			  )
+		)
+		OR EXISTS (
+			SELECT 1
+			FROM calendar.appointment_occurrence_overrides aoo
+			WHERE aoo.appointment_id = "appointment".id
+			  AND aoo.tenant_id = "appointment".tenant_id
+			  AND aoo.start_date BETWEEN ? AND ?
+		)
+	)`, from, to, to, from, from, to)
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		query = query.Where(where, val)
 	}
@@ -711,6 +733,26 @@ func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndOccurre
 	}
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar occurrence overrides: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndStartDates(ctx context.Context, appointmentIDs []int64, startDates []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+	if len(appointmentIDs) == 0 || len(startDates) == 0 {
+		return []*calModels.AppointmentOccurrenceOverride{}, nil
+	}
+	var rows []*calModels.AppointmentOccurrenceOverride
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		Where(`"appointment_occurrence_override".start_date IN (?)`, bun.List(startDates)).
+		OrderExpr(`"appointment_occurrence_override".start_date ASC, "appointment_occurrence_override".id ASC`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("find calendar occurrence overrides by start date: %w", err)
 	}
 	return rows, nil
 }

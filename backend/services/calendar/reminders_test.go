@@ -34,6 +34,20 @@ func TestOccurrenceStartInstant(t *testing.T) {
 		assert.Equal(t, 5, start.Day())
 	})
 
+	t.Run("an all-day appointment stays at 08:00 across DST changes", func(t *testing.T) {
+		for _, date := range []timezone.Date{
+			timezone.NewDate(2026, 3, 29),
+			timezone.NewDate(2026, 10, 25),
+		} {
+			appointment := helperAppointment()
+			appointment.StartDate = date
+			appointment.EndDate = date
+			appointment.AllDay = true
+
+			assert.Equal(t, allDayReminderHour, occurrenceStartInstant(appointment).Hour(), date.String())
+		}
+	})
+
 	t.Run("summer time does not shift the clock", func(t *testing.T) {
 		// 2026-07-01 is CEST (UTC+2), 2026-01-05 is CET (UTC+1). Both must report
 		// the appointment's own wall clock: deriving the instant by adding a fixed
