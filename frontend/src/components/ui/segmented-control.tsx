@@ -1,3 +1,7 @@
+"use client";
+
+import type { KeyboardEvent } from "react";
+
 /**
  * Segmentierter Umschalter in der Optik der Filterleiste.
  *
@@ -16,6 +20,27 @@
 export interface SegmentedControlOption {
   readonly value: string;
   readonly label: string;
+}
+
+function getNextOptionIndex(
+  key: string,
+  currentIndex: number,
+  optionCount: number,
+): number | null {
+  switch (key) {
+    case "ArrowRight":
+    case "ArrowDown":
+      return (currentIndex + 1) % optionCount;
+    case "ArrowLeft":
+    case "ArrowUp":
+      return (currentIndex - 1 + optionCount) % optionCount;
+    case "Home":
+      return 0;
+    case "End":
+      return optionCount - 1;
+    default:
+      return null;
+  }
 }
 
 export function SegmentedControl({
@@ -40,7 +65,7 @@ export function SegmentedControl({
       aria-labelledby={ariaLabelledBy}
       className={`inline-flex rounded-xl bg-white p-1 shadow-sm ring-1 ring-gray-200 ring-inset ${className}`}
     >
-      {options.map((option) => {
+      {options.map((option, index) => {
         const selected = option.value === value;
         return (
           <button
@@ -48,7 +73,27 @@ export function SegmentedControl({
             type="button"
             role="radio"
             aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
+            onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+              const nextIndex = getNextOptionIndex(
+                event.key,
+                index,
+                options.length,
+              );
+              if (nextIndex === null) return;
+
+              event.preventDefault();
+              const nextOption = options[nextIndex];
+              if (!nextOption) return;
+
+              onChange(nextOption.value);
+              const buttons =
+                event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                  '[role="radio"]',
+                );
+              buttons?.[nextIndex]?.focus();
+            }}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
               selected
                 ? "bg-gray-900 text-white"
