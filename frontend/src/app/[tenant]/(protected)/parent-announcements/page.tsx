@@ -1355,6 +1355,7 @@ function AnnouncementFormModal({
               setStudentNames((prev) => ({ ...prev, [id]: name }))
             }
             kindLabel={isPollForm ? "diese Umfrage" : "diese Mitteilung"}
+            allowPendingEnrollment={!isPollForm}
           />
         )}
 
@@ -1413,6 +1414,12 @@ interface TargetingStepProps {
   readonly onSetStudentName: (id: string, name: string) => void;
   /** Names the thing being addressed in the heading (Mitteilung vs Umfrage). */
   readonly kindLabel: string;
+  /**
+   * Offene Anmeldungen reach applicants who have no enrolled child yet — so a
+   * poll would show them a question they cannot answer (answers are per child).
+   * Polls therefore hide the option; the backend refuses it as well.
+   */
+  readonly allowPendingEnrollment: boolean;
 }
 
 function TargetingStep({
@@ -1424,6 +1431,7 @@ function TargetingStep({
   onChange,
   onSetStudentName,
   kindLabel,
+  allowPendingEnrollment,
 }: TargetingStepProps) {
   // Single source of truth is `targets`; each control derives its selection
   // from it and rebuilds it on change.
@@ -1527,11 +1535,15 @@ function TargetingStep({
           active={schoolAll}
           onClick={() => toggleSimple("school_all", !schoolAll)}
         />
-        <CheckPill
-          label="Offene Anmeldungen"
-          active={pendingEnrollment}
-          onClick={() => toggleSimple("pending_enrollment", !pendingEnrollment)}
-        />
+        {allowPendingEnrollment && (
+          <CheckPill
+            label="Offene Anmeldungen"
+            active={pendingEnrollment}
+            onClick={() =>
+              toggleSimple("pending_enrollment", !pendingEnrollment)
+            }
+          />
+        )}
       </div>
 
       {!schoolAll && (

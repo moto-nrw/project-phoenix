@@ -829,8 +829,17 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 				return nil, fmt.Errorf("%w: %s target needs ref_id", ErrValidation, t.TargetType)
 			}
 			target.TargetRefID = t.RefID
-		case usersModels.AnnouncementTargetSchoolAll, usersModels.AnnouncementTargetPendingEnrollment:
+		case usersModels.AnnouncementTargetSchoolAll:
 			// no ref
+		case usersModels.AnnouncementTargetPendingEnrollment:
+			// A poll is answered per CHILD, and an open application has no
+			// enrolled child yet — the applicant would see a question with no
+			// answer row. The staff form hides the option for polls; refuse it
+			// here too so the API cannot create that dead end.
+			if in.ResponseType == usersModels.ParentAnnouncementResponseSingleChoice ||
+				in.ResponseType == usersModels.ParentAnnouncementResponseMultiChoice {
+				return nil, fmt.Errorf("%w: pending_enrollment cannot be targeted by a poll", ErrValidation)
+			}
 		}
 		key := dedupeKey(target)
 		if seen[key] {

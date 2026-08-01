@@ -163,3 +163,37 @@ func TestAcceptsResponsesAt(t *testing.T) {
 		t.Fatal("a poll past its deadline must not accept answers")
 	}
 }
+
+// A poll cannot target open applications: those guardians have no enrolled
+// child, so there would be nothing for them to answer for.
+func TestNormalizeInput_RejectsPendingEnrollmentTargetForPoll(t *testing.T) {
+	in := Input{
+		Title:        "Kommt Ihr Kind?",
+		Body:         "Bitte um Rückmeldung.",
+		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
+		Targets: []TargetInput{
+			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
+		},
+	}
+	if _, err := normalizeInput(&in); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+// The same target stays valid for a plain Mitteilung, which applicants can read.
+func TestNormalizeInput_AllowsPendingEnrollmentTargetForAnnouncement(t *testing.T) {
+	in := Input{
+		Title: "Anmeldung läuft",
+		Body:  "Die Anmeldephase endet am Freitag.",
+		Targets: []TargetInput{
+			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
+		},
+	}
+	targets, err := normalizeInput(&in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(targets) != 1 {
+		t.Fatalf("expected the target to survive, got %d", len(targets))
+	}
+}
