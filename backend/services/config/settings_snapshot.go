@@ -80,6 +80,13 @@ func newSettingsSnapshot(tenantID int64, keys []string, stored []*configModel.Se
 	return &SettingsSnapshot{tenantID: tenantID, values: values}, nil
 }
 
+// newSettingsSnapshotFromValues builds a snapshot from already-resolved
+// entries (the request-cache merge path). Callers must have validated every
+// key against the registry beforehand.
+func newSettingsSnapshotFromValues(tenantID int64, values map[string]snapshotValue) *SettingsSnapshot {
+	return &SettingsSnapshot{tenantID: tenantID, values: values}
+}
+
 func (s *SettingsSnapshot) containsAll(keys []string) bool {
 	if s == nil {
 		return false
