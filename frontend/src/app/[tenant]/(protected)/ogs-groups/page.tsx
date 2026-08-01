@@ -390,7 +390,7 @@ function OGSGroupPageContent() {
         groupParam !== selectedGroupId &&
         allGroups.some((g) => g.id === groupParam)
       ) {
-        void switchToGroup(groupParam);
+        switchToGroup(groupParam);
       }
     } else {
       // No ?group= param (e.g. after login or browser back) — restore from
@@ -400,7 +400,7 @@ function OGSGroupPageContent() {
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
       if (savedGroup && savedGroup.id !== selectedGroupId) {
-        void switchToGroup(savedGroup.id);
+        switchToGroup(savedGroup.id);
       } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
@@ -1187,7 +1187,7 @@ function OGSGroupPageContent() {
                           "sidebar-last-group-name",
                           group.name,
                         );
-                        void switchToGroup(tabId);
+                        switchToGroup(tabId);
                       }
                     },
                   }
