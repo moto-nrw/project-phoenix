@@ -243,10 +243,12 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.
 
 	var hasEarlierSelection bool
 	err = db.NewSelect().
-		TableExpr(requestChildOfferingTableExpr).
-		ColumnExpr(`EXISTS(SELECT 1)`).
-		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
-		Where(`"request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?`, onDate).
+		ColumnExpr(`EXISTS(
+			SELECT 1
+			FROM enrollment.request_child_offerings AS "prior_request_child_offering"
+			WHERE "prior_request_child_offering".request_child_id = ?
+				AND ("prior_request_child_offering".valid_from IS NULL OR "prior_request_child_offering".valid_from <= ?)
+		)`, requestChildID, onDate).
 		Scan(ctx, &hasEarlierSelection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check prior request child offerings: %w", err)
