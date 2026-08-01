@@ -1071,6 +1071,9 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		if offering == nil || (!held[offeringID] && !offering.IsActive) {
 			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
 		}
+		if held[offeringID] {
+			continue
+		}
 		if offering.Capacity == nil {
 			continue
 		}
