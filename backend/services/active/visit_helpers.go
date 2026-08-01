@@ -346,10 +346,14 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	studentID := fmt.Sprintf("%d", visit.StudentID)
 
 	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
+	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
 		StudentID:   &studentID,
 		StudentName: &studentName,
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
 	}
 	applyAttendanceSnapshot(&data, snapshot)
 
@@ -370,8 +374,9 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
-	// Notify all clients so dashboard counts refresh
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant so dashboard counts refresh, scoped to
+	// the affected educational group when known (#2057).
+	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
