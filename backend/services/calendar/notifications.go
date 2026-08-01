@@ -2,13 +2,23 @@ package calendar
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
+
+// parentCalendarDeepLink is the path the parents app is reachable at on the
+// parents host. The portal's own routes carry no /parents prefix in the browser
+// (the proxy adds it internally), and a push notification is opened by the
+// service worker against that origin — so the link must be the browser path.
+const parentCalendarDeepLink = "/calendar"
 
 // OutboxEnqueuer is the slice of the shared email outbox this package needs.
 // Nil (unwired) disables e-mail notification; the in-app calendar still works.
@@ -46,22 +56,12 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 	if s.cfg.Outbox == nil {
 		return nil
 	}
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
 		return err
-	}
-	guardianIDs := make([]int64, 0, len(recipients))
-	for _, recipient := range recipients {
-		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile && recipient.GuardianProfileID != nil {
-			guardianIDs = append(guardianIDs, *recipient.GuardianProfileID)
-		}
 	}
 	if len(guardianIDs) == 0 {
 		return nil
-	}
-	profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, guardianIDs)
-	if err != nil {
-		return err
 	}
 
 	schoolName := s.resolveSchoolName(ctx, appointment.TenantID)
@@ -122,6 +122,163 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 		}
 	}
 	return nil
+}
+
+// reachableGuardianRecipients resolves the appointment's guardian recipients to
+// the profiles that can actually sign in to the parents portal for this school.
+// It returns the recipient IDs in row order (duplicates included — callers
+// de-duplicate as they consume) plus the reachable profiles keyed by ID.
+//
+// Shared by the e-mail path and the push path so both address exactly the same
+// people: a guardian the mail skips as unreachable must not receive a push, and
+// vice versa.
+func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID int64) ([]int64, map[int64]*userModels.GuardianProfile, error) {
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
+	if err != nil {
+		return nil, nil, err
+	}
+	guardianIDs := make([]int64, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile && recipient.GuardianProfileID != nil {
+			guardianIDs = append(guardianIDs, *recipient.GuardianProfileID)
+		}
+	}
+	if len(guardianIDs) == 0 {
+		return nil, nil, nil
+	}
+	profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, guardianIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return guardianIDs, profiles, nil
+}
+
+// guardianAccountIDs reduces resolved profiles to their distinct account IDs —
+// the address a notification audience is expressed in.
+func guardianAccountIDs(guardianIDs []int64, profiles map[int64]*userModels.GuardianProfile) []int64 {
+	accountIDs := make([]int64, 0, len(guardianIDs))
+	seen := make(map[int64]struct{}, len(guardianIDs))
+	for _, id := range guardianIDs {
+		profile, ok := profiles[id]
+		if !ok || profile.AccountID == nil || *profile.AccountID <= 0 {
+			continue
+		}
+		if _, done := seen[*profile.AccountID]; done {
+			continue
+		}
+		seen[*profile.AccountID] = struct{}{}
+		accountIDs = append(accountIDs, *profile.AccountID)
+	}
+	return accountIDs
+}
+
+// appointmentNotificationCopy returns the display-safe German title and body for
+// a lifecycle push. Deliberately free of the appointment title: a push payload
+// leaves the backend and an appointment name can carry a child's name ("Gespräch
+// Familie Müller"). The deep link takes the parent to the authenticated
+// calendar, where the real subject is shown.
+func appointmentNotificationCopy(kind string) (title, body string) {
+	switch kind {
+	case platformModels.EmailKindAppointmentUpdated:
+		return "Termin geändert", "Ein Termin für Sie wurde geändert."
+	case platformModels.EmailKindAppointmentCancelled:
+		return "Termin abgesagt", "Ein Termin für Sie wurde abgesagt."
+	case platformModels.EmailKindAppointmentReminder:
+		return "Terminerinnerung", "Ein Termin für Sie steht bald an."
+	default:
+		return "Neuer Termin", "Für Sie wurde ein neuer Termin eingetragen."
+	}
+}
+
+// notifyGuardianDevices is the push/in-app counterpart of notifyGuardians: same
+// audience, same trigger, different channel. It is called only where the e-mail
+// is also sent, so the per-appointment "Eltern benachrichtigen" opt-in governs
+// both — an organizer who chose not to notify does not get to notify anyway
+// through a second channel.
+//
+// Never fatal. The appointment write is the operation the user asked for; a
+// notification that could not be dispatched is logged and dropped, exactly like
+// SSE broadcasting elsewhere in the codebase.
+func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calModels.Appointment, kind string) {
+	if s.cfg.Notifier == nil {
+		return
+	}
+	notificationType := notifications.TypeParentAppointment
+	if kind == platformModels.EmailKindAppointmentReminder {
+		notificationType = notifications.TypeParentAppointmentReminder
+	}
+
+	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
+	if err != nil {
+		s.logger().Warn("calendar: resolve guardian recipients for push failed",
+			slog.Int64("appointment_id", appointment.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	accountIDs := guardianAccountIDs(guardianIDs, profiles)
+	if len(accountIDs) == 0 {
+		return
+	}
+
+	// Consent narrows the audience the appointment already defined, never widens
+	// it. A missing preference service means the dependency was not wired; the
+	// factory always wires it, so treat that as "do not push" rather than
+	// pushing to people who never agreed.
+	if s.cfg.Preferences == nil {
+		return
+	}
+	accountIDs, err = s.cfg.Preferences.FilterOptedIn(ctx, notificationType, accountIDs)
+	if err != nil {
+		s.logger().Warn("calendar: filter opted-in guardians failed",
+			slog.Int64("appointment_id", appointment.ID),
+			slog.String("notification_type", notificationType),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(accountIDs) == 0 {
+		return
+	}
+
+	title, body := appointmentNotificationCopy(kind)
+	priority := notifications.PriorityNormal
+	if kind == platformModels.EmailKindAppointmentCancelled {
+		priority = notifications.PriorityHigh
+	}
+
+	err = s.cfg.Notifier.Notify(ctx, notifications.Event{
+		Type:     notificationType,
+		Title:    title,
+		Body:     body,
+		DeepLink: parentCalendarDeepLink,
+		Priority: priority,
+		Audience: notifications.Audience{
+			TenantID:           appointment.TenantID,
+			Scope:              notifications.ScopeGuardian,
+			GuardianAccountIDs: accountIDs,
+		},
+	})
+	switch {
+	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
+		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",
+			slog.Int64("appointment_id", appointment.ID),
+			slog.Int("recipient_count", len(accountIDs)),
+			slog.String("reason", err.Error()),
+		)
+	case err != nil:
+		s.logger().Warn("calendar: appointment push failed",
+			slog.Int64("appointment_id", appointment.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+func (s *service) logger() *slog.Logger {
+	if s.cfg.Logger == nil {
+		return slog.Default()
+	}
+	return s.cfg.Logger
 }
 
 // cancelPendingNotifications marks every not-yet-sent appointment e-mail

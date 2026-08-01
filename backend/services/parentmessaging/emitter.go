@@ -3,11 +3,13 @@ package parentmessaging
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -72,6 +74,26 @@ type Emitter struct {
 	settings    TenantSettingsResolver
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
+
+	// notifier and preferences push a staff DECISION to the submitting
+	// guardian's devices (#1671). Optional and set through
+	// WithDecisionNotifications, so every existing construction site keeps
+	// working and a partially-wired test emitter simply does not push.
+	notifier    notifications.Service
+	preferences notifications.PreferenceService
+}
+
+// WithDecisionNotifications adds the guardian push for decided requests. It is a
+// separate setter rather than two more NewEmitter parameters because the emitter
+// is constructed in several places (including tests) that have no business
+// knowing about notifications.
+func (e *Emitter) WithDecisionNotifications(notifier notifications.Service, preferences notifications.PreferenceService) *Emitter {
+	if e == nil {
+		return nil
+	}
+	e.notifier = notifier
+	e.preferences = preferences
+	return e
 }
 
 // NewEmitter wires an emitter. Any nil dependency (except broadcaster/logger)
@@ -280,6 +302,110 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 		broadcastGuardianID = 0
 	}
 	Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID)
+
+	// A staff decision is the one pill a parent should hear about away from the
+	// app (#1671). Deliberately placed next to the SSE wake and under the same
+	// condition, so pill, wake and push always agree on who was reached: a
+	// guardian whose access was revoked gets none of the three, and a school with
+	// messaging off gets none either — the decision pill is that school's
+	// in-app channel too, and pushing about something the app does not show
+	// would be a dead end.
+	if !skipGuardianBroadcast {
+		e.notifyRequestDecision(tenantID, studentID, guardianAccountID, ev)
+	}
+}
+
+// isStaffDecisionPill reports whether a pill is the OGS deciding a parent's
+// request — the only pill worth interrupting a parent's day for.
+//
+// It deliberately excludes the two neighbouring shapes: a guardian withdrawing
+// their own request (they just did it) and an "offen" status (that is the
+// submission itself, which the parent also just made).
+func isStaffDecisionPill(ev ChildEvent) bool {
+	if ev.EventType != usersModels.ParentMessageEventRequestStatus {
+		return false
+	}
+	if ev.ActorKind != usersModels.ParentMessageSenderStaff {
+		return false
+	}
+	switch ev.RequestStatus {
+	case usersModels.ParentMessageRequestStatusDone, usersModels.ParentMessageRequestStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// requestDecisionCopy returns the display-safe German title and body for a
+// decided request. It names the subject area but never the child: the payload
+// is rendered on a lock screen, and which child it concerns is behind the
+// authenticated deep link.
+func requestDecisionCopy(requestType, requestStatus string) (title, body string) {
+	subject := "Ihre Anfrage"
+	switch requestType {
+	case usersModels.ParentMessageRequestCareSchedule:
+		subject = "Ihre Anfrage zu den Betreuungszeiten"
+	case usersModels.ParentMessageRequestMasterData:
+		subject = "Ihre Anfrage zu den Stammdaten"
+	case usersModels.ParentMessageRequestExcusedAbsence:
+		subject = "Ihre Abmeldung"
+	}
+	if requestStatus == usersModels.ParentMessageRequestStatusRejected {
+		return "Anfrage abgelehnt", subject + " wurde abgelehnt."
+	}
+	return "Anfrage genehmigt", subject + " wurde genehmigt."
+}
+
+// notifyRequestDecision pushes a staff decision to the submitting guardian.
+//
+// Only staff-authored terminal request pills qualify: a guardian withdrawing
+// their own request is not news to them, and an "offen" pill is the submission
+// itself. Fire-and-forget on a detached background context, like everything else
+// past the emitter's own commit.
+func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID int64, ev ChildEvent) {
+	if e.notifier == nil || e.preferences == nil || e.db == nil {
+		return
+	}
+	if !isStaffDecisionPill(ev) {
+		return
+	}
+
+	// The consent read and the delivery are RLS-scoped, so they need a tenant
+	// transaction of their own — the originating one committed long ago.
+	bgCtx := context.Background()
+	err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		optedIn, ferr := e.preferences.FilterOptedIn(txCtx, notifications.TypeParentRequestDecided, []int64{guardianAccountID})
+		if ferr != nil {
+			return ferr
+		}
+		if len(optedIn) == 0 {
+			return nil
+		}
+		title, body := requestDecisionCopy(ev.RequestType, ev.RequestStatus)
+		return e.notifier.Notify(txCtx, notifications.Event{
+			Type:     notifications.TypeParentRequestDecided,
+			Title:    title,
+			Body:     body,
+			DeepLink: fmt.Sprintf("/children/%d", studentID),
+			Priority: notifications.PriorityNormal,
+			Audience: notifications.Audience{
+				TenantID:           tenantID,
+				Scope:              notifications.ScopeGuardian,
+				GuardianAccountIDs: optedIn,
+			},
+		})
+	})
+	switch {
+	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
+		return
+	case err != nil:
+		loggerOr(e.logger).Warn("parent messaging: request decision push failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("student_id", studentID),
+			slog.String("request_type", ev.RequestType),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // BroadcastChildUpdateToGuardians wakes EVERY guardian of the child with a

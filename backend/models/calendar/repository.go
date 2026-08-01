@@ -36,6 +36,13 @@ type AppointmentRepository interface {
 	// purge them. Retention is bounded by the cancellation/deletion time, not by
 	// the date lookback window.
 	ListCancellationTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, since time.Time) ([]*Appointment, error)
+	// ListGuardianReminderCandidates returns the live, un-cancelled appointments
+	// of the current tenant that could produce a guardian-facing occurrence in
+	// the window: they carry the organizer's "notify guardians" opt-in and have
+	// at least one guardian recipient. Recurrence is only bounded here (the same
+	// window predicate the calendar listings use) — which concrete occurrences
+	// fall due is decided in the service, which owns occurrence expansion.
+	ListGuardianReminderCandidates(ctx context.Context, from, to timezone.Date) ([]*Appointment, error)
 }
 
 type RecurrenceRuleRepository interface {

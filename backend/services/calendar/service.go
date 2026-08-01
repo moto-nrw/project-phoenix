@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -67,6 +69,9 @@ type Service interface {
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
+	// EnqueueDueAppointmentReminders queues the guardian reminder for every
+	// occurrence starting in [from, to). Driven by the scheduler, per tenant.
+	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
 }
 
 type Config struct {
@@ -104,6 +109,17 @@ type Config struct {
 	Settings    LogoResolver
 	AccountRepo FeedAccountRepo
 	ParentsURL  string
+
+	// Notifier and Preferences drive the guardian push/in-app notification that
+	// accompanies the appointment e-mails (#1671). Both optional and both
+	// required together: without consent there is nobody to address, so a nil
+	// Preferences disables the push rather than broadcasting past consent.
+	Notifier    notifications.Service
+	Preferences notifications.PreferenceService
+
+	// Logger is nil-safe (see service.logger()); notification dispatch is
+	// fire-and-forget and reports its failures here instead of to the caller.
+	Logger *slog.Logger
 }
 
 type service struct {
@@ -428,6 +444,7 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentPublished); err != nil {
 			return nil, err
 		}
+		s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentPublished)
 	}
 
 	return &AppointmentDetail{
@@ -584,6 +601,7 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
 		}
+		s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentUpdated)
 	}
 
 	return s.appointmentDetail(ctx, appointment)
@@ -630,6 +648,7 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 			if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
 				return nil, err
 			}
+			s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentCancelled)
 		}
 	}
 	return s.appointmentDetail(ctx, appointment)

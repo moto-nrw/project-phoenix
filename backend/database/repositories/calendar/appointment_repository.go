@@ -173,6 +173,44 @@ func (r *AppointmentRepository) ListOrganizedByStaff(ctx context.Context, staffI
 	return rows, nil
 }
 
+// ListGuardianReminderCandidates returns the appointments a guardian reminder
+// could be due for in the window: live, not cancelled, carrying the organizer's
+// notify-guardians opt-in, and with at least one guardian recipient.
+//
+// Unlike the guardian calendar listings this is NOT scoped to one family — the
+// reminder tick runs per tenant with no account of its own, so the recipient
+// EXISTS check only asserts that guardians are addressed at all. Who exactly
+// gets the mail is resolved per appointment afterwards, through the same
+// reachability rules the published/updated/cancelled mails use.
+func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Context, from, to timezone.Date) ([]*calModels.Appointment, error) {
+	var rows []*calModels.Appointment
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`"appointment".deleted_at IS NULL`).
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".notify_guardians`).
+		Where(`EXISTS (
+			SELECT 1
+			FROM calendar.appointment_recipients ar
+			WHERE ar.appointment_id = "appointment".id
+			  AND ar.tenant_id = "appointment".tenant_id
+			  AND ar.recipient_type = ?
+			  AND ar.guardian_profile_id IS NOT NULL
+			)`, calModels.RecipientTypeGuardianProfile).
+		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
+
+	query = applyAppointmentWindow(query, from, to)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list guardian reminder candidates: %w", err)
+	}
+	return rows, nil
+}
+
 // Update overrides the generic repository Update. The appointment carries two
 // TIME columns (start_time/end_time) modeled as time.Time; bun's full-model
 // UPDATE re-binds those as year-0 timestamptz literals, which PostgreSQL rejects

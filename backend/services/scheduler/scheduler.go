@@ -175,6 +175,15 @@ type Scheduler struct {
 	reminderNotified      sync.Map // reminderNotificationKey → time.Time
 	reminderNotifiedDay   timezone.Date
 	reminderNotifiedDayMu sync.Mutex
+
+	// Guardian appointment reminders (#1671). Wired via
+	// SetAppointmentReminderQueuer; nil → task does not register.
+	// appointmentReminderScannedAt is the upper bound of the last scanned
+	// window, so consecutive ticks cover adjacent windows with no gap between
+	// them regardless of tick jitter.
+	appointmentReminders         AppointmentReminderQueuer
+	appointmentReminderScannedAt time.Time
+	appointmentReminderScanMu    sync.Mutex
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the
@@ -467,6 +476,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule per-tenant rollover deadline resolver (phase rollover)
 	s.scheduleRolloverDeadlineTask()
+
+	// Schedule per-tenant guardian appointment reminders (#1671)
+	s.scheduleAppointmentReminderTask()
 }
 
 // Stop gracefully stops the scheduler

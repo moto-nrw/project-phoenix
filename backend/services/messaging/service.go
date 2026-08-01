@@ -26,6 +26,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -83,6 +84,13 @@ type Config struct {
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB
 	Logger      *slog.Logger
+
+	// Notifier and Preferences push a staff reply to the guardian's devices
+	// (#1671). Both optional and both required together: without the consent
+	// service there is nobody who agreed, so the push is skipped rather than
+	// sent past consent.
+	Notifier    notifications.Service
+	Preferences notifications.PreferenceService
 }
 
 // NewService wires a staff messaging service.
@@ -374,6 +382,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// so it correctly stays unstamped.
 	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
+	s.notifyGuardianDevice(ctx, thread)
 	return messages, nil
 }
 
@@ -424,6 +433,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 		return nil, err
 	}
 	s.broadcastAfterCommit(ctx, thread)
+	s.notifyGuardianDevice(ctx, thread)
 	s.Logger.Info("staff sent parent message",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
@@ -592,6 +602,61 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 
 func (s *Service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
 	parentmessaging.Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
+}
+
+// notifyGuardianDevice pushes a staff reply to the guardian's registered devices
+// (#1671). Unlike the SSE wake-up next to it this is NOT wrapped in an
+// after-commit hook: Notify defers its own fan-out until the surrounding tenant
+// transaction commits, and the consent read it performs has to happen inside
+// that transaction to be RLS-scoped at all.
+//
+// The copy names neither the child nor the sender. A push payload leaves the
+// backend and is rendered on a lock screen; the thread behind the deep link is
+// authenticated, and that is where the details belong.
+func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.ParentMessageThread) {
+	if thread == nil || s.Notifier == nil || s.Preferences == nil {
+		return
+	}
+	if thread.GuardianAccountID <= 0 {
+		return
+	}
+
+	optedIn, err := s.Preferences.FilterOptedIn(ctx, notifications.TypeParentMessage, []int64{thread.GuardianAccountID})
+	if err != nil {
+		s.Logger.Warn("messaging: filter opted-in guardian failed",
+			slog.Int64("thread_id", thread.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(optedIn) == 0 {
+		return
+	}
+
+	err = s.Notifier.Notify(ctx, notifications.Event{
+		Type:     notifications.TypeParentMessage,
+		Title:    "Neue Nachricht der OGS",
+		Body:     "Sie haben eine neue Nachricht im Elternportal.",
+		DeepLink: "/messages",
+		Priority: notifications.PriorityNormal,
+		Audience: notifications.Audience{
+			TenantID:           thread.TenantID,
+			Scope:              notifications.ScopeGuardian,
+			GuardianAccountIDs: optedIn,
+		},
+	})
+	switch {
+	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
+		s.Logger.Info("messaging: guardian push suppressed by tenant notification gate",
+			slog.Int64("thread_id", thread.ID),
+			slog.String("reason", err.Error()),
+		)
+	case err != nil:
+		s.Logger.Warn("messaging: guardian push failed",
+			slog.Int64("thread_id", thread.ID),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // broadcastReadAfterCommit queues the read-receipt SSE wake-up to fire only AFTER
