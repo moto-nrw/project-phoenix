@@ -62,14 +62,23 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
+	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, dateRange(fromDate, toDate))
+	if err != nil {
+		return 0, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
+	}
+	movedByAppointment := make(map[int64][]*calModels.AppointmentOccurrenceOverride, len(movedOverrides))
+	for _, override := range movedOverrides {
+		movedByAppointment[override.AppointmentID] = append(movedByAppointment[override.AppointmentID], override)
+	}
 	// The repository's coarse recurrence predicate cannot express the final
 	// date of every count-bounded rule (weekly and monthly rules may carry
-	// several selected days). Drop exhausted series before loading overrides or
-	// resolving recipients; bounded recurrence expansion is capped at 366.
+	// several selected days). A moved occurrence can still be due after the
+	// base count is exhausted, so retain it when its effective start is in the
+	// window; bounded recurrence expansion is capped at 366.
 	activeAppointments := appointments[:0]
 	for _, appointment := range appointments {
 		rule := recurrenceByAppointment[appointment.ID]
-		if rule != nil && rule.OccurrenceCount != nil && !hasOccurrenceInWindow(appointment, rule, fromDate, toDate) {
+		if rule != nil && rule.OccurrenceCount != nil && !hasOccurrenceInWindow(appointment, rule, fromDate, toDate) && len(movedByAppointment[appointment.ID]) == 0 {
 			continue
 		}
 		activeAppointments = append(activeAppointments, appointment)
@@ -84,10 +93,6 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 	}
 
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, fromDate, toDate)
-	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, dateRange(fromDate, toDate))
-	if err != nil {
-		return 0, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
-	}
 	for _, override := range movedOverrides {
 		occurrenceDates = append(occurrenceDates, override.OccurrenceDate)
 	}
@@ -103,10 +108,8 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 	queued := 0
 	for _, appointment := range appointments {
 		occurrences := reminderOccurrences(appointment, recurrenceByAppointment[appointment.ID], fromDate, toDate)
-		for _, override := range movedOverrides {
-			if override.AppointmentID == appointment.ID {
-				occurrences = append(occurrences, override.OccurrenceDate)
-			}
+		for _, override := range movedByAppointment[appointment.ID] {
+			occurrences = append(occurrences, override.OccurrenceDate)
 		}
 		seenOccurrences := make(map[timezone.Date]struct{}, len(occurrences))
 		for _, occurrence := range occurrences {
@@ -251,12 +254,6 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
-		if profile.AccountID != nil && *profile.AccountID > 0 {
-			if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
-				seenAccountIDs[*profile.AccountID] = struct{}{}
-				guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
-			}
-		}
 		if profile.Email == nil || *profile.Email == "" {
 			continue
 		}
@@ -285,6 +282,12 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		if row.ID != 0 {
 			queued++
+			if profile.AccountID != nil && *profile.AccountID > 0 {
+				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
+					seenAccountIDs[*profile.AccountID] = struct{}{}
+					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
+				}
+			}
 		}
 	}
 
