@@ -81,6 +81,12 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// One batch query for both access-gate settings read below (issue #2065).
+	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
+		configModel.KeyWebCheckinAccess,
+		configModel.KeyGroupMode,
+	))
+
 	if err := rs.enforceWebCheckinAccess(r.Context(), staffID, student.ID); err != nil {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 		return

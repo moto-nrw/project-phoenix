@@ -459,7 +459,15 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 // per-student IDs or names leave the backend — per-child movement detail
 // lives behind /students/{id}/attendance-history under its own gates.
 func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	// One batch query for the three gates below; the scope check in
+	// resolveRoomHistorySupervisorFilter reads from the snapshot too
+	// (issue #2065).
+	ctx := common.PrefetchSettings(r.Context(), rs.SettingsService,
+		configModel.KeyAttendanceLogEnabled,
+		configModel.KeyRoomDetailVisibleDays,
+		configModel.KeyAttendanceLogScope,
+	)
+	r = r.WithContext(ctx)
 	logger := rs.roomHistoryLogger()
 
 	id, err := common.ParseID(r)

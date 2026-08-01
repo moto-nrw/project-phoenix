@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"strings"
 	"time"
@@ -100,10 +101,17 @@ func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) 
 
 // ResolveMany resolves several settings in one repository query. A compatible
 // context snapshot wins, which lets scheduler-invoked downstream services
-// share the minute snapshot without knowing about scheduler internals.
+// share the minute snapshot without knowing about scheduler internals. Below
+// the explicit snapshot sits the request-scoped memo cache (issue #2065):
+// within one request every (tenant_id, key) pair is loaded from PostgreSQL at
+// most once; only cache-missing keys reach the repository.
 func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error) {
 	tenantID := tenant.FromContext(ctx)
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
+		// Explicit snapshots are returned as-is and deliberately NEVER copied
+		// into the request cache: the scheduler's minute snapshot may be up to
+		// a minute old, and promoting its values into request scope would
+		// leak that staleness into paths that expect request freshness.
 		return snapshot, nil
 	}
 
@@ -111,19 +119,70 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*Sett
 		return newSettingsSnapshot(tenantID, keys, nil)
 	}
 
-	stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, keys)
-	if err != nil {
-		return nil, &SettingsError{Op: "resolve_many", Err: err}
+	// Validate every key up front so an unknown key fails deterministically
+	// regardless of which keys happen to be cached already.
+	for _, key := range keys {
+		if config.GetDefinition(key) == nil {
+			return nil, &SettingsError{
+				Op:  "resolve_many",
+				Err: &DefinitionNotFoundError{Key: key},
+			}
+		}
 	}
-	return newSettingsSnapshot(tenantID, keys, stored)
+
+	cache := requestCacheFromContext(ctx)
+	if cache == nil {
+		stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, keys)
+		if err != nil {
+			return nil, &SettingsError{Op: "resolve_many", Err: err}
+		}
+		return newSettingsSnapshot(tenantID, keys, stored)
+	}
+
+	resolved, missing := cache.lookup(tenantID, keys)
+	if len(missing) > 0 {
+		stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, missing)
+		if err != nil {
+			return nil, &SettingsError{Op: "resolve_many", Err: err}
+		}
+		loaded, err := newSettingsSnapshot(tenantID, missing, stored)
+		if err != nil {
+			return nil, err
+		}
+		cache.store(tenantID, loaded.values)
+		maps.Copy(resolved, loaded.values)
+	}
+	return newSettingsSnapshotFromValues(tenantID, resolved), nil
 }
 
 // ResolveManyForTenant resolves several settings inside one tenant
 // transaction. A matching context snapshot avoids both the transaction and
-// query when a scheduler already prefetched the values.
+// query when a scheduler already prefetched the values, and a full
+// request-cache hit skips the tenant transaction entirely (issue #2065).
 func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error) {
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		return snapshot, nil
+	}
+
+	// Consult the request cache only when the ambient tenant context is absent
+	// or matches tenantID: a mismatched ambient tenant must still reach
+	// WithTenantTx below so its nested-transaction guard surfaces the wiring
+	// bug instead of the cache silently succeeding.
+	if ctxTenant := tenant.FromContext(ctx); tenantID > 0 && len(keys) > 0 &&
+		(ctxTenant == 0 || ctxTenant == tenantID) {
+		if cache := requestCacheFromContext(ctx); cache != nil {
+			for _, key := range keys {
+				if config.GetDefinition(key) == nil {
+					return nil, &SettingsError{
+						Op:  "resolve_many",
+						Err: &DefinitionNotFoundError{Key: key},
+					}
+				}
+			}
+			if resolved, missing := cache.lookup(tenantID, keys); len(missing) == 0 {
+				return newSettingsSnapshotFromValues(tenantID, resolved), nil
+			}
+		}
 	}
 
 	var result *SettingsSnapshot
@@ -140,6 +199,9 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 
 // ResolveManyForTenants resolves all tenant/key pairs in one privileged query.
 // Registry defaults are filled independently for every requested tenant.
+// Deliberately NOT request-cached: its only callers are the scheduler (which
+// owns the minute snapshot) and other admin-tx batch paths that already
+// coalesce their reads.
 func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*SettingsSnapshot, error) {
 	uniqueTenantIDs := make([]int64, 0, len(tenantIDs))
 	seenTenantIDs := make(map[int64]struct{}, len(tenantIDs))
@@ -370,6 +432,13 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: err}
 	}
 
+	// Evict the written key from the request cache so same-request reads —
+	// including side-effect hooks running inside this transaction — see the
+	// new value instead of a memoized pre-write entry.
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictKey(tenantID, key)
+	}
+
 	// Audit — redact password values to avoid storing cleartext PINs
 	auditOld := oldValue
 	auditNew := valueJSON
@@ -435,6 +504,11 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 
 	if err := s.valueRepo.Delete(ctx, tenantID, key); err != nil {
 		return &SettingsError{Op: "reset_value", Err: err}
+	}
+
+	// See SetValue: same-request reads must observe the reset immediately.
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictKey(tenantID, key)
 	}
 
 	// Audit — redact password values
@@ -751,7 +825,12 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 // transaction the xact lock is meaningless — the settings read/write paths always
 // run inside a tenant tx (the RLS-scoped repos require one) — so it is skipped
 // rather than failing.
+// Taking the lock is also the freshness barrier of the request cache: the
+// tenant bucket is flushed (before the no-tx early return, so tests without an
+// ambient transaction behave like production) so post-lock reads hit the
+// database and observe the concurrent writer's committed state.
 func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
+	s.flushRequestCacheForLock(ctx)
 	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
 		return nil
 	}
@@ -761,6 +840,16 @@ func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
 	return nil
 }
 
+// flushRequestCacheForLock drops every request-cache entry for the ambient
+// tenant. All Lock* helpers call it first: which keys a cross-field guard
+// re-reads under its lock is deliberately not enumerated here — a whole-tenant
+// flush stays correct when the next guard adds another key (#1565/#1663).
+func (s *settingsService) flushRequestCacheForLock(ctx context.Context) {
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictTenant(tenant.FromContext(ctx))
+	}
+}
+
 // LockSlotListCutoffPairShared takes the SHARED variant of the Ganztag cutoff
 // lock for read paths (services/slotlists pickupBuckets). Shared holders never
 // block one another, so concurrent /options, pickup-preview and export requests
@@ -768,7 +857,11 @@ func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
 // rosters or rendering a PDF/XLSX cannot stall every other reader in the tenant.
 // It still conflicts with the exclusive writer lock, so a cutoff update can never
 // commit a partial pair while a reader observes the two cutoffs (#1565 review).
+// Flushes the tenant's request-cache bucket like the exclusive variant — the
+// slotlists reader resolves both cutoffs after taking this lock and must see
+// the writer's committed pair, not memoized pre-lock values.
 func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) error {
+	s.flushRequestCacheForLock(ctx)
 	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
 		return nil
 	}
@@ -796,7 +889,12 @@ func slotListCutoffLockKey(ctx context.Context) string {
 // Best-effort: without an ambient transaction the xact lock is meaningless (the
 // settings and phase write paths always run inside a tenant tx), so it is
 // skipped rather than failing.
+// Flushes the tenant's request-cache bucket first: both the settings-side
+// guard and the enrollment-side phase guard re-read settings (including
+// enrollment.grade_level_max) under this lock and must observe committed
+// state, not memoized pre-lock values.
 func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
+	s.flushRequestCacheForLock(ctx)
 	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
 		return nil
 	}

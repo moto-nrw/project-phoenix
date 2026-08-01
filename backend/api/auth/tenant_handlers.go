@@ -70,6 +70,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		orgName = school.Organization.Name
 	}
 
+	// Shell settings resolve first: their batch includes grade_level_max, so
+	// the request cache satisfies the hard-fail resolve below without a second
+	// tenant transaction (issue #2065).
+	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
+
 	// GradeLevelMax is a validation constraint, not an optional display hint.
 	// The registry returns the legitimate default for tenants without an
 	// override; a missing settings service, read error, or corrupt value must
@@ -82,7 +87,6 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
 
 	resp := &TenantResolveResponse{
 		TenantID:               school.ID,
@@ -135,6 +139,10 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyEnrollmentWaitlistEnabled,
 		configModel.KeyGroupMode,
 		configModel.KeyParentNotesEnabled,
+		// Not read from this snapshot — prefetched so the hard-fail
+		// resolveTenantGradeLevelMax call hits the request cache instead of
+		// opening a second tenant transaction (issue #2065).
+		configModel.KeyEnrollmentGradeLevelMax,
 	}
 	if batch, ok := rs.SettingsService.(interface {
 		ResolveManyForTenant(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error)
