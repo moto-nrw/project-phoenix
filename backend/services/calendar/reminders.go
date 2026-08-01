@@ -270,7 +270,7 @@ func (s *service) enqueueAppointmentReminder(
 					apptPayloadTitle: effective.Title, apptPayloadWhen: whenText, apptPayloadLocation: location,
 					apptPayloadSchoolName: schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: logoURL, apptPayloadMotoLogoURL: motoLogoURL,
 				},
-				IdempotencyKey: appointmentReminderKey(appointment.ID, appointment.Revision, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
+				IdempotencyKey: appointmentReminderKey(appointment.ID, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
 			})
 			if err != nil {
 				return queued, nil, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
@@ -332,11 +332,10 @@ func (s *service) enqueueAppointmentReminder(
 	return queued, nil, nil
 }
 
-func appointmentReminderKey(appointmentID int64, revision int, occurrence timezone.Date, guardianProfileID int64) string {
-	return fmt.Sprintf("%s:%d:%d:%s:%d",
+func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {
+	return fmt.Sprintf("%s:%d:%s:%d",
 		platformModels.EmailKindAppointmentReminder,
 		appointmentID,
-		revision,
 		occurrence.String(),
 		guardianProfileID,
 	)
