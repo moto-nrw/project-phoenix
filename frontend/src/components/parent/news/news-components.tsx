@@ -13,6 +13,7 @@ import { Check, ChevronRight, ExternalLink, ListChecks } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Modal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -117,31 +118,24 @@ function NewsBadges({
 }
 
 /**
- * The answer control of an Umfrage: one row per child the poll reaches, each
- * with the options as toggle buttons plus an explicit save (#1371).
+ * The answer state of an Umfrage, lifted out of the rendering so the modal can
+ * put "Antwort speichern" in its footer bar — where every other modal in the
+ * parent portal puts its primary action (#1371).
  *
  * Selecting is local; nothing is sent until the guardian saves. A tap that
  * writes straight through reads as a slip waiting to happen — the answer is a
  * commitment the school plans with, so it gets a deliberate confirmation.
- *
- * It lives in the detail view, where the guardian has the full question in
- * front of them rather than a two-line preview in a list.
  */
-function PollAnswerBlock({
-  item,
-  onUpdated,
-  onStale,
-}: Readonly<{
-  item: ParentAnnouncement;
-  onUpdated: (id: string, patch: Partial<ParentAnnouncement>) => void;
-  onStale?: (id: string) => void;
-}>) {
+function usePollAnswers(
+  item: ParentAnnouncement,
+  onUpdated: (id: string, patch: Partial<ParentAnnouncement>) => void,
+  onStale?: (id: string) => void,
+) {
   const t = useTranslations("parentDashboard");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const children = item.children ?? [];
-  const options = item.options ?? [];
   const closed = isPollClosed(item);
   const multi = item.response_type === "multi_choice";
 
@@ -223,27 +217,47 @@ function PollAnswerBlock({
     }
   };
 
+  return {
+    children,
+    options: item.options ?? [],
+    closed,
+    multi,
+    saving,
+    error,
+    selectionFor,
+    toggle,
+    isDirty,
+    canSave: dirtyChildren.length > 0,
+    save,
+  };
+}
+
+/** One card per child: name, saved state, and the answer options. */
+function PollAnswerRows({
+  poll,
+}: Readonly<{ poll: ReturnType<typeof usePollAnswers> }>) {
+  const t = useTranslations("parentDashboard");
+  const { children, options, closed, multi, saving } = poll;
   if (children.length === 0 || options.length === 0) return null;
 
   return (
     <div className="space-y-3">
-      {multi && <p className="text-xs text-gray-500">{t("newsPollMulti")}</p>}
+      {multi && <p className="text-sm text-gray-600">{t("newsPollMulti")}</p>}
       {children.map((child) => {
-        const selected = selectionFor(child);
+        const selected = poll.selectionFor(child);
         const answered = child.selected_options.length > 0;
-        const dirty = isDirty(child);
+        const dirty = poll.isDirty(child);
         return (
-          <div key={child.student_id}>
-            <div className="flex items-center justify-between gap-2">
-              {/* With one child the name is noise — the card is already about
-                  that family. With several it is the whole point. */}
-              {children.length > 1 && (
-                <span className="truncate text-xs font-medium text-gray-700">
-                  {child.first_name}
-                </span>
-              )}
+          <div
+            key={child.student_id}
+            className="rounded-xl border border-gray-200 p-3"
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="truncate text-sm font-semibold text-gray-900">
+                {child.first_name}
+              </p>
               <span
-                className={`ml-auto text-xs ${
+                className={`shrink-0 text-xs ${
                   dirty
                     ? "text-[#B45309]"
                     : answered
@@ -258,7 +272,7 @@ function PollAnswerBlock({
                     : t("newsPollOpen")}
               </span>
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               {options.map((option) => {
                 const active = selected.includes(option.id);
                 return (
@@ -267,7 +281,7 @@ function PollAnswerBlock({
                     type="button"
                     disabled={closed || saving}
                     aria-pressed={active}
-                    onClick={() => toggle(child, option.id)}
+                    onClick={() => poll.toggle(child, option.id)}
                     className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60 ${
                       active
                         ? "bg-[#83CD2D] text-white"
@@ -282,26 +296,6 @@ function PollAnswerBlock({
           </div>
         );
       })}
-
-      {!closed && (
-        <button
-          type="button"
-          disabled={dirtyChildren.length === 0 || saving}
-          onClick={() => void save()}
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saving ? t("newsPollSaving") : t("newsPollSave")}
-        </button>
-      )}
-
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-[#FF31301A] px-3 py-2 text-sm text-[#CC2626]"
-        >
-          {error}
-        </p>
-      )}
     </div>
   );
 }
@@ -376,6 +370,7 @@ export function NewsDetailModal({
   const [actionError, setActionError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
+  const poll = usePollAnswers(item, onUpdated, onStale);
 
   // Reset the per-version local flags when the id or published_at (the version
   // token) changes. On the stale-correction path the parent refetches the feed
@@ -447,7 +442,43 @@ export function NewsDetailModal({
     item.requires_acknowledgement && !item.acknowledged && !stale;
 
   return (
-    <Modal isOpen onClose={onClose} title={item.title}>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={item.title}
+      closeLabel={t("newsClose")}
+      footer={
+        <>
+          <Button type="button" variant="outline" size="md" onClick={onClose}>
+            {t("newsClose")}
+          </Button>
+          {isPoll(item) && !poll.closed && !stale && (
+            <Button
+              type="button"
+              size="md"
+              onClick={() => void poll.save()}
+              disabled={!poll.canSave || poll.saving}
+              isLoading={poll.saving}
+              loadingText={t("newsPollSaving")}
+            >
+              {t("newsPollSave")}
+            </Button>
+          )}
+          {needsAck && (
+            <Button
+              type="button"
+              size="md"
+              className="gap-1.5"
+              onClick={() => void handleAcknowledge()}
+              disabled={busy}
+            >
+              <Check className="h-4 w-4" aria-hidden="true" />
+              {t("newsAcknowledge")}
+            </Button>
+          )}
+        </>
+      }
+    >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <NewsBadges item={item} />
@@ -491,29 +522,16 @@ export function NewsDetailModal({
           </p>
         )}
 
-        {isPoll(item) && (
-          <div className="border-t border-gray-100 pt-3">
-            <PollAnswerBlock
-              item={item}
-              onUpdated={onUpdated}
-              onStale={onStale}
-            />
-          </div>
+        {poll.error && (
+          <p
+            role="alert"
+            className="rounded-lg bg-[#FF31301A] px-3 py-2 text-sm text-[#CC2626]"
+          >
+            {poll.error}
+          </p>
         )}
 
-        {needsAck && (
-          <div className="border-t border-gray-100 pt-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleAcknowledge()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:opacity-60"
-            >
-              <Check className="h-4 w-4" aria-hidden="true" />
-              {t("newsAcknowledge")}
-            </button>
-          </div>
-        )}
+        {isPoll(item) && <PollAnswerRows poll={poll} />}
       </div>
     </Modal>
   );

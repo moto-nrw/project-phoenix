@@ -128,6 +128,7 @@
     "newsPollSaving": "Сохранение …",
     "newsPollUnsaved": "Ещё не сохранено",
     "newsPollNeedsAnswer": "Требуется ответ",
+    "newsClose": "Закрыть",
     "newEnrollment": "Новая заявка"
   },
   "parentEnroll": {
