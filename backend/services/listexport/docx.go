@@ -247,6 +247,7 @@ func writeCell(b *bytes.Buffer, text string, bold bool) {
 		if i > 0 {
 			b.WriteString(`<w:br/>`)
 		}
+		_, line = DecodeLine(line)
 		b.WriteString(`<w:t xml:space="preserve">`)
 		b.WriteString(xmlText(line))
 		b.WriteString(`</w:t>`)

@@ -39,7 +39,11 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 		return listexport.File{}, err
 	}
 
-	doc := s.document("Betreuungsplan", "Angebot", params, weeks, data.rows)
+	doc := s.document(
+		"Betreuungsplan", "Angebot",
+		"Fett: Zeit und Raum · darunter das Personal",
+		params, weeks, data.rows,
+	)
 
 	s.getLogger().Info("betreuungsplan export rendered",
 		"from", from.String(),
@@ -229,16 +233,18 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 	return rows
 }
 
-func (d *betreuungsplanData) closedDayLines(day timezone.Date) []string {
+func (d *betreuungsplanData) closedDayLines(day timezone.Date) []listexport.Line {
 	if label, ok := d.closedDays[day]; ok {
-		return []string{label}
+		return []listexport.Line{strong(label)}
 	}
 	return nil
 }
 
-// instanceLines renders one block: window and room, then who runs it, then
-// how many children are expected.
-func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInstance) []string {
+// instanceLines renders one block: window and room in strong weight, who
+// runs it in normal, the head count and any note muted. Three ranks, so a
+// reader finds the time, the people, or the size of the group without
+// reading the whole cell.
+func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInstance) []listexport.Line {
 	head := timeRange(instance.StartTime, instance.EndTime)
 	if room := distinctRoom(instance.Title, d.roomNames[instance.RoomID]); room != "" {
 		head += " · " + room
@@ -249,22 +255,23 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 		// A cancelled block stays on the sheet — "entfällt" is the
 		// information the reader came for. The reason is internal.
 		head += " · entfällt"
+		lines := []listexport.Line{strong(head)}
 		if d.variant.internal() && instance.CancelReason != nil && strings.TrimSpace(*instance.CancelReason) != "" {
-			head += " (" + strings.TrimSpace(*instance.CancelReason) + ")"
+			lines = append(lines, muted("Grund: "+strings.TrimSpace(*instance.CancelReason)))
 		}
-		return []string{head}
+		return lines
 	}
 
-	lines := []string{head}
+	lines := []listexport.Line{strong(head)}
 
 	if names := d.staffLine(instance.ID); names != "" {
-		lines = append(lines, names)
+		lines = append(lines, normal(names))
 	}
 	if count := d.childCounts[instance.ID]; count > 0 {
-		lines = append(lines, fmt.Sprintf("%d Kinder", count))
+		lines = append(lines, muted(fmt.Sprintf("%d Kinder", count)))
 	}
 	if d.variant.internal() && instance.UnderstaffedNote != nil && strings.TrimSpace(*instance.UnderstaffedNote) != "" {
-		lines = append(lines, "Hinweis: "+strings.TrimSpace(*instance.UnderstaffedNote))
+		lines = append(lines, muted("Hinweis: "+strings.TrimSpace(*instance.UnderstaffedNote)))
 	}
 	return lines
 }

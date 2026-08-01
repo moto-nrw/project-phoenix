@@ -47,13 +47,15 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 
 	title := "Dienstplan"
 	rowLabel := "Mitarbeitende"
+	legend := "Fett: Dienstzeit · darunter die Aufgaben aus dem Betreuungsplan"
 	build := data.rowsByPerson
 	if params.Template == TemplateByArea {
 		rowLabel = "Einsatzbereich"
+		legend = "Fett: Zeitfenster · darunter die eingeteilten Personen"
 		build = data.rowsByArea
 	}
 
-	doc := s.document(title, rowLabel, params, weeks, build)
+	doc := s.document(title, rowLabel, legend, params, weeks, build)
 
 	s.getLogger().Info("dienstplan export rendered",
 		"from", from.String(),
@@ -211,19 +213,20 @@ func memberFullName(member *usersModel.Staff) string {
 }
 
 // closedDayLines prefixes a cell with the reason the day is closed, so an
-// empty Tuesday reads as "Schließtag" rather than as a planning mistake.
-func (d *dienstplanData) closedDayLines(day timezone.Date) []string {
+// empty Tuesday reads as "Schließtag" rather than as a planning mistake. It
+// is the dominant fact of that column, so it leads in strong weight.
+func (d *dienstplanData) closedDayLines(day timezone.Date) []listexport.Line {
 	if label, ok := d.closedDays[day]; ok {
-		return []string{label}
+		return []listexport.Line{strong(label)}
 	}
 	return nil
 }
 
 // personDayLines is one staff member's day: their shift windows first, then
 // the tasks planned inside them.
-func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []string {
+func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []listexport.Line {
 	key := staffDay{staffID: staffID, date: day}
-	lines := make([]string, 0, 4)
+	lines := make([]listexport.Line, 0, 4)
 
 	for _, shift := range d.shifts[key] {
 		// A replacement shift is printed in its own row; naming it again
@@ -236,8 +239,9 @@ func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []stri
 	return lines
 }
 
-// shiftLines renders one planned presence window.
-func (d *dienstplanData) shiftLines(shift *scheduleModel.StaffShift) []string {
+// shiftLines renders one planned presence window. The window leads in strong
+// weight — it is the anchor everything else in the cell sits under.
+func (d *dienstplanData) shiftLines(shift *scheduleModel.StaffShift) []listexport.Line {
 	head := timeRange(shift.StartTime, shift.EndTime)
 	if name := d.shiftTypeNames[derefID(shift.ShiftTypeID)]; name != "" {
 		head += " · " + name
@@ -247,33 +251,35 @@ func (d *dienstplanData) shiftLines(shift *scheduleModel.StaffShift) []string {
 	}
 
 	if !shift.Cancelled {
-		lines := []string{head}
+		lines := []listexport.Line{strong(head)}
 		if d.variant.internal() && strings.TrimSpace(shift.Notes) != "" {
-			lines = append(lines, "Hinweis: "+strings.TrimSpace(shift.Notes))
+			lines = append(lines, muted("Hinweis: "+strings.TrimSpace(shift.Notes)))
 		}
 		return lines
 	}
 
 	head += " · entfällt"
+	lines := []listexport.Line{strong(head)}
 	if d.variant.internal() && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
 		// The reason is a health datum often enough ("krank") that it is
 		// deliberately absent from the wall variant.
-		head += " (" + strings.TrimSpace(*shift.ChangeReason) + ")"
+		lines = append(lines, muted("Grund: "+strings.TrimSpace(*shift.ChangeReason)))
 	}
-	lines := []string{head}
 	if covers := d.coversByOrigin[shift.ID]; len(covers) > 0 {
 		names := make([]string, 0, len(covers))
 		for _, cover := range covers {
 			names = append(names, d.staffName(cover.StaffID))
 		}
-		lines = append(lines, "Vertretung: "+strings.Join(names, ", "))
+		lines = append(lines, muted("Vertretung: "+strings.Join(names, ", ")))
 	}
 	return lines
 }
 
 // assignmentLines renders one timetable block inside a shift: the task, not
-// a second presence window.
-func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAssignment) []string {
+// a second presence window. It stays in normal weight, so a glance at the
+// cell separates "wann ist die Person da" (strong) from "was macht sie
+// darin" (normal) without anyone having to read the times.
+func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAssignment) []listexport.Line {
 	if assignment.IsAbsent && !d.variant.internal() {
 		// Someone marked absent for a block is not working it; the wall
 		// sheet should not send anyone looking for them there.
@@ -290,11 +296,11 @@ func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAss
 	if assignment.IsAbsent {
 		line += " · abwesend"
 	}
-	lines := []string{line}
+	lines := []listexport.Line{normal(line)}
 
 	if d.variant.internal() {
 		for _, gap := range assignment.UncoveredIntervals {
-			lines = append(lines, "ohne Schicht "+timeRange(gap.StartTime, gap.EndTime))
+			lines = append(lines, muted("ohne Schicht "+timeRange(gap.StartTime, gap.EndTime)))
 		}
 	}
 	return lines
@@ -427,15 +433,20 @@ func (r *areaRow) add(dayIndex int, start, end time.Time, room, name string) {
 	r.days[dayIndex] = append(r.days[dayIndex], areaEntry{heading: heading, names: []string{name}})
 }
 
-func (r *areaRow) lines(dayIndex int) []string {
+func (r *areaRow) lines(dayIndex int) []listexport.Line {
 	entries := r.days[dayIndex]
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].heading < entries[j].heading })
 
-	lines := make([]string, 0, len(entries)*2)
+	lines := make([]listexport.Line, 0, len(entries)*2)
 	for _, entry := range entries {
 		sort.Strings(entry.names)
-		lines = append(lines, entry.heading)
-		lines = append(lines, entry.names...)
+		// The window heads each block in strong weight, the names under it in
+		// normal — otherwise a cell with two windows and five names is one
+		// undifferentiated column of text.
+		lines = append(lines, strong(entry.heading))
+		for _, name := range entry.names {
+			lines = append(lines, normal(name))
+		}
 	}
 	return lines
 }

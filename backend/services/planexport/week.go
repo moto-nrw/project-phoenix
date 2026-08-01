@@ -83,10 +83,30 @@ func columnsFor(rowLabel string, weeks []week) []listexport.Column {
 }
 
 // dayCells is one printed row: the label plus the five day cells, each a
-// list of lines that the renderers join with "\n".
+// stack of styled lines.
+//
+// The styles carry the whole legibility of the sheet. Every entry opens with
+// a strong line (the window it happens in), its content follows in normal
+// weight, and anything secondary — a room, a reason, a coverage gap — is
+// muted. Printed in one uniform weight, a plan cell is a block of grey text
+// in which a Dienst and an Angebot look identical; that was the first
+// version, and it could not be read.
 type dayCells struct {
 	label string
-	days  [5][]string
+	days  [5][]listexport.Line
+}
+
+// strong, normal and muted build the three ranks of line a cell uses.
+func strong(text string) listexport.Line {
+	return listexport.Line{Text: text, Style: listexport.LineStrong}
+}
+
+func normal(text string) listexport.Line {
+	return listexport.Line{Text: text, Style: listexport.LineNormal}
+}
+
+func muted(text string) listexport.Line {
+	return listexport.Line{Text: text, Style: listexport.LineMuted}
 }
 
 // toRow turns the collected lines into a listexport row. Empty days print an
@@ -94,14 +114,14 @@ type dayCells struct {
 // from "the export lost it".
 func (c dayCells) toRow() listexport.Row {
 	values := map[listexport.ColumnID]string{
-		listexport.ColumnPlanRowLabel: c.label,
+		listexport.ColumnPlanRowLabel: listexport.StyledCell([]listexport.Line{strong(c.label)}),
 	}
 	for i, id := range listexport.PlanDayColumns {
 		if len(c.days[i]) == 0 {
-			values[id] = "—"
+			values[id] = listexport.StyledCell([]listexport.Line{muted("—")})
 			continue
 		}
-		values[id] = strings.Join(c.days[i], "\n")
+		values[id] = listexport.StyledCell(c.days[i])
 	}
 	return listexport.Row{Values: values}
 }

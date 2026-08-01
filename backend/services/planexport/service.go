@@ -122,7 +122,7 @@ func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) ma
 // explicit "nothing planned" row, because a silently omitted week would be
 // indistinguishable from a broken export.
 func (s *service) document(
-	title, rowLabel string,
+	title, rowLabel, legend string,
 	params Params,
 	weeks []week,
 	buildWeek func(w week) []listexport.Row,
@@ -144,7 +144,7 @@ func (s *service) document(
 		Title:       title,
 		Subtitle:    rangeSubtitle(weeks),
 		GeneratedAt: time.Now(),
-		Filters:     documentFilters(params),
+		Filters:     documentFilters(params, legend),
 		Columns:     columnsFor(rowLabel, weeks),
 		Rows:        rows,
 		Footer:      confidentialityNote,
@@ -175,16 +175,17 @@ func rangeSubtitle(weeks []week) string {
 	)
 }
 
-// documentFilters are the header pills. The variant is stated on the sheet
-// itself so nobody has to guess whether a printout in their hand is the
-// public or the internal one.
-func documentFilters(params Params) []string {
-	switch params.Variant {
-	case VariantInternal:
-		return []string{"Interne Fassung (mit Gründen und Lücken)"}
-	default:
-		return []string{"Aushang"}
+// documentFilters are the header pills: the variant, so nobody has to guess
+// whether the printout in their hand is the public or the internal one, and
+// a legend for the cell ranks. The legend is not decoration — without it a
+// reader has to infer that bold means presence and regular means task, and
+// inferring is exactly what a sheet on a wall must not require.
+func documentFilters(params Params, legend string) []string {
+	variant := "Aushang"
+	if params.Variant == VariantInternal {
+		variant = "Interne Fassung (mit Gründen und Lücken)"
 	}
+	return []string{variant, legend}
 }
 
 // filename keeps the German label but leaves the slug to listexport, which

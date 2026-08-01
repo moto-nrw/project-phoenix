@@ -93,6 +93,74 @@ type Column struct {
 	Label string   `json:"label"`
 }
 
+// LineStyle is the emphasis of one line inside a cell. A matrix cell stacks
+// facts of different rank — a shift window, the tasks inside it, a note about
+// a cancellation — and printing all of them in one weight produces a wall of
+// grey that nobody can read from two metres away.
+type LineStyle uint8
+
+const (
+	// LineNormal is the ordinary cell text.
+	LineNormal LineStyle = iota
+	// LineStrong anchors an entry: the shift window, a block's heading.
+	LineStrong
+	// LineMuted carries secondary detail (a room, a reason, a coverage gap)
+	// that must be readable but must not compete with the anchor.
+	LineMuted
+)
+
+// Line is one styled line of a cell.
+type Line struct {
+	Text  string
+	Style LineStyle
+}
+
+// Style markers. They are encoded IN the cell string rather than beside it so
+// that Row.Values stays a plain map[ColumnID]string and the eight existing
+// export call sites keep working untouched. The markers are C0 control
+// characters, which cannot occur in any name, room, or note, and every
+// renderer either interprets them (PDF, DOCX) or strips them (XLSX) — they
+// never reach a reader.
+const (
+	markStrong = "\x01"
+	markMuted  = "\x02"
+)
+
+// StyledCell builds a cell from styled lines. Callers use this instead of
+// hand-assembling the markers, which stay an implementation detail.
+func StyledCell(lines []Line) string {
+	parts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		switch line.Style {
+		case LineStrong:
+			parts = append(parts, markStrong+line.Text)
+		case LineMuted:
+			parts = append(parts, markMuted+line.Text)
+		default:
+			parts = append(parts, line.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// DecodeLine splits a stored line into its style and its text.
+func DecodeLine(line string) (LineStyle, string) {
+	switch {
+	case strings.HasPrefix(line, markStrong):
+		return LineStrong, strings.TrimPrefix(line, markStrong)
+	case strings.HasPrefix(line, markMuted):
+		return LineMuted, strings.TrimPrefix(line, markMuted)
+	default:
+		return LineNormal, line
+	}
+}
+
+// StripStyleMarkers removes every marker from a cell, for renderers that
+// cannot express per-line emphasis.
+func StripStyleMarkers(s string) string {
+	return strings.NewReplacer(markStrong, "", markMuted, "").Replace(s)
+}
+
 type Row struct {
 	Values     map[ColumnID]string `json:"values"`
 	GroupTitle string              `json:"group_title,omitempty"`

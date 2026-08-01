@@ -101,11 +101,30 @@ func defaultParams() Params {
 	}
 }
 
-// cellFor returns the rendered cell of the row with the given label.
+// cellFor returns the rendered cell of the row with the given label, with
+// the style markers stripped — most assertions are about the text.
 func cellFor(t *testing.T, doc listexport.Document, label string, column listexport.ColumnID) string {
 	t.Helper()
+	return listexport.StripStyleMarkers(rawCellFor(t, doc, label, column))
+}
+
+// cellLines returns the cell's lines with their styles, for the assertions
+// that are about emphasis rather than wording.
+func cellLines(t *testing.T, doc listexport.Document, label string, column listexport.ColumnID) []listexport.Line {
+	t.Helper()
+	raw := rawCellFor(t, doc, label, column)
+	lines := make([]listexport.Line, 0, 4)
+	for _, encoded := range strings.Split(raw, "\n") {
+		style, text := listexport.DecodeLine(encoded)
+		lines = append(lines, listexport.Line{Text: text, Style: style})
+	}
+	return lines
+}
+
+func rawCellFor(t *testing.T, doc listexport.Document, label string, column listexport.ColumnID) string {
+	t.Helper()
 	for _, row := range doc.Rows {
-		if row.Values[listexport.ColumnPlanRowLabel] == label {
+		if listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]) == label {
 			return row.Values[column]
 		}
 	}
@@ -120,7 +139,7 @@ func rowLabels(doc listexport.Document) []string {
 			labels = append(labels, "#"+row.GroupTitle)
 			continue
 		}
-		labels = append(labels, row.Values[listexport.ColumnPlanRowLabel])
+		labels = append(labels, listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]))
 	}
 	return labels
 }
@@ -484,5 +503,83 @@ func TestDienstplanDropsRoomThatRepeatsTheTitle(t *testing.T) {
 	}
 	if cell := cellFor(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanMonday); cell != "12:00–13:00 Mensa" {
 		t.Fatalf("cell = %q, want the repeated room dropped", cell)
+	}
+}
+
+// The whole legibility of the sheet rides on these three ranks: the shift
+// window anchors the cell in bold, the task inside it reads in normal
+// weight, and secondary facts recede. Printed in one weight — the first
+// version of this export — a Dienst and an Angebot are indistinguishable.
+func TestDienstplanCellRanksShiftTaskAndDetail(t *testing.T) {
+	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
+	cancelled.Cancelled = true
+	cancelled.ChangeReason = ptr("Fortbildung")
+	cover := shift(2, 8, monday, clock(7, 30), clock(14, 0))
+	cover.OriginShiftID = ptr(int64(1))
+
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff: []*usersModel.Staff{
+			staffMember(7, "Franziska", "Kessener"),
+			staffMember(8, "Anna", "Müller"),
+		},
+		Shifts: []*scheduleModel.StaffShift{cancelled, cover},
+		Assignments: []scheduleSvc.StaffScheduleAssignment{{
+			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+			ActivityTitle: "Mensa", RoomName: "Speisesaal",
+		}},
+	}
+
+	service, renderer := newDienstplanService(overview, nil)
+	params := defaultParams()
+	params.Variant = VariantInternal
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+
+	lines := cellLines(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanMonday)
+	want := []listexport.Line{
+		{Text: "07:30–14:00 · entfällt", Style: listexport.LineStrong},
+		{Text: "Grund: Fortbildung", Style: listexport.LineMuted},
+		{Text: "Vertretung: Müller, A.", Style: listexport.LineMuted},
+		{Text: "12:00–13:00 Mensa · Speisesaal", Style: listexport.LineNormal},
+	}
+	if len(lines) != len(want) {
+		t.Fatalf("lines = %+v, want %+v", lines, want)
+	}
+	for i := range want {
+		if lines[i] != want[i] {
+			t.Fatalf("line %d = %+v, want %+v", i, lines[i], want[i])
+		}
+	}
+
+	// A row label is its own anchor, and an empty day recedes rather than
+	// competing with the entries around it.
+	if got := cellLines(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanTuesday); len(got) != 1 ||
+		got[0].Style != listexport.LineMuted || got[0].Text != "—" {
+		t.Fatalf("empty day = %+v, want a single muted em dash", got)
+	}
+}
+
+// The care plan uses the same three ranks.
+func TestBetreuungsplanCellRanks(t *testing.T) {
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7)},
+		map[int64]int{11: 24},
+	)
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+
+	lines := cellLines(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)
+	want := []listexport.Line{
+		{Text: "12:00–13:00 · Speisesaal", Style: listexport.LineStrong},
+		{Text: "Kessener, F.", Style: listexport.LineNormal},
+		{Text: "24 Kinder", Style: listexport.LineMuted},
+	}
+	for i := range want {
+		if i >= len(lines) || lines[i] != want[i] {
+			t.Fatalf("lines = %+v, want %+v", lines, want)
+		}
 	}
 }

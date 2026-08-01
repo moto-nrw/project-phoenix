@@ -41,9 +41,14 @@ func norms(s string) string { return norm.NFC.String(s) }
 // renderRow is one table row with every cell already wrapped to its
 // column width, so pagination, splitting, and drawing all work on the
 // same line counts and cannot disagree.
+type styledLine struct {
+	text  string
+	style LineStyle
+}
+
 type renderRow struct {
-	cells [][]string // per column: wrapped lines
-	lines int        // max line count across cells
+	cells [][]styledLine // per column: wrapped, styled lines
+	lines int            // max line count across cells
 }
 
 func (rr renderRow) height() float64 {
@@ -393,17 +398,55 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 	return pages, nil
 }
 
-// buildRow wraps every cell of row to its column width (body font).
+// buildRow wraps every cell of row to its column width, keeping each line's
+// style. A segment is wrapped with its own font set, so a bold line is
+// measured as bold and cannot overrun its column.
 func (r *designRenderer) buildRow(row Row) renderRow {
-	rr := renderRow{cells: make([][]string, len(r.cols)), lines: 1}
+	rr := renderRow{cells: make([][]styledLine, len(r.cols)), lines: 1}
 	for i, col := range r.cols {
-		lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
-		rr.cells[i] = lines
-		if len(lines) > rr.lines {
-			rr.lines = len(lines)
+		rr.cells[i] = r.wrapStyled(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
+		if n := len(rr.cells[i]); n > rr.lines {
+			rr.lines = n
 		}
 	}
 	return rr
+}
+
+// wrapStyled splits a cell into its styled lines and wraps each to maxW.
+func (r *designRenderer) wrapStyled(cell string, maxW float64) []styledLine {
+	cell = strings.ReplaceAll(strings.ReplaceAll(cell, "\r\n", "\n"), "\r", "\n")
+	out := []styledLine{}
+	for _, segment := range strings.Split(cell, "\n") {
+		style, text := DecodeLine(segment)
+		// Measure in the face the line will be drawn in; a bold run is wider
+		// than the same string in the regular face.
+		if err := r.setFont(fontStyleFor(style), fontBody); err != nil {
+			return []styledLine{{text: text}}
+		}
+		for _, line := range r.wrapSegment(text, maxW) {
+			out = append(out, styledLine{text: line, style: style})
+		}
+	}
+	// Restore the body face so callers that measure afterwards are unaffected.
+	_ = r.setFont(styleNormal, fontBody)
+	if len(out) == 0 {
+		return []styledLine{{}}
+	}
+	return out
+}
+
+func fontStyleFor(style LineStyle) string {
+	if style == LineStrong {
+		return styleBold
+	}
+	return styleNormal
+}
+
+func lineColorFor(style LineStyle) rgb {
+	if style == LineMuted {
+		return colorMuted
+	}
+	return colorBody
 }
 
 // splitRenderRow slices a row taller than maxLines into continuation
@@ -414,7 +457,7 @@ func splitRenderRow(rr renderRow, maxLines int) []renderRow {
 	}
 	out := []renderRow{}
 	for start := 0; start < rr.lines; start += maxLines {
-		part := renderRow{cells: make([][]string, len(rr.cells)), lines: 1}
+		part := renderRow{cells: make([][]styledLine, len(rr.cells)), lines: 1}
 		for i, lines := range rr.cells {
 			end := start + maxLines
 			if end > len(lines) {
@@ -1036,11 +1079,14 @@ func (r *designRenderer) drawCard(p designPage) error {
 	}
 	for _, row := range p.rows {
 		cx = textLeft
-		r.setText(colorBody)
 		for i := range r.cols {
 			ty := y + cellPadY + rowLineHt - 2
 			for _, ln := range row.cells[i] {
-				if err := r.text(cx, ty, ln); err != nil {
+				if err := r.setFont(fontStyleFor(ln.style), fontBody); err != nil {
+					return err
+				}
+				r.setText(lineColorFor(ln.style))
+				if err := r.text(cx, ty, ln.text); err != nil {
 					return err
 				}
 				ty += rowLineHt

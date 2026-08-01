@@ -120,7 +120,9 @@ func renderXLSX(doc Document) ([]byte, error) {
 		maxLines := 1
 		for colIdx, column := range doc.Columns {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
-			value := row.Values[column.ID]
+			// XLSX has no per-line emphasis, so the markers are stripped;
+			// the wrapped line structure survives.
+			value := StripStyleMarkers(row.Values[column.ID])
 			if err := f.SetCellValue(sheet, cell, value); err != nil {
 				return nil, err
 			}
