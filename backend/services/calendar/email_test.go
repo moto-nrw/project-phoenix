@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,51 @@ func appointmentOutboxRow(kind string) *platformModels.EmailOutbox {
 			apptPayloadPortalURL:  "https://parents.example.com",
 		},
 	}
+}
+
+// The greeting ends in a comma, so the intro has to continue that sentence AND
+// name the sender itself. It used to be a fragment with a "die {Schule}: "
+// prefix glued on by the template, which read "die OGS Musterschule: ein Termin
+// wurde abgesagt."
+func TestAppointmentRenderer_IntroIsOneSentence(t *testing.T) {
+	render := NewAppointmentRenderer(EmailConfig{DefaultFrom: email.NewEmail("moto", "no-reply@example.com")})
+
+	for _, kind := range []string{
+		platformModels.EmailKindAppointmentPublished,
+		platformModels.EmailKindAppointmentUpdated,
+		platformModels.EmailKindAppointmentCancelled,
+		platformModels.EmailKindAppointmentReminder,
+	} {
+		msg, err := render(context.Background(), appointmentOutboxRow(kind))
+		require.NoError(t, err, kind)
+		content, ok := msg.Content.(map[string]any)
+		require.True(t, ok)
+		intro, ok := content["IntroText"].(string)
+		require.True(t, ok, kind)
+
+		assert.Contains(t, intro, "OGS Musterschule", "the sender belongs inside the sentence: %s", kind)
+		assert.NotContains(t, intro, ":", "a colon means the sentence was assembled from fragments: %s", kind)
+		assert.True(t, strings.HasSuffix(intro, "."), "intro must be a full sentence: %s -> %q", kind, intro)
+	}
+}
+
+func TestAppointmentRenderer_IntroWithoutSchoolName(t *testing.T) {
+	// Branding is best-effort; without a school name the sentence still has to
+	// stand on its own rather than starting with a dangling "die ".
+	render := NewAppointmentRenderer(EmailConfig{DefaultFrom: email.NewEmail("moto", "no-reply@example.com")})
+	row := appointmentOutboxRow(platformModels.EmailKindAppointmentReminder)
+	delete(row.Payload, "school_name")
+
+	msg, err := render(context.Background(), row)
+	require.NoError(t, err)
+	content, ok := msg.Content.(map[string]any)
+	require.True(t, ok)
+	intro, ok := content["IntroText"].(string)
+	require.True(t, ok)
+
+	assert.NotContains(t, intro, "die  ")
+	assert.False(t, strings.HasPrefix(intro, "die "), "no school name means no dangling article: %q", intro)
+	assert.True(t, strings.HasSuffix(intro, "."))
 }
 
 func TestAppointmentRenderer_PerKindCopy(t *testing.T) {

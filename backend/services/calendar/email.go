@@ -34,7 +34,7 @@ func NewAppointmentRenderer(cfg EmailConfig) func(context.Context, *platformMode
 		logoURL, _ := row.Payload[apptPayloadLogoURL].(string)
 		motoLogoURL, _ := row.Payload[apptPayloadMotoLogoURL].(string)
 
-		kicker, subjectVerb, intro := appointmentCopy(row.Kind)
+		kicker, subjectVerb, intro := appointmentCopy(row.Kind, schoolName)
 		subject := fmt.Sprintf("%s: %s", subjectVerb, title)
 		if schoolName != "" {
 			subject = fmt.Sprintf("%s – %s: %s", schoolName, subjectVerb, title)
@@ -64,15 +64,37 @@ func NewAppointmentRenderer(cfg EmailConfig) func(context.Context, *platformMode
 
 // appointmentCopy returns the German header kicker, subject verb and intro
 // sentence for each appointment e-mail kind.
-func appointmentCopy(kind string) (kicker, subjectVerb, intro string) {
+//
+// The intro is a COMPLETE sentence that already names the sender, and it
+// continues the "Guten Tag Frau Schneider," greeting — hence lower case. The
+// template used to glue a "die {Schule}: " prefix in front of a sentence that
+// did not expect one, which produced "die OGS Musterschule: ein Termin wurde
+// abgesagt." Naming the school inside the sentence is the only way the two
+// halves can agree grammatically.
+func appointmentCopy(kind, schoolName string) (kicker, subjectVerb, intro string) {
+	sender := "die " + schoolName
+	known := schoolName != ""
+
 	switch kind {
 	case platformModels.EmailKindAppointmentUpdated:
-		return "Termin geändert", "Termin geändert", "ein Termin wurde aktualisiert."
+		if known {
+			return "Termin geändert", "Termin geändert", sender + " hat einen Termin geändert."
+		}
+		return "Termin geändert", "Termin geändert", "ein Termin wurde geändert."
 	case platformModels.EmailKindAppointmentCancelled:
+		if known {
+			return "Termin abgesagt", "Termin abgesagt", sender + " hat einen Termin abgesagt."
+		}
 		return "Termin abgesagt", "Termin abgesagt", "ein Termin wurde abgesagt."
 	case platformModels.EmailKindAppointmentReminder:
-		return "Terminerinnerung", "Erinnerung", "wir möchten Sie an einen bevorstehenden Termin erinnern."
+		if known {
+			return "Terminerinnerung", "Erinnerung", sender + " erinnert Sie an einen bevorstehenden Termin."
+		}
+		return "Terminerinnerung", "Erinnerung", "wir erinnern Sie an einen bevorstehenden Termin."
 	default:
+		if known {
+			return "Neuer Termin", "Neuer Termin", sender + " hat einen neuen Termin für Sie eingetragen."
+		}
 		return "Neuer Termin", "Neuer Termin", "es gibt einen neuen Termin für Sie."
 	}
 }
