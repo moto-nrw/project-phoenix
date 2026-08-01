@@ -76,6 +76,27 @@ describe("exportEmergencySnapshot", () => {
     );
   });
 
+  // Without a Content-Disposition the snapshot still needs a name a user can
+  // find again in their downloads folder.
+  it("names the file itself when the backend sends no filename", async () => {
+    const link = { click: vi.fn(), remove: vi.fn() } as unknown as {
+      click: () => void;
+      remove: () => void;
+      download?: string;
+    };
+    vi.spyOn(document.body, "append").mockImplementation(
+      () => undefined as unknown as void,
+    );
+    vi.spyOn(document, "createElement").mockReturnValue(
+      link as unknown as HTMLAnchorElement,
+    );
+    globalThis.fetch = vi.fn(async () => new Response(new Blob(["pdf"])));
+
+    await exportEmergencySnapshot("download");
+
+    expect(link.download).toBe("notfallliste.pdf");
+  });
+
   it("throws the backend error body when export fails", async () => {
     globalThis.fetch = vi.fn(async () => {
       return new Response("nicht erlaubt", { status: 403 });

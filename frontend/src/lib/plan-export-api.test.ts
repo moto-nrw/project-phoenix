@@ -138,4 +138,76 @@ describe("exportPlan", () => {
     ).rejects.toThrow();
     expect(close).toHaveBeenCalled();
   });
+
+  it("prints into the caller's tab instead of downloading", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(fileResponse()) as unknown as typeof fetch;
+    const target = {
+      close: vi.fn(),
+      focus: vi.fn(),
+      print: vi.fn(),
+      location: { href: "" },
+    };
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    await exportPlan(
+      "dienstplan",
+      request,
+      "pdf",
+      "print",
+      target as unknown as Window,
+    );
+    await vi.runAllTimersAsync();
+
+    expect(target.print).toHaveBeenCalledOnce();
+    expect(click).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  // Without a Content-Disposition the file still needs a name a user can find
+  // again — never the browser's "download".
+  it("names the file itself when the backend sends no filename", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(new Blob(["%PDF"]), { status: 200 }),
+      ) as unknown as typeof fetch;
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    await exportPlan("dienstplan", request, "pdf", "download");
+
+    const link = click.mock.instances[0] as HTMLAnchorElement;
+    expect(link.download).toBe("dienstplan-2026-07-27.pdf");
+  });
+
+  it("falls back to a readable message for an unhelpful error body", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("<html>502</html>", { status: 502 }),
+      ) as unknown as typeof fetch;
+
+    await expect(
+      exportPlan("dienstplan", request, "pdf", "download"),
+    ).rejects.toThrow("Der Plan konnte nicht erstellt werden.");
+  });
+
+  it("uses the message field and a non-JSON inner body verbatim", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: "Keine Berechtigung." }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      exportPlan("dienstplan", request, "pdf", "download"),
+    ).rejects.toThrow("Keine Berechtigung.");
+  });
 });
