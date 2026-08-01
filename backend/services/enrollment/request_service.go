@@ -2195,12 +2195,16 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err != nil {
 			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
 		}
-		preservedClaims := make(map[int64]int, len(existingLinks))
-		for _, link := range existingLinks {
-			preservedClaims[link.CareOfferingID]++
-		}
 		if !capabilities.CareOfferingsEnabled {
 			materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
+		}
+
+		childStatusOverrides := map[int]string{}
+		if capabilities.CareOfferingsEnabled {
+			childStatusOverrides, err = s.applyCapacityOverflowWithReplacedChildren(txCtx, phase, editReq.Children, openByID, existingChildIDs)
+			if err != nil {
+				return err
+			}
 		}
 
 		if s.RequestGuardianRepo != nil {
@@ -2230,14 +2234,6 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			duplicatePolicy != configModel.EnrollmentDuplicateHandlingWarn &&
 			duplicatePolicy != configModel.EnrollmentDuplicateHandlingIgnore {
 			return fmt.Errorf("edit replace: unsupported duplicate handling %q", duplicatePolicy)
-		}
-
-		childStatusOverrides := map[int]string{}
-		if capabilities.CareOfferingsEnabled {
-			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
-			if err != nil {
-				return err
-			}
 		}
 
 		req.GuardianFirstName = strings.TrimSpace(editReq.GuardianFirstName)
@@ -4219,15 +4215,15 @@ func (s *requestService) applyCapacityOverflow(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
-	return s.applyCapacityOverflowWithPreservedClaims(ctx, phase, children, openByID, nil)
+	return s.applyCapacityOverflowWithReplacedChildren(ctx, phase, children, openByID, nil)
 }
 
-func (s *requestService) applyCapacityOverflowWithPreservedClaims(
+func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
-	preservedClaims map[int64]int,
+	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
 	overrides := make(map[int]string)
 	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
@@ -4276,10 +4272,9 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	// Cache per-offering current count + capacity. Avoid hitting the DB
 	// once per (child, offering) pair when one offering is shared.
 	type slot struct {
-		capacity  *int // nil = unlimited
-		current   int  // pre-existing claimants (DB)
-		preserved int  // claims this edit already held before replacement
-		queued    int  // count from earlier children in this submission
+		capacity *int // nil = unlimited
+		current  int  // pre-existing claimants (DB)
+		queued   int  // count from earlier children in this submission
 	}
 	slots := make(map[int64]*slot)
 
@@ -4297,19 +4292,13 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 			capacityFrom = phase.ServiceStartDate
 		}
 		capacityUntil := phase.ServiceEndDate.AddDays(1)
-		count, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(ctx, offeringID, capacityFrom, capacityUntil)
+		count, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, capacityFrom, capacityUntil)
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
-		preserved := preservedClaims[offeringID]
-		current := count - preserved
-		if current < 0 {
-			current = 0
-		}
 		s := &slot{
-			capacity:  offering.Capacity,
-			current:   current,
-			preserved: preserved,
+			capacity: offering.Capacity,
+			current:  count,
 		}
 		slots[offeringID] = s
 		return s, nil
@@ -4323,11 +4312,6 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 				return nil, err
 			}
 			if sl.capacity == nil {
-				sl.queued++
-				continue
-			}
-			if sl.preserved > 0 {
-				sl.preserved--
 				sl.queued++
 				continue
 			}

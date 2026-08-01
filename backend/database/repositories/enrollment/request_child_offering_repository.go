@@ -219,9 +219,10 @@ func (r *RequestChildOfferingRepository) ListHistoryByRequestChildID(ctx context
 	return rows, nil
 }
 
-// ListByRequestChildIDAtDate returns the selection active on onDate. Before a
-// care period starts, it returns the first upcoming selection instead, so a
-// child with a future booking remains visible to parent and review flows.
+// ListByRequestChildIDAtDate returns the selection active on onDate. Before
+// the first selection starts, it returns that upcoming selection so a child
+// with a future enrollment remains visible. It deliberately returns no rows
+// for a gap after an earlier selection ended.
 func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*enrollment.RequestChildOffering, error) {
 	var rows []*enrollment.RequestChildOffering
 	db := base.GetDB(ctx, r.db)
@@ -237,6 +238,20 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDAtDate(ctx context.
 		return nil, fmt.Errorf("failed to list request child offerings: %w", err)
 	}
 	if len(rows) > 0 {
+		return rows, nil
+	}
+
+	var hasEarlierSelection bool
+	err = db.NewSelect().
+		TableExpr(requestChildOfferingTableExpr).
+		ColumnExpr(`EXISTS(SELECT 1)`).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?`, onDate).
+		Scan(ctx, &hasEarlierSelection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check prior request child offerings: %w", err)
+	}
+	if hasEarlierSelection {
 		return rows, nil
 	}
 
@@ -347,7 +362,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRange(
 	careOfferingID int64,
 	from, until timezone.Date,
 ) (int, error) {
-	return r.countMaxActiveByCareOfferingInRange(ctx, careOfferingID, 0, from, until)
+	return r.countMaxActiveByCareOfferingInRange(ctx, careOfferingID, nil, from, until)
 }
 
 // CountMaxActiveByCareOfferingInRangeExcludingRequestChild returns the
@@ -361,12 +376,26 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRangeExcl
 	if requestChildID <= 0 {
 		return 0, fmt.Errorf("request_child_id is required")
 	}
-	return r.countMaxActiveByCareOfferingInRange(ctx, careOfferingID, requestChildID, from, until)
+	return r.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, careOfferingID, []int64{requestChildID}, from, until)
+}
+
+// CountMaxActiveByCareOfferingInRangeExcludingRequestChildren returns the
+// peak occupancy in [from, until) after removing the supplied children. Batch
+// replacement uses this instead of subtracting historical link counts from a
+// concurrent occupancy peak.
+func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(
+	ctx context.Context,
+	careOfferingID int64,
+	requestChildIDs []int64,
+	from, until timezone.Date,
+) (int, error) {
+	return r.countMaxActiveByCareOfferingInRange(ctx, careOfferingID, requestChildIDs, from, until)
 }
 
 func (r *RequestChildOfferingRepository) countMaxActiveByCareOfferingInRange(
 	ctx context.Context,
-	careOfferingID, excludedRequestChildID int64,
+	careOfferingID int64,
+	excludedRequestChildIDs []int64,
 	from, until timezone.Date,
 ) (int, error) {
 	if !from.Before(until) {
@@ -385,7 +414,7 @@ func (r *RequestChildOfferingRepository) countMaxActiveByCareOfferingInRange(
 			WHERE "request_child_offering".care_offering_id = ?
 				AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
 				AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
-				AND (? = 0 OR "request_child_offering".request_child_id <> ?)
+				AND (? = 0 OR "request_child_offering".request_child_id NOT IN (?))
 				AND "child".status NOT IN (?)
 		), boundaries AS (
 			SELECT starts_at AS boundary FROM intervals
@@ -399,7 +428,7 @@ func (r *RequestChildOfferingRepository) countMaxActiveByCareOfferingInRange(
 				AND interval_row.ends_at > boundaries.boundary
 		)), 0)
 		FROM boundaries
-	`, from, from, until, until, careOfferingID, until, from, excludedRequestChildID, excludedRequestChildID,
+	`, from, from, until, until, careOfferingID, until, from, len(excludedRequestChildIDs), bun.List(excludedRequestChildIDs),
 		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
 	).Scan(ctx, &count)
 	if err != nil {

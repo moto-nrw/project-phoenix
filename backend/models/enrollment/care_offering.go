@@ -441,6 +441,11 @@ type RequestChildOfferingRepository interface {
 	// replacement uses it to validate the post-replacement state before it
 	// writes the new intervals.
 	CountMaxActiveByCareOfferingInRangeExcludingRequestChild(ctx context.Context, careOfferingID, requestChildID int64, from, until timezone.Date) (int, error)
+	// CountMaxActiveByCareOfferingInRangeExcludingRequestChildren is the batch
+	// variant used while replacing several children in one enrollment request.
+	// It prevents historical selections from being subtracted from a peak that
+	// they did not occupy concurrently.
+	CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx context.Context, careOfferingID int64, requestChildIDs []int64, from, until timezone.Date) (int, error)
 	// CountMaterializableByCareOffering includes every non-terminal selection,
 	// including a replacement scheduled for a future date. It protects later
 	// materialization from incompatible offering/template edits.

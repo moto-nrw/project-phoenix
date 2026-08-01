@@ -412,6 +412,30 @@ func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 	return period, phase, earliest, nil
 }
 
+// latestApprovedCarePeriodEnd returns the farthest date for which this child
+// has an approved care enrollment. The picker may span consecutive approved
+// periods; CatalogAt resolves the matching period and catalog after a date is
+// chosen.
+func (s *offeringChangeRequestService) latestApprovedCarePeriodEnd(
+	ctx context.Context,
+	studentID int64,
+) (timezone.Date, error) {
+	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+	if err != nil {
+		return timezone.Date{}, fmt.Errorf("offering change: list care periods: %w", err)
+	}
+	var latest timezone.Date
+	for _, period := range periods {
+		if period != nil && (latest.IsZero() || latest.Before(period.ServiceEndDate)) {
+			latest = period.ServiceEndDate
+		}
+	}
+	if latest.IsZero() {
+		return timezone.Date{}, ErrOfferingChangeNoEnrollment
+	}
+	return latest, nil
+}
+
 func (s *offeringChangeRequestService) Catalog(
 	ctx context.Context,
 	studentID int64,
@@ -423,7 +447,11 @@ func (s *offeringChangeRequestService) Catalog(
 	if err != nil {
 		return nil, err
 	}
-	return s.catalogAt(ctx, studentID, period, phase, earliest, earliest)
+	latest, err := s.latestApprovedCarePeriodEnd(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.catalogAt(ctx, studentID, period, phase, earliest, latest, earliest)
 }
 
 func (s *offeringChangeRequestService) CatalogAt(
@@ -451,7 +479,11 @@ func (s *offeringChangeRequestService) CatalogAt(
 	if earliest.Before(phase.ServiceStartDate) {
 		earliest = phase.ServiceStartDate
 	}
-	return s.catalogAt(ctx, studentID, period, phase, earliest, effectiveFrom)
+	latest, err := s.latestApprovedCarePeriodEnd(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.catalogAt(ctx, studentID, period, phase, earliest, latest, effectiveFrom)
 }
 
 func (s *offeringChangeRequestService) catalogAt(
@@ -459,7 +491,7 @@ func (s *offeringChangeRequestService) catalogAt(
 	studentID int64,
 	period *enrollmentModels.StudentCarePeriod,
 	phase *enrollmentModels.Phase,
-	earliest, onDate timezone.Date,
+	earliest, latest, onDate timezone.Date,
 ) (*OfferingChangeCatalog, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
@@ -475,8 +507,15 @@ func (s *offeringChangeRequestService) catalogAt(
 			currentByID[link.CareOfferingID] = link
 		}
 	}
+	child, err := s.RequestChildRepo.FindByID(ctx, period.RequestChildID)
+	if err != nil || child == nil {
+		return nil, fmt.Errorf("offering change: load request child: %w", err)
+	}
 	activeByID := offeringsByID(active)
-	allowed := offeringsByID(active)
+	allowed, err := availableCareOfferingsForGrade(activeByID, child.TargetGradeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: filter eligible offerings: %w", err)
+	}
 	if err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, onDate, allowed); err != nil {
 		return nil, err
 	}
@@ -485,7 +524,7 @@ func (s *offeringChangeRequestService) catalogAt(
 		PhaseName:             phase.Name,
 		SelectionMode:         phase.CareOfferingSelectionMode,
 		EarliestEffectiveFrom: earliest,
-		LatestEffectiveFrom:   phase.ServiceEndDate,
+		LatestEffectiveFrom:   latest,
 		Items:                 make([]OfferingChangeCatalogItem, 0, len(allowed)),
 	}
 	for _, offering := range allowed {

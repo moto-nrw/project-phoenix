@@ -1444,21 +1444,12 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 		return overrides, nil
 	}
 
-	preservedClaims := make(map[int64]int)
-	existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, preservedChildIDs)
-	if err != nil {
-		return nil, fmt.Errorf("change request approve: load existing child offerings for capacity: %w", err)
-	}
-	for _, link := range existingLinks {
-		preservedClaims[link.CareOfferingID]++
-	}
-
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
 		RequestChildOfferingRepo: s.RequestChildOfferingRepo,
 		CareOfferingRepo:         s.CareOfferingRepo,
 		Settings:                 s.Settings,
 	}}
-	candidateOverrides, err := rs.applyCapacityOverflowWithPreservedClaims(ctx, phase, candidates, openByID, preservedClaims)
+	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, openByID, preservedChildIDs)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
 	}
