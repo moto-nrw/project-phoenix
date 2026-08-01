@@ -176,6 +176,44 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 	}
 }
 
+func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "ChangedCurrentAuto")
+	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch ChangedCurrentAuto", func(o *enrollmentModels.CareOffering) {
+		o.SortOrder = 203
+	})
+
+	// This row represents an offering materialized from another selection. A
+	// crafted request must not be able to change its days and persist it as a
+	// manual booking.
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID:        fx.childID,
+		CareOfferingID:        automatic.ID,
+		SelectedDays:          []string{"mon"},
+		AutomaticSelectedDays: []string{"mon"},
+	}))
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: automatic.ID, SelectedDays: []string{"tue"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	offerings, ok := row.Payload["offerings"].([]any)
+	require.True(t, ok)
+	require.Len(t, offerings, 1, "automatic offerings must never enter the manual request payload")
+	entry, ok := offerings[0].(map[string]any)
+	require.True(t, ok)
+	assert.EqualValues(t, fx.newOffering.ID, entry["offering_id"])
+}
+
 func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

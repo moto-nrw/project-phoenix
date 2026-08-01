@@ -772,7 +772,7 @@ func (s *offeringChangeRequestService) Create(
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	selections, err := s.validateSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom,
-		withoutUnchangedAutomaticSelections(current, input.Selections))
+		withoutAutomaticSelections(current, input.Selections))
 	if err != nil {
 		return nil, err
 	}
@@ -1136,7 +1136,10 @@ func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]b
 	return held
 }
 
-func withoutUnchangedAutomaticSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
+// withoutAutomaticSelections ignores guardian input for offerings that are
+// currently derived from another selection. Automatic offerings are visible in
+// the form but cannot be independently changed or turned into manual bookings.
+func withoutAutomaticSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
 	automatic := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil && len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0 {
@@ -1145,8 +1148,7 @@ func withoutUnchangedAutomaticSelections(current []*enrollmentModels.RequestChil
 	}
 	manual := make([]OfferingChangeSelection, 0, len(selections))
 	for _, selection := range selections {
-		link := automatic[selection.OfferingID]
-		if link != nil && slices.Equal(canonicalDays(link.SelectedDays), canonicalDays(selection.SelectedDays)) {
+		if automatic[selection.OfferingID] != nil {
 			continue
 		}
 		manual = append(manual, selection)
