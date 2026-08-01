@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -30,32 +31,69 @@ func LoadStudentDataSnapshot(
 	personIDs []int64,
 	groupIDs []int64,
 ) (*StudentDataSnapshot, error) {
+	return loadStudentDataSnapshot(ctx, personService, educationSvc, activeSvc, studentIDs, personIDs, groupIDs, false)
+}
+
+// LoadStudentDataSnapshotStrict loads the same bulk projection as
+// LoadStudentDataSnapshot, but returns any sub-load error instead of replacing
+// the failed section with empty data.
+func LoadStudentDataSnapshotStrict(
+	ctx context.Context,
+	personService userService.PersonService,
+	educationSvc educationService.Service,
+	activeSvc activeService.Service,
+	studentIDs []int64,
+	personIDs []int64,
+	groupIDs []int64,
+) (*StudentDataSnapshot, error) {
+	return loadStudentDataSnapshot(ctx, personService, educationSvc, activeSvc, studentIDs, personIDs, groupIDs, true)
+}
+
+func loadStudentDataSnapshot(
+	ctx context.Context,
+	personService userService.PersonService,
+	educationSvc educationService.Service,
+	activeSvc activeService.Service,
+	studentIDs []int64,
+	personIDs []int64,
+	groupIDs []int64,
+	strict bool,
+) (*StudentDataSnapshot, error) {
 	snapshot := &StudentDataSnapshot{
 		Persons: make(map[int64]*userModels.Person),
 		Groups:  make(map[int64]*educationModels.Group),
 	}
 
-	// Load persons (continue with empty map on error)
+	// Load persons. Permissive callers continue with an empty map on error.
 	if len(personIDs) > 0 {
 		if persons, err := personService.GetByIDs(ctx, personIDs); err != nil {
+			if strict {
+				return nil, fmt.Errorf("bulk load persons: %w", err)
+			}
 			slog.Default().Warn("failed to bulk load persons", slog.String("error", err.Error()))
 		} else {
 			snapshot.Persons = persons
 		}
 	}
 
-	// Load groups (continue with empty map on error)
+	// Load groups. Permissive callers continue with an empty map on error.
 	if len(groupIDs) > 0 {
 		if groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs); err != nil {
+			if strict {
+				return nil, fmt.Errorf("bulk load groups: %w", err)
+			}
 			slog.Default().Warn("failed to bulk load groups", slog.String("error", err.Error()))
 		} else {
 			snapshot.Groups = groups
 		}
 	}
 
-	// Load location snapshot (continue on error)
+	// Load locations. Permissive callers continue without a snapshot on error.
 	if len(studentIDs) > 0 {
 		if locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs); err != nil {
+			if strict {
+				return nil, fmt.Errorf("load student locations: %w", err)
+			}
 			slog.Default().Warn("failed to load student location snapshot", slog.String("error", err.Error()))
 		} else {
 			snapshot.LocationSnapshot = locationSnapshot

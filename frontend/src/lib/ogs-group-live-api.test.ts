@@ -253,6 +253,24 @@ describe("fetchOgsGroupLive", () => {
     );
   });
 
+  it.each(["not-a-number", "0", "-3", "9223372036854775808"])(
+    "omits invalid group_id %s and loads the default group",
+    async (invalidGroupId) => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: wireResponse() }),
+      } as Response);
+
+      await fetchOgsGroupLive("test-token", invalidGroupId);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/ogs-group-live",
+        expect.any(Object),
+      );
+    },
+  );
+
   it("retries once without group_id on a 403 for a specific group (stale selection)", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: false, status: 403 } as Response)

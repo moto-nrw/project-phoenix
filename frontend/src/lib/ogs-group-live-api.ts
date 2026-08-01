@@ -105,6 +105,16 @@ export interface OgsLiveViewData {
   transfers: GroupTransfer[];
 }
 
+const MAX_INT64 = 9_223_372_036_854_775_807n;
+
+function isValidGroupId(groupId: string | null): groupId is string {
+  return (
+    groupId !== null &&
+    /^[1-9]\d*$/.test(groupId) &&
+    BigInt(groupId) <= MAX_INT64
+  );
+}
+
 export function mapOgsGroupLiveResponse(
   wire: OgsGroupLiveWireResponse,
 ): OgsLiveViewData {
@@ -171,8 +181,9 @@ export async function fetchOgsGroupLive(
     });
   };
 
-  let response = await load(groupId);
-  if (response.status === 403 && groupId) {
+  const requestedGroupId = isValidGroupId(groupId) ? groupId : null;
+  let response = await load(requestedGroupId);
+  if (response.status === 403 && requestedGroupId) {
     response = await load(null);
   }
   if (!response.ok) {

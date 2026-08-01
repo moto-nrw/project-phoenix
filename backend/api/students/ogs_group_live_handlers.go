@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -174,9 +175,7 @@ func (rs *Resource) resolveOGSLiveGroups(r *http.Request, requestedGroupID int64
 		return nil, nil, common.ErrorInternalServerWrap("failed to load substitution metadata", err)
 	}
 
-	sort.Slice(myGroups, func(i, j int) bool {
-		return strings.ToLower(myGroups[i].Name) < strings.ToLower(myGroups[j].Name)
-	})
+	sortOGSLiveGroups(myGroups)
 
 	selected := selectOGSLiveGroup(myGroups, requestedGroupID)
 	if selected == nil {
@@ -189,6 +188,12 @@ func (rs *Resource) resolveOGSLiveGroups(r *http.Request, requestedGroupID int64
 	}
 
 	return responses, selected, nil
+}
+
+func sortOGSLiveGroups(groups []*educationModels.Group) {
+	sort.SliceStable(groups, func(i, j int) bool {
+		return collation.CompareGerman(groups[i].Name, groups[j].Name) < 0
+	})
 }
 
 // selectOGSLiveGroup picks the requested group from the caller's supervised
@@ -254,7 +259,7 @@ func (rs *Resource) buildOGSGroupLiveResponse(r *http.Request, groups []OGSLiveG
 	params := &studentListParams{groupID: selected.ID, includeArrivalTimes: true}
 	accessCtx := rs.determineStudentAccess(r)
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot, err := common.LoadStudentDataSnapshot(ctx, rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
+	dataSnapshot, err := common.LoadStudentDataSnapshotStrict(ctx, rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
 	if err != nil {
 		return nil, common.ErrorInternalServerWrap("failed to load student data snapshot", err)
 	}
@@ -372,6 +377,13 @@ func projectOGSLiveStudents(responses []StudentResponse) []OGSLiveStudentRespons
 // reports in_group_room=false, matching a mode whose UI hides room state.
 func buildOGSLiveRoomStatus(responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot, groupRoomID *int64) map[string]OGSLiveRoomStatus {
 	result := make(map[string]OGSLiveRoomStatus, len(responses))
+	if groupRoomID == nil {
+		for i := range responses {
+			result[strconv.FormatInt(responses[i].ID, 10)] = OGSLiveRoomStatus{}
+		}
+		return result
+	}
+
 	var snapshot *common.StudentLocationSnapshot
 	if dataSnapshot != nil {
 		snapshot = dataSnapshot.LocationSnapshot
@@ -383,7 +395,7 @@ func buildOGSLiveRoomStatus(responses []StudentResponse, dataSnapshot *common.St
 				if activeGroup := snapshot.Groups[visit.ActiveGroupID]; activeGroup != nil {
 					roomID := activeGroup.RoomID
 					status.CurrentRoomID = &roomID
-					status.InGroupRoom = groupRoomID != nil && roomID == *groupRoomID
+					status.InGroupRoom = roomID == *groupRoomID
 				}
 			}
 		}
