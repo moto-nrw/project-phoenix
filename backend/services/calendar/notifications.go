@@ -101,6 +101,15 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 		if !ok || profile.Email == nil || *profile.Email == "" {
 			continue
 		}
+		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
+			notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointment, []int64{*profile.AccountID})
+			if err != nil {
+				return fmt.Errorf("calendar: filter appointment preferences: %w", err)
+			}
+			if len(notOptedOut) == 0 {
+				continue
+			}
+		}
 		if _, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: kind,
 			Payload: map[string]any{

@@ -37,6 +37,14 @@ func (reminderPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs
 	return accountIDs, nil
 }
 
+type optedOutAppointmentPreferences struct {
+	notifications.PreferenceService
+}
+
+func (optedOutAppointmentPreferences) FilterNotOptedOut(_ context.Context, _ string, _ []int64) ([]int64, error) {
+	return nil, nil
+}
+
 // berlinInstant builds the moment a Berlin wall-clock time happens on a date,
 // which is what the reminder window is expressed in.
 func berlinInstant(t *testing.T, date timezone.Date, hour, minute int) time.Time {
@@ -174,6 +182,47 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	require.Len(t, notifier.events, 1)
 	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
+
+	queued, err = service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued)
+	assert.Len(t, notifier.events, 1, "the overlapping scheduler scan must not repeat the push")
+}
+
+func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.ParentsURL = "https://parents.test"
+	cfg.Preferences = optedOutAppointmentPreferences{}
+	service := calendarSvc.NewService(cfg)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    appointmentDate,
+		EndDate:      appointmentDate,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	assert.Empty(t, outbox.enqueued, "a guardian who opted out must not receive the appointment e-mail")
 }
 
 // A cancelled appointment must not remind anyone: the guardians already got the

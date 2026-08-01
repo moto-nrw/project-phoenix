@@ -568,6 +568,29 @@ func (r *AppointmentRecipientRepository) UpdateResponse(ctx context.Context, rec
 	return base.AssertRowsAffected(res, 1, "update calendar recipient response")
 }
 
+func (r *AppointmentRecipientRepository) ClaimReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error) {
+	if appointmentID <= 0 || guardianProfileID <= 0 || occurrenceDate.IsZero() {
+		return false, errors.New("appointment id, occurrence date, and guardian profile id are required")
+	}
+
+	var id int64
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		INSERT INTO calendar.appointment_reminder_push_deliveries
+			(tenant_id, appointment_id, occurrence_date, guardian_profile_id)
+		VALUES
+			(NULLIF(current_setting('app.current_tenant_id', true), '')::bigint, ?, ?, ?)
+		ON CONFLICT (tenant_id, appointment_id, occurrence_date, guardian_profile_id) DO NOTHING
+		RETURNING id
+	`, appointmentID, occurrenceDate, guardianProfileID).Scan(ctx, &id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("claim calendar appointment reminder push: %w", err)
+	}
+	return id > 0, nil
+}
+
 type AppointmentRecipientStudentRepository struct {
 	db *bun.DB
 }

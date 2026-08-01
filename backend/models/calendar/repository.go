@@ -58,6 +58,10 @@ type AppointmentRecipientRepository interface {
 	ReplaceForAppointment(ctx context.Context, appointmentID int64, recipients []*AppointmentRecipient) error
 	FindByAppointmentID(ctx context.Context, appointmentID int64) ([]*AppointmentRecipient, error)
 	UpdateResponse(ctx context.Context, recipientID int64, status string) error
+	// ClaimReminderPush records the one push delivery allowed for an occurrence
+	// and guardian. It returns false when a prior scheduler scan already claimed
+	// the same delivery.
+	ClaimReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error)
 }
 
 type AppointmentRecipientStudentRepository interface {

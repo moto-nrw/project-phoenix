@@ -266,9 +266,16 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		if profile.Email == nil || *profile.Email == "" {
 			// Push delivery is addressed to the portal account, not the e-mail
-			// address. An e-mail-less parent therefore remains eligible for an
-			// opted-in reminder push.
-			if profile.AccountID != nil && *profile.AccountID > 0 {
+			// address. Claim the durable per-occurrence delivery record before
+			// dispatching so the scheduler's overlapping scans cannot repeat it.
+			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Notifier != nil && s.cfg.Preferences != nil {
+				claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, occurrence, id)
+				if err != nil {
+					return queued, guardianAccountIDs, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
+				}
+				if !claimed {
+					continue
+				}
 				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
 					seenAccountIDs[*profile.AccountID] = struct{}{}
 					guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
