@@ -1066,19 +1066,20 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: lock offering capacity: %w", err)
 	}
 	lockedByID := offeringsByID(locked)
+	phaseEndExclusive := phase.ServiceEndDate.AddDays(1)
 	for _, offeringID := range replacementOfferingIDs {
 		offering := lockedByID[offeringID]
 		if offering == nil || (!held[offeringID] && !offering.IsActive) {
 			return fmt.Errorf("%w: care offering %d is unavailable", ErrOfferingChangeInvalid, offeringID)
 		}
-		if held[offeringID] {
+		if heldOfferingCoversRange(current, offeringID, phaseEndExclusive) {
 			continue
 		}
 		if offering.Capacity == nil {
 			continue
 		}
 		taken, countErr := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChild(
-			ctx, offering.ID, requestChildID, effectiveFrom, phase.ServiceEndDate.AddDays(1),
+			ctx, offering.ID, requestChildID, effectiveFrom, phaseEndExclusive,
 		)
 		if countErr != nil {
 			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
@@ -1088,6 +1089,20 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		}
 	}
 	return nil
+}
+
+func heldOfferingCoversRange(
+	links []*enrollmentModels.RequestChildOffering,
+	offeringID int64,
+	until timezone.Date,
+) bool {
+	for _, link := range links {
+		if link != nil && link.CareOfferingID == offeringID &&
+			(link.ValidUntil == nil || !link.ValidUntil.Before(until)) {
+			return true
+		}
+	}
+	return false
 }
 
 // materializedOfferingIDs includes required and auto-added offerings, which
