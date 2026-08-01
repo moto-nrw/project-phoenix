@@ -185,7 +185,7 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/messages")).toBe("Nachrichten");
         expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
         expect(getPageTitle("/parent-announcements")).toBe(
-          "Elternmitteilungen",
+          "Mitteilungen und Umfragen",
         );
         expect(getPageTitle("/meal-plan")).toBe("Essensplan");
         expect(getPageTitle("/suggestions")).toBe("Feedback");
@@ -453,7 +453,7 @@ describe("breadcrumb-utils", () => {
           "Änderungsanfragen",
         );
         expect(getSectionBreadcrumb("/parent-announcements")?.pageLabel).toBe(
-          "Elternmitteilungen",
+          "Mitteilungen und Umfragen",
         );
         expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
           "Essensplan",
