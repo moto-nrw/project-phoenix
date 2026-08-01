@@ -243,7 +243,7 @@ export function LeaveRequestsCard() {
             size="compact"
             onClick={() => setModalOpen(true)}
             disabled={loading}
-            className="rounded-full"
+            className="!rounded-full"
           >
             Urlaub beantragen
           </Button>

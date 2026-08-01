@@ -370,8 +370,14 @@ const WORK_MODE_ITEMS: readonly SegmentedControlItem<WorkMode>[] = [
 // (64px / 48px touch targets on a tablet mounted in the hallway), so they pass
 // their geometry to ui/Button via className while keeping the kit's focus,
 // disabled and transition treatment. Colors are brand hexes only.
+//
+// `!rounded-full` is load-bearing: Button applies a radius per size
+// (`rounded-lg` on the page sizes), and Tailwind resolves competing
+// border-radius utilities by stylesheet order, not by the order they appear in
+// the class attribute. Without the important modifier these buttons render as
+// rounded squares. Same modifier as the break stepper below.
 const STAMP_BUTTON_BASE =
-  "rounded-full border-2 p-0 shadow-none hover:shadow-none active:scale-95";
+  "!rounded-full border-2 p-0 shadow-none hover:shadow-none active:scale-95";
 
 // Returns className for the check-in button. `mode === null` renders muted and
 // disabled — the staff member must pick a status first (Issue #1368).
@@ -1472,7 +1478,7 @@ function BreakActivityLog({
           size="compact"
           onClick={() => setExpanded(!expanded)}
           aria-expanded={expanded}
-          className="w-full rounded-none border-t border-gray-50 text-gray-400 hover:bg-transparent hover:text-gray-600"
+          className="w-full !rounded-none border-t border-gray-50 text-gray-400 hover:bg-transparent hover:text-gray-600"
         >
           {expanded
             ? "Weniger anzeigen"
@@ -1804,7 +1810,7 @@ function OwnZeiterfassungSection({
             aria-label={
               viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
             }
-            className="rounded-full"
+            className="!rounded-full"
           >
             <svg
               className="h-4 w-4"
@@ -1831,7 +1837,7 @@ function OwnZeiterfassungSection({
             aria-label={
               viewMode === "month" ? "Nächster Monat" : "Nächste Woche"
             }
-            className="rounded-full"
+            className="!rounded-full"
           >
             <svg
               className="h-4 w-4"
@@ -1855,7 +1861,7 @@ function OwnZeiterfassungSection({
             size="compact"
             onClick={handleToday}
             disabled={isOnCurrent}
-            className="rounded-full shadow-none disabled:opacity-40"
+            className="!rounded-full shadow-none disabled:opacity-40"
           >
             {todayLabel}
           </Button>
@@ -2702,7 +2708,7 @@ function EditSessionModal({
                     size="compact"
                     aria-pressed={notes === reason}
                     onClick={() => setNotes(reason)}
-                    className="rounded-full shadow-none hover:shadow-none"
+                    className="!rounded-full shadow-none hover:shadow-none"
                   >
                     {reason}
                   </Button>
