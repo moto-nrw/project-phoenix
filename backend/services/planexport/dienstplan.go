@@ -375,8 +375,9 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				// staff plan the bar means "this is a Dienst", which is the
 				// distinction the sheet exists to make. The care plan colours
 				// its blocks by Kategorie, where that is the useful axis.
-				areaFor(areas, areaOffering, assignment.ActivityTitle).add(
-					i, assignment.StartTime, assignment.EndTime,
+				area := areaFor(areas, areaOffering, derefID(assignment.ActivityGroupID),
+					assignment.ActivityTitle, assignment.StartTime)
+				area.add(i, assignment.StartTime, assignment.EndTime,
 					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label, "")
 			}
 
@@ -397,7 +398,10 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				if d.variant.internal() && shift.Cancelled && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
 					detail = "Grund: " + strings.TrimSpace(*shift.ChangeReason)
 				}
-				area := areaFor(areas, areaShift, title)
+				// Schichtarten need no id in the key: their name is unique per
+				// tenant (uniq_shift_types_tenant_name), so two rows of the
+				// same name are the same Schichtart.
+				area := areaFor(areas, areaShift, 0, title, shift.StartTime)
 				area.color = info.color
 				area.add(i, shift.StartTime, shift.EndTime, "", label, detail)
 			}
@@ -411,13 +415,18 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 	// Earliest start first, so the sheet reads down the day the way the
 	// hand-kept Excel does (Randstunde at the top, Angebote at the bottom).
 	sort.SliceStable(ordered, func(i, j int) bool {
-		if ordered[i].earliest == ordered[j].earliest {
-			if ordered[i].title == ordered[j].title {
-				return ordered[i].kind < ordered[j].kind
-			}
+		if ordered[i].earliest != ordered[j].earliest {
+			return ordered[i].earliest < ordered[j].earliest
+		}
+		if ordered[i].title != ordered[j].title {
 			return ordered[i].title < ordered[j].title
 		}
-		return ordered[i].earliest < ordered[j].earliest
+		if ordered[i].kind != ordered[j].kind {
+			return ordered[i].kind < ordered[j].kind
+		}
+		// Two Angebote of the same name at the same time still need a fixed
+		// order, or the sheet swaps their rows between two exports.
+		return ordered[i].id < ordered[j].id
 	})
 
 	rows := make([]listexport.Row, 0, len(ordered))
@@ -442,21 +451,39 @@ const (
 	areaShift    areaKind = "shift"
 )
 
+// areaKey identifies one row of the deployment sheet. An Angebot is keyed by
+// its Aktivitätsgruppe, because two separately configured Angebote may carry
+// the same title and merging them would print one row that is neither of them.
+// Only a spontaneous block — which has no Angebot to be identified by — falls
+// back to its title, so the same spontaneous block through the week still
+// reads as one row.
 type areaKey struct {
 	kind  areaKind
+	id    int64
 	title string
 }
 
-func areaFor(areas map[areaKey]*areaRow, kind areaKind, title string) *areaRow {
+// areaFor returns the row an entry belongs to, creating it on first use. The
+// row is labelled and ordered by its earliest occurrence, so a block renamed
+// on a single day does not rename the whole row.
+func areaFor(areas map[areaKey]*areaRow, kind areaKind, id int64, title string, start time.Time) *areaRow {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		title = areaWithoutShiftType
 	}
-	key := areaKey{kind: kind, title: title}
+	key := areaKey{kind: kind, id: id}
+	if id == 0 {
+		key.title = title
+	}
 	row, ok := areas[key]
 	if !ok {
-		row = &areaRow{kind: kind, title: title, earliest: "99:99"}
+		row = &areaRow{kind: kind, id: id, title: title, earliest: "99:99"}
 		areas[key] = row
+	}
+	// "HH:MM" sorts correctly as a string, so the row order needs no extra
+	// time parsing; "99:99" is the sentinel that loses to every real clock.
+	if clock := start.Format(clockLayout); clock < row.earliest {
+		row.earliest, row.title = clock, title
 	}
 	return row
 }
@@ -466,6 +493,7 @@ func areaFor(areas map[areaKey]*areaRow, kind areaKind, title string) *areaRow {
 // turns five separate "12:00–13:00 Name" lines into a readable block.
 type areaRow struct {
 	kind     areaKind
+	id       int64
 	title    string
 	color    string
 	earliest string
@@ -480,11 +508,6 @@ type areaEntry struct {
 
 func (r *areaRow) add(dayIndex int, start, end time.Time, room, name, detail string) {
 	heading := timeRange(start, end)
-	// "HH:MM" sorts correctly as a string, so the row order needs no extra
-	// time parsing; "99:99" is the sentinel that loses to every real clock.
-	if clock := start.Format(clockLayout); clock < r.earliest {
-		r.earliest = clock
-	}
 	if room != "" {
 		heading += " · " + room
 	}

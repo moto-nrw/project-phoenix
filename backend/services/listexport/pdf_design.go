@@ -46,7 +46,18 @@ type styledLine struct {
 	text   string
 	style  LineStyle
 	accent string
+	// opens marks the first line of an anchor: it starts a new accent group
+	// whether or not it carries a colour. Without it an uncoloured anchor
+	// would be indistinguishable from the lines below the anchor above it,
+	// and the previous colour bar would run on over a group it does not
+	// belong to.
+	opens bool
 }
+
+// opensGroup reports whether the accent group above this line ends here. Any
+// line carrying an accent of its own opens a group by definition; an anchor
+// opens one even when its colour is missing or unusable.
+func (l styledLine) opensGroup() bool { return l.opens || l.accent != "" }
 
 type renderRow struct {
 	cells [][]styledLine // per column: wrapped, styled lines
@@ -454,10 +465,11 @@ func (r *designRenderer) wrapStyled(cell string, maxW float64) []styledLine {
 		for i, line := range r.wrapSegment(text, maxW) {
 			wrapped := styledLine{text: line, style: decoded.Style}
 			// Only the first wrapped line opens the accent group; the bar
-			// then runs on until the next accented line, so a heading that
-			// wraps does not restart its own bar.
+			// then runs on until the next anchor, so a heading that wraps
+			// does not restart its own bar.
 			if i == 0 {
 				wrapped.accent = decoded.Accent
+				wrapped.opens = decoded.Style == LineStrong
 			}
 			out = append(out, wrapped)
 		}
@@ -500,12 +512,18 @@ func splitRenderRow(rr renderRow, maxLines int) []renderRow {
 			}
 			if start < len(lines) {
 				part.cells[i] = append([]styledLine(nil), lines[start:end]...)
-				if start > 0 && part.cells[i][0].accent == "" {
+				// A slice that begins inside a group re-opens it, so the bar
+				// continues on the next page. The nearest anchor above decides:
+				// if it had no usable colour, the group carries no bar and the
+				// continuation must not borrow one from further up.
+				if start > 0 && !part.cells[i][0].opensGroup() {
 					for previous := start - 1; previous >= 0; previous-- {
-						if lines[previous].accent != "" {
-							part.cells[i][0].accent = lines[previous].accent
-							break
+						if !lines[previous].opensGroup() {
+							continue
 						}
+						part.cells[i][0].accent = lines[previous].accent
+						part.cells[i][0].opens = true
+						break
 					}
 				}
 			} else {
@@ -1147,9 +1165,10 @@ func (r *designRenderer) drawCard(p designPage) error {
 }
 
 // drawAccentBars paints one bar per accent group: it starts at the accented
-// line and runs down to the line before the next accented one, so a shift and
-// the tasks under it read as one block. Lines with no accent above them get
-// no bar.
+// line and runs down to the line before the next anchor, so a shift and the
+// tasks under it read as one block. An anchor without a usable colour ends
+// the bar above it and starts none of its own — otherwise the preceding
+// colour would visually claim a group that belongs to another category.
 func (r *designRenderer) drawAccentBars(x, top float64, lines []styledLine) {
 	if r.gutter == 0 {
 		return
@@ -1167,15 +1186,13 @@ func (r *designRenderer) drawAccentBars(x, top float64, lines []styledLine) {
 		start = -1
 	}
 	for i, ln := range lines {
-		if ln.accent == "" {
-			continue
-		}
-		parsed, ok := parseHexColor(ln.accent)
-		if !ok {
+		if !ln.opensGroup() {
 			continue
 		}
 		flush(i)
-		start, color = i, parsed
+		if parsed, ok := parseHexColor(ln.accent); ok {
+			start, color = i, parsed
+		}
 	}
 	flush(len(lines))
 }

@@ -120,7 +120,9 @@ type Line struct {
 	Text  string
 	Style LineStyle
 	// Accent is an optional "#RRGGBB" that paints a colour bar down the left
-	// edge of this line and every line under it until the next accented line.
+	// edge of this line and every line under it until the next anchor
+	// (LineStrong) line — an anchor ends the group above it whether or not it
+	// carries a colour of its own.
 	// It carries the same colour coding the screen uses (a Schichtart, a
 	// Kategorie), so a printed plan and the plan on screen group the same way.
 	// The bar is redundant by design: the emphasis above already separates the

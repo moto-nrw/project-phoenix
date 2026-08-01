@@ -34,12 +34,17 @@ type ShiftCoverageInterval struct {
 // StaffScheduleAssignment is the read-only bridge between one concrete
 // activity-instance assignment and the staff member's shifts on that day.
 type StaffScheduleAssignment struct {
-	InstanceID         int64
-	StaffID            int64
-	Date               timezone.Date
-	StartTime          time.Time
-	EndTime            time.Time
-	ActivityTitle      string
+	InstanceID    int64
+	StaffID       int64
+	Date          timezone.Date
+	StartTime     time.Time
+	EndTime       time.Time
+	ActivityTitle string
+	// ActivityGroupID identifies the Angebot this block was materialized from,
+	// nil for a spontaneous block. Titles are not unique — two separately
+	// configured Angebote may share a name — so a consumer grouping
+	// assignments needs the identity, not the label (#2079).
+	ActivityGroupID    *int64
 	RoomID             int64
 	RoomName           string
 	Status             string
@@ -361,6 +366,7 @@ func newStaffScheduleAssignment(
 		StartTime:          timezone.WallClock(instance.StartTime),
 		EndTime:            timezone.WallClock(instance.EndTime),
 		ActivityTitle:      instance.Title,
+		ActivityGroupID:    instance.ActivityGroupID,
 		RoomID:             roomID,
 		RoomName:           roomNames[roomID],
 		Status:             instance.Status,

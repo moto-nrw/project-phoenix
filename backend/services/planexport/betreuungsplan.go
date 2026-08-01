@@ -65,6 +65,11 @@ type betreuungsplanData struct {
 	staffNames  map[int64]string
 	roomNames   map[int64]string
 	childCounts map[int64]int
+	// countsLoaded separates "nobody is signed up" from "the count could not
+	// be loaded": the repository omits instances with zero non-absent rows
+	// from its map, so a missing key is a real zero only when the lookup
+	// itself succeeded.
+	countsLoaded bool
 	// blockColors maps an instance id to its Kategorie colour, the same
 	// colour the planner paints the block with on screen.
 	blockColors map[int64]string
@@ -109,15 +114,17 @@ func (s *service) loadBetreuungsplanData(
 		}
 	}
 
+	childCounts, countsLoaded := s.childCounts(ctx, instanceIDs)
 	data := &betreuungsplanData{
-		instances:   kept,
-		staffByInst: staffByInst,
-		staffNames:  s.staffNames(ctx, staffIDs),
-		roomNames:   s.roomNames(ctx, roomIDs),
-		childCounts: s.childCounts(ctx, instanceIDs),
-		blockColors: s.blockColors(ctx, kept),
-		closedDays:  s.nonWorkingDays(ctx, from, to),
-		variant:     variant,
+		instances:    kept,
+		staffByInst:  staffByInst,
+		staffNames:   s.staffNames(ctx, staffIDs),
+		roomNames:    s.roomNames(ctx, roomIDs),
+		childCounts:  childCounts,
+		countsLoaded: countsLoaded,
+		blockColors:  s.blockColors(ctx, kept),
+		closedDays:   s.nonWorkingDays(ctx, from, to),
+		variant:      variant,
 	}
 	return data, nil
 }
@@ -220,17 +227,23 @@ func (s *service) roomNames(ctx context.Context, roomIDs []int64) map[int64]stri
 	return names
 }
 
-func (s *service) childCounts(ctx context.Context, instanceIDs []int64) map[int64]int {
-	counts := map[int64]int{}
-	if s.deps.Students == nil || len(instanceIDs) == 0 {
-		return counts
+// childCounts loads the head count per block. The bool reports whether the
+// numbers are trustworthy: an unwired or failing reader leaves the count line
+// off the sheet entirely, rather than printing a zero nobody can distinguish
+// from an empty block.
+func (s *service) childCounts(ctx context.Context, instanceIDs []int64) (map[int64]int, bool) {
+	if s.deps.Students == nil {
+		return map[int64]int{}, false
+	}
+	if len(instanceIDs) == 0 {
+		return map[int64]int{}, true
 	}
 	loaded, err := s.deps.Students.CountNonAbsentByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		s.getLogger().Warn("plan export: child count lookup failed", "error", err.Error())
-		return counts
+		return map[int64]int{}, false
 	}
-	return loaded
+	return loaded, true
 }
 
 // offeringKey identifies the row a block belongs to. Two separately
@@ -375,12 +388,27 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 	if names := d.staffLine(instance.ID, instance.RoomID); names != "" {
 		lines = append(lines, normal(names))
 	}
-	if count := d.childCounts[instance.ID]; count > 0 {
-		lines = append(lines, muted(fmt.Sprintf("%d Kinder", count)))
+	if line := d.childCountLine(instance.ID); line != "" {
+		lines = append(lines, muted(line))
 	}
 	lines = d.appendNote(lines, "Hinweis", instance.UnderstaffedNote)
 	lines = d.appendNote(lines, "Notiz", instance.Notes)
 	return lines
+}
+
+// childCountLine is the head count of a block. A block nobody is signed up for
+// prints "0 Kinder" rather than nothing: an empty group is a fact the plan has
+// to state, and leaving the line off would make it read like a count that
+// could not be determined. Where the count genuinely could not be determined,
+// the line is absent.
+func (d *betreuungsplanData) childCountLine(instanceID int64) string {
+	if !d.countsLoaded {
+		return ""
+	}
+	if count := d.childCounts[instanceID]; count != 1 {
+		return fmt.Sprintf("%d Kinder", count)
+	}
+	return "1 Kind"
 }
 
 // appendNote adds a muted "Label: text" line, but only on the internal sheet:

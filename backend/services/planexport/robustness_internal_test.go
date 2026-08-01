@@ -875,3 +875,106 @@ func TestParamsRejectMissingDates(t *testing.T) {
 		t.Fatal("expected an unparsable to-date to be refused")
 	}
 }
+
+// Angebot titles are not unique: two separately configured Angebote may both
+// be called "Lernzeit". Keying the deployment rows by title would print one
+// row that is neither of them, with both teams' names in the same cell.
+func TestDienstplanByAreaSeparatesSameNamedOfferings(t *testing.T) {
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff: []*usersModel.Staff{
+			staffMember(7, "Franziska", "Kessener"),
+			staffMember(8, "Anna", "Müller"),
+		},
+		Assignments: []scheduleSvc.StaffScheduleAssignment{
+			{StaffID: 7, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0),
+				ActivityTitle: "Lernzeit", ActivityGroupID: ptr(int64(21))},
+			{StaffID: 8, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0),
+				ActivityTitle: "Lernzeit", ActivityGroupID: ptr(int64(22))},
+		},
+	}
+
+	service, renderer := newDienstplanService(overview, nil)
+	params := defaultParams()
+	params.Template = TemplateByArea
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+
+	cells := cellsForLabel(renderer.doc, "Lernzeit", listexport.ColumnPlanMonday)
+	want := []string{"14:00–15:00\nKessener, F.", "14:00–15:00\nMüller, A."}
+	if len(cells) != len(want) {
+		t.Fatalf("Lernzeit rows = %v, want one per Angebot", cells)
+	}
+	for i := range want {
+		if cells[i] != want[i] {
+			t.Fatalf("Lernzeit rows = %v, want %v", cells, want)
+		}
+	}
+}
+
+// A spontaneous block has no Angebot to be identified by, so it falls back to
+// its title — otherwise the same block through the week would print one row
+// per occurrence.
+func TestDienstplanByAreaMergesSpontaneousBlocksByTitle(t *testing.T) {
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff: []*usersModel.Staff{
+			staffMember(7, "Franziska", "Kessener"),
+			staffMember(8, "Anna", "Müller"),
+		},
+		Assignments: []scheduleSvc.StaffScheduleAssignment{
+			{StaffID: 7, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Waldtag"},
+			{StaffID: 8, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Waldtag"},
+		},
+	}
+
+	service, renderer := newDienstplanService(overview, nil)
+	params := defaultParams()
+	params.Template = TemplateByArea
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+
+	cells := cellsForLabel(renderer.doc, "Waldtag", listexport.ColumnPlanMonday)
+	if len(cells) != 1 || cells[0] != "14:00–15:00\nKessener, F.\nMüller, A." {
+		t.Fatalf("Waldtag rows = %v, want one row holding both names", cells)
+	}
+}
+
+// cellsForLabel returns every row carrying the label, unlike cellFor, which
+// stops at the first — the point of these two tests is how many there are.
+func cellsForLabel(doc listexport.Document, label string, column listexport.ColumnID) []string {
+	cells := make([]string, 0, 2)
+	for _, row := range doc.Rows {
+		if listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]) == label {
+			cells = append(cells, listexport.StripStyleMarkers(row.Values[column]))
+		}
+	}
+	return cells
+}
+
+// An Angebot nobody is signed up for states its zero. Printing nothing would
+// make it indistinguishable from a count that could not be loaded, which is
+// the one case that legitimately leaves the line off
+// (TestBetreuungsplanSurvivesFailingOptionalLookups).
+func TestBetreuungsplanPrintsZeroAndSingleChildCounts(t *testing.T) {
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{
+			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
+			instance(12, monday, clock(14, 0), clock(15, 0), "Lernzeit", 4),
+		},
+		nil,
+		// Instance 11 is missing from the map, which the repository uses for
+		// "no non-absent rows" — a real zero, because the lookup succeeded.
+		map[int64]int{12: 1},
+	)
+
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	if got := cellFor(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday); got != "12:00–13:00 · Speisesaal\nKein Personal eingeteilt\n0 Kinder" {
+		t.Fatalf("Mensa cell = %q, want the empty group stated", got)
+	}
+	if got := cellFor(t, renderer.doc, "Lernzeit", listexport.ColumnPlanMonday); got != "14:00–15:00 · Gruppenraum 1\nKein Personal eingeteilt\n1 Kind" {
+		t.Fatalf("Lernzeit cell = %q, want a single child in the singular", got)
+	}
+}

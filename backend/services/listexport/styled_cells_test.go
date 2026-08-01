@@ -232,3 +232,54 @@ func TestWrapBlankCellKeepsOneLine(t *testing.T) {
 		t.Fatalf("wrap(blank) = %q, want a single empty line", got)
 	}
 }
+
+// A Schichtart without a stored colour still ends the group above it. Without
+// that, the bar of the coloured shift above would run down over the uncoloured
+// one and assign it to a category it does not belong to — the colour coding
+// would then be actively wrong rather than merely absent.
+func TestAnchorWithoutColourEndsTheAccentGroup(t *testing.T) {
+	r, err := newDesignRenderer(planDocument())
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+
+	cell := StyledCell([]Line{
+		{Text: "07:30–14:00 · Ganztag", Style: LineStrong, Accent: "#83CD2D"},
+		{Text: "12:00–13:00 Mensa", Style: LineNormal},
+		{Text: "15:00–16:30", Style: LineStrong},
+		{Text: "16:00–16:30 Abholung", Style: LineNormal},
+	})
+	lines := r.wrapStyled(cell, 400) // wide: one wrapped line per input line
+	if len(lines) != 4 {
+		t.Fatalf("wrapped lines = %+v, want one per input line", lines)
+	}
+
+	opens := []bool{true, false, true, false}
+	for i, want := range opens {
+		if lines[i].opensGroup() != want {
+			t.Fatalf("line %d (%q) opens = %v, want %v", i, lines[i].text, lines[i].opensGroup(), want)
+		}
+	}
+	if lines[2].accent != "" {
+		t.Fatalf("uncoloured anchor accent = %q, want none", lines[2].accent)
+	}
+}
+
+// The same across a page break: a slice starting inside a group re-opens it,
+// but only with the colour of the anchor it actually sits under.
+func TestSplitRenderRowDoesNotCarryAccentPastAnUncolouredAnchor(t *testing.T) {
+	row := renderRow{cells: [][]styledLine{{
+		{text: "07:30–14:00", style: LineStrong, accent: "#83CD2D", opens: true},
+		{text: "Mensa", style: LineNormal},
+		{text: "15:00–16:30", style: LineStrong, opens: true},
+		{text: "Abholung", style: LineNormal},
+	}}, lines: 4}
+
+	parts := splitRenderRow(row, 3)
+	if len(parts) != 2 {
+		t.Fatalf("parts = %d, want 2", len(parts))
+	}
+	if got := parts[1].cells[0][0]; got.accent != "" {
+		t.Fatalf("continuation accent = %q, want none — the group above it carries no colour", got.accent)
+	}
+}
