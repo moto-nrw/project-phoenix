@@ -2195,13 +2195,34 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err != nil {
 			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
 		}
+		capacityFrom := timezone.TodayDate()
+		if phase.ServiceStartDate.After(capacityFrom) {
+			capacityFrom = phase.ServiceStartDate
+		}
+		activeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(txCtx, existingChildIDs, capacityFrom)
+		if err != nil {
+			return fmt.Errorf("edit replace: load active child offerings for capacity: %w", err)
+		}
+		preservedClaims := make(map[int64]int, len(activeLinks))
+		seenClaims := make(map[[2]int64]struct{}, len(activeLinks))
+		for _, link := range activeLinks {
+			if link == nil {
+				continue
+			}
+			key := [2]int64{link.RequestChildID, link.CareOfferingID}
+			if _, seen := seenClaims[key]; seen {
+				continue
+			}
+			seenClaims[key] = struct{}{}
+			preservedClaims[link.CareOfferingID]++
+		}
 		if !capabilities.CareOfferingsEnabled {
 			materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
 		}
 
 		childStatusOverrides := map[int]string{}
 		if capabilities.CareOfferingsEnabled {
-			childStatusOverrides, err = s.applyCapacityOverflowWithReplacedChildren(txCtx, phase, editReq.Children, openByID, existingChildIDs)
+			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
 			if err != nil {
 				return err
 			}
@@ -4215,7 +4236,20 @@ func (s *requestService) applyCapacityOverflow(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
-	return s.applyCapacityOverflowWithReplacedChildren(ctx, phase, children, openByID, nil)
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, nil, nil)
+}
+
+// applyCapacityOverflowWithPreservedClaims keeps slots a parent already held
+// while replacing an editable request. Claims are point-in-time selections,
+// not the request's historical offering intervals.
+func (s *requestService) applyCapacityOverflowWithPreservedClaims(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
+) (map[int]string, error) {
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, preservedClaims, nil)
 }
 
 func (s *requestService) applyCapacityOverflowWithReplacedChildren(
@@ -4223,6 +4257,17 @@ func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 	phase *enrollmentModels.Phase,
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
+	replacedRequestChildIDs []int64,
+) (map[int]string, error) {
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, nil, replacedRequestChildIDs)
+}
+
+func (s *requestService) applyCapacityOverflowWithCapacityClaims(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
 	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
 	overrides := make(map[int]string)
@@ -4272,9 +4317,10 @@ func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 	// Cache per-offering current count + capacity. Avoid hitting the DB
 	// once per (child, offering) pair when one offering is shared.
 	type slot struct {
-		capacity *int // nil = unlimited
-		current  int  // pre-existing claimants (DB)
-		queued   int  // count from earlier children in this submission
+		capacity  *int // nil = unlimited
+		current   int  // pre-existing claimants (DB)
+		preserved int  // selections the editable request already held
+		queued    int  // count from earlier children in this submission
 	}
 	slots := make(map[int64]*slot)
 
@@ -4297,8 +4343,9 @@ func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
 		s := &slot{
-			capacity: offering.Capacity,
-			current:  count,
+			capacity:  offering.Capacity,
+			current:   max(count-preservedClaims[offeringID], 0),
+			preserved: preservedClaims[offeringID],
 		}
 		slots[offeringID] = s
 		return s, nil
@@ -4312,6 +4359,11 @@ func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 				return nil, err
 			}
 			if sl.capacity == nil {
+				sl.queued++
+				continue
+			}
+			if sl.preserved > 0 {
+				sl.preserved--
 				sl.queued++
 				continue
 			}
