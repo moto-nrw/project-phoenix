@@ -261,9 +261,10 @@ func TestDienstplanSkipsStaffWithoutEntries(t *testing.T) {
 	}
 }
 
-// The Einsatzbereich view groups by task, and a shift only forms its own row
-// on days where it carries no block — otherwise the same person would be
-// listed twice for the same hours.
+// The Einsatzbereich view has a row per deployment: shifts fill their
+// Schichtart row, blocks fill their own, and someone doing both appears in
+// both with different times — a deployment sheet whose Ganztag row goes
+// blank on the days someone also runs an Angebot answers nothing.
 func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{
@@ -298,11 +299,11 @@ func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 		t.Fatalf("Mensa cell = %q, want %q", cell, want)
 	}
 
-	// The Monday shift produced no Ganztag row, because it carries a block.
-	for _, label := range rowLabels(renderer.doc) {
-		if label == "Ganztag" {
-			t.Fatalf("shift with a block also formed a Schichtart row: %v", rowLabels(renderer.doc))
-		}
+	// The same two people are also on general Ganztag duty that day, and the
+	// Ganztag row says so — with its own window, so nobody reads it as two
+	// separate people.
+	if cell := cellFor(t, renderer.doc, "Ganztag", listexport.ColumnPlanMonday); cell != "11:00–16:00\nKessener, F.\nMüller, A." {
+		t.Fatalf("Ganztag cell = %q", cell)
 	}
 
 	if cell := cellFor(t, renderer.doc, "Randstunde", listexport.ColumnPlanTuesday); cell != "07:30–08:00\nKessener, F." {
@@ -464,5 +465,24 @@ func closingRange(start, end timezone.Date, reason string) *scheduleModel.Closin
 		StartDate: start,
 		EndDate:   end,
 		Reason:    reason,
+	}
+}
+
+// Rooms are routinely named after what happens in them; "Mensa · Mensa" is
+// noise on a sheet meant to be read from across a room.
+func TestDienstplanDropsRoomThatRepeatsTheTitle(t *testing.T) {
+	overview := &scheduleSvc.StaffScheduleOverview{
+		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
+		Assignments: []scheduleSvc.StaffScheduleAssignment{{
+			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+			ActivityTitle: "Mensa", RoomName: "Mensa",
+		}},
+	}
+	service, renderer := newDienstplanService(overview, nil)
+	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	if cell := cellFor(t, renderer.doc, "Kessener, Franziska", listexport.ColumnPlanMonday); cell != "12:00–13:00 Mensa" {
+		t.Fatalf("cell = %q, want the repeated room dropped", cell)
 	}
 }

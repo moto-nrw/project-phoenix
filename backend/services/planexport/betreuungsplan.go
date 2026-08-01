@@ -240,7 +240,7 @@ func (d *betreuungsplanData) closedDayLines(day timezone.Date) []string {
 // how many children are expected.
 func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInstance) []string {
 	head := timeRange(instance.StartTime, instance.EndTime)
-	if room := d.roomNames[instance.RoomID]; room != "" {
+	if room := distinctRoom(instance.Title, d.roomNames[instance.RoomID]); room != "" {
 		head += " · " + room
 	}
 

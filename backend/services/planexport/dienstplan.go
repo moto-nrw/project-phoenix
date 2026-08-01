@@ -281,8 +281,8 @@ func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAss
 	}
 
 	line := timeRange(assignment.StartTime, assignment.EndTime) + " " + assignment.ActivityTitle
-	if assignment.RoomName != "" {
-		line += " · " + assignment.RoomName
+	if room := distinctRoom(assignment.ActivityTitle, assignment.RoomName); room != "" {
+		line += " · " + room
 	}
 	if assignment.IsSubstitute {
 		line += " · Vertretung"
@@ -303,12 +303,15 @@ func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAss
 // rowsByArea is the layout the schools keep in Excel: one row per
 // Einsatzbereich, the names in the cells.
 //
-// A row is a task, not a person. Tasks come from the timetable blocks
-// (Küche, Lernzeit, Angebote); a shift that has no block on that day
-// contributes to a row named after its Schichtart (Randstunde), which is
-// how the same sheets are built by hand today. That is not double counting:
-// a shift is the outer presence, a block a task inside it, and each is shown
-// exactly once.
+// A row is a place someone is deployed, and there are two kinds. Shifts fill
+// a row named after their Schichtart (Randstunde, Ganztag) — the outer
+// presence; timetable blocks fill a row named after the block (Mensa,
+// Lernzeit) — a task inside that presence. Someone doing both appears in
+// both rows, with different times, exactly as the hand-kept sheets do. Making
+// a block suppress its own Schichtart row was tried and read worse: the
+// Ganztag row then went blank on precisely the days someone also ran an
+// Angebot, which is the opposite of what a deployment sheet is for. Nothing
+// is double counted here either — no minutes are summed on this sheet.
 func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 	areas := map[string]*areaRow{}
 
@@ -333,15 +336,10 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 					label += " (abwesend)"
 				}
 				areaFor(areas, assignment.ActivityTitle).add(i,
-					assignment.StartTime, assignment.EndTime, assignment.RoomName, label)
+					assignment.StartTime, assignment.EndTime,
+					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label)
 			}
 
-			// Shifts only form their own area row on days where they carry no
-			// block, so a person is not listed both under "Küche" and under
-			// their Schichtart for the same hours.
-			if len(assignments) > 0 {
-				continue
-			}
 			for _, shift := range d.shifts[key] {
 				title := d.shiftTypeNames[derefID(shift.ShiftTypeID)]
 				if title == "" {

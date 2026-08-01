@@ -113,6 +113,16 @@ func timeRange(start, end time.Time) string {
 
 const clockLayout = "15:04"
 
+// distinctRoom returns the room name unless it merely repeats the title.
+// Rooms are routinely named after what happens in them, and "Mensa · Mensa"
+// is noise on a sheet whose whole point is being read from across a room.
+func distinctRoom(title, room string) string {
+	if strings.EqualFold(strings.TrimSpace(title), strings.TrimSpace(room)) {
+		return ""
+	}
+	return room
+}
+
 // shortName is "Kessener, F." — the form used inside cells that list several
 // people, where full first names would make the column tall enough to push a
 // week onto a second page. Row labels keep the full name.
