@@ -24,6 +24,9 @@ export default function ProtectedLayout({
           </ShellNavIntlProvider>
         </GroupAttendanceCountProvider>
         <AnnouncementModal />
+        {/* Layout-level on purpose: the install promotion targets staff on
+            phones and tablets, and most of them never reach the admin-only
+            dashboard. */}
         <PwaInstallHint />
       </BreadcrumbProvider>
     </TeacherShellProvider>

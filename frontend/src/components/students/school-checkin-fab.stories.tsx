@@ -24,6 +24,7 @@ export const FloatingOff: Story = {
     successCount: 0,
     pendingCount: 0,
     variant: "floating",
+    floatingUntil: "lg",
   },
 };
 
@@ -36,6 +37,7 @@ export const FloatingActive: Story = {
     successCount: 3,
     pendingCount: 0,
     variant: "floating",
+    floatingUntil: "lg",
   },
 };
 
@@ -48,6 +50,7 @@ export const FloatingPending: Story = {
     successCount: 2,
     pendingCount: 1,
     variant: "floating",
+    floatingUntil: "lg",
   },
 };
 

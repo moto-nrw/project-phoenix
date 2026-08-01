@@ -4,8 +4,9 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare, Loader2 } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { useFloatingFabOffset } from "~/lib/hooks/use-floating-fab-offset";
 
-interface SchoolCheckinFabProps {
+interface SchoolCheckinFabBaseProps {
   /** Whether the page is currently in check-in/out mode. */
   readonly isActive: boolean;
   /** Toggle the mode on/off. */
@@ -14,21 +15,29 @@ interface SchoolCheckinFabProps {
   readonly successCount: number;
   /** Open API calls in flight — surfaces as a small spinner badge top-right. */
   readonly pendingCount: number;
-  /**
-   * Form-factor variant. Pages typically render the component twice —
-   * once with `"floating"` inside an `lg:hidden` wrapper for mobile/tablet,
-   * once with `"inline"` passed as the header's `primaryAction` for desktop.
-   * Each render is gated by CSS so only one is visible per viewport.
-   */
-  readonly variant: "floating" | "inline";
 }
+
+type SchoolCheckinFabProps = SchoolCheckinFabBaseProps &
+  (
+    | {
+        /** Floating trigger shown from `md` until this exclusive breakpoint. */
+        readonly variant: "floating";
+        readonly floatingUntil: "lg" | "xl";
+      }
+    | {
+        /** Header action used after the page's floating breakpoint. */
+        readonly variant: "inline";
+        readonly floatingUntil?: never;
+      }
+  );
 
 /**
  * Shared check-in/out mode trigger used on both the OGS-Groups and
  * Students/Search pages.
  *
  * - `floating` variant: anchored bottom-right with `safe-area-inset` padding
- *   so it clears the iPhone home indicator. Default below 1024px.
+ *   so it clears the iPhone home indicator. Used from `md` to the page's
+ *   explicit `floatingUntil` breakpoint.
  * - `inline` variant: relative-flow pill that lives inside the page header's
  *   primaryAction slot. Default at ≥1024px so desktop reads as a native
  *   page-level action instead of a mobile-style floating button.
@@ -44,10 +53,21 @@ export function SchoolCheckinFab({
   successCount,
   pendingCount,
   variant,
+  floatingUntil,
 }: SchoolCheckinFabProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const reduceMotion = useReducedMotion();
   const resolved = variant;
+
+  // Announce the space this FAB occupies only across the viewport range where
+  // its parent wrapper displays it. The two pages intentionally stop at
+  // different breakpoints (`lg` for OGS groups, `xl` for student search).
+  const occupiesBottomSpace = attendanceWebEnabled && variant === "floating";
+  const maxFloatingWidth = floatingUntil === "lg" ? 1023 : 1279;
+  useFloatingFabOffset({
+    active: occupiesBottomSpace,
+    mediaQuery: `(min-width: 768px) and (max-width: ${maxFloatingWidth}px)`,
+  });
 
   if (!attendanceWebEnabled) return null;
 

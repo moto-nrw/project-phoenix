@@ -281,16 +281,17 @@ export const setupChapters: readonly GuideChapter[] = [
           "Auch auf Android-Geräten lässt sich moto als App installieren und startet dann im Vollbild ohne Browserleisten.",
         steps: [
           "moto in Chrome öffnen und in der eigenen Einrichtung anmelden.",
-          "Auf der Seite der Einrichtung das Browser-Menü mit den drei Punkten öffnen.",
-          "`App installieren` oder `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "Ab dem zweiten Besuch im Hinweis `moto als App nutzen` auf `App installieren` tippen.",
+          "Die Installation in Chrome bestätigen.",
           "moto künftig über das neue Symbol auf dem Startbildschirm starten.",
         ],
         callout: {
           title: "Erst anmelden, dann installieren",
-          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
+          body: "Wie auf dem iPhone gilt: moto erst nach der Anmeldung in der eigenen Einrichtung installieren. Fehlt der Installationsbutton, im Chrome-Menü `App installieren` oder `Zum Startbildschirm hinzufügen` wählen. Wer für mehrere Einrichtungen arbeitet, legt für jede Einrichtung ein eigenes Symbol an.",
           tone: "blue",
         },
-        screenshot: "Chrome-Menü auf Android mit der Option App installieren.",
+        screenshot:
+          "Installationshinweis in moto mit dem Button App installieren.",
         printCompact: true,
       },
       {
@@ -1578,16 +1579,16 @@ export const appChapters: readonly GuideChapter[] = [
           "In Chrome auf Android lässt sich moto in wenigen Schritten installieren. Danach öffnet sich die App vom Startbildschirm aus im Vollbild, ohne Browserleiste.",
         steps: [
           "moto in Chrome öffnen und anmelden.",
-          "Oben rechts das Menü (drei Punkte) antippen.",
-          "`App installieren` bzw. `Zum Startbildschirm hinzufügen` wählen und bestätigen.",
+          "Ab dem zweiten Besuch im Hinweis `moto als App nutzen` auf `App installieren` tippen.",
+          "Die Installation in Chrome bestätigen.",
           "Die App künftig über das neue moto-Symbol auf dem Startbildschirm öffnen.",
         ],
         callout: {
           title: "Kein App Store nötig",
-          body: "moto steht nicht im Play Store. Die Installation läuft direkt über den Browser; Updates kommen automatisch, es muss nichts aktualisiert werden.",
+          body: "moto steht nicht im Play Store. Fehlt der Installationsbutton, im Chrome-Menü `App installieren` oder `Zum Startbildschirm hinzufügen` wählen. Updates kommen automatisch, es muss nichts aktualisiert werden.",
         },
         screenshot:
-          "Chrome-Menü auf Android mit dem Eintrag zum Installieren der App.",
+          "Installationshinweis in moto mit dem Button App installieren.",
       },
       {
         id: "iphone-ipad-installieren",

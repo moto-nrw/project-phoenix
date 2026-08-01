@@ -1,3 +1,4 @@
+import "./lib/pwa-install-prompt";
 import "./sentry.client.config";
 import posthog from "posthog-js";
 import { sanitizePostHogEvent } from "~/lib/posthog-privacy";

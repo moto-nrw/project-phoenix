@@ -5,7 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import ActivitiesPage from "./page";
 
 const { mockToastSuccess, mockPush, mockRedirect } = vi.hoisted(() => ({
@@ -231,6 +231,16 @@ describe("ActivitiesPage", () => {
   const mockMutate = vi.fn();
 
   beforeEach(() => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    document.documentElement.style.removeProperty("--moto-floating-fab-offset");
     vi.clearAllMocks();
     mockMutate.mockClear();
     mockToastSuccess.mockClear();
@@ -245,6 +255,11 @@ describe("ActivitiesPage", () => {
       error: null,
       mutate: mockMutate,
     } as never);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.style.removeProperty("--moto-floating-fab-offset");
   });
 
   it("renders activities and opens management modal", async () => {
@@ -306,6 +321,24 @@ describe("ActivitiesPage", () => {
     expect(screen.getByTestId("quick-create-modal")).toBeInTheDocument();
   });
 
+  it("publishes stack clearance while the mobile create FAB is visible", () => {
+    const { unmount } = render(<ActivitiesPage />);
+
+    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("4.5rem");
+
+    unmount();
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("");
+  });
+
   it("shows loading state when data is loading", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
@@ -317,6 +350,29 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("");
+  });
+
+  it("does not publish FAB clearance during the authenticated-to-SWR transition", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("");
   });
 
   it("shows error state when fetch fails", () => {

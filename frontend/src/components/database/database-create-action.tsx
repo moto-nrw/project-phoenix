@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  MOBILE_CREATE_FAB_MEDIA_QUERY,
+  useFloatingFabOffset,
+} from "~/lib/hooks/use-floating-fab-offset";
+
 interface DatabaseCreateActionProps {
   label: string;
   ariaLabel: string;
@@ -15,6 +20,11 @@ export function DatabaseCreateAction({
   ariaLabel,
   onClick,
 }: DatabaseCreateActionProps) {
+  useFloatingFabOffset({
+    active: true,
+    mediaQuery: MOBILE_CREATE_FAB_MEDIA_QUERY,
+  });
+
   return (
     <>
       <button
