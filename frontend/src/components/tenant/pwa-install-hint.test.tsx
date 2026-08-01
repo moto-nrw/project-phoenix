@@ -180,6 +180,8 @@ describe("recordVisit", () => {
 
 describe("PwaInstallHint", () => {
   beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
+    window.location.href = "https://school-a.moto-app.de/dashboard";
     localStorage.clear();
     sessionStorage.clear();
     resetInstallPromptForTests();
@@ -187,6 +189,7 @@ describe("PwaInstallHint", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     resetInstallPromptForTests();
   });

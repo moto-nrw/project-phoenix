@@ -11,6 +11,8 @@
  * path stays a manual "Zum Home-Bildschirm" instruction.
  */
 
+import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+
 /** The non-standard Chrome event; not in lib.dom.d.ts. Module-internal. */
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -27,8 +29,32 @@ function notify(): void {
   for (const subscriber of subscribers) subscriber();
 }
 
+/** True only for a direct, non-reserved tenant subdomain. */
+function isTenantInstallHost(hostname: string, tenantDomain: string): boolean {
+  const normalizedHostname = hostname.toLowerCase().replace(/\.$/, "");
+  const normalizedTenantDomain = tenantDomain.toLowerCase().replace(/\.$/, "");
+  if (!normalizedHostname.endsWith(`.${normalizedTenantDomain}`)) return false;
+
+  const slug = normalizedHostname.slice(
+    0,
+    -(normalizedTenantDomain.length + 1),
+  );
+  return Boolean(slug && !slug.includes(".") && !RESERVED_SLUGS.has(slug));
+}
+
+function isCurrentTenantInstallHost(): boolean {
+  const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+  if (!tenantDomain) {
+    throw new Error("NEXT_PUBLIC_TENANT_DOMAIN is not set.");
+  }
+  return isTenantInstallHost(window.location.hostname, tenantDomain);
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
+    // Operator, parents, root, and infrastructure hosts do not render our
+    // install UI, so Chrome must retain its native install promotion there.
+    if (!isCurrentTenantInstallHost()) return;
     // Suppress Chrome's own mini-infobar so our in-flow card is the single
     // install surface instead of two competing prompts.
     event.preventDefault();
@@ -36,6 +62,7 @@ if (typeof window !== "undefined") {
     notify();
   });
   window.addEventListener("appinstalled", () => {
+    if (!isCurrentTenantInstallHost()) return;
     deferredPrompt = null;
     installationCompleted = true;
     notify();

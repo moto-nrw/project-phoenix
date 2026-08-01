@@ -12,6 +12,8 @@ describe("instrumentation-client", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
+    window.location.href = "https://school-a.moto-app.de/dashboard";
   });
 
   afterEach(() => {
@@ -84,5 +86,28 @@ describe("instrumentation-client", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(canPromptInstall()).toBe(true);
+  });
+
+  it.each([
+    "https://operator.moto-app.de/",
+    "https://eltern.moto-app.de/",
+    "https://moto-app.de/",
+    "https://help.moto-app.de/",
+  ])("leaves Chrome's native install prompt enabled on %s", async (url) => {
+    window.location.href = url;
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(false);
   });
 });
