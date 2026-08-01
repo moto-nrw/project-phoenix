@@ -37,11 +37,6 @@ func mondayOf(d timezone.Date) timezone.Date {
 	return d.AddDays(-offset)
 }
 
-// fridayOf is the Friday of the calendar week containing d.
-func fridayOf(d timezone.Date) timezone.Date {
-	return mondayOf(d).AddDays(4)
-}
-
 // expandWeeks widens [from, to] to whole Monday–Friday weeks and returns
 // them in order. A wall plan is printed by the week, so a request for a
 // Wednesday prints that Wednesday's whole week.
