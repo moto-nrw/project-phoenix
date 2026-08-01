@@ -194,6 +194,7 @@ type rolloverService struct {
 
 type rolloverRequestInput struct {
 	tenantID          int64
+	sourcePhase       *enrollmentModels.Phase
 	newPhase          *enrollmentModels.Phase
 	sourceRequest     *enrollmentModels.Request
 	sourceChildren    []*enrollmentModels.RequestChild
@@ -300,6 +301,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	result.SourceChildCount = len(sourceChildren)
 	return s.rollSourceRequests(ctx, rolloverRequestInput{
 		tenantID:          tenantID,
+		sourcePhase:       source,
 		newPhase:          newPhase,
 		sourceChildren:    sourceChildren,
 		maxGrade:          maxGrade,
@@ -501,7 +503,7 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 		}
 		return "", fmt.Errorf("rollover: create request_child: %w", err)
 	}
-	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID); err != nil {
+	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID, input.sourcePhase.ServiceEndDate); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
@@ -529,8 +531,8 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentM
 	return attributes
 }
 
-func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64) error {
-	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, sourceChildID)
+func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64, sourcePeriodEnd timezone.Date) error {
+	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, sourceChildID, sourcePeriodEnd)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}

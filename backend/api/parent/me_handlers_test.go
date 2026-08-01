@@ -23,6 +23,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -138,6 +139,30 @@ func (f *fakeParentService) CreateCareScheduleRequest(context.Context, int64, in
 }
 
 func (f *fakeParentService) WithdrawCareScheduleRequest(context.Context, int64, int64, int64) (*parentService.ChildCareSchedule, error) {
+	return nil, nil
+}
+
+// Offering change requests (#1665). Zero-value stubs: these handlers have their
+// own tests; the fake only has to satisfy the interface.
+func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetChildOfferingCatalog(context.Context, int64, int64) (*enrollmentService.OfferingChangeCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, int64, timezone.Date) (*enrollmentService.OfferingChangeCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateOfferingChangeRequest(
+	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string,
+) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawOfferingChangeRequest(context.Context, int64, int64, int64) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }
 

@@ -51,6 +51,21 @@ func (r *RequestRepository) FindByID(ctx context.Context, id int64) (*enrollment
 	return r.findByID(ctx, id, "")
 }
 
+func (r *RequestRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.Request, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var rows []*enrollment.Request
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".id IN (?)`, bun.List(ids)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list enrollment requests by ids: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *RequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*enrollment.Request, error) {
 	return r.findByID(ctx, id, "UPDATE")
 }
