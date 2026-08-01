@@ -3,14 +3,9 @@ package listexport
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/xuri/excelize/v2"
 )
-
-// xlsxLineHeight is one text line in points — Excel's default row height,
-// used to size rows that carry explicit line breaks.
-const xlsxLineHeight = 15.0
 
 func renderXLSX(doc Document) ([]byte, error) {
 	f := excelize.NewFile()
@@ -124,7 +119,6 @@ func renderXLSX(doc Document) ([]byte, error) {
 		if !hasValues {
 			continue
 		}
-		maxLines := 1
 		for colIdx, column := range doc.Columns {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
 			// XLSX has no per-line emphasis, so the markers are stripped;
@@ -132,9 +126,6 @@ func renderXLSX(doc Document) ([]byte, error) {
 			value := StripStyleMarkers(row.Values[column.ID])
 			if err := f.SetCellValue(sheet, cell, value); err != nil {
 				return nil, err
-			}
-			if n := strings.Count(value, "\n") + 1; n > maxLines {
-				maxLines = n
 			}
 		}
 		if len(doc.Columns) > 0 {
@@ -144,15 +135,9 @@ func renderXLSX(doc Document) ([]byte, error) {
 				return nil, err
 			}
 		}
-		// Excel auto-fits wrapped rows only when no height is stored, and the
-		// other spreadsheet apps disagree about that. Storing a height for
-		// genuinely multi-line rows makes the line count visible everywhere;
-		// single-line rows keep the default so existing exports are untouched.
-		if maxLines > 1 {
-			if err := f.SetRowHeight(sheet, excelRow, xlsxLineHeight*float64(maxLines)); err != nil {
-				return nil, err
-			}
-		}
+		// Do not set an explicit height: a fixed height based only on explicit
+		// line breaks clips text that wraps softly in the fixed-width columns.
+		// Excel can calculate both kinds of wrapping only for auto-sized rows.
 		excelRow++
 	}
 

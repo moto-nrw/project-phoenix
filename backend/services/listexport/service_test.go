@@ -426,8 +426,8 @@ func sampleDocument() Document {
 	}
 }
 
-// #2079: a multi-line cell must wrap and get room to show every line,
-// otherwise a plan matrix exported to XLSX shows only its first line.
+// #2079: a multi-line cell must wrap and leave its height automatic, so both
+// explicit and soft line breaks remain visible in fixed-width plan columns.
 func TestRenderXLSXWrapsMultiLineCells(t *testing.T) {
 	doc := sampleDocument()
 	doc.Rows = []Row{
@@ -468,13 +468,29 @@ func TestRenderXLSXWrapsMultiLineCells(t *testing.T) {
 		t.Fatal("expected the body cell to wrap text")
 	}
 
-	height, err := workbook.GetRowHeight("Export", 7)
+	reader, err := zip.NewReader(bytes.NewReader(file.Data), int64(len(file.Data)))
 	if err != nil {
-		t.Fatalf("read row height error = %v", err)
+		t.Fatalf("open xlsx archive: %v", err)
 	}
-	if height < 3*xlsxLineHeight {
-		t.Fatalf("row height = %v, want room for three lines", height)
+	for _, entry := range reader.File {
+		if !strings.HasPrefix(entry.Name, "xl/worksheets/") {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", entry.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		closeErr := rc.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read %s: %v / %v", entry.Name, err, closeErr)
+		}
+		if strings.Contains(string(content), `<row r="7" ht=`) {
+			t.Fatal("expected the wrapped row to retain automatic height")
+		}
+		return
 	}
+	t.Fatal("worksheet XML not found")
 }
 
 // Single-line rows keep the default height so the existing child lists
@@ -498,7 +514,7 @@ func TestRenderXLSXKeepsDefaultHeightForSingleLineRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read row height error = %v", err)
 	}
-	if height > xlsxLineHeight {
+	if height > 15 {
 		t.Fatalf("row height = %v, want the sheet default", height)
 	}
 }
