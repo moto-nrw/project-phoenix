@@ -887,7 +887,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 	if err != nil {
 		return nil, fmt.Errorf("offering change: load student persons: %w", err)
 	}
-	diffs, diffErr := s.pendingDiffs(ctx, visibleRows)
+	diffs, applied, diffErr := s.pendingDiffs(ctx, visibleRows)
 	if diffErr != nil {
 		s.Logger.Warn("offering change: preload pending diffs failed", slog.String("error", diffErr.Error()))
 	}
@@ -895,7 +895,14 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 	for _, row := range visibleRows {
 		student := students[row.StudentID]
 		reviewRow := *row
+		// The queue must name the date an approval would actually apply. That
+		// date is clamped to the care period's start as well as to today, which
+		// diverges once a phase's service start moves after the request was
+		// filed.
 		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
+		if date, ok := applied[row.ID]; ok {
+			reviewRow.EffectiveFrom = date
+		}
 		view := &OfferingChangeView{Request: &reviewRow}
 		if person := persons[student.PersonID]; person != nil {
 			view.StudentName = strings.TrimSpace(person.GetFullName())
@@ -943,19 +950,17 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 func (s *offeringChangeRequestService) pendingDiffs(
 	ctx context.Context,
 	rows []*enrollmentModels.OfferingChangeRequest,
-) (map[int64][]OfferingChangeDiffEntry, error) {
+) (map[int64][]OfferingChangeDiffEntry, map[int64]timezone.Date, error) {
 	childIDs := make([]int64, 0, len(rows))
-	dates := make(map[int64]timezone.Date, len(rows))
 	for _, row := range rows {
 		if row == nil || row.RequestChildID <= 0 {
 			continue
 		}
 		childIDs = append(childIDs, row.RequestChildID)
-		dates[row.RequestChildID] = appliedOfferingChangeDate(row.EffectiveFrom)
 	}
 	children, err := s.RequestChildRepo.ListByIDs(ctx, childIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load request children: %w", err)
+		return nil, nil, fmt.Errorf("load request children: %w", err)
 	}
 	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
 	requestIDs := make([]int64, 0, len(children))
@@ -968,7 +973,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	requests, err := s.RequestRepo.ListByIDs(ctx, requestIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load enrollment requests: %w", err)
+		return nil, nil, fmt.Errorf("load enrollment requests: %w", err)
 	}
 	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
 	phaseIDs := make([]int64, 0, len(requests))
@@ -981,7 +986,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	phases, err := s.PhaseRepo.ListByIDs(ctx, phaseIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load phases: %w", err)
+		return nil, nil, fmt.Errorf("load phases: %w", err)
 	}
 	phasesByID := make(map[int64]*enrollmentModels.Phase, len(phases))
 	for _, phase := range phases {
@@ -989,9 +994,28 @@ func (s *offeringChangeRequestService) pendingDiffs(
 			phasesByID[phase.ID] = phase
 		}
 	}
+	// The snapshot has to be read on the date the approval would use, phase
+	// clamp included, or the diff describes a booking outside the care period.
+	dates := make(map[int64]timezone.Date, len(rows))
+	appliedByRow := make(map[int64]timezone.Date, len(rows))
+	for _, row := range rows {
+		if row == nil || row.RequestChildID <= 0 {
+			continue
+		}
+		child := childrenByID[row.RequestChildID]
+		var phase *enrollmentModels.Phase
+		if child != nil {
+			if request := requestsByID[child.RequestID]; request != nil {
+				phase = phasesByID[request.PhaseID]
+			}
+		}
+		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
+		dates[row.RequestChildID] = date
+		appliedByRow[row.ID] = date
+	}
 	active, err := s.CareOfferingRepo.ListActiveByPhaseIDs(ctx, phaseIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load active offerings: %w", err)
+		return nil, nil, fmt.Errorf("load active offerings: %w", err)
 	}
 	activeByPhase := make(map[int64]map[int64]*enrollmentModels.CareOffering)
 	allOfferingIDs := make([]int64, 0, len(active))
@@ -1007,7 +1031,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
 	if err != nil {
-		return nil, fmt.Errorf("load current offerings: %w", err)
+		return nil, nil, fmt.Errorf("load current offerings: %w", err)
 	}
 	currentByChild := make(map[int64][]*enrollmentModels.RequestChildOffering)
 	for _, link := range current {
@@ -1032,7 +1056,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, allOfferingIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load queue offerings: %w", err)
+		return nil, nil, fmt.Errorf("load queue offerings: %w", err)
 	}
 	offeringsByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings)+len(active))
 	for _, offering := range offerings {
@@ -1099,7 +1123,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 		diffs[row.ID] = entries
 	}
-	return diffs, nil
+	return diffs, appliedByRow, nil
 }
 
 func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideOfferingChangeInput) error {

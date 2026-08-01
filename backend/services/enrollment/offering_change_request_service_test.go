@@ -383,6 +383,47 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	assert.Empty(t, pending)
 }
 
+// A pending request outlives edits to its care period. When the period's
+// service start moves past the requested date, an approval applies at the new
+// period start — the queue has to name that date instead of today, or the
+// office approves a switch believing it takes effect immediately.
+func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseStart(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "QueueClamp")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	// The period start moves behind the requested date while the request waits.
+	phaseStart := timezone.TodayDate().AddDays(30)
+	env.sourcePhase.ServiceStartDate = phaseStart
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.OfferingChangeRequest.UpdateEffectiveFrom(ctx, row.ID, fx.pastSwitchAt))
+
+	pending, err := svc.ListPending(ctx)
+	require.NoError(t, err)
+	var queued *enrollmentService.OfferingChangeView
+	for _, view := range pending {
+		if view.Request != nil && view.Request.ID == row.ID {
+			queued = view
+		}
+	}
+	require.NotNil(t, queued, "the pending request must stay in the queue")
+	assert.Equal(t, phaseStart, queued.Request.EffectiveFrom,
+		"the queue must show the date an approval would actually apply")
+}
+
 func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAreDisabled(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
