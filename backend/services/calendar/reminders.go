@@ -62,6 +62,26 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
+	// The repository's coarse recurrence predicate cannot express the final
+	// date of every count-bounded rule (weekly and monthly rules may carry
+	// several selected days). Drop exhausted series before loading overrides or
+	// resolving recipients; bounded recurrence expansion is capped at 366.
+	activeAppointments := appointments[:0]
+	for _, appointment := range appointments {
+		rule := recurrenceByAppointment[appointment.ID]
+		if rule != nil && rule.OccurrenceCount != nil && !hasOccurrenceInWindow(appointment, rule, fromDate, toDate) {
+			continue
+		}
+		activeAppointments = append(activeAppointments, appointment)
+	}
+	appointments = activeAppointments
+	if len(appointments) == 0 {
+		return 0, nil
+	}
+	ids = ids[:0]
+	for _, appointment := range appointments {
+		ids = append(ids, appointment.ID)
+	}
 
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, fromDate, toDate)
 	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, dateRange(fromDate, toDate))
@@ -219,7 +239,7 @@ func (s *service) enqueueAppointmentReminder(
 	}
 
 	queued := 0
-	queuedAccountIDs := make([]int64, 0, len(guardianIDs))
+	guardianAccountIDs := make([]int64, 0, len(guardianIDs))
 	seenAccountIDs := make(map[int64]struct{}, len(guardianIDs))
 	seen := make(map[int64]struct{}, len(guardianIDs))
 	for _, id := range guardianIDs {
@@ -228,7 +248,16 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		seen[id] = struct{}{}
 		profile, ok := profiles[id]
-		if !ok || profile.Email == nil || *profile.Email == "" {
+		if !ok {
+			continue
+		}
+		if profile.AccountID != nil && *profile.AccountID > 0 {
+			if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
+				seenAccountIDs[*profile.AccountID] = struct{}{}
+				guardianAccountIDs = append(guardianAccountIDs, *profile.AccountID)
+			}
+		}
+		if profile.Email == nil || *profile.Email == "" {
 			continue
 		}
 		row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
@@ -252,25 +281,19 @@ func (s *service) enqueueAppointmentReminder(
 			RelatedEntityID:   appointment.ID,
 		})
 		if err != nil {
-			return queued, queuedAccountIDs, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
+			return queued, guardianAccountIDs, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
 		}
 		if row.ID != 0 {
 			queued++
-			if profile.AccountID != nil && *profile.AccountID > 0 {
-				if _, seen := seenAccountIDs[*profile.AccountID]; !seen {
-					seenAccountIDs[*profile.AccountID] = struct{}{}
-					queuedAccountIDs = append(queuedAccountIDs, *profile.AccountID)
-				}
-			}
 		}
 	}
 
 	s.logger().Info("appointment reminders queued",
 		slog.Int64("appointment_id", appointment.ID),
 		slog.String("occurrence_date", occurrence.String()),
-		slog.Int("recipient_count", len(queuedAccountIDs)),
+		slog.Int("recipient_count", len(guardianAccountIDs)),
 	)
-	return queued, queuedAccountIDs, nil
+	return queued, guardianAccountIDs, nil
 }
 
 func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {

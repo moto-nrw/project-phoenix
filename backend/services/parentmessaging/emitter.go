@@ -310,7 +310,7 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	// messaging off gets none either — the decision pill is that school's
 	// in-app channel too, and pushing about something the app does not show
 	// would be a dead end.
-	if !skipGuardianBroadcast {
+	if !messagingOff && !skipGuardianBroadcast {
 		e.notifyRequestDecision(tenantID, studentID, guardianAccountID, ev)
 	}
 }

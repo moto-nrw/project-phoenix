@@ -47,7 +47,7 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 			"a zero-valued last-scan must not scan since the beginning of time")
 	})
 
-	t.Run("consecutive windows are adjacent, so nothing falls between two ticks", func(t *testing.T) {
+	t.Run("consecutive windows overlap once, so a failed tenant is retried", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		// A tick that fires late: the window must stretch to cover the gap rather
@@ -57,7 +57,8 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 		_, firstTo := s.advanceAppointmentReminderWindow(first)
 		secondFrom, secondTo := s.advanceAppointmentReminderWindow(second)
 
-		assert.Equal(t, firstTo, secondFrom, "the next window starts where the last one ended")
+		assert.Equal(t, firstTo.Add(-appointmentReminderInterval), secondFrom,
+			"the next window revisits the prior interval before scanning new time")
 		assert.Equal(t, second, secondTo)
 	})
 
@@ -142,6 +143,19 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 		assert.NotPanics(t, func() {
 			s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
 		}, "one school's failure must not stop the tick for the others")
+	})
+
+	t.Run("a failed reminder-enabled lookup fails closed", func(t *testing.T) {
+		queuer := &fakeReminderQueuer{}
+		s := &Scheduler{
+			logger:               slog.Default(),
+			appointmentReminders: queuer,
+			settings:             &fakeSettingsResolver{overrideErr: assertAnError{}},
+		}
+
+		s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+
+		assert.Empty(t, queuer.calls)
 	})
 }
 

@@ -65,8 +65,9 @@ func (s *Scheduler) runAppointmentReminderTaskPolling(task *ScheduledTask) {
 		s.checkAndRunAppointmentReminders)
 }
 
-// checkAndRunAppointmentReminders advances the scan window and runs one pass per
-// active tenant.
+// checkAndRunAppointmentReminders scans one overlapping window per active
+// tenant. The overlap retries a tenant that failed during the previous pass;
+// reminder outbox keys make the repeat harmless for tenants that succeeded.
 func (s *Scheduler) checkAndRunAppointmentReminders(task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
@@ -102,6 +103,8 @@ func (s *Scheduler) advanceAppointmentReminderWindow(now time.Time) (time.Time, 
 	from := s.appointmentReminderScannedAt
 	if from.IsZero() {
 		from = now.Add(-appointmentReminderInterval)
+	} else {
+		from = from.Add(-appointmentReminderInterval)
 	}
 	if oldest := now.Add(-appointmentReminderMaxLookback); from.Before(oldest) {
 		s.getLogger().Warn("appointment reminder scan window clamped after downtime",
@@ -119,7 +122,28 @@ func (s *Scheduler) advanceAppointmentReminderWindow(now time.Time) (time.Time, 
 // shifts both window bounds, so the window stays exactly as long as the tick
 // interval and every occurrence is offered to exactly one tick.
 func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenantID int64, scanFrom, scanTo time.Time) {
-	if !s.resolveBoolSetting(ctx, configModel.KeyCalendarAppointmentReminderEnabled, "", true) {
+	enabled := true
+	if s.settings != nil {
+		hasOverride, err := s.settings.HasTenantOverride(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
+		if err != nil {
+			s.getLogger().Error("appointment reminder setting lookup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return
+		}
+		if hasOverride {
+			enabled, err = s.settings.ResolveBool(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
+			if err != nil {
+				s.getLogger().Error("appointment reminder setting resolution failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				return
+			}
+		}
+	}
+	if !enabled {
 		return
 	}
 	leadHours := s.resolveIntSetting(ctx, configModel.KeyCalendarAppointmentReminderLeadHours, "", defaultAppointmentReminderLeadHours)
