@@ -233,7 +233,25 @@ func (s *service) childCounts(ctx context.Context, instanceIDs []int64) map[int6
 	return loaded
 }
 
-// rows builds one row per block title for the given week.
+// offeringKey identifies the row a block belongs to. Two separately
+// configured Angebote may carry the same name — group titles are not unique —
+// and merging them would print one row that is neither of them. Template-
+// backed blocks are therefore keyed by their Angebot, and only spontaneous
+// blocks (which have no Angebot to be identified by) fall back to their title,
+// so a spontaneous block repeated through the week still reads as one row.
+type offeringKey struct {
+	groupID int64
+	title   string
+}
+
+func keyFor(instance *scheduleModel.ActivityInstance, title string) offeringKey {
+	if instance.ActivityGroupID != nil {
+		return offeringKey{groupID: *instance.ActivityGroupID}
+	}
+	return offeringKey{title: title}
+}
+
+// rows builds one row per Angebot for the given week.
 func (d *betreuungsplanData) rows(w week) []listexport.Row {
 	dayIndex := make(map[timezone.Date]int, len(w.days))
 	for i, day := range w.days {
@@ -241,11 +259,12 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 	}
 
 	type offering struct {
+		key      offeringKey
 		title    string
 		earliest string
 		days     [fullWeekDays][]*scheduleModel.ActivityInstance
 	}
-	offerings := map[string]*offering{}
+	offerings := map[offeringKey]*offering{}
 
 	for _, instance := range d.instances {
 		index, ok := dayIndex[instance.Date]
@@ -256,13 +275,17 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 		if title == "" {
 			title = "Ohne Titel"
 		}
-		row, exists := offerings[title]
+		key := keyFor(instance, title)
+		row, exists := offerings[key]
 		if !exists {
-			row = &offering{title: title, earliest: "99:99"}
-			offerings[title] = row
+			row = &offering{key: key, earliest: "99:99"}
+			offerings[key] = row
 		}
+		// The row is labelled by its earliest occurrence, so a single
+		// occurrence renamed on the day does not rename the whole row.
 		if clock := instance.StartTime.Format(clockLayout); clock < row.earliest {
 			row.earliest = clock
+			row.title = title
 		}
 		row.days[index] = append(row.days[index], instance)
 	}
@@ -272,10 +295,18 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 		ordered = append(ordered, row)
 	}
 	sort.SliceStable(ordered, func(i, j int) bool {
-		if ordered[i].earliest == ordered[j].earliest {
+		if ordered[i].earliest != ordered[j].earliest {
+			return ordered[i].earliest < ordered[j].earliest
+		}
+		if ordered[i].title != ordered[j].title {
 			return ordered[i].title < ordered[j].title
 		}
-		return ordered[i].earliest < ordered[j].earliest
+		// Two Angebote of the same name at the same time still need a fixed
+		// order, or the sheet swaps their rows between two exports.
+		if ordered[i].key.groupID != ordered[j].key.groupID {
+			return ordered[i].key.groupID < ordered[j].key.groupID
+		}
+		return ordered[i].key.title < ordered[j].key.title
 	})
 
 	rows := make([]listexport.Row, 0, len(ordered))
@@ -334,9 +365,8 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 		// information the reader came for. The reason is internal.
 		head += " · entfällt"
 		lines := []listexport.Line{accented(head, d.blockColors[instance.ID])}
-		if d.variant.internal() && instance.CancelReason != nil && strings.TrimSpace(*instance.CancelReason) != "" {
-			lines = append(lines, muted("Grund: "+strings.TrimSpace(*instance.CancelReason)))
-		}
+		lines = d.appendNote(lines, "Grund", instance.CancelReason)
+		lines = d.appendNote(lines, "Notiz", instance.Notes)
 		return lines
 	}
 
@@ -348,10 +378,23 @@ func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInsta
 	if count := d.childCounts[instance.ID]; count > 0 {
 		lines = append(lines, muted(fmt.Sprintf("%d Kinder", count)))
 	}
-	if d.variant.internal() && instance.UnderstaffedNote != nil && strings.TrimSpace(*instance.UnderstaffedNote) != "" {
-		lines = append(lines, muted("Hinweis: "+strings.TrimSpace(*instance.UnderstaffedNote)))
-	}
+	lines = d.appendNote(lines, "Hinweis", instance.UnderstaffedNote)
+	lines = d.appendNote(lines, "Notiz", instance.Notes)
 	return lines
+}
+
+// appendNote adds a muted "Label: text" line, but only on the internal sheet:
+// what somebody wrote about a day — why it was cancelled, who is short, what
+// happened — is written for the team, not for a corridor wall.
+func (d *betreuungsplanData) appendNote(lines []listexport.Line, label string, note *string) []listexport.Line {
+	if !d.variant.internal() || note == nil {
+		return lines
+	}
+	text := strings.TrimSpace(*note)
+	if text == "" {
+		return lines
+	}
+	return append(lines, muted(label+": "+text))
 }
 
 // staffLine lists who runs the block. Absent staff are dropped from the wall

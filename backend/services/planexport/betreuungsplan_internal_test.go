@@ -270,6 +270,101 @@ func TestBetreuungsplanOrdersOfferingsByEarliestStart(t *testing.T) {
 	}
 }
 
+// Angebot names are not unique. Two separately configured Angebote that
+// happen to share a name are two rows, or the sheet prints one row that is
+// neither of them.
+func TestBetreuungsplanKeepsSameNamedOfferingsApart(t *testing.T) {
+	first := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
+	first.ActivityGroupID = ptr(int64(41))
+	second := instance(12, monday, clock(13, 0), clock(14, 0), "Mensa", 4)
+	second.ActivityGroupID = ptr(int64(42))
+
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{first, second}, nil, nil)
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+
+	labels := rowLabels(renderer.doc)
+	if len(labels) != 2 || labels[0] != "Mensa" || labels[1] != "Mensa" {
+		t.Fatalf("rows = %v, want two Mensa rows", labels)
+	}
+	cells := []string{
+		listexport.StripStyleMarkers(renderer.doc.Rows[0].Values[listexport.ColumnPlanMonday]),
+		listexport.StripStyleMarkers(renderer.doc.Rows[1].Values[listexport.ColumnPlanMonday]),
+	}
+	if !strings.Contains(cells[0], "12:00–13:00") || strings.Contains(cells[0], "13:00–14:00") {
+		t.Fatalf("first cell = %q, want only the first Angebot", cells[0])
+	}
+	if !strings.Contains(cells[1], "13:00–14:00") || strings.Contains(cells[1], "12:00–13:00") {
+		t.Fatalf("second cell = %q, want only the second Angebot", cells[1])
+	}
+}
+
+// A spontaneous block has no Angebot to be identified by, so its repeats
+// across the week still collect into one row.
+func TestBetreuungsplanGroupsSpontaneousBlocksByTitle(t *testing.T) {
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{
+			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
+			instance(12, tuesday, clock(12, 0), clock(13, 0), "Mensa", 3),
+		}, nil, nil)
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	if labels := rowLabels(renderer.doc); len(labels) != 1 || labels[0] != "Mensa" {
+		t.Fatalf("rows = %v, want a single Mensa row", labels)
+	}
+}
+
+// What somebody wrote about the day belongs to the team, not to the wall.
+func TestBetreuungsplanNoteOnlyOnInternalSheet(t *testing.T) {
+	noted := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
+	noted.Notes = ptr("Zweite Gruppe isst später")
+
+	for _, tc := range []struct {
+		variant  Variant
+		wantNote bool
+	}{
+		{VariantNotice, false},
+		{VariantInternal, true},
+	} {
+		t.Run(string(tc.variant), func(t *testing.T) {
+			service, renderer := newBetreuungsplanService(
+				[]*scheduleModel.ActivityInstance{noted}, nil, nil)
+			params := careParams()
+			params.Variant = tc.variant
+			if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
+				t.Fatalf("ExportBetreuungsplan: %v", err)
+			}
+			cell := cellFor(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)
+			if got := strings.Contains(cell, "Zweite Gruppe isst später"); got != tc.wantNote {
+				t.Fatalf("cell = %q, note present = %v, want %v", cell, got, tc.wantNote)
+			}
+		})
+	}
+}
+
+// A cancelled block keeps its note too — the internal sheet is where anyone
+// finds out what actually happened that day.
+func TestBetreuungsplanCancelledBlockKeepsNoteInternally(t *testing.T) {
+	cancelled := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
+	cancelled.Status = scheduleModel.InstanceStatusCancelled
+	cancelled.Notes = ptr("Ersatz in Gruppenraum 1")
+
+	service, renderer := newBetreuungsplanService(
+		[]*scheduleModel.ActivityInstance{cancelled}, nil, nil)
+	params := careParams()
+	params.Variant = VariantInternal
+	if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	cell := cellFor(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)
+	if !strings.Contains(cell, "Ersatz in Gruppenraum 1") {
+		t.Fatalf("cell = %q, want the note kept on the cancelled block", cell)
+	}
+}
+
 // The care plan accepts only its own template; asking for the staff layout
 // is a client error, not a silently different document.
 func TestBetreuungsplanRejectsForeignTemplate(t *testing.T) {
