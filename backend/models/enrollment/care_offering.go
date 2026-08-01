@@ -359,6 +359,8 @@ type CareOfferingRepository interface {
 	// window gates the surrounding flow, so individual offerings
 	// don't need their own time filter.
 	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
+	// ListActiveByPhaseIDs is the batched variant for queue projections.
+	ListActiveByPhaseIDs(ctx context.Context, phaseIDs []int64) ([]*CareOffering, error)
 
 	// ListByIDs returns the exact care offerings referenced by ids,
 	// regardless of phase. Empty input returns an empty slice.
@@ -422,6 +424,9 @@ type RequestChildOfferingRepository interface {
 	// ListByRequestChildIDsAtDate is the batched point-in-time variant used by
 	// write paths that must only inspect the selection active on a given date.
 	ListByRequestChildIDsAtDate(ctx context.Context, requestChildIDs []int64, onDate timezone.Date) ([]*RequestChildOffering, error)
+	// ListByRequestChildIDsAtDates loads the selection active on each child's
+	// individual date in one query.
+	ListByRequestChildIDsAtDates(ctx context.Context, dates map[int64]timezone.Date) ([]*RequestChildOffering, error)
 
 	// CountActiveByCareOffering returns the number of non-terminal selections
 	// across all validity intervals for a care offering. New capacity decisions

@@ -45,6 +45,10 @@ func (f *fakeOfferingChangeRequestService) ListPending(context.Context) ([]*enro
 	return nil, nil
 }
 
+func (f *fakeOfferingChangeRequestService) PendingCount(context.Context) (int, error) {
+	return 0, nil
+}
+
 func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input enrollmentService.DecideOfferingChangeInput) error {
 	f.input = input
 	return nil

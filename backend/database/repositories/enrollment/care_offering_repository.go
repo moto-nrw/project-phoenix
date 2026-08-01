@@ -313,6 +313,27 @@ func (r *CareOfferingRepository) ListActiveByPhase(ctx context.Context, phaseID 
 	return offerings, nil
 }
 
+func (r *CareOfferingRepository) ListActiveByPhaseIDs(ctx context.Context, phaseIDs []int64) ([]*enrollment.CareOffering, error) {
+	if len(phaseIDs) == 0 {
+		return nil, nil
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".phase_id IN (?)`, bun.List(phaseIDs)).
+		Where(`"care_offering".is_active = TRUE`).
+		OrderExpr(`"care_offering".phase_id, "care_offering".sort_order, "care_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active care offerings by phase ids: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
+	return offerings, nil
+}
+
 func (r *CareOfferingRepository) hydrateAutoAddTriggers(ctx context.Context, offerings []*enrollment.CareOffering) error {
 	if len(offerings) == 0 {
 		return nil

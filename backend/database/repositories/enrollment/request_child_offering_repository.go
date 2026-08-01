@@ -318,6 +318,35 @@ func (r *RequestChildOfferingRepository) ListByRequestChildIDsAtDate(ctx context
 	return rows, nil
 }
 
+func (r *RequestChildOfferingRepository) ListByRequestChildIDsAtDates(ctx context.Context, dates map[int64]timezone.Date) ([]*enrollment.RequestChildOffering, error) {
+	if len(dates) == 0 {
+		return nil, nil
+	}
+	ids := make([]int64, 0, len(dates))
+	for id := range dates {
+		ids = append(ids, id)
+	}
+	var history []*enrollment.RequestChildOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&history).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id IN (?)`, bun.List(ids)).
+		OrderExpr(`"request_child_offering".request_child_id, "request_child_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list request child offerings by child ids at dates: %w", err)
+	}
+	rows := make([]*enrollment.RequestChildOffering, 0, len(history))
+	for _, row := range history {
+		onDate, ok := dates[row.RequestChildID]
+		if !ok || (row.ValidFrom != nil && row.ValidFrom.After(onDate)) || (row.ValidUntil != nil && !row.ValidUntil.After(onDate)) {
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 // CountActiveByCareOffering returns the number of non-terminal selections
 // across all intervals. Capacity decisions must use the date/range-specific
 // methods below; this legacy aggregate intentionally remains time-agnostic.

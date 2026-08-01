@@ -218,6 +218,8 @@ type OfferingChangeRequestService interface {
 
 	// ListPending backs the staff review queue.
 	ListPending(ctx context.Context) ([]*OfferingChangeView, error)
+	// PendingCount backs the staff sidebar badge without constructing queue diffs.
+	PendingCount(ctx context.Context) (int, error)
 
 	// Decide approves (and applies) or rejects a pending request.
 	Decide(ctx context.Context, input DecideOfferingChangeInput) error
@@ -866,26 +868,238 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 		return nil, fmt.Errorf("offering change: load students: %w", err)
 	}
 	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
-	views := make([]*OfferingChangeView, 0, len(rows))
+	visibleRows := make([]*enrollmentModels.OfferingChangeRequest, 0, len(rows))
+	personIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		student := students[row.StudentID]
-		if !writable(student) || student.IsAlumnus() {
+		if row == nil {
 			continue
 		}
+		student := students[row.StudentID]
+		if student == nil || !writable(student) || student.IsAlumnus() {
+			continue
+		}
+		visibleRows = append(visibleRows, row)
+		if student.PersonID > 0 {
+			personIDs = append(personIDs, student.PersonID)
+		}
+	}
+	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: load student persons: %w", err)
+	}
+	diffs, diffErr := s.pendingDiffs(ctx, visibleRows)
+	if diffErr != nil {
+		s.Logger.Warn("offering change: preload pending diffs failed", slog.String("error", diffErr.Error()))
+	}
+	views := make([]*OfferingChangeView, 0, len(visibleRows))
+	for _, row := range visibleRows {
+		student := students[row.StudentID]
 		reviewRow := *row
 		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
-		view := &OfferingChangeView{Request: &reviewRow, StudentName: s.studentName(ctx, row.StudentID)}
-		if diff, diffErr := s.diffForRequest(ctx, &reviewRow); diffErr == nil {
-			view.Diff = diff
-		} else {
-			s.Logger.Warn("offering change: build diff failed",
-				slog.Int64("request_id", row.ID),
-				slog.String("error", diffErr.Error()),
-			)
+		view := &OfferingChangeView{Request: &reviewRow}
+		if person := persons[student.PersonID]; person != nil {
+			view.StudentName = strings.TrimSpace(person.GetFullName())
+		}
+		if diffErr == nil {
+			view.Diff = diffs[row.ID]
 		}
 		views = append(views, view)
 	}
 	return views, nil
+}
+
+func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, error) {
+	rows, err := s.ChangeRepo.ListPendingForTenant(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("offering change: list pending for count: %w", err)
+	}
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return 0, fmt.Errorf("offering change: load students for count: %w", err)
+	}
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	count := 0
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		student := students[row.StudentID]
+		if student != nil && writable(student) && !student.IsAlumnus() {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// pendingDiffs preloads the queue's aggregate data in bounded queries. The
+// review page and its badge both call ListPending, so loading a complete
+// request aggregate per row would turn an ordinary queue into an N+1 query.
+func (s *offeringChangeRequestService) pendingDiffs(
+	ctx context.Context,
+	rows []*enrollmentModels.OfferingChangeRequest,
+) (map[int64][]OfferingChangeDiffEntry, error) {
+	childIDs := make([]int64, 0, len(rows))
+	dates := make(map[int64]timezone.Date, len(rows))
+	for _, row := range rows {
+		if row == nil || row.RequestChildID <= 0 {
+			continue
+		}
+		childIDs = append(childIDs, row.RequestChildID)
+		dates[row.RequestChildID] = appliedOfferingChangeDate(row.EffectiveFrom)
+	}
+	children, err := s.RequestChildRepo.ListByIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load request children: %w", err)
+	}
+	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
+	requestIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child == nil {
+			continue
+		}
+		childrenByID[child.ID] = child
+		requestIDs = append(requestIDs, child.RequestID)
+	}
+	requests, err := s.RequestRepo.ListByIDs(ctx, requestIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load enrollment requests: %w", err)
+	}
+	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	phaseIDs := make([]int64, 0, len(requests))
+	for _, request := range requests {
+		if request == nil {
+			continue
+		}
+		requestsByID[request.ID] = request
+		phaseIDs = append(phaseIDs, request.PhaseID)
+	}
+	phases, err := s.PhaseRepo.ListByIDs(ctx, phaseIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load phases: %w", err)
+	}
+	phasesByID := make(map[int64]*enrollmentModels.Phase, len(phases))
+	for _, phase := range phases {
+		if phase != nil {
+			phasesByID[phase.ID] = phase
+		}
+	}
+	active, err := s.CareOfferingRepo.ListActiveByPhaseIDs(ctx, phaseIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load active offerings: %w", err)
+	}
+	activeByPhase := make(map[int64]map[int64]*enrollmentModels.CareOffering)
+	allOfferingIDs := make([]int64, 0, len(active))
+	for _, offering := range active {
+		if offering == nil {
+			continue
+		}
+		if activeByPhase[offering.PhaseID] == nil {
+			activeByPhase[offering.PhaseID] = make(map[int64]*enrollmentModels.CareOffering)
+		}
+		activeByPhase[offering.PhaseID][offering.ID] = offering
+		allOfferingIDs = append(allOfferingIDs, offering.ID)
+	}
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
+	if err != nil {
+		return nil, fmt.Errorf("load current offerings: %w", err)
+	}
+	currentByChild := make(map[int64][]*enrollmentModels.RequestChildOffering)
+	for _, link := range current {
+		if link != nil {
+			currentByChild[link.RequestChildID] = append(currentByChild[link.RequestChildID], link)
+			allOfferingIDs = append(allOfferingIDs, link.CareOfferingID)
+		}
+	}
+	requestedByRow := make(map[int64][]OfferingChangeSelection, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		requested, payloadErr := selectionsFromPayload(row.Payload)
+		if payloadErr != nil {
+			continue
+		}
+		requestedByRow[row.ID] = requested
+		for _, selection := range requested {
+			allOfferingIDs = append(allOfferingIDs, selection.OfferingID)
+		}
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, allOfferingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load queue offerings: %w", err)
+	}
+	offeringsByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings)+len(active))
+	for _, offering := range offerings {
+		if offering != nil {
+			offeringsByID[offering.ID] = offering
+		}
+	}
+	for _, offering := range active {
+		if offering != nil {
+			offeringsByID[offering.ID] = offering
+		}
+	}
+
+	diffs := make(map[int64][]OfferingChangeDiffEntry, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		child := childrenByID[row.RequestChildID]
+		requested, ok := requestedByRow[row.ID]
+		if child == nil || !ok {
+			continue
+		}
+		request := requestsByID[child.RequestID]
+		if request == nil {
+			continue
+		}
+		phase := phasesByID[request.PhaseID]
+		if phase == nil {
+			continue
+		}
+		allowed := make(map[int64]*enrollmentModels.CareOffering, len(activeByPhase[phase.ID])+len(currentByChild[child.ID]))
+		for id, offering := range activeByPhase[phase.ID] {
+			allowed[id] = offering
+		}
+		for _, link := range currentByChild[child.ID] {
+			if offering := offeringsByID[link.CareOfferingID]; offering != nil {
+				allowed[offering.ID] = offering
+			}
+		}
+		_, submit, normalizeErr := normalizeOfferingSelections(requested, allowed)
+		if normalizeErr != nil {
+			continue
+		}
+		submit.TargetGradeLevel = child.TargetGradeLevel
+		materialized, materializeErr := materializeAndValidateChildrenOfferingSelections(
+			[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+		)
+		if materializeErr != nil {
+			continue
+		}
+		ids, currentByID, requestedByID := offeringChangeSides(currentByChild[child.ID], offeringChangeSelections(materialized[0]))
+		entries := make([]OfferingChangeDiffEntry, 0, len(ids))
+		for _, id := range ids {
+			name := ""
+			if offering := offeringsByID[id]; offering != nil {
+				name = offering.Name
+			}
+			entry, changed := offeringDiffEntry(id, name, currentByID[id], requestedByID)
+			if changed {
+				entries = append(entries, entry)
+			}
+		}
+		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
+		diffs[row.ID] = entries
+	}
+	return diffs, nil
 }
 
 func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideOfferingChangeInput) error {

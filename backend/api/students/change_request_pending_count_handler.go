@@ -16,9 +16,9 @@ import (
 // as the Nachrichten badge: a single number the deciding staffer clears by
 // working the queue. Both sub-queues are users:update-gated and per-child
 // write-scoped in the service (admin or the child's group supervisor), so
-// summing the two ListPending results yields a count scoped to exactly the
-// requests this caller can act on — and keeps the count on the same query path
-// the review lists render, with no second source that could drift.
+// each service's pending count is scoped to exactly the requests this caller
+// can act on. Offering changes use their dedicated count to avoid building
+// every review diff just to render the badge.
 func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Request) {
 	if rs.MasterDataReviewService == nil || rs.CareRequestService == nil || rs.ExcusedRequestService == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("change request services not configured")))
@@ -45,12 +45,12 @@ func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Req
 	// service (older wiring in tests) contributes zero rather than a 500.
 	offeringChanges := 0
 	if rs.OfferingChangeService != nil {
-		offerings, offeringErr := rs.OfferingChangeService.ListPending(ctx)
+		offeringCount, offeringErr := rs.OfferingChangeService.PendingCount(ctx)
 		if offeringErr != nil {
 			renderError(w, r, common.ErrorInternalServer(offeringErr))
 			return
 		}
-		offeringChanges = len(offerings)
+		offeringChanges = offeringCount
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]int{

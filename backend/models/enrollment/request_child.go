@@ -130,6 +130,7 @@ type StudentCarePeriod struct {
 type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	FindByID(ctx context.Context, id int64) (*RequestChild, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*RequestChild, error)
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
 	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*RequestChild, error)
 

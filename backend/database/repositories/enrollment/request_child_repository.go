@@ -51,6 +51,21 @@ func (r *RequestChildRepository) FindByID(ctx context.Context, id int64) (*enrol
 	return child, nil
 }
 
+func (r *RequestChildRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var children []*enrollment.RequestChild
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&children).
+		ModelTableExpr(requestChildTableExpr).
+		Where(`"request_child".id IN (?)`, bun.List(ids)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list request children by ids: %w", err)
+	}
+	return children, nil
+}
+
 // ListByRequestID returns all children for a request, sorted by sort_order.
 func (r *RequestChildRepository) ListByRequestID(ctx context.Context, requestID int64) ([]*enrollment.RequestChild, error) {
 	return r.listByRequestID(ctx, requestID, "")

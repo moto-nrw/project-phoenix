@@ -58,6 +58,21 @@ func (r *PhaseRepository) FindByID(ctx context.Context, id int64) (*enrollment.P
 	return row, nil
 }
 
+func (r *PhaseRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.Phase, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var rows []*enrollment.Phase
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".id IN (?)`, bun.List(ids)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list phases by ids: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) error {
 	if err := phase.Validate(); err != nil {
 		return fmt.Errorf("phase validation: %w", err)
