@@ -382,14 +382,15 @@ type pollOptionResultResponse struct {
 }
 
 type pollResultsResponse struct {
-	ChildCount    int                        `json:"child_count"`
-	AnsweredCount int                        `json:"answered_count"`
-	Options       []pollOptionResultResponse `json:"options"`
+	ChildCount       int                        `json:"child_count"`
+	TargetChildCount int                        `json:"target_child_count"`
+	AnsweredCount    int                        `json:"answered_count"`
+	Options          []pollOptionResultResponse `json:"options"`
 }
 
-// pollChildResponse is one reached child with the answer given for them.
-// answer_labels is empty while the answer is still open, which is what the staff
-// list filters on.
+// pollChildResponse is one reached child with the answer given for them and
+// whether any guardian may currently respond. answer_labels is empty while an
+// answer is still open.
 type pollChildResponse struct {
 	StudentID    string     `json:"student_id"`
 	FirstName    string     `json:"first_name"`
@@ -397,6 +398,7 @@ type pollChildResponse struct {
 	SchoolClass  string     `json:"school_class"`
 	AnswerLabels []string   `json:"answer_labels"`
 	RespondedAt  *time.Time `json:"responded_at,omitempty"`
+	CanAnswer    bool       `json:"can_answer"`
 }
 
 func (rs *Resource) pollResults(w http.ResponseWriter, r *http.Request) {
@@ -410,9 +412,10 @@ func (rs *Resource) pollResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := pollResultsResponse{
-		ChildCount:    results.ChildCount,
-		AnsweredCount: results.AnsweredCount,
-		Options:       make([]pollOptionResultResponse, 0, len(results.Options)),
+		ChildCount:       results.ChildCount,
+		TargetChildCount: results.TargetChildCount,
+		AnsweredCount:    results.AnsweredCount,
+		Options:          make([]pollOptionResultResponse, 0, len(results.Options)),
 	}
 	for _, o := range results.Options {
 		out.Options = append(out.Options, pollOptionResultResponse{
@@ -447,6 +450,7 @@ func (rs *Resource) pollChildren(w http.ResponseWriter, r *http.Request) {
 			SchoolClass:  c.SchoolClass,
 			AnswerLabels: labels,
 			RespondedAt:  c.RespondedAt,
+			CanAnswer:    c.CanAnswer,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Poll children retrieved")
