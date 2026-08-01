@@ -498,7 +498,15 @@ func splitRenderRow(rr renderRow, maxLines int) []renderRow {
 				end = len(lines)
 			}
 			if start < len(lines) {
-				part.cells[i] = lines[start:end]
+				part.cells[i] = append([]styledLine(nil), lines[start:end]...)
+				if start > 0 && part.cells[i][0].accent == "" {
+					for previous := start - 1; previous >= 0; previous-- {
+						if lines[previous].accent != "" {
+							part.cells[i][0].accent = lines[previous].accent
+							break
+						}
+					}
+				}
 			} else {
 				part.cells[i] = nil
 			}

@@ -487,6 +487,22 @@ func TestDienstplanKeepsNonWorkingDaysForAnOtherwiseEmptyWeek(t *testing.T) {
 	}
 }
 
+func TestNonWorkingDaysClampsLongClosingRangesToTheExportWindow(t *testing.T) {
+	svc := NewService(Dependencies{
+		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{
+			closingRange(monday.AddDays(-100_000), monday.AddDays(100_000), "Betriebsferien"),
+		}},
+	}, nil)
+
+	labels := svc.(*service).nonWorkingDays(context.Background(), monday, monday.AddDays(4))
+	if len(labels) != 5 {
+		t.Fatalf("label count = %d, want the five export days only", len(labels))
+	}
+	if got := labels[monday]; got != "Schließtag: Betriebsferien" {
+		t.Fatalf("first export day = %q", got)
+	}
+}
+
 func TestDienstplanAreaInternalVariantShowsCancellationReason(t *testing.T) {
 	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
 	cancelled.Cancelled = true
@@ -506,6 +522,28 @@ func TestDienstplanAreaInternalVariantShowsCancellationReason(t *testing.T) {
 	}
 	if cell := cellFor(t, renderer.doc, "Frühdienst", listexport.ColumnPlanMonday); !strings.Contains(cell, "Grund: Fortbildung") {
 		t.Fatalf("area cell = %q, want the cancellation reason", cell)
+	}
+}
+
+func TestDienstplanAreaKeepsSameNamedShiftAndOfferingSeparate(t *testing.T) {
+	typeID := int64(1)
+	shift := shift(1, 7, monday, clock(7, 30), clock(10, 0))
+	shift.ShiftTypeID = &typeID
+	service, renderer := newDienstplanService(&scheduleSvc.StaffScheduleOverview{
+		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*scheduleModel.StaffShift{shift},
+		Assignments: []scheduleSvc.StaffScheduleAssignment{{
+			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa",
+		}},
+	}, []*scheduleModel.ShiftType{shiftType(1, "Mensa")})
+	params := defaultParams()
+	params.Template = TemplateByArea
+
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	if got := strings.Count(strings.Join(rowLabels(renderer.doc), "|"), "Mensa"); got != 2 {
+		t.Fatalf("Mensa rows = %d, want separate shift and offering rows", got)
 	}
 }
 

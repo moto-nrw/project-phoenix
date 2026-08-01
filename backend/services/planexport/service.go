@@ -121,10 +121,14 @@ func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) ma
 			if closing == nil {
 				continue
 			}
-			for day := closing.StartDate; !day.After(closing.EndDate); day = day.AddDays(1) {
-				if day.Before(from) || day.After(to) {
-					continue
-				}
+			start, end := closing.StartDate, closing.EndDate
+			if start.Before(from) {
+				start = from
+			}
+			if end.After(to) {
+				end = to
+			}
+			for day := start; !day.After(end); day = day.AddDays(1) {
 				labels[day] = "Schließtag: " + closing.Reason
 			}
 		}

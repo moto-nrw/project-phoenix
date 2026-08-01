@@ -331,7 +331,7 @@ func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAss
 // Angebot, which is the opposite of what a deployment sheet is for. Nothing
 // is double counted here either — no minutes are summed on this sheet.
 func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
-	areas := map[string]*areaRow{}
+	areas := map[areaKey]*areaRow{}
 
 	for _, member := range d.staff {
 		if member == nil {
@@ -357,7 +357,7 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				// staff plan the bar means "this is a Dienst", which is the
 				// distinction the sheet exists to make. The care plan colours
 				// its blocks by Kategorie, where that is the useful axis.
-				areaFor(areas, assignment.ActivityTitle).add(
+				areaFor(areas, areaOffering, assignment.ActivityTitle).add(
 					i, assignment.StartTime, assignment.EndTime,
 					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label, "")
 			}
@@ -379,7 +379,7 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 				if d.variant.internal() && shift.Cancelled && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
 					detail = "Grund: " + strings.TrimSpace(*shift.ChangeReason)
 				}
-				area := areaFor(areas, title)
+				area := areaFor(areas, areaShift, title)
 				area.color = info.color
 				area.add(i, shift.StartTime, shift.EndTime, "", label, detail)
 			}
@@ -394,6 +394,9 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 	// hand-kept Excel does (Randstunde at the top, Angebote at the bottom).
 	sort.SliceStable(ordered, func(i, j int) bool {
 		if ordered[i].earliest == ordered[j].earliest {
+			if ordered[i].title == ordered[j].title {
+				return ordered[i].kind < ordered[j].kind
+			}
 			return ordered[i].title < ordered[j].title
 		}
 		return ordered[i].earliest < ordered[j].earliest
@@ -414,15 +417,28 @@ func (d *dienstplanData) emptyWeekRows(w week) []listexport.Row {
 	return emptyWeekRows(w, d.closedDays)
 }
 
-func areaFor(areas map[string]*areaRow, title string) *areaRow {
+type areaKind string
+
+const (
+	areaOffering areaKind = "offering"
+	areaShift    areaKind = "shift"
+)
+
+type areaKey struct {
+	kind  areaKind
+	title string
+}
+
+func areaFor(areas map[areaKey]*areaRow, kind areaKind, title string) *areaRow {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		title = areaWithoutShiftType
 	}
-	row, ok := areas[title]
+	key := areaKey{kind: kind, title: title}
+	row, ok := areas[key]
 	if !ok {
-		row = &areaRow{title: title, earliest: "99:99"}
-		areas[title] = row
+		row = &areaRow{kind: kind, title: title, earliest: "99:99"}
+		areas[key] = row
 	}
 	return row
 }
@@ -431,6 +447,7 @@ func areaFor(areas map[string]*areaRow, title string) *areaRow {
 // a time window and room are grouped under one heading line, which is what
 // turns five separate "12:00–13:00 Name" lines into a readable block.
 type areaRow struct {
+	kind     areaKind
 	title    string
 	color    string
 	earliest string

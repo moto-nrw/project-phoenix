@@ -72,6 +72,22 @@ func TestDesignedPDFGroupsStartNewPages(t *testing.T) {
 	}
 }
 
+func TestSplitRenderRowCarriesAccentIntoContinuation(t *testing.T) {
+	row := renderRow{cells: [][]styledLine{{
+		{text: "07:30–14:00", accent: "#83CD2D"},
+		{text: "Aufgabe 1"},
+		{text: "Aufgabe 2"},
+	}}, lines: 3}
+
+	parts := splitRenderRow(row, 2)
+	if len(parts) != 2 {
+		t.Fatalf("parts = %d, want 2", len(parts))
+	}
+	if got := parts[1].cells[0][0].accent; got != "#83CD2D" {
+		t.Fatalf("continuation accent = %q, want active group accent", got)
+	}
+}
+
 // Ported rule: when a group overflows, its heading repeats on every
 // continuation page so each printed sheet is self-describing.
 func TestDesignedPDFGroupHeadingRepeatsOnOverflowPages(t *testing.T) {
