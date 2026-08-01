@@ -77,15 +77,15 @@ func NewService(deps Dependencies) Getter {
 }
 
 type Group struct {
-	ID              int64  `json:"id"`
+	ID              int64  `json:"id,string"`
 	Name            string `json:"name"`
-	RoomID          *int64 `json:"room_id,omitempty"`
+	RoomID          *int64 `json:"room_id,string,omitempty"`
 	RoomName        string `json:"room_name,omitempty"`
 	ViaSubstitution bool   `json:"via_substitution"`
 }
 
 type Student struct {
-	ID                 int64      `json:"id"`
+	ID                 int64      `json:"id,string"`
 	FirstName          string     `json:"first_name"`
 	LastName           string     `json:"last_name"`
 	SchoolClass        string     `json:"school_class"`
@@ -112,16 +112,16 @@ type Student struct {
 
 type RoomStatus struct {
 	InGroupRoom   bool   `json:"in_group_room"`
-	CurrentRoomID *int64 `json:"current_room_id,omitempty"`
+	CurrentRoomID *int64 `json:"current_room_id,string,omitempty"`
 }
 
 type DayNote struct {
-	ID      int64  `json:"id"`
+	ID      int64  `json:"id,string"`
 	Content string `json:"content"`
 }
 
 type PickupTime struct {
-	StudentID   int64     `json:"student_id"`
+	StudentID   int64     `json:"student_id,string"`
 	Date        string    `json:"date"`
 	WeekdayName string    `json:"weekday_name"`
 	PickupTime  *string   `json:"pickup_time,omitempty"`
@@ -136,16 +136,16 @@ type TrackingIndicators struct {
 }
 
 type Transfer struct {
-	ID                int64  `json:"id"`
-	GroupID           int64  `json:"group_id"`
-	SubstituteStaffID int64  `json:"substitute_staff_id"`
+	ID                int64  `json:"id,string"`
+	GroupID           int64  `json:"group_id,string"`
+	SubstituteStaffID int64  `json:"substitute_staff_id,string"`
 	SubstituteName    string `json:"substitute_name,omitempty"`
 	EndDate           string `json:"end_date"`
 }
 
 type Projection struct {
 	Groups             []Group               `json:"groups"`
-	GroupID            *int64                `json:"group_id,omitempty"`
+	GroupID            *int64                `json:"group_id,string,omitempty"`
 	Students           []Student             `json:"students"`
 	RoomStatus         map[string]RoomStatus `json:"room_status"`
 	PickupTimes        []PickupTime          `json:"pickup_times"`

@@ -463,8 +463,10 @@ function liveData(overrides: Partial<OgsLiveViewData> = {}): OgsLiveViewData {
 }
 
 function wireStudent(
-  overrides: Partial<OgsLiveWireStudent> &
-    Pick<OgsLiveWireStudent, "id" | "first_name" | "last_name">,
+  overrides: Omit<Partial<OgsLiveWireStudent>, "id"> &
+    Pick<OgsLiveWireStudent, "first_name" | "last_name"> & {
+      id: string | number;
+    },
 ): OgsLiveWireStudent {
   return {
     school_class: "",
@@ -473,6 +475,7 @@ function wireStudent(
     excused: false,
     class_trip: false,
     ...overrides,
+    id: overrides.id.toString(),
   };
 }
 
@@ -574,7 +577,7 @@ describe("OGSGroupPage", () => {
       data: liveData({
         students: [
           wireStudent({
-            id: 1,
+            id: "1",
             first_name: "Max",
             last_name: "Mustermann",
             current_location: "Raum 101",
@@ -823,7 +826,7 @@ describe("OGSGroupPage", () => {
       data: liveData({
         students: [
           {
-            id: 1,
+            id: "1",
             first_name: "Max",
             last_name: "Mustermann",
             school_class: "",

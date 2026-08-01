@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -26,17 +27,17 @@ var ogsLivePerms = []string{"users:read", "groups:read"}
 type ogsLiveEnvelope struct {
 	Data struct {
 		Groups []struct {
-			ID              int64  `json:"id"`
-			Name            string `json:"name"`
-			RoomID          *int64 `json:"room_id"`
-			RoomName        string `json:"room_name"`
-			ViaSubstitution bool   `json:"via_substitution"`
+			ID              string  `json:"id"`
+			Name            string  `json:"name"`
+			RoomID          *string `json:"room_id"`
+			RoomName        string  `json:"room_name"`
+			ViaSubstitution bool    `json:"via_substitution"`
 		} `json:"groups"`
-		GroupID    *int64           `json:"group_id"`
+		GroupID    *string          `json:"group_id"`
 		Students   []map[string]any `json:"students"`
 		RoomStatus map[string]struct {
-			InGroupRoom   bool   `json:"in_group_room"`
-			CurrentRoomID *int64 `json:"current_room_id"`
+			InGroupRoom   bool    `json:"in_group_room"`
+			CurrentRoomID *string `json:"current_room_id"`
 		} `json:"room_status"`
 		PickupTimes        []map[string]any `json:"pickup_times"`
 		TrackingIndicators struct {
@@ -44,9 +45,9 @@ type ogsLiveEnvelope struct {
 			Results map[string][]bool `json:"results"`
 		} `json:"tracking_indicators"`
 		Transfers []struct {
-			ID                int64  `json:"id"`
-			GroupID           int64  `json:"group_id"`
-			SubstituteStaffID int64  `json:"substitute_staff_id"`
+			ID                string `json:"id"`
+			GroupID           string `json:"group_id"`
+			SubstituteStaffID string `json:"substitute_staff_id"`
 			SubstituteName    string `json:"substitute_name"`
 			EndDate           string `json:"end_date"`
 		} `json:"transfers"`
@@ -121,11 +122,12 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	data := envelope.Data
 
 	require.NotNil(t, data.GroupID)
-	assert.Equal(t, group.ID, *data.GroupID)
+	assert.Equal(t, strconv.FormatInt(group.ID, 10), *data.GroupID)
 	require.Len(t, data.Groups, 1)
+	assert.Equal(t, strconv.FormatInt(group.ID, 10), data.Groups[0].ID)
 	assert.Equal(t, group.Name, data.Groups[0].Name)
 	require.NotNil(t, data.Groups[0].RoomID)
-	assert.Equal(t, room.ID, *data.Groups[0].RoomID)
+	assert.Equal(t, strconv.FormatInt(room.ID, 10), *data.Groups[0].RoomID)
 	assert.Equal(t, room.Name, data.Groups[0].RoomName)
 	assert.False(t, data.Groups[0].ViaSubstitution)
 
@@ -137,7 +139,7 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, inRoomStatus.InGroupRoom)
 	require.NotNil(t, inRoomStatus.CurrentRoomID)
-	assert.Equal(t, room.ID, *inRoomStatus.CurrentRoomID)
+	assert.Equal(t, strconv.FormatInt(room.ID, 10), *inRoomStatus.CurrentRoomID)
 
 	atHomeStatus, ok := data.RoomStatus[fmt.Sprintf("%d", atHome.ID)]
 	require.True(t, ok)
@@ -146,8 +148,9 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 
 	// Transfer projection carries the substitute's name and end date.
 	require.Len(t, data.Transfers, 1)
-	assert.Equal(t, group.ID, data.Transfers[0].GroupID)
-	assert.Equal(t, substitute.ID, data.Transfers[0].SubstituteStaffID)
+	assert.Equal(t, strconv.FormatInt(sub.ID, 10), data.Transfers[0].ID)
+	assert.Equal(t, strconv.FormatInt(group.ID, 10), data.Transfers[0].GroupID)
+	assert.Equal(t, strconv.FormatInt(substitute.ID, 10), data.Transfers[0].SubstituteStaffID)
 	assert.NotEmpty(t, data.Transfers[0].SubstituteName)
 	assert.Equal(t, today.String(), data.Transfers[0].EndDate)
 

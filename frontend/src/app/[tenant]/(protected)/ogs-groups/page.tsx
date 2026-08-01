@@ -92,7 +92,7 @@ const logger = createLogger({ component: "OgsGroupsPage" });
 // the frontend Student shape the shared card components consume.
 function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
   return {
-    id: student.id.toString(),
+    id: student.id,
     name: `${student.first_name} ${student.last_name}`.trim(),
     first_name: student.first_name,
     second_name: student.last_name,
@@ -228,7 +228,7 @@ function OGSGroupPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState<
-    Record<string, { in_group_room: boolean; current_room_id?: number }>
+    Record<string, { in_group_room: boolean; current_room_id?: string }>
   >({});
 
   // State for mobile/desktop detection

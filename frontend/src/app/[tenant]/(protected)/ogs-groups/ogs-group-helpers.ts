@@ -95,7 +95,7 @@ export function matchesAttendanceFilter(
   attendanceFilter: string,
   roomStatus: Record<
     string,
-    { in_group_room?: boolean; current_room_id?: number }
+    { in_group_room?: boolean; current_room_id?: string | number }
   >,
 ): boolean {
   if (attendanceFilter === "all") return true;
@@ -120,7 +120,7 @@ export function matchesAttendanceFilter(
 
 export function matchesForeignRoomFilter(studentRoomStatus?: {
   in_group_room?: boolean;
-  current_room_id?: number;
+  current_room_id?: string | number;
 }): boolean {
   return (
     !!studentRoomStatus?.current_room_id &&

@@ -2,6 +2,7 @@ package ogsgrouplive
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -63,6 +64,66 @@ func TestNewServiceAppliesRuntimeDefaults(t *testing.T) {
 	require.True(t, ok)
 	assert.NotNil(t, got.deps.Logger)
 	assert.NotNil(t, got.deps.Now)
+}
+
+func TestProjectionSerializesAllIDsAsStrings(t *testing.T) {
+	id := int64(9223372036854775807)
+	projection := Projection{
+		Groups:      []Group{{ID: id, RoomID: &id}},
+		GroupID:     &id,
+		Students:    []Student{{ID: id}},
+		RoomStatus:  map[string]RoomStatus{"student": {CurrentRoomID: &id}},
+		PickupTimes: []PickupTime{{StudentID: id, DayNotes: []DayNote{{ID: id}}}},
+		TrackingIndicators: TrackingIndicators{
+			Results: map[int64][]bool{id: {true}},
+		},
+		Transfers: []Transfer{{ID: id, GroupID: id, SubstituteStaffID: id}},
+	}
+
+	body, err := json.Marshal(projection)
+	require.NoError(t, err)
+
+	var wire struct {
+		Groups []struct {
+			ID     string  `json:"id"`
+			RoomID *string `json:"room_id"`
+		} `json:"groups"`
+		GroupID  *string `json:"group_id"`
+		Students []struct {
+			ID string `json:"id"`
+		} `json:"students"`
+		RoomStatus map[string]struct {
+			CurrentRoomID *string `json:"current_room_id"`
+		} `json:"room_status"`
+		PickupTimes []struct {
+			StudentID string `json:"student_id"`
+			DayNotes  []struct {
+				ID string `json:"id"`
+			} `json:"day_notes"`
+		} `json:"pickup_times"`
+		TrackingIndicators struct {
+			Results map[string][]bool `json:"results"`
+		} `json:"tracking_indicators"`
+		Transfers []struct {
+			ID                string `json:"id"`
+			GroupID           string `json:"group_id"`
+			SubstituteStaffID string `json:"substitute_staff_id"`
+		} `json:"transfers"`
+	}
+	require.NoError(t, json.Unmarshal(body, &wire), "wire IDs must be JSON strings: %s", body)
+
+	want := "9223372036854775807"
+	assert.Equal(t, want, wire.Groups[0].ID)
+	assert.Equal(t, want, *wire.Groups[0].RoomID)
+	assert.Equal(t, want, *wire.GroupID)
+	assert.Equal(t, want, wire.Students[0].ID)
+	assert.Equal(t, want, *wire.RoomStatus["student"].CurrentRoomID)
+	assert.Equal(t, want, wire.PickupTimes[0].StudentID)
+	assert.Equal(t, want, wire.PickupTimes[0].DayNotes[0].ID)
+	assert.Equal(t, []bool{true}, wire.TrackingIndicators.Results[want])
+	assert.Equal(t, want, wire.Transfers[0].ID)
+	assert.Equal(t, want, wire.Transfers[0].GroupID)
+	assert.Equal(t, want, wire.Transfers[0].SubstituteStaffID)
 }
 
 func TestValidateDependenciesRejectsIncompleteService(t *testing.T) {

@@ -9,15 +9,15 @@ import type { GroupTransfer } from "~/lib/group-transfer-api";
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 
 interface OgsLiveWireGroup {
-  id: number;
+  id: string;
   name: string;
-  room_id?: number;
+  room_id?: string;
   room_name?: string;
   via_substitution: boolean;
 }
 
 export interface OgsLiveWireStudent {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
   school_class: string;
@@ -43,28 +43,28 @@ export interface OgsLiveWireStudent {
 
 interface OgsLiveWireRoomStatus {
   in_group_room: boolean;
-  current_room_id?: number;
+  current_room_id?: string;
 }
 
 interface OgsLiveWirePickupTime {
-  student_id: number;
+  student_id: string;
   pickup_time?: string;
   is_exception: boolean;
   notes?: string;
-  day_notes?: Array<{ id: number; content: string }>;
+  day_notes?: Array<{ id: string; content: string }>;
 }
 
 interface OgsLiveWireTransfer {
-  id: number;
-  group_id: number;
-  substitute_staff_id: number;
+  id: string;
+  group_id: string;
+  substitute_staff_id: string;
   substitute_name?: string;
   end_date: string;
 }
 
 export interface OgsGroupLiveWireResponse {
   groups: OgsLiveWireGroup[];
-  group_id?: number;
+  group_id?: string;
   students: OgsLiveWireStudent[];
   room_status: Record<string, OgsLiveWireRoomStatus>;
   pickup_times: OgsLiveWirePickupTime[];
@@ -98,7 +98,7 @@ export interface OgsLiveViewData {
   students: OgsLiveWireStudent[];
   roomStatus: Record<
     string,
-    { in_group_room: boolean; current_room_id?: number }
+    { in_group_room: boolean; current_room_id?: string }
   >;
   pickupTimes: Map<string, OgsPickupInfo>;
   trackingIndicators: TrackingIndicatorsResponse;
@@ -120,12 +120,12 @@ export function mapOgsGroupLiveResponse(
 ): OgsLiveViewData {
   const pickupTimes = new Map<string, OgsPickupInfo>();
   for (const pt of wire.pickup_times ?? []) {
-    pickupTimes.set(pt.student_id.toString(), {
+    pickupTimes.set(pt.student_id, {
       pickupTime: pt.pickup_time,
       isException: pt.is_exception,
       notes: pt.notes,
       dayNotes: (pt.day_notes ?? []).map((note) => ({
-        id: note.id.toString(),
+        id: note.id,
         content: note.content,
       })),
     });
@@ -133,13 +133,13 @@ export function mapOgsGroupLiveResponse(
 
   return {
     groups: (wire.groups ?? []).map((group) => ({
-      id: group.id.toString(),
+      id: group.id,
       name: group.name,
-      roomId: group.room_id?.toString(),
+      roomId: group.room_id,
       roomName: group.room_name,
       viaSubstitution: group.via_substitution,
     })),
-    groupId: wire.group_id != null ? wire.group_id.toString() : null,
+    groupId: wire.group_id ?? null,
     students: wire.students ?? [],
     roomStatus: wire.room_status ?? {},
     pickupTimes,
@@ -148,9 +148,9 @@ export function mapOgsGroupLiveResponse(
       results: {},
     },
     transfers: (wire.transfers ?? []).map((transfer) => ({
-      substitutionId: transfer.id.toString(),
-      groupId: transfer.group_id.toString(),
-      targetStaffId: transfer.substitute_staff_id.toString(),
+      substitutionId: transfer.id,
+      groupId: transfer.group_id,
+      targetStaffId: transfer.substitute_staff_id,
       targetName: transfer.substitute_name ?? "Unbekannt",
       validUntil: transfer.end_date,
     })),
