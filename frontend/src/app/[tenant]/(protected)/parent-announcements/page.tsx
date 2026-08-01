@@ -13,7 +13,6 @@ import {
   Send,
   Trash2,
   Undo2,
-  X,
 } from "lucide-react";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -895,10 +894,13 @@ function AnnouncementFormModal({
   const [multiChoice, setMultiChoice] = useState(
     announcement?.response_type === "multi_choice",
   );
-  const [options, setOptions] = useState<string[]>(() => {
+  // One answer per line, the same way the enrollment form builder edits the
+  // options of a select field. A row of small inputs with remove buttons is
+  // more chrome than a two-word answer deserves.
+  const [optionsDraft, setOptionsDraft] = useState(() => {
     const existing = announcement?.options?.map((o) => o.label) ?? [];
-    if (existing.length > 0) return existing;
-    return isPollForm ? ["Ja", "Nein"] : [];
+    if (existing.length > 0) return existing.join("\n");
+    return isPollForm ? "Ja\nNein" : "";
   });
   const [deadline, setDeadline] = useState<Date | null>(
     announcement?.response_deadline
@@ -906,10 +908,14 @@ function AnnouncementFormModal({
       : null,
   );
 
-  const setOptionAt = (index: number, value: string) =>
-    setOptions((prev) => prev.map((o, i) => (i === index ? value : o)));
-  const removeOptionAt = (index: number) =>
-    setOptions((prev) => prev.filter((_, i) => i !== index));
+  const options = useMemo(
+    () =>
+      optionsDraft
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    [optionsDraft],
+  );
 
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
@@ -931,13 +937,16 @@ function AnnouncementFormModal({
       return false;
     }
     if (isPollForm) {
-      const filled = options.map((o) => o.trim()).filter(Boolean);
-      if (filled.length < 2) {
+      if (options.length < 2) {
         setFormError("Bitte mindestens zwei Antwortmöglichkeiten angeben.");
         return false;
       }
-      const seen = new Set(filled.map((o) => o.toLowerCase()));
-      if (seen.size !== filled.length) {
+      if (options.length > 10) {
+        setFormError("Bitte höchstens zehn Antwortmöglichkeiten angeben.");
+        return false;
+      }
+      const seen = new Set(options.map((o) => o.toLowerCase()));
+      if (seen.size !== options.length) {
         setFormError("Antwortmöglichkeiten dürfen sich nicht wiederholen.");
         return false;
       }
@@ -986,9 +995,7 @@ function AnnouncementFormModal({
       // The chosen day is the LAST day parents can answer, so the cut-off is
       // its end — not midnight, which would close the poll a day early.
       response_deadline: isPollForm && deadline ? endOfDayISO(deadline) : null,
-      options: isPollForm
-        ? options.map((o) => o.trim()).filter(Boolean)
-        : undefined,
+      options: isPollForm ? options : undefined,
     };
 
     setSubmitting(publish ? "publish" : "draft");
@@ -1100,142 +1107,136 @@ function AnnouncementFormModal({
         <WizardStepper steps={WIZARD_STEPS} current={step} />
 
         {step === 0 ? (
-          // One vertical stack, every row spanning the full modal width. The
-          // dead space this form used to have came from half-empty grid rows,
-          // not from the stacking — so the settings sit in one filled row and
-          // the answer fields pair up, instead of splitting the form in two.
-          <div className="space-y-4">
-            <Input
-              label={isPollForm ? "Frage" : "Titel"}
-              name="announcement-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={
-                isPollForm
-                  ? "z. B. Kommt Ihr Kind zur Murmelparty?"
-                  : "z. B. Sommerfest am Freitag"
-              }
-            />
-
-            <div>
-              <label
-                htmlFor="announcement-body"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Text
-              </label>
-              <textarea
-                id="announcement-body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={5}
-                maxLength={4000}
-                placeholder="Inhalt der Mitteilung... Links im Text werden für Eltern klickbar."
-                className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+          // Sections with quiet uppercase headers, every control on the full
+          // width — the same form language as the Vertretungsplan slide-over.
+          // No nested cards and no per-option input rows: at this size they
+          // read as clutter, not as structure.
+          <div className="space-y-6">
+            <section className="space-y-4">
+              <Input
+                label={isPollForm ? "Frage" : "Titel"}
+                name="announcement-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={
+                  isPollForm
+                    ? "z. B. Kommt Ihr Kind zur Murmelparty?"
+                    : "z. B. Sommerfest am Freitag"
+                }
               />
-            </div>
 
-            <Input
-              label="Link (optional)"
-              name="announcement-link"
-              type="url"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://..."
-            />
+              <div>
+                <label
+                  htmlFor="announcement-body"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Text
+                </label>
+                <textarea
+                  id="announcement-body"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={5}
+                  maxLength={4000}
+                  placeholder="Inhalt der Mitteilung... Links im Text werden für Eltern klickbar."
+                  className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+                />
+              </div>
+
+              <Input
+                label="Link (optional)"
+                name="announcement-link"
+                type="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </section>
 
             {isPollForm && (
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <span className="block text-sm font-medium text-gray-700">
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                   Antwortmöglichkeiten
-                </span>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Eltern antworten für jedes Kind einzeln.
-                </p>
-
-                {/* Two per row: an answer is a word or two, so a full-width
-                    field per option is mostly empty space and pushes the rest
-                    of the form below the fold. */}
-                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {options.map((option, index) => (
-                    // Options have no id before saving, so the index is the only
-                    // stable key here; the list is short and edited in place.
-                    // eslint-disable-next-line react/no-array-index-key
-                    <li key={index} className="flex items-center gap-2">
-                      <Input
-                        name={`announcement-option-${index}`}
-                        value={option}
-                        onChange={(e) => setOptionAt(index, e.target.value)}
-                        placeholder={`Antwort ${index + 1}`}
-                        aria-label={`Antwortmöglichkeit ${index + 1}`}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeOptionAt(index)}
-                        disabled={options.length <= 2}
-                        aria-label={`Antwortmöglichkeit ${index + 1} entfernen`}
-                      >
-                        <X className="size-4" aria-hidden />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => setOptions((prev) => [...prev, ""])}
-                  disabled={options.length >= 10}
-                  className="mt-2 gap-1.5"
-                >
-                  <Plus className="size-4" aria-hidden />
-                  Antwort hinzufügen
-                </Button>
+                </h3>
+                <div>
+                  <textarea
+                    id="announcement-options"
+                    value={optionsDraft}
+                    onChange={(e) => setOptionsDraft(e.target.value)}
+                    rows={4}
+                    aria-label="Antwortmöglichkeiten, eine pro Zeile"
+                    placeholder={"Eine Antwort pro Zeile\nJa\nNein"}
+                    className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Eine Antwort pro Zeile, zwei bis zehn Antworten. Eltern
+                    antworten für jedes Kind einzeln.
+                  </p>
+                </div>
 
                 <label
                   htmlFor="announcement-multi"
-                  className="mt-4 flex cursor-pointer items-start gap-3"
+                  className="flex cursor-pointer items-start gap-3"
                 >
                   <Checkbox
                     id="announcement-multi"
                     checked={multiChoice}
                     onChange={(e) => setMultiChoice(e.target.checked)}
                   />
-                  <span>
-                    <span className="block text-sm font-medium text-gray-700">
-                      Mehrfachauswahl erlauben
-                    </span>
+                  <span className="text-sm text-gray-800">
+                    Mehrfachauswahl erlauben
                     <span className="block text-xs text-gray-500">
                       Eltern können pro Kind mehrere Antworten auswählen.
                     </span>
                   </span>
                 </label>
-              </div>
+              </section>
             )}
 
-            {/* One row for every small setting, so no half-empty grid row is
-                left over: a poll adds the Antwortfrist as a third column
-                instead of a second line. */}
-            <div
-              className={`grid gap-4 sm:grid-cols-2 ${isPollForm ? "lg:grid-cols-3" : ""}`}
-            >
-              {isPollForm && (
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Zeitraum
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {isPollForm && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                      Antwortfrist (optional)
+                    </span>
+                    <DatePicker
+                      value={deadline}
+                      onChange={setDeadline}
+                      placeholder="Keine Frist"
+                      dropdownPlacement="down"
+                    />
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Danach ist die Umfrage geschlossen, bleibt aber lesbar.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Antwortfrist (optional)
+                    Ablaufdatum (optional)
                   </span>
                   <DatePicker
-                    value={deadline}
-                    onChange={setDeadline}
-                    placeholder="Keine Frist"
+                    value={expiresAt}
+                    onChange={setExpiresAt}
+                    placeholder="Kein Ablaufdatum"
                     dropdownPlacement="down"
                   />
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    Danach wird {isPollForm ? "die Umfrage" : "die Mitteilung"}{" "}
+                    für Eltern ausgeblendet.
+                  </p>
                 </div>
-              )}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Veröffentlichung
+              </h3>
+
               <div>
                 <span
                   id="announcement-priority-label"
@@ -1265,27 +1266,6 @@ function AnnouncementFormModal({
                 </div>
               </div>
 
-              <div>
-                <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Ablaufdatum (optional)
-                </span>
-                <DatePicker
-                  value={expiresAt}
-                  onChange={setExpiresAt}
-                  placeholder="Kein Ablaufdatum"
-                  dropdownPlacement="down"
-                />
-              </div>
-            </div>
-
-            {isPollForm && (
-              <p className="-mt-2 text-xs text-gray-500">
-                Nach der Antwortfrist ist die Umfrage geschlossen, bleibt aber
-                lesbar.
-              </p>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2">
               {/* A poll answer already IS the confirmation — offering a second,
                   weaker "gelesen" checkbox on top only muddies the result. */}
               {!isPollForm && (
@@ -1298,10 +1278,8 @@ function AnnouncementFormModal({
                     checked={requiresAck}
                     onChange={(e) => setRequiresAck(e.target.checked)}
                   />
-                  <span>
-                    <span className="block text-sm font-medium text-gray-700">
-                      Lesebestätigung erforderlich
-                    </span>
+                  <span className="text-sm text-gray-800">
+                    Lesebestätigung erforderlich
                     <span className="block text-xs text-gray-500">
                       Eltern bestätigen ausdrücklich, dass sie die Mitteilung
                       gelesen haben.
@@ -1312,27 +1290,22 @@ function AnnouncementFormModal({
 
               <label
                 htmlFor="announcement-email"
-                // A poll hides the Lesebestätigung, so this is the only box in
-                // the row — let it span both columns instead of leaving half of
-                // the row empty.
-                className={`flex cursor-pointer items-start gap-3 ${isPollForm ? "sm:col-span-2" : ""}`}
+                className="flex cursor-pointer items-start gap-3"
               >
                 <Checkbox
                   id="announcement-email"
                   checked={sendEmail}
                   onChange={(e) => setSendEmail(e.target.checked)}
                 />
-                <span>
-                  <span className="block text-sm font-medium text-gray-700">
-                    Eltern zusätzlich per E-Mail benachrichtigen
-                  </span>
+                <span className="text-sm text-gray-800">
+                  Eltern zusätzlich per E-Mail benachrichtigen
                   <span className="block text-xs text-gray-500">
                     Beim Veröffentlichen erhalten die erreichten Eltern eine
                     E-Mail mit Titel und Link ins Elternportal.
                   </span>
                 </span>
               </label>
-            </div>
+            </section>
           </div>
         ) : (
           <TargetingStep
