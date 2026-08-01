@@ -292,7 +292,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 	// Each guarded write repeats audience/relationship authorization and poll
 	// liveness. Revoking poll.response after Phase 1 therefore prevents the
 	// write, rather than leaving a TOCTOU window.
-	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(?, ?)`, announcementID, studentID).Exec(ctx); err != nil {
+	if err := base.AcquireXactLock(ctx, r.DB, parentAnnouncementResponseLockKey(announcementID, studentID)); err != nil {
 		return false, &modelBase.DatabaseError{Op: "lock parent announcement response", Err: err}
 	}
 	guard := `
@@ -381,6 +381,10 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 		return false, &modelBase.DatabaseError{Op: "insert parent announcement response", Err: err}
 	}
 	return live, nil
+}
+
+func parentAnnouncementResponseLockKey(announcementID, studentID int64) string {
+	return fmt.Sprintf("parent-announcement-response:%d:%d", announcementID, studentID)
 }
 
 // PollResults returns the per-option tally plus how many children the poll
