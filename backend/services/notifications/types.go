@@ -27,19 +27,21 @@ const (
 
 // Groups the profile page renders as headings, in this order.
 const (
-	GroupPickup     = "abholung"
-	GroupActivities = "aktivitaeten"
-	GroupChildren   = "kinder"
-	GroupMessages   = "mitteilungen"
+	GroupPickup       = "abholung"
+	GroupActivities   = "aktivitaeten"
+	GroupChildren     = "kinder"
+	GroupMessages     = "mitteilungen"
+	GroupAppointments = "termine"
 )
 
 // groupOrder fixes the order of the headings independently of registration
 // order, so the profile page never reshuffles between releases.
 var groupOrder = map[string]int{
-	GroupPickup:     1,
-	GroupActivities: 2,
-	GroupChildren:   3,
-	GroupMessages:   4,
+	GroupPickup:       1,
+	GroupActivities:   2,
+	GroupChildren:     3,
+	GroupMessages:     4,
+	GroupAppointments: 5,
 }
 
 // Notification type keys.
@@ -56,6 +58,14 @@ const (
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeParentAnnouncement     = "parent_announcement"
+
+	// Parent-facing types added with issue #1671. Each one mirrors a channel the
+	// parents app already has, and none of them carries a child's name: the copy
+	// says what happened and the deep link leads to the authenticated screen.
+	TypeParentMessage             = "parent_message"
+	TypeParentAppointment         = "parent_appointment"
+	TypeParentAppointmentReminder = "parent_appointment_reminder"
+	TypeParentRequestDecided      = "parent_request_decided"
 )
 
 // TypeDefinition describes one notification a person can agree to.
@@ -197,6 +207,52 @@ func init() {
 		Label:       "Neue Mitteilung der Schule",
 		Description: "Wenn die Schule eine neue Mitteilung im Elternportal veröffentlicht.",
 		Group:       GroupMessages,
+		Portal:      PortalParent,
+		SortOrder:   1,
+	})
+
+	// The gate is the messaging feature flag itself: a school with parent
+	// messaging switched off has no conversation to announce. Note the direction
+	// differs from parentmessaging.MessagingEnabled, which fails OPEN on a
+	// settings blip so the inbox never half-disables. Here a blip fails the whole
+	// FilterOptedIn call and the producer skips the push — the message is already
+	// safely stored and visible; a missing push is the harmless side.
+	RegisterType(TypeDefinition{
+		Key:         TypeParentMessage,
+		Label:       "Neue Nachricht der OGS",
+		Description: "Wenn die OGS Ihnen zu einem Kind schreibt.",
+		Group:       GroupMessages,
+		Portal:      PortalParent,
+		TenantGate:  configModel.KeyParentNotesEnabled,
+		SortOrder:   2,
+	})
+
+	// No tenant gate: whether guardians hear about an appointment is decided per
+	// appointment by its organizer ("Eltern benachrichtigen"), not school-wide.
+	RegisterType(TypeDefinition{
+		Key:         TypeParentAppointment,
+		Label:       "Neuer oder geänderter Termin",
+		Description: "Wenn ein Termin für Sie angelegt, geändert oder abgesagt wird.",
+		Group:       GroupAppointments,
+		Portal:      PortalParent,
+		SortOrder:   1,
+	})
+
+	RegisterType(TypeDefinition{
+		Key:         TypeParentAppointmentReminder,
+		Label:       "Terminerinnerung",
+		Description: "Kurz vor einem Termin, zu dem Sie eingeladen sind.",
+		Group:       GroupAppointments,
+		Portal:      PortalParent,
+		TenantGate:  configModel.KeyCalendarAppointmentReminderEnabled,
+		SortOrder:   2,
+	})
+
+	RegisterType(TypeDefinition{
+		Key:         TypeParentRequestDecided,
+		Label:       "Entscheidung über Ihre Anfrage",
+		Description: "Wenn die OGS über eine Ihrer Anfragen entschieden hat, etwa zu Betreuungszeiten, Stammdaten oder einer Abmeldung.",
+		Group:       GroupChildren,
 		Portal:      PortalParent,
 		SortOrder:   1,
 	})

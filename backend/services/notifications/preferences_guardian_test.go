@@ -46,11 +46,15 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	t.Run("starts empty", func(t *testing.T) {
 		overview, err := svc.GetForParent(ctx, chain.AccountID)
 		require.NoError(t, err)
-		require.Len(t, overview.Types, 1, "the guardian catalogue holds exactly one type today")
-		assert.Equal(t, notifications.TypeParentAnnouncement, overview.Types[0].Key)
-		assert.False(t, overview.Types[0].Enabled, "no row means off")
-		assert.True(t, overview.Types[0].Available, "parent types carry no school-wide gate")
+		require.NotEmpty(t, overview.Types, "the guardian catalogue is never empty")
+		announcement := parentTypeState(t, overview, notifications.TypeParentAnnouncement)
+		assert.False(t, announcement.Enabled, "no row means off")
+		assert.True(t, announcement.Available, "this type carries no school-wide gate")
 		assert.True(t, overview.TenantEnabled, "the family's school has dispatch on")
+
+		for _, state := range overview.Types {
+			assert.False(t, state.Enabled, "consent starts empty for every type, not just this one")
+		}
 	})
 
 	t.Run("a decision is stored per school and reads back", func(t *testing.T) {
@@ -58,7 +62,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 
 		overview, err := svc.GetForParent(ctx, chain.AccountID)
 		require.NoError(t, err)
-		assert.True(t, overview.Types[0].Enabled)
+		assert.True(t, parentTypeState(t, overview, notifications.TypeParentAnnouncement).Enabled)
 
 		// The row must carry the school it was decided for: without it the
 		// tenant-scoped producer read would never find it again.
@@ -97,13 +101,13 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 
 		overview, err := svc.GetForParent(ctx, chain.AccountID)
 		require.NoError(t, err)
-		assert.False(t, overview.Types[0].Enabled,
+		assert.False(t, parentTypeState(t, overview, notifications.TypeParentAnnouncement).Enabled,
 			"a missing consent row at the new school must not read as enabled")
 
 		require.NoError(t, svc.SetForParent(ctx, chain.AccountID, notifications.TypeParentAnnouncement, true))
 		overview, err = svc.GetForParent(ctx, chain.AccountID)
 		require.NoError(t, err)
-		assert.True(t, overview.Types[0].Enabled,
+		assert.True(t, parentTypeState(t, overview, notifications.TypeParentAnnouncement).Enabled,
 			"one shared change must record consent at every active school")
 	})
 
@@ -112,7 +116,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 
 		overview, err := svc.GetForParent(ctx, chain.AccountID)
 		require.NoError(t, err)
-		assert.False(t, overview.Types[0].Enabled)
+		assert.False(t, parentTypeState(t, overview, notifications.TypeParentAnnouncement).Enabled)
 
 		var count int
 		require.NoError(t, db.NewSelect().
@@ -151,4 +155,19 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, overview.TenantEnabled, "no school means no school that enabled dispatch")
 	})
+}
+
+// parentTypeState picks one entry out of the guardian overview by key. The
+// parent catalogue grows over time (#1671 added four types next to the
+// announcement), so a positional lookup would quietly start asserting against a
+// different notification instead of failing.
+func parentTypeState(t *testing.T, overview *notifications.PreferenceOverview, key string) notifications.PreferenceState {
+	t.Helper()
+	for _, state := range overview.Types {
+		if state.Key == key {
+			return state
+		}
+	}
+	require.FailNowf(t, "notification type missing from guardian overview", "key %s", key)
+	return notifications.PreferenceState{}
 }
