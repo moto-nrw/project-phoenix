@@ -110,10 +110,13 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
-		// Aggregated OGS-group live projection (#2056). Requires both the
-		// students-read and groups-read permissions its constituent single
-		// endpoints (student list, room status, substitutions) require.
-		r.With(authorize.RequiresPermission(permissions.UsersRead), authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+		// Aggregated OGS-group live projection (#2056). Gated on users:read
+		// like the former roster endpoint; the group-derived sections (room
+		// status, transfers, tracking indicators) additionally require
+		// groups:read and degrade to empty inside the service when it is
+		// missing — mirroring the permission split of the replaced single
+		// endpoints instead of failing the whole roster.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)

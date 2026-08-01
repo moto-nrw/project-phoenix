@@ -339,10 +339,21 @@ func TestOGSGroupLive_ErrorContract(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, rr.Code)
 	})
 
-	t.Run("missing groups:read permission is a 403", func(t *testing.T) {
+	t.Run("missing groups:read keeps the roster but redacts group-derived sections", func(t *testing.T) {
+		// Parity with the replaced single endpoints: the roster needed only
+		// users:read, while room status, transfers, and tracking indicators
+		// were gated on groups:read. Without groups:read those sections are
+		// deterministically empty — never a 403 for the whole roster, never
+		// silently-degraded data for callers who do hold the permission.
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
-		assert.Equal(t, http.StatusForbidden, rr.Code)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		envelope := decodeOGSLive(t, rr.Body.Bytes())
+		assert.NotEmpty(t, envelope.Data.Groups)
+		assert.Empty(t, envelope.Data.RoomStatus)
+		assert.Empty(t, envelope.Data.Transfers)
+		assert.Empty(t, envelope.Data.TrackingIndicators.Labels)
 	})
 
 	t.Run("no supervised groups is an explicit empty 200", func(t *testing.T) {

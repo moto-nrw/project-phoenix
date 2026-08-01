@@ -658,6 +658,27 @@ func applyTimes(student *Student, arrival *scheduleService.EffectiveArrivalTime,
 }
 
 func (s *service) finishProjection(ctx context.Context, state *buildState) (*Projection, error) {
+	selectedID := state.selected.ID
+	projection := &Projection{
+		Groups:             state.groups,
+		GroupID:            &selectedID,
+		Students:           state.projected,
+		RoomStatus:         map[string]RoomStatus{},
+		PickupTimes:        pickupTimes(state.projected, state.pickups),
+		TrackingIndicators: TrackingIndicators{Labels: []string{}, Results: map[int64][]bool{}},
+		Transfers:          []Transfer{},
+	}
+
+	// The group-derived sections mirror the permission split of the former
+	// single endpoints: room status, transfers, and tracking indicators were
+	// gated on groups:read, while the roster itself needed only users:read.
+	// A caller without groups:read gets these sections deterministically
+	// empty (permission-based redaction) instead of a 403 for the whole
+	// roster — degradation by permission, never by swallowed errors.
+	if !authorize.HasPermission(permissions.GroupsRead, jwt.PermissionsFromCtx(ctx)) {
+		return projection, nil
+	}
+
 	tracking, err := s.loadTracking(ctx, state.studentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load tracking indicators: %w", err)
@@ -666,16 +687,10 @@ func (s *service) finishProjection(ctx context.Context, state *buildState) (*Pro
 	if err != nil {
 		return nil, fmt.Errorf("load group transfers: %w", err)
 	}
-	selectedID := state.selected.ID
-	return &Projection{
-		Groups:             state.groups,
-		GroupID:            &selectedID,
-		Students:           state.projected,
-		RoomStatus:         roomStatuses(state.projected, state.data.locations, state.selected.RoomID),
-		PickupTimes:        pickupTimes(state.projected, state.pickups),
-		TrackingIndicators: tracking,
-		Transfers:          transfers,
-	}, nil
+	projection.RoomStatus = roomStatuses(state.projected, state.data.locations, state.selected.RoomID)
+	projection.TrackingIndicators = tracking
+	projection.Transfers = transfers
+	return projection, nil
 }
 
 func (s *service) loadTracking(ctx context.Context, studentIDs []int64) (TrackingIndicators, error) {
