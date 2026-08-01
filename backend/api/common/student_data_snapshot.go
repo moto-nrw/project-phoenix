@@ -64,43 +64,65 @@ func loadStudentDataSnapshot(
 		Groups:  make(map[int64]*educationModels.Group),
 	}
 
-	// Load persons. Permissive callers continue with an empty map on error.
-	if len(personIDs) > 0 {
-		if persons, err := personService.GetByIDs(ctx, personIDs); err != nil {
-			if strict {
-				return nil, fmt.Errorf("bulk load persons: %w", err)
-			}
-			slog.Default().Warn("failed to bulk load persons", slog.String("error", err.Error()))
-		} else {
-			snapshot.Persons = persons
-		}
+	if err := loadSnapshotPersons(ctx, snapshot, personService, personIDs, strict); err != nil {
+		return nil, err
 	}
-
-	// Load groups. Permissive callers continue with an empty map on error.
-	if len(groupIDs) > 0 {
-		if groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs); err != nil {
-			if strict {
-				return nil, fmt.Errorf("bulk load groups: %w", err)
-			}
-			slog.Default().Warn("failed to bulk load groups", slog.String("error", err.Error()))
-		} else {
-			snapshot.Groups = groups
-		}
+	if err := loadSnapshotGroups(ctx, snapshot, educationSvc, groupIDs, strict); err != nil {
+		return nil, err
 	}
-
-	// Load locations. Permissive callers continue without a snapshot on error.
-	if len(studentIDs) > 0 {
-		if locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs); err != nil {
-			if strict {
-				return nil, fmt.Errorf("load student locations: %w", err)
-			}
-			slog.Default().Warn("failed to load student location snapshot", slog.String("error", err.Error()))
-		} else {
-			snapshot.LocationSnapshot = locationSnapshot
-		}
+	if err := loadSnapshotLocations(ctx, snapshot, activeSvc, studentIDs, strict); err != nil {
+		return nil, err
 	}
 
 	return snapshot, nil
+}
+
+func loadSnapshotPersons(ctx context.Context, snapshot *StudentDataSnapshot, svc userService.PersonService, ids []int64, strict bool) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	persons, err := svc.GetByIDs(ctx, ids)
+	if err == nil {
+		snapshot.Persons = persons
+		return nil
+	}
+	if strict {
+		return fmt.Errorf("bulk load persons: %w", err)
+	}
+	slog.Default().Warn("failed to bulk load persons", slog.String("error", err.Error()))
+	return nil
+}
+
+func loadSnapshotGroups(ctx context.Context, snapshot *StudentDataSnapshot, svc educationService.Service, ids []int64, strict bool) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	groups, err := svc.GetGroupsByIDs(ctx, ids)
+	if err == nil {
+		snapshot.Groups = groups
+		return nil
+	}
+	if strict {
+		return fmt.Errorf("bulk load groups: %w", err)
+	}
+	slog.Default().Warn("failed to bulk load groups", slog.String("error", err.Error()))
+	return nil
+}
+
+func loadSnapshotLocations(ctx context.Context, snapshot *StudentDataSnapshot, svc activeService.Service, ids []int64, strict bool) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	locations, err := LoadStudentLocationSnapshot(ctx, svc, ids)
+	if err == nil {
+		snapshot.LocationSnapshot = locations
+		return nil
+	}
+	if strict {
+		return fmt.Errorf("load student locations: %w", err)
+	}
+	slog.Default().Warn("failed to load student location snapshot", slog.String("error", err.Error()))
+	return nil
 }
 
 // GetPerson retrieves a person from the snapshot with nil safety
