@@ -40,7 +40,12 @@ vi.mock("~/lib/hooks/use-sse", () => ({
 }));
 
 // Import after mocking
-import { useGlobalSSE } from "../use-global-sse";
+import {
+  useGlobalSSE,
+  DEBOUNCE_MS,
+  FLUSH_JITTER_MS,
+  MAX_FLUSH_WAIT_MS,
+} from "../use-global-sse";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
@@ -1581,11 +1586,11 @@ describe("useGlobalSSE", () => {
       fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
 
       // Not at the bare debounce...
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(DEBOUNCE_MS);
       expect(mutate).not.toHaveBeenCalled();
 
       // ...but within DEBOUNCE_MS + FLUSH_JITTER_MS.
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(FLUSH_JITTER_MS);
       expect(mutate).toHaveBeenCalled();
     });
 
@@ -1599,7 +1604,7 @@ describe("useGlobalSSE", () => {
       }
       expect(mutate).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(DEBOUNCE_MS + FLUSH_JITTER_MS);
       const flushes = vi
         .mocked(mutate)
         .mock.calls.filter(
@@ -1616,13 +1621,15 @@ describe("useGlobalSSE", () => {
       // MAX_FLUSH_WAIT_MS after the burst began.
       renderHook(() => useGlobalSSE());
 
-      // Events every 400ms for 2.8s — each re-arms the 500ms debounce, so an
-      // uncapped implementation would not have flushed by t=3000.
-      for (let i = 0; i < 8; i++) {
+      // Events every 400ms past the cap — each re-arms the debounce, so an
+      // uncapped implementation would not have flushed by MAX_FLUSH_WAIT_MS.
+      const step = 400;
+      const steps = Math.ceil(MAX_FLUSH_WAIT_MS / step) + 1;
+      for (let i = 0; i < steps; i++) {
         fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
-        vi.advanceTimersByTime(400);
+        vi.advanceTimersByTime(step);
       }
-      // t=3200 > MAX_FLUSH_WAIT_MS: the capped flush has fired.
+      // Elapsed > MAX_FLUSH_WAIT_MS: the capped flush has fired.
       expect(mutate).toHaveBeenCalled();
     });
   });
