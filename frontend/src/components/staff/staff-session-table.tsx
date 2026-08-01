@@ -6,6 +6,11 @@ import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
@@ -421,7 +426,7 @@ export function StaffSessionTable({
                         isExpanded
                           ? "bg-gray-50"
                           : isToday
-                            ? "bg-amber-50/40"
+                            ? "bg-[#F78C10]/5"
                             : isWeekend
                               ? "bg-gray-50/60"
                               : ""
@@ -502,7 +507,7 @@ export function StaffSessionTable({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {status && <StatusBadge status={status} />}
+                        {status && <RowStatusBadge status={status} />}
                       </td>
                       <td className="px-4 py-3">
                         <SourceBadge session={session} />
@@ -514,8 +519,10 @@ export function StaffSessionTable({
                             holidayName={holidayName}
                           />
                           {canEdit && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (onEditDay) {
@@ -543,10 +550,10 @@ export function StaffSessionTable({
                                   ? "Eintrag nachtragen"
                                   : "Eintrag bearbeiten"
                               }
-                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                              className="h-7 w-7 shrink-0 text-gray-400 hover:text-gray-700"
                             >
                               <SquarePen className="h-4 w-4" />
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </td>
@@ -754,40 +761,22 @@ function computeRowStatus(
   return null;
 }
 
-function StatusBadge({ status }: { readonly status: RowStatus }) {
+// Every fixed-outcome pill is the kit StatusBadge; only the absence pill stays
+// StatusDotBadge because its colour is data (ABSENCE_TYPE_HEX), not one of the
+// five semantic tones. `title` lives on a wrapper — StatusBadge takes no
+// tooltip prop and does not need one.
+function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
-        Homeoffice
-      </span>
-    );
+    return <StatusBadge label="Homeoffice" tone="blue" />;
   }
   if (status.kind === "present") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
-        OGS
-      </span>
-    );
+    return <StatusBadge label="OGS" tone="green" />;
   }
   if (status.kind === "holiday") {
-    return (
-      <span
-        title={status.name}
-        className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
-      >
-        Feiertag
-      </span>
-    );
+    return <StatusBadge label="Feiertag" tone="orange" title={status.name} />;
   }
   if (status.kind === "closing") {
-    return (
-      <span
-        title={status.reason}
-        className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
-      >
-        Schließtag
-      </span>
-    );
+    return <StatusBadge label="Schließtag" tone="gray" title={status.reason} />;
   }
   if (status.kind === "absence") {
     const absenceLabel =
@@ -799,11 +788,7 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
       ABSENCE_TYPE_HEX[status.absenceType] ?? ABSENCE_TYPE_HEX.other!;
     return <StatusDotBadge label={label} color={color} />;
   }
-  return (
-    <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500">
-      Nicht erfasst
-    </span>
-  );
+  return <StatusBadge label="Nicht erfasst" tone="gray" />;
 }
 
 // Quelle-Badge ist der reine Origin der Session: über welchen Kanal sie
@@ -819,21 +804,13 @@ function SourceBadge({
     return <span className="text-xs text-gray-300">–</span>;
   }
   if (session.source === "nfc") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
-        NFC
-      </span>
-    );
+    return <StatusBadge label="NFC" tone="blue" />;
   }
   if (session.source === "unknown") {
     // Pre-Migration Legacy-Row (Tristan PR #1398).
     return <span className="text-xs text-gray-400">–</span>;
   }
-  return (
-    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-      App
-    </span>
-  );
+  return <StatusBadge label="App" tone="gray" />;
 }
 
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
@@ -849,8 +826,12 @@ function HintBadges({
   if (!session) {
     return <span className="text-xs text-gray-300">–</span>;
   }
-  const pills: { key: string; label: string; title?: string; tone?: string }[] =
-    [];
+  const pills: {
+    key: string;
+    label: string;
+    title?: string;
+    tone: StatusBadgeTone;
+  }[] = [];
   // Arbeit an einem gesetzlichen Feiertag ist nach §9 ArbZG grundsätzlich
   // untersagt (OGS-Ausnahmen nach §10 möglich) — Warnung, kein Block
   // (#1418 3a/3f).
@@ -859,14 +840,18 @@ function HintBadges({
       key: "holiday-work",
       label: "Feiertagsarbeit",
       title: `Arbeitszeit an ${holidayName}: nach §9 ArbZG nur ausnahmsweise zulässig (ggf. Sondergenehmigung erforderlich).`,
-      tone: "bg-red-50 text-red-700",
+      tone: "red",
     });
   }
   if ((session.edit_count ?? 0) > 0) {
-    pills.push({ key: "edited", label: "Manuell korrigiert" });
+    pills.push({ key: "edited", label: "Manuell korrigiert", tone: "orange" });
   }
   if (session.auto_checked_out) {
-    pills.push({ key: "auto-checkout", label: "Auto-Checkout" });
+    pills.push({
+      key: "auto-checkout",
+      label: "Auto-Checkout",
+      tone: "orange",
+    });
   }
   if (pills.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
@@ -874,25 +859,27 @@ function HintBadges({
   return (
     <div className="flex flex-wrap gap-1">
       {pills.map((pill) => (
-        <span
+        <StatusBadge
           key={pill.key}
+          label={pill.label}
+          tone={pill.tone}
           title={pill.title}
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-            pill.tone ?? "bg-amber-50 text-amber-700"
-          }`}
-        >
-          {pill.label}
-        </span>
+        />
       ))}
     </div>
   );
 }
 
+// Saldo values sit as plain text on a white row, so they follow the app's tone
+// map — identical to KpiCard in staff-time-views, which prices the same figure
+// on /staff/[id]. The kit's darkened badge foregrounds (#8A5600 / #9F1F1E) are
+// for TINTED surfaces and read brown/maroon on white. Green is the brand green
+// because it is legible and unambiguous at this size.
 function deltaClass(delta: number): string {
   if (delta > 0) return "font-medium text-amber-600";
   if (delta < -15) return "font-medium text-red-600";
   if (delta < 0) return "font-medium text-gray-500";
-  return "font-medium text-green-600";
+  return "font-medium text-[#70b525]";
 }
 
 function toDateKey(d: Date): string {
