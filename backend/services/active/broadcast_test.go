@@ -425,35 +425,56 @@ func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Contex
 	require.NoError(tb, err, "failed to assign student to education group")
 }
 
-func TestBroadcast_DailyCheckoutSendsDashboardCounts(t *testing.T) {
+// checkOutFixturedStudent opens an attendance row for the student and closes it
+// through the real checkout path, so the roomless broadcast under test is the
+// one production emits. Returns nothing — the assertions read the broadcaster.
+// Returns the cleanup to defer: the caller's own `defer db.Close()` must
+// outlive it, so it cannot hide in t.Cleanup.
+func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) func() {
+	t.Helper()
+
+	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Staff"+label)
+	iotDevice := testpkg.CreateTestDevice(t, db, "roomless-checkout-"+label)
+
+	testpkg.CreateTestAttendance(t, db, studentID, staff.ID, iotDevice.ID, time.Now(), nil)
+
+	_, err := svc.CheckOutStudent(testpkg.TenantContext(1), studentID, staff.ID, true)
+	require.NoError(t, err)
+
+	return func() { testpkg.CleanupActivityFixtures(t, db, staff.ID, iotDevice.ID) }
+}
+
+// TestBroadcast_RoomlessCheckoutSendsDashboardCounts covers the scope fallback:
+// a child without an OGS group produces no group ids, and the contract says the
+// field must then be absent entirely rather than an empty array — clients read
+// an empty array as "scope to nothing" and drop the invalidation (#2057).
+func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	student := testpkg.CreateTestStudent(t, db, "Broadcast", "DailyCheckout", "3a")
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckout", "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	svc.BroadcastDailyCheckout(testpkg.TenantContext(1), student.ID)
+	defer checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")()
 
-	// #2057: tenant-scoped; the student has no educational group, so group_ids
-	// must be absent (broad-refresh fallback on the client).
 	counts := dashboardCountsTenantCalls(broadcaster)
-	require.Len(t, counts, 1, "expected dashboard_counts_changed after BroadcastDailyCheckout")
+	require.Len(t, counts, 1, "expected dashboard_counts_changed after the checkout")
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	assert.Nil(t, counts[0].Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
 }
 
-func TestBroadcast_DailyCheckoutCarriesEducationGroupID(t *testing.T) {
+func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-DailyCheckout")
-	student := testpkg.CreateTestStudent(t, db, "Broadcast", "DailyCheckoutGrp", "3b")
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-RoomlessCheckout")
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckoutGrp", "3b")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, eduGroup.ID)
 
-	svc.BroadcastDailyCheckout(testpkg.TenantContext(1), student.ID)
+	defer checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")()
 
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
 	counts := dashboardCountsTenantCalls(broadcaster)

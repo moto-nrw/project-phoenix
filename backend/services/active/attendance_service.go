@@ -675,18 +675,6 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	return false, nil
 }
 
-// BroadcastDailyCheckout sends an SSE student_checkout event to the student's
-// educational (OGS) group topic so the "Meine Gruppe" page updates in real time.
-// Called after the daily checkout attendance toggle succeeds.
-func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
-	if s.Broadcaster == nil {
-		return
-	}
-
-	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
-	s.emitRoomlessCheckout(ctx, studentID, studentName, studentRec, dailyCheckoutSource)
-}
-
 // emitRoomlessCheckout publishes a checkout that has no room context. Used when
 // no visit ended — a binary-mode tenant (which keeps no visit rows at all) or a
 // kiosk daily checkout, where the visit was already closed when the child left

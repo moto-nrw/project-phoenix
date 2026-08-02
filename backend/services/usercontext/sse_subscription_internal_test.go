@@ -280,7 +280,6 @@ func (m *mockActiveSvcForSSE) CheckOutStudentFromDevice(_ context.Context, _, _ 
 func (m *mockActiveSvcForSSE) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
-func (m *mockActiveSvcForSSE) BroadcastDailyCheckout(_ context.Context, _ int64) {}
 func (m *mockActiveSvcForSSE) GetUnclaimedActiveGroups(_ context.Context) ([]*activeModel.Group, error) {
 	return nil, nil
 }

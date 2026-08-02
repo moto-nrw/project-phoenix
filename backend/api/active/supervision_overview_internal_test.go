@@ -275,7 +275,6 @@ func (s *stubActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ in
 func (s *stubActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
-func (s *stubActiveService) BroadcastDailyCheckout(_ context.Context, _ int64) {}
 func (s *stubActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*activeModel.Group, error) {
 	return nil, nil
 }
