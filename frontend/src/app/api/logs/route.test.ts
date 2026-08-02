@@ -44,12 +44,13 @@ describe("POST /api/logs", () => {
         entries: [
           {
             level: "debug",
-            msg: "redaction_probe",
+            msg: "X-API-Key: sentinel-header",
             password: "sentinel-password",
             nested: {
               device_pin: "sentinel-pin",
               accessToken: "sentinel-token",
               client_secret: "sentinel-secret",
+              jwt: "sentinel-jwt",
               api_key: "sentinel-api-key",
               authorization: "Basic sentinel-authorization",
               cookie: "session=sentinel-cookie",
@@ -66,15 +67,18 @@ describe("POST /api/logs", () => {
 
     const output = JSON.parse(String(consoleLog.mock.calls[0]?.[0])) as {
       password: string;
+      msg: string;
       nested: Record<string, unknown>;
       user_id: string;
     };
     expect(output).toMatchObject({
       password: REDACTED_LOG_VALUE,
+      msg: `X-API-Key: ${REDACTED_LOG_VALUE}`,
       nested: {
         device_pin: REDACTED_LOG_VALUE,
         accessToken: REDACTED_LOG_VALUE,
         client_secret: REDACTED_LOG_VALUE,
+        jwt: REDACTED_LOG_VALUE,
         api_key: REDACTED_LOG_VALUE,
         authorization: REDACTED_LOG_VALUE,
         cookie: REDACTED_LOG_VALUE,
@@ -83,7 +87,7 @@ describe("POST /api/logs", () => {
       user_id: "account-42",
     });
     expect(JSON.stringify(output)).not.toMatch(
-      /sentinel-(password|pin|token|secret|api-key|authorization|cookie)/,
+      /sentinel-(password|pin|token|secret|jwt|api-key|authorization|cookie|header)/,
     );
 
     consoleLog.mockRestore();

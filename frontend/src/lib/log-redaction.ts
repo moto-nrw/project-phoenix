@@ -1,6 +1,12 @@
 export const REDACTED_LOG_VALUE = "[REDACTED]";
 
-const SENSITIVE_LOG_KEY_PARTS = new Set(["password", "pin", "token", "secret"]);
+const SENSITIVE_LOG_KEY_PARTS = new Set([
+  "jwt",
+  "password",
+  "pin",
+  "token",
+  "secret",
+]);
 const SENSITIVE_LOG_KEYS = new Set([
   "apikey",
   "api_key",
@@ -14,7 +20,7 @@ const SENSITIVE_LOG_KEYS = new Set([
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
 const SENSITIVE_CREDENTIAL_NAME =
-  "password|pin|token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|confirm[_-]?password|device[_-]?pin|late[_-]?invite";
+  "password|pin|token|secret|jwt|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|confirm[_-]?password|device[_-]?pin|late[_-]?invite";
 const SENSITIVE_TEXT_FIELD_NAME = `(?:${SENSITIVE_CREDENTIAL_NAME})`;
 const SENSITIVE_PARAMETER_NAME = `(?:${SENSITIVE_CREDENTIAL_NAME}|authorization|cookies?)`;
 const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
@@ -31,6 +37,8 @@ const AUTHORIZATION_CREDENTIAL_PATTERN =
   /(\b(?:Bearer|Basic|Digest|ApiKey)\s+)[^\s"',;]+/gi;
 const AUTHORIZATION_HEADER_PATTERN =
   /(\b(?:Proxy-)?Authorization\s*:\s*)[^\r\n]+/gi;
+const API_KEY_HEADER_PATTERN =
+  /(\b(?:X[-_])?API[-_]?Key["']?\s*:\s*["']?)[^"',}\s]+/gi;
 const COOKIE_HEADER_PATTERN = /(\b(?:Set-)?Cookie\s*:\s*)[^\r\n]+/gi;
 
 function isSensitiveLogKey(key: string): boolean {
@@ -56,6 +64,7 @@ export function redactSensitiveLogString(value: string): string {
     .replace(SENSITIVE_TEXT_FIELD_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(AUTHORIZATION_CREDENTIAL_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(AUTHORIZATION_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(API_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(COOKIE_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`);
 }
 

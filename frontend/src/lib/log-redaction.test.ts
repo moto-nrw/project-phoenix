@@ -14,6 +14,7 @@ describe("redactSensitiveLogData", () => {
         accessToken: "access-token-value",
         clientSecret: "client-secret-value",
         api_key: "api-key-value",
+        jwt: "jwt-value",
         display_name: "Safe Name",
       },
       entries: [
@@ -39,6 +40,7 @@ describe("redactSensitiveLogData", () => {
         accessToken: REDACTED_LOG_VALUE,
         clientSecret: REDACTED_LOG_VALUE,
         api_key: REDACTED_LOG_VALUE,
+        jwt: REDACTED_LOG_VALUE,
         display_name: "Safe Name",
       },
       entries: [
@@ -87,10 +89,10 @@ describe("redactSensitiveLogData", () => {
   it("redacts credentials embedded in routes, query strings, and text", () => {
     expect(
       redactSensitiveLogString(
-        'GET /parents/enroll/status/route-token/edit?access_token=query-token&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nAuthorization: Basic basic-credential\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","api_key":"serialized-api-key","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
+        'GET /parents/enroll/status/route-token/edit?access_token=query-token&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
       ),
     ).toBe(
-      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","api_key":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
+      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
     );
   });
 });
