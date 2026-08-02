@@ -88,6 +88,8 @@ export const POST = createFileUploadHandler<unknown>(
   {
     maxSizeInMB: 10,
     allowedMimeTypes: [
+      "",
+      "application/octet-stream",
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "image/png",

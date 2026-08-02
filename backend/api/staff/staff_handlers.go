@@ -140,6 +140,17 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 // staff:financial Stammdaten section. It deliberately excludes the generic
 // profile's notes, RFID, account, presence, and absence data.
 func (rs *Resource) getFinancialProfile(w http.ResponseWriter, r *http.Request) {
+	rs.getMinimalStaffProfile(w, r, "Financial staff profile retrieved successfully")
+}
+
+// getDocumentProfile returns only the staff identity needed to operate the
+// documents tab. Dedicated health-document users must not need unrelated
+// directory permissions merely to identify the profile they may access.
+func (rs *Resource) getDocumentProfile(w http.ResponseWriter, r *http.Request) {
+	rs.getMinimalStaffProfile(w, r, "Document staff profile retrieved successfully")
+}
+
+func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Request, message string) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
 		return
@@ -159,7 +170,7 @@ func (rs *Resource) getFinancialProfile(w http.ResponseWriter, r *http.Request) 
 		"name":      staff.Person.FirstName + " " + staff.Person.LastName,
 		"firstName": staff.Person.FirstName,
 		"lastName":  staff.Person.LastName,
-	}, "Financial staff profile retrieved successfully")
+	}, message)
 }
 
 // ensureStaffPerson lazily loads the linked person when GetStaffWithPerson did

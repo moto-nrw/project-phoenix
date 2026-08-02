@@ -241,13 +241,20 @@ func (rs *Resource) deleteStaffDocument(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
-	doc, err := rs.StaffDocumentService.DeleteStaffDocument(r.Context(), id, docID, actor)
+	doc, err := rs.StaffDocumentService.ResolveStaffDocumentDeletion(r.Context(), id, docID, actor)
 	if err != nil {
 		renderDocumentError(w, r, err)
 		return
 	}
 
-	rs.removeStoredDocument(r, doc.FilenameStored)
+	if err := rs.removeStoredDocument(r, doc.FilenameStored); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	if _, err := rs.StaffDocumentService.DeleteStaffDocument(r.Context(), id, docID, actor); err != nil {
+		renderDocumentError(w, r, err)
+		return
+	}
 	common.Respond(w, r, http.StatusOK, &stammdatenAck{StaffID: id}, "Staff document deleted successfully")
 }
 
@@ -277,16 +284,16 @@ func fileSizeOnDisk(path string) int64 {
 	return info.Size()
 }
 
-// removeStoredDocument deletes the file bytes of a soft-deleted document.
-// Removal failures are logged, never surfaced — the metadata delete already
-// committed and must win.
-func (rs *Resource) removeStoredDocument(r *http.Request, storedName string) {
+// removeStoredDocument deletes the file bytes before metadata is hidden. A
+// failure leaves the document discoverable so the same authorized request can
+// retry cleanup instead of orphaning sensitive content on disk.
+func (rs *Resource) removeStoredDocument(r *http.Request, storedName string) error {
 	if common.ValidateFilename(storedName) != nil {
-		rs.getLogger().Error("stored document filename failed validation on delete",
-			"stored_name", storedName,
-		)
-		return
+		return errors.New("stored document filename failed validation on delete")
 	}
 	dir := staffDocumentsDir(tenant.FromContext(r.Context()))
-	common.RemoveImage(filepath.Join(dir, storedName))
+	if err := os.Remove(filepath.Join(dir, storedName)); err != nil && !os.IsNotExist(err) {
+		return errors.New("failed to remove stored document")
+	}
+	return nil
 }

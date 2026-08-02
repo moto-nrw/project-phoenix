@@ -81,9 +81,12 @@ type StaffDocumentService interface {
 	// served when the returned error is non-nil.
 	ResolveStaffDocumentDownload(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
 	// DeleteStaffDocument soft-deletes the metadata row and writes the
-	// audit entry in one tenant transaction. The returned document tells
-	// the handler which stored file to remove from disk.
+	// audit entry in one tenant transaction after the handler has removed
+	// the file bytes.
 	DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
+	// ResolveStaffDocumentDeletion checks that a document exists and that the
+	// actor may delete its category before the handler removes its file bytes.
+	ResolveStaffDocumentDeletion(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
 }
 
 type staffDocumentService struct {
@@ -343,6 +346,17 @@ func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID,
 		return nil, err
 	}
 	return deleted, nil
+}
+
+func (s *staffDocumentService) ResolveStaffDocumentDeletion(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {
+	doc, err := s.documents.FindForStaff(ctx, staffID, documentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireCategoryPermission(doc.Category, actor); err != nil {
+		return nil, err
+	}
+	return doc, nil
 }
 
 // contractEndDate loads the staff member's contract end from the Stammdaten

@@ -1,6 +1,8 @@
 package common
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -8,9 +10,8 @@ import (
 )
 
 // DocxContentType is the DOCX MIME type. http.DetectContentType cannot
-// produce it — DOCX is a ZIP container, so magic bytes only prove
-// application/zip and the extension disambiguates (same approach as the
-// XLSX check in api/import).
+// produce it — DOCX is an OOXML ZIP container, so magic bytes only prove
+// application/zip and the package contents disambiguate it.
 const DocxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 // AllowedDocumentTypes maps MIME types detected by http.DetectContentType to
@@ -27,9 +28,9 @@ const invalidDocumentTypeMessage = "invalid file type. Only PDF, DOCX, PNG and J
 
 // ParseDocumentWithLimits parses a multipart document upload and validates
 // the content via magic bytes: PDF, PNG and JPEG directly, DOCX as a ZIP
-// container whose original filename must end in .docx (a bare .zip is
-// rejected). Enforces the advertised file-size cap separately from the
-// multipart body cap. The caller must close UploadedFile.File.
+// container with the required OOXML parts (a bare .zip is rejected).
+// Enforces the advertised file-size cap separately from the multipart body
+// cap. The caller must close UploadedFile.File.
 func ParseDocumentWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
@@ -76,6 +77,9 @@ func detectDocumentContentType(file io.ReadSeeker, filename string) (string, err
 	case AllowedDocumentTypes[contentType]:
 		// PDF or image, magic bytes are conclusive.
 	case contentType == "application/zip" && strings.HasSuffix(strings.ToLower(filename), ".docx"):
+		if !isDOCX(file) {
+			return "", errors.New(invalidDocumentTypeMessage)
+		}
 		contentType = DocxContentType
 	default:
 		return "", errors.New(invalidDocumentTypeMessage)
@@ -85,6 +89,31 @@ func detectDocumentContentType(file io.ReadSeeker, filename string) (string, err
 		return "", errors.New("failed to process file")
 	}
 	return contentType, nil
+}
+
+// isDOCX verifies the minimum OOXML structure that distinguishes a Word
+// document from an arbitrary ZIP archive. Uploads are capped at 10 MB, so
+// reading the container here is bounded by the documented upload limit.
+func isDOCX(file io.ReadSeeker) bool {
+	if _, err := file.Seek(0, 0); err != nil {
+		return false
+	}
+	contents, err := io.ReadAll(file)
+	if err != nil {
+		return false
+	}
+	reader, err := zip.NewReader(bytes.NewReader(contents), int64(len(contents)))
+	if err != nil {
+		return false
+	}
+
+	parts := make(map[string]struct{}, len(reader.File))
+	for _, entry := range reader.File {
+		parts[entry.Name] = struct{}{}
+	}
+	_, hasContentTypes := parts["[Content_Types].xml"]
+	_, hasDocument := parts["word/document.xml"]
+	return hasContentTypes && hasDocument
 }
 
 // DocumentFileExtension returns the canonical stored-file extension for a

@@ -86,7 +86,7 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
-        {!staff.isFinancialProfile ? (
+        {!staff.isLimitedProfile ? (
           <span
             className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
             style={{
@@ -148,7 +148,9 @@ export default function StaffDetailContent() {
   } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
     canViewFinancial && !canViewStammdatenSections
       ? staffService.getFinancialProfile(staffId)
-      : staffService.getStaffById(staffId),
+      : canViewDocuments && !canViewTimeTracking && !canViewStammdaten
+        ? staffService.getDocumentProfile(staffId)
+        : staffService.getStaffById(staffId),
   );
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
@@ -186,7 +188,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewTimeTracking && !canViewStammdaten) {
+  if (!canViewTimeTracking && !canViewStammdaten && !canViewDocuments) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -228,7 +230,9 @@ export default function StaffDetailContent() {
             ? "uebersicht"
             : canViewStammdaten
               ? "stammdaten"
-              : "abwesenheiten"
+              : canViewDocuments
+                ? "dokumente"
+                : "abwesenheiten"
         }
         className="w-full"
       >

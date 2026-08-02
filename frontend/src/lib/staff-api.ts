@@ -78,6 +78,7 @@ export interface Staff {
   workStatus?: string;
   absenceType?: string;
   isFinancialProfile?: boolean;
+  isLimitedProfile?: boolean;
 }
 
 export interface StaffFilters {
@@ -432,10 +433,27 @@ class StaffService {
   }
 
   async getFinancialProfile(id: string): Promise<Staff> {
-    const response = await sessionFetch(`/api/staff/financial-profile/${id}`);
+    return this.getMinimalProfile(
+      `/api/staff/financial-profile/${id}`,
+      "financial",
+    );
+  }
+
+  async getDocumentProfile(id: string): Promise<Staff> {
+    return this.getMinimalProfile(
+      `/api/staff/documents-profile/${id}`,
+      "document",
+    );
+  }
+
+  async getMinimalProfile(
+    url: string,
+    profileType: "financial" | "document",
+  ): Promise<Staff> {
+    const response = await sessionFetch(url);
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch financial staff profile: ${response.statusText}`,
+        `Failed to fetch ${profileType} staff profile: ${response.statusText}`,
       );
     }
     const json = (await response.json()) as {
@@ -451,7 +469,8 @@ class StaffService {
       isTeacher: false,
       isSupervising: false,
       supervisions: [],
-      isFinancialProfile: true,
+      isFinancialProfile: profileType === "financial",
+      isLimitedProfile: true,
     };
   }
 

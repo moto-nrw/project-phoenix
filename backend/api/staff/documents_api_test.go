@@ -6,6 +6,7 @@
 package staff_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -28,9 +29,34 @@ import (
 // fakePDF carries the %PDF magic bytes http.DetectContentType keys off.
 var fakePDF = []byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n")
 
-// fakeZIP carries the PK ZIP magic — a DOCX container as far as magic bytes
-// can tell.
-var fakeZIP = []byte("PK\x03\x04fake-zip-content-for-magic-byte-detection")
+func fakeDOCX(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := zip.NewWriter(&buf)
+	for name, content := range map[string]string{
+		"[Content_Types].xml": "<Types/>",
+		"word/document.xml":   "<w:document/>",
+	} {
+		entry, err := writer.Create(name)
+		require.NoError(t, err)
+		_, err = entry.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+	return buf.Bytes()
+}
+
+func fakeZIP(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := zip.NewWriter(&buf)
+	entry, err := writer.Create("not-a-word-document.txt")
+	require.NoError(t, err)
+	_, err = entry.Write([]byte("not a DOCX"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return buf.Bytes()
+}
 
 type documentsAPIContext struct {
 	tc      *testContext
@@ -180,13 +206,17 @@ func TestStaffDocumentsAPI_FileValidation(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	// A bare ZIP is rejected even though DOCX shares its magic bytes...
-	rec = c.upload(t, "sonstiges", "archiv.zip", fakeZIP, "users:update")
+	rec = c.upload(t, "sonstiges", "archiv.zip", fakeDOCX(t), "users:update")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
-	// ...while the same bytes under a .docx name pass as DOCX.
-	rec = c.upload(t, "sonstiges", "vertrag.docx", fakeZIP, "users:update")
+	// ...while a structurally valid OOXML package under a .docx name passes.
+	rec = c.upload(t, "sonstiges", "vertrag.docx", fakeDOCX(t), "users:update")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "officedocument.wordprocessingml.document")
+
+	// A ZIP renamed to .docx is not a Word document without its OOXML parts.
+	rec = c.upload(t, "sonstiges", "archiv.docx", fakeZIP(t), "users:update")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	// Unknown categories are a 400, not a 500.
 	rec = c.upload(t, "geheim", "datei.pdf", fakePDF, "users:update")

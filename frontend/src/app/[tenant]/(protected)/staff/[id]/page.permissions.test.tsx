@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { staffService } from "~/lib/staff-api";
 import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
@@ -24,27 +25,34 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string | null) =>
-    key?.startsWith("staff-detail-")
-      ? {
-          data: {
-            id: "42",
-            name: "Mila Muster",
-            firstName: "Mila",
-            lastName: "Muster",
-            hasRfid: false,
-            isTeacher: false,
-            isSupervising: false,
-            supervisions: [],
-          },
-          isLoading: false,
-          error: null,
-        }
-      : { data: 0, isLoading: false, error: null },
+  useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-detail-")) {
+      void fetcher?.();
+      return {
+        data: {
+          id: "42",
+          name: "Mila Muster",
+          firstName: "Mila",
+          lastName: "Muster",
+          hasRfid: false,
+          isTeacher: false,
+          isSupervising: false,
+          supervisions: [],
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
+    return { data: 0, isLoading: false, error: null };
+  },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffService: { getStaffById: vi.fn() },
+  staffService: {
+    getStaffById: vi.fn(),
+    getFinancialProfile: vi.fn(),
+    getDocumentProfile: vi.fn(),
+  },
   staffAbsenceService: { getAbsences: vi.fn() },
 }));
 
@@ -201,6 +209,30 @@ describe("StaffDetailContent permissions", () => {
       expect(replaceMock).not.toHaveBeenCalled();
     },
   );
+
+  it("shows only the documents tab to a health-document role", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff_documents:health"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(
+      screen.getByRole("button", { name: "Dokumente" }),
+    ).toBeInTheDocument();
+    expect(staffService.getDocumentProfile).toHaveBeenCalledWith("42");
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
 
   // users:read is the list tier; the Stammdaten sections carry HR-file data
   // (birthday, private address, contract terms) and stay closed to it —
