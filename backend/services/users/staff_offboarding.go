@@ -93,12 +93,22 @@ func (s *staffOffboardingService) SetBroadcaster(broadcaster realtime.Broadcaste
 //
 // Deleting a non-existent staff member is a no-op (idempotent delete).
 func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy)
-	})
+	groupAccessChanged := false
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy, &groupAccessChanged)
+	}); err != nil {
+		return err
+	}
+	if groupAccessChanged {
+		// Direct service calls commit in RunInTx above, while HTTP calls reuse
+		// the surrounding WithTenantTx and register this on its hook holder.
+		// Both paths therefore publish only after their owning transaction.
+		realtime.QueueGroupAccessChanged(ctx, s.broadcaster, s.getLogger(), "staff_offboarding")
+	}
+	return nil
 }
 
-func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
+func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string, groupAccessChanged *bool) error {
 	staff, err := s.StaffRepo.FindByID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -124,7 +134,7 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 	groupTeachersDeleted, _ := cleanupCounts["group_teacher"].(int64)
 	groupSubstitutionsDeleted, _ := cleanupCounts["group_substitutions"].(int64)
 	if groupTeachersDeleted > 0 || groupSubstitutionsDeleted > 0 {
-		realtime.QueueGroupAccessChanged(ctx, s.broadcaster, s.getLogger(), "staff_offboarding")
+		*groupAccessChanged = true
 	}
 
 	// Clear the work-time-model FK before the soft delete: the row keeps its

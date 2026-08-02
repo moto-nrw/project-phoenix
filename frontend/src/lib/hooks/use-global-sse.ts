@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
@@ -157,6 +157,7 @@ function keyTargetsId(
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
+  const [groupAccessRevision, setGroupAccessRevision] = useState(0);
 
   // Enable SSE for staff and effective admins. The backend treats admin:* and
   // *:* as admin scope even when a custom role does not include the literal
@@ -857,6 +858,10 @@ export function useGlobalSSE(): SSEHookState {
           // group was deleted. Debounced like the other cache triggers, which
           // also collapses the burst a delete cascade emits (one event per
           // revoked link) into a single refetch.
+          // The backend fixes group-topic subscriptions when the connection
+          // opens. Reconnect immediately so revoked groups stop delivering
+          // check-in events and newly assigned groups start delivering them.
+          setGroupAccessRevision((revision) => revision + 1);
           hasPendingGroupAccessEvent.current = true;
           scheduleFlush();
           break;
@@ -979,10 +984,16 @@ export function useGlobalSSE(): SSEHookState {
 
   // Use the underlying SSE hook with global event handler.
   // reconnectKey ensures the EventSource tears down and reconnects with a
-  // fresh JWT whenever the user switches tenant.
+  // fresh JWT whenever the user switches tenant, and refreshes the server's
+  // fixed group-topic subscription after an access change.
+  const tenantID = session?.user?.tenantId;
+  const reconnectKey =
+    groupAccessRevision === 0
+      ? tenantID
+      : `${tenantID ?? ""}:${groupAccessRevision}`;
   return useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
-    reconnectKey: session?.user?.tenantId,
+    reconnectKey,
   });
 }

@@ -88,6 +88,7 @@ import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
+const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
 
 // Maps the aggregated live-view wire student (backend "last_name" naming) to
 // the frontend Student shape the shared card components consume.
@@ -288,12 +289,12 @@ function OGSGroupPageContent() {
       // returns to this tab so a dropped access event cannot stay stale until
       // a hard reload. SWR dedupes rapid focus changes with its shared window.
       revalidateOnFocus: true,
-      // No periodic refresh: group transfers and substitutions now emit
-      // group_access_changed (#2084), which invalidates this key. The
-      // five-minute poll that covered that gap (#2057) is gone — it cost every
-      // open tab a full aggregated request twelve times an hour to catch a
-      // change that happens a handful of times a day. The Berlin-day effect
-      // below covers date-bound substitution access without restoring polling.
+      // A focused tab never gets a focus event, and tenant broadcasts are
+      // deliberately lossy under backpressure. Keep a low-frequency safety
+      // reconciliation so one dropped event cannot leave access stale for the
+      // rest of the session. Fifteen minutes limits the old polling load to
+      // four requests per hour; SSE remains the immediate update path.
+      refreshInterval: GROUP_ACCESS_RECONCILE_INTERVAL_MS,
     },
   );
 

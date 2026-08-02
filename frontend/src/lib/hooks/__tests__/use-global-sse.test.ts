@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SSEEvent, SSEHookOptions } from "~/lib/sse-types";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
@@ -1638,6 +1638,26 @@ describe("useGlobalSSE", () => {
   });
 
   describe("group_access_changed (#2084)", () => {
+    it("reconnects so the server recalculates fixed group-topic subscriptions", () => {
+      renderHook(() => useGlobalSSE());
+
+      const initialReconnectKey = vi
+        .mocked(useSSE)
+        .mock.calls.at(-1)?.[1]?.reconnectKey;
+      expect(initialReconnectKey).toBeDefined();
+
+      act(() => {
+        fire({
+          type: "group_access_changed",
+          data: { source: "group_transfer" },
+        });
+      });
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        `${initialReconnectKey}:1`,
+      );
+    });
+
     it("refreshes EVERY ogs-students key, not just the transferred group", () => {
       // The acceptance criterion: a group handed to this user must appear in
       // their open tab. That tab is keyed on the group they were ALREADY

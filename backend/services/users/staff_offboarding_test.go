@@ -38,6 +38,7 @@ type offboardingScenario struct {
 	repos   *repositories.Factory
 	authSvc authSvcPkg.AuthService
 	svc     usersSvc.StaffOffboardingService
+	deps    usersSvc.StaffOffboardingServiceDependencies
 	ctx     context.Context
 }
 
@@ -54,7 +55,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	authService, err := authSvcPkg.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
 
-	svc := usersSvc.NewStaffOffboardingService(usersSvc.StaffOffboardingServiceDependencies{
+	deps := usersSvc.StaffOffboardingServiceDependencies{
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,
 		TeacherRepo:            repos.Teacher,
@@ -72,7 +73,8 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		TimeTrackingDeleteRepo: repos.TimeTrackingDeletion,
 		AuthService:            authService,
 		DB:                     db,
-	})
+	}
+	svc := usersSvc.NewStaffOffboardingService(deps)
 
 	testpkg.EnsureTestTenant(t, db, offboardingFixtureTenant)
 
@@ -81,8 +83,17 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		repos:   repos,
 		authSvc: authService,
 		svc:     svc,
+		deps:    deps,
 		ctx:     testpkg.TenantContext(offboardingFixtureTenant),
 	}
+}
+
+type failingDataDeletionRepository struct {
+	auditModels.DataDeletionRepository
+}
+
+func (r *failingDataDeletionRepository) Create(context.Context, *auditModels.DataDeletion) error {
+	return errors.New("forced audit failure")
 }
 
 // assignTenantRole links the account to a role inside the fixture tenant.
@@ -495,6 +506,44 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 	event := testpkg.AssertSingleTenantEvent(t, broadcaster, realtime.EventGroupAccessChanged, offboardingFixtureTenant)
 	require.NotNil(t, event.Data.Source)
 	assert.Equal(t, "staff_offboarding", *event.Data.Source)
+}
+
+func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
+	sc := newOffboardingScenario(t)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	sc.deps.DataDeletionRepo = &failingDataDeletionRepository{
+		DataDeletionRepository: sc.repos.DataDeletion,
+	}
+	svc := usersSvc.NewStaffOffboardingService(sc.deps)
+	broadcastAware := svc.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	})
+	broadcastAware.SetBroadcaster(broadcaster)
+
+	teacher := testpkg.CreateTestTeacher(t, sc.db, "Rollback", "Broadcast")
+	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardRollbackGroup")
+	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
+
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
+		cleanupOffboardedStaffChain(t, sc.db, teacher.StaffID, teacher.Staff.PersonID, nil)
+	})
+
+	err := svc.OffboardStaff(sc.ctx, teacher.StaffID, teacher.StaffID, "test-admin")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "forced audit failure")
+	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged),
+		"rolled-back assignment cleanup must not publish group access changes")
+
+	var assignmentCount int
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`education.group_teacher`).
+		ColumnExpr(`COUNT(*)`).
+		Where(`id = ?`, groupTeacher.ID).
+		Scan(context.Background(), &assignmentCount))
+	assert.Equal(t, 1, assignmentCount, "group assignment must roll back with the failed audit")
 }
 
 // TestOffboardStaff_Idempotent: deleting a non-existent staff member stays a

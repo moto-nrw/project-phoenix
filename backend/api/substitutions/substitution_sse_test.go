@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,6 +117,13 @@ func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok)
+	createdAt, ok := data["created_at"].(string)
+	require.True(t, ok)
+	assert.Equal(t, substitution.CreatedAt.Format(time.RFC3339Nano), createdAt,
+		"PUT must preserve the original creation timestamp")
 
 	assertGroupAccessChanged(t, broadcaster, "substitution_update")
 }

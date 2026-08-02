@@ -613,6 +613,10 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 	// security policy". Reading it from the row we just loaded also means a
 	// caller cannot move a substitution into another tenant by sending one.
 	substitution.SetTenantID(existing.GetTenantID())
+	// created_at is immutable server-owned metadata. The generic repository
+	// writes every column, and a JSON PUT body leaves this field at its zero
+	// value; bun would therefore apply the column default and reset it.
+	substitution.CreatedAt = existing.CreatedAt
 
 	// Verify group exists
 	_, err = s.groupRepo.FindByID(ctx, substitution.GroupID)
