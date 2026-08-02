@@ -198,18 +198,21 @@ closed/locked devices.
   deliberately excluded from Web Push until they have an active guardian
   mapping for that school. Their announcement remains available in the parent
   feed and through the announcement's optional e-mail delivery.
-- **Child-scoped audiences**: a guardian event that is ABOUT one child sets
-  `Audience.StudentID` (parent messages, request decisions). That is an
-  authorization instruction, not payload — the device lookup then requires
-  `parent_portal.access` for that child on the recipient's
+- **Child-scoped audiences**: a guardian event that is ABOUT children sets
+  `Audience.StudentIDs` — one child for a parent message or a request decision,
+  the children an appointment was addressed to for the calendar producers. That
+  is an authorization instruction, not payload — the device lookup then requires
+  `parent_portal.access` for at least one of them on the recipient's
   `users.students_guardians` row. Producers decide their audience in the
   transaction that produced the event, but devices are resolved later, in a
   transaction of their own; a school can revoke access to a child in between,
   and a push is rendered on a lock screen. The check can only narrow the
-  audience the producer chose, never widen it. Events that are not about a
-  single child (announcements, appointments) leave the field at 0 and keep
-  their producer's gate; a non-guardian scope with a student id is rejected as
-  malformed, so a producer cannot believe it narrowed something it did not.
+  audience the producer chose, never widen it: every listed child is one the
+  producer already resolved the audience from, so "at least one" cannot admit
+  an account the producer excluded. Only events about no child at all
+  (announcements) leave the field empty and keep their producer's gate; a
+  non-guardian scope with student ids is rejected as malformed, so a producer
+  cannot believe it narrowed something it did not.
 - **Payload** is `{title, body, deepLink, type, priority}` — never `Data`
   (GDPR contract above). Priority maps to TTL/urgency: high = 1h/high,
   normal/low = 24h/normal/low.
@@ -327,12 +330,18 @@ new one:
   pill, never widen it.
 
 Both child-related producers — the message push and the decision push — send
-their audience with `Audience.StudentID` set, so the child access is answered
+their audience with `Audience.StudentIDs` set, so the child access is answered
 once more where the devices are resolved (see "Child-scoped audiences" above).
 The staff message path checks it in the request transaction that stores the
 message and again in the delivery transaction; between the two a school can
 revoke a guardian's access, and only the second answer decides what leaves the
 backend.
+
+The two appointment producers do the same with the children the appointment was
+addressed to. Their audience already comes from `parent_portal.access` on the
+appointment's recipient rows; carrying those children into the event means the
+device lookup asks again, so an access revoked between resolving recipients and
+sending drops the push instead of putting it on a lock screen.
 
 ### Appointment reminders (scheduler task `appointment-reminders`)
 

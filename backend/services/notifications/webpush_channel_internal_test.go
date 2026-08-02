@@ -36,11 +36,11 @@ type fakePushRepo struct {
 	staffAccountsAsked []int64
 	staffAccountsErr   error
 	deleteErr          error
-	// guardiansStudentID records the child the guardian lookup was scoped to,
-	// and hiddenStudentID is the child whose access the school has revoked.
-	guardiansStudentID int64
-	hiddenStudentID    int64
-	mu                 sync.Mutex
+	// guardiansStudentIDs records the children the guardian lookup was scoped
+	// to, and hiddenStudentID is the child whose access the school has revoked.
+	guardiansStudentIDs []int64
+	hiddenStudentID     int64
+	mu                  sync.Mutex
 }
 
 func (f *fakePushRepo) FindForTenantStaff(context.Context) ([]*iot.PushSubscription, error) {
@@ -51,10 +51,21 @@ func (f *fakePushRepo) FindForTenantAdmins(context.Context) ([]*iot.PushSubscrip
 	return f.admins, nil
 }
 
-func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64, studentID int64) ([]*iot.PushSubscription, error) {
-	f.guardiansStudentID = studentID
-	if studentID > 0 && studentID == f.hiddenStudentID {
-		return nil, nil
+func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64, studentIDs []int64) ([]*iot.PushSubscription, error) {
+	f.guardiansStudentIDs = studentIDs
+	// Mirrors the repository predicate: the scope admits an account only while it
+	// still holds access to at least one of the listed children.
+	if len(studentIDs) > 0 {
+		permitted := false
+		for _, studentID := range studentIDs {
+			if studentID != f.hiddenStudentID {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			return nil, nil
+		}
 	}
 	var subscriptions []*iot.PushSubscription
 	for _, accountID := range accountIDs {
@@ -250,12 +261,12 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
-		StudentID:          55,
+		StudentIDs:         []int64{55},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
-	assert.Equal(t, int64(55), repo.guardiansStudentID,
-		"the lookup must be told which child the notification is about")
+	assert.Equal(t, []int64{55}, repo.guardiansStudentIDs,
+		"the lookup must be told which children the notification is about")
 
 	// Access to that child revoked since the producer picked its audience: the
 	// account keeps its devices and its consent, and still gets nothing.
@@ -264,7 +275,7 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
-		StudentID:          55,
+		StudentIDs:         []int64{55},
 	})
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -277,7 +288,7 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
-	assert.Zero(t, repo.guardiansStudentID)
+	assert.Empty(t, repo.guardiansStudentIDs)
 	repo.hiddenStudentID = 0
 
 	// Group scope is deliberately unsupported: no error, no recipients.

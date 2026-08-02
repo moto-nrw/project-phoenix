@@ -649,7 +649,7 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 			TenantID:           thread.TenantID,
 			Scope:              notifications.ScopeGuardian,
 			GuardianAccountIDs: optedIn,
-			StudentID:          thread.StudentID,
+			StudentIDs:         []int64{thread.StudentID},
 		},
 	})
 	switch {

@@ -360,7 +360,16 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		q = q.Where(where, val)
 	}
 
-	result, err := q.Exec(ctx)
+	// RETURNING the counter rather than incrementing the in-memory copy: the
+	// database owns it (BumpRevision advances it from child-table changes too), so
+	// the caller — and the PUT response it renders — must read back what was
+	// actually persisted instead of a guess. Zero updated rows is the lifecycle
+	// conflict guarded above; with a destination, bun reports it as ErrNoRows.
+	var revision int
+	result, err := q.Returning("revision").Exec(ctx, &revision)
+	if errors.Is(err, sql.ErrNoRows) {
+		return calModels.ErrAppointmentLifecycleConflict
+	}
 	if err != nil {
 		return fmt.Errorf("update appointment: %w", err)
 	}
@@ -371,6 +380,7 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 	if affected == 0 {
 		return calModels.ErrAppointmentLifecycleConflict
 	}
+	appointment.Revision = revision
 	return nil
 }
 

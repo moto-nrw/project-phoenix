@@ -80,19 +80,24 @@ type Audience struct {
 	ActiveGroupID      string  // required for ScopeGroup
 	StaffAccountIDs    []int64 // recipients for ScopeStaff (auth.accounts.id)
 
-	// StudentID marks a guardian-scoped event as being ABOUT one child, and is
-	// an authorization instruction rather than payload: the delivery transaction
-	// re-reads users.students_guardians and keeps only recipients who still hold
-	// parent_portal.access for that child.
+	// StudentIDs marks a guardian-scoped event as being ABOUT these children, and
+	// is an authorization instruction rather than payload: the delivery
+	// transaction re-reads users.students_guardians and keeps only recipients who
+	// still hold parent_portal.access for at least one of them.
 	//
 	// Producers decide their audience in the transaction that produced the event;
 	// devices are resolved later, in a transaction of their own. Between the two
 	// a school can revoke a guardian's access to a child, and a push is rendered
 	// on a lock screen — so the question is answered again where the sending
 	// happens. It can only narrow the audience the producer chose, never widen
-	// it. Leave it at 0 for events that are not about a single child (broadcast
-	// announcements, appointments); those are gated by their own producer.
-	StudentID int64
+	// it: every listed child was already part of what the producer resolved, so
+	// "at least one" cannot admit a recipient the producer excluded.
+	//
+	// One child for a message or a decided request, the children an appointment
+	// was addressed to for the calendar producers. Leave it empty only for events
+	// that are about no child at all (broadcast announcements); those are gated
+	// by their own producer.
+	StudentIDs []int64
 }
 
 // Event is a channel-agnostic notification. Title/Body/DeepLink are
@@ -214,11 +219,13 @@ func validate(event Event) error {
 	// A child scope only means something where it is enforced, which is the
 	// guardian device lookup. Silently ignoring it elsewhere would let a producer
 	// believe it had narrowed an audience it did not narrow.
-	if event.Audience.StudentID != 0 && event.Audience.Scope != ScopeGuardian {
+	if len(event.Audience.StudentIDs) > 0 && event.Audience.Scope != ScopeGuardian {
 		return fmt.Errorf("student-scoped audience requires the guardian scope, got %q", event.Audience.Scope)
 	}
-	if event.Audience.StudentID < 0 {
-		return errors.New("student-scoped audience requires a positive student id")
+	for _, studentID := range event.Audience.StudentIDs {
+		if studentID <= 0 {
+			return errors.New("student-scoped audience requires positive student ids")
+		}
 	}
 	switch event.Audience.Scope {
 	case ScopeTenant:
@@ -304,6 +311,7 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	event.Data = maps.Clone(event.Data)
 	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 	event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
+	event.Audience.StudentIDs = slices.Clone(event.Audience.StudentIDs)
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliver(dispatchCtx, event)
 	})
@@ -376,6 +384,7 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 		event.Data = maps.Clone(event.Data)
 		event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 		event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
+		event.Audience.StudentIDs = slices.Clone(event.Audience.StudentIDs)
 		prepared = append(prepared, event)
 	}
 

@@ -60,10 +60,11 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 	if s.cfg.Outbox == nil {
 		return nil
 	}
-	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
+	recipients, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
 		return err
 	}
+	guardianIDs, profiles := recipients.guardianIDs, recipients.profiles
 	if len(guardianIDs) == 0 {
 		return nil
 	}
@@ -137,18 +138,32 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 	return nil
 }
 
+// guardianRecipients is what an appointment's recipient rows resolve to for
+// notification purposes: the reachable guardian profile IDs in row order
+// (duplicates included — callers de-duplicate as they consume), the profiles
+// keyed by ID, and the children each guardian was let through by.
+type guardianRecipients struct {
+	guardianIDs []int64
+	profiles    map[int64]*userModels.GuardianProfile
+
+	// studentsByGuardian records, per guardian profile, the children of this
+	// appointment the guardian still holds parent_portal.access for. Push
+	// dispatch carries them into its own transaction, which asks the same
+	// question again immediately before the payload leaves the backend.
+	studentsByGuardian map[int64][]int64
+}
+
 // reachableGuardianRecipients resolves the appointment's guardian recipients to
 // the profiles that can actually sign in to the parents portal for this school.
-// It returns the recipient IDs in row order (duplicates included — callers
-// de-duplicate as they consume) plus the reachable profiles keyed by ID.
 //
 // Shared by the e-mail path and the push path so both address the same active
 // parents-portal profiles. Channel-specific reachability is handled by each
 // caller: e-mail requires an address, while push requires an opted-in account.
-func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID int64) ([]int64, map[int64]*userModels.GuardianProfile, error) {
+func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID int64) (guardianRecipients, error) {
+	empty := guardianRecipients{}
 	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
 	if err != nil {
-		return nil, nil, err
+		return empty, err
 	}
 	guardianIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
@@ -157,14 +172,14 @@ func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID
 		}
 	}
 	if len(guardianIDs) == 0 {
-		return nil, nil, nil
+		return empty, nil
 	}
 	profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, guardianIDs)
 	if err != nil {
-		return nil, nil, err
+		return empty, err
 	}
 	if s.cfg.RecipientStudentRepo == nil || s.cfg.StudentGuardianRepo == nil {
-		return nil, nil, errors.New("calendar: guardian permission repositories are required")
+		return empty, errors.New("calendar: guardian permission repositories are required")
 	}
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
@@ -174,7 +189,7 @@ func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID
 	}
 	studentLinks, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, recipientIDs)
 	if err != nil {
-		return nil, nil, err
+		return empty, err
 	}
 	studentsByRecipient := make(map[int64][]int64, len(recipientIDs))
 	for _, link := range studentLinks {
@@ -182,6 +197,7 @@ func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID
 	}
 
 	reachable := make([]int64, 0, len(guardianIDs))
+	studentsByGuardian := make(map[int64][]int64, len(guardianIDs))
 	for _, recipient := range recipients {
 		if recipient.GuardianProfileID == nil {
 			continue
@@ -190,18 +206,23 @@ func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID
 		if !ok || profile.AccountID == nil || *profile.AccountID <= 0 {
 			continue
 		}
+		allowedStudents := make([]int64, 0, len(studentsByRecipient[recipient.ID]))
 		for _, studentID := range studentsByRecipient[recipient.ID] {
 			allowed, err := s.cfg.StudentGuardianRepo.AccountHasStudentPermission(ctx, *profile.AccountID, studentID, profile.TenantID, authorize.GuardianPermissionPortalAccess)
 			if err != nil {
-				return nil, nil, fmt.Errorf("calendar: check guardian appointment recipient permission: %w", err)
+				return empty, fmt.Errorf("calendar: check guardian appointment recipient permission: %w", err)
 			}
 			if allowed {
-				reachable = append(reachable, *recipient.GuardianProfileID)
-				break
+				allowedStudents = append(allowedStudents, studentID)
 			}
 		}
+		if len(allowedStudents) == 0 {
+			continue
+		}
+		reachable = append(reachable, *recipient.GuardianProfileID)
+		studentsByGuardian[*recipient.GuardianProfileID] = append(studentsByGuardian[*recipient.GuardianProfileID], allowedStudents...)
 	}
-	return reachable, profiles, nil
+	return guardianRecipients{guardianIDs: reachable, profiles: profiles, studentsByGuardian: studentsByGuardian}, nil
 }
 
 // guardianAccountIDs reduces resolved profiles to their distinct account IDs —
@@ -221,6 +242,41 @@ func guardianAccountIDs(guardianIDs []int64, profiles map[int64]*userModels.Guar
 		accountIDs = append(accountIDs, *profile.AccountID)
 	}
 	return accountIDs
+}
+
+// guardianStudentIDs collects the children the addressed accounts were let
+// through by — the authorization scope a push carries into its own delivery
+// transaction, where the access question is asked one last time.
+//
+// The union is per event, not per recipient, so a guardian addressed for one
+// child of this appointment survives delivery while they still hold access to
+// any child of it. That can only keep recipients the producer already resolved,
+// never add one: an account with no permitted child on the appointment is not
+// in the audience to begin with.
+func guardianStudentIDs(recipients guardianRecipients, accountIDs []int64) []int64 {
+	addressed := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		addressed[accountID] = struct{}{}
+	}
+	studentIDs := make([]int64, 0, len(recipients.studentsByGuardian))
+	seen := make(map[int64]struct{}, len(recipients.studentsByGuardian))
+	for _, guardianID := range recipients.guardianIDs {
+		profile, ok := recipients.profiles[guardianID]
+		if !ok || profile.AccountID == nil {
+			continue
+		}
+		if _, ok := addressed[*profile.AccountID]; !ok {
+			continue
+		}
+		for _, studentID := range recipients.studentsByGuardian[guardianID] {
+			if _, done := seen[studentID]; done {
+				continue
+			}
+			seen[studentID] = struct{}{}
+			studentIDs = append(studentIDs, studentID)
+		}
+	}
+	return studentIDs
 }
 
 // appointmentNotificationCopy returns the display-safe German title and body for
@@ -278,12 +334,12 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 		if kind != platformModels.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
 			return nil
 		}
-		guardianIDs, profiles, err := s.reachableGuardianRecipients(txCtx, current.ID)
+		recipients, err := s.reachableGuardianRecipients(txCtx, current.ID)
 		if err != nil {
 			return err
 		}
-		accountIDs = guardianAccountIDs(guardianIDs, profiles)
-		_, err = s.dispatchGuardianAccountDevices(txCtx, current, kind, accountIDs)
+		accountIDs = guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
+		_, err = s.dispatchGuardianAccountDevices(txCtx, current, kind, accountIDs, guardianStudentIDs(recipients, accountIDs))
 		return err
 	})
 	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
@@ -303,7 +359,12 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 // dispatchGuardianAccountDevices dispatches a guardian push and reports whether
 // it was accepted for delivery. Callers that need durable delivery tracking use
 // the result to record a delivery only after this returns true.
-func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs []int64) (bool, error) {
+//
+// studentIDs are the appointment's children the addressed accounts were let
+// through by. They travel with the event so the device lookup — the last
+// transaction before the payload leaves the backend — can drop an account whose
+// access to all of them was revoked since this one resolved the audience.
+func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs, studentIDs []int64) (bool, error) {
 	if s.cfg.Notifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
@@ -343,6 +404,7 @@ func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointmen
 			TenantID:           appointment.TenantID,
 			Scope:              notifications.ScopeGuardian,
 			GuardianAccountIDs: accountIDs,
+			StudentIDs:         studentIDs,
 		},
 	})
 	if err != nil {
@@ -351,7 +413,9 @@ func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointmen
 	return true, nil
 }
 
-func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, appointment *calModels.Appointment, accountIDs []int64) (bool, error) {
+// dispatchGuardianAccountReminderDevices is the reminder's synchronous
+// counterpart; studentIDs carry the same delivery-time access recheck.
+func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, appointment *calModels.Appointment, accountIDs, studentIDs []int64) (bool, error) {
 	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
@@ -359,7 +423,10 @@ func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, ap
 	if err := s.cfg.ReminderNotifier.NotifySynchronously(ctx, notifications.Event{
 		Type: notifications.TypeParentAppointmentReminder, Title: title, Body: body,
 		DeepLink: parentCalendarDeepLink, Priority: notifications.PriorityNormal,
-		Audience: notifications.Audience{TenantID: appointment.TenantID, Scope: notifications.ScopeGuardian, GuardianAccountIDs: accountIDs},
+		Audience: notifications.Audience{
+			TenantID: appointment.TenantID, Scope: notifications.ScopeGuardian,
+			GuardianAccountIDs: accountIDs, StudentIDs: studentIDs,
+		},
 	}); err != nil {
 		return false, err
 	}

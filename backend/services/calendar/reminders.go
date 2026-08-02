@@ -299,10 +299,11 @@ func (s *service) enqueueAppointmentReminder(
 	occurrence timezone.Date,
 	deliveries *[]reminderPushDelivery,
 ) (int, []int64, error) {
-	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
+	recipients, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
 		return 0, nil, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
 	}
+	guardianIDs, profiles := recipients.guardianIDs, recipients.profiles
 	if len(guardianIDs) == 0 {
 		return 0, nil, nil
 	}
@@ -423,7 +424,7 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 				return
 			}
 			defer func() { <-sem }()
-			appointment, profileIDs, err := s.prepareReminderPushDispatch(ctx, delivery)
+			appointment, profileIDs, studentIDs, err := s.prepareReminderPushDispatch(ctx, delivery)
 			if err != nil {
 				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
 					errs <- releaseErr
@@ -447,7 +448,7 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 				}
 			}
 			delivery.profileIDs = profileIDs
-			dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{delivery.accountID})
+			dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{delivery.accountID}, studentIDs)
 			if err == nil && dispatched {
 				return
 			}
@@ -500,9 +501,14 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 // guardian still consents to reminders. The transaction commits before the
 // synchronous Web Push request begins, so network latency never holds a DB
 // connection or a lifecycle row lock.
-func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery reminderPushDelivery) (*calModels.Appointment, []int64, error) {
+//
+// It also reports the children this account is still let through by, so the
+// device lookup can ask the access question once more — that lookup runs in yet
+// another transaction, and the payload it produces is rendered on a lock screen.
+func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery reminderPushDelivery) (*calModels.Appointment, []int64, []int64, error) {
 	var appointment *calModels.Appointment
 	var profileIDs []int64
+	var studentIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		current, err := s.cfg.AppointmentRepo.LockReminderCandidate(txCtx, delivery.appointment.ID)
 		if err != nil {
@@ -539,13 +545,13 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 		if len(optedIn) == 0 {
 			return nil
 		}
-		reachable, profiles, err := s.reachableGuardianRecipients(txCtx, current.ID)
+		recipients, err := s.reachableGuardianRecipients(txCtx, current.ID)
 		if err != nil {
 			return err
 		}
-		reachableSet := make(map[int64]struct{}, len(reachable))
-		for _, profileID := range reachable {
-			profile, ok := profiles[profileID]
+		reachableSet := make(map[int64]struct{}, len(recipients.guardianIDs))
+		for _, profileID := range recipients.guardianIDs {
+			profile, ok := recipients.profiles[profileID]
 			if ok && profile.AccountID != nil && *profile.AccountID == delivery.accountID {
 				reachableSet[profileID] = struct{}{}
 			}
@@ -558,13 +564,14 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 		if len(profileIDs) == 0 {
 			return nil
 		}
+		studentIDs = guardianStudentIDs(recipients, []int64{delivery.accountID})
 		appointment = current
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return appointment, profileIDs, nil
+	return appointment, profileIDs, studentIDs, nil
 }
 
 func withoutReminderProfiles(claimed, reachable []int64) []int64 {

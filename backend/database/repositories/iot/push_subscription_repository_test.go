@@ -200,7 +200,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		parentEndpoint := endpoint + "/parent"
 		require.NoError(t, repo.Upsert(ctx, newSubscription(guardian.ID, iotModels.PushPortalParent, parentEndpoint)))
 
-		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, 0)
+		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, nil)
 		require.NoError(t, err)
 		require.Len(t, subs, 1)
 		assert.Equal(t, parentEndpoint, subs[0].Endpoint)
@@ -223,7 +223,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			iotModels.PushPortalParent,
 			endpoint+"/staff-parent",
 		)))
-		subs, err = repo.FindForGuardians(ctx, []int64{account.ID}, 0)
+		subs, err = repo.FindForGuardians(ctx, []int64{account.ID}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})
@@ -237,7 +237,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		childEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/child-%d", time.Now().UnixNano())
 		require.NoError(t, repo.Upsert(chainCtx, newSubscription(chain.AccountID, iotModels.PushPortalParent, childEndpoint)))
 
-		subs, err := repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, chain.StudentID)
+		subs, err := repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{chain.StudentID})
 		require.NoError(t, err)
 		require.Len(t, subs, 1, "a guardian with parent_portal.access is a recipient for their child")
 		assert.Equal(t, childEndpoint, subs[0].Endpoint)
@@ -246,7 +246,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		// permission, so being a guardian somewhere is not access everywhere.
 		otherFamily := testpkg.CreateTestParentGuardianChain(t, db)
 		defer testpkg.CleanupParentGuardianChain(t, db, otherFamily)
-		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, otherFamily.StudentID)
+		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{otherFamily.StudentID})
 		require.NoError(t, err)
 		assert.Empty(t, subs, "no relationship to that child means no push about it")
 
@@ -257,13 +257,26 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			 WHERE student_id = ? AND tenant_id = ?`, chain.StudentID, chain.TenantID)
 		require.NoError(t, err)
 
-		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, chain.StudentID)
+		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{chain.StudentID})
 		require.NoError(t, err)
 		assert.Empty(t, subs, "the sending transaction must not deliver on a revoked access")
 
-		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, 0)
+		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, nil)
 		require.NoError(t, err)
 		assert.Len(t, subs, 1, "an unscoped audience keeps the account-level rules it always had")
+
+		// A multi-child scope — an appointment addressed to siblings — admits the
+		// account while any one of them still permits it, and drops it once none
+		// does. Restoring access to the family's own child shows both directions.
+		_, err = db.ExecContext(context.Background(),
+			`UPDATE users.students_guardians
+			 SET permissions = permissions || '{"parent_portal.access": true}'::jsonb
+			 WHERE student_id = ? AND tenant_id = ?`, chain.StudentID, chain.TenantID)
+		require.NoError(t, err)
+
+		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{otherFamily.StudentID, chain.StudentID})
+		require.NoError(t, err)
+		assert.Len(t, subs, 1, "one permitted child on the appointment is enough to stay a recipient")
 	})
 
 	t.Run("parent endpoint cleanup spans tenants", func(t *testing.T) {
@@ -314,7 +327,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, subscriptionsForAccount(adminSubs, account.ID))
 
-		guardianSubs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, 0)
+		guardianSubs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, guardianSubs)
 	})
@@ -331,7 +344,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, subscriptionsForAccount(adminSubs, account.ID))
 
-		guardianSubs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, 0)
+		guardianSubs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, guardianSubs)
 	})
@@ -437,7 +450,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, 0)
+		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})

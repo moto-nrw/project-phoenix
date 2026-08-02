@@ -86,7 +86,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		require.Len(t, notifier.events, 1)
 		// Not payload: the device lookup runs in a later transaction and keeps
 		// only recipients who still hold parent_portal.access for this child.
-		assert.Equal(t, int64(55), notifier.events[0].Audience.StudentID)
+		assert.Equal(t, []int64{55}, notifier.events[0].Audience.StudentIDs)
 	})
 
 	t.Run("says nothing about the child or the sender", func(t *testing.T) {
