@@ -474,8 +474,8 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (
 //  3. Any open room visit is ended in the same request transaction (issue
 //     #895) — including on the idempotent no-open-row path, so a checkout of
 //     any kind heals an orphaned visit left behind by older code.
-//  4. A checkout that actually moved state fans out over SSE after the request
-//     transaction commits (#2113).
+//  4. A checkout that closed attendance or healed an orphaned visit fans out
+//     over SSE after the request transaction commits (#2113).
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, checkoutType string) (*AttendanceResult, error) {
 	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
 	if err != nil {
@@ -502,9 +502,11 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 
 	if closed == nil {
 		// No open row — student is already checked out (or never checked in
-		// today). Report idempotent success so the caller treats this the
-		// same as an actual close. Deliberately silent: nothing moved, so no
-		// client has anything to refetch.
+		// today). An orphaned visit may still have moved, so broadcast that
+		// checkout; only a true no-op stays silent.
+		if endedVisit != nil {
+			s.registerCheckoutBroadcast(ctx, studentID, endedVisit, snapshot, checkoutType)
+		}
 		return &AttendanceResult{
 			Action:    "checked_out",
 			StudentID: studentID,
@@ -528,14 +530,15 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 }
 
 // registerCheckoutBroadcast queues the SSE fan-out of an attendance checkout
-// that actually closed a row. It covers every entry point into performCheckOut:
-// the staff web checkout (POST /active/visits/student/{id}/checkout), the
-// school check-in/out endpoint used by the binary-mode "Kinder an- und
-// abmelden" flow, the kiosk toggle, and the kiosk daily checkout. None of them
-// emitted anything between 976b32f and #2113 — ending the visit moved from
-// service.EndVisit (which broadcasts) to the repository call above (which does
-// not), so other staff tabs kept showing the child as present indefinitely:
-// the room, search and detail views revalidate on neither focus nor interval.
+// that closed a row or healed an orphaned visit. It covers every entry point
+// into performCheckOut: the staff web checkout
+// (POST /active/visits/student/{id}/checkout), the school check-in/out endpoint
+// used by the binary-mode "Kinder an- und abmelden" flow, the kiosk toggle, and
+// the kiosk daily checkout. None of them emitted anything between 976b32f and
+// #2113 — ending the visit moved from service.EndVisit (which broadcasts) to
+// the repository call above (which does not), so other staff tabs kept showing
+// the child as present indefinitely: the room, search and detail views
+// revalidate on neither focus nor interval.
 //
 // Two invariants:
 //
@@ -565,7 +568,13 @@ func (s *service) registerCheckoutBroadcast(
 
 	tenant.RegisterAfterCommit(ctx, func() {
 		if endedVisit != nil {
-			s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec)
+			// Ordinary visit checkouts historically had no source. Only carry the
+			// daily checkout's stable wire value onto the visit-shaped heal path.
+			source := ""
+			if checkoutType == checkoutTypeDaily {
+				source = dailyCheckoutSource
+			}
+			s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, source)
 			return
 		}
 		s.emitRoomlessCheckout(ctx, studentID, studentName, studentRec, checkoutSourceLabel(checkoutType))

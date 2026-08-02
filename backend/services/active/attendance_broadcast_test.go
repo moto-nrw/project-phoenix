@@ -236,6 +236,37 @@ func TestCheckout_IdempotentCheckoutIsSilent(t *testing.T) {
 	assert.Empty(t, broadcaster.Calls(), "an idempotent checkout must broadcast nothing")
 }
 
+// TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts covers the #895 heal
+// path: even when attendance is already closed or missing, ending the stale
+// room visit changes the room roster and must wake subscribed clients.
+func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	f, cleanup := setupAbsentStudent(t, db, "OrphanedVisit")
+	defer cleanup()
+	testpkg.CreateTestVisit(t, db, f.studentID, f.activeGroupID, time.Now(), nil)
+	ctx := testpkg.TenantContext(1)
+	broadcaster.Reset()
+
+	result, err := svc.CheckOutStudent(ctx, f.studentID, f.staffID, true)
+	require.NoError(t, err)
+	assert.Zero(t, result.AttendanceID, "there was no open attendance row to close")
+
+	roomEvents := checkoutEventsOnTopic(broadcaster, f.activeGroupTopic())
+	require.Len(t, roomEvents, 1, "the healed visit must emit a room-scoped checkout")
+	assert.Equal(t, f.activeGroupTopic(), roomEvents[0].ActiveGroupID)
+	assert.Len(t, checkoutEventsOnTopic(broadcaster, f.eduTopic()), 1,
+		"the healed visit must emit an educational-group checkout")
+	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
+		"the healed visit must refresh dashboard counts")
+	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
+		"ending the orphaned visit changed the room roster")
+
+	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
+}
+
 // TestCheckout_RoomlessCheckoutBroadcastsEduTopic covers the shape used by
 // POST /api/students/{id}/school-checkin with action "out" (the binary-mode
 // "Kinder an- und abmelden" flow) and by the kiosk daily checkout: attendance
@@ -346,6 +377,44 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 
 	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
 		"a daily checkout must emit exactly one dashboard_counts_changed")
+}
+
+// TestCheckout_DailyCheckoutWithOpenVisitPreservesSource covers the #895 heal
+// path during kiosk day-end confirmation. The room-scoped event replaces the
+// historical roomless event but must retain its stable source wire value.
+func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	svc, broadcaster := newDailyCheckoutService(t, db)
+
+	f, cleanup := setupCheckedInStudent(t, db, "DailyOpenVisit", true)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	_, err := db.NewUpdate().
+		Table("active.groups").
+		Set("device_id = ?", f.deviceID).
+		Where("id = ?", f.activeGroupID).
+		Exec(ctx)
+	require.NoError(t, err)
+	testpkg.CreateTestGroupSupervisor(t, db, f.staffID, f.activeGroupID, "supervisor")
+
+	broadcaster.Reset()
+	result, err := svc.ConfirmDailyCheckout(ctx, f.studentID, f.deviceID, "zuhause")
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out_daily", result.Action)
+
+	roomEvents := checkoutEventsOnTopic(broadcaster, f.activeGroupTopic())
+	require.Len(t, roomEvents, 1, "the open visit must emit one room-scoped checkout")
+	require.NotNil(t, roomEvents[0].Data.Source)
+	assert.Equal(t, "daily_checkout", *roomEvents[0].Data.Source)
+
+	eduEvents := checkoutEventsOnTopic(broadcaster, f.eduTopic())
+	require.Len(t, eduEvents, 1, "the open visit must emit one educational-group checkout")
+	require.NotNil(t, eduEvents[0].Data.Source)
+	assert.Equal(t, "daily_checkout", *eduEvents[0].Data.Source)
+
+	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
+		"the daily checkout must emit one dashboard_counts_changed")
 }
 
 // =============================================================================

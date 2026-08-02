@@ -896,7 +896,7 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	}
 
 	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
-	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec)
+	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, "")
 }
 
 // emitVisitCheckout is broadcastVisitCheckout with the student display data
@@ -911,6 +911,7 @@ func (s *service) emitVisitCheckout(
 	snapshot *AttendanceSnapshot,
 	studentName string,
 	studentRec *userModels.Student,
+	source string,
 ) {
 	if s.Broadcaster == nil || endedVisit == nil {
 		return
@@ -923,6 +924,9 @@ func (s *service) emitVisitCheckout(
 	data := realtime.EventData{
 		StudentID:   &studentID,
 		StudentName: &studentName,
+	}
+	if source != "" {
+		data.Source = &source
 	}
 	if len(eduGroupIDs) > 0 {
 		data.GroupIDs = &eduGroupIDs
