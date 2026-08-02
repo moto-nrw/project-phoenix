@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -57,17 +58,18 @@ var logMethodsAtInfoOrAbove = map[string]bool{
 	"Error": true, "ErrorContext": true,
 }
 
-// forbiddenLogSelectors are the fields that yield a person's name or a greeting
-// built from one. Matching the selector keeps the check independent of the
+// forbiddenLogSelectors are fields and methods that yield a person's name or a
+// greeting built from one. Matching the selector keeps the check independent of the
 // receiver type and of the attribute key.
 var forbiddenLogSelectors = map[string]bool{
 	"FirstName":   true,
 	"LastName":    true,
+	"GetFullName": true,
 	"GreetingMsg": true,
 }
 
 // scanLogCallsForPII parses every non-test .go file under backendRoot and
-// reports "path:line: field" for each Info+ log call reading a forbidden field.
+// reports "path:line: selector" for each Info+ log call reading a forbidden value.
 func scanLogCallsForPII(backendRoot string) ([]string, error) {
 	var violations []string
 	fset := token.NewFileSet()
@@ -101,7 +103,7 @@ func scanLogCallsForPII(backendRoot string) ([]string, error) {
 				return true
 			}
 			fun, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || !logMethodsAtInfoOrAbove[fun.Sel.Name] {
+			if !ok || !isLogCallAtInfoOrAbove(call, fun.Sel.Name) {
 				return true
 			}
 			for _, field := range forbiddenFieldsIn(call.Args) {
@@ -120,7 +122,35 @@ func scanLogCallsForPII(backendRoot string) ([]string, error) {
 	return violations, nil
 }
 
-// forbiddenFieldsIn returns the forbidden field names read anywhere in args,
+// isLogCallAtInfoOrAbove also covers Log and LogAttrs, whose second argument
+// selects the level. A dynamic level is treated conservatively because it can
+// resolve to Info or above at runtime.
+func isLogCallAtInfoOrAbove(call *ast.CallExpr, method string) bool {
+	if logMethodsAtInfoOrAbove[method] {
+		return true
+	}
+	if method != "Log" && method != "LogAttrs" {
+		return false
+	}
+	if len(call.Args) < 2 {
+		return true
+	}
+	return !isSlogDebugLevel(call.Args[1])
+}
+
+func isSlogDebugLevel(expr ast.Expr) bool {
+	if paren, ok := expr.(*ast.ParenExpr); ok {
+		return isSlogDebugLevel(paren.X)
+	}
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "LevelDebug" {
+		return false
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Name == "slog"
+}
+
+// forbiddenFieldsIn returns forbidden selector names read anywhere in args,
 // including nested inside fmt.Sprintf or string concatenation.
 func forbiddenFieldsIn(args []ast.Expr) []string {
 	seen := map[string]bool{}
@@ -137,4 +167,60 @@ func forbiddenFieldsIn(args []ast.Expr) []string {
 	}
 	sort.Strings(found)
 	return found
+}
+
+func TestGDPRLogPIIRatchetCoversExplicitLevelsAndFullNames(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     string
+		wantFields []string
+	}{
+		{
+			name:       "Log at Info",
+			source:     `logger.Log(ctx, slog.LevelInfo, "student", "name", person.GetFullName())`,
+			wantFields: []string{"GetFullName"},
+		},
+		{
+			name:       "LogAttrs at Warn",
+			source:     `slog.LogAttrs(ctx, slog.LevelWarn, "student", slog.String("name", person.FirstName))`,
+			wantFields: []string{"FirstName"},
+		},
+		{
+			name:       "LogAttrs with dynamic level",
+			source:     `logger.LogAttrs(ctx, level, "student", slog.String("name", person.LastName))`,
+			wantFields: []string{"LastName"},
+		},
+		{
+			name:   "LogAttrs at Debug",
+			source: `logger.LogAttrs(ctx, slog.LevelDebug, "student", slog.String("name", person.GetFullName()))`,
+		},
+		{
+			name:   "Debug convenience method",
+			source: `logger.Debug("student", "name", person.GetFullName())`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			source := "package sample\nfunc check() {\n" + tt.source + "\n}\n"
+			if err := os.WriteFile(filepath.Join(root, "sample.go"), []byte(source), 0o600); err != nil {
+				t.Fatalf("write fixture: %v", err)
+			}
+
+			violations, err := scanLogCallsForPII(root)
+			if err != nil {
+				t.Fatalf("scan fixture: %v", err)
+			}
+			if len(violations) != len(tt.wantFields) {
+				t.Fatalf("got violations %v, want fields %v", violations, tt.wantFields)
+			}
+			joined := strings.Join(violations, "\n")
+			for _, field := range tt.wantFields {
+				if !strings.Contains(joined, "logs "+field) {
+					t.Errorf("violations %q do not report %s", joined, field)
+				}
+			}
+		})
+	}
 }
