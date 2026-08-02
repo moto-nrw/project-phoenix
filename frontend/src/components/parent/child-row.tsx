@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Avatar } from "~/components/ui/avatar";
 import {
   StatusBadge,
   type StatusBadgeTone,
@@ -23,35 +24,6 @@ export interface ChildRowItem {
   readonly href?: string;
 }
 
-export function childInitials(first: string, last = ""): string {
-  return `${first.at(0) ?? ""}${last.at(0) ?? ""}`.toUpperCase();
-}
-
-/** Initials from a rendered full name ("Felix Schneider" → "FS"). */
-export function initialsFromFullName(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  return childInitials(
-    parts[0] ?? "",
-    parts.at(-1) === parts[0] ? "" : (parts.at(-1) ?? ""),
-  );
-}
-
-/** Neutral initials avatar. Brand green, used sparingly as the one accent. */
-export function ChildAvatar({
-  initials,
-  size = "sm",
-}: Readonly<{ initials: string; size?: "sm" | "lg" }>) {
-  const box = size === "lg" ? "h-12 w-12 text-base" : "h-10 w-10 text-sm";
-  return (
-    <span
-      className={`flex shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 font-semibold text-[#5A8E1F] ${box}`}
-      aria-hidden="true"
-    >
-      {initials}
-    </span>
-  );
-}
-
 /**
  * `row` sits inside a SectionCard (tighter, subordinate). `card` is the
  * standalone entity card used on the "Meine Kinder" page, where the rows carry
@@ -67,9 +39,14 @@ export function ChildRow({
       : "rounded-xl border border-gray-200 bg-white p-3";
   const content = (
     <div className="flex min-w-0 items-center gap-3">
-      <ChildAvatar
-        initials={initialsFromFullName(item.name)}
-        size={variant === "card" ? "lg" : "sm"}
+      <Avatar
+        name={item.name}
+        size="md"
+        shape="rounded"
+        decorative
+        className={
+          variant === "card" ? "h-12 w-12 text-base" : "h-10 w-10 text-sm"
+        }
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">

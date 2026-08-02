@@ -603,14 +603,18 @@ function DepartureSection({
                 </th>
                 {DEPARTURE_REQUEST_MODES.map((mode) => (
                   <td key={mode} className="px-2 py-2">
-                    <span className="inline-flex cursor-pointer items-center">
+                    <label
+                      htmlFor={`departure-${day}-${mode}`}
+                      className="inline-flex cursor-pointer items-center"
+                    >
                       <Checkbox
+                        id={`departure-${day}-${mode}`}
                         aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
                         checked={(modes[day] ?? []).includes(mode)}
                         disabled={!requestable}
                         onChange={() => toggle(day, mode)}
                       />
-                    </span>
+                    </label>
                   </td>
                 ))}
               </tr>

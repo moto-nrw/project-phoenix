@@ -32,14 +32,11 @@ import {
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
 import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
+import { Avatar } from "~/components/ui/avatar";
 import { SectionCard } from "~/components/ui/section-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import {
-  ChildAvatar,
-  initialsFromFullName,
-} from "~/components/parent/child-row";
 import {
   ParentField,
   ParentFieldGrid,
@@ -273,7 +270,13 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         title={fullName}
         description={subtitle}
         media={
-          <ChildAvatar initials={initialsFromFullName(fullName)} size="lg" />
+          <Avatar
+            name={fullName}
+            size="md"
+            shape="rounded"
+            decorative
+            className="h-12 w-12 text-base"
+          />
         }
       />
 

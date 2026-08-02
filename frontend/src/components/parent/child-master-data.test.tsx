@@ -511,7 +511,8 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
-    fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
+    const departureCheckbox = screen.getByLabelText("Mi Wird abgeholt");
+    fireEvent.click(departureCheckbox.nextElementSibling as HTMLElement);
     fireEvent.click(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     );

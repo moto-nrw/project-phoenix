@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { ButtonLink } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
@@ -128,17 +129,15 @@ export function ParentLinkAction({
   variant?: "primary" | "secondary";
   className?: string;
 }>) {
-  const styles =
-    variant === "primary"
-      ? "bg-gray-900 text-white hover:bg-gray-700"
-      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50";
   return (
-    <Link
+    <ButtonLink
       href={href}
-      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${styles} ${className}`}
+      variant={variant === "primary" ? "primary" : "outline"}
+      size="md"
+      className={className}
     >
       {children}
-    </Link>
+    </ButtonLink>
   );
 }
 
