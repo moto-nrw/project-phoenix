@@ -101,6 +101,68 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
 // The per-group student list on the OGS page ("<slug>:ogs-students-7").
 const OGS_STUDENTS_KEY_PREFIX = "ogs-students-";
 
+// Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
+// "pickup-supervisions-" is the Aktuelle-Aufsicht card row, whose key embeds
+// the room's student-id list — nothing but a roster change or Berlin midnight
+// rotates it, and it disables focus revalidation, so this list is its only
+// live update path.
+const PICKUP_TIME_CACHE_KEY_PARTS = [
+  "care-plan-day-",
+  "care-plan-week-",
+  "pickup-data-",
+  "pickup-supervisions-",
+  "student-detail-",
+] as const;
+
+// The arrival counterpart. No "arrival-search-"/"arrival-ogs-groups-" entries:
+// the Kindersuche and the OGS group view never fetched arrival under keys of
+// their own, they read it inline from their list responses, which the
+// student-list and ogs-students blocks invalidate on the same event.
+const ARRIVAL_TIME_CACHE_KEY_PARTS = [
+  "arrival-supervisions-",
+  "arrival-data-",
+  "care-plan-day-",
+  "care-plan-week-",
+] as const;
+
+// What a student_updated write can invalidate. It covers both time families on
+// purpose: a parent care-exception (submit AND delete) rewrites that day's
+// pickup and arrival override but announces ONLY student_updated — no
+// pickup_schedule_changed, no arrival_schedule_changed
+// (services/parent/parent_write_service.go SubmitCareException). An approved
+// care request is the mirror gap: it emits arrival_schedule_changed but also
+// rewrites the weekly PICKUP plan. Every one of these caches disables focus
+// revalidation, so without this list an open page keeps showing the superseded
+// time until a manual reload.
+const STUDENT_UPDATE_CACHE_KEY_PARTS = [
+  "student-detail-",
+  "student-status-days-",
+  "care-plan-day-",
+  "care-plan-week-",
+  "pickup-data-",
+  "arrival-data-",
+  "pickup-supervisions-",
+  "arrival-supervisions-",
+] as const;
+
+/**
+ * Revalidates every cached key that contains one of `parts`.
+ *
+ * `scope` only labels the debug line when SWR rejects — invalidation itself is
+ * fire-and-forget, exactly like the inline calls this replaces.
+ */
+function revalidateKeyParts(parts: readonly string[], scope: string): void {
+  mutate(
+    (key) =>
+      typeof key === "string" && parts.some((part) => key.includes(part)),
+  ).catch((err) => {
+    logger.debug("swr_revalidation_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      scope,
+    });
+  });
+}
+
 /**
  * Whether an SWR cache key belongs to exactly this id (student or group).
  *
@@ -407,39 +469,7 @@ export function useGlobalSSE(): SSEHookState {
     }
 
     if (hasPendingStudentUpdateEvent.current) {
-      mutate(
-        (key) =>
-          typeof key === "string" &&
-          (key.includes("student-detail-") ||
-            key.includes("student-status-days-") ||
-            key.includes("care-plan-day-") ||
-            key.includes("care-plan-week-") ||
-            // The staff detail header's "Heutige Abholung"/arrival slots. Parent
-            // care-exception writes (submit AND delete) change the pickup and
-            // arrival override for a day but announce ONLY student_updated —
-            // no pickup_schedule_changed, no arrival_schedule_changed
-            // (services/parent/parent_write_service.go SubmitCareException).
-            // An approved care request is the mirror gap: it emits
-            // arrival_schedule_changed but also rewrites the weekly PICKUP
-            // plan. Both keys disable focus revalidation, so without them an
-            // open detail page keeps showing the superseded time until a
-            // manual reload.
-            key.includes("pickup-data-") ||
-            key.includes("arrival-data-") ||
-            // Same write, same staleness, other page: the Aktuelle-Aufsicht
-            // cards render the day's resolved Gehzeit/Ankunft from their own
-            // bulk caches, also with focus revalidation off. Their keys embed
-            // the room's student-id list, so they only refetch when the roster
-            // changes — a parent's care exception for a child already in the
-            // room would otherwise stay invisible for the whole session.
-            key.includes("pickup-supervisions-") ||
-            key.includes("arrival-supervisions-")),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "student_detail",
-        });
-      });
+      revalidateKeyParts(STUDENT_UPDATE_CACHE_KEY_PARTS, "student_detail");
 
       // A renamed or reassigned child changes what the OTHER children's
       // Laufgemeinschaft entries show, without changing a single link — so no
@@ -490,25 +520,7 @@ export function useGlobalSSE(): SSEHookState {
     // Arrival schedule changes affect derived "Kommt heute nicht" badges and
     // arrival rows. These keys are independent from attendance/location caches.
     if (hasPendingArrivalScheduleEvent.current) {
-      mutate(
-        (key) =>
-          typeof key === "string" &&
-          // No "arrival-search-"/"arrival-ogs-groups-" clauses: the Kindersuche
-          // and the OGS group view never fetched arrival under keys of their
-          // own. Both read it inline from their list responses, which the
-          // student-list and ogs-students blocks above already invalidate on
-          // this event.
-          (key.includes("arrival-supervisions-") ||
-            key.includes("arrival-data-") ||
-            // the Betreuungsplan day/week view shows the resolved arrival slot
-            key.includes("care-plan-day-") ||
-            key.includes("care-plan-week-")),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "arrival_schedule",
-        });
-      });
+      revalidateKeyParts(ARRIVAL_TIME_CACHE_KEY_PARTS, "arrival_schedule");
     }
 
     // Pickup (Gehzeit) plan or exception changed. The per-child Betreuungsplan
@@ -525,29 +537,7 @@ export function useGlobalSSE(): SSEHookState {
     // is one re-check per open detail/care-plan page; each refetch is
     // server-access-filtered, so an out-of-scope staffer gets nothing back.
     if (hasPendingPickupScheduleEvent.current) {
-      mutate(
-        (key) =>
-          typeof key === "string" &&
-          (key.includes("care-plan-day-") ||
-            key.includes("care-plan-week-") ||
-            // the detail header's "Gehzeit heute" slot
-            key.includes("pickup-data-") ||
-            // The Aktuelle-Aufsicht student cards, whose PickupTimeRow drives
-            // the "Abholung überfällig" urgency colouring. Its key is
-            // "pickup-supervisions-{date}-{studentIds}", so nothing but a
-            // roster change or Berlin midnight rotates it — and the cache
-            // disables focus revalidation. Without this clause a colleague's
-            // Gehzeit edit stayed invisible to the supervising staff member
-            // for the rest of the session, which is precisely the surface
-            // that needs to act on it.
-            key.includes("pickup-supervisions-") ||
-            key.includes("student-detail-")),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "pickup_schedule",
-        });
-      });
+      revalidateKeyParts(PICKUP_TIME_CACHE_KEY_PARTS, "pickup_schedule");
     }
 
     // The Betreuungszeiten editor (CareScheduleManager) holds its arrival/pickup
