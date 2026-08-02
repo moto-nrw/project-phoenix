@@ -176,7 +176,7 @@ describe("StaffDetailContent permissions", () => {
     );
   });
 
-  it.each(["users:read", "users:update", "staff:financial"])(
+  it.each(["users:update", "staff:financial"])(
     "shows Stammdaten to a role with %s",
     (permission) => {
       vi.mocked(useSession).mockReturnValue({
@@ -201,4 +201,30 @@ describe("StaffDetailContent permissions", () => {
       expect(replaceMock).not.toHaveBeenCalled();
     },
   );
+
+  // users:read is the list tier; the Stammdaten sections carry HR-file data
+  // (birthday, private address, contract terms) and stay closed to it —
+  // mirrors the backend route gate.
+  it("redirects a role with only users:read away from the detail page", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["users:read"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(replaceMock).toHaveBeenCalledWith("/staff");
+    expect(
+      screen.queryByRole("button", { name: "Stammdaten" }),
+    ).not.toBeInTheDocument();
+  });
 });

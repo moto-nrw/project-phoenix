@@ -1,7 +1,8 @@
 // Router-level tests for /api/staff/{id}/stammdaten (#1423): the
-// non-sensitive sections share the directory tier (users:read/users:update),
-// the bank & tax section sits exclusively behind staff:financial, and the
-// reveal endpoint serves plaintext only after the audited POST.
+// non-sensitive sections are HR-file data and sit behind users:update /
+// time_tracking:manage (deliberately NOT users:read — see the router
+// comment), the bank & tax section sits exclusively behind staff:financial,
+// and the reveal endpoint serves plaintext only after the audited POST.
 package staff_test
 
 import (
@@ -23,9 +24,10 @@ func TestStammdatenAPI_PermissionSplit(t *testing.T) {
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)
 
-	// Aggregate GET: directory read/update or time-tracking manager.
+	// Aggregate GET: staff maintainers and time-tracking managers only.
+	// users:read (the list tier) must NOT open the HR sections.
 	rec := ctx.get(base, "users:read")
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	rec = ctx.get(base, "users:update")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = ctx.get(base, "time_tracking:manage")
@@ -99,7 +101,7 @@ func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {
 	rec = ctx.put(base+"/qualifikationen", `{"qualifikationen":[{"name":"Erste-Hilfe-Kurs","acquired_on":"2023-03-10","expires_on":"2026-03-10"},{"name":"Schwimmschein","acquired_on":null,"expires_on":null}],"note":"Nachweise"}`, "users:update")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = ctx.get(base, "users:read")
+	rec = ctx.get(base, "users:update")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	body := rec.Body.String()
 	for _, fragment := range []string{

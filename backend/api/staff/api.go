@@ -116,12 +116,17 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/payroll-number", rs.getPayrollNumber)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/payroll-number", rs.updatePayrollNumber)
 
-		// Stammdaten (#1423). The non-sensitive sections share the directory
-		// tier: readable wherever the profile is readable, editable with
-		// users:update. The bank & tax section is staff:financial ONLY —
-		// the directory maintainers are not the Träger payroll office (school
-		// admins still match via the admin:* wildcard).
-		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).Get("/{id}/stammdaten", rs.getStammdaten)
+		// Stammdaten (#1423). Deliberately stricter than the issue's
+		// users:read: birthday, private address, contract terms and
+		// qualifications are HR-file data about identifiable people, and
+		// users:read is held by everyone who may see the staff list at all
+		// (same reasoning as /time-tracking/overview and /payroll-number).
+		// Readable only for those who maintain staff (users:update) or hold
+		// the management view (time_tracking:manage). The bank & tax section
+		// is staff:financial ONLY — the directory maintainers are not the
+		// Träger payroll office (school admins still match via the admin:*
+		// wildcard).
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).Get("/{id}/stammdaten", rs.getStammdaten)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/person", rs.updateStammdatenPerson)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/kontakt", rs.updateStammdatenKontakt)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/arbeitsvertrag", rs.updateStammdatenArbeitsvertrag)

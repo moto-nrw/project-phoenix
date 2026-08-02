@@ -243,8 +243,7 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 	rows := s.auditRows(t, staff.ID)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "qualifications", rows[0].FieldName)
-	assert.Contains(t, rows[0].NewValue, "Erste-Hilfe-Kurs (bis 2026-03-10)")
-	assert.Contains(t, rows[0].NewValue, "Erste-Hilfe-Kurs (erworben 2023-03-10)")
+	assert.Contains(t, rows[0].NewValue, "Erste-Hilfe-Kurs (erworben 2023-03-10) (bis 2026-03-10)")
 
 	// Changing only the acquisition date must persist and create an audit row.
 	updatedAcquired := timezone.NewDate(2023, 4, 10)

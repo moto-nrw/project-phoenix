@@ -134,11 +134,11 @@ export default function StaffDetailContent() {
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
   const canEditStammdaten = hasPermission(session, "users:update");
+  // Deliberately NOT users:read: the sections carry HR-file data (birthday,
+  // private address, contract terms), and users:read is held by everyone who
+  // may see the staff list at all — mirrors the backend route gate.
   const canViewStammdatenSections =
-    canEdit ||
-    canManageTimeTracking ||
-    hasPermission(session, "users:read") ||
-    canEditStammdaten;
+    canEdit || canManageTimeTracking || canEditStammdaten;
   const canViewFinancial = hasPermission(session, "staff:financial");
   const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
 
