@@ -36,7 +36,6 @@ import {
   matchesAttendanceFilter,
 } from "./ogs-group-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { berlinTodayISO } from "~/lib/date-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
@@ -249,8 +248,6 @@ function OGSGroupPageContent() {
 
   // Current time for urgency calculation (updates every minute)
   const now = useMinuteClock();
-  const accessDay = berlinTodayISO(now);
-  const accessDayRef = useRef(accessDay);
 
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -267,7 +264,6 @@ function OGSGroupPageContent() {
     data: liveData,
     isLoading: isLiveLoading,
     error: liveError,
-    mutate: refreshLiveData,
   } = useSWRAuth<OgsLiveViewData>(
     session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
     async () => {
@@ -297,16 +293,6 @@ function OGSGroupPageContent() {
       refreshInterval: GROUP_ACCESS_RECONCILE_INTERVAL_MS,
     },
   );
-
-  // Substitution access is date-bound. Crossing Berlin midnight changes the
-  // effective group set without a database write and therefore without SSE.
-  // useMinuteClock also resyncs on focus/visibility, so a throttled background
-  // tab catches the rollover as soon as it becomes active again.
-  useEffect(() => {
-    if (accessDayRef.current === accessDay) return;
-    accessDayRef.current = accessDay;
-    void refreshLiveData();
-  }, [accessDay, refreshLiveData]);
 
   // Sync the aggregated live data with local state. The response is
   // self-describing (groupId says which group its live sections belong to),
