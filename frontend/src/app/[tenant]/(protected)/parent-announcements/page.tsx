@@ -38,7 +38,11 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { endOfBerlinDayISO, formatDate } from "~/lib/date-helpers";
+import {
+  berlinDayFromISO,
+  endOfBerlinDayISO,
+  formatDate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { groupService, studentService } from "~/lib/api";
@@ -869,8 +873,11 @@ function AnnouncementFormModal({
     announcement?.requires_acknowledgement ?? false,
   );
   const [sendEmail, setSendEmail] = useState(announcement?.send_email ?? false);
+  // Both cut-offs were written as the END of a Berlin day, so they have to be
+  // read back as that Berlin day — a plain `new Date(...)` shows the following
+  // day east of Berlin and re-saving would move the date by one day.
   const [expiresAt, setExpiresAt] = useState<Date | null>(
-    announcement?.expires_at ? new Date(announcement.expires_at) : null,
+    announcement?.expires_at ? berlinDayFromISO(announcement.expires_at) : null,
   );
   const [targets, setTargets] = useState<AnnouncementTarget[]>(
     announcement?.targets ?? [],
@@ -893,7 +900,7 @@ function AnnouncementFormModal({
   });
   const [deadline, setDeadline] = useState<Date | null>(
     announcement?.response_deadline
-      ? new Date(announcement.response_deadline)
+      ? berlinDayFromISO(announcement.response_deadline)
       : null,
   );
 

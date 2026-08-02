@@ -100,6 +100,25 @@ export function berlinTodayISO(at: Date = new Date()): string {
 }
 
 /**
+ * The Berlin calendar day an instant falls on, as a Date at LOCAL midnight —
+ * the shape the date pickers render and `endOfBerlinDayISO` reads back.
+ *
+ * Use this to seed a date picker from a cut-off written by
+ * `endOfBerlinDayISO`. Loading it with a plain `new Date(iso)` shows the
+ * FOLLOWING day in any browser east of Berlin (23:59 Berlin is already past
+ * midnight there), so saving an otherwise untouched form would silently push
+ * the date one day out.
+ *
+ * Returns null for an unparseable value so a malformed timestamp renders as
+ * "no date" instead of throwing inside the picker.
+ */
+export function berlinDayFromISO(value: string): Date | null {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return null;
+  return parseISODate(berlinTodayISO(instant));
+}
+
+/**
  * Serializes the selected calendar day as 23:59:59 in the school's
  * Europe/Berlin timezone. The Date carries calendar fields from the date
  * picker, so those fields deliberately remain local to the person selecting

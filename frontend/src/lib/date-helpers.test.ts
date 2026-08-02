@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
+  berlinDayFromISO,
   groupByDate,
   formatDate,
   formatTime,
@@ -108,6 +109,52 @@ describe("endOfBerlinDayISO", () => {
     expect(endOfBerlinDayISO(new Date(2026, 0, 20))).toBe(
       "2026-01-20T22:59:59.000Z",
     );
+  });
+});
+
+describe("berlinDayFromISO", () => {
+  // The tests below run in a browser timezone east of Berlin, where a Berlin
+  // end-of-day instant already falls on the next local calendar day.
+  const withTimezone = (tz: string, run: () => void) => {
+    const previous = process.env.TZ;
+    process.env.TZ = tz;
+    try {
+      run();
+    } finally {
+      process.env.TZ = previous;
+    }
+  };
+
+  afterEach(() => {
+    expect(process.env.TZ).toBe("Europe/Berlin");
+  });
+
+  it("keeps the Berlin day of a summer cut-off east of Berlin", () => {
+    withTimezone("Europe/Moscow", () => {
+      // 23:59:59 CEST on 20.07. — 02:59 the next morning in Moscow
+      const day = berlinDayFromISO("2026-07-20T21:59:59.000Z");
+      expect(toISODate(day!)).toBe("2026-07-20");
+    });
+  });
+
+  it("keeps the Berlin day of a winter cut-off east of Berlin", () => {
+    withTimezone("Europe/Kyiv", () => {
+      // 23:59:59 CET on 20.01. — 00:59 the next morning in Kyiv
+      const day = berlinDayFromISO("2026-01-20T22:59:59.000Z");
+      expect(toISODate(day!)).toBe("2026-01-20");
+    });
+  });
+
+  it("round-trips through endOfBerlinDayISO without moving the day", () => {
+    // Reopening an unchanged draft and saving it must not extend the cut-off.
+    withTimezone("Asia/Tokyo", () => {
+      const stored = "2026-07-20T21:59:59.000Z";
+      expect(endOfBerlinDayISO(berlinDayFromISO(stored)!)).toBe(stored);
+    });
+  });
+
+  it("returns null for an unparseable value", () => {
+    expect(berlinDayFromISO("nicht-datum")).toBeNull();
   });
 });
 
