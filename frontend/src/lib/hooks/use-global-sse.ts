@@ -493,9 +493,12 @@ export function useGlobalSSE(): SSEHookState {
       mutate(
         (key) =>
           typeof key === "string" &&
-          (key.includes("arrival-search-") ||
-            key.includes("arrival-supervisions-") ||
-            key.includes("arrival-ogs-groups-") ||
+          // No "arrival-search-"/"arrival-ogs-groups-" clauses: the Kindersuche
+          // and the OGS group view never fetched arrival under keys of their
+          // own. Both read it inline from their list responses, which the
+          // student-list and ogs-students blocks above already invalidate on
+          // this event.
+          (key.includes("arrival-supervisions-") ||
             key.includes("arrival-data-") ||
             // the Betreuungsplan day/week view shows the resolved arrival slot
             key.includes("care-plan-day-") ||

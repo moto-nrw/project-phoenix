@@ -1043,14 +1043,13 @@ describe("useGlobalSSE", () => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("arrival-search-X")
+          (matcher as (key: string) => boolean)("arrival-supervisions-X")
         );
       });
       expect(arrivalCall).toBeDefined();
 
       const matcher = arrivalCall![0] as (key: string) => boolean;
       expect(matcher("tenant:arrival-supervisions-1")).toBe(true);
-      expect(matcher("tenant:arrival-ogs-groups-1")).toBe(true);
       expect(matcher("tenant:arrival-data-42")).toBe(true);
       expect(matcher("tenant:unrelated-key")).toBe(false);
 
