@@ -134,17 +134,20 @@ func TestReminderOccurrences(t *testing.T) {
 
 // The idempotency key is what makes a second scheduler tick, an overlapping
 // window or a restarted process harmless. It has to separate exactly three
-// things and nothing else.
+// things plus the current appointment revision. A content edit must be able to
+// replace a pending reminder that was cancelled as stale.
 func TestAppointmentReminderKey(t *testing.T) {
-	base := appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), 7)
+	base := appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 7)
 
-	assert.Equal(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), 7),
+	assert.Equal(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 7),
 		"the same occurrence and guardian must produce the same key, or the mail repeats")
-	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 12), 7),
+	assert.NotEqual(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 12), 7),
 		"every occurrence of a series gets its own reminder")
-	assert.NotEqual(t, base, appointmentReminderKey(42, timezone.NewDate(2026, 1, 5), 8),
+	assert.NotEqual(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 8),
 		"both parents of a child get their own mail")
-	assert.NotEqual(t, base, appointmentReminderKey(43, timezone.NewDate(2026, 1, 5), 7))
+	assert.NotEqual(t, base, appointmentReminderKey(43, 3, timezone.NewDate(2026, 1, 5), 7))
+	assert.NotEqual(t, base, appointmentReminderKey(42, 4, timezone.NewDate(2026, 1, 5), 7),
+		"an updated appointment needs a replacement reminder key")
 }
 
 func TestAppointmentNotificationCopyCarriesNoAppointmentTitle(t *testing.T) {

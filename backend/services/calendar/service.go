@@ -659,6 +659,10 @@ func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return err
 	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if err != nil {
+		return err
+	}
 	// Deleting is silent (no notice); kill any queued e-mails first so the worker
 	// doesn't send a mail for a row we're about to remove or tombstone.
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
@@ -708,6 +712,10 @@ func (s *service) appointmentHasGuardianRecipients(ctx context.Context, appointm
 
 func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
 	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
 	if err != nil {
 		return err
 	}

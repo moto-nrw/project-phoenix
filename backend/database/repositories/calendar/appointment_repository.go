@@ -42,6 +42,54 @@ func (r *AppointmentRepository) FindByID(ctx context.Context, id int64) (*calMod
 	return appointment, nil
 }
 
+// FindByIDForUpdate retrieves an appointment while holding its row lock until
+// the transaction completes. Lifecycle operations use the same row lock, which
+// keeps a per-occurrence change from racing a reminder enqueue.
+func (r *AppointmentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*calModels.Appointment, error) {
+	appointment := new(calModels.Appointment)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(appointment).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`"appointment".id = ?`, id).
+		For("UPDATE")
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("appointment %d not found", id)
+		}
+		return nil, fmt.Errorf("lock appointment for update: %w", err)
+	}
+	return appointment, nil
+}
+
+// LockReminderCandidate rechecks the reminder-specific lifecycle predicates
+// while obtaining the appointment row lock. A cancellation, deletion, or
+// notification opt-out that committed after the scheduler's candidate scan
+// therefore suppresses the later outbox insert.
+func (r *AppointmentRepository) LockReminderCandidate(ctx context.Context, id int64) (*calModels.Appointment, error) {
+	appointment := new(calModels.Appointment)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(appointment).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`"appointment".id = ?`, id).
+		Where(`"appointment".deleted_at IS NULL`).
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".notify_guardians`).
+		For("UPDATE")
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("lock reminder candidate: %w", err)
+	}
+	return appointment, nil
+}
+
 func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
 	var rows []*calModels.Appointment
 	query := base.GetDB(ctx, r.DB).NewSelect().

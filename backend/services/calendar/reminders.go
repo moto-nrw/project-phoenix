@@ -30,7 +30,7 @@ const allDayReminderHour = 8
 // nevertheless impossible — every row carries an idempotency key of
 // (appointment, occurrence, guardian) and the outbox insert is ON CONFLICT DO
 // NOTHING, so a re-run, an overlapping window, or a second scheduler process
-// cannot produce a second mail for the same occurrence.
+// cannot produce a second mail for the same occurrence revision.
 func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error) {
 	if s.cfg.Outbox == nil || !to.After(from) {
 		return 0, nil
@@ -93,19 +93,6 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 		ids = append(ids, appointment.ID)
 	}
 
-	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, fromDate, toDate)
-	for _, override := range movedOverrides {
-		occurrenceDates = append(occurrenceDates, override.OccurrenceDate)
-	}
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, occurrenceDates)
-	if err != nil {
-		return 0, fmt.Errorf("calendar: load reminder overrides: %w", err)
-	}
-	overrideByAppointmentDate := make(map[string]*calModels.AppointmentOccurrenceOverride, len(overrides))
-	for _, override := range overrides {
-		overrideByAppointmentDate[fmt.Sprintf("%d:%s", override.AppointmentID, override.OccurrenceDate.String())] = override
-	}
-
 	queued := 0
 	for _, appointment := range appointments {
 		occurrences := reminderOccurrences(appointment, recurrenceByAppointment[appointment.ID], fromDate, toDate)
@@ -118,16 +105,43 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 				continue
 			}
 			seenOccurrences[occurrence] = struct{}{}
-			override := overrideByAppointmentDate[fmt.Sprintf("%d:%s", appointment.ID, occurrence.String())]
+			// The initial scan is deliberately broad and may have observed an
+			// appointment before an edit, cancellation, or occurrence cancellation
+			// committed. Re-read it under a row lock before creating an outbox row.
+			// Lifecycle writes take the same lock; whichever transaction wins, the
+			// loser sees the committed state and cannot leave a stale reminder.
+			current, err := s.cfg.AppointmentRepo.LockReminderCandidate(ctx, appointment.ID)
+			if err != nil {
+				return queued, fmt.Errorf("calendar: lock reminder candidate: %w", err)
+			}
+			if current == nil {
+				continue
+			}
+			currentRule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, current.ID)
+			if err != nil {
+				return queued, fmt.Errorf("calendar: reload reminder recurrence: %w", err)
+			}
+			if (currentRule == nil && current.StartDate != occurrence) ||
+				(currentRule != nil && !occurrenceExists(current, currentRule, occurrence)) {
+				continue
+			}
+			currentOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{current.ID}, []timezone.Date{occurrence})
+			if err != nil {
+				return queued, fmt.Errorf("calendar: reload reminder override: %w", err)
+			}
+			var override *calModels.AppointmentOccurrenceOverride
+			if len(currentOverrides) > 0 {
+				override = currentOverrides[0]
+			}
 			if override != nil && override.Cancelled {
 				continue
 			}
-			effective := appointmentWithOverride(appointment, occurrence, override)
+			effective := appointmentWithOverride(current, occurrence, override)
 			startsAt := occurrenceStartInstant(effective)
 			if startsAt.Before(from) || !startsAt.Before(to) {
 				continue
 			}
-			count, _, err := s.enqueueAppointmentReminder(ctx, appointment, effective, occurrence)
+			count, _, err := s.enqueueAppointmentReminder(ctx, current, effective, occurrence)
 			if err != nil {
 				return queued, err
 			}
@@ -253,13 +267,13 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
-		if profile.Email != nil && *profile.Email != "" && profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
-			{
-				optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
+		if profile.Email != nil && *profile.Email != "" {
+			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
+				notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 				if err != nil {
 					return queued, nil, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
 				}
-				if len(optedIn) == 0 {
+				if len(notOptedOut) == 0 {
 					continue
 				}
 			}
@@ -270,7 +284,7 @@ func (s *service) enqueueAppointmentReminder(
 					apptPayloadTitle: effective.Title, apptPayloadWhen: whenText, apptPayloadLocation: location,
 					apptPayloadSchoolName: schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: logoURL, apptPayloadMotoLogoURL: motoLogoURL,
 				},
-				IdempotencyKey: appointmentReminderKey(appointment.ID, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
+				IdempotencyKey: appointmentReminderKey(appointment.ID, appointment.Revision, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
 			})
 			if err != nil {
 				return queued, nil, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
@@ -332,10 +346,11 @@ func (s *service) enqueueAppointmentReminder(
 	return queued, nil, nil
 }
 
-func appointmentReminderKey(appointmentID int64, occurrence timezone.Date, guardianProfileID int64) string {
-	return fmt.Sprintf("%s:%d:%s:%d",
+func appointmentReminderKey(appointmentID int64, revision int, occurrence timezone.Date, guardianProfileID int64) string {
+	return fmt.Sprintf("%s:%d:%d:%s:%d",
 		platformModels.EmailKindAppointmentReminder,
 		appointmentID,
+		revision,
 		occurrence.String(),
 		guardianProfileID,
 	)

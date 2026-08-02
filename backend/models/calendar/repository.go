@@ -10,6 +10,10 @@ import (
 type AppointmentRepository interface {
 	Create(ctx context.Context, appointment *Appointment) error
 	FindByID(ctx context.Context, id int64) (*Appointment, error)
+	// FindByIDForUpdate locks an appointment until the current transaction
+	// completes. It serializes reminder delivery with lifecycle changes and
+	// per-occurrence overrides that affect that delivery.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Appointment, error)
 	Update(ctx context.Context, appointment *Appointment) error
 	// BumpRevision advances the revision counter without touching other fields,
 	// used when a change affecting the exported calendar lives in a child table.
@@ -43,6 +47,10 @@ type AppointmentRepository interface {
 	// window predicate the calendar listings use) — which concrete occurrences
 	// fall due is decided in the service, which owns occurrence expansion.
 	ListGuardianReminderCandidates(ctx context.Context, from, to timezone.Date) ([]*Appointment, error)
+	// LockReminderCandidate re-reads a reminder candidate while holding its row
+	// lock. It returns nil when a lifecycle transition has made the appointment
+	// ineligible since the scheduler's coarse candidate scan.
+	LockReminderCandidate(ctx context.Context, id int64) (*Appointment, error)
 }
 
 type RecurrenceRuleRepository interface {
