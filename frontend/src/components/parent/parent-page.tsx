@@ -98,7 +98,7 @@ export function ParentPageHeader({
 }
 
 /** Text back link. Quiet by design — navigation, not an action. */
-export function ParentBackLink({
+function ParentBackLink({
   href,
   label,
 }: Readonly<{ href: string; label: string }>) {

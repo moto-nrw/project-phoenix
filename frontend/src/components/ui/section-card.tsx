@@ -113,31 +113,3 @@ export function SectionCard({
     </section>
   );
 }
-
-/**
- * A quiet numeric/textual fact inside a SectionCard. Deliberately understated:
- * no colored dot, no oversized number. Colour is reserved for the single value
- * that genuinely needs attention, passed via `tone="critical"`.
- */
-export function StatTile({
-  label,
-  value,
-  tone = "neutral",
-}: Readonly<{
-  label: string;
-  value: ReactNode;
-  tone?: "neutral" | "critical";
-}>) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span
-        className={`block text-sm font-semibold ${tone === "critical" ? "text-[#FF3130]" : "text-gray-900"}`}
-      >
-        {value}
-      </span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
-}
