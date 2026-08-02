@@ -335,12 +335,6 @@ func (s *service) enqueueAppointmentReminder(
 					return queued, nil, fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
 				}
 			}
-			if err != nil {
-				// Let the scheduler retain this tenant's scan boundary. The next
-				// bounded replay then retries a dispatch that failed before it was
-				// accepted by the notifier.
-				return queued, nil, fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
-			}
 		}
 	}
 
