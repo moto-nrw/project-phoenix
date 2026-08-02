@@ -11,6 +11,7 @@ import {
   isValidISODate,
   todayISO,
   berlinTodayISO,
+  endOfBerlinDayISO,
   formatChatTime,
   formatChatDateTime,
 } from "./date-helpers";
@@ -93,6 +94,20 @@ describe("berlinTodayISO", () => {
       day: "2-digit",
     }).format(new Date()); // en-CA formats as YYYY-MM-DD
     expect(berlinTodayISO()).toBe(expected);
+  });
+});
+
+describe("endOfBerlinDayISO", () => {
+  it("uses the CEST end of day for a selected summer date", () => {
+    expect(endOfBerlinDayISO(new Date(2026, 6, 20))).toBe(
+      "2026-07-20T21:59:59.000Z",
+    );
+  });
+
+  it("uses the CET end of day for a selected winter date", () => {
+    expect(endOfBerlinDayISO(new Date(2026, 0, 20))).toBe(
+      "2026-01-20T22:59:59.000Z",
+    );
   });
 });
 

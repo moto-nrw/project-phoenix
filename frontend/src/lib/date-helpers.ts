@@ -12,6 +12,17 @@ const BERLIN_DATE_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "2-digit",
 });
 
+const BERLIN_DATE_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
@@ -86,6 +97,31 @@ export function berlinTodayISO(at: Date = new Date()): string {
   const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(at);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * Serializes the selected calendar day as 23:59:59 in the school's
+ * Europe/Berlin timezone. The Date carries calendar fields from the date
+ * picker, so those fields deliberately remain local to the person selecting
+ * the day; only the resulting deadline instant is pinned to Berlin.
+ */
+export function endOfBerlinDayISO(date: Date): string {
+  const nominalUtc = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
+  );
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(nominalUtc);
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const berlinWallClockAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  const berlinOffsetMs = berlinWallClockAsUtc - nominalUtc.getTime();
+  return new Date(nominalUtc.getTime() - berlinOffsetMs).toISOString();
 }
 
 /**

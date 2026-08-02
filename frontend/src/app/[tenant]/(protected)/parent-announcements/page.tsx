@@ -38,7 +38,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { formatDate } from "~/lib/date-helpers";
+import { endOfBerlinDayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { groupService, studentService } from "~/lib/api";
@@ -176,18 +176,6 @@ function summarizeTargets(targets: AnnouncementTarget[]): string {
       return `${count} ${TARGET_TYPE_PLURAL[type]}`;
     })
     .join(", ");
-}
-
-/** End of the chosen calendar day as an instant. expires_at is a TIMESTAMPTZ. */
-function endOfDayISO(date: Date): string {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    23,
-    59,
-    59,
-  ).toISOString();
 }
 
 /** Returns a German validation error for a non-empty link, or null when ok. */
@@ -989,7 +977,7 @@ function AnnouncementFormModal({
       // polls, so a value left over from a converted draft must not leak).
       requires_acknowledgement: isPollForm ? false : requiresAck,
       send_email: sendEmail,
-      expires_at: expiresAt ? endOfDayISO(expiresAt) : null,
+      expires_at: expiresAt ? endOfBerlinDayISO(expiresAt) : null,
       targets,
       response_type: isPollForm
         ? multiChoice
@@ -998,7 +986,8 @@ function AnnouncementFormModal({
         : "none",
       // The chosen day is the LAST day parents can answer, so the cut-off is
       // its end — not midnight, which would close the poll a day early.
-      response_deadline: isPollForm && deadline ? endOfDayISO(deadline) : null,
+      response_deadline:
+        isPollForm && deadline ? endOfBerlinDayISO(deadline) : null,
       options: isPollForm ? options : undefined,
     };
 
