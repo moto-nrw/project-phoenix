@@ -373,7 +373,26 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedByStaffID, claims.Username)
+		if err := rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedByStaffID, claims.Username); err != nil {
+			return err
+		}
+		storedNames, err := rs.StaffDocumentService.ListStoredStaffDocumentFiles(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, storedName := range storedNames {
+			name := storedName
+			tenant.RegisterAfterCommit(ctx, func() {
+				if err := rs.removeStoredDocument(r, name); err != nil {
+					rs.getLogger().Error("staff document cleanup failed after offboarding",
+						"staff_id", id,
+						"stored_name", name,
+						"error", err,
+					)
+				}
+			})
+		}
+		return nil
 	}); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
 			common.RenderError(w, r, common.ErrorConflictMessage(usersSvc.ErrStaffInUse.Error()))

@@ -97,5 +97,12 @@ type StaffDocumentRepository interface {
 	// newest first, optionally restricted to the given categories. An empty
 	// category list returns nothing (the caller may see no category at all).
 	ListByStaffID(ctx context.Context, staffID int64, categories []string) ([]*StaffDocument, error)
+	// ListStoredByStaffID returns all stored filenames, including soft-deleted
+	// rows, for after-commit filesystem cleanup during staff offboarding.
+	ListStoredByStaffID(ctx context.Context, staffID int64) ([]string, error)
+	// FindForStaffIncludingDeleted loads a document by the staff/document URL
+	// pair even after its metadata was soft-deleted, so filesystem cleanup can
+	// be retried without exposing unrelated records.
+	FindForStaffIncludingDeleted(ctx context.Context, staffID, documentID int64) (*StaffDocument, error)
 	SoftDelete(ctx context.Context, doc *StaffDocument, deletedBy int64) error
 }

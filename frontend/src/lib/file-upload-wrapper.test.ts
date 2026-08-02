@@ -105,6 +105,24 @@ describe("createFileUploadHandler", () => {
       });
     });
 
+    it("rejects an oversized request before parsing its multipart body", async () => {
+      const handler = vi.fn();
+      const wrappedHandler = createFileUploadHandler(handler, {
+        maxSizeInMB: 5,
+      });
+      const request = new NextRequest("http://localhost:3000/api/upload", {
+        method: "POST",
+        body: new FormData(),
+      });
+      request.headers.set("content-length", String(7 * 1024 * 1024));
+      const context = { params: Promise.resolve({}) };
+
+      const response = await wrappedHandler(request, context);
+
+      expect(response.status).toBe(413);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
     it("rejects files exceeding size limit (default 5MB)", async () => {
       const handler = vi.fn();
       const wrappedHandler = createFileUploadHandler(handler);

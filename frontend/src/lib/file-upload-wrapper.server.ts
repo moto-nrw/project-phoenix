@@ -11,6 +11,8 @@ interface FileUploadOptions {
   allowedExtensions?: string[];
 }
 
+const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
+
 /** Error thrown by file validation with the appropriate HTTP status code. */
 export class FileValidationError extends Error {
   readonly status: number;
@@ -130,6 +132,19 @@ export function createFileUploadHandler<T>(
         }
 
         // Get form data
+        const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
+        const contentLength = request.headers.get("content-length");
+        if (
+          contentLength !== null &&
+          Number(contentLength) > maxSizeInBytes + MULTIPART_OVERHEAD_BYTES
+        ) {
+          return NextResponse.json(
+            {
+              error: `Request body exceeds ${options?.maxSizeInMB ?? 5}MB limit`,
+            },
+            { status: 413 },
+          );
+        }
         const formData = await request.formData();
 
         // Validate all files in the form data — return the semantically correct

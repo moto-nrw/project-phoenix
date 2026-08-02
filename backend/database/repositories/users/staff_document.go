@@ -31,12 +31,23 @@ func NewStaffDocumentRepository(db *bun.DB) users.StaffDocumentRepository {
 // member. sql.ErrNoRows propagates (wrapped) — a missing or foreign document
 // is a 404, not a normal state.
 func (r *StaffDocumentRepository) FindForStaff(ctx context.Context, staffID, documentID int64) (*users.StaffDocument, error) {
+	return r.findForStaff(ctx, staffID, documentID, false)
+}
+
+func (r *StaffDocumentRepository) FindForStaffIncludingDeleted(ctx context.Context, staffID, documentID int64) (*users.StaffDocument, error) {
+	return r.findForStaff(ctx, staffID, documentID, true)
+}
+
+func (r *StaffDocumentRepository) findForStaff(ctx context.Context, staffID, documentID int64, includeDeleted bool) (*users.StaffDocument, error) {
 	doc := new(users.StaffDocument)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(doc).
 		ModelTableExpr(`users.staff_documents AS "staff_document"`).
 		Where(`"staff_document".id = ?`, documentID).
 		Where(`"staff_document".staff_id = ?`, staffID)
+	if includeDeleted {
+		query = query.WhereAllWithDeleted()
+	}
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 
@@ -71,6 +82,25 @@ func (r *StaffDocumentRepository) ListByStaffID(ctx context.Context, staffID int
 		return nil, &modelBase.DatabaseError{Op: "list staff documents", Err: err}
 	}
 	return rows, nil
+}
+
+// ListStoredByStaffID returns all filenames still recorded for a staff
+// member, including soft-deleted rows. The offboarding retry path needs these
+// durable references after the staff row itself has been soft-deleted.
+func (r *StaffDocumentRepository) ListStoredByStaffID(ctx context.Context, staffID int64) ([]string, error) {
+	var filenames []string
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.StaffDocument)(nil)).
+		ModelTableExpr(`users.staff_documents AS "staff_document"`).
+		ColumnExpr(`"staff_document".filename_stored`).
+		Where(`"staff_document".staff_id = ?`, staffID).
+		WhereAllWithDeleted()
+
+	query = base.WithTenantFilter(ctx, query, "staff_document")
+	if err := query.Scan(ctx, &filenames); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list stored staff documents", Err: err}
+	}
+	return filenames, nil
 }
 
 // SoftDelete stamps deleted_at and deleted_by in one update. The model's

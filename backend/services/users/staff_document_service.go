@@ -81,12 +81,16 @@ type StaffDocumentService interface {
 	// served when the returned error is non-nil.
 	ResolveStaffDocumentDownload(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
 	// DeleteStaffDocument soft-deletes the metadata row and writes the
-	// audit entry in one tenant transaction after the handler has removed
-	// the file bytes.
+	// audit entry in one tenant transaction. The handler unlinks the file only
+	// after this transaction commits.
 	DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
-	// ResolveStaffDocumentDeletion checks that a document exists and that the
-	// actor may delete its category before the handler removes its file bytes.
-	ResolveStaffDocumentDeletion(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
+	// ListStoredStaffDocumentFiles returns durable filesystem references for an
+	// offboarding after-commit cleanup attempt. Repeated offboarding retries
+	// files left behind by an earlier failed unlink.
+	ListStoredStaffDocumentFiles(ctx context.Context, staffID int64) ([]string, error)
+	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
+	// for a document that may already be soft-deleted.
+	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
 }
 
 type staffDocumentService struct {
@@ -348,8 +352,12 @@ func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID,
 	return deleted, nil
 }
 
-func (s *staffDocumentService) ResolveStaffDocumentDeletion(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {
-	doc, err := s.documents.FindForStaff(ctx, staffID, documentID)
+func (s *staffDocumentService) ListStoredStaffDocumentFiles(ctx context.Context, staffID int64) ([]string, error) {
+	return s.documents.ListStoredByStaffID(ctx, staffID)
+}
+
+func (s *staffDocumentService) ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {
+	doc, err := s.documents.FindForStaffIncludingDeleted(ctx, staffID, documentID)
 	if err != nil {
 		return nil, err
 	}

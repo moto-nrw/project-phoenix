@@ -241,20 +241,29 @@ func (rs *Resource) deleteStaffDocument(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
-	doc, err := rs.StaffDocumentService.ResolveStaffDocumentDeletion(r.Context(), id, docID, actor)
+	doc, err := rs.StaffDocumentService.DeleteStaffDocument(r.Context(), id, docID, actor)
 	if err != nil {
-		renderDocumentError(w, r, err)
-		return
+		if !modelBase.IsNoRows(err) {
+			renderDocumentError(w, r, err)
+			return
+		}
+		doc, err = rs.StaffDocumentService.ResolveStaffDocumentCleanup(r.Context(), id, docID, actor)
+		if err != nil {
+			renderDocumentError(w, r, err)
+			return
+		}
 	}
 
-	if err := rs.removeStoredDocument(r, doc.FilenameStored); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	if _, err := rs.StaffDocumentService.DeleteStaffDocument(r.Context(), id, docID, actor); err != nil {
-		renderDocumentError(w, r, err)
-		return
-	}
+	storedName := doc.FilenameStored
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		if err := rs.removeStoredDocument(r, storedName); err != nil {
+			rs.getLogger().Error("staff document cleanup failed after delete",
+				"staff_id", id,
+				"document_id", docID,
+				"error", err,
+			)
+		}
+	})
 	common.Respond(w, r, http.StatusOK, &stammdatenAck{StaffID: id}, "Staff document deleted successfully")
 }
 
@@ -284,9 +293,9 @@ func fileSizeOnDisk(path string) int64 {
 	return info.Size()
 }
 
-// removeStoredDocument deletes the file bytes before metadata is hidden. A
-// failure leaves the document discoverable so the same authorized request can
-// retry cleanup instead of orphaning sensitive content on disk.
+// removeStoredDocument deletes one stored file. Callers invoke it only after
+// their metadata transaction commits, so a failed transaction never destroys
+// bytes that still back a visible document.
 func (rs *Resource) removeStoredDocument(r *http.Request, storedName string) error {
 	if common.ValidateFilename(storedName) != nil {
 		return errors.New("stored document filename failed validation on delete")

@@ -162,8 +162,10 @@ func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
 
 	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "users:update")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	// A repeat DELETE is the durable cleanup retry route: metadata stays
+	// soft-deleted while the handler re-attempts removal of any orphan bytes.
 	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "users:update")
-	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
 func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
