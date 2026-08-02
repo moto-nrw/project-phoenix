@@ -365,7 +365,8 @@ class StaffService {
         `Failed to fetch document directory: ${response.statusText}`,
       );
     }
-    return (await response.json()) as StaffDocumentDirectoryEntry[];
+    return ((await response.json()) as { data: StaffDocumentDirectoryEntry[] })
+      .data;
   }
 
   // Get all staff members with their current supervision status.

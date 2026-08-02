@@ -113,6 +113,38 @@ describe("staff-api", () => {
     globalThis.fetch = originalFetch;
   });
 
+  describe("staffService.getDocumentDirectory", () => {
+    it("unwraps the API response envelope", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const entries = [
+        {
+          id: "42",
+          name: "Mila Muster",
+          firstName: "Mila",
+          lastName: "Muster",
+        },
+      ];
+      mockFetch.mockResolvedValue({
+        ok: true,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({ success: true, message: "", data: entries }),
+      } as Response);
+
+      await expect(staffService.getDocumentDirectory()).resolves.toEqual(
+        entries,
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/documents-directory",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+    });
+  });
+
   describe("staffService.getAllStaff", () => {
     it("fetches staff and returns mapped data", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;

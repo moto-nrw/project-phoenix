@@ -150,6 +150,20 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
+	if cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(r.Context(), id); err != nil {
+		rs.getLogger().Warn("staff document orphan cleanup retry lookup failed",
+			"staff_id", id,
+			"error", err,
+		)
+	} else {
+		tenantID := tenant.FromContext(r.Context())
+		for _, cleanup := range cleanups {
+			cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
+			tenant.RegisterAfterCommit(r.Context(), func() {
+				rs.cleanupQueuedStaffDocumentFile(tenantID, id, cleanupID, storedName, "retry")
+			})
+		}
+	}
 	resp := &StaffDocumentListResponse{
 		StaffID:           id,
 		Documents:         make([]StaffDocumentResponse, 0, len(infos)),
@@ -163,8 +177,8 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 
 // uploadStaffDocument serves POST /{id}/documents (multipart: file +
 // category). The file is written before its metadata because multipart input
-// cannot be replayed after commit; a rollback hook removes it if that metadata
-// transaction fails to commit.
+// cannot be replayed after commit; CreateStaffDocument commits its metadata
+// transaction before returning, and this handler removes the file on failure.
 func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
@@ -195,15 +209,6 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	tenant.RegisterAfterRollback(r.Context(), func() {
-		if err := rs.removeUploadedDocument(filePath); err != nil {
-			rs.getLogger().Error("staff document cleanup failed after upload rollback",
-				"staff_id", id,
-				"error", err,
-			)
-		}
-	})
-
 	info, err := rs.StaffDocumentService.CreateStaffDocument(r.Context(), usersSvc.CreateStaffDocumentInput{
 		StaffID:         id,
 		Category:        r.FormValue("category"),
@@ -214,10 +219,16 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 	}, actor)
 	if err != nil {
 		if err := rs.removeUploadedDocument(filePath); err != nil {
-			rs.getLogger().Warn("staff document cleanup failed after upload error",
+			rs.getLogger().Error("staff document cleanup failed after upload error",
 				"staff_id", id,
 				"error", err,
 			)
+			if queueErr := rs.StaffDocumentService.QueueStaffDocumentFileCleanup(r.Context(), id, storedName); queueErr != nil {
+				rs.getLogger().Error("staff document orphan cleanup queue failed",
+					"staff_id", id,
+					"error", queueErr,
+				)
+			}
 		}
 		renderDocumentError(w, r, err)
 		return
@@ -347,6 +358,27 @@ func (rs *Resource) cleanupStaffDocumentFile(tenantID, staffID, documentID int64
 		rs.getLogger().Error("staff document cleanup status update failed",
 			"staff_id", staffID,
 			"document_id", documentID,
+			"source", source,
+			"error", err,
+		)
+	}
+}
+
+func (rs *Resource) cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID int64, storedName, source string) {
+	if err := rs.removeStoredDocumentForTenant(tenantID, storedName); err != nil {
+		rs.getLogger().Warn("staff document orphan cleanup failed",
+			"staff_id", staffID,
+			"cleanup_id", cleanupID,
+			"source", source,
+			"error", err,
+		)
+		return
+	}
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	if err := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupComplete(ctx, cleanupID); err != nil {
+		rs.getLogger().Error("staff document orphan cleanup status update failed",
+			"staff_id", staffID,
+			"cleanup_id", cleanupID,
 			"source", source,
 			"error", err,
 		)

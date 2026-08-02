@@ -80,6 +80,48 @@ func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
 			ON users.staff_documents (tenant_id, staff_id)
 			WHERE deleted_at IS NOT NULL AND file_deleted_at IS NULL;
 
+		CREATE TABLE IF NOT EXISTS users.staff_document_file_cleanup (
+			id BIGSERIAL PRIMARY KEY,
+			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+			staff_id BIGINT NOT NULL,
+			filename_stored TEXT NOT NULL,
+			cleaned_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			CONSTRAINT uq_staff_document_file_cleanup UNIQUE (tenant_id, filename_stored)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_staff_document_file_cleanup_pending
+			ON users.staff_document_file_cleanup (tenant_id, staff_id)
+			WHERE cleaned_at IS NULL;
+
+		DROP TRIGGER IF EXISTS update_staff_document_file_cleanup_updated_at ON users.staff_document_file_cleanup;
+		CREATE TRIGGER update_staff_document_file_cleanup_updated_at
+		BEFORE UPDATE ON users.staff_document_file_cleanup
+		FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+		ALTER TABLE users.staff_document_file_cleanup ENABLE ROW LEVEL SECURITY;
+		ALTER TABLE users.staff_document_file_cleanup FORCE ROW LEVEL SECURITY;
+
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM pg_policies
+				WHERE schemaname = 'users' AND tablename = 'staff_document_file_cleanup'
+					AND policyname = 'tenant_isolation_users_staff_document_file_cleanup'
+			) THEN
+				CREATE POLICY tenant_isolation_users_staff_document_file_cleanup
+					ON users.staff_document_file_cleanup
+					FOR ALL
+					USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+					WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+			END IF;
+		END $$;
+
+		GRANT SELECT, INSERT, UPDATE ON users.staff_document_file_cleanup TO phoenix_tenant;
+		GRANT USAGE ON SEQUENCE users.staff_document_file_cleanup_id_seq TO phoenix_tenant;
+		REVOKE DELETE ON users.staff_document_file_cleanup FROM phoenix_tenant;
+
 		DROP TRIGGER IF EXISTS update_staff_documents_updated_at ON users.staff_documents;
 		CREATE TRIGGER update_staff_documents_updated_at
 		BEFORE UPDATE ON users.staff_documents
@@ -120,6 +162,7 @@ func staffDocumentsDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.253: Dropping users.staff_documents...")
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.permissions WHERE name = 'staff_documents:health';
+		DROP TABLE IF EXISTS users.staff_document_file_cleanup CASCADE;
 		DROP TABLE IF EXISTS users.staff_documents CASCADE;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed rolling back staff documents objects: %w", err)

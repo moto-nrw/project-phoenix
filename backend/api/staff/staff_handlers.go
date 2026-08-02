@@ -422,6 +422,16 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 				rs.cleanupStaffDocumentFile(tenantID, id, docID, storedName, "offboarding")
 			})
 		}
+		cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, cleanup := range cleanups {
+			cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
+			tenant.RegisterAfterCommit(ctx, func() {
+				rs.cleanupQueuedStaffDocumentFile(tenantID, id, cleanupID, storedName, "offboarding")
+			})
+		}
 		return nil
 	}); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {

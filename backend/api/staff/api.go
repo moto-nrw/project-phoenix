@@ -148,8 +148,11 @@ func (rs *Resource) Router() chi.Router {
 		// exactly the Lohnabrechnung category and nothing else.
 		documentsGate := authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth)
 		r.With(documentsGate, withTx).Get("/{id}/documents", rs.listStaffDocuments)
-		r.With(documentsGate, withTx).Post("/{id}/documents", rs.uploadStaffDocument)
-		r.With(documentsGate, withTx).Get("/{id}/documents/{documentId}/download", rs.downloadStaffDocument)
+		// Upload and download each commit their own service transaction before
+		// touching filesystem bytes, so failed commits cannot orphan uploads or
+		// disclose a sensitive file without its access audit.
+		r.With(documentsGate).Post("/{id}/documents", rs.uploadStaffDocument)
+		r.With(documentsGate).Get("/{id}/documents/{documentId}/download", rs.downloadStaffDocument)
 		r.With(documentsGate, withTx).Delete("/{id}/documents/{documentId}", rs.deleteStaffDocument)
 
 		// Work schedule endpoints expose contractual target hours.

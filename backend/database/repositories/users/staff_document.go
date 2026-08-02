@@ -156,9 +156,52 @@ func (r *StaffDocumentRepository) MarkFileDeleted(ctx context.Context, documentI
 		Set("file_deleted_at = ?", now).
 		Where(`"staff_document".id = ?`, documentID).
 		Where(`"staff_document".file_deleted_at IS NULL`)
+	query = query.WhereAllWithDeleted()
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "mark staff document file deleted", Err: err}
+	}
+	return nil
+}
+
+func (r *StaffDocumentRepository) QueueFileCleanup(ctx context.Context, cleanup *users.StaffDocumentFileCleanup) error {
+	base.EnsureTenantID(ctx, cleanup)
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(cleanup).
+		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
+		On(`CONFLICT (tenant_id, filename_stored) DO NOTHING`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "queue staff document file cleanup", Err: err}
+	}
+	return nil
+}
+
+func (r *StaffDocumentRepository) ListQueuedFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*users.StaffDocumentFileCleanup, error) {
+	var cleanups []*users.StaffDocumentFileCleanup
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&cleanups).
+		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
+		Where(`"staff_document_file_cleanup".staff_id = ?`, staffID).
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
+	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list queued staff document file cleanup", Err: err}
+	}
+	return cleanups, nil
+}
+
+func (r *StaffDocumentRepository) MarkQueuedFileCleanupComplete(ctx context.Context, cleanupID int64) error {
+	now := time.Now()
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.StaffDocumentFileCleanup)(nil)).
+		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
+		Set("cleaned_at = ?", now).
+		Where(`"staff_document_file_cleanup".id = ?`, cleanupID).
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
+	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "mark queued staff document file cleanup complete", Err: err}
 	}
 	return nil
 }

@@ -93,6 +93,13 @@ type StaffDocumentService interface {
 	// MarkStaffDocumentFileDeleted records successful physical cleanup so it is
 	// never retried during a later list or offboarding request.
 	MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error
+	// QueueStaffDocumentFileCleanup durably records an orphaned upload whose
+	// metadata transaction failed and whose immediate unlink also failed.
+	QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error
+	// ListQueuedStaffDocumentFileCleanup returns orphaned upload files that
+	// should be retried for this staff record during list or offboarding flows.
+	ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocumentFileCleanup, error)
+	MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error
 	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
 	// for a document that may already be soft-deleted.
 	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
@@ -278,43 +285,52 @@ func (s *staffDocumentService) CreateStaffDocument(ctx context.Context, input Cr
 }
 
 func (s *staffDocumentService) ResolveStaffDocumentDownload(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {
-	doc, err := s.documents.FindForStaff(ctx, staffID, documentID)
+	var document *userModels.StaffDocument
+	tenantID := tenant.FromContext(ctx)
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		doc, err := s.documents.FindForStaff(ctx, staffID, documentID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireCategoryPermission(doc.Category, actor); err != nil {
+			return err
+		}
+
+		if staffDocumentCategorySensitive(doc.Category) {
+			if s.accessLog == nil {
+				return fmt.Errorf("data access log repository is not wired; refusing unaudited document download")
+			}
+			if actor.AccountID <= 0 {
+				return fmt.Errorf("actor account id is required for document downloads")
+			}
+			role := strings.TrimSpace(actor.Role)
+			if role == "" {
+				role = "unknown"
+			}
+			now := time.Now()
+			if err := s.accessLog.Create(ctx, &auditModels.DataAccessLog{
+				ActorAccountID: actor.AccountID,
+				ActorRole:      role,
+				ResourceType:   auditModels.ResourceTypeStaffDocumentDownload,
+				RangeStart:     now,
+				RangeEnd:       now,
+				AccessedAt:     now,
+				Metadata: map[string]interface{}{
+					"staff_id":    staffID,
+					"document_id": doc.ID,
+					"category":    doc.Category,
+				},
+			}); err != nil {
+				return fmt.Errorf("write document access audit: %w", err)
+			}
+		}
+		document = doc
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireCategoryPermission(doc.Category, actor); err != nil {
-		return nil, err
-	}
-
-	if staffDocumentCategorySensitive(doc.Category) {
-		if s.accessLog == nil {
-			return nil, fmt.Errorf("data access log repository is not wired; refusing unaudited document download")
-		}
-		if actor.AccountID <= 0 {
-			return nil, fmt.Errorf("actor account id is required for document downloads")
-		}
-		role := strings.TrimSpace(actor.Role)
-		if role == "" {
-			role = "unknown"
-		}
-		now := time.Now()
-		if err := s.accessLog.Create(ctx, &auditModels.DataAccessLog{
-			ActorAccountID: actor.AccountID,
-			ActorRole:      role,
-			ResourceType:   auditModels.ResourceTypeStaffDocumentDownload,
-			RangeStart:     now,
-			RangeEnd:       now,
-			AccessedAt:     now,
-			Metadata: map[string]interface{}{
-				"staff_id":    staffID,
-				"document_id": doc.ID,
-				"category":    doc.Category,
-			},
-		}); err != nil {
-			return nil, fmt.Errorf("write document access audit: %w", err)
-		}
-	}
-	return doc, nil
+	return document, nil
 }
 
 func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {
@@ -369,6 +385,30 @@ func (s *staffDocumentService) MarkStaffDocumentFileDeleted(ctx context.Context,
 	tenantID := tenant.FromContext(ctx)
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return s.documents.MarkFileDeleted(ctx, documentID)
+	})
+}
+
+func (s *staffDocumentService) QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error {
+	if staffID <= 0 || strings.TrimSpace(storedName) == "" {
+		return fmt.Errorf("%w: cleanup file details are required", ErrStaffDocumentInvalid)
+	}
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.documents.QueueFileCleanup(ctx, &userModels.StaffDocumentFileCleanup{
+			StaffID:        staffID,
+			FilenameStored: storedName,
+		})
+	})
+}
+
+func (s *staffDocumentService) ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocumentFileCleanup, error) {
+	return s.documents.ListQueuedFileCleanupByStaffID(ctx, staffID)
+}
+
+func (s *staffDocumentService) MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.documents.MarkQueuedFileCleanupComplete(ctx, cleanupID)
 	})
 }
 

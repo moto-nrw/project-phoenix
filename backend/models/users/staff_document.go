@@ -59,6 +59,18 @@ type StaffDocument struct {
 	FileDeletedAt   *time.Time `bun:"file_deleted_at" json:"-"`
 }
 
+// StaffDocumentFileCleanup tracks an upload whose metadata could not be
+// committed and whose file could not be removed immediately. It intentionally
+// has no staff foreign key: the failed request may name a staff row that was
+// concurrently offboarded, but the sensitive file still must remain queued.
+type StaffDocumentFileCleanup struct {
+	base.Model `bun:"schema:users,table:staff_document_file_cleanup"`
+	base.TenantModel
+	StaffID        int64      `bun:"staff_id,notnull"`
+	FilenameStored string     `bun:"filename_stored,notnull"`
+	CleanedAt      *time.Time `bun:"cleaned_at"`
+}
+
 // Validate ensures the document row is storable.
 func (d *StaffDocument) Validate() error {
 	if d.StaffID <= 0 {
@@ -110,4 +122,7 @@ type StaffDocumentRepository interface {
 	FindForStaffIncludingDeleted(ctx context.Context, staffID, documentID int64) (*StaffDocument, error)
 	SoftDelete(ctx context.Context, doc *StaffDocument, deletedBy int64) error
 	MarkFileDeleted(ctx context.Context, documentID int64) error
+	QueueFileCleanup(ctx context.Context, cleanup *StaffDocumentFileCleanup) error
+	ListQueuedFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*StaffDocumentFileCleanup, error)
+	MarkQueuedFileCleanupComplete(ctx context.Context, cleanupID int64) error
 }
