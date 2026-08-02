@@ -211,31 +211,15 @@ func (r *EmailOutboxRepository) MarkFailed(ctx context.Context, id int64, attemp
 // they may already be in flight. Tenant-scoped; runs under the caller's tenant
 // tx (phoenix_tenant holds UPDATE on the table). Returns rows affected.
 func (r *EmailOutboxRepository) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
-	return r.cancelPendingByRelatedEntity(ctx, relatedType, relatedID, "", reason)
-}
-
-// CancelPendingByRelatedEntityExceptKind cancels pending rows for an entity
-// while preserving the specified e-mail kind.
-func (r *EmailOutboxRepository) CancelPendingByRelatedEntityExceptKind(ctx context.Context, relatedType string, relatedID int64, excludedKind string, reason string) (int64, error) {
-	if excludedKind == "" {
-		return 0, errors.New("excluded email kind is required")
-	}
-	return r.cancelPendingByRelatedEntity(ctx, relatedType, relatedID, excludedKind, reason)
-}
-
-func (r *EmailOutboxRepository) cancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, excludedKind string, reason string) (int64, error) {
-	query := base.GetDB(ctx, r.db).NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.EmailOutbox)(nil)).
 		ModelTableExpr(tableExprAlias).
 		Set("status = ?", platform.EmailOutboxStatusFailed).
 		Set("last_error = ?", reason).
 		Where(`"email_outbox".related_entity_type = ?`, relatedType).
 		Where(`"email_outbox".related_entity_id = ?`, relatedID).
-		Where(`"email_outbox".status = ?`, platform.EmailOutboxStatusPending)
-	if excludedKind != "" {
-		query = query.Where(`"email_outbox".kind != ?`, excludedKind)
-	}
-	res, err := query.Exec(ctx)
+		Where(`"email_outbox".status = ?`, platform.EmailOutboxStatusPending).
+		Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to cancel pending email rows: %w", err)
 	}

@@ -296,16 +296,15 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
-		if profile.Email != nil && *profile.Email != "" {
-			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
-				optedIn, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
-				if err != nil {
-					return queued, nil, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
-				}
-				if len(optedIn) == 0 {
-					continue
-				}
+		sendEmail := profile.Email != nil && *profile.Email != ""
+		if sendEmail && profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
+			optedIn, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
+			if err != nil {
+				return queued, nil, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
 			}
+			sendEmail = len(optedIn) > 0
+		}
+		if sendEmail {
 			row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
 				Kind: platformModels.EmailKindAppointmentReminder,
 				Payload: map[string]any{
@@ -348,13 +347,20 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		appointmentCopy := *appointment
 		profileIDsCopy := append([]int64(nil), claimedProfileIDs...)
-		postCommitCtx := modelBase.ContextWithoutTx(ctx)
+		postCommitCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
 		tenant.RegisterAfterCommit(ctx, func() {
-			dispatched, err := s.dispatchGuardianAccountReminderDevices(postCommitCtx, &appointmentCopy, []int64{accountID})
+			var dispatched bool
+			err := tenant.WithTenantTx(postCommitCtx, s.cfg.DB, appointmentCopy.TenantID, func(dispatchCtx context.Context, _ bun.Tx) error {
+				var dispatchErr error
+				dispatched, dispatchErr = s.dispatchGuardianAccountReminderDevices(dispatchCtx, &appointmentCopy, []int64{accountID})
+				return dispatchErr
+			})
 			if err == nil && dispatched {
 				return
 			}
-			if errors.Is(err, notifications.ErrNoWebPushSubscribers) {
+			if errors.Is(err, notifications.ErrNoWebPushSubscribers) ||
+				errors.Is(err, notifications.ErrDisabled) ||
+				errors.Is(err, notifications.ErrOutsideActiveWindow) {
 				return
 			}
 

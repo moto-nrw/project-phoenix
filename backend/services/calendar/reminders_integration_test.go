@@ -54,6 +54,10 @@ func (optedOutAppointmentPreferences) FilterNotOptedOut(_ context.Context, _ str
 	return nil, nil
 }
 
+func (optedOutAppointmentPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
+	return accountIDs, nil
+}
+
 // berlinInstant builds the moment a Berlin wall-clock time happens on a date,
 // which is what the reminder window is expressed in.
 func berlinInstant(t *testing.T, date timezone.Date, hour, minute int) time.Time {
@@ -144,10 +148,12 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
+	notifier := &reminderCaptureNotifier{}
 	cfg := calendarTestConfig(db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{}
+	cfg.ReminderNotifier = notifier
 	service := calendarSvc.NewService(cfg)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -180,6 +186,8 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	require.NoError(t, err)
 	assert.Zero(t, queued, "reminders must respect an explicit guardian opt-out")
 	assert.Len(t, outbox.enqueued, 1)
+	require.Len(t, notifier.events, 1, "an e-mail opt-out must not suppress an opted-in push")
+	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {
