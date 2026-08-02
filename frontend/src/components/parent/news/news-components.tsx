@@ -15,7 +15,7 @@ import { useTranslations } from "next-intl";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
-import { formatDate } from "~/lib/date-helpers";
+import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   ParentApiError,
@@ -89,7 +89,9 @@ function NewsBadges({
       )}
       {poll && item.response_deadline && !isPollClosed(item) && (
         <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-          {t("newsPollDeadline", { date: formatDate(item.response_deadline) })}
+          {t("newsPollDeadline", {
+            date: formatBerlinDate(item.response_deadline),
+          })}
         </span>
       )}
       {poll && isPollClosed(item) && (

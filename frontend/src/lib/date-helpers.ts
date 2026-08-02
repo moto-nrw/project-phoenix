@@ -29,7 +29,7 @@ const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",
 });
 
-const CHAT_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+const BERLIN_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
@@ -209,6 +209,26 @@ export function formatDate(dateString: string, includeWeekday = false): string {
 }
 
 /**
+ * Format an instant as the German calendar date of the school's timezone
+ * ("20.07.2026"), regardless of where the viewer sits.
+ *
+ * Use this — not `formatDate` — for a cut-off that was written with
+ * `endOfBerlinDayISO` (Antwortfrist, Ablaufdatum). Such a value is a calendar
+ * day carried as 23:59:59 Berlin; rendering it in the viewer's local timezone
+ * shows the FOLLOWING day east of Berlin, so a guardian in Moscow would read a
+ * deadline that has in fact already passed. Plain instants (published_at,
+ * created_at) keep using `formatDate`.
+ *
+ * Falls back to the raw input for an unparseable value, matching the chat
+ * formatters — a malformed timestamp must not blank the surrounding line.
+ */
+export function formatBerlinDate(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  return BERLIN_DATE_FORMATTER.format(date);
+}
+
+/**
  * Format a time string to German locale format
  * @param dateString ISO date string
  * @returns Formatted time string (e.g., "14:30")
@@ -246,7 +266,7 @@ export function formatChatDateTime(iso: string | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${CHAT_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
+  return `${BERLIN_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
 /**

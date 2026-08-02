@@ -41,6 +41,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   berlinDayFromISO,
   endOfBerlinDayISO,
+  formatBerlinDate,
   formatDate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -480,9 +481,9 @@ function ParentAnnouncementsContent() {
               : "Noch nicht veröffentlicht"}
           </p>
           {row.response_deadline ? (
-            <p>Antwort bis {formatDate(row.response_deadline)}</p>
+            <p>Antwort bis {formatBerlinDate(row.response_deadline)}</p>
           ) : (
-            row.expires_at && <p>Läuft ab {formatDate(row.expires_at)}</p>
+            row.expires_at && <p>Läuft ab {formatBerlinDate(row.expires_at)}</p>
           )}
         </div>
       ),
@@ -1702,7 +1703,7 @@ function AnnouncementCard({
             ? ` · ${formatDate(announcement.published_at)}`
             : " · Entwurf"}
           {announcement.expires_at &&
-            ` · bis ${formatDate(announcement.expires_at)}`}
+            ` · bis ${formatBerlinDate(announcement.expires_at)}`}
         </p>
       </button>
       <div className="flex items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/60 px-2 py-1.5">
@@ -2222,7 +2223,7 @@ function DetailModal({
               ? `Veröffentlicht ${formatDate(announcement.published_at)}`
               : "Noch nicht veröffentlicht"}
             {announcement.expires_at &&
-              ` · Läuft ab ${formatDate(announcement.expires_at)}`}
+              ` · Läuft ab ${formatBerlinDate(announcement.expires_at)}`}
           </span>
         </div>
 
@@ -2267,7 +2268,10 @@ function DetailModal({
               ? "E-Mail-Benachrichtigung aktiviert"
               : "Keine E-Mail-Benachrichtigung"}
             {poll && announcement.response_deadline && (
-              <> · Antwort bis {formatDate(announcement.response_deadline)}</>
+              <>
+                {" "}
+                · Antwort bis {formatBerlinDate(announcement.response_deadline)}
+              </>
             )}
           </p>
         </div>

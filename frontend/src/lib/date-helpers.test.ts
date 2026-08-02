@@ -15,6 +15,7 @@ import {
   endOfBerlinDayISO,
   formatChatTime,
   formatChatDateTime,
+  formatBerlinDate,
 } from "./date-helpers";
 
 describe("toISODate", () => {
@@ -155,6 +156,47 @@ describe("berlinDayFromISO", () => {
 
   it("returns null for an unparseable value", () => {
     expect(berlinDayFromISO("nicht-datum")).toBeNull();
+  });
+});
+
+describe("formatBerlinDate", () => {
+  // A cut-off written by endOfBerlinDayISO is 23:59:59 Berlin. East of Berlin
+  // that instant already belongs to the next LOCAL day, so rendering it in the
+  // viewer's timezone would advertise a deadline that has in fact passed.
+  const withTimezone = (tz: string, run: () => void) => {
+    const previous = process.env.TZ;
+    process.env.TZ = tz;
+    try {
+      run();
+    } finally {
+      process.env.TZ = previous;
+    }
+  };
+
+  afterEach(() => {
+    expect(process.env.TZ).toBe("Europe/Berlin");
+  });
+
+  it("keeps the Berlin day of a summer cut-off east of Berlin", () => {
+    withTimezone("Europe/Moscow", () => {
+      expect(formatBerlinDate("2026-07-20T21:59:59.000Z")).toBe("20.07.2026");
+    });
+  });
+
+  it("keeps the Berlin day of a winter cut-off east of Berlin", () => {
+    withTimezone("Asia/Tokyo", () => {
+      expect(formatBerlinDate("2026-01-20T22:59:59.000Z")).toBe("20.01.2026");
+    });
+  });
+
+  it("keeps the Berlin day west of Berlin", () => {
+    withTimezone("America/Los_Angeles", () => {
+      expect(formatBerlinDate("2026-07-20T21:59:59.000Z")).toBe("20.07.2026");
+    });
+  });
+
+  it("falls back to the raw input for an unparseable value", () => {
+    expect(formatBerlinDate("nicht-datum")).toBe("nicht-datum");
   });
 });
 
