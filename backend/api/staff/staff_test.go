@@ -316,14 +316,14 @@ func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetStaff_AllowsStaffFinancial(t *testing.T) {
+func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Payroll", "Profile")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/financial-profile/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "staff:financial")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
