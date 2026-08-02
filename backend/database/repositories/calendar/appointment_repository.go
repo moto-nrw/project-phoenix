@@ -276,11 +276,16 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			    -- monthly/yearly periods account for invalid calendar days and leap
 			    -- years, so this predicate can only retain extra candidates, never
 			    -- discard a live occurrence.
-			    OR CASE rr.frequency
-			      WHEN 'daily' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
-			      WHEN 'weekly' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
-			      WHEN 'monthly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
-			      WHEN 'yearly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
+			    -- Searched CASE, not "CASE rr.frequency WHEN …": the branches test
+			    -- two columns at once, and the simple form would compare
+			    -- rr.frequency against the BOOLEAN result of that test — Postgres
+			    -- casts 'daily' to boolean and the whole query dies with
+			    -- "invalid input syntax for type boolean" before it reads a row.
+			    OR CASE
+			      WHEN rr.frequency = 'daily' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
+			      WHEN rr.frequency = 'weekly' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
+			      WHEN rr.frequency = 'monthly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
+			      WHEN rr.frequency = 'yearly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
 			      ELSE 'infinity'::date
 			    END + ("appointment".end_date - "appointment".start_date) >= ?
 			  )
