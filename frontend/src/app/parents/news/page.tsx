@@ -17,6 +17,11 @@ import {
 } from "~/components/parent/news/news-components";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import {
+  ParentPage,
+  ParentPageHeader,
+} from "~/components/parent/parent-page";
 import { createLogger } from "~/lib/logger";
 import { type ParentAnnouncement, listAnnouncements } from "~/lib/parent-api";
 
@@ -73,18 +78,12 @@ export default function ParentNewsPage() {
   const openItem = items.find((item) => item.id === openId) ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("newsEyebrow")}
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-balance text-gray-900">
-          {t("newsTitle")}
-        </h1>
-        <p className="mt-1 text-sm leading-6 text-gray-600">
-          {t("newsDescription")}
-        </p>
-      </header>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("newsEyebrow")}
+        title={t("newsTitle")}
+        description={t("newsDescription")}
+      />
 
       {!loaded ? (
         <div className="space-y-3">
@@ -95,20 +94,13 @@ export default function ParentNewsPage() {
       ) : loadError ? (
         <Alert type="error" message={t("newsActionError")} />
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
-              <Newspaper className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-gray-900">
-                {t("noNewsTitle")}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-gray-600">
-                {t("noNewsPageDescription")}
-              </p>
-            </div>
-          </div>
+        <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+          <EmptyState
+            icon={<Newspaper className="h-8 w-8" aria-hidden="true" />}
+            title={t("noNewsTitle")}
+            description={t("noNewsPageDescription")}
+            className="py-8"
+          />
         </div>
       ) : (
         <ul className="space-y-3">
@@ -128,6 +120,6 @@ export default function ParentNewsPage() {
           onStale={refetchOnStale}
         />
       )}
-    </div>
+    </ParentPage>
   );
 }
