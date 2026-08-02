@@ -6,6 +6,7 @@ import { staffService } from "~/lib/staff-api";
 import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
+const searchParams = vi.hoisted(() => new URLSearchParams());
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useParams: () => ({ id: "42" }),
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -82,7 +84,13 @@ vi.mock("@radix-ui/react-tabs", () => ({
 }));
 
 vi.mock("~/components/ui/tabs", () => ({
-  Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Tabs: ({
+    children,
+    defaultValue,
+  }: {
+    children: React.ReactNode;
+    defaultValue: string;
+  }) => <div data-default-tab={defaultValue}>{children}</div>,
   TabsList: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -118,6 +126,7 @@ vi.mock("./page-skeleton", () => ({
 describe("StaffDetailContent permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchParams.delete("tab");
     window.scrollTo = vi.fn();
   });
 
@@ -233,6 +242,36 @@ describe("StaffDetailContent permissions", () => {
     expect(staffService.getDocumentProfile).toHaveBeenCalledWith("42");
     expect(replaceMock).not.toHaveBeenCalled();
   });
+
+  it.each(["users:update", "staff:financial"])(
+    "opens the documents tab from a document-directory deep link for %s",
+    (permission) => {
+      searchParams.set("tab", "dokumente");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["teacher"],
+            permissions: [permission],
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      expect(
+        screen.getByRole("button", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+      expect(document.querySelector("[data-default-tab]")).toHaveAttribute(
+        "data-default-tab",
+        "dokumente",
+      );
+    },
+  );
 
   // users:read is the list tier; the Stammdaten sections carry HR-file data
   // (birthday, private address, contract terms) and stay closed to it —

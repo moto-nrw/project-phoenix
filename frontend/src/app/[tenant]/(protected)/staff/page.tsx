@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -47,8 +49,12 @@ import { StaffPageSkeleton } from "./page-skeleton";
 
 function DocumentDirectory({
   entries,
+  error,
+  onRetry,
 }: {
   readonly entries: readonly StaffDocumentDirectoryEntry[];
+  readonly error?: Error;
+  readonly onRetry: () => void;
 }) {
   const router = useTenantRouter();
   const [search, setSearch] = useState("");
@@ -70,26 +76,43 @@ function DocumentDirectory({
       <p className="mb-4 text-sm text-gray-600">
         Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
       </p>
-      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
-        {filteredEntries.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5080D8]"
-          >
-            {entry.name}
-            <span aria-hidden="true" className="text-gray-400">
-              ›
-            </span>
-          </button>
-        ))}
-        {filteredEntries.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-gray-500">
-            Keine Mitarbeiter/innen gefunden.
-          </p>
-        ) : null}
-      </div>
+      {error ? (
+        <Alert
+          type="error"
+          message="Das Personalverzeichnis konnte nicht geladen werden."
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={onRetry}
+            >
+              Erneut versuchen
+            </Button>
+          }
+        />
+      ) : (
+        <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          {filteredEntries.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5080D8]"
+            >
+              {entry.name}
+              <span aria-hidden="true" className="text-gray-400">
+                ›
+              </span>
+            </button>
+          ))}
+          {filteredEntries.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-gray-500">
+              Keine Mitarbeiter/innen gefunden.
+            </p>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -177,12 +200,16 @@ function StaffPageContent() {
   const staff = staffData ?? [];
   const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
 
-  const { data: documentDirectory, isLoading: isDocumentDirectoryLoading } =
-    useSWRAuth<StaffDocumentDirectoryEntry[]>(
-      documentDirectoryOnly ? "staff-document-directory" : null,
-      () => staffService.getDocumentDirectory(),
-      { revalidateOnFocus: false },
-    );
+  const {
+    data: documentDirectory,
+    error: documentDirectoryError,
+    isLoading: isDocumentDirectoryLoading,
+    mutate: mutateDocumentDirectory,
+  } = useSWRAuth<StaffDocumentDirectoryEntry[]>(
+    documentDirectoryOnly ? "staff-document-directory" : null,
+    () => staffService.getDocumentDirectory(),
+    { revalidateOnFocus: false },
+  );
 
   // Zeitkonten (#1417 Tranche 2a). Beschäftigungstyp und Saldo-Grenzen gehen
   // an den Server — der Beschäftigungstyp spart dort die Rechnung pro Person,
@@ -523,7 +550,13 @@ function StaffPageContent() {
   }
 
   if (documentDirectoryOnly) {
-    return <DocumentDirectory entries={documentDirectory ?? []} />;
+    return (
+      <DocumentDirectory
+        entries={documentDirectory ?? []}
+        error={documentDirectoryError}
+        onRetry={() => void mutateDocumentDirectory()}
+      />
+    );
   }
 
   return (

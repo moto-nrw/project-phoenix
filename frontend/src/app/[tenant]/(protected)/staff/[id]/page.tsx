@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useParams, redirect } from "next/navigation";
+import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -115,6 +115,7 @@ export default function StaffDetailContent() {
   });
   const router = useTenantRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
@@ -140,6 +141,7 @@ export default function StaffDetailContent() {
     canEditStammdaten ||
     canViewFinancial ||
     hasPermission(session, "staff_documents:health");
+  const requestedTab = searchParams.get("tab");
 
   const {
     data: staff,
@@ -226,13 +228,15 @@ export default function StaffDetailContent() {
       {/* Tabs */}
       <Tabs
         defaultValue={
-          canViewTimeTracking
-            ? "uebersicht"
-            : canViewStammdaten
-              ? "stammdaten"
-              : canViewDocuments
-                ? "dokumente"
-                : "abwesenheiten"
+          requestedTab === "dokumente" && canViewDocuments
+            ? "dokumente"
+            : canViewTimeTracking
+              ? "uebersicht"
+              : canViewStammdaten
+                ? "stammdaten"
+                : canViewDocuments
+                  ? "dokumente"
+                  : "abwesenheiten"
         }
         className="w-full"
       >

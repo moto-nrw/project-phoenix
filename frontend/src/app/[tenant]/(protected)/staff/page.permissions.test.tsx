@@ -17,8 +17,12 @@ const swrKeys = vi.hoisted(() => [] as (string | null)[]);
 const berlinToday = vi.hoisted(() => vi.fn());
 const closeMonth = vi.hoisted(() => vi.fn());
 const mutateMonthClose = vi.hoisted(() => vi.fn());
+const mutateDocumentDirectory = vi.hoisted(() => vi.fn());
 const globalMutate = vi.hoisted(() => vi.fn());
 const monthCloseRequest = vi.hoisted(() => ({
+  error: null as Error | null,
+}));
+const documentDirectoryRequest = vi.hoisted(() => ({
   error: null as Error | null,
 }));
 
@@ -47,12 +51,20 @@ vi.mock("~/lib/swr", () => ({
         mutate: mutateMonthClose,
       };
     }
+    if (key === "staff-document-directory") {
+      return {
+        data: documentDirectoryRequest.error ? undefined : [],
+        isLoading: false,
+        error: documentDirectoryRequest.error,
+        mutate: mutateDocumentDirectory,
+      };
+    }
     return { data: undefined, isLoading: false, error: null };
   },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffService: { getAllStaff },
+  staffService: { getAllStaff, getDocumentDirectory: vi.fn() },
   staffMonthCloseService: {
     getStatus: vi.fn().mockResolvedValue([]),
     closeMonth,
@@ -106,8 +118,10 @@ describe("/staff — Berechtigungs-Split", () => {
     berlinToday.mockReset().mockReturnValue("2026-09-01");
     closeMonth.mockReset().mockResolvedValue({});
     mutateMonthClose.mockReset().mockResolvedValue(undefined);
+    mutateDocumentDirectory.mockReset().mockResolvedValue(undefined);
     globalMutate.mockReset().mockResolvedValue(undefined);
     monthCloseRequest.error = null;
+    documentDirectoryRequest.error = null;
     getAllStaff.mockReset().mockResolvedValue([]);
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
@@ -273,6 +287,26 @@ describe("/staff — Berechtigungs-Split", () => {
 
     await waitFor(() => {
       expect(mutateMonthClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("zeigt einen retrybaren Fehler, wenn das Dokumentenverzeichnis nicht lädt", async () => {
+    documentDirectoryRequest.error = new Error("Bad Gateway");
+    mockSession(["staff_documents:health"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.getByText("Das Personalverzeichnis konnte nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Mitarbeiter/innen gefunden."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    await waitFor(() => {
+      expect(mutateDocumentDirectory).toHaveBeenCalledTimes(1);
     });
   });
 });
