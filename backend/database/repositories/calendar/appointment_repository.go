@@ -52,10 +52,7 @@ func (r *AppointmentRepository) FindByIDForUpdate(ctx context.Context, id int64)
 		Model(appointment).
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
 		Where(`"appointment".id = ?`, id).
-		// A reminder delivery claim references this row. NO KEY UPDATE continues
-		// to block lifecycle writes, but permits the FK's KEY SHARE lock so the
-		// claim can commit before the external push is sent.
-		For("NO KEY UPDATE")
+		For("UPDATE")
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		query = query.Where(where, val)
 	}
@@ -81,7 +78,10 @@ func (r *AppointmentRepository) LockReminderCandidate(ctx context.Context, id in
 		Where(`"appointment".deleted_at IS NULL`).
 		Where(`"appointment".cancelled_at IS NULL`).
 		Where(`"appointment".notify_guardians`).
-		For("UPDATE")
+		// A reminder delivery claim references this row. NO KEY UPDATE continues
+		// to block lifecycle writes, but permits the FK's KEY SHARE lock so the
+		// claim can commit before the external push is sent.
+		For("NO KEY UPDATE")
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		query = query.Where(where, val)
 	}
