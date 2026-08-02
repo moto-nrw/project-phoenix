@@ -76,6 +76,34 @@ describe("redactSensitiveLogData", () => {
     });
   });
 
+  it("preserves typed token-state metadata while redacting credentials", () => {
+    const tokenExpiry = new Date("2026-08-03T12:00:00.000Z");
+
+    expect(
+      redactSensitiveLogData({
+        has_token: true,
+        has_refresh_token: false,
+        has_tokens: true,
+        token_expiry: "2026-08-03T12:00:00.000Z",
+        access_token_expiry: "15m",
+        refresh_token_expires_at: tokenExpiry,
+        unsafe_has_token: "credential-value",
+        unsafe_token_expiry: "credential-value",
+        token_value: "credential-value",
+      }),
+    ).toEqual({
+      has_token: true,
+      has_refresh_token: false,
+      has_tokens: true,
+      token_expiry: "2026-08-03T12:00:00.000Z",
+      access_token_expiry: "15m",
+      refresh_token_expires_at: tokenExpiry,
+      unsafe_has_token: REDACTED_LOG_VALUE,
+      unsafe_token_expiry: REDACTED_LOG_VALUE,
+      token_value: REDACTED_LOG_VALUE,
+    });
+  });
+
   it("marks circular references instead of throwing", () => {
     const input: Record<string, unknown> = { safe: true };
     input.self = input;
@@ -93,6 +121,16 @@ describe("redactSensitiveLogData", () => {
       ),
     ).toBe(
       'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
+    );
+  });
+
+  it("redacts complete quoted credential values with spaces and escapes", () => {
+    expect(
+      redactSensitiveLogString(
+        String.raw`{"password":"correct horse's \"quoted\" secret","pin":'12\' 34',"X-API-Key":"api key's \"quoted\" suffix","safe":"kept"}`,
+      ),
+    ).toBe(
+      `{"password":"${REDACTED_LOG_VALUE}","pin":'${REDACTED_LOG_VALUE}',"X-API-Key":"${REDACTED_LOG_VALUE}","safe":"kept"}`,
     );
   });
 });

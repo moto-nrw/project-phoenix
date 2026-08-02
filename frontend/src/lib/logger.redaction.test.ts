@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { REDACTED_LOG_VALUE } from "./log-redaction";
 
 vi.unmock("~/lib/logger");
 
@@ -19,6 +20,7 @@ describe("structured logger redaction", () => {
     globalThis.fetch = originalFetch;
     globalThis.window = originalWindow;
     originalWindow.history.replaceState(null, "", originalPathname);
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -114,6 +116,28 @@ describe("structured logger redaction", () => {
     });
     expect(JSON.stringify(body)).not.toMatch(
       /client-(secret|pin|jwt|api-key|authorization|cookie|header)-sentinel/,
+    );
+  });
+
+  it("uses the redacted message for development console output", () => {
+    vi.useFakeTimers();
+    vi.stubEnv("NODE_ENV", "development");
+    const consoleDebug = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => {});
+    const logger = createLogger({
+      component: "ClientConsoleProbe",
+      level: "debug",
+    });
+
+    logger.debug(
+      String.raw`request failed password="correct horse's \"quoted\" secret"`,
+    );
+
+    expect(consoleDebug).toHaveBeenCalledWith(
+      "[ClientConsoleProbe]",
+      `request failed password="${REDACTED_LOG_VALUE}"`,
+      expect.any(String),
     );
   });
 });

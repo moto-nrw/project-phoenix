@@ -27,12 +27,16 @@ const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
   String.raw`([?&]${SENSITIVE_PARAMETER_NAME}=)[^&#\s"']*`,
   "gi",
 );
-const SENSITIVE_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*['"]?)[^'",}\s&]+`,
+const SENSITIVE_QUOTED_TEXT_FIELD_PATTERN = new RegExp(
+  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\])*\2`,
+  "gi",
+);
+const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
+  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*)[^'",}\s&]+`,
   "gi",
 );
 const SENSITIVE_QUOTED_HEADER_FIELD_PATTERN =
-  /((?:^|[\s,{])["']?(?:authorization|cookies?)["']?\s*:\s*)(["'])[^"']*\2/gi;
+  /((?:^|[\s,{])["']?(?:authorization|cookies?|(?:x[-_])?api[-_]?key)["']?\s*:\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi;
 const AUTHORIZATION_CREDENTIAL_PATTERN =
   /(\b(?:Bearer|Basic|Digest|ApiKey)\s+)[^\s"',;]+/gi;
 const AUTHORIZATION_HEADER_PATTERN =
@@ -40,15 +44,52 @@ const AUTHORIZATION_HEADER_PATTERN =
 const API_KEY_HEADER_PATTERN =
   /(\b(?:X[-_])?API[-_]?Key["']?\s*:\s*["']?)[^"',}\s]+/gi;
 const COOKIE_HEADER_PATTERN = /(\b(?:Set-)?Cookie\s*:\s*)[^\r\n]+/gi;
+const SAFE_TOKEN_PRESENCE_KEY_PATTERN = /^has_(?:[a-z0-9]+_)*tokens?$/;
+const SAFE_TOKEN_EXPIRY_KEY_PATTERN =
+  /^(?:[a-z0-9]+_)*token_(?:expiry|expires_at)$/;
+const SAFE_DURATION_PATTERN = /^\d+(?:\.\d+)?(?:ms|s|m|h|d)$/;
+const ISO_TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+function normalizeLogKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .join("_");
+}
 
 function isSensitiveLogKey(key: string): boolean {
-  const normalized = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
-  const parts = normalized.split(/[^a-z0-9]+/);
+  const normalized = normalizeLogKey(key);
+  const parts = normalized.split("_");
 
   return (
-    SENSITIVE_LOG_KEYS.has(parts.join("_")) ||
+    SENSITIVE_LOG_KEYS.has(normalized) ||
     parts.some((part) => SENSITIVE_LOG_KEY_PARTS.has(part)) ||
     parts.some((part, index) => part === "api" && parts[index + 1] === "key")
+  );
+}
+
+function isSafeTokenMetadata(key: string, value: unknown): boolean {
+  const normalized = normalizeLogKey(key);
+
+  if (SAFE_TOKEN_PRESENCE_KEY_PATTERN.test(normalized)) {
+    return typeof value === "boolean";
+  }
+
+  if (!SAFE_TOKEN_EXPIRY_KEY_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  return (
+    value === null ||
+    value instanceof Date ||
+    (typeof value === "number" && Number.isFinite(value)) ||
+    (typeof value === "string" &&
+      (value === "not set" ||
+        SAFE_DURATION_PATTERN.test(value) ||
+        ISO_TIMESTAMP_PATTERN.test(value)))
   );
 }
 
@@ -61,7 +102,8 @@ export function redactSensitiveLogString(value: string): string {
       SENSITIVE_QUOTED_HEADER_FIELD_PATTERN,
       `$1$2${REDACTED_LOG_VALUE}$2`,
     )
-    .replace(SENSITIVE_TEXT_FIELD_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(SENSITIVE_QUOTED_TEXT_FIELD_PATTERN, `$1$2${REDACTED_LOG_VALUE}$2`)
+    .replace(SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(AUTHORIZATION_CREDENTIAL_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(AUTHORIZATION_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(API_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
@@ -101,7 +143,7 @@ export function redactSensitiveLogData(
     : Object.fromEntries(
         Object.entries(value).map(([key, nestedValue]) => [
           key,
-          isSensitiveLogKey(key)
+          isSensitiveLogKey(key) && !isSafeTokenMetadata(key, nestedValue)
             ? REDACTED_LOG_VALUE
             : redactSensitiveLogData(nestedValue, ancestors),
         ]),

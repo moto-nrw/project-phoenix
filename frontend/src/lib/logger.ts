@@ -279,7 +279,7 @@ class ClientLogger implements Logger {
 
     // Also write to console in development
     if (getEnvironment() === "development") {
-      this.consoleOutput(level, msg, entry);
+      this.consoleOutput(level, entry.msg, entry);
     }
 
     // Flush if batch is full
