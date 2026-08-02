@@ -325,6 +325,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 	ttl, urgency := pushOptionsForPriority(event.Priority)
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(subs))
+	successCh := make(chan struct{}, len(subs))
 	for _, sub := range subs {
 		wg.Add(1)
 		go func(sub *iot.PushSubscription) {
@@ -333,11 +334,20 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 			defer func() { <-c.sendSlots }()
 			if err := c.sendOneSynchronously(ctx, event, payload, sub, ttl, urgency); err != nil {
 				errCh <- err
+				return
 			}
+			successCh <- struct{}{}
 		}(sub)
 	}
 	wg.Wait()
 	close(errCh)
+	close(successCh)
+	if len(successCh) > 0 {
+		// Claims are per guardian rather than per browser subscription. Once one
+		// of the guardian's devices accepts the reminder, retrying failures would
+		// duplicate it on that successful device.
+		return nil
+	}
 	var errs []error
 	for err := range errCh {
 		errs = append(errs, err)

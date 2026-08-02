@@ -397,13 +397,20 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		// Older unit-test fakes implement only the narrow per-key resolver.
 		// Production SettingsService always implements the batch loader.
 		if errors.Is(err, errSchedulerSettingsBatchUnsupported) {
-			if iterationErr := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, fn); iterationErr != nil {
+			completed := make([]int64, 0)
+			if iterationErr := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, func(txCtx context.Context, tenantID int64) error {
+				if fnErr := fn(txCtx, tenantID); fnErr != nil {
+					return fnErr
+				}
+				completed = append(completed, tenantID)
+				return nil
+			}); iterationErr != nil {
 				s.getLogger().Error("failed to list active tenants",
 					slog.String("operation", opName),
 					slog.String("error", iterationErr.Error()),
 				)
 			}
-			return nil
+			return completed
 		}
 		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
