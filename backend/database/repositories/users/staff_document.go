@@ -190,6 +190,7 @@ func (r *StaffDocumentRepository) listQueuedFileCleanups(ctx context.Context, wh
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&cleanups).
 		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
+		Where(`"staff_document_file_cleanup".retry_after <= ?`, time.Now()).
 		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
 	if where != "" {
 		query = query.Where(where, arg)
@@ -207,6 +208,20 @@ func (r *StaffDocumentRepository) MarkQueuedFileCleanupComplete(ctx context.Cont
 
 func (r *StaffDocumentRepository) MarkQueuedFileCleanupCompleteByFilename(ctx context.Context, filename string) error {
 	return r.markQueuedFileCleanupComplete(ctx, `"staff_document_file_cleanup".filename_stored = ?`, filename)
+}
+
+func (r *StaffDocumentRepository) ActivateQueuedFileCleanupByFilename(ctx context.Context, filename string) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.StaffDocumentFileCleanup)(nil)).
+		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
+		Set("retry_after = ?", time.Now()).
+		Where(`"staff_document_file_cleanup".filename_stored = ?`, filename).
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
+	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "activate queued staff document file cleanup", Err: err}
+	}
+	return nil
 }
 
 func (r *StaffDocumentRepository) markQueuedFileCleanupComplete(ctx context.Context, where string, arg any) error {

@@ -409,32 +409,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedByStaffID, claims.Username); err != nil {
-			return err
-		}
-		documents, err := rs.StaffDocumentService.ListStaffDocumentsPendingFileCleanup(ctx, id)
-		if err != nil {
-			return err
-		}
-		for _, document := range documents {
-			docID, storedName := document.ID, document.FilenameStored
-			tenant.RegisterAfterCommit(ctx, func() {
-				rs.cleanupStaffDocumentFile(tenantID, id, docID, storedName, "offboarding")
-			})
-		}
-		cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(ctx, id)
-		if err != nil {
-			return err
-		}
-		for _, cleanup := range cleanups {
-			cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
-			tenant.RegisterAfterCommit(ctx, func() {
-				rs.cleanupQueuedStaffDocumentFile(tenantID, id, cleanupID, storedName, "offboarding")
-			})
-		}
-		return nil
-	}); err != nil {
+	if err := rs.offboardStaffAndQueueDocumentCleanup(r.Context(), tenantID, id, deletedByStaffID, claims.Username); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
 			common.RenderError(w, r, common.ErrorConflictMessage(usersSvc.ErrStaffInUse.Error()))
 			return
@@ -448,6 +423,39 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Staff member deleted successfully")
+}
+
+func (rs *Resource) offboardStaffAndQueueDocumentCleanup(ctx context.Context, tenantID, staffID, deletedByStaffID int64, deletedBy string) error {
+	return tenant.WithTenantTx(ctx, rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.StaffOffboardingService.OffboardStaff(ctx, staffID, deletedByStaffID, deletedBy); err != nil {
+			return err
+		}
+		return rs.queueOffboardedStaffDocumentCleanup(ctx, tenantID, staffID)
+	})
+}
+
+func (rs *Resource) queueOffboardedStaffDocumentCleanup(ctx context.Context, tenantID, staffID int64) error {
+	documents, err := rs.StaffDocumentService.ListStaffDocumentsPendingFileCleanup(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	for _, document := range documents {
+		docID, storedName := document.ID, document.FilenameStored
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.cleanupStaffDocumentFile(tenantID, staffID, docID, storedName, "offboarding")
+		})
+	}
+	cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	for _, cleanup := range cleanups {
+		cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID, storedName, "offboarding")
+		})
+	}
+	return nil
 }
 
 // serveStaffAvatar serves the avatar image for a staff member.

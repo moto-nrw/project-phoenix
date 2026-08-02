@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -51,10 +52,12 @@ function DocumentDirectory({
   entries,
   error,
   onRetry,
+  embedded = false,
 }: {
   readonly entries: readonly StaffDocumentDirectoryEntry[];
   readonly error?: Error;
   readonly onRetry: () => void;
+  readonly embedded?: boolean;
 }) {
   const router = useTenantRouter();
   const [search, setSearch] = useState("");
@@ -65,14 +68,27 @@ function DocumentDirectory({
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Personalunterlagen"
-        search={{
-          value: search,
-          onChange: setSearch,
-          placeholder: "Mitarbeiter/in suchen...",
-        }}
-      />
+      {!embedded && (
+        <PageHeaderWithSearch
+          title="Personalunterlagen"
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: "Mitarbeiter/in suchen...",
+          }}
+        />
+      )}
+      {embedded && (
+        <div className="mb-4">
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Mitarbeiter/in suchen..."
+            className="w-full"
+          />
+        </div>
+      )}
       <p className="mb-4 text-sm text-gray-600">
         Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
       </p>
@@ -154,7 +170,7 @@ function StaffPageContent() {
   const [locationFilter, setLocationFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
   const [selectedView, setSelectedView] = useState<
-    "status" | "accounts" | "audit"
+    "status" | "accounts" | "audit" | "documents"
   >("status");
   const [employmentFilter, setEmploymentFilter] = useState("all");
   // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
@@ -176,7 +192,12 @@ function StaffPageContent() {
   // landen deshalb direkt in den Zeitkonten, können aber zwischen Zeitkonten
   // und Änderungsprotokoll wechseln.
   const view =
-    canReadUsers || selectedView === "audit" ? selectedView : "accounts";
+    canReadUsers || selectedView === "audit" || selectedView === "documents"
+      ? selectedView
+      : "accounts";
+  const showDocumentDirectory =
+    documentDirectoryOnly ||
+    (canManageTimeTracking && canAccessDocuments && view === "documents");
 
   // Handle mobile detection
   useEffect(() => {
@@ -215,7 +236,7 @@ function StaffPageContent() {
     isLoading: isDocumentDirectoryLoading,
     mutate: mutateDocumentDirectory,
   } = useSWRAuth<StaffDocumentDirectoryEntry[]>(
-    documentDirectoryOnly ? "staff-document-directory" : null,
+    showDocumentDirectory ? "staff-document-directory" : null,
     () => staffService.getDocumentDirectory(),
     { revalidateOnFocus: false },
   );
@@ -479,7 +500,7 @@ function StaffPageContent() {
   // Das Änderungsprotokoll bringt seine eigenen Filter mit (MA, Editor,
   // Bereich, Zeitraum) — Header-Filter würden dort ins Leere laufen.
   const filterConfigs: FilterConfig[] =
-    view === "audit"
+    view === "audit" || view === "documents"
       ? []
       : view === "accounts"
         ? [employmentFilterConfig]
@@ -595,7 +616,7 @@ function StaffPageContent() {
         search={
           // Im Änderungsprotokoll filtert die Komponente selbst; ein
           // wirkungsloses Suchfeld wäre irreführend.
-          view === "audit"
+          view === "audit" || view === "documents"
             ? undefined
             : {
                 value: searchTerm,
@@ -633,7 +654,9 @@ function StaffPageContent() {
         <Tabs
           value={view}
           onValueChange={(value) =>
-            setSelectedView(value as "status" | "accounts" | "audit")
+            setSelectedView(
+              value as "status" | "accounts" | "audit" | "documents",
+            )
           }
           className="mb-4"
         >
@@ -641,6 +664,9 @@ function StaffPageContent() {
             {canReadUsers && <TabsTrigger value="status">Status</TabsTrigger>}
             <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
             <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
+            {canAccessDocuments && (
+              <TabsTrigger value="documents">Personalunterlagen</TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
       )}
@@ -649,6 +675,15 @@ function StaffPageContent() {
           Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
       {view === "audit" && canManageTimeTracking && (
         <StaffAuditLog staffOptions={auditStaffOptions} />
+      )}
+
+      {view === "documents" && canManageTimeTracking && canAccessDocuments && (
+        <DocumentDirectory
+          entries={documentDirectory ?? []}
+          error={documentDirectoryError}
+          onRetry={() => void mutateDocumentDirectory()}
+          embedded
+        />
       )}
 
       {view === "accounts" && (

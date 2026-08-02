@@ -60,14 +60,17 @@ type StaffDocument struct {
 }
 
 // StaffDocumentFileCleanup tracks an upload whose metadata could not be
-// committed and whose file could not be removed immediately. It intentionally
-// has no staff foreign key: the failed request may name a staff row that was
-// concurrently offboarded, but the sensitive file still must remain queued.
+// committed and whose file could not be removed immediately. RetryAfter keeps
+// a newly written file out of cleanup retries while metadata is being stored.
+// It intentionally has no staff foreign key: the failed request may name a
+// staff row that was concurrently offboarded, but the sensitive file still
+// must remain queued.
 type StaffDocumentFileCleanup struct {
 	base.Model `bun:"schema:users,table:staff_document_file_cleanup"`
 	base.TenantModel
 	StaffID        int64      `bun:"staff_id,notnull"`
 	FilenameStored string     `bun:"filename_stored,notnull"`
+	RetryAfter     time.Time  `bun:"retry_after,notnull"`
 	CleanedAt      *time.Time `bun:"cleaned_at"`
 }
 
@@ -130,4 +133,5 @@ type StaffDocumentRepository interface {
 	ListQueuedFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*StaffDocumentFileCleanup, error)
 	MarkQueuedFileCleanupComplete(ctx context.Context, cleanupID int64) error
 	MarkQueuedFileCleanupCompleteByFilename(ctx context.Context, filename string) error
+	ActivateQueuedFileCleanupByFilename(ctx context.Context, filename string) error
 }

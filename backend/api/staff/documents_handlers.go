@@ -247,6 +247,12 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 				"staff_id", id,
 				"error", err,
 			)
+			if activateErr := rs.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(r.Context(), storedName); activateErr != nil {
+				rs.getLogger().Error("staff document cleanup intent activation failed",
+					"staff_id", id,
+					"error", activateErr,
+				)
+			}
 		} else if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
 			rs.getLogger().Warn("staff document cleanup intent completion failed",
 				"staff_id", id,

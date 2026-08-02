@@ -85,6 +85,7 @@ func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			staff_id BIGINT NOT NULL,
 			filename_stored TEXT NOT NULL,
+			retry_after TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '5 minutes',
 			cleaned_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -92,7 +93,7 @@ func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_staff_document_file_cleanup_pending
-			ON users.staff_document_file_cleanup (tenant_id, staff_id)
+			ON users.staff_document_file_cleanup (tenant_id, retry_after, staff_id)
 			WHERE cleaned_at IS NULL;
 
 		DROP TRIGGER IF EXISTS update_staff_document_file_cleanup_updated_at ON users.staff_document_file_cleanup;

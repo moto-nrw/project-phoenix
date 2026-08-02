@@ -220,7 +220,9 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    expect(screen.queryByText("Personalunterlagen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Wählen Sie eine Person/),
+    ).not.toBeInTheDocument();
     expect(getAllStaff).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: /Dokumente Test/ }));
     expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=dokumente");
@@ -231,9 +233,21 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    expect(screen.queryByText("Personalunterlagen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Wählen Sie eine Person/),
+    ).not.toBeInTheDocument();
     expect(getDocumentDirectory).not.toHaveBeenCalled();
     expect(getTimeAccounts).toHaveBeenCalledTimes(1);
+
+    const documentsTab = screen.getByRole("tab", {
+      name: "Personalunterlagen",
+    });
+    fireEvent.pointerDown(documentsTab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(documentsTab, { button: 0 });
+    fireEvent.click(documentsTab);
+
+    expect(screen.getByText(/Wählen Sie eine Person/)).toBeInTheDocument();
+    expect(getDocumentDirectory).toHaveBeenCalled();
   });
 
   it("behandelt admin:* als Vollzugriff statt als Dokumentenrolle", () => {
@@ -241,7 +255,9 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    expect(screen.queryByText("Personalunterlagen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Wählen Sie eine Person/),
+    ).not.toBeInTheDocument();
     expect(getDocumentDirectory).not.toHaveBeenCalled();
   });
 

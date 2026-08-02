@@ -251,6 +251,18 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	assert.Len(t, s.auditRows(t), 2)
 }
 
+func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
+	s := newStaffDocumentScenario(t)
+	actor := s.actor("users:update")
+	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, actor)
+
+	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, s.staffID)
+	require.NoError(t, err)
+
+	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, info.Document.ID, actor)
+	require.Error(t, err)
+}
+
 func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	s := newStaffDocumentScenario(t)
 	admin := s.actor("admin:*")

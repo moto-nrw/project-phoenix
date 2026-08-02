@@ -93,8 +93,9 @@ type StaffDocumentService interface {
 	// MarkStaffDocumentFileDeleted records successful physical cleanup so it is
 	// never retried during a later list or offboarding request.
 	MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error
-	// QueueStaffDocumentFileCleanup durably records an orphaned upload whose
-	// metadata transaction failed and whose immediate unlink also failed.
+	// QueueStaffDocumentFileCleanup durably records the cleanup intent before
+	// the file is written. It remains ineligible for retries until the upload
+	// fails or the initial grace period has elapsed after an interrupted upload.
 	QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error
 	// ListQueuedStaffDocumentFileCleanup returns orphaned upload files that
 	// should be retried for this staff record during list or offboarding flows.
@@ -104,6 +105,9 @@ type StaffDocumentService interface {
 	ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]*userModels.StaffDocumentFileCleanup, error)
 	MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error
 	MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error
+	// ActivateQueuedStaffDocumentFileCleanup makes a failed upload eligible for
+	// retry after its immediate filesystem cleanup failed.
+	ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error
 	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
 	// for a document that may already be soft-deleted.
 	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
@@ -300,6 +304,9 @@ func (s *staffDocumentService) ResolveStaffDocumentDownload(ctx context.Context,
 	var document *userModels.StaffDocument
 	tenantID := tenant.FromContext(ctx)
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if _, err := s.staff.FindByID(ctx, staffID); err != nil {
+			return err
+		}
 		doc, err := s.documents.FindForStaff(ctx, staffID, documentID)
 		if err != nil {
 			return err
@@ -432,6 +439,13 @@ func (s *staffDocumentService) MarkQueuedStaffDocumentFileCleanupCompleteByFilen
 	tenantID := tenant.FromContext(ctx)
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return s.documents.MarkQueuedFileCleanupCompleteByFilename(ctx, storedName)
+	})
+}
+
+func (s *staffDocumentService) ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.documents.ActivateQueuedFileCleanupByFilename(ctx, storedName)
 	})
 }
 

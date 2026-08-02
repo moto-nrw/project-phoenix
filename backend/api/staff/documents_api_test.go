@@ -209,6 +209,10 @@ func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
 	ctx := testpkg.TenantContext(1)
 	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
+	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, cleanups, "an in-progress upload must not be picked up by cleanup retries")
+	require.NoError(t, c.tc.services.StaffDocuments.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
 	t.Cleanup(func() {
 		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
 	})
@@ -224,7 +228,7 @@ func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T
 	_, err = os.Stat(filePath)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
-	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	cleanups, err = c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, cleanups)
 }
