@@ -420,6 +420,11 @@ vi.mock("~/lib/hooks/use-user-context", () => ({
 }));
 
 const mockTenantMutate = vi.hoisted(() => vi.fn());
+const mockMinuteClock = vi.hoisted(() => ({ current: new Date() }));
+
+vi.mock("~/lib/pickup-helpers", () => ({
+  useMinuteClock: () => mockMinuteClock.current,
+}));
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
@@ -484,6 +489,7 @@ describe("OGSGroupPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMinuteClock.current = new Date();
     global.fetch = vi.fn();
     // Default mock: loading state
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -517,6 +523,18 @@ describe("OGSGroupPage", () => {
     render(<OGSGroupPage />);
 
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("revalidates group access when the Berlin calendar day changes", async () => {
+    mockMinuteClock.current = new Date("2026-01-01T22:59:00Z");
+    const { rerender } = render(<OGSGroupPage />);
+
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    mockMinuteClock.current = new Date("2026-01-01T23:01:00Z");
+    rerender(<OGSGroupPage />);
+
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
   });
 
   it("shows no access state when user has no OGS groups", async () => {

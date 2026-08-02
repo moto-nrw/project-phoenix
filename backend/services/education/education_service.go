@@ -37,9 +37,9 @@ type service struct {
 func (s *service) SetBroadcaster(b realtime.Broadcaster) { s.broadcaster = b }
 
 // announceGroupAccessChanged queues the tenant-wide invalidation for a write
-// that changed who may open which group. Every writer of
-// education.group_teacher and education.group_substitution funnels through
-// here, so a cascade (DeleteGroup drops both) announces itself for free.
+// that changed who may open which group. Education writes funnel through here,
+// so a cascade (DeleteGroup drops both) announces itself for free. Staff
+// offboarding also uses the shared realtime helper after its direct cleanup.
 func (s *service) announceGroupAccessChanged(ctx context.Context, source string) {
 	realtime.QueueGroupAccessChanged(ctx, s.broadcaster, nil, source)
 }

@@ -103,6 +103,7 @@ export function SupervisionProvider({
   // Debounce mechanism to prevent rapid successive calls
   const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
+  const pendingGroupsRefreshRef = React.useRef(false);
 
   // Store token and admin status in refs to avoid dependency loops.
   // Any admin (including dual-role teacher-admins) tries the admin-overview
@@ -518,8 +519,16 @@ export function SupervisionProvider({
       const work = groupsOnly
         ? [checkGroups()]
         : [checkGroups(), checkSupervision()];
-      void Promise.all(work).finally(() => {
+      await Promise.all(work).finally(() => {
         isRefreshingRef.current = false;
+        if (pendingGroupsRefreshRef.current) {
+          pendingGroupsRefreshRef.current = false;
+          void refreshRef.current?.({
+            silent: true,
+            force: true,
+            groupsOnly: true,
+          });
+        }
       });
     },
     [checkGroups, checkSupervision],
@@ -573,6 +582,10 @@ export function SupervisionProvider({
       // status), neither of which education.group_teacher or
       // education.group_substitution writes — running it here would fire two
       // guaranteed-no-op requests per client on every handover.
+      if (isRefreshingRef.current) {
+        pendingGroupsRefreshRef.current = true;
+        return;
+      }
       refreshRef
         .current?.({ silent: true, force: true, groupsOnly: true })
         .catch(() => {
@@ -581,8 +594,10 @@ export function SupervisionProvider({
     };
 
     window.addEventListener("phoenix:supervision-stale", handleStale);
-    return () =>
+    return () => {
+      pendingGroupsRefreshRef.current = false;
       window.removeEventListener("phoenix:supervision-stale", handleStale);
+    };
   }, [session?.user?.token]);
 
   // Periodic refresh every minute for timely supervision updates (silent mode)

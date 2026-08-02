@@ -348,6 +348,54 @@ describe("SupervisionProvider", () => {
     ).toBe(false);
   });
 
+  it("queues a stale-event group refetch while another refresh is active", async () => {
+    setupFetchMock();
+    const fallbackFetch = mockFetch.getMockImplementation();
+    let resolveInitialGroups: ((value: unknown) => void) | undefined;
+    let groupRequestCount = 0;
+
+    mockFetch.mockImplementation((url: string) => {
+      if (!url.includes("/api/groups/context")) {
+        return fallbackFetch?.(url);
+      }
+      groupRequestCount++;
+      if (groupRequestCount === 1) {
+        return new Promise((resolve) => {
+          resolveInitialGroups = resolve;
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ groups: [{ id: 42, name: "Queued Group" }] }),
+      });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => expect(groupRequestCount).toBe(1));
+
+    window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+
+    await act(async () => {
+      resolveInitialGroups?.({
+        ok: true,
+        json: async () => ({ groups: [] }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(groupRequestCount).toBe(2);
+      expect(result.current.groups).toEqual([{ id: 42, name: "Queued Group" }]);
+    });
+
+    const supervisedRequests = mockFetch.mock.calls.filter((call) =>
+      String(call[0]).includes("/api/me/groups/supervised"),
+    );
+    expect(supervisedRequests).toHaveLength(1);
+  });
+
   it("stops listening for phoenix:supervision-stale after unmount", async () => {
     setupFetchMock();
 

@@ -16,6 +16,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -453,6 +454,47 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 		Where(`id = ?`, teacher.ID).
 		Scan(context.Background(), &teacherDeletedAt))
 	assert.NotNil(t, teacherDeletedAt, "teacher row must be soft-deleted")
+}
+
+// TestOffboardStaff_BroadcastsGroupAccessChanged verifies that the direct
+// assignment cleanup invalidates open group views after the transaction
+// commits. Offboarding does not pass through the education service.
+func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
+	sc := newOffboardingScenario(t)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	broadcastAware := sc.svc.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	})
+	broadcastAware.SetBroadcaster(broadcaster)
+
+	teacher := testpkg.CreateTestTeacher(t, sc.db, "Broadcast", "Teacher")
+	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardBroadcastGroup")
+	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
+	today := timezone.TodayDate()
+	substitution := testpkg.CreateTestGroupSubstitution(
+		t, sc.db, group.ID, nil, teacher.StaffID, today, today.AddDays(1),
+	)
+
+	var personID int64
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.staff`).
+		ColumnExpr(`person_id`).
+		Where(`id = ?`, teacher.StaffID).
+		Scan(context.Background(), &personID))
+
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_substitution WHERE id = ?`, substitution.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
+		cleanupOffboardedStaffChain(t, sc.db, teacher.StaffID, personID, nil)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, teacher.StaffID, teacher.StaffID, "test-admin"))
+
+	event := testpkg.AssertSingleTenantEvent(t, broadcaster, realtime.EventGroupAccessChanged, offboardingFixtureTenant)
+	require.NotNil(t, event.Data.Source)
+	assert.Equal(t, "staff_offboarding", *event.Data.Source)
 }
 
 // TestOffboardStaff_Idempotent: deleting a non-existent staff member stays a

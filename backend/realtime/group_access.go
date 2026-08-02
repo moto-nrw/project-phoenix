@@ -10,11 +10,11 @@ import (
 // QueueGroupAccessChanged emits the tenant-wide group_access_changed
 // invalidation after the surrounding tenant transaction commits.
 //
-// Every writer of the two tables that decide group access lives in
-// services/education, so this is called from there and never from a handler.
-// A cascade then announces itself without each caller having to remember:
-// deleting a group drops its teacher links AND its substitutions through the
-// same service methods that emit.
+// Education writes call this through services/education, while staff
+// offboarding calls it after its direct assignment cleanup. Handlers never
+// emit. An education cascade then announces itself without each caller having
+// to remember: deleting a group drops its teacher links AND its substitutions
+// through the same service methods that emit.
 //
 // source names the emitting flow ("substitution_create", "group_teachers", …)
 // and is the only field carried: the event reaches every staff client of the
