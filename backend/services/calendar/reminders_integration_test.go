@@ -302,6 +302,55 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
+func TestCalendarServiceIntegration_AppointmentReminderDoesNotRetryWithoutPushSubscribers(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	notifier := &reminderCaptureNotifier{err: notifications.ErrNoWebPushSubscribers}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.ParentsURL = "https://parents.test"
+	cfg.ReminderNotifier = notifier
+	cfg.Preferences = reminderPreferences{}
+	service := calendarSvc.NewService(cfg)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    appointmentDate,
+		EndDate:      appointmentDate,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	startsAt := berlinInstant(t, appointmentDate, 18, 0)
+	ctx := calendarContext(organizerAccount.ID)
+	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, 1, queued)
+
+	notifier.err = nil
+	queued, err = service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued)
+	assert.Empty(t, notifier.events, "a missing optional push audience must not retain a retryable claim")
+}
+
 func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

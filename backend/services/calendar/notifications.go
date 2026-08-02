@@ -26,6 +26,7 @@ const parentCalendarDeepLink = "/calendar"
 type OutboxEnqueuer interface {
 	Enqueue(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+	CancelPendingByRelatedEntityExceptKind(ctx context.Context, relatedType string, relatedID int64, excludedKind string, reason string) (int64, error)
 }
 
 // LogoResolver returns the school login image used as e-mail header branding.
@@ -367,6 +368,23 @@ func (s *service) cancelPendingNotifications(ctx context.Context, appointmentID 
 		return nil
 	}
 	_, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, platformModels.EmailRelatedTypeAppointment, appointmentID, reason)
+	return err
+}
+
+// cancelPendingLifecycleNotifications removes stale create/update notices but
+// preserves already-queued reminders. A reminder is tied to its occurrence;
+// an edit after its scheduling window has passed has no later scan that could
+// replace it.
+func (s *service) cancelPendingLifecycleNotifications(ctx context.Context, appointmentID int64, reason string) error {
+	if s.cfg.Outbox == nil {
+		return nil
+	}
+	_, err := s.cfg.Outbox.CancelPendingByRelatedEntityExceptKind(ctx,
+		platformModels.EmailRelatedTypeAppointment,
+		appointmentID,
+		platformModels.EmailKindAppointmentReminder,
+		reason,
+	)
 	return err
 }
 

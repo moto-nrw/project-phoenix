@@ -605,7 +605,7 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	// Kill any not-yet-sent notice queued by a prior create/update so the worker
 	// can't deliver stale title/date/location (or a create notice the edit turned
 	// off), then optionally enqueue a fresh update notice — mirrors cancel/delete.
-	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment updated"); err != nil {
+	if err := s.cancelPendingLifecycleNotifications(ctx, appointment.ID, "appointment updated"); err != nil {
 		return nil, err
 	}
 	if appointment.NotifyGuardians {

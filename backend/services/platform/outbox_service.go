@@ -177,6 +177,21 @@ func (s *OutboxService) CancelPendingByRelatedEntity(ctx context.Context, relate
 	return s.repo.CancelPendingByRelatedEntity(ctx, relatedType, relatedID, reason)
 }
 
+// CancelPendingByRelatedEntityExceptKind cancels pending rows for an entity
+// while preserving rows of the supplied e-mail kind.
+func (s *OutboxService) CancelPendingByRelatedEntityExceptKind(ctx context.Context, relatedType string, relatedID int64, excludedKind string, reason string) (int64, error) {
+	if s == nil || s.repo == nil {
+		return 0, errors.New("outbox service not wired")
+	}
+	repo, ok := s.repo.(interface {
+		CancelPendingByRelatedEntityExceptKind(context.Context, string, int64, string, string) (int64, error)
+	})
+	if !ok {
+		return 0, errors.New("outbox repository cannot preserve e-mail kinds")
+	}
+	return repo.CancelPendingByRelatedEntityExceptKind(ctx, relatedType, relatedID, excludedKind, reason)
+}
+
 // FindByRelatedEntity surfaces the per-feature lookup so admin UIs can
 // show "all email rows for this enrollment request". Tenant-scoped.
 func (s *OutboxService) FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*platformModels.EmailOutbox, error) {

@@ -20,7 +20,7 @@ func uniqueOutboxToken(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
-func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxRepository, int64) {
+func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxCleanupRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -626,4 +626,51 @@ func TestEmailOutboxRepository_CancelPendingByRelatedEntity_NoMatchesReturnsZero
 	})
 	require.NoError(t, err)
 	assert.Zero(t, cancelled)
+}
+
+func TestEmailOutboxRepository_CancelPendingByRelatedEntityExceptKind_PreservesReminder(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	defer wipeOutbox(db, tenantID, platformModels.EmailKindAppointmentReminder)
+	defer wipeOutbox(db, tenantID, platformModels.EmailKindAppointmentUpdated)
+
+	relatedType := platformModels.EmailRelatedTypeAppointment
+	relatedID := int64(919191)
+	makeRelated := func(kind string) *platformModels.EmailOutbox {
+		row := makeOutbox(kind)
+		row.RelatedEntityType = &relatedType
+		row.RelatedEntityID = &relatedID
+		return row
+	}
+	reminder := makeRelated(platformModels.EmailKindAppointmentReminder)
+	update := makeRelated(platformModels.EmailKindAppointmentUpdated)
+	for _, row := range []*platformModels.EmailOutbox{reminder, update} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, row)
+		}))
+	}
+
+	var cancelled int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		cancelled, err = repo.CancelPendingByRelatedEntityExceptKind(ctx,
+			relatedType,
+			relatedID,
+			platformModels.EmailKindAppointmentReminder,
+			"appointment updated",
+		)
+		return err
+	}))
+	assert.EqualValues(t, 1, cancelled)
+
+	statusOf := func(id int64) string {
+		var row *platformModels.EmailOutbox
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			var err error
+			row, err = repo.FindByID(ctx, id)
+			return err
+		}))
+		return row.Status
+	}
+	assert.Equal(t, platformModels.EmailOutboxStatusPending, statusOf(reminder.ID))
+	assert.Equal(t, platformModels.EmailOutboxStatusFailed, statusOf(update.ID))
 }

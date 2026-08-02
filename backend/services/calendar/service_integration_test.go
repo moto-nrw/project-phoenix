@@ -123,6 +123,11 @@ func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, 
 	return 0, nil
 }
 
+func (r *recordingOutbox) CancelPendingByRelatedEntityExceptKind(context.Context, string, int64, string, string) (int64, error) {
+	r.cancelled++
+	return 0, nil
+}
+
 func calendarContext(accountID int64) context.Context {
 	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, jwt.AppClaims{
 		ID:       int(accountID),

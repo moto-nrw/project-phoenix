@@ -151,4 +151,5 @@ type EmailOutboxRepository interface {
 type EmailOutboxCleanupRepository interface {
 	EmailOutboxRepository
 	DeleteByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) (int64, error)
+	CancelPendingByRelatedEntityExceptKind(ctx context.Context, relatedType string, relatedID int64, excludedKind string, reason string) (int64, error)
 }

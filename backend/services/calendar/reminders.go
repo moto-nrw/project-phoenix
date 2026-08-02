@@ -354,6 +354,9 @@ func (s *service) enqueueAppointmentReminder(
 			if err == nil && dispatched {
 				return
 			}
+			if errors.Is(err, notifications.ErrNoWebPushSubscribers) {
+				return
+			}
 
 			s.logger().Warn("calendar: appointment reminder push failed",
 				slog.Int64("appointment_id", appointmentCopy.ID),
