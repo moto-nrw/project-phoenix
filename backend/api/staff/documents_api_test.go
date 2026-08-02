@@ -240,7 +240,10 @@ func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T)
 	c := setupDocumentsAPI(t)
 	rec := c.upload(t, "zeugnis", "offboarded.pdf", fakePDF, "users:update")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	_, storedName := uploadedDocument(t, rec.Body.Bytes())
+	docID, _ := uploadedDocument(t, rec.Body.Bytes())
+	ctx := testpkg.TenantContext(1)
+	var storedName string
+	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
 
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
@@ -248,7 +251,6 @@ func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T)
 	_, err = os.Stat(filePath)
 	require.NoError(t, err)
 
-	ctx := testpkg.TenantContext(1)
 	_, err = c.tc.db.ExecContext(ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, c.staffID)
 	require.NoError(t, err)
 

@@ -27,6 +27,23 @@ func NewStaffDocumentRepository(db *bun.DB) users.StaffDocumentRepository {
 	return &StaffDocumentRepository{Repository: repo, db: db}
 }
 
+// Create persists a document and hydrates database-generated values used in
+// the upload response, including its ID and timestamps.
+func (r *StaffDocumentRepository) Create(ctx context.Context, document *users.StaffDocument) error {
+	if err := document.Validate(); err != nil {
+		return err
+	}
+	base.EnsureTenantID(ctx, document)
+	if _, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(document).
+		ModelTableExpr(`users.staff_documents AS "staff_document"`).
+		Returning("*").
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "create staff document", Err: err}
+	}
+	return nil
+}
+
 // FindForStaff loads one non-deleted document belonging to the given staff
 // member. sql.ErrNoRows propagates (wrapped) — a missing or foreign document
 // is a 404, not a normal state.

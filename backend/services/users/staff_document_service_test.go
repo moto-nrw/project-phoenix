@@ -251,6 +251,15 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	assert.Len(t, s.auditRows(t), 2)
 }
 
+func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
+	s := newStaffDocumentScenario(t)
+	info := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, s.actor("staff:financial"))
+
+	assert.False(t, info.Document.CreatedAt.IsZero())
+	require.NotNil(t, info.RetainUntil)
+	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year+10, info.RetainUntil.Year)
+}
+
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 	s := newStaffDocumentScenario(t)
 	actor := s.actor("users:update")
