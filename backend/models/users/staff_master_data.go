@@ -57,6 +57,12 @@ func (m *StaffMasterData) Validate() error {
 	if m.WeeklyHours != nil && (*m.WeeklyHours < 0 || *m.WeeklyHours > 80) {
 		return errors.New("weekly_hours must be between 0 and 80")
 	}
+	if m.EntryDate != nil && m.ContractEndDate != nil && m.ContractEndDate.Before(*m.EntryDate) {
+		return errors.New("contract_end_date must not be before entry_date")
+	}
+	if m.EntryDate != nil && m.ProbationEndDate != nil && m.ProbationEndDate.Before(*m.EntryDate) {
+		return errors.New("probation_end_date must not be before entry_date")
+	}
 	return nil
 }
 

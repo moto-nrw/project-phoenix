@@ -226,6 +226,12 @@ func (s *personService) UpdateStaffStammdatenKontakt(ctx context.Context, staffI
 
 // UpdateStaffStammdatenArbeitsvertrag replaces the contract section.
 func (s *personService) UpdateStaffStammdatenArbeitsvertrag(ctx context.Context, staffID int64, input StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error {
+	if input.EntryDate != nil && input.ContractEndDate != nil && input.ContractEndDate.Before(*input.EntryDate) {
+		return fmt.Errorf("%w: contract end date must not be before entry date", ErrStaffStammdatenInvalid)
+	}
+	if input.EntryDate != nil && input.ProbationEndDate != nil && input.ProbationEndDate.Before(*input.EntryDate) {
+		return fmt.Errorf("%w: probation end date must not be before entry date", ErrStaffStammdatenInvalid)
+	}
 	if input.WeeklyHours != nil && (*input.WeeklyHours < 0 || *input.WeeklyHours > 80) {
 		return fmt.Errorf("%w: weekly hours must be between 0 and 80", ErrStaffStammdatenInvalid)
 	}

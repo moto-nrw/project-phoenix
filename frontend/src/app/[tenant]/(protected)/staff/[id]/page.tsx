@@ -125,6 +125,10 @@ export default function StaffDetailContent() {
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canManageAbsences =
+    canEdit ||
+    canManageTimeTracking ||
+    hasPermission(session, "vacation:approve");
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
   const canEditStammdaten = hasPermission(session, "users:update");
@@ -147,7 +151,7 @@ export default function StaffDetailContent() {
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
   const { data: pendingForStaff } = useSWRAuth<number>(
-    `staff-pending-absences-${staffId}`,
+    canManageAbsences ? `staff-pending-absences-${staffId}` : null,
     async () => {
       const year = new Date().getFullYear();
       const rows = await staffAbsenceService.getAbsences(
@@ -240,16 +244,18 @@ export default function StaffDetailContent() {
               Arbeitszeitmodell
             </TabsTrigger>
           ) : null}
-          <TabsTrigger value="abwesenheiten">
-            <span className="inline-flex items-center gap-1.5">
-              Abwesenheiten
-              {pendingCount > 0 && (
-                <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
-            </span>
-          </TabsTrigger>
+          {canManageAbsences ? (
+            <TabsTrigger value="abwesenheiten">
+              <span className="inline-flex items-center gap-1.5">
+                Abwesenheiten
+                {pendingCount > 0 && (
+                  <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+              </span>
+            </TabsTrigger>
+          ) : null}
           {canViewStammdaten ? (
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
           ) : null}
@@ -278,14 +284,16 @@ export default function StaffDetailContent() {
           </TabsPrimitive.Content>
         ) : null}
 
-        <TabsPrimitive.Content value="abwesenheiten">
-          <AbwesenheitenTab
-            staffId={staffId}
-            canEdit={canEdit}
-            canManageSickReports={canManageTimeTracking}
-            staff={staff}
-          />
-        </TabsPrimitive.Content>
+        {canManageAbsences ? (
+          <TabsPrimitive.Content value="abwesenheiten">
+            <AbwesenheitenTab
+              staffId={staffId}
+              canEdit={canEdit}
+              canManageSickReports={canManageTimeTracking}
+              staff={staff}
+            />
+          </TabsPrimitive.Content>
+        ) : null}
 
         {canViewStammdaten ? (
           <TabsPrimitive.Content value="stammdaten">
