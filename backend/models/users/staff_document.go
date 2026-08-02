@@ -56,6 +56,7 @@ type StaffDocument struct {
 	UploadedBy      int64      `bun:"uploaded_by,notnull" json:"uploaded_by"`
 	DeletedAt       *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 	DeletedBy       *int64     `bun:"deleted_by" json:"-"`
+	FileDeletedAt   *time.Time `bun:"file_deleted_at" json:"-"`
 }
 
 // Validate ensures the document row is storable.
@@ -97,15 +98,16 @@ type StaffDocumentRepository interface {
 	// newest first, optionally restricted to the given categories. An empty
 	// category list returns nothing (the caller may see no category at all).
 	ListByStaffID(ctx context.Context, staffID int64, categories []string) ([]*StaffDocument, error)
-	// ListStoredByStaffID returns all stored filenames, including soft-deleted
-	// rows, for after-commit filesystem cleanup during staff offboarding.
-	ListStoredByStaffID(ctx context.Context, staffID int64) ([]string, error)
-	// ListDeletedStoredByStaffID returns soft-deleted stored filenames limited
-	// to visible categories, so normal document-list reads can retry cleanup.
-	ListDeletedStoredByStaffID(ctx context.Context, staffID int64, categories []string) ([]string, error)
+	// ListPendingFileCleanupByStaffID returns documents whose stored bytes have
+	// not yet been removed, including soft-deleted rows for offboarding.
+	ListPendingFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*StaffDocument, error)
+	// ListDeletedPendingFileCleanupByStaffID limits retry candidates to
+	// soft-deleted documents in the caller's visible categories.
+	ListDeletedPendingFileCleanupByStaffID(ctx context.Context, staffID int64, categories []string) ([]*StaffDocument, error)
 	// FindForStaffIncludingDeleted loads a document by the staff/document URL
 	// pair even after its metadata was soft-deleted, so filesystem cleanup can
 	// be retried without exposing unrelated records.
 	FindForStaffIncludingDeleted(ctx context.Context, staffID, documentID int64) (*StaffDocument, error)
 	SoftDelete(ctx context.Context, doc *StaffDocument, deletedBy int64) error
+	MarkFileDeleted(ctx context.Context, documentID int64) error
 }

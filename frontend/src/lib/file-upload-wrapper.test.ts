@@ -350,12 +350,11 @@ describe("createFileUploadHandler", () => {
       expect(handler).not.toHaveBeenCalled();
     });
 
-    it("rejects files with double extensions", async () => {
-      const handler = vi.fn();
+    it("accepts files with multiple dots in their display name", async () => {
+      const handler = vi.fn().mockResolvedValue({ success: true });
       const wrappedHandler = createFileUploadHandler(handler);
 
-      // Use valid extension so it passes extension check but fails double-extension check
-      const file = new File([new ArrayBuffer(100)], "file.png.jpg", {
+      const file = new File([new ArrayBuffer(100)], "Arbeitsvertrag v1.2.jpg", {
         type: "image/jpeg",
       });
 
@@ -369,13 +368,8 @@ describe("createFileUploadHandler", () => {
       const context = { params: Promise.resolve({}) };
 
       const response = await wrappedHandler(request, context);
-      const data = (await response.json()) as ErrorResponse;
-
-      expect(response.status).toBe(422);
-      expect(data.error).toContain(
-        "Files with multiple extensions are not allowed",
-      );
-      expect(handler).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(handler).toHaveBeenCalled();
     });
 
     it("rejects files with path traversal in filename (..)", async () => {

@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"context"
 	"errors"
 	"mime"
 	"net/http"
@@ -132,23 +133,21 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 		renderDocumentError(w, r, err)
 		return
 	}
-	// Retry any unlink that failed after a prior committed metadata delete.
-	// The durable soft-deleted row supplies the filename; category filtering
-	// ensures a list caller never triggers cleanup outside their authority.
-	if storedNames, err := rs.StaffDocumentService.ListDeletedStaffDocumentFiles(r.Context(), id, actor); err != nil {
+	// Retry only files whose prior post-commit unlink did not finish. The hooks
+	// run after this read transaction commits, so list queries never do I/O in
+	// their tenant transaction.
+	if documents, err := rs.StaffDocumentService.ListDeletedStaffDocumentsPendingFileCleanup(r.Context(), id, actor); err != nil {
 		rs.getLogger().Warn("staff document cleanup retry lookup failed",
 			"staff_id", id,
 			"error", err,
 		)
 	} else {
-		for _, storedName := range storedNames {
-			if err := rs.removeStoredDocument(r, storedName); err != nil {
-				rs.getLogger().Warn("staff document cleanup retry failed",
-					"staff_id", id,
-					"stored_name", storedName,
-					"error", err,
-				)
-			}
+		tenantID := tenant.FromContext(r.Context())
+		for _, document := range documents {
+			docID, storedName := document.ID, document.FilenameStored
+			tenant.RegisterAfterCommit(r.Context(), func() {
+				rs.cleanupStaffDocumentFile(tenantID, id, docID, storedName, "retry")
+			})
 		}
 	}
 	resp := &StaffDocumentListResponse{
@@ -287,16 +286,12 @@ func (rs *Resource) deleteStaffDocument(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	storedName := doc.FilenameStored
-	tenant.RegisterAfterCommit(r.Context(), func() {
-		if err := rs.removeStoredDocument(r, storedName); err != nil {
-			rs.getLogger().Error("staff document cleanup failed after delete",
-				"staff_id", id,
-				"document_id", docID,
-				"error", err,
-			)
-		}
-	})
+	if doc.FileDeletedAt == nil {
+		tenantID := tenant.FromContext(r.Context())
+		tenant.RegisterAfterCommit(r.Context(), func() {
+			rs.cleanupStaffDocumentFile(tenantID, id, doc.ID, doc.FilenameStored, "delete")
+		})
+	}
 	common.Respond(w, r, http.StatusOK, &stammdatenAck{StaffID: id}, "Staff document deleted successfully")
 }
 
@@ -330,14 +325,39 @@ func fileSizeOnDisk(path string) int64 {
 // their metadata transaction commits, so a failed transaction never destroys
 // bytes that still back a visible document.
 func (rs *Resource) removeStoredDocument(r *http.Request, storedName string) error {
+	return rs.removeStoredDocumentForTenant(tenant.FromContext(r.Context()), storedName)
+}
+
+func (rs *Resource) removeStoredDocumentForTenant(tenantID int64, storedName string) error {
 	if common.ValidateFilename(storedName) != nil {
 		return errors.New("stored document filename failed validation on delete")
 	}
-	dir := staffDocumentsDir(tenant.FromContext(r.Context()))
+	dir := staffDocumentsDir(tenantID)
 	if err := os.Remove(filepath.Join(dir, storedName)); err != nil && !os.IsNotExist(err) {
 		return errors.New("failed to remove stored document")
 	}
 	return nil
+}
+
+func (rs *Resource) cleanupStaffDocumentFile(tenantID, staffID, documentID int64, storedName, source string) {
+	if err := rs.removeStoredDocumentForTenant(tenantID, storedName); err != nil {
+		rs.getLogger().Warn("staff document cleanup failed",
+			"staff_id", staffID,
+			"document_id", documentID,
+			"source", source,
+			"error", err,
+		)
+		return
+	}
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	if err := rs.StaffDocumentService.MarkStaffDocumentFileDeleted(ctx, documentID); err != nil {
+		rs.getLogger().Error("staff document cleanup status update failed",
+			"staff_id", staffID,
+			"document_id", documentID,
+			"source", source,
+			"error", err,
+		)
+	}
 }
 
 func (rs *Resource) removeUploadedDocument(path string) error {

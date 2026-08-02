@@ -84,13 +84,15 @@ type StaffDocumentService interface {
 	// audit entry in one tenant transaction. The handler unlinks the file only
 	// after this transaction commits.
 	DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
-	// ListStoredStaffDocumentFiles returns durable filesystem references for an
-	// offboarding after-commit cleanup attempt. Repeated offboarding retries
-	// files left behind by an earlier failed unlink.
-	ListStoredStaffDocumentFiles(ctx context.Context, staffID int64) ([]string, error)
-	// ListDeletedStaffDocumentFiles returns failed-cleanup candidates only for
-	// categories the caller may access.
-	ListDeletedStaffDocumentFiles(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]string, error)
+	// ListStaffDocumentsPendingFileCleanup returns stored-file cleanup
+	// candidates for offboarding, excluding files already removed.
+	ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocument, error)
+	// ListDeletedStaffDocumentsPendingFileCleanup returns authorized retry
+	// candidates whose previous file unlink did not complete.
+	ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]*userModels.StaffDocument, error)
+	// MarkStaffDocumentFileDeleted records successful physical cleanup so it is
+	// never retried during a later list or offboarding request.
+	MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error
 	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
 	// for a document that may already be soft-deleted.
 	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
@@ -333,6 +335,9 @@ func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID,
 		if err := s.requireCategoryPermission(doc.Category, actor); err != nil {
 			return err
 		}
+		if err := s.documents.SoftDelete(ctx, doc, actor.AccountID); err != nil {
+			return err
+		}
 		if err := s.audit.Create(ctx, &auditModels.StaffMasterDataChange{
 			StaffID:   staffID,
 			ChangedBy: actor.AccountID,
@@ -343,9 +348,6 @@ func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID,
 		}); err != nil {
 			return fmt.Errorf("write document audit: %w", err)
 		}
-		if err := s.documents.SoftDelete(ctx, doc, actor.AccountID); err != nil {
-			return err
-		}
 		deleted = doc
 		return nil
 	})
@@ -355,12 +357,19 @@ func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID,
 	return deleted, nil
 }
 
-func (s *staffDocumentService) ListStoredStaffDocumentFiles(ctx context.Context, staffID int64) ([]string, error) {
-	return s.documents.ListStoredByStaffID(ctx, staffID)
+func (s *staffDocumentService) ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocument, error) {
+	return s.documents.ListPendingFileCleanupByStaffID(ctx, staffID)
 }
 
-func (s *staffDocumentService) ListDeletedStaffDocumentFiles(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]string, error) {
-	return s.documents.ListDeletedStoredByStaffID(ctx, staffID, visibleStaffDocumentCategories(actor))
+func (s *staffDocumentService) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]*userModels.StaffDocument, error) {
+	return s.documents.ListDeletedPendingFileCleanupByStaffID(ctx, staffID, visibleStaffDocumentCategories(actor))
+}
+
+func (s *staffDocumentService) MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.documents.MarkFileDeleted(ctx, documentID)
+	})
 }
 
 func (s *staffDocumentService) ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {

@@ -376,20 +376,14 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		if err := rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedByStaffID, claims.Username); err != nil {
 			return err
 		}
-		storedNames, err := rs.StaffDocumentService.ListStoredStaffDocumentFiles(ctx, id)
+		documents, err := rs.StaffDocumentService.ListStaffDocumentsPendingFileCleanup(ctx, id)
 		if err != nil {
 			return err
 		}
-		for _, storedName := range storedNames {
-			name := storedName
+		for _, document := range documents {
+			docID, storedName := document.ID, document.FilenameStored
 			tenant.RegisterAfterCommit(ctx, func() {
-				if err := rs.removeStoredDocument(r, name); err != nil {
-					rs.getLogger().Error("staff document cleanup failed after offboarding",
-						"staff_id", id,
-						"stored_name", name,
-						"error", err,
-					)
-				}
+				rs.cleanupStaffDocumentFile(tenantID, id, docID, storedName, "offboarding")
 			})
 		}
 		return nil

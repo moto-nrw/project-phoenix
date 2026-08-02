@@ -63,6 +63,7 @@ func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
 			uploaded_by BIGINT NOT NULL,
 			deleted_at TIMESTAMPTZ,
 			deleted_by BIGINT,
+			file_deleted_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT uq_staff_documents_stored UNIQUE (filename_stored),
@@ -74,6 +75,10 @@ func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_staff_documents_staff
 			ON users.staff_documents (tenant_id, staff_id)
 			WHERE deleted_at IS NULL;
+
+		CREATE INDEX IF NOT EXISTS idx_staff_documents_pending_file_cleanup
+			ON users.staff_documents (tenant_id, staff_id)
+			WHERE deleted_at IS NOT NULL AND file_deleted_at IS NULL;
 
 		DROP TRIGGER IF EXISTS update_staff_documents_updated_at ON users.staff_documents;
 		CREATE TRIGGER update_staff_documents_updated_at

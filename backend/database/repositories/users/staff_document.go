@@ -84,44 +84,41 @@ func (r *StaffDocumentRepository) ListByStaffID(ctx context.Context, staffID int
 	return rows, nil
 }
 
-// ListStoredByStaffID returns all filenames still recorded for a staff
-// member, including soft-deleted rows. The offboarding retry path needs these
-// durable references after the staff row itself has been soft-deleted.
-func (r *StaffDocumentRepository) ListStoredByStaffID(ctx context.Context, staffID int64) ([]string, error) {
-	var filenames []string
+func (r *StaffDocumentRepository) ListPendingFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*users.StaffDocument, error) {
+	var documents []*users.StaffDocument
 	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*users.StaffDocument)(nil)).
+		Model(&documents).
 		ModelTableExpr(`users.staff_documents AS "staff_document"`).
-		ColumnExpr(`"staff_document".filename_stored`).
 		Where(`"staff_document".staff_id = ?`, staffID).
+		Where(`"staff_document".file_deleted_at IS NULL`).
 		WhereAllWithDeleted()
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
-	if err := query.Scan(ctx, &filenames); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list stored staff documents", Err: err}
+	if err := query.Scan(ctx, &documents); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list pending staff document cleanup", Err: err}
 	}
-	return filenames, nil
+	return documents, nil
 }
 
-func (r *StaffDocumentRepository) ListDeletedStoredByStaffID(ctx context.Context, staffID int64, categories []string) ([]string, error) {
+func (r *StaffDocumentRepository) ListDeletedPendingFileCleanupByStaffID(ctx context.Context, staffID int64, categories []string) ([]*users.StaffDocument, error) {
 	if len(categories) == 0 {
-		return []string{}, nil
+		return []*users.StaffDocument{}, nil
 	}
-	var filenames []string
+	var documents []*users.StaffDocument
 	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*users.StaffDocument)(nil)).
+		Model(&documents).
 		ModelTableExpr(`users.staff_documents AS "staff_document"`).
-		ColumnExpr(`"staff_document".filename_stored`).
 		Where(`"staff_document".staff_id = ?`, staffID).
 		Where(`"staff_document".category IN (?)`, bun.List(categories)).
 		Where(`"staff_document".deleted_at IS NOT NULL`).
+		Where(`"staff_document".file_deleted_at IS NULL`).
 		WhereAllWithDeleted()
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
-	if err := query.Scan(ctx, &filenames); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list deleted stored staff documents", Err: err}
+	if err := query.Scan(ctx, &documents); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list pending deleted staff document cleanup", Err: err}
 	}
-	return filenames, nil
+	return documents, nil
 }
 
 // SoftDelete stamps deleted_at and deleted_by in one update. The model's
@@ -148,5 +145,20 @@ func (r *StaffDocumentRepository) SoftDelete(ctx context.Context, doc *users.Sta
 	}
 	doc.DeletedAt = &now
 	doc.DeletedBy = &deletedBy
+	return nil
+}
+
+func (r *StaffDocumentRepository) MarkFileDeleted(ctx context.Context, documentID int64) error {
+	now := time.Now()
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.StaffDocument)(nil)).
+		ModelTableExpr(`users.staff_documents AS "staff_document"`).
+		Set("file_deleted_at = ?", now).
+		Where(`"staff_document".id = ?`, documentID).
+		Where(`"staff_document".file_deleted_at IS NULL`)
+	query = base.WithTenantFilter(ctx, query, "staff_document")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "mark staff document file deleted", Err: err}
+	}
 	return nil
 }

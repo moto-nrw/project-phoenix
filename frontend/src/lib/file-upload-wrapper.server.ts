@@ -29,7 +29,7 @@ export class FileValidationError extends Error {
  * Throws FileValidationError with a semantically correct HTTP status:
  *   413 — file too large
  *   415 — wrong MIME type or extension
- *   422 — suspicious filename (double extensions, path traversal)
+ *   422 — suspicious filename (path traversal)
  */
 function validateFile(file: File, options: FileUploadOptions): void {
   const {
@@ -73,17 +73,8 @@ function validateFile(file: File, options: FileUploadOptions): void {
     );
   }
 
-  // Additional security checks
-  // Check for double extensions
-  const extensionCount = (fileName.match(/\./g) ?? []).length;
-  if (extensionCount > 1) {
-    throw new FileValidationError(
-      "Files with multiple extensions are not allowed",
-      422,
-    );
-  }
-
-  // Check for suspicious patterns in filename
+  // Reject path traversal. Multiple dots are valid in ordinary display names;
+  // the backend verifies content and replaces the stored name with a UUID.
   if (
     fileName.includes("..") ||
     fileName.includes("/") ||
