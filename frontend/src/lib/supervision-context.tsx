@@ -66,7 +66,11 @@ interface SupervisionState {
 }
 
 interface SupervisionContextType extends SupervisionState {
-  refresh: (options?: { silent?: boolean; force?: boolean }) => Promise<void>;
+  refresh: (options?: {
+    silent?: boolean;
+    force?: boolean;
+    groupsOnly?: boolean;
+  }) => Promise<void>;
 }
 
 const SupervisionContext = createContext<SupervisionContextType | undefined>(
@@ -126,7 +130,12 @@ export function SupervisionProvider({
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<
-    ((options?: { silent?: boolean; force?: boolean }) => Promise<void>) | null
+    | ((options?: {
+        silent?: boolean;
+        force?: boolean;
+        groupsOnly?: boolean;
+      }) => Promise<void>)
+    | null
   >(null);
 
   // Check if user has any groups (as teacher or representative)
@@ -473,9 +482,16 @@ export function SupervisionProvider({
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
   const refresh = useCallback(
-    async (options?: { silent?: boolean; force?: boolean }) => {
+    async (options?: {
+      silent?: boolean;
+      force?: boolean;
+      groupsOnly?: boolean;
+    }) => {
       const silent = options?.silent ?? false;
       const force = options?.force ?? false;
+      // Skips the supervision half (own supervised rooms + Schulhof status)
+      // for triggers that provably cannot have changed it.
+      const groupsOnly = options?.groupsOnly ?? false;
       // Prevent rapid successive refreshes (min 5 seconds between refreshes).
       // `force` bypasses the throttle for deliberate external triggers
       // (e.g. after saving a setting that changes supervision visibility).
@@ -499,7 +515,10 @@ export function SupervisionProvider({
       }
 
       // checkSupervision now handles Schulhof internally
-      void Promise.all([checkGroups(), checkSupervision()]).finally(() => {
+      const work = groupsOnly
+        ? [checkGroups()]
+        : [checkGroups(), checkSupervision()];
+      void Promise.all(work).finally(() => {
         isRefreshingRef.current = false;
       });
     },
@@ -549,9 +568,16 @@ export function SupervisionProvider({
     if (!session?.user?.token) return;
 
     const handleStale = () => {
-      refreshRef.current?.({ silent: true, force: true }).catch(() => {
-        // Intentionally ignored - silent background refresh
-      });
+      // groupsOnly: a group-access change cannot touch the supervision half.
+      // checkSupervision reads active.supervisors and active.groups (Schulhof
+      // status), neither of which education.group_teacher or
+      // education.group_substitution writes — running it here would fire two
+      // guaranteed-no-op requests per client on every handover.
+      refreshRef
+        .current?.({ silent: true, force: true, groupsOnly: true })
+        .catch(() => {
+          // Intentionally ignored - silent background refresh
+        });
     };
 
     window.addEventListener("phoenix:supervision-stale", handleStale);

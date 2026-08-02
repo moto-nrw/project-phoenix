@@ -1,9 +1,13 @@
-// Substitution SSE emission tests (#2084).
+// group_access_changed emission tests for the Vertretungsplan (#2084).
 //
 // A Vertretung decides which groups a staff member may open in "Meine Gruppe".
-// The substitute's own client never makes the write, and no other event covers
-// it, so every write path must announce substitution_changed to the tenant or
+// The substitute's own client never makes the write and no other event covers
+// it, so every write path must announce group_access_changed to the tenant or
 // an already-open tab keeps the stale group list until a manual reload.
+//
+// Driven through the production router even though the emit lives in
+// services/education: the subtle part is that the broadcast fires only after
+// the request's tenant transaction COMMITS, which only the full chain proves.
 package substitutions_test
 
 import (
@@ -20,51 +24,55 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// setupRecordingContext builds the production resource wired to a recording
-// broadcaster. Router() captures the resource pointer, so assigning the
-// broadcaster after the mount is picked up by every handler call.
+// setupRecordingContext builds the production wiring with a recording
+// broadcaster attached to the education service, mirroring the duck-typed
+// SetBroadcaster block in services/factory.go.
 func setupRecordingContext(t *testing.T) (*testContext, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	ctx := setupTestContext(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	ctx.resource.Broadcaster = broadcaster
+
+	aware, ok := ctx.services.Education.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	})
+	require.True(t, ok, "education service must accept a broadcaster")
+	aware.SetBroadcaster(broadcaster)
 
 	return ctx, broadcaster
 }
 
-// assertSubstitutionChanged asserts that exactly one tenant-wide
-// substitution_changed event was emitted, carrying the expected source and no
-// staff identity (the event reaches every staff client of the tenant).
-func assertSubstitutionChanged(t *testing.T, broadcaster *testpkg.RecordingBroadcaster, source string) {
+// assertGroupAccessChanged pins the tenant routing and privacy contract via the
+// shared helper, then the emitting flow.
+func assertGroupAccessChanged(t *testing.T, b *testpkg.RecordingBroadcaster, source string) {
 	t.Helper()
 
-	events := broadcaster.EventsOfType(realtime.EventSubstitutionChanged)
-	require.Len(t, events, 1, "expected exactly one substitution_changed event")
-
-	require.NotNil(t, events[0].Data.Source)
-	assert.Equal(t, source, *events[0].Data.Source)
-	assert.Nil(t, events[0].Data.StudentID, "substitution_changed must not carry student identity")
-	assert.Empty(t, events[0].ActiveGroupID, "substitution_changed is tenant-wide, not group-scoped")
-
-	// Routed to the caller's tenant, never broadcast school-wide across tenants.
-	calls := broadcaster.CallsByMethod("tenant")
-	require.NotEmpty(t, calls)
-	assert.Equal(t, int64(testutil.DefaultTestClaims().TenantID), calls[0].TenantID)
+	event := testpkg.AssertSingleTenantEvent(t, b, realtime.EventGroupAccessChanged,
+		int64(testutil.DefaultTestClaims().TenantID))
+	require.NotNil(t, event.Data.Source)
+	assert.Equal(t, source, *event.Data.Source)
 }
 
-func TestCreateSubstitution_BroadcastsSubstitutionChanged(t *testing.T) {
+// substitutionFixtures creates the staff + group a Vertretung needs.
+func substitutionFixtures(t *testing.T, ctx *testContext, label string) (staffID, groupID int64) {
+	t.Helper()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, label, "Substitute")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID) })
+
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SSE"+label)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID) })
+
+	return staff.ID, group.ID
+}
+
+func TestCreateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	ctx, broadcaster := setupRecordingContext(t)
-
-	staff := testpkg.CreateTestStaff(t, ctx.db, "SSECreate", "Substitute")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
-
-	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SSESubstitutionCreate")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
+	staffID, groupID := substitutionFixtures(t, ctx, "Create")
 
 	body := map[string]interface{}{
-		"group_id":            group.ID,
-		"substitute_staff_id": staff.ID,
+		"group_id":            groupID,
+		"substitute_staff_id": staffID,
 		"start_date":          timezone.TodayDate().AddDays(1).String(),
 		"end_date":            timezone.TodayDate().AddDays(7).String(),
 		"reason":              "SSE test",
@@ -84,25 +92,20 @@ func TestCreateSubstitution_BroadcastsSubstitutionChanged(t *testing.T) {
 		defer cleanupSubstitution(t, ctx.db, int64(id))
 	}
 
-	assertSubstitutionChanged(t, broadcaster, "substitution_create")
+	assertGroupAccessChanged(t, broadcaster, "substitution_create")
 }
 
-func TestUpdateSubstitution_BroadcastsSubstitutionChanged(t *testing.T) {
+func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	ctx, broadcaster := setupRecordingContext(t)
-
-	staff := testpkg.CreateTestStaff(t, ctx.db, "SSEUpdate", "Substitute")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
-
-	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SSESubstitutionUpdate")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
+	staffID, groupID := substitutionFixtures(t, ctx, "Update")
 
 	today := timezone.TodayDate()
-	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, today, today.AddDays(3))
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
 	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	body := map[string]interface{}{
-		"group_id":            group.ID,
-		"substitute_staff_id": staff.ID,
+		"group_id":            groupID,
+		"substitute_staff_id": staffID,
 		"start_date":          today.AddDays(1).String(),
 		"end_date":            today.AddDays(5).String(),
 	}
@@ -114,20 +117,15 @@ func TestUpdateSubstitution_BroadcastsSubstitutionChanged(t *testing.T) {
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	assertSubstitutionChanged(t, broadcaster, "substitution_update")
+	assertGroupAccessChanged(t, broadcaster, "substitution_update")
 }
 
-func TestDeleteSubstitution_BroadcastsSubstitutionChanged(t *testing.T) {
+func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	ctx, broadcaster := setupRecordingContext(t)
-
-	staff := testpkg.CreateTestStaff(t, ctx.db, "SSEDelete", "Substitute")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
-
-	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SSESubstitutionDelete")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
+	staffID, groupID := substitutionFixtures(t, ctx, "Delete")
 
 	today := timezone.TodayDate()
-	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, today, today.AddDays(3))
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
 	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/substitutions/%d", substitution.ID), nil,
@@ -137,7 +135,7 @@ func TestDeleteSubstitution_BroadcastsSubstitutionChanged(t *testing.T) {
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	require.Equal(t, http.StatusNoContent, rr.Code)
 
-	assertSubstitutionChanged(t, broadcaster, "substitution_delete")
+	assertGroupAccessChanged(t, broadcaster, "substitution_delete")
 }
 
 // A rejected write must stay silent: a client that refetches on a phantom
@@ -159,5 +157,5 @@ func TestCreateSubstitution_Rejected_BroadcastsNothing(t *testing.T) {
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	assert.False(t, broadcaster.HasEventType(realtime.EventSubstitutionChanged))
+	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged))
 }

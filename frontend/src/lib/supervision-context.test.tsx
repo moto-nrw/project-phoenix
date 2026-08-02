@@ -328,11 +328,24 @@ describe("SupervisionProvider", () => {
     await waitFor(() => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(initialFetchCount);
     });
+
+    const refetched = mockFetch.mock.calls
+      .slice(initialFetchCount)
+      .map((call) => String(call[0]));
+
+    // The group list is what changed...
+    expect(refetched.some((url) => url.includes("/api/groups/context"))).toBe(
+      true,
+    );
+    // ...and nothing else. checkSupervision reads active.supervisors and the
+    // Schulhof status, neither of which a group-access write can touch, so
+    // firing them here would cost every client two guaranteed no-op requests.
     expect(
-      mockFetch.mock.calls.some((call) =>
-        String(call[0]).includes("/api/groups/context"),
-      ),
-    ).toBe(true);
+      refetched.some((url) => url.includes("/api/me/groups/supervised")),
+    ).toBe(false);
+    expect(
+      refetched.some((url) => url.includes("/api/active/schulhof/status")),
+    ).toBe(false);
   });
 
   it("stops listening for phoenix:supervision-stale after unmount", async () => {

@@ -65,6 +65,30 @@ describe("useGlobalSSE", () => {
     vi.restoreAllMocks();
   });
 
+  /** Fires an event through the captured onMessage callback. */
+  function fire(event: {
+    type: SSEEvent["type"];
+    active_group_id?: string;
+    data?: SSEEvent["data"];
+  }) {
+    const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+    onMessage?.({
+      type: event.type,
+      active_group_id: event.active_group_id ?? "",
+      data: event.data ?? {},
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /** Every key from the inventory that ANY recorded mutate matcher accepts. */
+  function matchedKeys(inventory: readonly string[]): string[] {
+    const matchers = vi
+      .mocked(mutate)
+      .mock.calls.map((call) => call[0])
+      .filter((m): m is (key: string) => boolean => typeof m === "function");
+    return inventory.filter((key) => matchers.some((m) => m(key)));
+  }
+
   describe("hook initialization", () => {
     it("returns SSE connection state", () => {
       const { result } = renderHook(() => useGlobalSSE());
@@ -1414,30 +1438,6 @@ describe("useGlobalSSE", () => {
 
   // #2057: scoped invalidation, jitter, and the request-herd regression guard.
   describe("scoped OGS invalidation (#2057)", () => {
-    /** Fires an event through the captured onMessage callback. */
-    function fire(event: {
-      type: SSEEvent["type"];
-      active_group_id?: string;
-      data?: SSEEvent["data"];
-    }) {
-      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
-      onMessage?.({
-        type: event.type,
-        active_group_id: event.active_group_id ?? "",
-        data: event.data ?? {},
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    /** Every key from the inventory that ANY recorded mutate matcher accepts. */
-    function matchedKeys(inventory: readonly string[]): string[] {
-      const matchers = vi
-        .mocked(mutate)
-        .mock.calls.map((call) => call[0])
-        .filter((m): m is (key: string) => boolean => typeof m === "function");
-      return inventory.filter((key) => matchers.some((m) => m(key)));
-    }
-
     it("scopes ogs-students invalidation to the event's group_ids", () => {
       renderHook(() => useGlobalSSE());
 
@@ -1637,29 +1637,7 @@ describe("useGlobalSSE", () => {
     });
   });
 
-  describe("substitution_changed (#2084)", () => {
-    function fire(event: {
-      type: SSEEvent["type"];
-      active_group_id?: string;
-      data?: SSEEvent["data"];
-    }) {
-      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
-      onMessage?.({
-        type: event.type,
-        active_group_id: event.active_group_id ?? "",
-        data: event.data ?? {},
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    function matchedKeys(inventory: readonly string[]): string[] {
-      const matchers = vi
-        .mocked(mutate)
-        .mock.calls.map((call) => call[0])
-        .filter((m): m is (key: string) => boolean => typeof m === "function");
-      return inventory.filter((key) => matchers.some((m) => m(key)));
-    }
-
+  describe("group_access_changed (#2084)", () => {
     it("refreshes EVERY ogs-students key, not just the transferred group", () => {
       // The acceptance criterion: a group handed to this user must appear in
       // their open tab. That tab is keyed on the group they were ALREADY
@@ -1668,7 +1646,7 @@ describe("useGlobalSSE", () => {
       renderHook(() => useGlobalSSE());
 
       fire({
-        type: "substitution_changed",
+        type: "group_access_changed",
         data: { source: "group_transfer" },
       });
       vi.advanceTimersByTime(500);
@@ -1690,7 +1668,7 @@ describe("useGlobalSSE", () => {
       renderHook(() => useGlobalSSE());
 
       fire({
-        type: "substitution_changed",
+        type: "group_access_changed",
         data: { source: "substitution_create" },
       });
       vi.advanceTimersByTime(500);
@@ -1714,7 +1692,7 @@ describe("useGlobalSSE", () => {
       renderHook(() => useGlobalSSE());
 
       fire({
-        type: "substitution_changed",
+        type: "group_access_changed",
         data: { source: "group_transfer" },
       });
       vi.advanceTimersByTime(500);
@@ -1729,33 +1707,6 @@ describe("useGlobalSSE", () => {
       ).toEqual([]);
     });
 
-    it("collapses a burst of substitution writes into one flush", () => {
-      // An admin saving several Vertretungen in a row must cost every open tab
-      // one refetch, not one per save.
-      renderHook(() => useGlobalSSE());
-
-      for (let i = 0; i < 4; i++) {
-        fire({
-          type: "substitution_changed",
-          data: { source: "substitution_create" },
-        });
-        vi.advanceTimersByTime(100);
-      }
-      expect(mutate).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(DEBOUNCE_MS + FLUSH_JITTER_MS);
-      const flushes = vi
-        .mocked(mutate)
-        .mock.calls.filter(
-          (call) =>
-            typeof call[0] === "function" &&
-            (call[0] as (key: string) => boolean)(
-              "tenant:active-substitutions",
-            ),
-        );
-      expect(flushes).toHaveLength(1);
-    });
-
     it("announces phoenix:supervision-stale so the sidebar group list refetches", () => {
       // SupervisionContext owns the sidebar's "Meine Gruppen" list in local
       // state behind its own fetch — no SWR key exists to invalidate, and its
@@ -1766,7 +1717,7 @@ describe("useGlobalSSE", () => {
       renderHook(() => useGlobalSSE());
 
       fire({
-        type: "substitution_changed",
+        type: "group_access_changed",
         data: { source: "group_transfer" },
       });
       vi.advanceTimersByTime(500);
@@ -1775,25 +1726,14 @@ describe("useGlobalSSE", () => {
       window.removeEventListener("phoenix:supervision-stale", listener);
     });
 
-    it("does not announce phoenix:supervision-stale on an unrelated event", () => {
+    it("leaves every group-access cache and the sidebar alone on an unrelated event", () => {
+      // A check-in must not drag the group list, the Vertretungen page or the
+      // sidebar refetch along — that is the herd #2083 removed.
       const listener = vi.fn();
       window.addEventListener("phoenix:supervision-stale", listener);
       renderHook(() => useGlobalSSE());
 
       fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
-      vi.advanceTimersByTime(500);
-
-      expect(listener).not.toHaveBeenCalled();
-      window.removeEventListener("phoenix:supervision-stale", listener);
-    });
-
-    it("leaves the substitution caches alone on an unrelated event", () => {
-      renderHook(() => useGlobalSSE());
-
-      fire({
-        type: "dashboard_counts_changed",
-        data: { group_ids: ["7"] },
-      });
       vi.advanceTimersByTime(500);
 
       expect(
@@ -1803,6 +1743,8 @@ describe("useGlobalSSE", () => {
           "tenant:user-context",
         ]),
       ).toEqual([]);
+      expect(listener).not.toHaveBeenCalled();
+      window.removeEventListener("phoenix:supervision-stale", listener);
     });
   });
 });

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -23,6 +24,24 @@ type service struct {
 	teacherRepo      users.TeacherRepository
 	staffRepo        users.StaffRepository
 	studentRepo      users.StudentRepository
+
+	// broadcaster announces group_access_changed after a write to either table
+	// that decides group access (#2084). Optional: services constructed without
+	// one (tests, CLI) simply emit nothing, they never fail the write.
+	broadcaster realtime.Broadcaster
+}
+
+// SetBroadcaster wires the SSE hub after construction, matching the
+// duck-typed SetBroadcaster block the service factory already uses for every
+// other broadcasting service.
+func (s *service) SetBroadcaster(b realtime.Broadcaster) { s.broadcaster = b }
+
+// announceGroupAccessChanged queues the tenant-wide invalidation for a write
+// that changed who may open which group. Every writer of
+// education.group_teacher and education.group_substitution funnels through
+// here, so a cascade (DeleteGroup drops both) announces itself for free.
+func (s *service) announceGroupAccessChanged(ctx context.Context, source string) {
+	realtime.QueueGroupAccessChanged(ctx, s.broadcaster, nil, source)
 }
 
 // NewService creates a new education service instance
@@ -307,6 +326,7 @@ func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID
 		return &EducationError{Op: "RemoveTeacherFromGroup", Err: err}
 	}
 
+	s.announceGroupAccessChanged(ctx, "group_teacher_remove")
 	return nil
 }
 
@@ -323,11 +343,27 @@ func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teache
 
 	currentTeacherIDs, newTeacherIDs := buildTeacherIDMaps(currentRelations, teacherIDs)
 
-	if err := s.removeObsoleteTeachers(ctx, currentTeacherIDs, newTeacherIDs); err != nil {
+	removed, err := s.removeObsoleteTeachers(ctx, currentTeacherIDs, newTeacherIDs)
+	if err != nil {
 		return err
 	}
 
-	return s.addNewTeachersToGroup(ctx, groupID, currentTeacherIDs, teacherIDs)
+	added, err := s.addNewTeachersToGroup(ctx, groupID, currentTeacherIDs, teacherIDs)
+	if err != nil {
+		return err
+	}
+
+	// Leadership decides group access exactly like a substitution does
+	// (usercontext.GetMyGroups is the union of both tables), so an admin
+	// adding a colleague here must reach their open tab too.
+	//
+	// Only when the set ACTUALLY changed: the group form submits teacher_ids on
+	// every save, so announcing unconditionally would make every client in the
+	// school refetch its group list when an admin only renamed a group.
+	if removed || added {
+		s.announceGroupAccessChanged(ctx, "group_teachers")
+	}
+	return nil
 }
 
 // buildTeacherIDMaps builds maps for current and new teacher IDs
@@ -346,27 +382,35 @@ func buildTeacherIDMaps(currentRelations []*education.GroupTeacher, teacherIDs [
 }
 
 // removeObsoleteTeachers removes teachers that are no longer in the assignment list
-func (s *service) removeObsoleteTeachers(ctx context.Context, currentTeacherIDs map[int64]int64, newTeacherIDs map[int64]bool) error {
+// removeObsoleteTeachers drops the links no longer in the submitted set and
+// reports whether it removed any, so the caller only announces a real change.
+func (s *service) removeObsoleteTeachers(ctx context.Context, currentTeacherIDs map[int64]int64, newTeacherIDs map[int64]bool) (bool, error) {
+	removed := false
 	for teacherID, relationID := range currentTeacherIDs {
 		if !newTeacherIDs[teacherID] {
 			if err := s.groupTeacherRepo.Delete(ctx, relationID); err != nil {
-				return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+				return removed, &EducationError{Op: "UpdateGroupTeachers", Err: err}
 			}
+			removed = true
 		}
 	}
-	return nil
+	return removed, nil
 }
 
 // addNewTeachersToGroup adds new teachers to the group
-func (s *service) addNewTeachersToGroup(ctx context.Context, groupID int64, currentTeacherIDs map[int64]int64, teacherIDs []int64) error {
+// addNewTeachersToGroup links the teachers not yet on the group and reports
+// whether it added any, so the caller only announces a real change.
+func (s *service) addNewTeachersToGroup(ctx context.Context, groupID int64, currentTeacherIDs map[int64]int64, teacherIDs []int64) (bool, error) {
+	added := false
 	for _, teacherID := range teacherIDs {
 		if _, exists := currentTeacherIDs[teacherID]; !exists {
 			if err := s.addTeacherToGroup(ctx, groupID, teacherID); err != nil {
-				return err
+				return added, err
 			}
+			added = true
 		}
 	}
-	return nil
+	return added, nil
 }
 
 // addTeacherToGroup adds a single teacher to a group
@@ -538,6 +582,7 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "CreateSubstitution", Err: err}
 	}
 
+	s.announceGroupAccessChanged(ctx, "substitution_create")
 	return nil
 }
 
@@ -555,10 +600,19 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 	}
 
 	// Verify substitution exists
-	_, err := s.substitutionRepo.FindByID(ctx, substitution.ID)
+	existing, err := s.substitutionRepo.FindByID(ctx, substitution.ID)
 	if err != nil {
 		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionNotFound}
 	}
+
+	// Carry the stored tenant over the caller's model. Callers that decode a
+	// JSON body into a bare model leave tenant_id at 0 (tenancy is a
+	// server-side fact, never a client input), and the generic repository
+	// Update writes EVERY column — the row would be rewritten with
+	// tenant_id = 0 and RLS rejects it with "new row violates row-level
+	// security policy". Reading it from the row we just loaded also means a
+	// caller cannot move a substitution into another tenant by sending one.
+	substitution.SetTenantID(existing.GetTenantID())
 
 	// Verify group exists
 	_, err = s.groupRepo.FindByID(ctx, substitution.GroupID)
@@ -596,6 +650,7 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "UpdateSubstitution", Err: err}
 	}
 
+	s.announceGroupAccessChanged(ctx, "substitution_update")
 	return nil
 }
 
@@ -612,6 +667,7 @@ func (s *service) DeleteSubstitution(ctx context.Context, id int64) error {
 		return &EducationError{Op: "DeleteSubstitution", Err: err}
 	}
 
+	s.announceGroupAccessChanged(ctx, "substitution_delete")
 	return nil
 }
 
@@ -708,5 +764,10 @@ func (s *service) CheckSubstitutionConflicts(ctx context.Context, staffID int64,
 // FindOverlapping conflict check: group transfers deliberately allow staff to
 // hold multiple groups at once (issue #584: moved verbatim from api/groups).
 func (s *service) CreateGroupTransfer(ctx context.Context, substitution *education.GroupSubstitution) error {
-	return s.substitutionRepo.Create(ctx, substitution)
+	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {
+		return err
+	}
+
+	s.announceGroupAccessChanged(ctx, "group_transfer")
+	return nil
 }
