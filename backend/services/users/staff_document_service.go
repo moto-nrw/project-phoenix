@@ -251,6 +251,7 @@ func (s *staffDocumentService) CreateStaffDocument(ctx context.Context, input Cr
 	}
 
 	tenantID := tenant.FromContext(ctx)
+	var contractEnd *timezone.Date
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if _, err := s.staff.FindByID(ctx, input.StaffID); err != nil {
 			return err
@@ -265,21 +266,25 @@ func (s *staffDocumentService) CreateStaffDocument(ctx context.Context, input Cr
 		}); err != nil {
 			return fmt.Errorf("write document audit: %w", err)
 		}
-		return s.documents.Create(ctx, doc)
+		if err := s.documents.Create(ctx, doc); err != nil {
+			return err
+		}
+		var retentionErr error
+		contractEnd, retentionErr = s.contractEndDate(ctx, input.StaffID)
+		if retentionErr != nil {
+			// Retention is advisory; preserving the successful upload matches the
+			// established response contract. This lookup still runs in the tenant
+			// transaction so the production role can read the master-data table.
+			s.getLogger().Warn("staff document retention lookup failed",
+				"staff_id", input.StaffID,
+				"error", retentionErr.Error(),
+			)
+			contractEnd = nil
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	contractEnd, err := s.contractEndDate(ctx, input.StaffID)
-	if err != nil {
-		// The document is stored; a failed retention lookup must not fail
-		// the upload. The list view recomputes it anyway.
-		s.getLogger().Warn("staff document retention lookup failed",
-			"staff_id", input.StaffID,
-			"error", err.Error(),
-		)
-		contractEnd = nil
 	}
 	return newStaffDocumentInfo(doc, contractEnd), nil
 }

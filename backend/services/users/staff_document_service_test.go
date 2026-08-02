@@ -283,12 +283,17 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM users.staff_master_data WHERE staff_id = ?`, s.staffID)
 	})
+	vertragWithEnd := s.create(t, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
+	require.NotNil(t, vertragWithEnd.RetainUntil)
+	assert.Equal(t, timezone.NewDate(2033, 7, 31), *vertragWithEnd.RetainUntil)
 
 	infos, _, err := s.svc.ListStaffDocuments(s.ctx, s.staffID, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
 	require.NoError(t, err)
-	require.Len(t, infos, 1)
-	require.NotNil(t, infos[0].RetainUntil)
-	assert.Equal(t, timezone.NewDate(2033, 7, 31), *infos[0].RetainUntil)
+	require.Len(t, infos, 2)
+	for _, info := range infos {
+		require.NotNil(t, info.RetainUntil)
+		assert.Equal(t, timezone.NewDate(2033, 7, 31), *info.RetainUntil)
+	}
 
 	zeugnis := s.create(t, userModels.StaffDocumentCategoryZeugnis, admin)
 	assert.Nil(t, zeugnis.RetainUntil)

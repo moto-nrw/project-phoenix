@@ -137,8 +137,10 @@ function StaffPageContent() {
     hasPermission(session, "users:update") ||
     hasPermission(session, "staff:financial") ||
     hasPermission(session, "staff_documents:health");
-  const documentDirectoryOnly =
-    canAccessDocuments && !canReadUsers && !canManageTimeTracking;
+  // Only admins can open staff cards. Document-capable non-admin roles need
+  // the restricted directory even when they also hold users:read or
+  // time_tracking:manage; neither of those views links them to the tab.
+  const documentDirectoryOnly = canAccessDocuments && !userIsAdmin;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -186,7 +188,7 @@ function StaffPageContent() {
     isLoading,
     error: staffError,
   } = useSWRAuth<Staff[]>(
-    canReadUsers ? "staff-list" : null,
+    canReadUsers && !documentDirectoryOnly ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
       return sortStaff(staffData);
@@ -233,7 +235,7 @@ function StaffPageContent() {
   const needsAuditStaffOptions =
     canManageTimeTracking && view === "audit" && !canReadUsers;
   const accountsKey =
-    canManageTimeTracking && view === "accounts"
+    !documentDirectoryOnly && canManageTimeTracking && view === "accounts"
       ? `staff-time-accounts-${monthAnchor.year}-${monthAnchor.month}-${employmentFilter}-${saldoMin ?? ""}-${saldoMax ?? ""}`
       : needsAuditStaffOptions
         ? `staff-audit-options-${monthAnchor.year}-${monthAnchor.month}`
@@ -267,7 +269,7 @@ function StaffPageContent() {
 
   // Abschluss-Status des angezeigten Monats (#1417). Leeres Array = offen.
   const monthCloseKey =
-    canManageTimeTracking && view === "accounts"
+    !documentDirectoryOnly && canManageTimeTracking && view === "accounts"
       ? `staff-month-close-${monthAnchor.year}-${monthAnchor.month}`
       : null;
   const {

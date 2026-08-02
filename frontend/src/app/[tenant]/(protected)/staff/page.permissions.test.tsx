@@ -13,6 +13,7 @@ import StaffPage from "./page";
 const getTimeAccounts = vi.hoisted(() => vi.fn());
 const getDashboardSummary = vi.hoisted(() => vi.fn());
 const getAllStaff = vi.hoisted(() => vi.fn());
+const getDocumentDirectory = vi.hoisted(() => vi.fn());
 const swrKeys = vi.hoisted(() => [] as (string | null)[]);
 const berlinToday = vi.hoisted(() => vi.fn());
 const closeMonth = vi.hoisted(() => vi.fn());
@@ -64,7 +65,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffService: { getAllStaff, getDocumentDirectory: vi.fn() },
+  staffService: { getAllStaff, getDocumentDirectory },
   staffMonthCloseService: {
     getStatus: vi.fn().mockResolvedValue([]),
     closeMonth,
@@ -123,6 +124,7 @@ describe("/staff — Berechtigungs-Split", () => {
     monthCloseRequest.error = null;
     documentDirectoryRequest.error = null;
     getAllStaff.mockReset().mockResolvedValue([]);
+    getDocumentDirectory.mockReset().mockResolvedValue([]);
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
       year: 2026,
@@ -189,6 +191,26 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getTimeAccounts).not.toHaveBeenCalled();
     expect(getDashboardSummary).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["users:read", ["users:read", "staff_documents:health"]],
+    [
+      "time_tracking:manage",
+      ["time_tracking:manage", "staff_documents:health"],
+    ],
+  ])(
+    "öffnet mit %s und einer Dokumentenberechtigung das Personalverzeichnis",
+    (_additionalPermission, permissions) => {
+      mockSession(permissions);
+
+      render(<StaffPage />);
+
+      expect(screen.getByText("Personalunterlagen")).toBeInTheDocument();
+      expect(getDocumentDirectory).toHaveBeenCalledTimes(1);
+      expect(getAllStaff).not.toHaveBeenCalled();
+      expect(getTimeAccounts).not.toHaveBeenCalled();
+    },
+  );
 
   it("blendet den Zeitkonten-Umschalter ohne time_tracking:manage aus und fragt die Zeitkonten nicht ab", () => {
     mockSession(["users:read"]);
