@@ -20,7 +20,7 @@ const SENSITIVE_LOG_KEYS = new Set([
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
 const SENSITIVE_CREDENTIAL_NAME =
-  "password|pin|token|secret|jwt|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|confirm[_-]?password|device[_-]?pin|late[_-]?invite";
+  "password|pin|[a-z0-9_-]*token|secret|jwt|api[_-]?key|client[_-]?secret|confirm[_-]?password|device[_-]?pin|late[_-]?invite";
 const SENSITIVE_TEXT_FIELD_NAME = `(?:${SENSITIVE_CREDENTIAL_NAME})`;
 const SENSITIVE_PARAMETER_NAME = `(?:${SENSITIVE_CREDENTIAL_NAME}|authorization|cookies?)`;
 const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(

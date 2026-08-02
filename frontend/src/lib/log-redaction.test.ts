@@ -123,10 +123,10 @@ describe("redactSensitiveLogData", () => {
   it("redacts credentials embedded in routes, query strings, and text", () => {
     expect(
       redactSensitiveLogString(
-        'GET /parents/enroll/status/route-token/edit?access_token=query-token&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nX-Staff-PIN: 1234\nX-Staff-Auth-PIN: 5678\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","X-Staff-PIN":"serialized-staff-pin","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
+        'GET /parents/enroll/status/route-token/edit?access_token=query-token&status_token=query-status-token&statusToken=query-camel-status-token&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nX-Staff-PIN: 1234\nX-Staff-Auth-PIN: 5678\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","status_token":"serialized-status-token","statusToken":"serialized-camel-status-token","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","X-Staff-PIN":"serialized-staff-pin","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
       ),
     ).toBe(
-      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nX-Staff-PIN: [REDACTED]\nX-Staff-Auth-PIN: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","X-Staff-PIN":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
+      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&status_token=[REDACTED]&statusToken=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nX-Staff-PIN: [REDACTED]\nX-Staff-Auth-PIN: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","status_token":"[REDACTED]","statusToken":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","X-Staff-PIN":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
     );
   });
 
