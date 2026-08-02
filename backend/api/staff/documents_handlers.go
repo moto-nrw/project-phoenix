@@ -321,13 +321,6 @@ func fileSizeOnDisk(path string) int64 {
 	return info.Size()
 }
 
-// removeStoredDocument deletes one stored file. Callers invoke it only after
-// their metadata transaction commits, so a failed transaction never destroys
-// bytes that still back a visible document.
-func (rs *Resource) removeStoredDocument(r *http.Request, storedName string) error {
-	return rs.removeStoredDocumentForTenant(tenant.FromContext(r.Context()), storedName)
-}
-
 func (rs *Resource) removeStoredDocumentForTenant(tenantID int64, storedName string) error {
 	if common.ValidateFilename(storedName) != nil {
 		return errors.New("stored document filename failed validation on delete")
