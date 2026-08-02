@@ -42,9 +42,11 @@ export function ParentPage({
 }
 
 /**
- * The page's identity block. Not a card: it sits directly on the page
- * background so the sections below carry the visual weight, which is what makes
- * the portal read as calm rather than as a stack of competing panels.
+ * The page's identity block, on the same white surface as the sections below.
+ * The calm comes from the typography (blue kicker, `text-xl` title, no oversized
+ * display type) and from dropping the old split hero with its dotted panel —
+ * not from stripping the card, which left the title floating on the dotted page
+ * background.
  */
 export function ParentPageHeader({
   kicker,
@@ -65,7 +67,7 @@ export function ParentPageHeader({
   media?: React.ReactNode;
 }>) {
   return (
-    <header className="space-y-3">
+    <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
       {backHref && backLabel && (
         <ParentBackLink href={backHref} label={backLabel} />
       )}
@@ -225,11 +227,7 @@ export function ParentLoadError({ message }: Readonly<{ message: string }>) {
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
   return (
     <ParentPage>
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-24 rounded" />
-        <Skeleton className="h-7 w-64 rounded" />
-        <Skeleton className="h-4 w-80 rounded" />
-      </div>
+      <Skeleton className="h-28 w-full rounded-2xl" />
       {Array.from({ length: rows }, (_, index) => (
         <Skeleton key={index} className="h-40 w-full rounded-2xl" />
       ))}

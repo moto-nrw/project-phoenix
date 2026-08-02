@@ -196,11 +196,8 @@ export default function ParentFeedbackPage() {
       <ParentPageHeader
         kicker={t("kicker")}
         title={t("title")}
-        description={t("productTeamNotice")}
+        description={`${t("productTeamNotice")} ${t("pseudonymNotice")}`}
       />
-      <p className="-mt-3 text-sm leading-6 text-gray-500">
-        {t("pseudonymNotice")}
-      </p>
 
       {loadError && (
         <div className="flex flex-wrap items-center gap-3">
