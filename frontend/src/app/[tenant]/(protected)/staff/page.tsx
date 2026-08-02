@@ -611,7 +611,11 @@ function StaffPageContent() {
             </svg>
           ),
           count:
-            view === "accounts" ? accountRows.length : filteredStaff.length,
+            view === "accounts"
+              ? accountRows.length
+              : view === "documents"
+                ? (documentDirectory?.length ?? 0)
+                : filteredStaff.length,
         }}
         search={
           // Im Änderungsprotokoll filtert die Komponente selbst; ein

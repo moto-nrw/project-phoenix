@@ -87,6 +87,9 @@ type StaffDocumentService interface {
 	// ListStaffDocumentsPendingFileCleanup returns stored-file cleanup
 	// candidates for offboarding, excluding files already removed.
 	ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocument, error)
+	// ListOffboardedStaffDocumentsPendingFileCleanup returns tenant-wide cleanup
+	// candidates whose staff member has already been offboarded.
+	ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]*userModels.StaffDocument, error)
 	// ListDeletedStaffDocumentsPendingFileCleanup returns authorized retry
 	// candidates whose previous file unlink did not complete.
 	ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]*userModels.StaffDocument, error)
@@ -396,6 +399,10 @@ func (s *staffDocumentService) ListStaffDocumentsPendingFileCleanup(ctx context.
 	return s.documents.ListPendingFileCleanupByStaffID(ctx, staffID)
 }
 
+func (s *staffDocumentService) ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]*userModels.StaffDocument, error) {
+	return s.documents.ListOffboardedPendingFileCleanups(ctx)
+}
+
 func (s *staffDocumentService) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]*userModels.StaffDocument, error) {
 	return s.documents.ListDeletedPendingFileCleanupByStaffID(ctx, staffID, visibleStaffDocumentCategories(actor))
 }
@@ -416,6 +423,7 @@ func (s *staffDocumentService) QueueStaffDocumentFileCleanup(ctx context.Context
 		return s.documents.QueueFileCleanup(ctx, &userModels.StaffDocumentFileCleanup{
 			StaffID:        staffID,
 			FilenameStored: storedName,
+			RetryAfter:     time.Now().Add(5 * time.Minute),
 		})
 	})
 }

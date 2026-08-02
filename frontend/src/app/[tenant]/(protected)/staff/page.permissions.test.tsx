@@ -26,6 +26,7 @@ const monthCloseRequest = vi.hoisted(() => ({
 }));
 const documentDirectoryRequest = vi.hoisted(() => ({
   error: null as Error | null,
+  data: [] as unknown[],
 }));
 const staffListRequest = vi.hoisted(() => ({
   data: undefined as unknown,
@@ -58,7 +59,9 @@ vi.mock("~/lib/swr", () => ({
     }
     if (key === "staff-document-directory") {
       return {
-        data: documentDirectoryRequest.error ? undefined : [],
+        data: documentDirectoryRequest.error
+          ? undefined
+          : documentDirectoryRequest.data,
         isLoading: false,
         error: documentDirectoryRequest.error,
         mutate: mutateDocumentDirectory,
@@ -130,6 +133,7 @@ describe("/staff — Berechtigungs-Split", () => {
     globalMutate.mockReset().mockResolvedValue(undefined);
     monthCloseRequest.error = null;
     documentDirectoryRequest.error = null;
+    documentDirectoryRequest.data = [];
     staffListRequest.data = undefined;
     getAllStaff.mockReset().mockResolvedValue([]);
     getDocumentDirectory.mockReset().mockResolvedValue([]);
@@ -229,6 +233,20 @@ describe("/staff — Berechtigungs-Split", () => {
   });
 
   it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {
+    documentDirectoryRequest.data = [
+      {
+        id: "1",
+        name: "Dokumente Eins",
+        firstName: "Dokumente",
+        lastName: "Eins",
+      },
+      {
+        id: "2",
+        name: "Dokumente Zwei",
+        firstName: "Dokumente",
+        lastName: "Zwei",
+      },
+    ];
     mockSession(["time_tracking:manage", "staff_documents:health"]);
 
     render(<StaffPage />);
@@ -248,6 +266,7 @@ describe("/staff — Berechtigungs-Split", () => {
 
     expect(screen.getByText(/Wählen Sie eine Person/)).toBeInTheDocument();
     expect(getDocumentDirectory).toHaveBeenCalled();
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("behandelt admin:* als Vollzugriff statt als Dokumentenrolle", () => {

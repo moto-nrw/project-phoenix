@@ -209,6 +209,9 @@ func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
 	ctx := testpkg.TenantContext(1)
 	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
+	var retryAfter time.Time
+	require.NoError(t, c.tc.db.NewRaw(`SELECT retry_after FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName).Scan(ctx, &retryAfter))
+	assert.WithinDuration(t, time.Now().Add(5*time.Minute), retryAfter, 5*time.Second)
 	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, cleanups, "an in-progress upload must not be picked up by cleanup retries")
@@ -231,6 +234,28 @@ func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T
 	cleanups, err = c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, cleanups)
+}
+
+func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T) {
+	c := setupDocumentsAPI(t)
+	rec := c.upload(t, "zeugnis", "offboarded.pdf", fakePDF, "users:update")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	_, storedName := uploadedDocument(t, rec.Body.Bytes())
+
+	pubDir, err := common.ResolvePublicDir()
+	require.NoError(t, err)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	_, err = os.Stat(filePath)
+	require.NoError(t, err)
+
+	ctx := testpkg.TenantContext(1)
+	_, err = c.tc.db.ExecContext(ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, c.staffID)
+	require.NoError(t, err)
+
+	rec = c.request(t, http.MethodGet, "/staff/documents-directory", nil, "", "staff_documents:health")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	_, err = os.Stat(filePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestStaffDocumentsAPI_FileValidation(t *testing.T) {

@@ -167,6 +167,7 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 // creation can fail after a concurrent offboarding, but its uploaded bytes
 // must remain eligible for deletion.
 func (rs *Resource) retryQueuedStaffDocumentCleanups(ctx context.Context, source string) {
+	rs.retryOffboardedStaffDocumentCleanups(ctx, source)
 	cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanups(ctx)
 	if err != nil {
 		rs.getLogger().Warn("staff document orphan cleanup retry lookup failed",
@@ -180,6 +181,26 @@ func (rs *Resource) retryQueuedStaffDocumentCleanups(ctx context.Context, source
 		staffID, cleanupID, storedName := cleanup.StaffID, cleanup.ID, cleanup.FilenameStored
 		tenant.RegisterAfterCommit(ctx, func() {
 			rs.cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID, storedName, source)
+		})
+	}
+}
+
+// retryOffboardedStaffDocumentCleanups retries files for soft-deleted staff
+// records without resolving those records through an active-staff route.
+func (rs *Resource) retryOffboardedStaffDocumentCleanups(ctx context.Context, source string) {
+	documents, err := rs.StaffDocumentService.ListOffboardedStaffDocumentsPendingFileCleanup(ctx)
+	if err != nil {
+		rs.getLogger().Warn("offboarded staff document cleanup retry lookup failed",
+			"source", source,
+			"error", err,
+		)
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, document := range documents {
+		staffID, docID, storedName := document.StaffID, document.ID, document.FilenameStored
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.cleanupStaffDocumentFile(tenantID, staffID, docID, storedName, source)
 		})
 	}
 }
