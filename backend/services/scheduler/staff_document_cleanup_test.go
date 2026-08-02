@@ -34,6 +34,22 @@ func TestStaffDocumentFileCleanupRunsWithoutUITraffic(t *testing.T) {
 	assert.False(t, task.Running)
 }
 
+func TestStaffDocumentFileCleanupKeepsPartialProgress(t *testing.T) {
+	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
+	s := &Scheduler{
+		staffDocumentFileCleaner: cleaner,
+		done:                     make(chan struct{}),
+		logger:                   slog.Default(),
+	}
+
+	// A failed file removal must not abort the tenant transaction: the marks
+	// for the files that were removed have to commit.
+	err := s.cleanupStaffDocumentFilesForTenant(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, cleaner.calls)
+}
+
 func TestStaffDocumentFileCleanupAllowsRetryAfterFailure(t *testing.T) {
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
 	s := &Scheduler{
