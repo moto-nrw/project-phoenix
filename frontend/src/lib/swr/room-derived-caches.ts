@@ -44,7 +44,9 @@
  *     refresh
  *   - `ogs-students-${groupId}` — OGS-Groups aggregated live view (#2056;
  *     `ogs-students-auto` on a cold start before a group is selected)
- *   - `search-students-${term}-${groupFilter}` — Students Search list
+ *   - `search-students-g${groupFilter}-${term}-…` — Students Search list
+ *     (the leading group scope segment is the #2097 SSE scoping anchor, see
+ *     `lib/swr/search-students-key.ts`)
  */
 export const ROOM_DERIVED_CACHE_KEY_FRAGMENTS: readonly string[] = [
   "active-supervision-dashboard-",

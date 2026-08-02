@@ -836,17 +836,26 @@ describe("useGlobalSSE", () => {
       expect(studentListCall).toBeDefined();
 
       // The cross-group list caches live in their own mutate call since the
-      // ogs-students split (#2057) — same trigger, separate matcher.
+      // ogs-students split (#2057) — same trigger, separate matcher. The
+      // Kindersuche got its own matcher on top with the group scoping (#2097),
+      // so the two families are looked up separately here.
       const searchListCall = mutateCalls.find((call) => {
         const m = call[0];
         return (
           typeof m === "function" &&
-          (m as (key: string) => boolean)("my-tenant:search-students--")
+          (m as (key: string) => boolean)("my-tenant:search-students-gall-")
         );
       });
       expect(searchListCall).toBeDefined();
-      const searchListMatcher = searchListCall![0] as (key: string) => boolean;
-      expect(searchListMatcher("my-tenant:database-students-list")).toBe(true);
+
+      const databaseListCall = mutateCalls.find((call) => {
+        const m = call[0];
+        return (
+          typeof m === "function" &&
+          (m as (key: string) => boolean)("my-tenant:database-students-list")
+        );
+      });
+      expect(databaseListCall).toBeDefined();
 
       const studentDetailCall = mutateCalls.find((call) => {
         const matcher = call[0];
@@ -1702,6 +1711,77 @@ describe("useGlobalSSE", () => {
       }
       // Elapsed > MAX_FLUSH_WAIT_MS: the capped flush has fired.
       expect(mutate).toHaveBeenCalled();
+    });
+  });
+
+  // #2097: the Kindersuche list rides the same group_ids scope. Its keys carry
+  // the page's group filter as a leading "g{id}"/"gall" segment, so a view
+  // filtered to another group can be skipped.
+  describe("scoped Kindersuche invalidation (#2097)", () => {
+    // A tab filtered to group 8, a tab filtered to group 80 (boundary probe),
+    // and an unfiltered "Alle Gruppen" tab. Search terms may contain dashes,
+    // which is exactly why the scope segment leads the key.
+    const searchKeys = [
+      "tenant:search-students-g7-Anna-Lena--------",
+      "tenant:search-students-g8---------",
+      "tenant:search-students-g80---------",
+      "tenant:search-students-gall---------",
+    ];
+
+    it("scopes the Kindersuche list to the event's group_ids", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
+      vi.advanceTimersByTime(500);
+
+      // The group-7 view refetches; group 8 and the boundary-probe group 80 do
+      // not. The unfiltered view renders every child of the school with a live
+      // location badge, so it still refetches.
+      expect(matchedKeys(searchKeys)).toEqual([
+        "tenant:search-students-g7-Anna-Lena--------",
+        "tenant:search-students-gall---------",
+      ]);
+    });
+
+    it("falls back to a broad Kindersuche refresh when group_ids are absent", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "dashboard_counts_changed" });
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(searchKeys)).toEqual(searchKeys);
+    });
+
+    it("keeps tenant-wide plan changes broad", () => {
+      // arrival/pickup/student_updated carry no group scope and rewrite the
+      // times the list rows render.
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "pickup_schedule_changed" });
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(searchKeys)).toEqual(searchKeys);
+    });
+
+    it("request-budget guard: a foreign group's check-in leaves a filtered Kindersuche tab alone", () => {
+      // The acceptance criterion of #2097: a check-in in group 7 (with the
+      // tenant-wide active_supervision_changed that always accompanies it)
+      // must not refetch a Kindersuche tab filtered to group 8.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42", group_ids: ["7"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", student_id: "42" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(["tenant:search-students-g8---------"])).toEqual([]);
     });
   });
 
