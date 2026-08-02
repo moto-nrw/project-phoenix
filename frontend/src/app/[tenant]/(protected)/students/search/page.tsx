@@ -69,6 +69,11 @@ import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
+import {
+  normalizeSearchStudentsGroupId,
+  SEARCH_STUDENTS_KEY_PREFIX,
+  searchStudentsGroupScope,
+} from "~/lib/swr/search-students-key";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -347,7 +352,7 @@ function normalizeStoredFilters(
         ? ""
         : (params.get("year") ?? ""),
     school_class: params.get("school_class") ?? "",
-    group_id: params.get("group_id") ?? "",
+    group_id: normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
     bus:
@@ -919,7 +924,7 @@ function SearchPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
   const [selectedGroup, setSelectedGroup] = useState(
-    initialFilterParams.get("group_id") ?? "",
+    normalizeSearchStudentsGroupId(initialFilterParams.get("group_id") ?? ""),
   );
   const [selectedSchoolClass, setSelectedSchoolClass] = useState(
     initialFilterParams.get("school_class") ?? "",
@@ -1018,7 +1023,9 @@ function SearchPageContent() {
         compactStoredFilters(normalizeStoredFilters(filters)),
       );
 
-      setSelectedGroup(params.get("group_id") ?? "");
+      setSelectedGroup(
+        normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
+      );
       setSelectedSchoolClass(params.get("school_class") ?? "");
       setSelectedYear(
         validQueryValue(
@@ -1324,7 +1331,13 @@ function SearchPageContent() {
   // is unchanged but the request semantics flip (date omitted, live
   // attendance included) — without the mode in the key SWR would keep
   // serving the stale future-planning response under live controls (#1939).
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${pickupStatusFilter}`;
+  //
+  // The group filter leads the key as a fixed `g{id}`/`gall` scope segment
+  // (#2097) so the SSE flush can read it back and skip a refetch when a
+  // check-in event names a group this view does not show. It has to sit BEFORE
+  // the free-text term: the term may contain dashes ("Anna-Lena"), so no
+  // segment after it can be located positionally. See lib/swr/search-students-key.
+  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroup)}-${debouncedSearchTerm}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1368,6 +1381,13 @@ function SearchPageContent() {
         includePickupTimes: true,
         includeArrivalTimes: true,
         includeCompanions: wantsCompanions,
+        // Slim wire projection (#2097): this page requests up to 1000 rows in
+        // one trip, and the full StudentResponse ships address, health info,
+        // supervisor notes, guardian contacts, the weekday departure maps and
+        // consent/row timestamps that no card, filter or grouping mode here
+        // reads — the child detail page fetches the full record itself.
+        // Measured 78% smaller for the same rows.
+        view: "slim" as const,
       };
 
       const result = await studentService.getStudents(filters);
@@ -1430,8 +1450,9 @@ function SearchPageContent() {
 
   const updateSelectedGroup = useCallback(
     (value: string) => {
-      setSelectedGroup(value);
-      updateUrlParams({ group_id: value });
+      const normalizedGroupId = normalizeSearchStudentsGroupId(value);
+      setSelectedGroup(normalizedGroupId);
+      updateUrlParams({ group_id: normalizedGroupId });
     },
     [updateUrlParams],
   );

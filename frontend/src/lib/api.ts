@@ -263,6 +263,14 @@ function buildStudentQueryParams(filters?: {
   includePickupTimes?: boolean;
   includeArrivalTimes?: boolean;
   includeCompanions?: boolean;
+  /**
+   * Wire projection (#2097). "slim" drops every field the Kindersuche does not
+   * render — address, health info, supervisor notes, guardian contacts, the
+   * weekday departure maps, consent and row timestamps — and cuts the response
+   * by ~78% for the same rows. Omit for the full projection every other
+   * consumer of this endpoint reads.
+   */
+  view?: "slim";
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (filters?.search) params.append("search", filters.search);
@@ -295,6 +303,7 @@ function buildStudentQueryParams(filters?: {
   // Companion links ("läuft mit") for the shown day, so the Kindersuche can
   // group by Laufgemeinschaft. Opt-in: it costs an extra query per page.
   if (filters?.includeCompanions) params.append("include_companions", "true");
+  if (filters?.view) params.append("view", filters.view);
   return params;
 }
 
@@ -960,6 +969,8 @@ export const studentService = {
     includePickupTimes?: boolean;
     includeArrivalTimes?: boolean;
     includeCompanions?: boolean;
+    /** Wire projection (#2097) — see buildStudentQueryParams. */
+    view?: "slim";
     token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);

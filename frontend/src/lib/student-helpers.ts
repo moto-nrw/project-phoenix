@@ -529,6 +529,41 @@ export interface BackendStudent {
   updated_at: string;
 }
 
+/** Backend wire shape for `GET /api/students?view=slim`. */
+export interface BackendSlimStudent {
+  id: number;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  current_location: string;
+  location_since?: string;
+  current_room_color?: string | null;
+  group_id?: number;
+  group_name?: string;
+  sick: boolean;
+  sick_since?: string;
+  excused: boolean;
+  excused_since?: string;
+  class_trip: boolean;
+  class_trip_since?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_label?: string;
+  pending_excused_note?: string;
+  pickup_status?: string;
+  pickup_time?: string;
+  pickup_is_exception?: boolean;
+  pickup_notes?: string;
+  arrival_time?: string;
+  arrival_is_exception?: boolean;
+  arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
+  companion_student_ids?: number[];
+  photo_url?: string;
+  photo_consent_given?: boolean;
+  has_full_access: boolean;
+}
+
 // Supervisor contact information
 export interface SupervisorContact {
   id: number;
@@ -794,6 +829,55 @@ export function mapStudentResponse(
   }
 
   return mapped;
+}
+
+/**
+ * Maps the Kindersuche projection without rebuilding the omitted full-detail
+ * fields. In particular, this must not synthesize empty weekday departure
+ * maps because the route serializes the mapped value back to the browser.
+ */
+export function mapSlimStudentResponse(
+  backendStudent: BackendSlimStudent,
+): Student {
+  const firstName = backendStudent.first_name || "";
+  const lastName = backendStudent.last_name || "";
+
+  return {
+    id: String(backendStudent.id),
+    name: `${firstName} ${lastName}`.trim(),
+    first_name: backendStudent.first_name,
+    second_name: backendStudent.last_name,
+    school_class: backendStudent.school_class,
+    group_name: backendStudent.group_name,
+    group_id: backendStudent.group_id
+      ? String(backendStudent.group_id)
+      : undefined,
+    current_location: normalizeLocation(backendStudent.current_location),
+    location_since: backendStudent.location_since,
+    current_room_color: backendStudent.current_room_color,
+    sick: backendStudent.sick,
+    sick_since: backendStudent.sick_since,
+    excused: backendStudent.excused,
+    excused_since: backendStudent.excused_since,
+    class_trip: backendStudent.class_trip,
+    class_trip_since: backendStudent.class_trip_since,
+    day_planning_status: backendStudent.day_planning_status,
+    day_planning_label: backendStudent.day_planning_label,
+    pending_excused_note: backendStudent.pending_excused_note,
+    pickup_status: backendStudent.pickup_status,
+    pickup_time: backendStudent.pickup_time,
+    pickup_is_exception: backendStudent.pickup_is_exception,
+    pickup_notes: backendStudent.pickup_notes,
+    arrival_time: backendStudent.arrival_time,
+    arrival_is_exception: backendStudent.arrival_is_exception,
+    arrival_notes: backendStudent.arrival_notes,
+    actual_arrival_time: backendStudent.actual_arrival_time,
+    actual_pickup_time: backendStudent.actual_pickup_time,
+    companion_student_ids: backendStudent.companion_student_ids?.map(String),
+    photo_url: backendStudent.photo_url,
+    photo_consent_given: backendStudent.photo_consent_given,
+    has_full_access: backendStudent.has_full_access,
+  };
 }
 
 // Map array of students

@@ -31,6 +31,11 @@ import { berlinTodayISO } from "~/lib/date-helpers";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
+  SEARCH_STUDENTS_ALL_GROUPS_KEY,
+  SEARCH_STUDENTS_GROUP_KEY_PREFIX,
+  SEARCH_STUDENTS_KEY_PREFIX,
+} from "~/lib/swr/search-students-key";
+import {
   notifyStudentCompanionDisplayChanged,
   notifyStudentCompanionsChanged,
 } from "~/lib/student-companion-api";
@@ -392,7 +397,59 @@ export function useGlobalSSE(): SSEHookState {
       }
     }
 
-    // Invalidate the cross-group student list caches so students/search and
+    // The Kindersuche list. Scoped by educational group id (#2097), mirroring
+    // the ogs-students block above: a check-in/checkout/count event names the
+    // groups it touched, and a view filtered to another group renders none of
+    // those children, so it refetches nothing. An unfiltered view
+    // ("search-students-gall-…") shows every child of the school with a live
+    // location badge, so a check-in in ANY group does change a visible row and
+    // it keeps refetching — the payload it refetches is the slim projection.
+    //
+    // Deliberately NOT triggered by pendingGroupIds/pendingStudentIds: those
+    // carry ACTIVE-group and student ids fed by the tenant-wide
+    // active_supervision_changed, which fires alongside every
+    // dashboard_counts_changed. Keeping them would re-broaden every scoped
+    // event and save nothing (same lesson as #2057). Supervision changes do not
+    // move a child or alter has_full_access — that is decided by the viewer's
+    // EDUCATION groups (services/usercontext/student_access.go).
+    {
+      const broadSearch =
+        hasPendingBroadOgsEvent.current ||
+        hasPendingArrivalScheduleEvent.current ||
+        hasPendingPickupScheduleEvent.current ||
+        hasPendingStudentUpdateEvent.current ||
+        // A group handover or leader change rewrites GetMyGroups and with it
+        // the has_full_access of every row (services/usercontext/
+        // student_access.go), which decides whether a card shows absence,
+        // times and the precise location at all. Broad, never scoped: the
+        // event deliberately carries no group id, and the recipient's tab is
+        // keyed on the group they were already viewing, not on the changed
+        // one (#2084). Until #2097 this rode along on every check-in in the
+        // school via hasPendingDashboardEvent; with the scoping above that
+        // crutch is gone, so the trigger has to be explicit. Rare event, so
+        // the extra refetch costs nothing in practice.
+        hasPendingGroupAccessEvent.current;
+      const scopedEduGroupIds = new Set(pendingEduGroupIds.current);
+      if (broadSearch || scopedEduGroupIds.size > 0) {
+        mutate(
+          (key) =>
+            typeof key === "string" &&
+            key.includes(SEARCH_STUDENTS_KEY_PREFIX) &&
+            (broadSearch ||
+              key.includes(SEARCH_STUDENTS_ALL_GROUPS_KEY) ||
+              [...scopedEduGroupIds].some((gid) =>
+                keyTargetsId(key, gid, [SEARCH_STUDENTS_GROUP_KEY_PREFIX]),
+              )),
+        ).catch((err) => {
+          logger.debug("swr_revalidation_failed", {
+            error: err instanceof Error ? err.message : String(err),
+            scope: "search_students",
+          });
+        });
+      }
+    }
+
+    // Invalidate the cross-group student list caches so the database list and
     // the room views pick up location changes (e.g. Zuhause) without a manual
     // refresh. Also invalidate tracking indicator caches on
     // active-supervisions (tracking-supervisions-*) and students/search
@@ -400,7 +457,7 @@ export function useGlobalSSE(): SSEHookState {
     // events), pendingStudentIds (daily checkout sends student_checkout
     // without an active_group_id), or hasPendingDashboardEvent
     // (dashboard_counts_changed reaches every client of the tenant on every
-    // check-in/out — ensures search page updates even when the user doesn't
+    // check-in/out — ensures these pages update even when the user doesn't
     // supervise the affected room/group). These caches cannot be scoped by
     // group id, but each is mounted only on its own page.
     if (
@@ -415,7 +472,6 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("database-students-list") ||
-            key.includes("search-students-") ||
             key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-") ||
             // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
@@ -508,7 +564,8 @@ export function useGlobalSSE(): SSEHookState {
       // deleted child, and every grouping the delete changed, until something
       // unrelated revalidates the list.
       mutate(
-        (key) => typeof key === "string" && key.includes("search-students-"),
+        (key) =>
+          typeof key === "string" && key.includes(SEARCH_STUDENTS_KEY_PREFIX),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

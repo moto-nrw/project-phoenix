@@ -585,7 +585,7 @@ describe("useGlobalSSE — companion announcements", () => {
       );
     // Tenant-prefixed by useSWRAuth, hence the prefix in the probe key.
     expect(
-      matchers.some((matcher) => matcher("t1:search-students--all-")),
+      matchers.some((matcher) => matcher("t1:search-students-gall-all-")),
     ).toBe(true);
   });
 
@@ -651,7 +651,7 @@ describe("useGlobalSSE — companion announcements", () => {
       "t1:student-detail-s1",
       "t1:pickup-data-s2",
       "t1:student-detail-s2",
-      "t1:search-students--all-",
+      "t1:search-students-gall-all-",
     ]) {
       expect(
         matchers.some((matcher) => matcher(key)),
