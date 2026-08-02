@@ -39,6 +39,14 @@ vi.mock("~/lib/hooks/use-sse", () => ({
   })),
 }));
 
+const mockMinuteClock = vi.hoisted(() => ({
+  current: new Date("2026-01-01T22:59:00Z"),
+}));
+
+vi.mock("~/lib/pickup-helpers", () => ({
+  useMinuteClock: () => mockMinuteClock.current,
+}));
+
 // Import after mocking
 import {
   useGlobalSSE,
@@ -54,6 +62,7 @@ describe("useGlobalSSE", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockMinuteClock.current = new Date("2026-01-01T22:59:00Z");
     // Pin the per-burst flush jitter (#2057) to 0 so the existing
     // advanceTimersByTime(500) timing assertions stay deterministic. Jitter
     // bounds get their own explicit tests.
@@ -1667,19 +1676,23 @@ describe("useGlobalSSE", () => {
     });
 
     it("reconnects after a Berlin-day access boundary", () => {
-      renderHook(() => useGlobalSSE());
+      const { rerender } = renderHook(() => useGlobalSSE());
 
       const initialReconnectKey = vi
         .mocked(useSSE)
         .mock.calls.at(-1)?.[1]?.reconnectKey;
       expect(initialReconnectKey).toBeDefined();
 
+      mockMinuteClock.current = new Date("2026-01-01T23:01:00Z");
       act(() => {
-        window.dispatchEvent(
-          new CustomEvent("phoenix:group-access-subscriptions-stale"),
-        );
-        vi.advanceTimersByTime(500);
+        rerender();
       });
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        initialReconnectKey,
+      );
+
+      act(() => vi.advanceTimersByTime(500));
 
       expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
         `${initialReconnectKey}:1`,

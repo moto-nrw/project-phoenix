@@ -26,6 +26,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
@@ -158,6 +160,9 @@ function keyTargetsId(
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
   const [groupAccessRevision, setGroupAccessRevision] = useState(0);
+  const now = useMinuteClock();
+  const groupAccessDay = berlinTodayISO(now);
+  const groupAccessDayRef = useRef(groupAccessDay);
 
   // Enable SSE for staff and effective admins. The backend treats admin:* and
   // *:* as admin scope even when a custom role does not include the literal
@@ -760,24 +765,15 @@ export function useGlobalSSE(): SSEHookState {
   }, []);
 
   // Date-bound substitutions can start or expire at Berlin midnight without
-  // a database write. The OGS page detects that calendar boundary and sends
-  // this signal so the global connection refreshes its fixed group topics.
+  // a database write. Detect the boundary here in the always-mounted global
+  // hook: an OGS page opened after midnight has no previous day to compare,
+  // while this clock also resyncs after background throttling on focus.
   useEffect(() => {
-    const handleStaleSubscriptions = () => {
-      hasPendingGroupSubscriptionRefresh.current = true;
-      scheduleFlush();
-    };
-    window.addEventListener(
-      "phoenix:group-access-subscriptions-stale",
-      handleStaleSubscriptions,
-    );
-    return () => {
-      window.removeEventListener(
-        "phoenix:group-access-subscriptions-stale",
-        handleStaleSubscriptions,
-      );
-    };
-  }, [scheduleFlush]);
+    if (groupAccessDayRef.current === groupAccessDay) return;
+    groupAccessDayRef.current = groupAccessDay;
+    hasPendingGroupSubscriptionRefresh.current = true;
+    scheduleFlush();
+  }, [groupAccessDay, scheduleFlush]);
 
   // Handle SSE events by collecting targeted invalidations
   const handleSSEEvent = useCallback(
