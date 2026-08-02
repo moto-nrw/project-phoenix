@@ -342,6 +342,7 @@ describe("poll endpoints", () => {
   it("fetches the tally and falls back to empty results", async () => {
     const expected = {
       child_count: 12,
+      target_child_count: 14,
       answered_count: 5,
       options: [{ option_id: "1", label: "Ja", count: 4 }],
     };
@@ -357,6 +358,7 @@ describe("poll endpoints", () => {
     mockFetch(async () => jsonResponse({}));
     await expect(fetchPollResults("7")).resolves.toStrictEqual({
       child_count: 0,
+      target_child_count: 0,
       answered_count: 0,
       options: [],
     });
