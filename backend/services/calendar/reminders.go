@@ -381,10 +381,17 @@ func (s *service) enqueueAppointmentReminder(
 
 func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []reminderPushDelivery) error {
 	sem := make(chan struct{}, maxConcurrentReminderPushDispatches)
-	errs := make(chan error, len(deliveries))
+	// A failed preparation can report both the original failure and a failed
+	// claim release; cancellation can do the same for every pending delivery.
+	errs := make(chan error, len(deliveries)*2+1)
 	var wg sync.WaitGroup
-	for _, delivery := range deliveries {
+	for i, delivery := range deliveries {
 		if ctx.Err() != nil {
+			for _, pending := range deliveries[i:] {
+				if err := s.releaseReminderPushDelivery(ctx, pending); err != nil {
+					errs <- err
+				}
+			}
 			errs <- ctx.Err()
 			break
 		}
@@ -394,16 +401,25 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 			select {
 			case sem <- struct{}{}:
 			case <-ctx.Done():
+				if err := s.releaseReminderPushDelivery(ctx, delivery); err != nil {
+					errs <- err
+				}
 				errs <- ctx.Err()
 				return
 			}
 			defer func() { <-sem }()
-			var dispatched bool
-			err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(dispatchCtx context.Context, _ bun.Tx) error {
-				var dispatchErr error
-				dispatched, dispatchErr = s.dispatchGuardianAccountReminderDevices(dispatchCtx, delivery.appointment, []int64{delivery.accountID})
-				return dispatchErr
-			})
+			appointment, eligible, err := s.prepareReminderPushDispatch(ctx, delivery)
+			if err != nil {
+				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
+					errs <- releaseErr
+				}
+				errs <- fmt.Errorf("calendar: prepare appointment reminder push: %w", err)
+				return
+			}
+			if !eligible {
+				return
+			}
+			dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{delivery.accountID})
 			if err == nil && dispatched {
 				return
 			}
@@ -414,11 +430,9 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 				slog.Int64("appointment_id", delivery.appointment.ID),
 				slog.Int64("guardian_account_id", delivery.accountID),
 			)
-			for _, profileID := range delivery.profileIDs {
-				if releaseErr := s.releaseReminderPush(ctx, delivery.appointment, delivery.occurrence, profileID); releaseErr != nil {
-					errs <- fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
-					return
-				}
+			if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
+				errs <- releaseErr
+				return
 			}
 			if err != nil {
 				errs <- fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
@@ -436,6 +450,40 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 	return errors.Join(joined...)
 }
 
+// prepareReminderPushDispatch takes a short tenant transaction to ensure the
+// claim still belongs to a live, guardian-notified appointment and that the
+// guardian still consents to reminders. The transaction commits before the
+// synchronous Web Push request begins, so network latency never holds a DB
+// connection or a lifecycle row lock.
+func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery reminderPushDelivery) (*calModels.Appointment, bool, error) {
+	var appointment *calModels.Appointment
+	err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		current, err := s.cfg.AppointmentRepo.LockReminderCandidate(txCtx, delivery.appointment.ID)
+		if err != nil {
+			return err
+		}
+		if current == nil {
+			return nil
+		}
+		if s.cfg.Preferences == nil {
+			return nil
+		}
+		optedIn, err := s.cfg.Preferences.FilterOptedIn(txCtx, notifications.TypeParentAppointmentReminder, []int64{delivery.accountID})
+		if err != nil {
+			return fmt.Errorf("filter opted-in guardians: %w", err)
+		}
+		if len(optedIn) == 0 {
+			return nil
+		}
+		appointment = current
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return appointment, appointment != nil, nil
+}
+
 // Reminder delivery claims are created in the same transaction as the e-mail
 // outbox row. The push is dispatched by an after-commit hook, so a durable
 // claim can never outlive a rolled-back reminder.
@@ -444,9 +492,19 @@ func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.
 }
 
 func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
-	return tenant.WithTenantTx(modelBase.ContextWithoutTx(ctx), s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(ctx))
+	return tenant.WithTenantTx(cleanupCtx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
 	})
+}
+
+func (s *service) releaseReminderPushDelivery(ctx context.Context, delivery reminderPushDelivery) error {
+	for _, profileID := range delivery.profileIDs {
+		if err := s.releaseReminderPush(ctx, delivery.appointment, delivery.occurrence, profileID); err != nil {
+			return fmt.Errorf("calendar: release reminder push delivery: %w", err)
+		}
+	}
+	return nil
 }
 
 func appointmentReminderKey(appointmentID int64, revision int, occurrence timezone.Date, guardianProfileID int64) string {

@@ -170,7 +170,27 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 	if !enabled {
 		return nil
 	}
-	leadHours := s.resolveIntSetting(ctx, configModel.KeyCalendarAppointmentReminderLeadHours, "", defaultAppointmentReminderLeadHours)
+	leadHours := defaultAppointmentReminderLeadHours
+	if s.settings != nil {
+		hasOverride, err := s.settings.HasTenantOverride(ctx, configModel.KeyCalendarAppointmentReminderLeadHours)
+		if err != nil {
+			s.getLogger().Error("appointment reminder lead setting lookup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+		if hasOverride {
+			leadHours, err = s.settings.ResolveInt(ctx, configModel.KeyCalendarAppointmentReminderLeadHours)
+			if err != nil {
+				s.getLogger().Error("appointment reminder lead setting resolution failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				return err
+			}
+		}
+	}
 	if leadHours < 1 {
 		leadHours = defaultAppointmentReminderLeadHours
 	}

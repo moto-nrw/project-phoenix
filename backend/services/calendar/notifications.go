@@ -331,14 +331,7 @@ func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointmen
 }
 
 func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, appointment *calModels.Appointment, accountIDs []int64) (bool, error) {
-	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 || s.cfg.Preferences == nil {
-		return false, nil
-	}
-	accountIDs, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, accountIDs)
-	if err != nil {
-		return false, fmt.Errorf("filter opted-in guardians: %w", err)
-	}
-	if len(accountIDs) == 0 {
+	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
 	title, body := appointmentNotificationCopy(platformModels.EmailKindAppointmentReminder)
