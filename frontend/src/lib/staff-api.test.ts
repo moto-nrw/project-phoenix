@@ -143,6 +143,70 @@ describe("staff-api", () => {
         }),
       );
     });
+
+    it("throws with the status text when the directory request fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffService.getDocumentDirectory()).rejects.toThrow(
+        "Failed to fetch document directory: Forbidden",
+      );
+    });
+  });
+
+  describe("staffService.getDocumentProfile", () => {
+    it("maps the reduced document profile", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 42,
+              name: "Mila Muster",
+              firstName: "Mila",
+              lastName: "Muster",
+            },
+          }),
+      } as Response);
+
+      const profile = await staffService.getDocumentProfile("42");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/documents-profile/42",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+      expect(profile).toMatchObject({
+        id: "42",
+        name: "Mila Muster",
+        isLimitedProfile: true,
+        isFinancialProfile: false,
+        isSupervising: false,
+        hasRfid: false,
+        isTeacher: false,
+        supervisions: [],
+      });
+    });
+
+    it("throws with the profile type in the message when the request fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffService.getDocumentProfile("42")).rejects.toThrow(
+        "Failed to fetch document staff profile: Forbidden",
+      );
+    });
   });
 
   describe("staffService.getAllStaff", () => {
