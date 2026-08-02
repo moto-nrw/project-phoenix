@@ -22,6 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -159,6 +160,82 @@ func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
 
 	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged),
 		"an unchanged teacher set must not announce a group-access change")
+}
+
+// A failed teacher-set update can happen after old links were deleted and new
+// links were inserted. The handler must reject and roll back the whole request;
+// a 4xx response alone would make TenantTxMiddleware commit those partial
+// writes without an event.
+func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
+	tc, router, broadcaster := setupRecordingRouter(t)
+	groupID, _ := groupLeader(t, tc, "SSETeacherRollback")
+
+	ctx := testpkg.TenantContext(int64(testutil.DefaultTestClaims().TenantID))
+	originalGroup, err := tc.services.Education.GetGroup(ctx, groupID)
+	require.NoError(t, err)
+	originalTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
+	require.NoError(t, err)
+	require.Len(t, originalTeachers, 1)
+
+	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Candidate")
+	t.Cleanup(func() { testpkg.CleanupTeacherFixtures(t, tc.db, candidate.ID) })
+
+	missing := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Missing")
+	missingID := missing.ID
+	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
+
+	body := map[string]interface{}{
+		"name":        fmt.Sprintf("SSETeacherRollback-renamed-%d", groupID),
+		"teacher_ids": []int64{candidate.ID, missingID},
+	}
+	req := newReq(t, "PUT", fmt.Sprintf("/groups/%d", groupID), body, testutil.DefaultTestClaims(), "groups:update")
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+
+	updatedGroup, err := tc.services.Education.GetGroup(ctx, groupID)
+	require.NoError(t, err)
+	assert.Equal(t, originalGroup.Name, updatedGroup.Name, "the group update must roll back with its teacher set")
+
+	updatedTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
+	require.NoError(t, err)
+	require.Len(t, updatedTeachers, 1)
+	assert.Equal(t, originalTeachers[0].ID, updatedTeachers[0].ID)
+	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged),
+		"a rolled-back teacher-set update must not announce a change")
+}
+
+func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
+	tc, router, broadcaster := setupRecordingRouter(t)
+
+	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Candidate")
+	t.Cleanup(func() { testpkg.CleanupTeacherFixtures(t, tc.db, candidate.ID) })
+
+	missing := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Missing")
+	missingID := missing.ID
+	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
+
+	groupName := fmt.Sprintf("SSECreateRollback-%d", candidate.ID)
+	claims := testutil.DefaultTestClaims()
+	body := map[string]interface{}{
+		"name":        groupName,
+		"teacher_ids": []int64{candidate.ID, missingID},
+	}
+	req := newReq(t, "POST", "/groups", body, claims, "groups:create")
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+
+	queryOptions := base.NewQueryOptions()
+	queryOptions.Filter.Equal("name", groupName)
+	groupCount, err := tc.services.Education.CountGroups(
+		testpkg.TenantContext(int64(claims.TenantID)),
+		queryOptions,
+	)
+	require.NoError(t, err)
+	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")
+	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged),
+		"a rolled-back group creation must not announce a change")
 }
 
 // Deleting a group revokes access for its leaders AND its substitutes. The

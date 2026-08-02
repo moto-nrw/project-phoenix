@@ -537,6 +537,14 @@ describe("OGSGroupPage", () => {
     await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
   });
 
+  it("enables focus revalidation as recovery for missed SSE events", () => {
+    render(<OGSGroupPage />);
+
+    const options = vi.mocked(useSWRAuth).mock.calls[0]?.[2];
+    expect(options).toMatchObject({ revalidateOnFocus: true });
+    expect(options?.refreshInterval).toBeUndefined();
+  });
+
   it("shows no access state when user has no OGS groups", async () => {
     // Mock SWR to return empty data indicating no access
     vi.mocked(useSWRAuth).mockReturnValue({

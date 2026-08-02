@@ -283,7 +283,11 @@ function OGSGroupPageContent() {
     },
     {
       keepPreviousData: true, // Show cached data while revalidating
-      revalidateOnFocus: false, // Handled by global SSE
+      // SSE is the fast path, but its per-client channel is deliberately
+      // lossy and reconnect attempts are bounded. Reconcile when the user
+      // returns to this tab so a dropped access event cannot stay stale until
+      // a hard reload. SWR dedupes rapid focus changes with its shared window.
+      revalidateOnFocus: true,
       // No periodic refresh: group transfers and substitutions now emit
       // group_access_changed (#2084), which invalidates this key. The
       // five-minute poll that covered that gap (#2057) is gone — it cost every
