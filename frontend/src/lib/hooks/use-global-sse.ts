@@ -857,9 +857,14 @@ export function useGlobalSSE(): SSEHookState {
           if (event.active_group_id) {
             pendingGroupIds.current.add(event.active_group_id);
           }
-          if (event.data.student_id) {
-            pendingStudentIds.current.add(event.data.student_id);
-          }
+          // No per-child invalidation here (#2085): this event is tenant-wide,
+          // so the backend no longer sends a student_id — it would have told
+          // every staff client of the school which child just moved, past the
+          // gdpr.student_data_scope filter their API responses apply. The
+          // per-child detail caches are invalidated by the group-scoped
+          // student_checkin / student_checkout / bulk_student_checkout events
+          // emitted alongside it, which reach exactly the supervisors
+          // entitled to that child's data.
           hasPendingActiveSupervisionEvent.current = true;
           scheduleFlush();
           break;

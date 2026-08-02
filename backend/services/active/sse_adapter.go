@@ -14,16 +14,21 @@ import (
 // signal consumed by the active-supervisions page. Specific events still carry
 // their detailed semantics; this adapter event gives every client one stable
 // cache invalidation path regardless of the write source.
-func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, studentID, reason string) {
+//
+// Carries no child identity (#2085). It reaches EVERY staff client of the
+// school, so a student id here told a colleague outside
+// gdpr.student_data_scope which child had just moved — information the API
+// responses filter out for exactly that person. The scoped student_checkin /
+// student_checkout events emitted alongside it still carry the id to the
+// active-group and edu:{id} topics, which is where the per-child detail-cache
+// invalidation belongs.
+func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, reason string) {
 	if s.Broadcaster == nil {
 		return
 	}
 
 	data := realtime.EventData{
 		Reason: &reason,
-	}
-	if studentID != "" {
-		data.StudentID = &studentID
 	}
 
 	tenantID := tenant.FromContext(ctx)

@@ -87,7 +87,12 @@ type SSEEventType =
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
 
 interface SSEEventData {
-  // Student-related fields (for check-in/check-out events)
+  // Student-related fields (for check-in/check-out events). Only ever present
+  // on GROUP-scoped events and on a guardian's own parent_child_updated —
+  // never on a tenant-wide invalidation, which reaches every staff client of
+  // the school regardless of gdpr.student_data_scope (#2085). Notably
+  // active_supervision_changed and dashboard_counts_changed carry room /
+  // group scope only.
   student_id?: string;
   student_name?: string;
   school_class?: string;

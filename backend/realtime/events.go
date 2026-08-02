@@ -112,6 +112,19 @@ const (
 	// Active supervision refresh event — tenant-wide signal that the active
 	// supervision view is stale regardless of whether the cause was IoT, NFC,
 	// timetable operations, or another lifecycle action.
+	//
+	// Carries NO child identity (#2085), for the same reason
+	// arrival_schedule_changed and pickup_schedule_changed are id-less: it
+	// reaches every staff client of the school, so a student id would let a
+	// colleague outside gdpr.student_data_scope = group_supervisors_only read
+	// off the raw SSE stream which child had just moved — the very thing the
+	// API responses redact for that person. It may carry the active_group_id,
+	// instance_id and a reason: room/session/instance scope, never who.
+	//
+	// The per-child detail-cache invalidation rides the group-scoped
+	// student_checkin / student_checkout events instead, which are emitted
+	// alongside it to the active-group and edu:{id} topics and therefore reach
+	// exactly the supervisors entitled to that child's data.
 	EventActiveSupervisionChanged EventType = "active_supervision_changed"
 
 	// Arrival schedule events affect derived "not arriving today" badges and

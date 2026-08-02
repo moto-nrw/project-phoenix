@@ -542,7 +542,45 @@ describe("useGlobalSSE", () => {
       });
       expect(ogsStudentsCall).toBeUndefined();
 
+      // #2085: the tenant-wide event carries no child id any more, and the
+      // hook must not act on one even if a stale backend still sends it —
+      // honoring it would re-open the leak's client half (a colleague outside
+      // gdpr.student_data_scope refetching that child's detail cache). The
+      // group-scoped student_checkin/checkout events own that invalidation.
       const studentDetailCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:student-detail-77")
+        );
+      });
+      expect(studentDetailCall).toBeUndefined();
+    });
+
+    it("still invalidates the child detail cache from the group-scoped student_checkin (#2085)", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // What an entitled supervisor's client actually receives: the scoped
+      // check-in on the active-group / edu:{id} topic, alongside the id-less
+      // tenant-wide refresh.
+      onMessage?.({
+        type: "student_checkin",
+        active_group_id: "456",
+        data: { student_id: "77", group_ids: ["5"] },
+        timestamp: new Date().toISOString(),
+      });
+      onMessage?.({
+        type: "active_supervision_changed",
+        active_group_id: "456",
+        data: { reason: "student_moved" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const studentDetailCall = vi.mocked(mutate).mock.calls.find((call) => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&

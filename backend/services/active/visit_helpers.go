@@ -377,7 +377,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
 	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
 }
 
 // getStudentDisplayData fetches student name for display

@@ -467,3 +467,99 @@ func TestBroadcast_DailyCheckoutCarriesEducationGroupID(t *testing.T) {
 	require.NotNil(t, checkouts[0].Data.GroupIDs)
 	assert.Equal(t, []string{eduGroupIDStr}, *checkouts[0].Data.GroupIDs)
 }
+
+// TestBroadcast_TenantWideEventsCarryNoStudentIdentity pins the two halves of
+// the #2085 contract on the check-in, check-out and whole-session-end paths:
+//
+//  1. nothing broadcast tenant-wide names the child. active_supervision_changed
+//     used to carry a student_id, which handed every staff client of the school
+//     the movement fact for a child their own API responses redact under
+//     gdpr.student_data_scope = group_supervisors_only.
+//  2. the group-scoped student_checkin / student_checkout still do carry it, so
+//     the supervisors entitled to that child's data keep their per-child
+//     detail-cache invalidation and their views stay live.
+func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-gdpr")
+	room := testpkg.CreateTestRoom(t, db, "Broadcast GDPR Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Broadcast-GDPR")
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Gdpr", "1c")
+	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID)
+
+	ctx := testpkg.TenantContext(1)
+	studentIDStr := strconv.FormatInt(student.ID, 10)
+
+	// --- check-in -----------------------------------------------------------
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, svc.CreateVisit(ctx, visit))
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
+	assertSupervisionRefreshIsAnonymous(t, broadcaster)
+	assertGroupScopedEventNamesStudent(t, broadcaster, realtime.EventStudentCheckIn, studentIDStr)
+
+	// --- check-out ----------------------------------------------------------
+	broadcaster.Reset()
+	require.NoError(t, svc.EndVisit(ctx, visit.ID))
+
+	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
+	assertSupervisionRefreshIsAnonymous(t, broadcaster)
+	assertGroupScopedEventNamesStudent(t, broadcaster, realtime.EventStudentCheckOut, studentIDStr)
+
+	// --- whole-session end (bulk path) --------------------------------------
+	broadcaster.Reset()
+	bulkVisit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, bulkVisit.ID)
+	require.NoError(t, svc.EndActivitySession(ctx, activeGroup.ID))
+
+	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
+	assertSupervisionRefreshIsAnonymous(t, broadcaster)
+	assertGroupScopedEventNamesStudent(t, broadcaster, realtime.EventBulkStudentCheckOut, studentIDStr)
+}
+
+// assertSupervisionRefreshIsAnonymous checks that the flow emitted an
+// active_supervision_changed and that no copy of it names a child.
+func assertSupervisionRefreshIsAnonymous(tb testing.TB, broadcaster *testpkg.RecordingBroadcaster) {
+	tb.Helper()
+	events := broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged)
+	require.NotEmpty(tb, events, "expected an active_supervision_changed refresh")
+	for _, e := range events {
+		assert.Nil(tb, e.Data.StudentID, "active_supervision_changed must not carry a student id")
+		assert.Nil(tb, e.Data.StudentIDs, "active_supervision_changed must not carry student ids")
+		assert.NotNil(tb, e.Data.Reason, "the refresh reason is what clients branch on instead")
+	}
+}
+
+// assertGroupScopedEventNamesStudent checks the other half of the contract: the
+// entitled supervisors' topic still receives the child's id, either as
+// student_id (single events) or in student_ids (bulk checkout).
+func assertGroupScopedEventNamesStudent(
+	tb testing.TB,
+	broadcaster *testpkg.RecordingBroadcaster,
+	eventType realtime.EventType,
+	studentIDStr string,
+) {
+	tb.Helper()
+	for _, call := range broadcaster.CallsByMethod("group") {
+		if call.Event.Type != eventType {
+			continue
+		}
+		if call.Event.Data.StudentID != nil && *call.Event.Data.StudentID == studentIDStr {
+			return
+		}
+		if call.Event.Data.StudentIDs != nil {
+			assert.Contains(tb, *call.Event.Data.StudentIDs, studentIDStr)
+			return
+		}
+	}
+	tb.Errorf("expected a group-scoped %s naming student %s", eventType, studentIDStr)
+}
