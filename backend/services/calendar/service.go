@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -528,6 +529,9 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 		return nil, err
 	}
 	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -624,6 +628,9 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 		return nil, err
 	}
 	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -675,6 +682,9 @@ func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int6
 		return err
 	}
 	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
 	if err != nil {
 		return err
 	}
@@ -731,6 +741,9 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 		return err
 	}
 	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
 	if err != nil {
 		return err
 	}

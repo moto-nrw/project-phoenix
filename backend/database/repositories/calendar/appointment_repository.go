@@ -58,7 +58,9 @@ func (r *AppointmentRepository) FindByIDForUpdate(ctx context.Context, id int64)
 	}
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("appointment %d not found", id)
+			// Preserve the sentinel so lifecycle callers can render a concurrent
+			// hard delete as their normal not-found response rather than a 500.
+			return nil, fmt.Errorf("appointment %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("lock appointment for update: %w", err)
 	}
