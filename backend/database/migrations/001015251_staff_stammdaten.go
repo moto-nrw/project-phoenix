@@ -130,6 +130,26 @@ func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_staff_master_data_changes_staff
 			ON audit.staff_master_data_changes (tenant_id, staff_id, occurred_at DESC);
 
+		-- updated_at maintenance for the three mutable tables. The generic
+		-- repository Update writes every mapped column, including the
+		-- updated_at it loaded with the row, so without a BEFORE UPDATE
+		-- trigger every later edit would re-persist the creation timestamp.
+		-- audit.staff_master_data_changes is append-only and has no updated_at.
+		DROP TRIGGER IF EXISTS update_staff_master_data_updated_at ON users.staff_master_data;
+		CREATE TRIGGER update_staff_master_data_updated_at
+		BEFORE UPDATE ON users.staff_master_data
+		FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+		DROP TRIGGER IF EXISTS update_staff_qualifications_updated_at ON users.staff_qualifications;
+		CREATE TRIGGER update_staff_qualifications_updated_at
+		BEFORE UPDATE ON users.staff_qualifications
+		FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+		DROP TRIGGER IF EXISTS update_staff_financial_data_updated_at ON users.staff_financial_data;
+		CREATE TRIGGER update_staff_financial_data_updated_at
+		BEFORE UPDATE ON users.staff_financial_data
+		FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
 		ALTER TABLE users.staff_master_data ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE users.staff_master_data FORCE ROW LEVEL SECURITY;
 		ALTER TABLE users.staff_qualifications ENABLE ROW LEVEL SECURITY;
