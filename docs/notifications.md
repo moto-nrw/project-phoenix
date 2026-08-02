@@ -341,9 +341,20 @@ The push half is guarded by a durable claim per (appointment, revision,
 occurrence, guardian) instead of an outbox key. A claim records that a push went
 out, not that one was attempted: whenever nothing was delivered — no registered
 device, no VAPID keys, notifications switched off, closed delivery window, or a
-failed dispatch — the claim is released again, so a later scan may still send
-once the obstacle is gone. Only a delivered push keeps its claim, which is what
-makes an overlapping scan silent.
+failed dispatch — the claim is released again. Only a delivered push keeps its
+claim, which is what makes an overlapping scan silent.
+
+Which of those five comes back is decided by the scan window, not by the claim.
+A **failed dispatch** fails the tenant's pass, so its upper bound is never
+recorded and the next tick offers the same window again — that is where the
+released claim earns its keep, together with a lead-time increase, which shifts
+occurrences back into an already scanned window. The other four are states
+rather than failures: the tick stays quiet, the boundary advances, and that
+occurrence's push is dropped while its e-mail still goes out. Quiet hours in
+particular behave here exactly as they do for every other producer — the router
+drops an event it may not deliver now instead of queueing it, so at the default
+24-hour lead an evening appointment reaches parents by mail only. Schools with
+many evening appointments raise `notifications.active_window_end`.
 
 Duplicate delivery is impossible by construction: each row carries an
 idempotency key of (appointment, occurrence, guardian) and the outbox insert is

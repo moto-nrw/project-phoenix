@@ -453,13 +453,18 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 			}
 			// None of these three delivered anything: no device was registered or
 			// no VAPID key was configured, the school switched notifications off,
-			// or the delivery window was closed. The claim exists to prevent a
-			// second push, not to record an attempt — keeping it here would
-			// disqualify the occurrence from every later scan, exactly when a
-			// device is registered, keys arrive, or the window opens again before
-			// the appointment. Releasing is safe: nothing went out, so nothing can
-			// arrive twice. The tick itself stays quiet, all three are ordinary
-			// answers rather than failures.
+			// or the delivery window was closed. All three are states rather than
+			// failures, so the tick stays quiet and the scan window closes
+			// normally — a school's quiet hours drop a push here exactly as they
+			// do for every other producer, because the router itself never queues
+			// an event it may not deliver now. The reminder's primary channel is
+			// unaffected: the e-mail is already committed.
+			//
+			// The release is therefore not a deferral, it keeps the claim honest:
+			// a claim records that a push went out, so a window that gets scanned
+			// again anyway — an unrelated failure in the same tenant pass kept it
+			// open, or the school raised the lead time — can still deliver. A
+			// genuine dispatch failure below takes that path deliberately.
 			if errors.Is(err, notifications.ErrNoWebPushSubscribers) || errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
 				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
 					errs <- releaseErr
