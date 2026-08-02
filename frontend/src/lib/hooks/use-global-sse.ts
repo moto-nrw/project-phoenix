@@ -418,13 +418,22 @@ export function useGlobalSSE(): SSEHookState {
             // care-exception writes (submit AND delete) change the pickup and
             // arrival override for a day but announce ONLY student_updated —
             // no pickup_schedule_changed, no arrival_schedule_changed
-            // (services/parent/parent_write_service.go). An approved care
-            // request is the mirror gap: it emits arrival_schedule_changed but
-            // also rewrites the weekly PICKUP plan. Both keys disable focus
-            // revalidation, so without them an open detail page keeps showing
-            // the superseded time until a manual reload.
+            // (services/parent/parent_write_service.go SubmitCareException).
+            // An approved care request is the mirror gap: it emits
+            // arrival_schedule_changed but also rewrites the weekly PICKUP
+            // plan. Both keys disable focus revalidation, so without them an
+            // open detail page keeps showing the superseded time until a
+            // manual reload.
             key.includes("pickup-data-") ||
-            key.includes("arrival-data-")),
+            key.includes("arrival-data-") ||
+            // Same write, same staleness, other page: the Aktuelle-Aufsicht
+            // cards render the day's resolved Gehzeit/Ankunft from their own
+            // bulk caches, also with focus revalidation off. Their keys embed
+            // the room's student-id list, so they only refetch when the roster
+            // changes — a parent's care exception for a child already in the
+            // room would otherwise stay invisible for the whole session.
+            key.includes("pickup-supervisions-") ||
+            key.includes("arrival-supervisions-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -520,6 +529,15 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("care-plan-week-") ||
             // the detail header's "Gehzeit heute" slot
             key.includes("pickup-data-") ||
+            // The Aktuelle-Aufsicht student cards, whose PickupTimeRow drives
+            // the "Abholung überfällig" urgency colouring. Its key is
+            // "pickup-supervisions-{date}-{studentIds}", so nothing but a
+            // roster change or Berlin midnight rotates it — and the cache
+            // disables focus revalidation. Without this clause a colleague's
+            // Gehzeit edit stayed invisible to the supervising staff member
+            // for the rest of the session, which is precisely the surface
+            // that needs to act on it.
+            key.includes("pickup-supervisions-") ||
             key.includes("student-detail-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
