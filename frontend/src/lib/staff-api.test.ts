@@ -38,6 +38,7 @@ import {
   staffService,
   staffSessionEditsService,
   staffSessionService,
+  staffStammdatenService,
   workTimeModelService,
 } from "./staff-api";
 
@@ -2375,6 +2376,469 @@ describe("staff-api", () => {
           note: "x",
         }),
       ).rejects.toThrow("Ungültiger Reset");
+    });
+  });
+
+  // Stammdaten (#1423). The section writes carry the snake_case wire shape the
+  // backend validates, and the financial endpoints are the only ones that ever
+  // return plaintext — both are pinned here.
+  describe("staffService.getFinancialProfile", () => {
+    it("maps the reduced payroll profile and flags it", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 42,
+              name: "Erika Musterfrau",
+              firstName: "Erika",
+              lastName: "Musterfrau",
+            },
+          }),
+      } as unknown as Response);
+
+      const result = await staffService.getFinancialProfile("42");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/financial-profile/42",
+        expect.any(Object),
+      );
+      expect(result.id).toBe("42");
+      expect(result.name).toBe("Erika Musterfrau");
+      expect(result.isFinancialProfile).toBe(true);
+      expect(result.hasRfid).toBe(false);
+      expect(result.isTeacher).toBe(false);
+      expect(result.isSupervising).toBe(false);
+      expect(result.supervisions).toEqual([]);
+    });
+
+    it("throws when the reduced profile is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffService.getFinancialProfile("42")).rejects.toThrow(
+        "Failed to fetch financial staff profile: Forbidden",
+      );
+    });
+  });
+
+  describe("staffStammdatenService", () => {
+    const backendStammdaten = {
+      staff_id: 7,
+      person: {
+        first_name: "Max",
+        last_name: "Mustermann",
+        birthday: "1991-06-02",
+        gender: "male" as const,
+      },
+      kontakt: {
+        address_street: "Musterweg 1",
+        address_postal_code: "48143",
+        address_city: "Münster",
+        phone: "+49 251 1",
+        email: "max@example.com",
+        emergency_contact_name: "Erika Muster",
+        emergency_contact_phone: "+49 170 1",
+      },
+      arbeitsvertrag: {
+        entry_date: "2024-08-01",
+        contract_end_date: null,
+        probation_end_date: "2025-01-31",
+        weekly_hours: 29.5,
+        employment_type: "part_time",
+      },
+      qualifikationen: [
+        {
+          id: 3,
+          name: "Erste-Hilfe-Kurs",
+          acquired_on: "2023-03-10",
+          expires_on: "2026-03-10",
+        },
+        { name: "Schwimmschein", acquired_on: null, expires_on: null },
+      ],
+    };
+
+    it("maps the aggregate response to camelCase", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: backendStammdaten }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.get("7");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/7/stammdaten",
+        expect.any(Object),
+      );
+      expect(result.staffId).toBe("7");
+      expect(result.person).toEqual({
+        firstName: "Max",
+        lastName: "Mustermann",
+        birthday: "1991-06-02",
+        gender: "male",
+      });
+      expect(result.kontakt.addressPostalCode).toBe("48143");
+      expect(result.kontakt.emergencyContactName).toBe("Erika Muster");
+      expect(result.arbeitsvertrag).toEqual({
+        entryDate: "2024-08-01",
+        contractEndDate: null,
+        probationEndDate: "2025-01-31",
+        weeklyHours: 29.5,
+        employmentType: "part_time",
+      });
+      // Persisted rows carry an id, a freshly typed one does not.
+      expect(result.qualifikationen).toEqual([
+        {
+          id: "3",
+          name: "Erste-Hilfe-Kurs",
+          acquiredOn: "2023-03-10",
+          expiresOn: "2026-03-10",
+        },
+        {
+          id: null,
+          name: "Schwimmschein",
+          acquiredOn: null,
+          expiresOn: null,
+        },
+      ]);
+    });
+
+    it("tolerates a missing qualification list", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...backendStammdaten, qualifikationen: undefined },
+          }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.get("7");
+
+      expect(result.qualifikationen).toEqual([]);
+    });
+
+    it("throws when the aggregate read is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffStammdatenService.get("7")).rejects.toThrow(
+        "Failed to fetch stammdaten: Forbidden",
+      );
+    });
+
+    it("writes the person section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updatePerson(
+        "7",
+        {
+          firstName: "Max",
+          lastName: "Neu",
+          birthday: "1991-06-02",
+          gender: "diverse",
+        },
+        "Namensänderung",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/person");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body as string)).toEqual({
+        first_name: "Max",
+        last_name: "Neu",
+        birthday: "1991-06-02",
+        gender: "diverse",
+        note: "Namensänderung",
+      });
+    });
+
+    it("writes the kontakt section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateKontakt(
+        "7",
+        {
+          addressStreet: "Musterweg 1",
+          addressPostalCode: "48143",
+          addressCity: "Münster",
+          phone: "+49 251 1",
+          email: "max@example.com",
+          emergencyContactName: "Erika Muster",
+          emergencyContactPhone: null,
+        },
+        "Umzug",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/kontakt");
+      expect(JSON.parse(init.body as string)).toEqual({
+        address_street: "Musterweg 1",
+        address_postal_code: "48143",
+        address_city: "Münster",
+        phone: "+49 251 1",
+        email: "max@example.com",
+        emergency_contact_name: "Erika Muster",
+        emergency_contact_phone: null,
+        note: "Umzug",
+      });
+    });
+
+    it("writes the arbeitsvertrag section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateArbeitsvertrag(
+        "7",
+        {
+          entryDate: "2024-08-01",
+          contractEndDate: null,
+          probationEndDate: "2025-01-31",
+          weeklyHours: 29.5,
+          employmentType: "part_time",
+        },
+        "Vertrag",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/arbeitsvertrag");
+      expect(JSON.parse(init.body as string)).toEqual({
+        entry_date: "2024-08-01",
+        contract_end_date: null,
+        probation_end_date: "2025-01-31",
+        weekly_hours: 29.5,
+        employment_type: "part_time",
+        note: "Vertrag",
+      });
+    });
+
+    it("sends the full qualification list without client-side ids", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateQualifikationen(
+        "7",
+        [
+          {
+            id: "3",
+            name: "Erste-Hilfe-Kurs",
+            acquiredOn: "2023-03-10",
+            expiresOn: "2026-03-10",
+          },
+          {
+            id: null,
+            name: "Schwimmschein",
+            acquiredOn: null,
+            expiresOn: null,
+          },
+        ],
+        "Nachweise",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/qualifikationen");
+      expect(JSON.parse(init.body as string)).toEqual({
+        qualifikationen: [
+          {
+            name: "Erste-Hilfe-Kurs",
+            acquired_on: "2023-03-10",
+            expires_on: "2026-03-10",
+          },
+          { name: "Schwimmschein", acquired_on: null, expires_on: null },
+        ],
+        note: "Nachweise",
+      });
+    });
+
+    it("translates the stammdaten_invalid code into a German hint", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Bad Request",
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "stammdaten_invalid",
+              error: "invalid IBAN checksum",
+            }),
+          ),
+      } as unknown as Response);
+
+      await expect(
+        staffStammdatenService.updatePerson(
+          "7",
+          {
+            firstName: "Max",
+            lastName: "Neu",
+            birthday: null,
+            gender: null,
+          },
+          "",
+        ),
+      ).rejects.toThrow(
+        "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
+      );
+    });
+
+    it("surfaces other backend errors verbatim", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Conflict",
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "Mitarbeiter gesperrt" })),
+      } as unknown as Response);
+
+      await expect(
+        staffStammdatenService.updateKontakt(
+          "7",
+          {
+            addressStreet: null,
+            addressPostalCode: null,
+            addressCity: null,
+            phone: null,
+            email: null,
+            emergencyContactName: null,
+            emergencyContactPhone: null,
+          },
+          "",
+        ),
+      ).rejects.toThrow("Mitarbeiter gesperrt");
+    });
+
+    it("falls back to the generic save message on an empty error body", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Internal Server Error",
+        text: () => Promise.resolve(""),
+      } as unknown as Response);
+
+      await expect(
+        staffStammdatenService.updateArbeitsvertrag(
+          "7",
+          {
+            entryDate: null,
+            contractEndDate: null,
+            probationEndDate: null,
+            weeklyHours: null,
+            employmentType: null,
+          },
+          "",
+        ),
+      ).rejects.toThrow("Stammdaten konnten nicht gespeichert werden");
+    });
+
+    it("reads the masked bank & tax values", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              iban_masked: "•••• 3000",
+              tax_id_masked: "•••• 8911",
+              social_security_number_masked: null,
+            },
+          }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.getFinancial("7");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/7/stammdaten/bank-steuer",
+        expect.any(Object),
+      );
+      expect(result).toEqual({
+        ibanMasked: "•••• 3000",
+        taxIdMasked: "•••• 8911",
+        socialSecurityNumberMasked: null,
+      });
+    });
+
+    it("throws when the masked read is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffStammdatenService.getFinancial("7")).rejects.toThrow(
+        "Failed to fetch financial data: Forbidden",
+      );
+    });
+
+    it("reveals the plaintext values via POST (audited server-side)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              iban: "DE89370400440532013000",
+              tax_id: "12345678911",
+              social_security_number: "65170839J003",
+            },
+          }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.revealFinancial("7");
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/bank-steuer/reveal");
+      expect(init.method).toBe("POST");
+      expect(result).toEqual({
+        iban: "DE89370400440532013000",
+        taxId: "12345678911",
+        socialSecurityNumber: "65170839J003",
+      });
+    });
+
+    it("throws when the reveal is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffStammdatenService.revealFinancial("7")).rejects.toThrow(
+        "Failed to reveal financial data: Forbidden",
+      );
+    });
+
+    it("writes the bank & tax section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateFinancial(
+        "7",
+        {
+          iban: "DE89370400440532013000",
+          taxId: "12345678911",
+          socialSecurityNumber: null,
+        },
+        "Lohnbüro",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/bank-steuer");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body as string)).toEqual({
+        iban: "DE89370400440532013000",
+        tax_id: "12345678911",
+        social_security_number: null,
+        note: "Lohnbüro",
+      });
     });
   });
 });
