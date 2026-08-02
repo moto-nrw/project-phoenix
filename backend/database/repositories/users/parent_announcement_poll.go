@@ -349,13 +349,13 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 				WHERE o.announcement_id = ? AND o.tenant_id = ?
 			)
 			AND ((SELECT response_type FROM guard LIMIT 1) <> 'single_choice'
-				OR (SELECT count(*) FROM requested) <= 1)
+				OR (SELECT count(*) FROM requested) <= 1) AS valid
 	), del AS (
 		DELETE FROM users.parent_announcement_responses
 		WHERE announcement_id = ? AND student_id = ? AND tenant_id = ?
-			AND (SELECT selection_valid FROM selection_valid)
+			AND (SELECT valid FROM selection_valid)
 	)
-	SELECT selection_valid FROM selection_valid`,
+	SELECT valid FROM selection_valid`,
 		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
 		pgdialect.Array(optionIDs), announcementID, tenantID,
 		announcementID, studentID, tenantID,
@@ -379,17 +379,17 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 				WHERE o.announcement_id = ? AND o.tenant_id = ?
 			)
 			AND ((SELECT response_type FROM guard LIMIT 1) <> 'single_choice'
-				OR (SELECT count(*) FROM requested) <= 1)
+				OR (SELECT count(*) FROM requested) <= 1) AS valid
 	), ins AS (
 		INSERT INTO users.parent_announcement_responses
 			(tenant_id, announcement_id, option_id, student_id, account_id, responded_at)
 		SELECT ?, ?, o.id, ?, ?, ?
 		FROM users.parent_announcement_options o
 		WHERE o.announcement_id = ? AND o.tenant_id = ? AND o.id IN (?)
-			AND (SELECT selection_valid FROM selection_valid)
+			AND (SELECT valid FROM selection_valid)
 		ON CONFLICT (announcement_id, student_id, option_id) DO NOTHING
 	)
-	SELECT selection_valid FROM selection_valid`,
+	SELECT valid FROM selection_valid`,
 		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
 		pgdialect.Array(optionIDs), announcementID, tenantID,
 		tenantID, announcementID, studentID, accountID, time.Now(), announcementID, tenantID, bun.List(optionIDs),
