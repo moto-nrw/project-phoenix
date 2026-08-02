@@ -50,6 +50,9 @@ describe("POST /api/logs", () => {
               device_pin: "sentinel-pin",
               accessToken: "sentinel-token",
               client_secret: "sentinel-secret",
+              api_key: "sentinel-api-key",
+              authorization: "Basic sentinel-authorization",
+              cookie: "session=sentinel-cookie",
               safe_id: "teacher-17",
             },
           },
@@ -72,12 +75,15 @@ describe("POST /api/logs", () => {
         device_pin: REDACTED_LOG_VALUE,
         accessToken: REDACTED_LOG_VALUE,
         client_secret: REDACTED_LOG_VALUE,
+        api_key: REDACTED_LOG_VALUE,
+        authorization: REDACTED_LOG_VALUE,
+        cookie: REDACTED_LOG_VALUE,
         safe_id: "teacher-17",
       },
       user_id: "account-42",
     });
     expect(JSON.stringify(output)).not.toMatch(
-      /sentinel-(password|pin|token|secret)/,
+      /sentinel-(password|pin|token|secret|api-key|authorization|cookie)/,
     );
 
     consoleLog.mockRestore();

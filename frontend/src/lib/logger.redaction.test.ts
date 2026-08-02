@@ -31,7 +31,13 @@ describe("structured logger redaction", () => {
 
     logger.info("server_redaction_probe", {
       password: "server-password-sentinel",
-      nested: { refresh_token: "server-token-sentinel", safe_id: "17" },
+      nested: {
+        refresh_token: "server-token-sentinel",
+        apiKey: "server-api-key-sentinel",
+        authorization: "Basic server-authorization-sentinel",
+        cookie: "session=server-cookie-sentinel",
+        safe_id: "17",
+      },
     });
 
     const entry = JSON.parse(String(consoleLog.mock.calls[0]?.[0])) as {
@@ -40,10 +46,16 @@ describe("structured logger redaction", () => {
     };
     expect(entry).toMatchObject({
       password: "[REDACTED]",
-      nested: { refresh_token: "[REDACTED]", safe_id: "17" },
+      nested: {
+        refresh_token: "[REDACTED]",
+        apiKey: "[REDACTED]",
+        authorization: "[REDACTED]",
+        cookie: "[REDACTED]",
+        safe_id: "17",
+      },
     });
     expect(JSON.stringify(entry)).not.toMatch(
-      /server-(password|token)-sentinel/,
+      /server-(password|token|api-key|authorization|cookie)-sentinel/,
     );
   });
 
@@ -66,6 +78,11 @@ describe("structured logger redaction", () => {
     for (let index = 0; index < 10; index += 1) {
       logger.debug("client_redaction_probe", {
         device_pin: "client-pin-sentinel",
+        api_key: "client-api-key-sentinel",
+        headers: {
+          Authorization: "Bearer client-authorization-sentinel",
+          Cookie: "session=client-cookie-sentinel",
+        },
         safe_index: index,
       });
     }
@@ -79,9 +96,16 @@ describe("structured logger redaction", () => {
     expect(body.entries[0]).toMatchObject({
       clientSecret: "[REDACTED]",
       device_pin: "[REDACTED]",
+      api_key: "[REDACTED]",
+      headers: {
+        Authorization: "[REDACTED]",
+        Cookie: "[REDACTED]",
+      },
       safe_index: 0,
       route: "/parents/enroll/status/[REDACTED]/edit",
     });
-    expect(JSON.stringify(body)).not.toMatch(/client-(secret|pin)-sentinel/);
+    expect(JSON.stringify(body)).not.toMatch(
+      /client-(secret|pin|api-key|authorization|cookie)-sentinel/,
+    );
   });
 });
