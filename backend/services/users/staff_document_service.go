@@ -90,6 +90,9 @@ type StaffDocumentService interface {
 	// ListOffboardedStaffDocumentsPendingFileCleanup returns tenant-wide cleanup
 	// candidates whose staff member has already been offboarded.
 	ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]*userModels.StaffDocument, error)
+	// ListDeletedStaffDocumentsPendingFileCleanups returns every soft-deleted
+	// document whose bytes need scheduler recovery.
+	ListDeletedStaffDocumentsPendingFileCleanups(ctx context.Context) ([]*userModels.StaffDocument, error)
 	// ListDeletedStaffDocumentsPendingFileCleanup returns authorized retry
 	// candidates whose previous file unlink did not complete.
 	ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]*userModels.StaffDocument, error)
@@ -401,6 +404,10 @@ func (s *staffDocumentService) ListStaffDocumentsPendingFileCleanup(ctx context.
 
 func (s *staffDocumentService) ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]*userModels.StaffDocument, error) {
 	return s.documents.ListOffboardedPendingFileCleanups(ctx)
+}
+
+func (s *staffDocumentService) ListDeletedStaffDocumentsPendingFileCleanups(ctx context.Context) ([]*userModels.StaffDocument, error) {
+	return s.documents.ListDeletedPendingFileCleanups(ctx)
 }
 
 func (s *staffDocumentService) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]*userModels.StaffDocument, error) {

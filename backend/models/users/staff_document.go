@@ -119,6 +119,9 @@ type StaffDocumentRepository interface {
 	// ListOffboardedPendingFileCleanups returns every document whose staff
 	// record is soft-deleted and whose stored bytes still need removal.
 	ListOffboardedPendingFileCleanups(ctx context.Context) ([]*StaffDocument, error)
+	// ListDeletedPendingFileCleanups returns every soft-deleted document whose
+	// stored bytes still need removal, independent of staff lifecycle state.
+	ListDeletedPendingFileCleanups(ctx context.Context) ([]*StaffDocument, error)
 	// ListDeletedPendingFileCleanupByStaffID limits retry candidates to
 	// soft-deleted documents in the caller's visible categories.
 	ListDeletedPendingFileCleanupByStaffID(ctx context.Context, staffID int64, categories []string) ([]*StaffDocument, error)

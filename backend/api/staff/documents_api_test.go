@@ -261,6 +261,28 @@ func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *testing.T) {
+	c := setupDocumentsAPI(t)
+	rec := c.upload(t, "zeugnis", "deleted.pdf", fakePDF, "users:update")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	docID, _ := uploadedDocument(t, rec.Body.Bytes())
+
+	ctx := testpkg.TenantContext(1)
+	var storedName string
+	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
+	pubDir, err := common.ResolvePublicDir()
+	require.NoError(t, err)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	_, err = c.tc.db.NewRaw(`UPDATE users.staff_documents SET deleted_at = NOW(), file_deleted_at = NULL WHERE id = ?`, docID).Exec(ctx)
+	require.NoError(t, err)
+
+	removed, err := c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, removed)
+	_, err = os.Stat(filePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestStaffDocumentsAPI_FileValidation(t *testing.T) {
 	c := setupDocumentsAPI(t)
 

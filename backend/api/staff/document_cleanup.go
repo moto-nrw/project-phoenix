@@ -13,13 +13,13 @@ func (rs *Resource) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int,
 	removed := 0
 	var cleanupErr error
 
-	documents, err := rs.StaffDocumentService.ListOffboardedStaffDocumentsPendingFileCleanup(ctx)
+	documents, err := rs.StaffDocumentService.ListDeletedStaffDocumentsPendingFileCleanups(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("list offboarded staff documents: %w", err)
+		return 0, fmt.Errorf("list deleted staff documents: %w", err)
 	}
 	for _, document := range documents {
 		if err := rs.removeStoredDocumentForTenant(document.TenantID, document.FilenameStored); err != nil {
-			rs.getLogger().Warn("offboarded staff document cleanup failed",
+			rs.getLogger().Warn("deleted staff document cleanup failed",
 				"staff_id", document.StaffID,
 				"document_id", document.ID,
 				"error", err,
@@ -28,7 +28,7 @@ func (rs *Resource) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int,
 			continue
 		}
 		if err := rs.StaffDocumentService.MarkStaffDocumentFileDeleted(ctx, document.ID); err != nil {
-			rs.getLogger().Error("offboarded staff document cleanup status update failed",
+			rs.getLogger().Error("deleted staff document cleanup status update failed",
 				"staff_id", document.StaffID,
 				"document_id", document.ID,
 				"error", err,

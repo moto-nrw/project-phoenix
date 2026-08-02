@@ -134,6 +134,22 @@ func (r *StaffDocumentRepository) ListOffboardedPendingFileCleanups(ctx context.
 	return documents, nil
 }
 
+func (r *StaffDocumentRepository) ListDeletedPendingFileCleanups(ctx context.Context) ([]*users.StaffDocument, error) {
+	var documents []*users.StaffDocument
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&documents).
+		ModelTableExpr(`users.staff_documents AS "staff_document"`).
+		Where(`"staff_document".deleted_at IS NOT NULL`).
+		Where(`"staff_document".file_deleted_at IS NULL`).
+		WhereAllWithDeleted()
+
+	query = base.WithTenantFilter(ctx, query, "staff_document")
+	if err := query.Scan(ctx, &documents); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list deleted staff document cleanup", Err: err}
+	}
+	return documents, nil
+}
+
 func (r *StaffDocumentRepository) ListDeletedPendingFileCleanupByStaffID(ctx context.Context, staffID int64, categories []string) ([]*users.StaffDocument, error) {
 	if len(categories) == 0 {
 		return []*users.StaffDocument{}, nil
