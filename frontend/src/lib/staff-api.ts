@@ -77,6 +77,7 @@ export interface Staff {
   // Time-tracking
   workStatus?: string;
   absenceType?: string;
+  isFinancialProfile?: boolean;
 }
 
 export interface StaffFilters {
@@ -438,14 +439,19 @@ class StaffService {
       );
     }
     const json = (await response.json()) as {
-      data: Pick<Staff, "id" | "name" | "firstName" | "lastName">;
+      data: Omit<
+        Pick<Staff, "id" | "name" | "firstName" | "lastName">,
+        "id"
+      > & { id: number };
     };
     return {
       ...json.data,
+      id: json.data.id.toString(),
       hasRfid: false,
       isTeacher: false,
       isSupervising: false,
       supervisions: [],
+      isFinancialProfile: true,
     };
   }
 

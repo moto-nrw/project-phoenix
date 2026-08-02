@@ -85,16 +85,18 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
-        <span
-          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
-          style={{
-            backgroundColor: locationStatus.customBgColor,
-            boxShadow: locationStatus.customShadow,
-          }}
-        >
-          <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
-          {locationStatus.label}
-        </span>
+        {!staff.isFinancialProfile ? (
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
+            style={{
+              backgroundColor: locationStatus.customBgColor,
+              boxShadow: locationStatus.customShadow,
+            }}
+          >
+            <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
+            {locationStatus.label}
+          </span>
+        ) : null}
         {menu}
       </div>
     </div>
