@@ -21,7 +21,6 @@ func TestRunAppointmentRemindersForTenantDecreasedLeadUsesActiveWindow(t *testin
 		settings: &fakeSettingsResolver{intValues: map[string]int{
 			configModel.KeyCalendarAppointmentReminderLeadHours: 12,
 		}},
-		appointmentReminderLeadHours: map[int64]int{7: 24},
 	}
 
 	require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))

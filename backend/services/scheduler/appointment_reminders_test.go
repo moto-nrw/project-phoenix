@@ -108,7 +108,6 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 			settings: &fakeSettingsResolver{intValues: map[string]int{
 				configModel.KeyCalendarAppointmentReminderLeadHours: 24,
 			}},
-			appointmentReminderLeadHours: map[int64]int{7: 12},
 		}
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))

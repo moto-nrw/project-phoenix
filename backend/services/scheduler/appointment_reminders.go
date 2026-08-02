@@ -125,22 +125,6 @@ func (s *Scheduler) markAppointmentReminderScanned(tenantID int64, scannedAt tim
 	s.appointmentReminderScannedAt[tenantID] = scannedAt
 }
 
-func (s *Scheduler) appointmentReminderPreviousLeadHours(tenantID int64) (int, bool) {
-	s.appointmentReminderScanMu.Lock()
-	defer s.appointmentReminderScanMu.Unlock()
-	leadHours, ok := s.appointmentReminderLeadHours[tenantID]
-	return leadHours, ok
-}
-
-func (s *Scheduler) markAppointmentReminderLeadHours(tenantID int64, leadHours int) {
-	s.appointmentReminderScanMu.Lock()
-	defer s.appointmentReminderScanMu.Unlock()
-	if s.appointmentReminderLeadHours == nil {
-		s.appointmentReminderLeadHours = make(map[int64]int)
-	}
-	s.appointmentReminderLeadHours[tenantID] = leadHours
-}
-
 // runAppointmentRemindersForTenant resolves the school's reminder settings and
 // asks the calendar service for the occurrences that fall due. The lead time
 // shifts both window bounds, so the window stays exactly as long as the tick
@@ -209,7 +193,6 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 		)
 		return err
 	}
-	s.markAppointmentReminderLeadHours(tenantID, leadHours)
 	if queued > 0 {
 		s.getLogger().Info("appointment reminders queued",
 			slog.Int64("tenant_id", tenantID),
