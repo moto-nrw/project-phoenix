@@ -245,7 +245,6 @@ export function ParentMealPlanPage() {
   return (
     <ParentPage width="wide">
       <ParentPageHeader
-        kicker={t("weekHeading")}
         title={t("title")}
         description={t("subtitle")}
       />
