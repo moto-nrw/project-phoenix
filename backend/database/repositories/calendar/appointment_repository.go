@@ -272,10 +272,10 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			    -- years, so this predicate can only retain extra candidates, never
 			    -- discard a live occurrence.
 			    OR CASE rr.frequency
-			      WHEN 'daily' THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
-			      WHEN 'weekly' THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
-			      WHEN 'monthly' THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
-			      WHEN 'yearly' THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
+			      WHEN 'daily' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
+			      WHEN 'weekly' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
+			      WHEN 'monthly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
+			      WHEN 'yearly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
 			      ELSE 'infinity'::date
 			    END + ("appointment".end_date - "appointment".start_date) >= ?
 			  )
