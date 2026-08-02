@@ -382,12 +382,14 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
 // Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
 // seeded schools). Production jobs share one cross-tenant settings snapshot per minute.
-func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) {
+func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) []int64 {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
 			slog.String("operation", opName))
-		_ = fn(ctx, 0)
-		return
+		if err := fn(ctx, 0); err != nil {
+			return nil
+		}
+		return []int64{0}
 	}
 
 	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
@@ -401,16 +403,16 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 					slog.String("error", iterationErr.Error()),
 				)
 			}
-			return
+			return nil
 		}
 		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
 			slog.String("error", err.Error()),
 		)
-		return
+		return nil
 	}
 
-	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
+	return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
 		snapshot := minuteSnapshot.settings[tenantID]
 		if snapshot == nil {
 			return fmt.Errorf("settings snapshot missing for tenant %d", tenantID)

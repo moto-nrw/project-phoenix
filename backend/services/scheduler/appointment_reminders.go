@@ -87,14 +87,18 @@ func (s *Scheduler) checkAndRunAppointmentReminders(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	s.forEachTenantSettings(ctx, "appointment-reminders", func(tenantCtx context.Context, tenantID int64) error {
+	scanToByTenant := make(map[int64]time.Time)
+	completed := s.forEachTenantSettings(ctx, "appointment-reminders", func(tenantCtx context.Context, tenantID int64) error {
 		scanFrom, scanTo := s.appointmentReminderWindow(tenantID, now)
 		if err := s.runAppointmentRemindersForTenant(tenantCtx, tenantID, scanFrom, scanTo); err != nil {
-			return nil
+			return err
 		}
-		s.markAppointmentReminderScanned(tenantID, scanTo)
+		scanToByTenant[tenantID] = scanTo
 		return nil
 	})
+	for _, tenantID := range completed {
+		s.markAppointmentReminderScanned(tenantID, scanToByTenant[tenantID])
+	}
 }
 
 // appointmentReminderWindow returns tenantID's scan window [from, to). The
