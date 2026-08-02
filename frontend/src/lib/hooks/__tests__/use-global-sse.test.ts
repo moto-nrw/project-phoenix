@@ -70,6 +70,7 @@ describe("useGlobalSSE", () => {
   });
 
   afterEach(() => {
+    window.history.replaceState({}, "", "/");
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -542,6 +543,11 @@ describe("useGlobalSSE", () => {
       });
       expect(ogsStudentsCall).toBeUndefined();
 
+      // #2085: the tenant-wide event carries no child id any more, and the
+      // hook must not act on one even if a stale backend still sends it —
+      // honoring it would re-open the leak's client half (a colleague outside
+      // gdpr.student_data_scope refetching that child's detail cache). The
+      // group-scoped student_checkin/checkout events own that invalidation.
       const studentDetailCall = mutateCalls.find((call) => {
         const matcher = call[0];
         return (
@@ -549,7 +555,61 @@ describe("useGlobalSSE", () => {
           (matcher as (key: string) => boolean)("tenant:student-detail-77")
         );
       });
-      expect(studentDetailCall).toBeDefined();
+      expect(studentDetailCall).toBeUndefined();
+    });
+
+    it("still invalidates the child detail cache from the group-scoped student_checkin (#2085)", () => {
+      renderHook(() => useGlobalSSE());
+
+      // What an entitled supervisor's client actually receives: the scoped
+      // check-in on the active-group / edu:{id} topic, alongside the id-less
+      // tenant-wide refresh.
+      fire({
+        type: "student_checkin",
+        active_group_id: "456",
+        data: { student_id: "77", group_ids: ["5"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "456",
+        data: { reason: "student_moved" },
+      });
+
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(["tenant:student-detail-77"])).toEqual([
+        "tenant:student-detail-77",
+      ]);
+    });
+
+    it("revalidates only the already-open child on an id-less tenant refresh", () => {
+      window.history.replaceState({}, "", "/tenant/students/88?tab=care-plan");
+      renderHook(() => useGlobalSSE());
+
+      // A mixed-version backend may still send student_id. The tenant-wide
+      // payload must not choose the cache: only the viewer's current,
+      // access-checked detail route may do that.
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "456",
+        data: { reason: "timetable_attendance_updated", student_id: "77" },
+      });
+
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:student-detail-77",
+          "tenant:care-plan-day-77-2026-08-02",
+          "tenant:student-detail-88",
+          "tenant:care-plan-day-88-2026-08-02",
+          "tenant:care-plan-week-88-2026-08-03-2026-08-07",
+        ]),
+      ).toEqual([
+        "tenant:student-detail-88",
+        "tenant:care-plan-day-88-2026-08-02",
+        "tenant:care-plan-week-88-2026-08-03-2026-08-07",
+      ]);
     });
 
     it("invalidates dashboard caches on dashboard_counts_changed event", () => {

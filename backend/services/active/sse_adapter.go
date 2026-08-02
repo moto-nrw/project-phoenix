@@ -14,16 +14,17 @@ import (
 // signal consumed by the active-supervisions page. Specific events still carry
 // their detailed semantics; this adapter event gives every client one stable
 // cache invalidation path regardless of the write source.
-func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, studentID, reason string) {
+//
+// Carries no child identity — see realtime.EventActiveSupervisionChanged for
+// why (#2085). The scoped student_checkin / student_checkout emitted alongside
+// it still carry the id.
+func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, reason string) {
 	if s.Broadcaster == nil {
 		return
 	}
 
 	data := realtime.EventData{
 		Reason: &reason,
-	}
-	if studentID != "" {
-		data.StudentID = &studentID
 	}
 
 	tenantID := tenant.FromContext(ctx)
