@@ -8,11 +8,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // allDayReminderHour anchors the reminder for an all-day appointment. An all-day
@@ -307,7 +310,7 @@ func (s *service) enqueueAppointmentReminder(
 	for accountID, profileIDs := range pushProfilesByAccount {
 		claimedProfileIDs := profileIDs[:0]
 		for _, profileID := range profileIDs {
-			claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID)
+			claimed, err := s.claimReminderPush(ctx, appointment, occurrence, profileID)
 			if err != nil {
 				return queued, nil, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
 			}
@@ -332,7 +335,7 @@ func (s *service) enqueueAppointmentReminder(
 				)
 			}
 			for _, profileID := range claimedProfileIDs {
-				if releaseErr := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID); releaseErr != nil {
+				if releaseErr := s.releaseReminderPush(ctx, appointment, occurrence, profileID); releaseErr != nil {
 					return queued, nil, fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
 				}
 			}
@@ -352,6 +355,26 @@ func (s *service) enqueueAppointmentReminder(
 		slog.Int("recipient_count", len(pushProfilesByAccount)),
 	)
 	return queued, nil, nil
+}
+
+// Reminder delivery claims must commit before external Web Push I/O. The
+// scheduler invokes this method in a wider tenant transaction; using a fresh
+// transaction here prevents a later database error from rolling back a claim
+// after a push service has already accepted the notification.
+func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) (bool, error) {
+	var claimed bool
+	err := tenant.WithTenantTx(modelBase.ContextWithoutTx(ctx), s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		claimed, err = s.cfg.RecipientRepo.ClaimReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
+		return err
+	})
+	return claimed, err
+}
+
+func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
+	return tenant.WithTenantTx(modelBase.ContextWithoutTx(ctx), s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
+	})
 }
 
 func appointmentReminderKey(appointmentID int64, revision int, occurrence timezone.Date, guardianProfileID int64) string {
