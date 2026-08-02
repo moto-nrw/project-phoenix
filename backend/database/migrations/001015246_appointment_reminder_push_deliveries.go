@@ -36,12 +36,6 @@ func appointmentReminderPushDeliveriesUp(ctx context.Context, db *bun.DB) error 
 			FOREIGN KEY (tenant_id, guardian_profile_id)
 				REFERENCES users.guardian_profiles(tenant_id, id) ON DELETE CASCADE
 		);
-		CREATE POLICY tenant_isolation_calendar_appointment_reminder_push_deliveries
-			ON calendar.appointment_reminder_push_deliveries FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-		GRANT SELECT, INSERT, UPDATE, DELETE ON calendar.appointment_reminder_push_deliveries TO phoenix_tenant;
-		GRANT USAGE ON SEQUENCE calendar.appointment_reminder_push_deliveries_id_seq TO phoenix_tenant;
 	`)
 	if err != nil {
 		return fmt.Errorf("create appointment reminder push deliveries: %w", err)
