@@ -1694,6 +1694,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRepo:          repos.Account,
 		ParentsURL:           parentsURL,
 		Notifier:             notificationsService,
+		ReminderNotifier:     notificationsService,
 		Preferences:          notificationPreferencesService,
 		Logger:               logger.With("service", "calendar"),
 	})

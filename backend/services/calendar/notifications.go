@@ -330,6 +330,28 @@ func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointmen
 	return true, nil
 }
 
+func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, appointment *calModels.Appointment, accountIDs []int64) (bool, error) {
+	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 || s.cfg.Preferences == nil {
+		return false, nil
+	}
+	accountIDs, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, accountIDs)
+	if err != nil {
+		return false, fmt.Errorf("filter opted-in guardians: %w", err)
+	}
+	if len(accountIDs) == 0 {
+		return false, nil
+	}
+	title, body := appointmentNotificationCopy(platformModels.EmailKindAppointmentReminder)
+	if err := s.cfg.ReminderNotifier.NotifySynchronously(ctx, notifications.Event{
+		Type: notifications.TypeParentAppointmentReminder, Title: title, Body: body,
+		DeepLink: parentCalendarDeepLink, Priority: notifications.PriorityNormal,
+		Audience: notifications.Audience{TenantID: appointment.TenantID, Scope: notifications.ScopeGuardian, GuardianAccountIDs: accountIDs},
+	}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *service) logger() *slog.Logger {
 	if s.cfg.Logger == nil {
 		return slog.Default()

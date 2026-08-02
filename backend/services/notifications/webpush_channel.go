@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -132,6 +133,29 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 		c.sendAll(dispatchCtx, event, payload, subs)
 	}()
 	return nil
+}
+
+// DeliverSynchronously waits for the push service to accept every current
+// subscription. It is reserved for durable producers that can retry a failed
+// attempt; normal notifications continue to use Deliver's async path.
+func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) error {
+	if !c.vapid.Configured() {
+		return nil
+	}
+	payload, err := marshalPushPayload(event)
+	if err != nil {
+		return err
+	}
+	var subs []*iot.PushSubscription
+	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var resolveErr error
+		subs, resolveErr = c.resolveSubscriptions(txCtx, event.Audience)
+		return resolveErr
+	})
+	if err != nil || len(subs) == 0 {
+		return err
+	}
+	return c.sendAllSynchronously(context.WithoutCancel(ctx), event, payload, subs)
 }
 
 // DeliverBatch resolves the devices of every recipient in ONE transaction and
@@ -295,6 +319,54 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 		}()
 	}
 	wg.Wait()
+}
+
+func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) error {
+	ttl, urgency := pushOptionsForPriority(event.Priority)
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(subs))
+	for _, sub := range subs {
+		wg.Add(1)
+		go func(sub *iot.PushSubscription) {
+			defer wg.Done()
+			c.sendSlots <- struct{}{}
+			defer func() { <-c.sendSlots }()
+			if err := c.sendOneSynchronously(ctx, event, payload, sub, ttl, urgency); err != nil {
+				errCh <- err
+			}
+		}(sub)
+	}
+	wg.Wait()
+	close(errCh)
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, payload []byte, sub *iot.PushSubscription, ttl int, urgency webpush.Urgency) error {
+	if err := iot.ValidatePushEndpoint(sub.Endpoint); err != nil {
+		return err
+	}
+	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
+	defer cancel()
+	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, payload, &webpush.Options{Subscriber: c.vapid.webPushSubscriber(), VAPIDPublicKey: c.vapid.PublicKey, VAPIDPrivateKey: c.vapid.PrivateKey, TTL: ttl, Urgency: urgency})
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return errors.New("web push service returned no response")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+		_, err := c.deleteExpiredSubscription(ctx, sub)
+		return err
+	}
+	return fmt.Errorf("web push service rejected notification with status %d", resp.StatusCode)
 }
 
 func (c *webPushChannel) sendOne(

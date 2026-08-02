@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -293,7 +294,7 @@ func (s *service) enqueueAppointmentReminder(
 				queued++
 			}
 		}
-		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Notifier != nil && s.cfg.Preferences != nil {
+		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.ReminderNotifier != nil && s.cfg.Preferences != nil {
 			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
 				return queued, nil, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
@@ -317,7 +318,7 @@ func (s *service) enqueueAppointmentReminder(
 		if len(claimedProfileIDs) == 0 {
 			continue
 		}
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, appointment, platformModels.EmailKindAppointmentReminder, []int64{accountID})
+		dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{accountID})
 		if err != nil || !dispatched {
 			s.logger().Warn("calendar: appointment reminder push failed",
 				slog.Int64("appointment_id", appointment.ID),
@@ -335,6 +336,13 @@ func (s *service) enqueueAppointmentReminder(
 					return queued, nil, fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
 				}
 			}
+			if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+				continue
+			}
+			if err != nil {
+				return queued, nil, fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
+			}
+			return queued, nil, fmt.Errorf("calendar: appointment reminder push was not accepted")
 		}
 	}
 

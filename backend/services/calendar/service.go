@@ -114,8 +114,11 @@ type Config struct {
 	// accompanies the appointment e-mails (#1671). Both optional and both
 	// required together: without consent there is nobody to address, so a nil
 	// Preferences disables the push rather than broadcasting past consent.
-	Notifier    notifications.Service
-	Preferences notifications.PreferenceService
+	Notifier notifications.Service
+	// ReminderNotifier waits for Web Push acceptance so the scheduler can retry
+	// a transient failure without permanently claiming the reminder delivery.
+	ReminderNotifier notifications.SynchronousService
+	Preferences      notifications.PreferenceService
 
 	// Logger is nil-safe (see service.logger()); notification dispatch is
 	// fire-and-forget and reports its failures here instead of to the caller.

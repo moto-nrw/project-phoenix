@@ -111,6 +111,13 @@ type Channel interface {
 	Deliver(ctx context.Context, event Event) error
 }
 
+// synchronousChannel reports Web Push acceptance to a producer that must not
+// mark a durable delivery complete until the push service has responded.
+type synchronousChannel interface {
+	Channel
+	DeliverSynchronously(ctx context.Context, event Event) error
+}
+
 // BatchChannel is implemented by channels that can serve many events at once
 // more cheaply than one at a time. The router uses it when available and loops
 // Deliver otherwise, so implementing it is always optional.
@@ -133,6 +140,13 @@ type BatchNotifier interface {
 type Notifier interface {
 	Service
 	BatchNotifier
+	SynchronousService
+}
+
+// SynchronousService is for durable producers such as appointment reminders.
+// Unlike Notify, it waits for Web Push acceptance and returns delivery errors.
+type SynchronousService interface {
+	NotifySynchronously(ctx context.Context, event Event) error
 }
 
 // Service is the entry point features use to trigger notifications.
@@ -270,6 +284,42 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliver(dispatchCtx, event)
 	})
+	return nil
+}
+
+func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
+	if err := validate(event); err != nil {
+		return err
+	}
+	if event.Priority == "" {
+		event.Priority = PriorityNormal
+	}
+	if r.settings == nil {
+		return errors.New("notifications service has no settings service configured")
+	}
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, configModel.KeyNotificationsDispatchEnabled)
+	if err != nil {
+		return fmt.Errorf("resolving notification feature flag: %w", err)
+	}
+	if !enabled {
+		return ErrDisabled
+	}
+	if event.Type != TypeTest {
+		within, err := r.withinActiveWindow(ctx, event.Audience.TenantID)
+		if err != nil {
+			return err
+		}
+		if !within {
+			return ErrOutsideActiveWindow
+		}
+	}
+	for _, ch := range r.channels {
+		if synchronous, ok := ch.(synchronousChannel); ok {
+			if err := synchronous.DeliverSynchronously(modelBase.ContextWithoutTx(ctx), event); err != nil {
+				return fmt.Errorf("synchronous notification channel %s: %w", ch.Name(), err)
+			}
+		}
+	}
 	return nil
 }
 

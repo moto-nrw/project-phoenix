@@ -30,6 +30,10 @@ func (n *reminderCaptureNotifier) Notify(_ context.Context, event notifications.
 	return nil
 }
 
+func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event notifications.Event) error {
+	return n.Notify(ctx, event)
+}
+
 type reminderPreferences struct {
 	notifications.PreferenceService
 }
@@ -200,6 +204,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Notifier = notifier
+	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	service := calendarSvc.NewService(cfg)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
@@ -259,6 +264,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Notifier = notifier
+	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	service := calendarSvc.NewService(cfg)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
