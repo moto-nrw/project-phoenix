@@ -313,7 +313,11 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
                 setUploadCategory(value as StaffDocumentCategory)
               }
               disabled={visibleCategories.length === 0}
-              triggerClassName="h-9 w-56 text-sm"
+              // triggerClassName REPLACES the default trigger classes, and the
+              // base class carries a colorless `border` — without
+              // moto-content-surface the Tailwind-4 default (currentColor)
+              // paints it black.
+              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
             />
           </div>
 
