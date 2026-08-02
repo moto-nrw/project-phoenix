@@ -560,34 +560,25 @@ describe("useGlobalSSE", () => {
     it("still invalidates the child detail cache from the group-scoped student_checkin (#2085)", () => {
       renderHook(() => useGlobalSSE());
 
-      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
-
       // What an entitled supervisor's client actually receives: the scoped
       // check-in on the active-group / edu:{id} topic, alongside the id-less
       // tenant-wide refresh.
-      onMessage?.({
+      fire({
         type: "student_checkin",
         active_group_id: "456",
         data: { student_id: "77", group_ids: ["5"] },
-        timestamp: new Date().toISOString(),
       });
-      onMessage?.({
+      fire({
         type: "active_supervision_changed",
         active_group_id: "456",
         data: { reason: "student_moved" },
-        timestamp: new Date().toISOString(),
       });
 
       vi.advanceTimersByTime(500);
 
-      const studentDetailCall = vi.mocked(mutate).mock.calls.find((call) => {
-        const matcher = call[0];
-        return (
-          typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("tenant:student-detail-77")
-        );
-      });
-      expect(studentDetailCall).toBeDefined();
+      expect(matchedKeys(["tenant:student-detail-77"])).toEqual([
+        "tenant:student-detail-77",
+      ]);
     });
 
     it("invalidates dashboard caches on dashboard_counts_changed event", () => {

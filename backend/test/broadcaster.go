@@ -152,9 +152,7 @@ func AssertSingleTenantEvent(tb testing.TB, b *RecordingBroadcaster, eventType r
 
 	event := events[0]
 	assert.Empty(tb, event.ActiveGroupID, "%s is tenant-wide, not group-scoped", eventType)
-	assert.Nil(tb, event.Data.StudentID, "%s must not carry student identity", eventType)
-	assert.Nil(tb, event.Data.StudentIDs, "%s must not carry student identity", eventType)
-	assert.Nil(tb, event.Data.SupervisorIDs, "%s must not carry staff identity", eventType)
+	assertCarriesNoIdentity(tb, event)
 
 	calls := b.CallsByMethod("tenant")
 	require.NotEmpty(tb, calls, "expected a tenant-scoped broadcast")
@@ -179,13 +177,25 @@ func AssertNoTenantWideStudentIdentity(tb testing.TB, b *RecordingBroadcaster) {
 	tb.Helper()
 
 	for _, call := range b.CallsByMethod("tenant") {
-		assert.Nil(tb, call.Event.Data.StudentID,
-			"tenant-wide %s must not carry a student id", call.Event.Type)
-		assert.Nil(tb, call.Event.Data.StudentIDs,
-			"tenant-wide %s must not carry student ids", call.Event.Type)
-		assert.Nil(tb, call.Event.Data.StudentName,
-			"tenant-wide %s must not carry a student name", call.Event.Type)
+		assertCarriesNoIdentity(tb, call.Event)
 	}
+}
+
+// assertCarriesNoIdentity is the single definition of "this payload names
+// nobody", shared by both exported entry points above. It exists because the
+// two of them drifted the moment they were written independently: one checked
+// student id + student ids + supervisor ids, the other student id + student
+// ids + student name, so each covered a different two thirds of the contract
+// and a tenant-wide event carrying a child's NAME passed the older one. That
+// is the exact failure AssertSingleTenantEvent was introduced to stop, so the
+// field list lives here once and both callers inherit every future addition.
+func assertCarriesNoIdentity(tb testing.TB, event realtime.Event) {
+	tb.Helper()
+
+	assert.Nil(tb, event.Data.StudentID, "tenant-wide %s must not carry a student id", event.Type)
+	assert.Nil(tb, event.Data.StudentIDs, "tenant-wide %s must not carry student ids", event.Type)
+	assert.Nil(tb, event.Data.StudentName, "tenant-wide %s must not carry a student name", event.Type)
+	assert.Nil(tb, event.Data.SupervisorIDs, "tenant-wide %s must not carry staff identity", event.Type)
 }
 
 // Reset drops all recorded calls.
