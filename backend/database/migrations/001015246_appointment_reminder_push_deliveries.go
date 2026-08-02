@@ -36,8 +36,6 @@ func appointmentReminderPushDeliveriesUp(ctx context.Context, db *bun.DB) error 
 			FOREIGN KEY (tenant_id, guardian_profile_id)
 				REFERENCES users.guardian_profiles(tenant_id, id) ON DELETE CASCADE
 		);
-		ALTER TABLE calendar.appointment_reminder_push_deliveries ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE calendar.appointment_reminder_push_deliveries FORCE ROW LEVEL SECURITY;
 		CREATE POLICY tenant_isolation_calendar_appointment_reminder_push_deliveries
 			ON calendar.appointment_reminder_push_deliveries FOR ALL
 			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
