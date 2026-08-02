@@ -2019,11 +2019,12 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 	require.Len(t, outbox.enqueued, 1)
 
 	base := calendarSvc.UpdateAppointmentRequest{
-		Title:     "Elternabend (verschoben)",
-		StartDate: timezone.NewDate(2026, 4, 3),
-		EndDate:   timezone.NewDate(2026, 4, 3),
-		StartTime: wallClock(18, 0),
-		EndTime:   wallClock(19, 0),
+		Title:        "Elternabend (verschoben)",
+		StartDate:    timezone.NewDate(2026, 4, 3),
+		EndDate:      timezone.NewDate(2026, 4, 3),
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		SendEmailSet: true,
 	}
 
 	// Edit WITHOUT re-sending: the stale pending mail is cancelled and no new mail
@@ -2054,6 +2055,52 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 		Where(`"appointment".id = ?`, detail.Appointment.ID).
 		Scan(context.Background(), &notifyGuardians))
 	assert.True(t, notifyGuardians, "re-enabling e-mail must restore reminder eligibility")
+}
+
+// Older clients may omit send_email on updates. In that case the existing
+// guardian notification preference must be retained for this update and later
+// appointment lifecycle notices.
+func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEmailOmitted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "LegacyMail", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    timezone.NewDate(2026, 4, 2),
+		EndDate:      timezone.NewDate(2026, 4, 2),
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	require.Len(t, outbox.enqueued, 1)
+
+	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+		Title:     "Elternabend (verschoben)",
+		StartDate: timezone.NewDate(2026, 4, 3),
+		EndDate:   timezone.NewDate(2026, 4, 3),
+		StartTime: wallClock(18, 0),
+		EndTime:   wallClock(19, 0),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, outbox.cancelled, "update must cancel the stale pending mail")
+	require.Len(t, outbox.enqueued, 2, "omitting send_email must retain guardian notifications")
+	assert.Equal(t, platformModels.EmailKindAppointmentUpdated, outbox.enqueued[1].Kind)
 }
 
 // The notification e-mail must advertise the first real occurrence, not the raw

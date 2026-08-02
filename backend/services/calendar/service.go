@@ -605,7 +605,7 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment updated"); err != nil {
 		return nil, err
 	}
-	if req.SendEmail {
+	if appointment.NotifyGuardians {
 		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
 		}
