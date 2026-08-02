@@ -15,6 +15,8 @@ describe("redactSensitiveLogData", () => {
         clientSecret: "client-secret-value",
         api_key: "api-key-value",
         jwt: "jwt-value",
+        JWTToken: "compound-jwt-token-value",
+        PINCode: "compound-pin-value",
         display_name: "Safe Name",
       },
       entries: [
@@ -28,6 +30,7 @@ describe("redactSensitiveLogData", () => {
         authorization: "Basic authorization-value",
         Cookie: "session=cookie-value",
         "X-API-Key": "header-api-key-value",
+        "X-Staff-PIN": "header-staff-pin-value",
       },
     };
 
@@ -41,6 +44,8 @@ describe("redactSensitiveLogData", () => {
         clientSecret: REDACTED_LOG_VALUE,
         api_key: REDACTED_LOG_VALUE,
         jwt: REDACTED_LOG_VALUE,
+        JWTToken: REDACTED_LOG_VALUE,
+        PINCode: REDACTED_LOG_VALUE,
         display_name: "Safe Name",
       },
       entries: [
@@ -54,6 +59,7 @@ describe("redactSensitiveLogData", () => {
         authorization: REDACTED_LOG_VALUE,
         Cookie: REDACTED_LOG_VALUE,
         "X-API-Key": REDACTED_LOG_VALUE,
+        "X-Staff-PIN": REDACTED_LOG_VALUE,
       },
     });
     expect(input.password).toBe("plain-password");
@@ -117,10 +123,10 @@ describe("redactSensitiveLogData", () => {
   it("redacts credentials embedded in routes, query strings, and text", () => {
     expect(
       redactSensitiveLogString(
-        'GET /parents/enroll/status/route-token/edit?access_token=query-token&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
+        'GET /parents/enroll/status/route-token/edit?access_token=query-token&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nX-Staff-PIN: 1234\nX-Staff-Auth-PIN: 5678\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","X-Staff-PIN":"serialized-staff-pin","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
       ),
     ).toBe(
-      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
+      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nX-Staff-PIN: [REDACTED]\nX-Staff-Auth-PIN: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","X-Staff-PIN":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
     );
   });
 

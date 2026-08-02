@@ -44,13 +44,15 @@ describe("POST /api/logs", () => {
         entries: [
           {
             level: "debug",
-            msg: "X-API-Key: sentinel-header\npassword=sentinel-password phrase suffix, status=401",
+            msg: "X-API-Key: sentinel-header\nX-Staff-PIN: sentinel-staff-pin\nX-Staff-Auth-PIN: sentinel-staff-auth-pin\npassword=sentinel-password phrase suffix, status=401",
             password: "sentinel-password",
             nested: {
               device_pin: "sentinel-pin",
               accessToken: "sentinel-token",
               client_secret: "sentinel-secret",
               jwt: "sentinel-jwt",
+              JWTToken: "sentinel-compound-jwt-token",
+              PINCode: "sentinel-compound-pin",
               api_key: "sentinel-api-key",
               authorization: "Basic sentinel-authorization",
               cookie: "session=sentinel-cookie",
@@ -73,12 +75,14 @@ describe("POST /api/logs", () => {
     };
     expect(output).toMatchObject({
       password: REDACTED_LOG_VALUE,
-      msg: `X-API-Key: ${REDACTED_LOG_VALUE}\npassword=${REDACTED_LOG_VALUE}, status=401`,
+      msg: `X-API-Key: ${REDACTED_LOG_VALUE}\nX-Staff-PIN: ${REDACTED_LOG_VALUE}\nX-Staff-Auth-PIN: ${REDACTED_LOG_VALUE}\npassword=${REDACTED_LOG_VALUE}, status=401`,
       nested: {
         device_pin: REDACTED_LOG_VALUE,
         accessToken: REDACTED_LOG_VALUE,
         client_secret: REDACTED_LOG_VALUE,
         jwt: REDACTED_LOG_VALUE,
+        JWTToken: REDACTED_LOG_VALUE,
+        PINCode: REDACTED_LOG_VALUE,
         api_key: REDACTED_LOG_VALUE,
         authorization: REDACTED_LOG_VALUE,
         cookie: REDACTED_LOG_VALUE,
@@ -87,7 +91,7 @@ describe("POST /api/logs", () => {
       user_id: "account-42",
     });
     expect(JSON.stringify(output)).not.toMatch(
-      /sentinel-(password|pin|token|secret|jwt|api-key|authorization|cookie|header)/,
+      /sentinel-(password|pin|token|secret|jwt|api-key|authorization|cookie|header|staff-pin|staff-auth-pin|compound-jwt-token|compound-pin)/,
     );
 
     consoleLog.mockRestore();
