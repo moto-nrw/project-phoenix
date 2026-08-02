@@ -103,6 +103,7 @@ type StaffDocumentService interface {
 	// the tenant so retries do not depend on the referenced staff record.
 	ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]*userModels.StaffDocumentFileCleanup, error)
 	MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error
+	MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error
 	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
 	// for a document that may already be soft-deleted.
 	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
@@ -272,6 +273,9 @@ func (s *staffDocumentService) CreateStaffDocument(ctx context.Context, input Cr
 		if err := s.documents.Create(ctx, doc); err != nil {
 			return err
 		}
+		if err := s.documents.MarkQueuedFileCleanupCompleteByFilename(ctx, input.FilenameStored); err != nil {
+			return fmt.Errorf("complete document upload cleanup intent: %w", err)
+		}
 		var retentionErr error
 		contractEnd, retentionErr = s.contractEndDate(ctx, input.StaffID)
 		if retentionErr != nil {
@@ -421,6 +425,13 @@ func (s *staffDocumentService) MarkQueuedStaffDocumentFileCleanupComplete(ctx co
 	tenantID := tenant.FromContext(ctx)
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return s.documents.MarkQueuedFileCleanupComplete(ctx, cleanupID)
+	})
+}
+
+func (s *staffDocumentService) MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.documents.MarkQueuedFileCleanupCompleteByFilename(ctx, storedName)
 	})
 }
 

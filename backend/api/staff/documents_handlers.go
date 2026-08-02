@@ -212,9 +212,24 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if err := rs.StaffDocumentService.QueueStaffDocumentFileCleanup(r.Context(), id, storedName); err != nil {
+		rs.getLogger().Error("staff document upload cleanup intent failed",
+			"staff_id", id,
+			"error", err,
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
 	dir := staffDocumentsDir(tenant.FromContext(r.Context()))
-	filePath, err := common.SaveNamedFile(uploaded.File, dir, storedName)
+	filePath, err := common.SavePrivateNamedFile(uploaded.File, dir, storedName)
 	if err != nil {
+		if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
+			rs.getLogger().Warn("staff document cleanup intent completion failed after upload write error",
+				"staff_id", id,
+				"error", completeErr,
+			)
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -232,12 +247,11 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 				"staff_id", id,
 				"error", err,
 			)
-			if queueErr := rs.StaffDocumentService.QueueStaffDocumentFileCleanup(r.Context(), id, storedName); queueErr != nil {
-				rs.getLogger().Error("staff document orphan cleanup queue failed",
-					"staff_id", id,
-					"error", queueErr,
-				)
-			}
+		} else if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
+			rs.getLogger().Warn("staff document cleanup intent completion failed",
+				"staff_id", id,
+				"error", completeErr,
+			)
 		}
 		renderDocumentError(w, r, err)
 		return

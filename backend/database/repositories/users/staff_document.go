@@ -202,12 +202,20 @@ func (r *StaffDocumentRepository) listQueuedFileCleanups(ctx context.Context, wh
 }
 
 func (r *StaffDocumentRepository) MarkQueuedFileCleanupComplete(ctx context.Context, cleanupID int64) error {
+	return r.markQueuedFileCleanupComplete(ctx, `"staff_document_file_cleanup".id = ?`, cleanupID)
+}
+
+func (r *StaffDocumentRepository) MarkQueuedFileCleanupCompleteByFilename(ctx context.Context, filename string) error {
+	return r.markQueuedFileCleanupComplete(ctx, `"staff_document_file_cleanup".filename_stored = ?`, filename)
+}
+
+func (r *StaffDocumentRepository) markQueuedFileCleanupComplete(ctx context.Context, where string, arg any) error {
 	now := time.Now()
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StaffDocumentFileCleanup)(nil)).
 		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
 		Set("cleaned_at = ?", now).
-		Where(`"staff_document_file_cleanup".id = ?`, cleanupID).
+		Where(where, arg).
 		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
 	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
 	if _, err := query.Exec(ctx); err != nil {

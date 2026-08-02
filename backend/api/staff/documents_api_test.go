@@ -142,6 +142,9 @@ func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
 	docID, filename := uploadedDocument(t, rec.Body.Bytes())
 	require.NotZero(t, docID)
 	assert.Equal(t, "Erste-Hilfe Zeugnis.pdf", filename)
+	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(testpkg.TenantContext(1))
+	require.NoError(t, err)
+	assert.Empty(t, cleanups, "a persisted document must complete its cleanup intent")
 
 	rec = c.request(t, http.MethodGet, base, nil, "", "users:update")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

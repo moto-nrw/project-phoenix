@@ -129,4 +129,5 @@ type StaffDocumentRepository interface {
 	ListQueuedFileCleanups(ctx context.Context) ([]*StaffDocumentFileCleanup, error)
 	ListQueuedFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*StaffDocumentFileCleanup, error)
 	MarkQueuedFileCleanupComplete(ctx context.Context, cleanupID int64) error
+	MarkQueuedFileCleanupCompleteByFilename(ctx context.Context, filename string) error
 }

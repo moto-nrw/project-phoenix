@@ -173,6 +173,40 @@ func SaveNamedFile(file io.Reader, targetDir, filename string) (string, error) {
 	return filePath, nil
 }
 
+// SavePrivateNamedFile writes a file that must never be exposed through a
+// static mount. Both the directory and file are owner-only so access remains
+// mediated by the authenticated download handler.
+func SavePrivateNamedFile(file io.Reader, targetDir, filename string) (string, error) {
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
+		return "", errors.New("failed to create upload directory")
+	}
+	if err := os.Chmod(targetDir, 0700); err != nil {
+		return "", errors.New("failed to secure upload directory")
+	}
+
+	filePath := filepath.Join(targetDir, filename)
+	dst, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return "", errors.New("failed to save file")
+	}
+	defer func() {
+		if err := dst.Close(); err != nil {
+			slog.Default().Error("file close error", slog.String("error", err.Error()))
+		}
+	}()
+	if err := dst.Chmod(0600); err != nil {
+		_ = os.Remove(filePath)
+		return "", errors.New("failed to secure uploaded file")
+	}
+
+	if _, err := io.Copy(dst, file); err != nil {
+		_ = os.Remove(filePath)
+		return "", errors.New("failed to save file")
+	}
+
+	return filePath, nil
+}
+
 // ServeFile serves a file from baseDir, validating the path stays within baseDir.
 // If baseDir is relative (e.g. "public/uploads/..."), it is resolved via ResolvePublicDir.
 // cacheControl sets the Cache-Control header (e.g. "private, max-age=86400" or "public, max-age=86400").
