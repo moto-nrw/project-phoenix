@@ -24,7 +24,9 @@ const (
 // transaction as the update — no change without a trace, same contract as
 // audit.personnel_number_changes. For financial fields old/new carry the
 // MASKED values only: the audit trail must not become a second store of
-// IBAN / Steuer-ID / SV-Nummer outside the staff:financial gate.
+// IBAN / Steuer-ID / SV-Nummer outside the staff:financial gate. ChangedBy is
+// normally a staff ID; bank-and-tax updates record the authenticated payroll
+// account ID because that actor need not have a staff mapping.
 type StaffMasterDataChange struct {
 	bun.BaseModel `bun:"schema:audit,table:staff_master_data_changes"`
 	ID            int64 `bun:"id,pk,autoincrement" json:"id"`

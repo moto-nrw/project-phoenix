@@ -5,11 +5,14 @@
 package staff_test
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,6 +62,27 @@ func TestStammdatenAPI_PermissionSplit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"iban":"DE89370400440532013000"`)
 	assert.Contains(t, rec.Body.String(), `"social_security_number":"65170839J003"`)
+}
+
+func TestStammdatenAPI_FinancialWriteAllowsAccountWithoutStaffMapping(t *testing.T) {
+	ctx := setupOverviewAPI(t)
+	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("Payroll-%d", time.Now().UnixNano()))
+	account := testpkg.CreateTestAccount(t, ctx.tc.db, fmt.Sprintf("payroll-%d@example.test", time.Now().UnixNano()))
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, ctx.tc.db, target.ID)
+		testpkg.CleanupAuthFixtures(t, ctx.tc.db, account.ID)
+	})
+
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"staff:financial"}
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/staff/%d/stammdaten/bank-steuer", target.ID), bytes.NewBufferString(`{"iban":"DE89370400440532013000"}`))
+	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	ctx.tc.router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
 func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {

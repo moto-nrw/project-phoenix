@@ -204,8 +204,10 @@ type stammdatenAck struct {
 	StaffID int64 `json:"staff_id"`
 }
 
-// runStammdatenUpdate is the shared PUT shape: parse id, resolve the acting
-// staff member, run the section update, classify errors.
+// runStammdatenUpdate is the shared PUT shape for non-financial sections:
+// parse id, resolve the acting staff member, run the section update, classify
+// errors. Financial writers can be external payroll accounts without a staff
+// mapping, so their endpoint resolves its account actor separately.
 func (rs *Resource) runStammdatenUpdate(w http.ResponseWriter, r *http.Request, update func(staffID, changedBy int64) error) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
@@ -374,11 +376,29 @@ func (rs *Resource) updateStammdatenFinancial(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	rs.runStammdatenUpdate(w, r, func(staffID, changedBy int64) error {
-		return rs.PersonService.UpdateStaffFinancial(r.Context(), staffID, usersSvc.StammdatenFinancialInput{
-			IBAN:                 req.IBAN,
-			TaxID:                req.TaxID,
-			SocialSecurityNumber: req.SocialSecurityNumber,
-		}, changedBy, req.Note)
-	})
+	staffID, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
+		return
+	}
+	accountID, _, err := financialActor(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	if err := rs.PersonService.UpdateStaffFinancial(r.Context(), staffID, usersSvc.StammdatenFinancialInput{
+		IBAN:                 req.IBAN,
+		TaxID:                req.TaxID,
+		SocialSecurityNumber: req.SocialSecurityNumber,
+	}, accountID, req.Note); err != nil {
+		switch {
+		case errors.Is(err, usersSvc.ErrStaffStammdatenInvalid):
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "stammdaten_invalid"))
+		case modelBase.IsNoRows(err):
+			common.RenderError(w, r, common.ErrorNotFound(err))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+	common.Respond(w, r, http.StatusOK, &stammdatenAck{StaffID: staffID}, "Stammdaten updated successfully")
 }

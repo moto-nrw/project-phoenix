@@ -53,7 +53,7 @@ func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.staff_master_data (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			staff_id BIGINT NOT NULL REFERENCES users.staff(id) ON DELETE CASCADE,
+			staff_id BIGINT NOT NULL,
 			gender TEXT CHECK (gender IN ('female', 'male', 'diverse')),
 			address_street TEXT,
 			address_postal_code TEXT,
@@ -68,7 +68,10 @@ func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
 			weekly_hours NUMERIC(5,2) CHECK (weekly_hours IS NULL OR (weekly_hours >= 0 AND weekly_hours <= 80)),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT uq_staff_master_data_staff UNIQUE (staff_id)
+			CONSTRAINT uq_staff_master_data_staff UNIQUE (staff_id),
+			CONSTRAINT fk_staff_master_data_staff
+				FOREIGN KEY (tenant_id, staff_id)
+				REFERENCES users.staff(tenant_id, id) ON DELETE CASCADE
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_staff_master_data_tenant
@@ -77,14 +80,17 @@ func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.staff_qualifications (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			staff_id BIGINT NOT NULL REFERENCES users.staff(id) ON DELETE CASCADE,
+			staff_id BIGINT NOT NULL,
 			name TEXT NOT NULL,
 			acquired_on DATE,
 			expires_on DATE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT chk_staff_qualification_dates
-				CHECK (expires_on IS NULL OR acquired_on IS NULL OR expires_on >= acquired_on)
+				CHECK (expires_on IS NULL OR acquired_on IS NULL OR expires_on >= acquired_on),
+			CONSTRAINT fk_staff_qualifications_staff
+				FOREIGN KEY (tenant_id, staff_id)
+				REFERENCES users.staff(tenant_id, id) ON DELETE CASCADE
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_staff_qualifications_staff
@@ -93,13 +99,16 @@ func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.staff_financial_data (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			staff_id BIGINT NOT NULL REFERENCES users.staff(id) ON DELETE CASCADE,
+			staff_id BIGINT NOT NULL,
 			iban TEXT,
 			tax_id TEXT,
 			social_security_number TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT uq_staff_financial_data_staff UNIQUE (staff_id)
+			CONSTRAINT uq_staff_financial_data_staff UNIQUE (staff_id),
+			CONSTRAINT fk_staff_financial_data_staff
+				FOREIGN KEY (tenant_id, staff_id)
+				REFERENCES users.staff(tenant_id, id) ON DELETE CASCADE
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_staff_financial_data_tenant

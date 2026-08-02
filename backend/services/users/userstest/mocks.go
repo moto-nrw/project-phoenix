@@ -74,7 +74,7 @@ type PersonServiceMock struct {
 	ReplaceStaffQualificationsFn          func(ctx context.Context, staffID int64, inputs []users.StammdatenQualificationInput, changedByStaffID int64, note string) error
 	GetStaffFinancialMaskedFn             func(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialMasked, error)
 	RevealStaffFinancialFn                func(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialPlain, error)
-	UpdateStaffFinancialFn                func(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByStaffID int64, note string) error
+	UpdateStaffFinancialFn                func(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByAccountID int64, note string) error
 }
 
 func (m *PersonServiceMock) GetStaffStammdaten(ctx context.Context, staffID int64) (*users.StaffStammdaten, error) {
@@ -126,9 +126,9 @@ func (m *PersonServiceMock) RevealStaffFinancial(ctx context.Context, staffID in
 	return nil, nil
 }
 
-func (m *PersonServiceMock) UpdateStaffFinancial(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByStaffID int64, note string) error {
+func (m *PersonServiceMock) UpdateStaffFinancial(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByAccountID int64, note string) error {
 	if m.UpdateStaffFinancialFn != nil {
-		return m.UpdateStaffFinancialFn(ctx, staffID, input, changedByStaffID, note)
+		return m.UpdateStaffFinancialFn(ctx, staffID, input, changedByAccountID, note)
 	}
 	return nil
 }

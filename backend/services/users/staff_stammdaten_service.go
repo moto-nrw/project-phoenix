@@ -344,14 +344,14 @@ func (s *personService) RevealStaffFinancial(ctx context.Context, staffID int64,
 }
 
 // UpdateStaffFinancial replaces the bank & tax section. Audit rows carry
-// masked values only.
-func (s *personService) UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByStaffID int64, note string) error {
+// masked values only and record the authenticated payroll account as actor.
+func (s *personService) UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByAccountID int64, note string) error {
 	normalized, err := normalizeFinancialInput(input)
 	if err != nil {
 		return err
 	}
 
-	return s.runStammdatenTx(ctx, staffID, changedByStaffID, func(ctx context.Context, _ *userModels.Staff) ([]stammdatenChange, func() error, error) {
+	return s.runStammdatenTx(ctx, staffID, changedByAccountID, func(ctx context.Context, _ *userModels.Staff) ([]stammdatenChange, func() error, error) {
 		data, err := s.StaffFinancialRepo.FindByStaffID(ctx, staffID)
 		if err != nil {
 			return nil, nil, err
@@ -402,7 +402,7 @@ func (s *personService) UpdateStaffFinancial(ctx context.Context, staffID int64,
 func (s *personService) runStammdatenTx(
 	ctx context.Context,
 	staffID int64,
-	changedByStaffID int64,
+	changedBy int64,
 	build func(ctx context.Context, staff *userModels.Staff) ([]stammdatenChange, func() error, error),
 	section string,
 	note string,
@@ -410,8 +410,8 @@ func (s *personService) runStammdatenTx(
 	if s.StammdatenAudit == nil {
 		return fmt.Errorf("stammdaten audit repository is not wired; refusing unaudited change")
 	}
-	if changedByStaffID <= 0 {
-		return fmt.Errorf("changed-by staff id is required")
+	if changedBy <= 0 {
+		return fmt.Errorf("changed-by actor id is required")
 	}
 
 	tenantID := tenant.FromContext(ctx)
@@ -442,7 +442,7 @@ func (s *personService) runStammdatenTx(
 		for _, change := range changes {
 			if err := s.StammdatenAudit.Create(ctx, &auditModels.StaffMasterDataChange{
 				StaffID:   staff.ID,
-				ChangedBy: changedByStaffID,
+				ChangedBy: changedBy,
 				Section:   section,
 				FieldName: change.field,
 				OldValue:  change.oldValue,

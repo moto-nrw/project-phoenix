@@ -13,13 +13,18 @@ const revealFinancial = vi.hoisted(() => vi.fn());
 const swrData = vi.hoisted(() => ({
   current: new Map<string, unknown>(),
 }));
+const swrErrors = vi.hoisted(() => ({
+  current: new Map<string, Error>(),
+}));
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => ({
     data: [...swrData.current.entries()].find(([prefix]) =>
       key?.startsWith(prefix),
     )?.[1],
-    error: undefined,
+    error: [...swrErrors.current.entries()].find(([prefix]) =>
+      key?.startsWith(prefix),
+    )?.[1],
     isLoading: false,
     isValidating: false,
     mutate,
@@ -75,12 +80,17 @@ const stammdaten: StaffStammdaten = {
   ],
 };
 
-function seedSWR({ financial = false } = {}) {
+function seedSWR({ financial = false, financialError = false } = {}) {
   swrData.current = new Map<string, unknown>([
     ["staff-stammdaten-financial-", financial ? maskedFinancial : undefined],
     ["staff-stammdaten-", stammdaten],
     ["staff-payroll-number-", "1023"],
   ]);
+  swrErrors.current = new Map(
+    financialError
+      ? [["staff-stammdaten-financial-", new Error("request failed")]]
+      : [],
+  );
 }
 
 const maskedFinancial = {
@@ -93,6 +103,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
   beforeEach(() => {
     mutate.mockReset();
     revealFinancial.mockReset();
+    swrErrors.current = new Map();
   });
 
   it("zeigt alle Sektionen mit Werten, aber ohne Bearbeiten-Buttons ohne users:update", () => {
@@ -193,6 +204,32 @@ describe("StammdatenTab Sektionen (#1423)", () => {
       screen.queryByText("DE89370400440532013000"),
     ).not.toBeInTheDocument();
     expect(screen.getByText("•••• 3000")).toBeInTheDocument();
+  });
+
+  it("zeigt einen Ladefehler der Bankdaten mit erneutem Laden statt Leerwerten", () => {
+    seedSWR({ financialError: true });
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canViewFinancial
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Bank- und Steuerdaten konnten nicht geladen werden.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("•••• 3000")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 
   it("klappt eine Sektion über den Toggle ein", () => {

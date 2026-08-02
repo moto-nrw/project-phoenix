@@ -187,7 +187,7 @@ type PersonService interface {
 
 	// UpdateStaffFinancial replaces the bank & tax section; audit rows carry
 	// masked values only.
-	UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByStaffID int64, note string) error
+	UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByAccountID int64, note string) error
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)

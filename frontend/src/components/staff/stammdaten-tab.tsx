@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
 import { formatDate, todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -49,63 +50,6 @@ type SectionModal =
   | "qualifikationen"
   | "payroll"
   | null;
-
-// --- shared section chrome --------------------------------------------------
-
-function SectionCard({
-  kicker,
-  title,
-  description,
-  action,
-  children,
-}: {
-  readonly kicker: string;
-  readonly title: string;
-  readonly description?: string;
-  readonly action?: React.ReactNode;
-  readonly children: React.ReactNode;
-}) {
-  const [collapsed, setCollapsed] = useState(false);
-
-  return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-            {kicker}
-          </p>
-          <h3 className="mt-1 text-base font-semibold text-gray-900">
-            {title}
-          </h3>
-          {description && (
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">
-              {description}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {action}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={
-              collapsed ? `${title} ausklappen` : `${title} einklappen`
-            }
-            aria-expanded={!collapsed}
-            onClick={() => setCollapsed((prev) => !prev)}
-          >
-            <ChevronDown
-              className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-              aria-hidden="true"
-            />
-          </Button>
-        </div>
-      </div>
-      {!collapsed && <div className="mt-4">{children}</div>}
-    </section>
-  );
-}
 
 function Field({
   label,
@@ -538,9 +482,12 @@ function FinancialSection({ staffId }: { readonly staffId: string }) {
   const [revealing, setRevealing] = useState(false);
   const [revealError, setRevealError] = useState<string | null>(null);
 
-  const { data: financial, mutate: mutateFinancial } = useSWRAuth(
-    `staff-stammdaten-financial-${staffId}`,
-    () => staffStammdatenService.getFinancial(staffId),
+  const {
+    data: financial,
+    error: financialError,
+    mutate: mutateFinancial,
+  } = useSWRAuth(`staff-stammdaten-financial-${staffId}`, () =>
+    staffStammdatenService.getFinancial(staffId),
   );
 
   const toggleReveal = async () => {
@@ -579,7 +526,7 @@ function FinancialSection({ staffId }: { readonly staffId: string }) {
               size="compact"
               className="bg-white"
               onClick={() => void toggleReveal()}
-              disabled={revealing}
+              disabled={revealing || Boolean(financialError)}
             >
               {revealed ? (
                 <>
@@ -593,31 +540,53 @@ function FinancialSection({ staffId }: { readonly staffId: string }) {
                 </>
               )}
             </Button>
-            <EditAction visible onClick={() => setEditorOpen(true)} />
+            <EditAction
+              visible={!financialError}
+              onClick={() => setEditorOpen(true)}
+            />
           </>
         }
       >
-        <FieldGrid>
-          <Field
-            label="IBAN"
-            value={revealed ? revealed.iban : (financial?.ibanMasked ?? null)}
-            mono
-          />
-          <Field
-            label="Steuer-ID"
-            value={revealed ? revealed.taxId : (financial?.taxIdMasked ?? null)}
-            mono
-          />
-          <Field
-            label="SV-Nummer"
-            value={
-              revealed
-                ? revealed.socialSecurityNumber
-                : (financial?.socialSecurityNumberMasked ?? null)
+        {financialError ? (
+          <Alert
+            type="error"
+            message="Die Bank- und Steuerdaten konnten nicht geladen werden."
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => void mutateFinancial()}
+              >
+                Erneut laden
+              </Button>
             }
-            mono
           />
-        </FieldGrid>
+        ) : (
+          <FieldGrid>
+            <Field
+              label="IBAN"
+              value={revealed ? revealed.iban : (financial?.ibanMasked ?? null)}
+              mono
+            />
+            <Field
+              label="Steuer-ID"
+              value={
+                revealed ? revealed.taxId : (financial?.taxIdMasked ?? null)
+              }
+              mono
+            />
+            <Field
+              label="SV-Nummer"
+              value={
+                revealed
+                  ? revealed.socialSecurityNumber
+                  : (financial?.socialSecurityNumberMasked ?? null)
+              }
+              mono
+            />
+          </FieldGrid>
+        )}
         {revealError && (
           <p className="mt-2 text-sm text-[#FF3130]">{revealError}</p>
         )}
