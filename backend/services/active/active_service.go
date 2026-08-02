@@ -213,6 +213,30 @@ const (
 	checkoutTypeWeb    = "web"    // web/staff-UI checkout (CheckOutStudent)
 )
 
+// checkin_type values mirroring the checkout_type set above. They ride the
+// student_checkin SSE event as its `source`; the checkout constants are kept
+// separate because their values are pinned to the checkout_type analytics
+// property.
+const (
+	checkinTypeToggle = "toggle" // kiosk toggle-in (ToggleStudentAttendance)
+	checkinTypeWeb    = "web"    // web/staff-UI check-in (CheckInStudent)
+)
+
+// dailyCheckoutSource is the `source` carried by the student_checkout event of
+// the kiosk daily-checkout flow. Kept as its own value (rather than the
+// checkoutTypeDaily label) because it is a wire field consumers may already
+// match on.
+const dailyCheckoutSource = "daily_checkout"
+
+// checkoutSourceLabel maps an internal checkout_type onto the student_checkout
+// `source` wire field, preserving the historical value of the daily flow.
+func checkoutSourceLabel(checkoutType string) string {
+	if checkoutType == checkoutTypeDaily {
+		return dailyCheckoutSource
+	}
+	return checkoutType
+}
+
 // attendanceMethod derives how an attendance change was triggered: RFID/kiosk
 // requests carry device auth in context, everything else is web/manual.
 func attendanceMethod(ctx context.Context) string {
@@ -871,14 +895,38 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 		return
 	}
 
+	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
+	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, "")
+}
+
+// emitVisitCheckout is broadcastVisitCheckout with the student display data
+// already resolved. Split out so the attendance checkout paths can read the
+// student inside their request transaction and defer only the emission to a
+// tenant.RegisterAfterCommit hook (#2113): by the time hooks run, the tx stored
+// in ctx is closed, so a repository call from inside the hook would fail — and
+// running it outside the tenant tx would be blocked by RLS.
+func (s *service) emitVisitCheckout(
+	ctx context.Context,
+	endedVisit *active.Visit,
+	snapshot *AttendanceSnapshot,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
+	if s.Broadcaster == nil || endedVisit == nil {
+		return
+	}
+
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
-	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
 	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
 		StudentID:   &studentID,
 		StudentName: &studentName,
+	}
+	if source != "" {
+		data.Source = &source
 	}
 	if len(eduGroupIDs) > 0 {
 		data.GroupIDs = &eduGroupIDs
