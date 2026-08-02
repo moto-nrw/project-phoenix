@@ -65,6 +65,72 @@ type PersonServiceMock struct {
 	UpdatePersonnelNumberFn          func(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
 	GetStudentsWithGroupsByTeacherFn func(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error)
 	GetAllStudentsWithGroupsFn       func(ctx context.Context) ([]users.StudentWithGroup, error)
+
+	// Staff Stammdaten (#1423)
+	GetStaffStammdatenFn                  func(ctx context.Context, staffID int64) (*users.StaffStammdaten, error)
+	UpdateStaffStammdatenPersonFn         func(ctx context.Context, staffID int64, input users.StammdatenPersonInput, changedByStaffID int64, note string) error
+	UpdateStaffStammdatenKontaktFn        func(ctx context.Context, staffID int64, input users.StammdatenKontaktInput, changedByStaffID int64, note string) error
+	UpdateStaffStammdatenArbeitsvertragFn func(ctx context.Context, staffID int64, input users.StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error
+	ReplaceStaffQualificationsFn          func(ctx context.Context, staffID int64, inputs []users.StammdatenQualificationInput, changedByStaffID int64, note string) error
+	GetStaffFinancialMaskedFn             func(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialMasked, error)
+	RevealStaffFinancialFn                func(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialPlain, error)
+	UpdateStaffFinancialFn                func(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByAccountID int64, note string) error
+}
+
+func (m *PersonServiceMock) GetStaffStammdaten(ctx context.Context, staffID int64) (*users.StaffStammdaten, error) {
+	if m.GetStaffStammdatenFn != nil {
+		return m.GetStaffStammdatenFn(ctx, staffID)
+	}
+	return nil, nil
+}
+
+func (m *PersonServiceMock) UpdateStaffStammdatenPerson(ctx context.Context, staffID int64, input users.StammdatenPersonInput, changedByStaffID int64, note string) error {
+	if m.UpdateStaffStammdatenPersonFn != nil {
+		return m.UpdateStaffStammdatenPersonFn(ctx, staffID, input, changedByStaffID, note)
+	}
+	return nil
+}
+
+func (m *PersonServiceMock) UpdateStaffStammdatenKontakt(ctx context.Context, staffID int64, input users.StammdatenKontaktInput, changedByStaffID int64, note string) error {
+	if m.UpdateStaffStammdatenKontaktFn != nil {
+		return m.UpdateStaffStammdatenKontaktFn(ctx, staffID, input, changedByStaffID, note)
+	}
+	return nil
+}
+
+func (m *PersonServiceMock) UpdateStaffStammdatenArbeitsvertrag(ctx context.Context, staffID int64, input users.StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error {
+	if m.UpdateStaffStammdatenArbeitsvertragFn != nil {
+		return m.UpdateStaffStammdatenArbeitsvertragFn(ctx, staffID, input, changedByStaffID, note)
+	}
+	return nil
+}
+
+func (m *PersonServiceMock) ReplaceStaffQualifications(ctx context.Context, staffID int64, inputs []users.StammdatenQualificationInput, changedByStaffID int64, note string) error {
+	if m.ReplaceStaffQualificationsFn != nil {
+		return m.ReplaceStaffQualificationsFn(ctx, staffID, inputs, changedByStaffID, note)
+	}
+	return nil
+}
+
+func (m *PersonServiceMock) GetStaffFinancialMasked(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialMasked, error) {
+	if m.GetStaffFinancialMaskedFn != nil {
+		return m.GetStaffFinancialMaskedFn(ctx, staffID, actorAccountID, actorRole)
+	}
+	return nil, nil
+}
+
+func (m *PersonServiceMock) RevealStaffFinancial(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialPlain, error) {
+	if m.RevealStaffFinancialFn != nil {
+		return m.RevealStaffFinancialFn(ctx, staffID, actorAccountID, actorRole)
+	}
+	return nil, nil
+}
+
+func (m *PersonServiceMock) UpdateStaffFinancial(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByAccountID int64, note string) error {
+	if m.UpdateStaffFinancialFn != nil {
+		return m.UpdateStaffFinancialFn(ctx, staffID, input, changedByAccountID, note)
+	}
+	return nil
 }
 
 var _ users.PersonService = (*PersonServiceMock)(nil)

@@ -374,9 +374,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
-		DB:                   db,
-		SettingsService:      settingsService,
-		Logger:               logger.With("service", "users"),
+
+		// Staff Stammdaten (#1423)
+		StaffMasterDataRepo:    repos.StaffMasterData,
+		StaffQualificationRepo: repos.StaffQualification,
+		StaffFinancialRepo:     repos.StaffFinancialData,
+		StammdatenAudit:        repos.StaffMasterDataChange,
+		DataAccessLog:          repos.DataAccessLog,
+
+		DB:              db,
+		SettingsService: settingsService,
+		Logger:          logger.With("service", "users"),
 	})
 
 	// Initialize guardian service

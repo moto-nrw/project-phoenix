@@ -52,6 +52,15 @@ type PersonServiceDependencies struct {
 	// path refuses to run without it (no change without a trace, #1417).
 	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
 
+	// Stammdaten storage + audit (#1423). StammdatenAudit is required for
+	// every section write; DataAccessLog is required for every financial
+	// read — both paths refuse to run unaudited.
+	StaffMasterDataRepo    userModels.StaffMasterDataRepository
+	StaffQualificationRepo userModels.StaffQualificationRepository
+	StaffFinancialRepo     userModels.StaffFinancialDataRepository
+	StammdatenAudit        auditModels.StaffMasterDataChangeCreator
+	DataAccessLog          auditModels.DataAccessLogRepository
+
 	// Infrastructure
 	DB              *bun.DB
 	SettingsService configSvc.SettingsService
