@@ -54,18 +54,6 @@ func (optedOutAppointmentPreferences) FilterNotOptedOut(_ context.Context, _ str
 	return nil, nil
 }
 
-type optedOutReminderPreferences struct {
-	notifications.PreferenceService
-}
-
-func (optedOutReminderPreferences) FilterNotOptedOut(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
-	return accountIDs, nil
-}
-
-func (optedOutReminderPreferences) FilterOptedIn(_ context.Context, _ string, _ []int64) ([]int64, error) {
-	return nil, nil
-}
-
 // berlinInstant builds the moment a Berlin wall-clock time happens on a date,
 // which is what the reminder window is expressed in.
 func berlinInstant(t *testing.T, date timezone.Date, hour, minute int) time.Time {
