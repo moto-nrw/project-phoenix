@@ -136,6 +136,7 @@ func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request
 			LastName:  staff.Person.LastName,
 		})
 	}
+	rs.retryQueuedStaffDocumentCleanups(r.Context(), "directory")
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name < entries[j].Name
 	})

@@ -126,7 +126,10 @@ function StaffPageContent() {
   });
 
   const router = useTenantRouter();
-  const userIsAdmin = isAdmin(session);
+  // Custom roles can carry the same wildcard permissions as the built-in
+  // admin role. Keep the client-side navigation model aligned with backend
+  // authorization, which treats both forms as full access.
+  const userIsAdmin = isAdmin(session) || hasPermission(session, "admin:*");
 
   // Die Zeitkonten-Ansicht ist an time_tracking:manage gebunden, nicht an
   // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
@@ -137,10 +140,14 @@ function StaffPageContent() {
     hasPermission(session, "users:update") ||
     hasPermission(session, "staff:financial") ||
     hasPermission(session, "staff_documents:health");
-  // Only admins can open staff cards. Document-capable non-admin roles need
-  // the restricted directory even when they also hold users:read or
-  // time_tracking:manage; neither of those views links them to the tab.
-  const documentDirectoryOnly = canAccessDocuments && !userIsAdmin;
+  // Document-only roles have no other staff view to navigate from. Roles that
+  // can already manage staff stay in their established view; its entries link
+  // directly to the documents tab below.
+  const documentDirectoryOnly =
+    canAccessDocuments &&
+    !userIsAdmin &&
+    !canReadUsers &&
+    !canManageTimeTracking;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -188,7 +195,7 @@ function StaffPageContent() {
     isLoading,
     error: staffError,
   } = useSWRAuth<Staff[]>(
-    canReadUsers && !documentDirectoryOnly ? "staff-list" : null,
+    canReadUsers ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
       return sortStaff(staffData);
@@ -235,7 +242,7 @@ function StaffPageContent() {
   const needsAuditStaffOptions =
     canManageTimeTracking && view === "audit" && !canReadUsers;
   const accountsKey =
-    !documentDirectoryOnly && canManageTimeTracking && view === "accounts"
+    canManageTimeTracking && view === "accounts"
       ? `staff-time-accounts-${monthAnchor.year}-${monthAnchor.month}-${employmentFilter}-${saldoMin ?? ""}-${saldoMax ?? ""}`
       : needsAuditStaffOptions
         ? `staff-audit-options-${monthAnchor.year}-${monthAnchor.month}`
@@ -269,7 +276,7 @@ function StaffPageContent() {
 
   // Abschluss-Status des angezeigten Monats (#1417). Leeres Array = offen.
   const monthCloseKey =
-    !documentDirectoryOnly && canManageTimeTracking && view === "accounts"
+    canManageTimeTracking && view === "accounts"
       ? `staff-month-close-${monthAnchor.year}-${monthAnchor.month}`
       : null;
   const {
@@ -666,7 +673,11 @@ function StaffPageContent() {
           error={
             accountsError ? "Zeitkonten konnten nicht geladen werden." : null
           }
-          onRowClick={(row) => router.push(`/staff/${row.staffId}`)}
+          onRowClick={(row) =>
+            router.push(
+              `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+            )
+          }
           saldoPreset={saldoPreset}
           onSaldoPresetChange={setSaldoPreset}
           customSaldoHours={customSaldoHours}
@@ -759,14 +770,17 @@ function StaffPageContent() {
                 const notes = formatStaffNotes(staffMember.staffNotes, 80);
                 const supervisions = staffMember.supervisions ?? [];
 
-                const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${userIsAdmin ? "cursor-pointer" : ""}`;
+                const canNavigateToStaff = userIsAdmin || canAccessDocuments;
+                const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
                 const navigateToStaff = () =>
-                  router.push(`/staff/${staffMember.id}`);
+                  router.push(
+                    `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                  );
 
                 return (
                   <div
                     key={staffMember.id}
-                    {...(userIsAdmin
+                    {...(canNavigateToStaff
                       ? {
                           role: "button" as const,
                           tabIndex: 0,
@@ -792,7 +806,7 @@ function StaffPageContent() {
                               <h3 className="truncate text-base font-bold text-gray-900">
                                 {staffMember.firstName} {staffMember.lastName}
                               </h3>
-                              {userIsAdmin && (
+                              {canNavigateToStaff && (
                                 <svg
                                   className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
                                   fill="none"
@@ -876,9 +890,11 @@ function StaffPageContent() {
                           )}
                         </div>
 
-                        {userIsAdmin && (
+                        {canNavigateToStaff && (
                           <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
-                            Tippen für mehr Infos
+                            {userIsAdmin
+                              ? "Tippen für mehr Infos"
+                              : "Tippen für Personalunterlagen"}
                           </p>
                         )}
                       </div>

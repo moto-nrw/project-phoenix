@@ -14,6 +14,7 @@ const getTimeAccounts = vi.hoisted(() => vi.fn());
 const getDashboardSummary = vi.hoisted(() => vi.fn());
 const getAllStaff = vi.hoisted(() => vi.fn());
 const getDocumentDirectory = vi.hoisted(() => vi.fn());
+const routerPush = vi.hoisted(() => vi.fn());
 const swrKeys = vi.hoisted(() => [] as (string | null)[]);
 const berlinToday = vi.hoisted(() => vi.fn());
 const closeMonth = vi.hoisted(() => vi.fn());
@@ -26,11 +27,14 @@ const monthCloseRequest = vi.hoisted(() => ({
 const documentDirectoryRequest = vi.hoisted(() => ({
   error: null as Error | null,
 }));
+const staffListRequest = vi.hoisted(() => ({
+  data: undefined as unknown,
+}));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ push: vi.fn() }),
+  useTenantRouter: () => ({ push: routerPush }),
 }));
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: berlinToday,
@@ -59,6 +63,9 @@ vi.mock("~/lib/swr", () => ({
         error: documentDirectoryRequest.error,
         mutate: mutateDocumentDirectory,
       };
+    }
+    if (key === "staff-list") {
+      return { data: staffListRequest.data, isLoading: false, error: null };
     }
     return { data: undefined, isLoading: false, error: null };
   },
@@ -123,8 +130,10 @@ describe("/staff — Berechtigungs-Split", () => {
     globalMutate.mockReset().mockResolvedValue(undefined);
     monthCloseRequest.error = null;
     documentDirectoryRequest.error = null;
+    staffListRequest.data = undefined;
     getAllStaff.mockReset().mockResolvedValue([]);
     getDocumentDirectory.mockReset().mockResolvedValue([]);
+    routerPush.mockReset();
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
       year: 2026,
@@ -192,25 +201,49 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getDashboardSummary).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["users:read", ["users:read", "staff_documents:health"]],
-    [
-      "time_tracking:manage",
-      ["time_tracking:manage", "staff_documents:health"],
-    ],
-  ])(
-    "öffnet mit %s und einer Dokumentenberechtigung das Personalverzeichnis",
-    (_additionalPermission, permissions) => {
-      mockSession(permissions);
+  it("behält mit users:read die Personalliste und öffnet Dokumente über die Karte", () => {
+    const staff = [
+      {
+        id: "42",
+        name: "Dokumente Test",
+        firstName: "Dokumente",
+        lastName: "Test",
+        hasRfid: false,
+        isTeacher: false,
+        isSupervising: false,
+        supervisions: [],
+      },
+    ];
+    staffListRequest.data = staff;
+    getAllStaff.mockResolvedValue(staff);
+    mockSession(["users:read", "staff_documents:health"]);
 
-      render(<StaffPage />);
+    render(<StaffPage />);
 
-      expect(screen.getByText("Personalunterlagen")).toBeInTheDocument();
-      expect(getDocumentDirectory).toHaveBeenCalledTimes(1);
-      expect(getAllStaff).not.toHaveBeenCalled();
-      expect(getTimeAccounts).not.toHaveBeenCalled();
-    },
-  );
+    expect(screen.queryByText("Personalunterlagen")).not.toBeInTheDocument();
+    expect(getAllStaff).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /Dokumente Test/ }));
+    expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=dokumente");
+  });
+
+  it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {
+    mockSession(["time_tracking:manage", "staff_documents:health"]);
+
+    render(<StaffPage />);
+
+    expect(screen.queryByText("Personalunterlagen")).not.toBeInTheDocument();
+    expect(getDocumentDirectory).not.toHaveBeenCalled();
+    expect(getTimeAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it("behandelt admin:* als Vollzugriff statt als Dokumentenrolle", () => {
+    mockSession(["admin:*"]);
+
+    render(<StaffPage />);
+
+    expect(screen.queryByText("Personalunterlagen")).not.toBeInTheDocument();
+    expect(getDocumentDirectory).not.toHaveBeenCalled();
+  });
 
   it("blendet den Zeitkonten-Umschalter ohne time_tracking:manage aus und fragt die Zeitkonten nicht ab", () => {
     mockSession(["users:read"]);

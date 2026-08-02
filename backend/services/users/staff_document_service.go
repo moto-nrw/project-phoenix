@@ -99,6 +99,9 @@ type StaffDocumentService interface {
 	// ListQueuedStaffDocumentFileCleanup returns orphaned upload files that
 	// should be retried for this staff record during list or offboarding flows.
 	ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocumentFileCleanup, error)
+	// ListQueuedStaffDocumentFileCleanups returns all orphaned upload files in
+	// the tenant so retries do not depend on the referenced staff record.
+	ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]*userModels.StaffDocumentFileCleanup, error)
 	MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error
 	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
 	// for a document that may already be soft-deleted.
@@ -408,6 +411,10 @@ func (s *staffDocumentService) QueueStaffDocumentFileCleanup(ctx context.Context
 
 func (s *staffDocumentService) ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]*userModels.StaffDocumentFileCleanup, error) {
 	return s.documents.ListQueuedFileCleanupByStaffID(ctx, staffID)
+}
+
+func (s *staffDocumentService) ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]*userModels.StaffDocumentFileCleanup, error) {
+	return s.documents.ListQueuedFileCleanups(ctx)
 }
 
 func (s *staffDocumentService) MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error {

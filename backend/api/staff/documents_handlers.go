@@ -150,20 +150,7 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	if cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(r.Context(), id); err != nil {
-		rs.getLogger().Warn("staff document orphan cleanup retry lookup failed",
-			"staff_id", id,
-			"error", err,
-		)
-	} else {
-		tenantID := tenant.FromContext(r.Context())
-		for _, cleanup := range cleanups {
-			cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
-			tenant.RegisterAfterCommit(r.Context(), func() {
-				rs.cleanupQueuedStaffDocumentFile(tenantID, id, cleanupID, storedName, "retry")
-			})
-		}
-	}
+	rs.retryQueuedStaffDocumentCleanups(r.Context(), "retry")
 	resp := &StaffDocumentListResponse{
 		StaffID:           id,
 		Documents:         make([]StaffDocumentResponse, 0, len(infos)),
@@ -173,6 +160,28 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 		resp.Documents = append(resp.Documents, newStaffDocumentResponse(info))
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Staff documents retrieved successfully")
+}
+
+// retryQueuedStaffDocumentCleanups retries every orphaned upload in the
+// current tenant. It intentionally does not look up staff records: metadata
+// creation can fail after a concurrent offboarding, but its uploaded bytes
+// must remain eligible for deletion.
+func (rs *Resource) retryQueuedStaffDocumentCleanups(ctx context.Context, source string) {
+	cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanups(ctx)
+	if err != nil {
+		rs.getLogger().Warn("staff document orphan cleanup retry lookup failed",
+			"source", source,
+			"error", err,
+		)
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, cleanup := range cleanups {
+		staffID, cleanupID, storedName := cleanup.StaffID, cleanup.ID, cleanup.FilenameStored
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID, storedName, source)
+		})
+	}
 }
 
 // uploadStaffDocument serves POST /{id}/documents (multipart: file +

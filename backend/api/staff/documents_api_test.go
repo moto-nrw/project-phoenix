@@ -8,6 +8,7 @@ package staff_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -197,6 +198,32 @@ func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `"lohnabrechnung"`)
 	assert.NotContains(t, rec.Body.String(), `"zeugnis"`)
 	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`)
+}
+
+func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T) {
+	c := setupDocumentsAPI(t)
+	const orphanStaffID = int64(987654321)
+	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
+	t.Cleanup(func() {
+		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
+	})
+
+	pubDir, err := common.ResolvePublicDir()
+	require.NoError(t, err)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
+	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
+
+	rec := c.request(t, http.MethodGet, "/staff/documents-directory", nil, "", "staff_documents:health")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	_, err = os.Stat(filePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, cleanups)
 }
 
 func TestStaffDocumentsAPI_FileValidation(t *testing.T) {

@@ -123,6 +123,10 @@ type StaffDocumentRepository interface {
 	SoftDelete(ctx context.Context, doc *StaffDocument, deletedBy int64) error
 	MarkFileDeleted(ctx context.Context, documentID int64) error
 	QueueFileCleanup(ctx context.Context, cleanup *StaffDocumentFileCleanup) error
+	// ListQueuedFileCleanups returns all outstanding orphan-file cleanup rows
+	// for the current tenant, independent of whether the named staff record
+	// still exists.
+	ListQueuedFileCleanups(ctx context.Context) ([]*StaffDocumentFileCleanup, error)
 	ListQueuedFileCleanupByStaffID(ctx context.Context, staffID int64) ([]*StaffDocumentFileCleanup, error)
 	MarkQueuedFileCleanupComplete(ctx context.Context, cleanupID int64) error
 }
