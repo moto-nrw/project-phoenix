@@ -526,6 +526,11 @@ describe("OGSGroupPage", () => {
   });
 
   it("revalidates group access when the Berlin calendar day changes", async () => {
+    const subscriptionListener = vi.fn();
+    window.addEventListener(
+      "phoenix:group-access-subscriptions-stale",
+      subscriptionListener,
+    );
     mockMinuteClock.current = new Date("2026-01-01T22:59:00Z");
     const { rerender } = render(<OGSGroupPage />);
 
@@ -535,6 +540,11 @@ describe("OGSGroupPage", () => {
     rerender(<OGSGroupPage />);
 
     await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+    expect(subscriptionListener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(
+      "phoenix:group-access-subscriptions-stale",
+      subscriptionListener,
+    );
   });
 
   it("reconciles periodically and on focus after missed SSE events", () => {

@@ -1638,7 +1638,7 @@ describe("useGlobalSSE", () => {
   });
 
   describe("group_access_changed (#2084)", () => {
-    it("reconnects so the server recalculates fixed group-topic subscriptions", () => {
+    it("reconnects once per group-access burst", () => {
       renderHook(() => useGlobalSSE());
 
       const initialReconnectKey = vi
@@ -1647,10 +1647,38 @@ describe("useGlobalSSE", () => {
       expect(initialReconnectKey).toBeDefined();
 
       act(() => {
-        fire({
-          type: "group_access_changed",
-          data: { source: "group_transfer" },
-        });
+        for (let i = 0; i < 3; i++) {
+          fire({
+            type: "group_access_changed",
+            data: { source: "group_transfer" },
+          });
+        }
+      });
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        initialReconnectKey,
+      );
+
+      act(() => vi.advanceTimersByTime(500));
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        `${initialReconnectKey}:1`,
+      );
+    });
+
+    it("reconnects after a Berlin-day access boundary", () => {
+      renderHook(() => useGlobalSSE());
+
+      const initialReconnectKey = vi
+        .mocked(useSSE)
+        .mock.calls.at(-1)?.[1]?.reconnectKey;
+      expect(initialReconnectKey).toBeDefined();
+
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent("phoenix:group-access-subscriptions-stale"),
+        );
+        vi.advanceTimersByTime(500);
       });
 
       expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(

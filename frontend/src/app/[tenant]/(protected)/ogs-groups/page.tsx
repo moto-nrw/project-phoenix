@@ -305,6 +305,9 @@ function OGSGroupPageContent() {
   useEffect(() => {
     if (accessDayRef.current === accessDay) return;
     accessDayRef.current = accessDay;
+    window.dispatchEvent(
+      new CustomEvent("phoenix:group-access-subscriptions-stale"),
+    );
     void refreshLiveData();
   }, [accessDay, refreshLiveData]);
 

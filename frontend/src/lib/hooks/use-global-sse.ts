@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
@@ -210,6 +210,11 @@ export function useGlobalSSE(): SSEHookState {
   // invalidates a different key set (the group list itself, the Vertretungen
   // page, the user-context BFF) and, unlike a check-in, it is rare.
   const hasPendingGroupAccessEvent = useRef(false);
+  // Reconnecting recalculates the server-side group topics fixed at SSE
+  // connection time. Keep this separate from cache invalidation so a
+  // date-bound access change can refresh subscriptions without another broad
+  // OGS refetch; both paths still share the same burst debounce.
+  const hasPendingGroupSubscriptionRefresh = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Per-burst flush state (#2057): jitter drawn once when a burst starts, and
   // the burst's start time for the MAX_FLUSH_WAIT_MS cap.
@@ -621,6 +626,10 @@ export function useGlobalSSE(): SSEHookState {
       }
     }
 
+    if (hasPendingGroupSubscriptionRefresh.current) {
+      setGroupAccessRevision((revision) => revision + 1);
+    }
+
     if (hasPendingTimetableEvent.current) {
       mutate(
         (key) =>
@@ -702,6 +711,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
     hasPendingGroupAccessEvent.current = false;
+    hasPendingGroupSubscriptionRefresh.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -748,6 +758,26 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingBroadOgsEvent.current = true;
     }
   }, []);
+
+  // Date-bound substitutions can start or expire at Berlin midnight without
+  // a database write. The OGS page detects that calendar boundary and sends
+  // this signal so the global connection refreshes its fixed group topics.
+  useEffect(() => {
+    const handleStaleSubscriptions = () => {
+      hasPendingGroupSubscriptionRefresh.current = true;
+      scheduleFlush();
+    };
+    window.addEventListener(
+      "phoenix:group-access-subscriptions-stale",
+      handleStaleSubscriptions,
+    );
+    return () => {
+      window.removeEventListener(
+        "phoenix:group-access-subscriptions-stale",
+        handleStaleSubscriptions,
+      );
+    };
+  }, [scheduleFlush]);
 
   // Handle SSE events by collecting targeted invalidations
   const handleSSEEvent = useCallback(
@@ -859,9 +889,9 @@ export function useGlobalSSE(): SSEHookState {
           // also collapses the burst a delete cascade emits (one event per
           // revoked link) into a single refetch.
           // The backend fixes group-topic subscriptions when the connection
-          // opens. Reconnect immediately so revoked groups stop delivering
-          // check-in events and newly assigned groups start delivering them.
-          setGroupAccessRevision((revision) => revision + 1);
+          // opens. Refresh them with the same burst debounce so a group-delete
+          // cascade tears down the EventSource only once.
+          hasPendingGroupSubscriptionRefresh.current = true;
           hasPendingGroupAccessEvent.current = true;
           scheduleFlush();
           break;
