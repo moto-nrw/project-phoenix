@@ -319,6 +319,13 @@ type Service interface {
 	// only for an announcement that requires acknowledgement. Same audience and
 	// stale-version guards as MarkAnnouncementRead.
 	AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
+
+	// RespondToAnnouncement records the guardian's answer to a poll (Umfrage) for
+	// ONE child: optionIDs replaces whatever was selected for that child, an empty
+	// slice withdraws the answer. Authorized per child (the account must be a
+	// portal-enabled guardian of a child the poll reaches), with the same
+	// stale-version guard as MarkAnnouncementRead plus the answer deadline (#1371).
+	RespondToAnnouncement(ctx context.Context, accountID, announcementID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

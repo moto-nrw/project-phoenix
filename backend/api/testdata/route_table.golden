@@ -250,6 +250,8 @@ GET /api/notifications/preferences/
 GET /api/notifications/push/public-key
 GET /api/parent-announcements/
 GET /api/parent-announcements/{announcementId}
+GET /api/parent-announcements/{announcementId}/poll-children
+GET /api/parent-announcements/{announcementId}/poll-results
 GET /api/parent-announcements/{announcementId}/recipients
 GET /api/parent-announcements/{announcementId}/stats
 GET /api/platform/announcements/unread
@@ -592,6 +594,7 @@ POST /api/notifications/push/subscriptions
 POST /api/notifications/test
 POST /api/parent-announcements/
 POST /api/parent-announcements/{announcementId}/publish
+POST /api/parent-announcements/{announcementId}/remind
 POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
@@ -766,6 +769,7 @@ POST /parent/me/feedback/{postId}/vote
 POST /parent/me/messages/children/{studentId}
 POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
+POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}

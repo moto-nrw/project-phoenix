@@ -1089,6 +1089,8 @@ function mkAnnouncement(
     published_at: "2026-07-01T08:00:00Z",
     read: false,
     acknowledged: false,
+    // A plain Mitteilung; the Umfrage tests override this (#1371).
+    response_type: "none",
     ...overrides,
   };
 }

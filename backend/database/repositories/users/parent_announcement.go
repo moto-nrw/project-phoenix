@@ -238,6 +238,8 @@ func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.Pare
 		Set("requires_acknowledgement = ?", a.RequiresAcknowledgement).
 		Set("send_email = ?", a.SendEmail).
 		Set("expires_at = ?", a.ExpiresAt).
+		Set("response_type = ?", a.ResponseType).
+		Set("response_deadline = ?", a.ResponseDeadline).
 		Set("updated_at = ?", now).
 		Where("id = ?", a.ID).
 		Where("published_at IS NULL").
@@ -255,6 +257,26 @@ func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.Pare
 	a.UpdatedAt = now
 	if err := r.clearReads(ctx, a.ID); err != nil {
 		return err
+	}
+	// Same reasoning for poll answers: they belong to the RETRACTED wording and
+	// its options. ReplaceOptions deletes the option rows (cascading the answers)
+	// whenever the option set changes, but an edit that keeps the options while
+	// changing the question must not carry the old answers over either.
+	if err := r.clearResponses(ctx, a.ID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// clearResponses deletes every poll answer for an announcement (RLS-scoped to
+// the current tenant). Used when a draft is (re-)edited, mirroring clearReads.
+func (r *ParentAnnouncementRepository) clearResponses(ctx context.Context, announcementID int64) error {
+	if _, err := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*users.ParentAnnouncementResponse)(nil)).
+		ModelTableExpr("users.parent_announcement_responses").
+		Where("announcement_id = ?", announcementID).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "clear parent announcement responses", Err: err}
 	}
 	return nil
 }
@@ -644,6 +666,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	sqlStr := `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
+			a.response_type, a.response_deadline,
 			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
@@ -678,6 +701,11 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	}
 	var count int
 	reached := reachedPredicate("a.id", "a.tenant_id", "?")
+	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?")
+	// "Outstanding" is unread OR an open poll with a child still unanswered: a
+	// guardian who opened a poll but never answered must keep seeing the badge,
+	// otherwise the reminder value of the count disappears exactly for the people
+	// the school needs an answer from (#1371).
 	sqlStr := `
 		SELECT COUNT(*)
 		FROM users.parent_announcements a
@@ -688,12 +716,12 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= NOW()
 			AND (a.expires_at IS NULL OR a.expires_at > NOW())
-			AND par.read_at IS NULL
+			AND (par.read_at IS NULL OR ` + openPoll + `)
 			AND ` + reached
-	// Arg order mirrors ListFeedForAccount: read-state join (acc), tenant set,
+	// Arg order: read-state join (acc), tenant set, the open-poll predicate's acc,
 	// then reachedPredicate's acc three times (student once, pending twice).
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID, accountID,
+		accountID, bun.List(tenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count unread parent announcements", Err: err}
 	}

@@ -32,6 +32,55 @@ type mockRepo struct {
 	schoolNameFn    func(ctx context.Context, tenantID int64) (string, error)
 	audienceFn      func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error)
 	statsFn         func(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementStats, error)
+
+	// Poll (#1371). replaceOptions defaults to a no-op when nil so the pre-poll
+	// tests, which never set it, keep exercising Create/Update unchanged.
+	replaceOptions    func(ctx context.Context, tenantID, announcementID int64, options []*usersModels.ParentAnnouncementOption) error
+	listOptionsFn     func(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementOption, error)
+	pollResultsFn     func(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementPollResults, error)
+	pollChildrenFn    func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollChildStatus, error)
+	pollReminderFn    func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollReminderRecipient, error)
+	setResponseFn     func(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error)
+	answerChildrenFn  func(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.AnnouncementPollChild, error)
+	mayAnswerFn       func(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error)
+	listOptionsFeedFn func(ctx context.Context, announcementIDs []int64) ([]*usersModels.ParentAnnouncementOption, error)
+}
+
+func (m *mockRepo) ReplaceOptions(ctx context.Context, tenantID, announcementID int64, options []*usersModels.ParentAnnouncementOption) error {
+	if m.replaceOptions == nil {
+		return nil
+	}
+	return m.replaceOptions(ctx, tenantID, announcementID, options)
+}
+func (m *mockRepo) ListOptions(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementOption, error) {
+	if m.listOptionsFn == nil {
+		return nil, nil
+	}
+	return m.listOptionsFn(ctx, announcementID)
+}
+func (m *mockRepo) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*usersModels.ParentAnnouncementOption, error) {
+	if m.listOptionsFeedFn == nil {
+		return nil, nil
+	}
+	return m.listOptionsFeedFn(ctx, announcementIDs)
+}
+func (m *mockRepo) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.AnnouncementPollChild, error) {
+	return m.answerChildrenFn(ctx, accountID, announcementIDs)
+}
+func (m *mockRepo) AccountMayAnswerForStudent(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error) {
+	return m.mayAnswerFn(ctx, tenantID, announcementID, accountID, studentID)
+}
+func (m *mockRepo) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
+	return m.setResponseFn(ctx, tenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
+}
+func (m *mockRepo) PollResults(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementPollResults, error) {
+	return m.pollResultsFn(ctx, tenantID, announcementID)
+}
+func (m *mockRepo) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollChildStatus, error) {
+	return m.pollChildrenFn(ctx, tenantID, announcementID)
+}
+func (m *mockRepo) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return m.pollReminderFn(ctx, tenantID, announcementID)
 }
 
 func (m *mockRepo) Create(ctx context.Context, a *usersModels.ParentAnnouncement) error {

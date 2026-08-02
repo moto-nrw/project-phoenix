@@ -7,10 +7,14 @@
 
     <p>Guten Tag{{if .GuardianFirstName}} {{.GuardianFirstName}} {{.GuardianLastName}}{{end}},</p>
 
+    {{if .Intro}}
+    <p>{{.Intro}}</p>
+    {{else}}
     <p>{{if .SchoolName}}die {{.SchoolName}} hat{{else}}wir haben{{end}} eine neue Mitteilung für Sie. Den vollständigen Inhalt finden Sie im Eltern-Portal.</p>
+    {{end}}
 
     {{if .PortalURL}}
-    <p style="margin-top: 24px;">Zur Mitteilung:</p>
+    <p style="margin-top: 24px;">Zum Eltern-Portal:</p>
 
     <div class="button-wrapper" style="text-align: center;">
         <a class="button" href="{{.PortalURL}}">Zum Eltern-Portal</a>
