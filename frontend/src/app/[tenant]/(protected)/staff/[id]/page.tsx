@@ -127,6 +127,8 @@ export default function StaffDetailContent() {
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
+  const canEditStammdaten = hasPermission(session, "users:update");
+  const canViewFinancial = hasPermission(session, "staff:financial");
 
   const {
     data: staff,
@@ -279,6 +281,8 @@ export default function StaffDetailContent() {
               staffId={staffId}
               canManagePayroll={canManageTimeTracking}
               canManagePayrollSettings={canManagePayrollSettings}
+              canEditSections={canEditStammdaten}
+              canViewFinancial={canViewFinancial}
             />
           </TabsPrimitive.Content>
         ) : null}

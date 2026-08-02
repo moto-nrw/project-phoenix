@@ -80,6 +80,11 @@ type Factory struct {
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
 
+	// Staff Stammdaten (#1423)
+	StaffMasterData    userModels.StaffMasterDataRepository
+	StaffQualification userModels.StaffQualificationRepository
+	StaffFinancialData userModels.StaffFinancialDataRepository
+
 	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
@@ -175,6 +180,7 @@ type Factory struct {
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
+	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
@@ -281,6 +287,11 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
 
+		// Staff Stammdaten (#1423)
+		StaffMasterData:    users.NewStaffMasterDataRepository(db),
+		StaffQualification: users.NewStaffQualificationRepository(db),
+		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
+
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
@@ -376,6 +387,7 @@ func NewFactory(db *bun.DB) *Factory {
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
+		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories
