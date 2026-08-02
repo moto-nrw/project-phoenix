@@ -430,6 +430,25 @@ class StaffService {
     };
   }
 
+  async getFinancialProfile(id: string): Promise<Staff> {
+    const response = await sessionFetch(`/api/staff/financial-profile/${id}`);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch financial staff profile: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: Pick<Staff, "id" | "name" | "firstName" | "lastName">;
+    };
+    return {
+      ...json.data,
+      hasRfid: false,
+      isTeacher: false,
+      isSupervising: false,
+      supervisions: [],
+    };
+  }
+
   // Get active supervisions for a specific staff member
   async getStaffSupervisions(
     staffId: string,

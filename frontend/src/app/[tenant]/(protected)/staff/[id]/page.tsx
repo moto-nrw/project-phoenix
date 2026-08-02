@@ -145,7 +145,9 @@ export default function StaffDetailContent() {
     isLoading,
     error,
   } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
-    staffService.getStaffById(staffId),
+    canViewFinancial && !canViewStammdatenSections
+      ? staffService.getFinancialProfile(staffId)
+      : staffService.getStaffById(staffId),
   );
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
