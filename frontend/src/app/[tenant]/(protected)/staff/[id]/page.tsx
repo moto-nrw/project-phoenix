@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
+import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
@@ -103,16 +104,6 @@ function StaffHeader({
   );
 }
 
-// ─── Placeholder tab (for disabled tabs) ─────────────────────────────────────
-
-function PlaceholderTab({ title }: { readonly title: string }) {
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-8 text-center shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <p className="text-sm text-gray-400">{title} — kommt bald.</p>
-    </div>
-  );
-}
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function StaffDetailContent() {
@@ -141,6 +132,14 @@ export default function StaffDetailContent() {
     canEdit || canManageTimeTracking || canEditStammdaten;
   const canViewFinancial = hasPermission(session, "staff:financial");
   const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
+  // Dokumente (#1424): mirrors the backend route gate — any of the three
+  // category permissions opens the tab; the backend then filters the list
+  // to exactly the categories the caller may see.
+  const canViewDocuments =
+    canEdit ||
+    canEditStammdaten ||
+    canViewFinancial ||
+    hasPermission(session, "staff_documents:health");
 
   const {
     data: staff,
@@ -263,10 +262,8 @@ export default function StaffDetailContent() {
           {canViewStammdaten ? (
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
           ) : null}
-          {canEdit ? (
-            <TabsTrigger value="dokumente" disabled>
-              Dokumente
-            </TabsTrigger>
+          {canViewDocuments ? (
+            <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -312,9 +309,9 @@ export default function StaffDetailContent() {
           </TabsPrimitive.Content>
         ) : null}
 
-        {canEdit ? (
+        {canViewDocuments ? (
           <TabsPrimitive.Content value="dokumente">
-            <PlaceholderTab title="Dokumente" />
+            <DokumenteTab staffId={staffId} />
           </TabsPrimitive.Content>
         ) : null}
       </Tabs>
