@@ -60,19 +60,27 @@ func TestAppointmentRenderer_IntroWithoutSchoolName(t *testing.T) {
 	// Branding is best-effort; without a school name the sentence still has to
 	// stand on its own rather than starting with a dangling "die ".
 	render := NewAppointmentRenderer(EmailConfig{DefaultFrom: email.NewEmail("moto", "no-reply@example.com")})
-	row := appointmentOutboxRow(platformModels.EmailKindAppointmentReminder)
-	delete(row.Payload, "school_name")
 
-	msg, err := render(context.Background(), row)
-	require.NoError(t, err)
-	content, ok := msg.Content.(map[string]any)
-	require.True(t, ok)
-	intro, ok := content["IntroText"].(string)
-	require.True(t, ok)
+	for _, kind := range []string{
+		platformModels.EmailKindAppointmentPublished,
+		platformModels.EmailKindAppointmentUpdated,
+		platformModels.EmailKindAppointmentCancelled,
+		platformModels.EmailKindAppointmentReminder,
+	} {
+		row := appointmentOutboxRow(kind)
+		delete(row.Payload, "school_name")
 
-	assert.NotContains(t, intro, "die  ")
-	assert.False(t, strings.HasPrefix(intro, "die "), "no school name means no dangling article: %q", intro)
-	assert.True(t, strings.HasSuffix(intro, "."))
+		msg, err := render(context.Background(), row)
+		require.NoError(t, err, kind)
+		content, ok := msg.Content.(map[string]any)
+		require.True(t, ok)
+		intro, ok := content["IntroText"].(string)
+		require.True(t, ok)
+
+		assert.NotContains(t, intro, "die  ", kind)
+		assert.False(t, strings.HasPrefix(intro, "die "), "no school name means no dangling article: %s -> %q", kind, intro)
+		assert.True(t, strings.HasSuffix(intro, "."), kind)
+	}
 }
 
 func TestAppointmentRenderer_PerKindCopy(t *testing.T) {

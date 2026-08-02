@@ -124,4 +124,37 @@ func TestNotifyGuardianDevice(t *testing.T) {
 				notifyGuardianDevice(context.Background(), testThread())
 		})
 	})
+
+	t.Run("a failed dispatch is logged, never raised to the sender", func(t *testing.T) {
+		// The staff member's message is already stored and broadcast. A push
+		// that could not be delivered must not turn their send into an error.
+		notifier := &captureNotifier{err: errors.New("push service unreachable")}
+
+		assert.NotPanics(t, func() {
+			newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
+				notifyGuardianDevice(context.Background(), testThread())
+		})
+	})
+
+	t.Run("a thread without a guardian account has nobody to push to", func(t *testing.T) {
+		notifier := &captureNotifier{}
+		prefs := &stubPreferences{optedIn: []int64{42}}
+		thread := testThread()
+		thread.GuardianAccountID = 0
+
+		newNotifyService(notifier, prefs).notifyGuardianDevice(context.Background(), thread)
+
+		assert.Empty(t, notifier.events)
+		assert.Nil(t, prefs.asked, "consent must not even be asked for a missing account")
+	})
+
+	t.Run("no thread is a no-op", func(t *testing.T) {
+		notifier := &captureNotifier{}
+
+		assert.NotPanics(t, func() {
+			newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
+				notifyGuardianDevice(context.Background(), nil)
+		})
+		assert.Empty(t, notifier.events)
+	})
 }
