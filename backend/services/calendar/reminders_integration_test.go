@@ -318,7 +318,61 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
-func TestCalendarServiceIntegration_AppointmentReminderDoesNotRetryWithoutPushSubscribers(t *testing.T) {
+// E-mail and push are separate channels. An installation without an e-mail
+// outbox must still remind the guardians who agreed to hear it on their device;
+// gating the scan on the outbox would silence the push half along with it.
+func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoOutbox")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	ctx := calendarContext(organizerAccount.ID)
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	detail, err := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{}).
+		CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+			Title:        "Elternabend",
+			StartDate:    appointmentDate,
+			EndDate:      appointmentDate,
+			StartTime:    wallClock(18, 0),
+			EndTime:      wallClock(19, 0),
+			DeliveryMode: calModels.DeliveryModeInformational,
+			SendEmail:    true,
+			Targets: []calendarSvc.AppointmentTarget{
+				{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			},
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	notifier := &reminderCaptureNotifier{}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = nil
+	cfg.ParentsURL = "https://parents.test"
+	cfg.ReminderNotifier = notifier
+	cfg.Preferences = reminderPreferences{}
+
+	startsAt := berlinInstant(t, appointmentDate, 18, 0)
+	queued, err := calendarSvc.NewService(cfg).
+		EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued, "without an outbox there is no e-mail to queue")
+	require.Len(t, notifier.events, 1, "the push must not depend on the e-mail outbox")
+	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
+}
+
+// A guardian without a registered device (or a school without VAPID keys) is an
+// ordinary state, not a failure: the scan stays quiet and the e-mail goes out.
+// The push claim must not survive it though — nothing was delivered, so a later
+// scan has to be free to send once a device exists.
+func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSubscribers(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -363,8 +417,9 @@ func TestCalendarServiceIntegration_AppointmentReminderDoesNotRetryWithoutPushSu
 	notifier.err = nil
 	queued, err = service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
-	assert.Zero(t, queued)
-	assert.Empty(t, notifier.events, "a missing optional push audience must not retain a retryable claim")
+	assert.Zero(t, queued, "the outbox key keeps the second scan from queueing the e-mail again")
+	require.Len(t, notifier.events, 1, "a missing push audience must not retain the claim")
+	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
 func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *testing.T) {

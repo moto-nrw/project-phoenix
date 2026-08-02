@@ -77,7 +77,14 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 }
 
 func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to time.Time, deliveries *[]reminderPushDelivery) (int, error) {
-	if s.cfg.Outbox == nil || !to.After(from) {
+	if !to.After(from) {
+		return 0, nil
+	}
+	// E-mail and push are independent channels. A deployment without an outbox
+	// still owes its guardians the push, so only the enqueue itself is gated on
+	// the outbox — never the scan. Scanning is pointless only when neither
+	// channel can produce anything.
+	if s.cfg.Outbox == nil && !s.reminderPushConfigured() {
 		return 0, nil
 	}
 
@@ -194,6 +201,14 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 		}
 	}
 	return queued, nil
+}
+
+// reminderPushConfigured reports whether the push half of the reminder can run
+// at all. Without a notifier there is no channel, and without the consent
+// service there is no permission to address anybody — in both cases the scan
+// would only ever produce e-mail.
+func (s *service) reminderPushConfigured() bool {
+	return s.cfg.ReminderNotifier != nil && s.cfg.Preferences != nil
 }
 
 // reminderOccurrences lists the occurrence dates of one appointment inside the
@@ -313,7 +328,7 @@ func (s *service) enqueueAppointmentReminder(
 		if !ok {
 			continue
 		}
-		sendEmail := profile.Email != nil && *profile.Email != ""
+		sendEmail := s.cfg.Outbox != nil && profile.Email != nil && *profile.Email != ""
 		if sendEmail && profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
 			optedIn, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
@@ -338,7 +353,7 @@ func (s *service) enqueueAppointmentReminder(
 				queued++
 			}
 		}
-		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.ReminderNotifier != nil && s.cfg.Preferences != nil {
+		if profile.AccountID != nil && *profile.AccountID > 0 && s.reminderPushConfigured() {
 			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
 				return queued, nil, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
@@ -436,7 +451,19 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 			if err == nil && dispatched {
 				return
 			}
+			// None of these three delivered anything: no device was registered or
+			// no VAPID key was configured, the school switched notifications off,
+			// or the delivery window was closed. The claim exists to prevent a
+			// second push, not to record an attempt — keeping it here would
+			// disqualify the occurrence from every later scan, exactly when a
+			// device is registered, keys arrive, or the window opens again before
+			// the appointment. Releasing is safe: nothing went out, so nothing can
+			// arrive twice. The tick itself stays quiet, all three are ordinary
+			// answers rather than failures.
 			if errors.Is(err, notifications.ErrNoWebPushSubscribers) || errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
+					errs <- releaseErr
+				}
 				return
 			}
 			s.logger().Warn("calendar: appointment reminder push failed",

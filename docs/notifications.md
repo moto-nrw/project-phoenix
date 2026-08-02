@@ -333,7 +333,17 @@ new one:
    than midnight.
 4. **Deliver** — one outbox row per reachable guardian
    (`appointment_reminder`, the renderer that already existed for it) plus the
-   `parent_appointment_reminder` push.
+   `parent_appointment_reminder` push. The two are independent: an installation
+   without an e-mail outbox still sends the push, and a guardian without an
+   e-mail address is still reachable on their device.
+
+The push half is guarded by a durable claim per (appointment, revision,
+occurrence, guardian) instead of an outbox key. A claim records that a push went
+out, not that one was attempted: whenever nothing was delivered — no registered
+device, no VAPID keys, notifications switched off, closed delivery window, or a
+failed dispatch — the claim is released again, so a later scan may still send
+once the obstacle is gone. Only a delivered push keeps its claim, which is what
+makes an overlapping scan silent.
 
 Duplicate delivery is impossible by construction: each row carries an
 idempotency key of (appointment, occurrence, guardian) and the outbox insert is
