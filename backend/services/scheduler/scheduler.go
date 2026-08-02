@@ -178,11 +178,11 @@ type Scheduler struct {
 
 	// Guardian appointment reminders (#1671). Wired via
 	// SetAppointmentReminderQueuer; nil → task does not register.
-	// appointmentReminderScannedAt is the upper bound of the last scanned
-	// window, so consecutive ticks cover adjacent windows with no gap between
-	// them regardless of tick jitter.
+	// appointmentReminderScannedAt holds the upper bound of each tenant's last
+	// successful scan. Failed scans deliberately leave their tenant's boundary
+	// untouched so the next tick retries its bounded window.
 	appointmentReminders         AppointmentReminderQueuer
-	appointmentReminderScannedAt time.Time
+	appointmentReminderScannedAt map[int64]time.Time
 	appointmentReminderScanMu    sync.Mutex
 }
 

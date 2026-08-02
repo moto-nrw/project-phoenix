@@ -523,6 +523,10 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return nil, err
 	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
 	// A cancelled appointment is terminal: there is no reactivation flow, so
 	// editing it (which would also fire a "Termin geändert" notice while the
 	// appointment stays cancelled) is rejected outright.
@@ -610,6 +614,10 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 
 func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error) {
 	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
 	if err != nil {
 		return nil, err
 	}

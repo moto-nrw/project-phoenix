@@ -82,39 +82,50 @@ func (s *Scheduler) checkAndRunAppointmentReminders(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	scanFrom, scanTo := s.advanceAppointmentReminderWindow(time.Now())
+	now := time.Now()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "appointment-reminders", func(tenantCtx context.Context, tenantID int64) error {
-		s.runAppointmentRemindersForTenant(tenantCtx, tenantID, scanFrom, scanTo)
+		scanFrom, scanTo := s.appointmentReminderWindow(tenantID, now)
+		if err := s.runAppointmentRemindersForTenant(tenantCtx, tenantID, scanFrom, scanTo); err != nil {
+			return nil
+		}
+		s.markAppointmentReminderScanned(tenantID, scanTo)
 		return nil
 	})
 }
 
-// advanceAppointmentReminderWindow returns the scan window [from, to) and
-// records its upper bound as the start of the next one. The first call after
-// boot scans a single interval rather than everything since the zero time.
-func (s *Scheduler) advanceAppointmentReminderWindow(now time.Time) (time.Time, time.Time) {
+// appointmentReminderWindow returns tenantID's scan window [from, to). The
+// successful boundary is recorded separately, after the tenant's work commits.
+func (s *Scheduler) appointmentReminderWindow(tenantID int64, now time.Time) (time.Time, time.Time) {
 	s.appointmentReminderScanMu.Lock()
 	defer s.appointmentReminderScanMu.Unlock()
 
-	from := s.appointmentReminderScannedAt
+	from := s.appointmentReminderScannedAt[tenantID]
 	if from.IsZero() || now.Sub(from) > appointmentReminderMaxLookback {
 		// On startup or after a long pause, recover only the useful bounded
 		// lookback so a prolonged outage does not mail stale reminders.
 		from = now.Add(-appointmentReminderMaxLookback)
 	}
-	s.appointmentReminderScannedAt = now
 	return from, now
+}
+
+func (s *Scheduler) markAppointmentReminderScanned(tenantID int64, scannedAt time.Time) {
+	s.appointmentReminderScanMu.Lock()
+	defer s.appointmentReminderScanMu.Unlock()
+	if s.appointmentReminderScannedAt == nil {
+		s.appointmentReminderScannedAt = make(map[int64]time.Time)
+	}
+	s.appointmentReminderScannedAt[tenantID] = scannedAt
 }
 
 // runAppointmentRemindersForTenant resolves the school's reminder settings and
 // asks the calendar service for the occurrences that fall due. The lead time
 // shifts both window bounds, so the window stays exactly as long as the tick
 // interval and every occurrence is offered to exactly one tick.
-func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenantID int64, scanFrom, scanTo time.Time) {
+func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenantID int64, scanFrom, scanTo time.Time) error {
 	enabled := true
 	if s.settings != nil {
 		hasOverride, err := s.settings.HasTenantOverride(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
@@ -123,7 +134,7 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
-			return
+			return err
 		}
 		if hasOverride {
 			enabled, err = s.settings.ResolveBool(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
@@ -132,12 +143,12 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 					slog.Int64("tenant_id", tenantID),
 					slog.String("error", err.Error()),
 				)
-				return
+				return err
 			}
 		}
 	}
 	if !enabled {
-		return
+		return nil
 	}
 	leadHours := s.resolveIntSetting(ctx, configModel.KeyCalendarAppointmentReminderLeadHours, "", defaultAppointmentReminderLeadHours)
 	if leadHours < 1 {
@@ -151,7 +162,7 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 	if queued > 0 {
 		s.getLogger().Info("appointment reminders queued",
@@ -160,4 +171,5 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 			slog.Int("lead_hours", leadHours),
 		)
 	}
+	return nil
 }

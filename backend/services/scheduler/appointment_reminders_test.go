@@ -35,12 +35,12 @@ func (f *fakeReminderQueuer) EnqueueDueAppointmentReminders(_ context.Context, f
 	return f.queued, f.err
 }
 
-func TestAdvanceAppointmentReminderWindow(t *testing.T) {
+func TestAppointmentReminderWindow(t *testing.T) {
 	t.Run("the first window after boot recovers the bounded lookback", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		now := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 
-		from, to := s.advanceAppointmentReminderWindow(now)
+		from, to := s.appointmentReminderWindow(7, now)
 
 		assert.Equal(t, now, to)
 		assert.Equal(t, appointmentReminderMaxLookback, to.Sub(from),
@@ -52,8 +52,8 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		second := first.Add(7 * time.Minute)
 
-		_, _ = s.advanceAppointmentReminderWindow(first)
-		secondFrom, secondTo := s.advanceAppointmentReminderWindow(second)
+		s.markAppointmentReminderScanned(7, first)
+		secondFrom, secondTo := s.appointmentReminderWindow(7, second)
 
 		assert.Equal(t, first, secondFrom,
 			"a normal tick resumes at the prior scan boundary")
@@ -63,14 +63,36 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 	t.Run("a window is clamped after downtime", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		bootTime := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-		_, _ = s.advanceAppointmentReminderWindow(bootTime)
+		s.markAppointmentReminderScanned(7, bootTime)
 
 		// The process was down for a day.
 		resumed := bootTime.Add(24 * time.Hour)
-		from, to := s.advanceAppointmentReminderWindow(resumed)
+		from, to := s.appointmentReminderWindow(7, resumed)
 
 		assert.Equal(t, appointmentReminderMaxLookback, to.Sub(from),
 			"a day-long catch-up would mail reminders whose moment is long gone")
+	})
+
+	t.Run("a failed tenant scan is retried without advancing its boundary", func(t *testing.T) {
+		s := &Scheduler{logger: slog.Default()}
+		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+		second := first.Add(appointmentReminderInterval)
+
+		_, _ = s.appointmentReminderWindow(7, first)
+		from, to := s.appointmentReminderWindow(7, second)
+
+		assert.Equal(t, second.Add(-appointmentReminderMaxLookback), from)
+		assert.Equal(t, second, to)
+	})
+
+	t.Run("each tenant has an independent successful boundary", func(t *testing.T) {
+		s := &Scheduler{logger: slog.Default()}
+		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+		s.markAppointmentReminderScanned(7, first)
+
+		from, _ := s.appointmentReminderWindow(8, first.Add(appointmentReminderInterval))
+
+		assert.Equal(t, first.Add(appointmentReminderInterval-appointmentReminderMaxLookback), from)
 	})
 }
 
@@ -90,7 +112,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 			},
 		}
 
-		s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
 		require.Len(t, queuer.calls, 1)
 		assert.Equal(t, scanFrom.Add(12*time.Hour), queuer.calls[0].from)
@@ -111,7 +133,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 			},
 		}
 
-		s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
 		assert.Empty(t, queuer.calls, "the off switch has to stop the work, not just the delivery")
 	})
@@ -124,7 +146,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 			settings:             &fakeSettingsResolver{},
 		}
 
-		s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
 		require.Len(t, queuer.calls, 1, "the feature defaults on")
 		assert.Equal(t, scanFrom.Add(defaultAppointmentReminderLeadHours*time.Hour), queuer.calls[0].from)
@@ -138,9 +160,8 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 			settings:             &fakeSettingsResolver{},
 		}
 
-		assert.NotPanics(t, func() {
-			s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
-		}, "one school's failure must not stop the tick for the others")
+		assert.Error(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo),
+			"the caller must leave the failed tenant's checkpoint unchanged")
 	})
 
 	t.Run("a failed reminder-enabled lookup fails closed", func(t *testing.T) {
@@ -151,7 +172,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 			settings:             &fakeSettingsResolver{overrideErr: assertAnError{}},
 		}
 
-		s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+		assert.Error(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
 		assert.Empty(t, queuer.calls)
 	})
