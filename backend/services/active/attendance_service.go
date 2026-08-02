@@ -151,7 +151,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	// "checked_out" start a fresh check-in.
 	var result *AttendanceResult
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
 		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
 	}
@@ -227,7 +227,7 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	}
 	now := time.Now()
 	today := timezone.TodayDate()
-	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +363,10 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 // (student_id, date) WHERE check_out_time IS NULL (migration 1.15.42), so a
 // concurrent second "in" call is silently absorbed via ON CONFLICT and we
 // re-fetch the open row to return as the canonical result.
-func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date) (*AttendanceResult, error) {
+//
+// A check-in that actually opened a row fans out over SSE after the request
+// transaction commits (#2113); the absorbed one stays silent.
+func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date, checkinType string) (*AttendanceResult, error) {
 	// Reject (and lock against a concurrent graduation) a graduated alumnus
 	// before writing attendance — the binary-mode / attendance-toggle counterpart
 	// to the CreateVisit guard (#405).
@@ -388,6 +391,9 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	if !inserted {
 		// Another concurrent "in" already created the open attendance row.
 		// Treat as success — the desired end state (open attendance) holds.
+		// Deliberately silent: the winner of the race already broadcast, and
+		// nothing moved here (mirror of the closed == nil path in
+		// performCheckOut).
 		existing, fetchErr := s.AttendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 		if fetchErr != nil {
 			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
@@ -412,6 +418,8 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
 		s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, now)
 	}
+
+	s.registerCheckinBroadcast(ctx, studentID, checkinType)
 
 	s.trackProductEvent(ctx, "student_checked_in", map[string]any{
 		"method": attendanceMethod(ctx),
@@ -564,6 +572,33 @@ func (s *service) registerCheckoutBroadcast(
 	})
 }
 
+// registerCheckinBroadcast queues the SSE fan-out of an attendance check-in
+// that actually opened a row. Mirror of registerCheckoutBroadcast, same two
+// invariants — the display data is read HERE, inside the request transaction,
+// and only the emission is deferred past the commit.
+//
+// Covers the check-in paths that write attendance without a room visit: the
+// school check-in/out endpoint used by the "Kinder an- und abmelden" flow, the
+// binary-mode kiosk scan, and the door kiosk's attendance toggle in either mode.
+// All three were silent, so a colleague's open room, search or detail view kept
+// showing the child as absent — none of them revalidates on focus or interval.
+//
+// Deliberately not gated on presence mode: the detailed-mode ROOM check-in
+// takes the CreateVisit path, which writes its own attendance row and emits
+// broadcastVisitCreated. The two call sets are disjoint, so no request can emit
+// both.
+func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64, checkinType string) {
+	if s.Broadcaster == nil {
+		return
+	}
+
+	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitRoomlessCheckin(ctx, studentID, studentName, studentRec, checkinType)
+	})
+}
+
 // getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
 func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (int64, error) {
 	// Find active group for device
@@ -652,18 +687,46 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 	s.emitRoomlessCheckout(ctx, studentID, studentName, studentRec, dailyCheckoutSource)
 }
 
-// emitRoomlessCheckout publishes a checkout that has no room context: the
-// student's educational (OGS) group topic plus the tenant-wide dashboard
-// refresh. Used when no visit ended — a binary-mode tenant (which keeps no
-// visit rows at all) or a kiosk daily checkout, where the visit was already
-// closed when the child left the room. There is no active group to scope to,
-// hence no active-group topic and no active_supervision_changed: no room
-// roster changed.
+// emitRoomlessCheckout publishes a checkout that has no room context. Used when
+// no visit ended — a binary-mode tenant (which keeps no visit rows at all) or a
+// kiosk daily checkout, where the visit was already closed when the child left
+// the room.
+func (s *service) emitRoomlessCheckout(
+	ctx context.Context,
+	studentID int64,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
+	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckOut, studentID, studentName, studentRec, source)
+}
+
+// emitRoomlessCheckin publishes a check-in that has no room context: attendance
+// opened without the child entering a room. That is every binary-mode check-in
+// (the tenant keeps no visit rows) and the door kiosk's attendance toggle in
+// either mode. The detailed-mode room check-in does NOT come through here — it
+// runs through CreateVisit, which writes its own attendance row and emits
+// broadcastVisitCreated, so the two can never fire for the same request.
+func (s *service) emitRoomlessCheckin(
+	ctx context.Context,
+	studentID int64,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
+	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckIn, studentID, studentName, studentRec, source)
+}
+
+// emitRoomlessAttendanceChange publishes an attendance change with no room
+// context: the student's educational (OGS) group topic plus the tenant-wide
+// dashboard refresh. There is no active group to scope to, hence no active-group
+// topic and no active_supervision_changed — no room roster changed.
 //
 // Takes the display data pre-resolved for the same reason as
 // emitVisitCheckout — see its doc comment.
-func (s *service) emitRoomlessCheckout(
+func (s *service) emitRoomlessAttendanceChange(
 	ctx context.Context,
+	eventType realtime.EventType,
 	studentID int64,
 	studentName string,
 	studentRec *userModels.Student,
@@ -685,8 +748,8 @@ func (s *service) emitRoomlessCheckout(
 		data.GroupIDs = &eduGroupIDs
 	}
 	event := realtime.NewEvent(
-		realtime.EventStudentCheckOut,
-		"", // no active group — student already left their room
+		eventType,
+		"", // no active group — the child is not in a room
 		data,
 	)
 

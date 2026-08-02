@@ -213,6 +213,15 @@ const (
 	checkoutTypeWeb    = "web"    // web/staff-UI checkout (CheckOutStudent)
 )
 
+// checkin_type values mirroring the checkout_type set above. They ride the
+// student_checkin SSE event as its `source`; the checkout constants are kept
+// separate because their values are pinned to the checkout_type analytics
+// property.
+const (
+	checkinTypeToggle = "toggle" // kiosk toggle-in (ToggleStudentAttendance)
+	checkinTypeWeb    = "web"    // web/staff-UI check-in (CheckInStudent)
+)
+
 // dailyCheckoutSource is the `source` carried by the student_checkout event of
 // the kiosk daily-checkout flow. Kept as its own value (rather than the
 // checkoutTypeDaily label) because it is a wire field consumers may already
