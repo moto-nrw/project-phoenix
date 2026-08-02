@@ -50,6 +50,18 @@ func (optedOutAppointmentPreferences) FilterNotOptedOut(_ context.Context, _ str
 	return nil, nil
 }
 
+type optedOutReminderPreferences struct {
+	notifications.PreferenceService
+}
+
+func (optedOutReminderPreferences) FilterNotOptedOut(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
+	return accountIDs, nil
+}
+
+func (optedOutReminderPreferences) FilterOptedIn(_ context.Context, _ string, _ []int64) ([]int64, error) {
+	return nil, nil
+}
+
 // berlinInstant builds the moment a Berlin wall-clock time happens on a date,
 // which is what the reminder window is expressed in.
 func berlinInstant(t *testing.T, date timezone.Date, hour, minute int) time.Time {
@@ -133,6 +145,49 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 		require.NoError(t, err)
 		assert.Zero(t, queued)
 	})
+}
+
+func TestCalendarServiceIntegration_AppointmentReminderEmailRequiresOptIn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.ParentsURL = "https://parents.test"
+	cfg.Preferences = optedOutReminderPreferences{}
+	service := calendarSvc.NewService(cfg)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	ctx := calendarContext(organizerAccount.ID)
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    appointmentDate,
+		EndDate:      appointmentDate,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	require.Len(t, outbox.enqueued, 1, "the lifecycle e-mail uses explicit opt-out semantics")
+
+	startsAt := berlinInstant(t, appointmentDate, 18, 0)
+	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err)
+	assert.Zero(t, queued, "reminders require an explicit guardian opt-in")
+	assert.Len(t, outbox.enqueued, 1)
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {

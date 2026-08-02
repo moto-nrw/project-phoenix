@@ -83,11 +83,14 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("tenant gates point at registered settings", func(t *testing.T) {
 		gated := map[string]string{
-			notifications.TypePickupUpcoming:         configModel.KeyRemindersPickupUpcomingEnabled,
-			notifications.TypePickupOverdue:          configModel.KeyRemindersPickupOverdueEnabled,
-			notifications.TypeActivityStart:          configModel.KeyRemindersActivityStartEnabled,
-			notifications.TypeActivityOverdue:        configModel.KeyRemindersActivityOverdueEnabled,
-			notifications.TypeStudentAbsenceReported: configModel.KeyNotificationsAbsenceReportedEnabled,
+			notifications.TypePickupUpcoming:            configModel.KeyRemindersPickupUpcomingEnabled,
+			notifications.TypePickupOverdue:             configModel.KeyRemindersPickupOverdueEnabled,
+			notifications.TypeActivityStart:             configModel.KeyRemindersActivityStartEnabled,
+			notifications.TypeActivityOverdue:           configModel.KeyRemindersActivityOverdueEnabled,
+			notifications.TypeStudentAbsenceReported:    configModel.KeyNotificationsAbsenceReportedEnabled,
+			notifications.TypeParentMessage:             configModel.KeyParentNotesEnabled,
+			notifications.TypeParentRequestDecided:      configModel.KeyParentNotesEnabled,
+			notifications.TypeParentAppointmentReminder: configModel.KeyCalendarAppointmentReminderEnabled,
 		}
 		for key, expected := range gated {
 			def, ok := notifications.GetType(key)

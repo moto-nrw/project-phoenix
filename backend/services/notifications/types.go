@@ -254,6 +254,7 @@ func init() {
 		Description: "Wenn die OGS über eine Ihrer Anfragen entschieden hat, etwa zu Betreuungszeiten, Stammdaten oder einer Abmeldung.",
 		Group:       GroupChildren,
 		Portal:      PortalParent,
+		TenantGate:  configModel.KeyParentNotesEnabled,
 		SortOrder:   1,
 	})
 }
