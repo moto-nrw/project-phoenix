@@ -147,7 +147,13 @@ function EditAction({
 }) {
   if (!visible) return null;
   return (
-    <Button type="button" variant="ghost" size="compact" onClick={onClick}>
+    <Button
+      type="button"
+      variant="outline"
+      size="compact"
+      className="bg-white"
+      onClick={onClick}
+    >
       Bearbeiten
     </Button>
   );
@@ -561,8 +567,9 @@ function FinancialSection({ staffId }: { readonly staffId: string }) {
           <>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="compact"
+              className="bg-white"
               onClick={() => void toggleReveal()}
               disabled={revealing}
             >
@@ -679,14 +686,10 @@ function PersonnelNumberModal({
     <Modal isOpen onClose={onClose} title="Personalnummer bearbeiten">
       <div className="space-y-4">
         <div>
-          <label
-            htmlFor="personnel-number"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Personalnummer
-          </label>
           <Input
             id="personnel-number"
+            label="Personalnummer"
+            controlSize="compact"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="z. B. 1023"
@@ -704,20 +707,14 @@ function PersonnelNumberModal({
           )}
         </div>
 
-        <div>
-          <label
-            htmlFor="personnel-number-note"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Begründung (optional)
-          </label>
-          <Input
-            id="personnel-number-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Erscheint im Änderungsprotokoll"
-          />
-        </div>
+        <Input
+          id="personnel-number-note"
+          label="Begründung (optional)"
+          controlSize="compact"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Erscheint im Änderungsprotokoll"
+        />
 
         {error && <p className="text-sm text-[#FF3130]">{error}</p>}
 

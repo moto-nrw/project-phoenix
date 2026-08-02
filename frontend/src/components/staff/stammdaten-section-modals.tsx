@@ -52,6 +52,7 @@ function NoteField({
 }) {
   return (
     <Input
+      controlSize="compact"
       label="Begründung (optional)"
       name="stammdaten-note"
       value={value}
@@ -108,7 +109,7 @@ function SelectField({
       <label
         id={`${id}-label`}
         htmlFor={id}
-        className="mb-1 block text-sm font-medium text-gray-700"
+        className="mb-2 block text-sm font-medium text-gray-700"
       >
         {label}
       </label>
@@ -173,12 +174,14 @@ export function PersonEditModal({
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
+            controlSize="compact"
             label="Vorname"
             name="stammdaten-first-name"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
           />
           <Input
+            controlSize="compact"
             label="Nachname"
             name="stammdaten-last-name"
             value={lastName}
@@ -257,6 +260,7 @@ export function KontaktEditModal({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Input
+              controlSize="compact"
               label="Straße und Hausnummer"
               name="stammdaten-street"
               value={street}
@@ -264,6 +268,7 @@ export function KontaktEditModal({
             />
           </div>
           <Input
+            controlSize="compact"
             label="PLZ"
             name="stammdaten-postal-code"
             value={postalCode}
@@ -271,12 +276,14 @@ export function KontaktEditModal({
             inputMode="numeric"
           />
           <Input
+            controlSize="compact"
             label="Ort"
             name="stammdaten-city"
             value={city}
             onChange={(e) => setCity(e.target.value)}
           />
           <Input
+            controlSize="compact"
             label="Telefon"
             name="stammdaten-phone"
             value={phone}
@@ -284,6 +291,7 @@ export function KontaktEditModal({
             inputMode="tel"
           />
           <Input
+            controlSize="compact"
             label="E-Mail"
             name="stammdaten-email"
             value={email}
@@ -291,12 +299,14 @@ export function KontaktEditModal({
             inputMode="email"
           />
           <Input
+            controlSize="compact"
             label="Notfallkontakt (Name)"
             name="stammdaten-emergency-name"
             value={emergencyName}
             onChange={(e) => setEmergencyName(e.target.value)}
           />
           <Input
+            controlSize="compact"
             label="Notfallkontakt (Telefon)"
             name="stammdaten-emergency-phone"
             value={emergencyPhone}
@@ -397,6 +407,7 @@ export function ArbeitsvertragEditModal({
             onChange={setProbationEnd}
           />
           <Input
+            controlSize="compact"
             label="Wochenstunden lt. Vertrag"
             name="stammdaten-weekly-hours"
             value={weeklyHours}
@@ -492,6 +503,7 @@ export function QualifikationenEditModal({
             <div key={index} className="rounded-xl bg-gray-50 p-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
                 <Input
+                  controlSize="compact"
                   label="Bezeichnung"
                   name={`stammdaten-qualification-${index}`}
                   value={row.name}
@@ -624,6 +636,7 @@ export function FinancialEditModal({
       ) : (
         <div className="space-y-4">
           <Input
+            controlSize="compact"
             label="IBAN"
             name="stammdaten-iban"
             value={iban}
@@ -633,6 +646,7 @@ export function FinancialEditModal({
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
+              controlSize="compact"
               label="Steuer-ID"
               name="stammdaten-tax-id"
               value={taxId}
@@ -642,6 +656,7 @@ export function FinancialEditModal({
               autoComplete="off"
             />
             <Input
+              controlSize="compact"
               label="SV-Nummer"
               name="stammdaten-sv-number"
               value={socialSecurityNumber}
