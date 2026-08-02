@@ -13,19 +13,20 @@ import (
 	"testing"
 )
 
-// TestGDPRLogPIIRatchet turns the project rule "no student names at Info level
-// or above" (root CLAUDE.md Critical Pattern 7) into a CI gate instead of a
-// docs-only promise.
+// TestGDPRLogPIIRatchet adds a narrow CI tripwire for the project rule "no
+// student names at Info level or above" (root CLAUDE.md Critical Pattern 7).
 //
 // Issue #2062: the IoT check-in handler logged the kiosk greeting ("Hallo
 // Max!") on its Info line, so every RFID scan wrote a child's first name into
 // journald and from there into Loki for the whole retention window. Nothing
 // caught it — the rule existed only in prose.
 //
-// The check is AST-based, so formatting cannot hide a violation: a log call at
-// Info/Warn/Error must not read a person-name field or the check-in greeting in
-// any of its arguments, whatever the attribute key. Debug is deliberately
-// exempt — production filters it out via LOG_LEVEL=info.
+// Its guarantee is syntactic: an Info-or-higher log call must not directly read
+// a forbidden name selector in its arguments. It is not an information-flow
+// analysis and does not claim to detect values hidden behind local aliases,
+// logger.With context, or whole-object serialization. The IoT route tests cover
+// the actual check-in and check-out log output end to end. Debug is deliberately
+// exempt because production filters it out via LOG_LEVEL=info.
 //
 // There is no allowlist and there must never be one.
 func TestGDPRLogPIIRatchet(t *testing.T) {
@@ -35,12 +36,12 @@ func TestGDPRLogPIIRatchet(t *testing.T) {
 		return
 	}
 
-	violations, err := scanLogCallsForPII(backendRoot)
+	violations, err := scanDirectPIISelectorsInLogCalls(backendRoot)
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
 	}
 	if len(violations) > 0 {
-		t.Errorf("Found %d log call(s) at Info level or above that reference personal data:\n\n%s\n\n"+
+		t.Errorf("Found %d log call(s) at Info level or above that directly reference forbidden name selectors:\n\n%s\n\n"+
 			"Log the ID instead; if the name is genuinely needed for local debugging, log it at Debug:\n\n"+
 			"  // FORBIDDEN\n"+
 			"  logger.InfoContext(ctx, \"checkin complete\", slog.String(\"message\", result.GreetingMsg))\n\n"+
@@ -68,9 +69,9 @@ var forbiddenLogSelectors = map[string]bool{
 	"GreetingMsg": true,
 }
 
-// scanLogCallsForPII parses every non-test .go file under backendRoot and
-// reports "path:line: selector" for each Info+ log call reading a forbidden value.
-func scanLogCallsForPII(backendRoot string) ([]string, error) {
+// scanDirectPIISelectorsInLogCalls parses every non-test .go file under
+// backendRoot and reports direct forbidden-selector reads in Info+ log calls.
+func scanDirectPIISelectorsInLogCalls(backendRoot string) ([]string, error) {
 	var violations []string
 	fset := token.NewFileSet()
 
@@ -208,7 +209,7 @@ func TestGDPRLogPIIRatchetCoversExplicitLevelsAndFullNames(t *testing.T) {
 				t.Fatalf("write fixture: %v", err)
 			}
 
-			violations, err := scanLogCallsForPII(root)
+			violations, err := scanDirectPIISelectorsInLogCalls(root)
 			if err != nil {
 				t.Fatalf("scan fixture: %v", err)
 			}
