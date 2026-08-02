@@ -7,12 +7,15 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // parentCalendarDeepLink is the path the parents app is reachable at on the
@@ -251,7 +254,37 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 	if s.cfg.Notifier == nil {
 		return
 	}
-	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
+	appointmentCopy := *appointment
+	postCommitCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.dispatchGuardianDevicesAfterCommit(postCommitCtx, &appointmentCopy, kind)
+	})
+}
+
+// dispatchGuardianDevicesAfterCommit rechecks the relationship-scoped parent
+// permission after the lifecycle write commits, immediately before notification
+// dispatch. Notifications use account IDs on the wire, so retaining an earlier
+// account-only audience would otherwise bypass a just-revoked student link.
+func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appointment *calModels.Appointment, kind string) {
+	var accountIDs []int64
+	err := tenant.WithTenantTx(ctx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		current, err := s.cfg.AppointmentRepo.FindByID(txCtx, appointment.ID)
+		if err != nil {
+			return err
+		}
+		if current == nil || current.DeletedAt != nil {
+			return nil
+		}
+		if kind != platformModels.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
+			return nil
+		}
+		guardianIDs, profiles, err := s.reachableGuardianRecipients(txCtx, current.ID)
+		if err != nil {
+			return err
+		}
+		accountIDs = guardianAccountIDs(guardianIDs, profiles)
+		return nil
+	})
 	if err != nil {
 		s.logger().Warn("calendar: resolve guardian recipients for push failed",
 			slog.Int64("appointment_id", appointment.ID),
@@ -259,7 +292,6 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 		)
 		return
 	}
-	accountIDs := guardianAccountIDs(guardianIDs, profiles)
 	s.notifyGuardianAccountDevices(ctx, appointment, kind, accountIDs)
 }
 

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunAppointmentRemindersForTenantDecreasedLeadBridgesPreviousBoundary(t *testing.T) {
+func TestRunAppointmentRemindersForTenantDecreasedLeadUsesActiveWindow(t *testing.T) {
 	scanFrom := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	scanTo := scanFrom.Add(appointmentReminderInterval)
 	queuer := &fakeReminderQueuer{}
@@ -27,5 +27,5 @@ func TestRunAppointmentRemindersForTenantDecreasedLeadBridgesPreviousBoundary(t 
 	require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 	require.Len(t, queuer.calls, 1)
 	assert.Equal(t, scanFrom.Add(12*time.Hour), queuer.calls[0].from)
-	assert.Equal(t, scanTo.Add(24*time.Hour), queuer.calls[0].to)
+	assert.Equal(t, scanTo.Add(12*time.Hour), queuer.calls[0].to)
 }

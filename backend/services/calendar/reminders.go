@@ -408,7 +408,7 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 				return
 			}
 			defer func() { <-sem }()
-			appointment, eligible, err := s.prepareReminderPushDispatch(ctx, delivery)
+			appointment, profileIDs, err := s.prepareReminderPushDispatch(ctx, delivery)
 			if err != nil {
 				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
 					errs <- releaseErr
@@ -416,9 +416,22 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 				errs <- fmt.Errorf("calendar: prepare appointment reminder push: %w", err)
 				return
 			}
-			if !eligible {
+			if len(profileIDs) == 0 {
+				if err := s.releaseReminderPushDelivery(ctx, delivery); err != nil {
+					errs <- err
+				}
 				return
 			}
+			staleProfiles := withoutReminderProfiles(delivery.profileIDs, profileIDs)
+			if len(staleProfiles) > 0 {
+				staleDelivery := delivery
+				staleDelivery.profileIDs = staleProfiles
+				if err := s.releaseReminderPushDelivery(ctx, staleDelivery); err != nil {
+					errs <- err
+					return
+				}
+			}
+			delivery.profileIDs = profileIDs
 			dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{delivery.accountID})
 			if err == nil && dispatched {
 				return
@@ -455,14 +468,33 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 // guardian still consents to reminders. The transaction commits before the
 // synchronous Web Push request begins, so network latency never holds a DB
 // connection or a lifecycle row lock.
-func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery reminderPushDelivery) (*calModels.Appointment, bool, error) {
+func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery reminderPushDelivery) (*calModels.Appointment, []int64, error) {
 	var appointment *calModels.Appointment
+	var profileIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		current, err := s.cfg.AppointmentRepo.LockReminderCandidate(txCtx, delivery.appointment.ID)
 		if err != nil {
 			return err
 		}
 		if current == nil {
+			return nil
+		}
+		if current.Revision != delivery.appointment.Revision {
+			return nil
+		}
+		rule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(txCtx, current.ID)
+		if err != nil {
+			return fmt.Errorf("reload reminder recurrence: %w", err)
+		}
+		if (rule == nil && current.StartDate != delivery.occurrence) ||
+			(rule != nil && !occurrenceExists(current, rule, delivery.occurrence)) {
+			return nil
+		}
+		overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(txCtx, []int64{current.ID}, []timezone.Date{delivery.occurrence})
+		if err != nil {
+			return fmt.Errorf("reload reminder override: %w", err)
+		}
+		if len(overrides) > 0 && overrides[0].Cancelled {
 			return nil
 		}
 		if s.cfg.Preferences == nil {
@@ -475,13 +507,46 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 		if len(optedIn) == 0 {
 			return nil
 		}
+		reachable, profiles, err := s.reachableGuardianRecipients(txCtx, current.ID)
+		if err != nil {
+			return err
+		}
+		reachableSet := make(map[int64]struct{}, len(reachable))
+		for _, profileID := range reachable {
+			profile, ok := profiles[profileID]
+			if ok && profile.AccountID != nil && *profile.AccountID == delivery.accountID {
+				reachableSet[profileID] = struct{}{}
+			}
+		}
+		for _, profileID := range delivery.profileIDs {
+			if _, ok := reachableSet[profileID]; ok {
+				profileIDs = append(profileIDs, profileID)
+			}
+		}
+		if len(profileIDs) == 0 {
+			return nil
+		}
 		appointment = current
 		return nil
 	})
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
-	return appointment, appointment != nil, nil
+	return appointment, profileIDs, nil
+}
+
+func withoutReminderProfiles(claimed, reachable []int64) []int64 {
+	reachableSet := make(map[int64]struct{}, len(reachable))
+	for _, profileID := range reachable {
+		reachableSet[profileID] = struct{}{}
+	}
+	stale := make([]int64, 0, len(claimed))
+	for _, profileID := range claimed {
+		if _, ok := reachableSet[profileID]; !ok {
+			stale = append(stale, profileID)
+		}
+	}
+	return stale
 }
 
 // Reminder delivery claims are created in the same transaction as the e-mail

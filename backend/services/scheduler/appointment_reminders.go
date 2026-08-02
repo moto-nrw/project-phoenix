@@ -195,22 +195,13 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 		leadHours = defaultAppointmentReminderLeadHours
 	}
 	lead := time.Duration(leadHours) * time.Hour
-	fromLead, toLead := lead, lead
-	if previousLeadHours, ok := s.appointmentReminderPreviousLeadHours(tenantID); ok && previousLeadHours != leadHours {
-		// A changed lead moves the scan window. Cover the full range between
-		// the old and new boundaries once: increasing the lead exposes a later
-		// interval, while decreasing it exposes an earlier one. Reminder
-		// idempotency makes any overlap harmless.
-		previousLead := time.Duration(previousLeadHours) * time.Hour
-		if previousLead < fromLead {
-			fromLead = previousLead
-		}
-		if previousLead > toLead {
-			toLead = previousLead
-		}
-	}
 
-	queued, err := s.appointmentReminders.EnqueueDueAppointmentReminders(ctx, scanFrom.Add(fromLead), scanTo.Add(toLead))
+	// A lead-time edit changes when future appointments should be reminded, but
+	// must not retrospectively send every appointment between the old and new
+	// boundaries. Scan only the active configuration's narrow tick window;
+	// appointments whose newly calculated reminder time already passed are
+	// deliberately not sent late.
+	queued, err := s.appointmentReminders.EnqueueDueAppointmentReminders(ctx, scanFrom.Add(lead), scanTo.Add(lead))
 	if err != nil {
 		s.getLogger().Error("appointment reminder tick failed",
 			slog.Int64("tenant_id", tenantID),
