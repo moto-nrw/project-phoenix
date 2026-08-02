@@ -17,7 +17,8 @@ func init() {
 		Version:     staffDocumentsVersion,
 		Description: staffDocumentsDescription,
 		DependsOn: []string{
-			staffStammdatenVersion, // users.staff FK conventions + audit section shape (#1423)
+			staffStammdatenVersion,    // users.staff FK conventions + audit section shape (#1423)
+			compositePKIndexesVersion, // UNIQUE users.staff(tenant_id, id) backs the composite FK
 		},
 	})
 

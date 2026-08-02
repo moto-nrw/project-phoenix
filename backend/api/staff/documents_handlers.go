@@ -163,8 +163,9 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 }
 
 // uploadStaffDocument serves POST /{id}/documents (multipart: file +
-// category). The file is written to disk first and removed again when the
-// metadata transaction fails — a torn upload must not leave orphan bytes.
+// category). The file is written before its metadata because multipart input
+// cannot be replayed after commit; a rollback hook removes it if that metadata
+// transaction fails to commit.
 func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
@@ -195,6 +196,14 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	tenant.RegisterAfterRollback(r.Context(), func() {
+		if err := rs.removeUploadedDocument(filePath); err != nil {
+			rs.getLogger().Error("staff document cleanup failed after upload rollback",
+				"staff_id", id,
+				"error", err,
+			)
+		}
+	})
 
 	info, err := rs.StaffDocumentService.CreateStaffDocument(r.Context(), usersSvc.CreateStaffDocumentInput{
 		StaffID:         id,
@@ -205,7 +214,12 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		ContentType:     uploaded.ContentType,
 	}, actor)
 	if err != nil {
-		common.RemoveImage(filePath)
+		if err := rs.removeUploadedDocument(filePath); err != nil {
+			rs.getLogger().Warn("staff document cleanup failed after upload error",
+				"staff_id", id,
+				"error", err,
+			)
+		}
 		renderDocumentError(w, r, err)
 		return
 	}
@@ -321,6 +335,13 @@ func (rs *Resource) removeStoredDocument(r *http.Request, storedName string) err
 	}
 	dir := staffDocumentsDir(tenant.FromContext(r.Context()))
 	if err := os.Remove(filepath.Join(dir, storedName)); err != nil && !os.IsNotExist(err) {
+		return errors.New("failed to remove stored document")
+	}
+	return nil
+}
+
+func (rs *Resource) removeUploadedDocument(path string) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return errors.New("failed to remove stored document")
 	}
 	return nil
