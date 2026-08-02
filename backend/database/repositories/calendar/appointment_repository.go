@@ -627,22 +627,14 @@ func (r *AppointmentRecipientRepository) ClaimReminderPush(ctx context.Context, 
 		return false, errors.New("tenant id is required")
 	}
 
-	var id int64
+	var claimed bool
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		INSERT INTO calendar.appointment_reminder_push_deliveries
-			(tenant_id, appointment_id, appointment_revision, occurrence_date, guardian_profile_id)
-		VALUES
-			(?, ?, ?, ?, ?)
-		ON CONFLICT (tenant_id, appointment_id, appointment_revision, occurrence_date, guardian_profile_id) DO NOTHING
-		RETURNING id
-	`, tenantID, appointmentID, revision, occurrenceDate, guardianProfileID).Scan(ctx, &id)
+		SELECT calendar.claim_appointment_reminder_push_delivery(?, ?, ?, ?)
+	`, appointmentID, revision, occurrenceDate, guardianProfileID).Scan(ctx, &claimed)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
 		return false, fmt.Errorf("claim calendar appointment reminder push: %w", err)
 	}
-	return id > 0, nil
+	return claimed, nil
 }
 
 func (r *AppointmentRecipientRepository) ReleaseReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) error {
@@ -654,15 +646,9 @@ func (r *AppointmentRecipientRepository) ReleaseReminderPush(ctx context.Context
 		return errors.New("tenant id is required")
 	}
 
-	_, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*calModels.AppointmentRecipient)(nil)).
-		ModelTableExpr(`calendar.appointment_reminder_push_deliveries AS "delivery"`).
-		Where(`"delivery".tenant_id = ?`, tenantID).
-		Where(`"delivery".appointment_id = ?`, appointmentID).
-		Where(`"delivery".appointment_revision = ?`, revision).
-		Where(`"delivery".occurrence_date = ?`, occurrenceDate).
-		Where(`"delivery".guardian_profile_id = ?`, guardianProfileID).
-		Exec(ctx)
+	_, err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT calendar.release_appointment_reminder_push_delivery(?, ?, ?, ?)
+	`, appointmentID, revision, occurrenceDate, guardianProfileID).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("release calendar appointment reminder push delivery: %w", err)
 	}
