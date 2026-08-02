@@ -70,6 +70,7 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
+  normalizeSearchStudentsGroupId,
   SEARCH_STUDENTS_KEY_PREFIX,
   searchStudentsGroupScope,
 } from "~/lib/swr/search-students-key";
@@ -351,7 +352,7 @@ function normalizeStoredFilters(
         ? ""
         : (params.get("year") ?? ""),
     school_class: params.get("school_class") ?? "",
-    group_id: params.get("group_id") ?? "",
+    group_id: normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
     bus:
@@ -923,7 +924,7 @@ function SearchPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
   const [selectedGroup, setSelectedGroup] = useState(
-    initialFilterParams.get("group_id") ?? "",
+    normalizeSearchStudentsGroupId(initialFilterParams.get("group_id") ?? ""),
   );
   const [selectedSchoolClass, setSelectedSchoolClass] = useState(
     initialFilterParams.get("school_class") ?? "",
@@ -1022,7 +1023,9 @@ function SearchPageContent() {
         compactStoredFilters(normalizeStoredFilters(filters)),
       );
 
-      setSelectedGroup(params.get("group_id") ?? "");
+      setSelectedGroup(
+        normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
+      );
       setSelectedSchoolClass(params.get("school_class") ?? "");
       setSelectedYear(
         validQueryValue(
@@ -1447,8 +1450,9 @@ function SearchPageContent() {
 
   const updateSelectedGroup = useCallback(
     (value: string) => {
-      setSelectedGroup(value);
-      updateUrlParams({ group_id: value });
+      const normalizedGroupId = normalizeSearchStudentsGroupId(value);
+      setSelectedGroup(normalizedGroupId);
+      updateUrlParams({ group_id: normalizedGroupId });
     },
     [updateUrlParams],
   );

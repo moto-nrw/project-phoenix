@@ -33,11 +33,27 @@ export const SEARCH_STUDENTS_GROUP_KEY_PREFIX = `${SEARCH_STUDENTS_KEY_PREFIX}g`
 /** The scope segment of an unfiltered ("Alle Gruppen") Kindersuche view. */
 export const SEARCH_STUDENTS_ALL_GROUPS_KEY = `${SEARCH_STUDENTS_GROUP_KEY_PREFIX}all-`;
 
+const MAX_INT64 = 9_223_372_036_854_775_807n;
+
+/**
+ * Mirrors the backend's effective `group_id` filter: only positive signed
+ * 64-bit integers filter the list. Canonicalizing here keeps `007` scoped to
+ * group 7, while zero, negative, overflowing and non-numeric values use the
+ * unfiltered scope.
+ */
+export function normalizeSearchStudentsGroupId(groupId: string): string {
+  if (!/^\+?\d+$/.test(groupId)) return "";
+
+  const parsed = BigInt(groupId);
+  return parsed > 0n && parsed <= MAX_INT64 ? parsed.toString() : "";
+}
+
 /**
  * The scope segment for a group filter value ("" = Alle Gruppen).
  *
  * Group ids are numeric, so `g{id}` can never collide with `gall`.
  */
 export function searchStudentsGroupScope(groupId: string): string {
-  return `g${groupId === "" ? "all" : groupId}`;
+  const normalizedGroupId = normalizeSearchStudentsGroupId(groupId);
+  return `g${normalizedGroupId === "" ? "all" : normalizedGroupId}`;
 }
