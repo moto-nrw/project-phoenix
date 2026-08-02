@@ -545,6 +545,7 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	appointment.EndTime = timezone.WallClock(req.EndTime)
 	appointment.AllDay = req.AllDay
 	appointment.OverviewVisibility = req.OverviewVisibility
+	appointment.NotifyGuardians = req.SendEmail
 	if err := appointment.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}

@@ -318,14 +318,15 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		Set(`all_day = ?`, appointment.AllDay).
 		Set(`delivery_mode = ?`, appointment.DeliveryMode).
 		Set(`overview_visibility = ?`, appointment.OverviewVisibility).
+		Set(`notify_guardians = ?`, appointment.NotifyGuardians).
 		Set(`updated_at = ?`, appointment.UpdatedAt).
 		// Every persisted edit bumps the revision so the iCalendar SEQUENCE
 		// advances and subscribers treat the event as a newer version.
 		Set(`revision = revision + 1`).
-		// Deliberately NOT setting cancelled_at/deleted_at/notify_guardians: those
-		// columns are owned by Cancel()/SoftDelete()/create. A content edit carries
-		// whatever the caller loaded, so writing them here would let an edit that
-		// started before a concurrent cancellation reactivate the appointment.
+		// Deliberately NOT setting cancelled_at/deleted_at: those columns are owned
+		// by Cancel()/SoftDelete(). A content edit carries whatever the caller
+		// loaded, so writing them here would let an edit that started before a
+		// concurrent cancellation reactivate the appointment.
 		Where(`"appointment".id = ?`, appointment.ID).
 		// Guard the edit against a concurrent lifecycle transition: an edit that
 		// began before a cancel/delete must not update a terminal appointment,

@@ -2032,6 +2032,13 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, 1, outbox.cancelled, "update must cancel pending mail even when not re-sending")
 	require.Len(t, outbox.enqueued, 1, "no new mail queued when send_email is off")
+	var notifyGuardians bool
+	require.NoError(t, db.NewSelect().
+		TableExpr(`calendar.appointments AS "appointment"`).
+		ColumnExpr(`"appointment".notify_guardians`).
+		Where(`"appointment".id = ?`, detail.Appointment.ID).
+		Scan(context.Background(), &notifyGuardians))
+	assert.False(t, notifyGuardians, "the updated choice must also suppress future reminders")
 
 	// Edit WITH re-sending: cancels again, then queues a single update notice.
 	resend := base
@@ -2041,6 +2048,12 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 	assert.Equal(t, 2, outbox.cancelled)
 	require.Len(t, outbox.enqueued, 2)
 	assert.Equal(t, platformModels.EmailKindAppointmentUpdated, outbox.enqueued[1].Kind)
+	require.NoError(t, db.NewSelect().
+		TableExpr(`calendar.appointments AS "appointment"`).
+		ColumnExpr(`"appointment".notify_guardians`).
+		Where(`"appointment".id = ?`, detail.Appointment.ID).
+		Scan(context.Background(), &notifyGuardians))
+	assert.True(t, notifyGuardians, "re-enabling e-mail must restore reminder eligibility")
 }
 
 // The notification e-mail must advertise the first real occurrence, not the raw
