@@ -151,7 +151,7 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 	})
 }
 
-func TestCalendarServiceIntegration_AppointmentReminderEmailRequiresOptIn(t *testing.T) {
+func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -159,7 +159,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailRequiresOptIn(t *tes
 	cfg := calendarTestConfig(db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutReminderPreferences{}
+	cfg.Preferences = optedOutAppointmentPreferences{}
 	service := calendarSvc.NewService(cfg)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -190,7 +190,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailRequiresOptIn(t *tes
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
-	assert.Zero(t, queued, "reminders require an explicit guardian opt-in")
+	assert.Zero(t, queued, "reminders must respect an explicit guardian opt-out")
 	assert.Len(t, outbox.enqueued, 1)
 }
 

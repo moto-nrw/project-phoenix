@@ -373,8 +373,10 @@ func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, 
 		return nil
 	}
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
-		_, err := c.deleteExpiredSubscription(ctx, sub)
-		return err
+		if _, err := c.deleteExpiredSubscription(ctx, sub); err != nil {
+			return err
+		}
+		return fmt.Errorf("web push subscription expired with status %d", resp.StatusCode)
 	}
 	return fmt.Errorf("web push service rejected notification with status %d", resp.StatusCode)
 }

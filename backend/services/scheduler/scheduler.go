@@ -183,6 +183,7 @@ type Scheduler struct {
 	// untouched so the next tick retries its bounded window.
 	appointmentReminders         AppointmentReminderQueuer
 	appointmentReminderScannedAt map[int64]time.Time
+	appointmentReminderLeadHours map[int64]int
 	appointmentReminderScanMu    sync.Mutex
 }
 

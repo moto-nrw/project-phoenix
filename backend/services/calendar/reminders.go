@@ -273,7 +273,7 @@ func (s *service) enqueueAppointmentReminder(
 		}
 		if profile.Email != nil && *profile.Email != "" {
 			if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
-				optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
+				optedIn, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 				if err != nil {
 					return queued, nil, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
 				}
