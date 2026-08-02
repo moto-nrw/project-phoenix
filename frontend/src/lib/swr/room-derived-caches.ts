@@ -36,21 +36,19 @@
  *
  * Each entry uses the convention from `useTenantMutateMatching`: include the
  * trailing dash before the first dynamic segment so accidental future
- * collisions are harder. The bare `ogs-dashboard` key has no dynamic suffix
- * and is matched as-is.
+ * collisions are harder.
  *
  * Keep this list in sync with the actual SWR keys used in pages. Currently:
  *   - `active-supervision-dashboard-${refreshKey}` — active-supervisions BFF
  *   - `supervision-visits-${roomId}` — active-supervisions per-room visit
  *     refresh
- *   - `ogs-dashboard` — OGS-Groups BFF
- *   - `ogs-students-${groupId}` — OGS-Groups per-group student fetch
+ *   - `ogs-students-${groupId}` — OGS-Groups aggregated live view (#2056;
+ *     `ogs-students-auto` on a cold start before a group is selected)
  *   - `search-students-${term}-${groupFilter}` — Students Search list
  */
 export const ROOM_DERIVED_CACHE_KEY_FRAGMENTS: readonly string[] = [
   "active-supervision-dashboard-",
   "supervision-visits-",
-  "ogs-dashboard",
   "ogs-students-",
   "search-students-",
 ] as const;

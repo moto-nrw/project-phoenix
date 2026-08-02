@@ -1,12 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { AlertCircle, ArrowLeft, Check, Clock, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Clock,
+  Footprints,
+  HeartPulse,
+  Loader2,
+  Mail,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
+import { Alert } from "~/components/ui/alert";
+import { Checkbox } from "~/components/ui/checkbox";
+import {
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+} from "~/components/parent/parent-page";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { Button } from "~/components/ui/button";
@@ -25,6 +40,7 @@ import {
   updateMasterDataField,
 } from "~/lib/parent-api";
 import { ChildCareScheduleSection } from "~/components/parent/child-care-schedule";
+import { ChildCareOfferingsSection } from "~/components/parent/child-care-offerings";
 import { Section } from "~/components/parent/child-detail-section";
 
 const logger = createLogger({ component: "ChildMasterData" });
@@ -76,22 +92,19 @@ export function ChildMasterDataView({ studentId }: Props) {
   }, [load]);
 
   if (loading) {
-    return (
-      <div className="mx-auto w-full max-w-7xl space-y-4">
-        <div className="h-40 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-        <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-      </div>
-    );
+    return <ParentPageSkeleton rows={3} />;
   }
 
   if (error || !data || !features) {
     return (
-      <div className="mx-auto w-full max-w-7xl">
-        <BackBar studentId={studentId} />
-        <div className="mt-4 rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
-          {t("loadError")}
-        </div>
-      </div>
+      <ParentPage>
+        <ParentPageHeader
+          backHref={`/parents/children/${studentId}`}
+          backLabel={t("back")}
+          title={t("title")}
+        />
+        <Alert type="error" message={t("loadError")} />
+      </ParentPage>
     );
   }
 
@@ -149,16 +162,13 @@ function ChildMasterDataContent({
   );
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <BackBar studentId={studentId} />
-        <div className="p-5 sm:p-6">
-          <h1 className="text-2xl font-semibold text-gray-900">{t("title")}</h1>
-          <p className="mt-1 text-sm leading-6 text-gray-600">
-            {t("subtitle")}
-          </p>
-        </div>
-      </div>
+    <ParentPage>
+      <ParentPageHeader
+        backHref={`/parents/children/${studentId}`}
+        backLabel={t("back")}
+        title={t("title")}
+        description={t("subtitle")}
+      />
 
       {/* Track B — child identity (approval required) */}
       <IdentitySection
@@ -170,7 +180,11 @@ function ChildMasterDataContent({
       />
 
       {/* Track A — health (direct edit) */}
-      <Section title={t("sections.health")} hint={t("editableHint")}>
+      <Section
+        icon={HeartPulse}
+        title={t("sections.health")}
+        hint={t("editableHint")}
+      >
         <AutoSaveField
           label={t("fields.healthInfo")}
           value={data.health_info ?? ""}
@@ -180,7 +194,11 @@ function ChildMasterDataContent({
       </Section>
 
       {/* Track A — guardian contact (direct edit) */}
-      <Section title={t("sections.contact")} hint={t("editableHint")}>
+      <Section
+        icon={Mail}
+        title={t("sections.contact")}
+        hint={t("editableHint")}
+      >
         <AutoSaveField
           label={t("fields.email")}
           type="email"
@@ -256,7 +274,9 @@ function ChildMasterDataContent({
       />
 
       <ChildCareScheduleSection studentId={studentId} />
-    </div>
+
+      <ChildCareOfferingsSection studentId={studentId} />
+    </ParentPage>
   );
 }
 
@@ -385,7 +405,11 @@ function IdentitySection({
   }, [changes, data, studentId, onApplied, t]);
 
   return (
-    <Section title={t("sections.child")} hint={t("requestHint")}>
+    <Section
+      icon={UserRound}
+      title={t("sections.child")}
+      hint={t("requestHint")}
+    >
       <RequestField
         label={t("fields.firstName")}
         value={firstName}
@@ -539,8 +563,15 @@ function DepartureSection({
   };
 
   return (
-    <Section title={t("sections.departure")} hint={t("requestHint")}>
-      <DepartureSummary modes={data.allowed_departure_modes} />
+    <Section
+      icon={Footprints}
+      title={t("sections.departure")}
+      hint={t("requestHint")}
+    >
+      {/* The saved state used to be repeated twice: a five-tile summary of the
+          current modes AND the editable matrix directly below it, saying the
+          same thing in two shapes. The matrix IS the summary — every checked
+          box is the saved value — so only the matrix remains. */}
       {pending && (
         <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
           <Clock className="h-3 w-3" aria-hidden="true" />
@@ -548,16 +579,16 @@ function DepartureSection({
         </p>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] border-separate border-spacing-0 text-sm">
+        <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="w-16 py-2 pr-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <th className="w-16 py-2 pr-3 text-left text-[11px] font-medium tracking-wide text-gray-500 uppercase">
                 {t("fields.day")}
               </th>
               {DEPARTURE_REQUEST_MODES.map((mode) => (
                 <th
                   key={mode}
-                  className="px-2 py-2 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                  className="px-2 py-2 text-left text-[11px] font-medium tracking-wide text-gray-500 uppercase"
                 >
                   {t(`departureModes.${mode}`)}
                 </th>
@@ -572,14 +603,18 @@ function DepartureSection({
                 </th>
                 {DEPARTURE_REQUEST_MODES.map((mode) => (
                   <td key={mode} className="px-2 py-2">
-                    <input
-                      type="checkbox"
-                      aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                      checked={(modes[day] ?? []).includes(mode)}
-                      disabled={!requestable}
-                      onChange={() => toggle(day, mode)}
-                      className="h-4 w-4 rounded border-gray-300 text-[#4A7A15] focus:ring-[#4A7A15]"
-                    />
+                    <label
+                      htmlFor={`departure-${day}-${mode}`}
+                      className="inline-flex cursor-pointer items-center"
+                    >
+                      <Checkbox
+                        id={`departure-${day}-${mode}`}
+                        aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
+                        checked={(modes[day] ?? []).includes(mode)}
+                        disabled={!requestable}
+                        onChange={() => toggle(day, mode)}
+                      />
+                    </label>
                   </td>
                 ))}
               </tr>
@@ -927,34 +962,6 @@ function ReadField({
   );
 }
 
-function DepartureSummary({
-  modes,
-}: Readonly<{ modes?: Record<string, string[]> }>) {
-  const t = useTranslations("parentMasterData");
-  return (
-    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-      {DEPARTURE_DAYS.map((day) => {
-        const dayModes = modes?.[day] ?? [];
-        const text =
-          dayModes.length > 0
-            ? dayModes.map((m) => t(`departureModes.${m}`)).join(", ")
-            : t("departureModes.none");
-        return (
-          <div
-            key={day}
-            className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-          >
-            <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t(`departureDays.${day}`)}
-            </dt>
-            <dd className="mt-1 text-sm font-medium text-gray-900">{text}</dd>
-          </div>
-        );
-      })}
-    </dl>
-  );
-}
-
 function mergeDirectMasterDataField(
   current: ChildMasterData,
   next: ChildMasterData,
@@ -1065,19 +1072,4 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
     );
   }
   return null;
-}
-
-function BackBar({ studentId }: Readonly<{ studentId: string }>) {
-  const t = useTranslations("parentMasterData");
-  return (
-    <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-      <Link
-        href={`/parents/children/${studentId}`}
-        className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t("back")}
-      </Link>
-    </div>
-  );
 }

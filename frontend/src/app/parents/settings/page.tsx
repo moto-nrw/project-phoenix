@@ -12,28 +12,24 @@
  */
 
 import { useTranslations } from "next-intl";
-import { Settings } from "lucide-react";
 
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
-import { InfoCard } from "~/components/ui/info-card";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 
 export default function ParentSettingsPage() {
   const t = useTranslations("parentSettings");
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <InfoCard
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("eyebrow")}
         title={t("title")}
-        eyebrow={t("eyebrow")}
-        headingLevel={1}
-        icon={<Settings className="h-5 w-5" aria-hidden="true" />}
-      >
-        <p className="text-sm leading-6 text-gray-600">{t("description")}</p>
-      </InfoCard>
+        description={t("description")}
+      />
 
       <NotificationPreferencesSection portal="parent" />
       <PushNotificationSection portal="parent" />
-    </div>
+    </ParentPage>
   );
 }

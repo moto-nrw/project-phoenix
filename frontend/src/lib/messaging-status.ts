@@ -158,6 +158,20 @@ export const PARENT_DEPARTURE_MODE_I18N_KEYS: Record<string, string> = {
   accompanied: "diffModeAccompanied",
 };
 
+const PARENT_REQUEST_CREATED_I18N_KEYS: Readonly<Record<string, string>> = {
+  care_schedule: "eventRequestCreatedCareSchedule",
+  master_data: "eventRequestCreatedMasterData",
+  excused_absence: "eventRequestCreatedExcusedAbsence",
+  care_offering: "eventRequestCreatedCareOffering",
+};
+
+const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
+  care_schedule: "eventRequestConfirmedCareSchedule",
+  master_data: "eventRequestConfirmedMasterData",
+  excused_absence: "eventRequestConfirmedExcusedAbsence",
+  care_offering: "eventRequestConfirmedCareOffering",
+};
+
 /**
  * Descriptor for localizing a request-decision system event on the parents
  * portal. Backend system-event bodies are German ("Anfrage bestätigt",
@@ -181,16 +195,10 @@ export function parentEventI18nDescriptor(message: {
   // announces it in the chat; the text differs per request_type so a guardian
   // reads which domain the request touches.
   if (message.event_type === "request_created") {
-    switch (message.request_type) {
-      case "care_schedule":
-        return { key: "eventRequestCreatedCareSchedule" };
-      case "master_data":
-        return { key: "eventRequestCreatedMasterData" };
-      case "excused_absence":
-        return { key: "eventRequestCreatedExcusedAbsence" };
-      default:
-        return null;
-    }
+    const key = message.request_type
+      ? PARENT_REQUEST_CREATED_I18N_KEYS[message.request_type]
+      : undefined;
+    return key ? { key } : null;
   }
   // sick_note / care_exception / care_exception_correction pills carry a
   // German-only body with dates and times embedded, so there is nothing
@@ -200,17 +208,12 @@ export function parentEventI18nDescriptor(message: {
     return null;
   }
   switch (message.request_status) {
-    case "erledigt":
-      if (message.request_type === "care_schedule") {
-        return { key: "eventRequestConfirmedCareSchedule" };
-      }
-      if (message.request_type === "master_data") {
-        return { key: "eventRequestConfirmedMasterData" };
-      }
-      if (message.request_type === "excused_absence") {
-        return { key: "eventRequestConfirmedExcusedAbsence" };
-      }
-      return { key: "eventRequestConfirmed" };
+    case "erledigt": {
+      const key = message.request_type
+        ? PARENT_REQUEST_CONFIRMED_I18N_KEYS[message.request_type]
+        : undefined;
+      return { key: key ?? "eventRequestConfirmed" };
+    }
     case "abgelehnt":
       return message.decision_reason
         ? {

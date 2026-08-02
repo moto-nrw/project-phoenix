@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -87,6 +88,42 @@ func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T
 	require.NoError(t, err)
 	assert.NotZero(t, row.ID)
 	assert.Equal(t, tenantID, row.TenantID)
+
+	var window struct {
+		Start timezone.Date `bun:"service_start_date"`
+		End   timezone.Date `bun:"service_end_date"`
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return db.NewSelect().
+			TableExpr(`enrollment.request_children AS "request_child"`).
+			Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+			Join(`INNER JOIN enrollment.phases AS "phase" ON "phase".id = "request".phase_id`).
+			ColumnExpr(`"phase".service_start_date`).
+			ColumnExpr(`"phase".service_end_date`).
+			Where(`"request_child".id = ?`, childID).
+			Scan(ctx, &window)
+	}))
+	require.NotNil(t, row.ValidFrom)
+	require.NotNil(t, row.ValidUntil)
+	assert.Equal(t, window.Start, *row.ValidFrom)
+	assert.Equal(t, window.End.AddDays(1), *row.ValidUntil)
+}
+
+func TestRequestChildOfferingRepository_Create_BoundsPartialValidityWindow(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	validFrom := timezone.NewDate(2026, 10, 1)
+	row := &enrollmentModels.RequestChildOffering{
+		RequestChildID: childID,
+		CareOfferingID: offeringID,
+		ValidFrom:      &validFrom,
+	}
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, row)
+	}))
+
+	require.NotNil(t, row.ValidUntil)
+	assert.Equal(t, timezone.NewDate(2027, 8, 1), *row.ValidUntil)
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
@@ -159,6 +196,50 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testi
 	}))
 	require.Len(t, list, 2)
 	assert.Equal(t, childID, list[0].RequestChildID)
+}
+
+func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	var first *enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		first, err = offeringRepo.FindByID(ctx, offeringID)
+		return err
+	}))
+	currentOffering := makeOffering(first.PhaseID, uniqueOfferingName("batch-current"))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offeringRepo.Create(ctx, currentOffering)
+	}))
+	onDate := timezone.NewDate(2026, 10, 1)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: offeringID,
+			ValidUntil:     &onDate,
+		}); err != nil {
+			return err
+		}
+		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: currentOffering.ID,
+			ValidFrom:      &onDate,
+		})
+	}))
+
+	var history, active []*enrollmentModels.RequestChildOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		history, err = repo.ListByRequestChildIDs(ctx, []int64{childID})
+		if err != nil {
+			return err
+		}
+		active, err = repo.ListByRequestChildIDsAtDate(ctx, []int64{childID}, onDate)
+		return err
+	}))
+	require.Len(t, history, 2, "batch history must retain expired offering intervals")
+	require.Len(t, active, 1)
+	assert.Equal(t, currentOffering.ID, active[0].CareOfferingID)
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {

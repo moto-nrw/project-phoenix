@@ -11,7 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -491,12 +493,38 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
+	case errors.Is(err, enrollmentService.ErrOfferingChangeDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_disabled"))
+	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_offerings_disabled"))
+	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_no_enrollment"))
+	case errors.Is(err, enrollmentService.ErrOfferingChangeForbidden):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_change_forbidden"))
+	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
+	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_invalid"))
+	case errors.Is(err, enrollmentModels.ErrOfferingChangeAlreadyPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_already_pending"))
+	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
+	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrAnnouncementNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrAnnouncementAckNotRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_ack_not_required"))
 	case errors.Is(err, parentService.ErrAnnouncementStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_stale"))
+	case errors.Is(err, parentService.ErrAnnouncementNotAPoll):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_not_a_poll"))
+	case errors.Is(err, parentService.ErrPollClosed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_closed"))
+	case errors.Is(err, parentService.ErrInvalidPollResponse):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_poll_response"))
+	case errors.Is(err, parentService.ErrChildNotAnswerable):
+		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

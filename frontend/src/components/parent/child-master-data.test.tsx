@@ -117,7 +117,7 @@ describe("ChildMasterDataView", () => {
     mockSubmit.mockResolvedValue([]);
   });
 
-  it("loads and renders editable master data with departure summary", async () => {
+  it("loads and renders editable master data with departure matrix", async () => {
     render(<ChildMasterDataView studentId="42" />);
 
     expect(
@@ -126,8 +126,15 @@ describe("ChildMasterDataView", () => {
     expect(screen.getByDisplayValue("Lara")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeInTheDocument();
     expect(screen.getAllByText("Wird abgeholt").length).toBeGreaterThan(0);
-    expect(screen.getByText("Bus, Geht allein")).toBeInTheDocument();
-    expect(screen.getAllByText("Keine Angabe").length).toBeGreaterThan(0);
+    // The matrix IS the saved state — every checked box is a stored mode.
+    // Fixture: Mo = pickup, Di = bus + alone, Mi = nothing.
+    expect(screen.getByLabelText("Mo Wird abgeholt")).toBeChecked();
+    expect(screen.getByLabelText("Di Bus")).toBeChecked();
+    expect(screen.getByLabelText("Di Geht allein")).toBeChecked();
+    expect(screen.getByLabelText("Di Wird abgeholt")).not.toBeChecked();
+    expect(screen.getByLabelText("Mi Bus")).not.toBeChecked();
+    expect(screen.getByLabelText("Mi Geht allein")).not.toBeChecked();
+    expect(screen.getByLabelText("Mi Wird abgeholt")).not.toBeChecked();
     expect(screen.getByRole("link", { name: /Zurück/ })).toHaveAttribute(
       "href",
       "/parents/children/42",
@@ -511,7 +518,8 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
-    fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
+    const departureCheckbox = screen.getByLabelText("Mi Wird abgeholt");
+    fireEvent.click(departureCheckbox.nextElementSibling as HTMLElement);
     fireEvent.click(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     );

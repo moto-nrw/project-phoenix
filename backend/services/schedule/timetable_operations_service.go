@@ -471,7 +471,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	if err := s.deps.InstanceStudents.UpdateAttendanceFields(ctx, row.ID, patch); err != nil {
 		return nil, err
 	}
-	s.broadcastAttendanceChanged(ctx, instanceID, studentID)
+	s.broadcastAttendanceChanged(ctx, instanceID)
 	roster, err := s.buildRoster(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -900,7 +900,11 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 	return staff.ID, true, nil
 }
 
-func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Context, instanceID, studentID int64) {
+// broadcastAttendanceChanged wakes the tenant's clients after a roster
+// attendance patch. Deliberately id-less about the child — see
+// realtime.EventActiveSupervisionChanged (#2085). Clients refetch the roster /
+// supervision views their own permissions allow.
+func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Context, instanceID int64) {
 	if s.deps.Broadcaster == nil {
 		return
 	}
@@ -916,11 +920,9 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 	}
 	activeGroupID := fmt.Sprintf("%d", *inst.ActiveGroupID)
 	instanceIDStr := fmt.Sprintf("%d", instanceID)
-	studentIDStr := fmt.Sprintf("%d", studentID)
 	reason := "timetable_attendance_updated"
 	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, realtime.EventData{
 		InstanceID: &instanceIDStr,
-		StudentID:  &studentIDStr,
 		Reason:     &reason,
 	})
 	tenantID := tenant.FromContext(ctx)

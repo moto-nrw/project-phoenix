@@ -653,19 +653,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, err
 	}
+	capacityChildren := childrenWithMaterializedOfferingSelections(req.Children, materializedSelections)
 
-	// Decide per-child overflow status before opening the write tx.
 	// childStatusOverrides[i] is set when capacity logic forces a
-	// non-default status (e.g. waitlisted under mode=waitlist). When the
-	// mode is 'reject' an over-capacity offering aborts the whole
-	// submission with ErrCareOfferingFull. Mode comes from the phase row.
+	// non-default status (e.g. waitlisted under mode=waitlist). It is resolved
+	// inside the write transaction below, so the offering locks protect both
+	// the count and the request-child offering rows that consume the slot.
 	childStatusOverrides := map[int]string{}
-	if capabilities.CareOfferingsEnabled {
-		childStatusOverrides, err = s.applyCapacityOverflow(ctx, phase, req.Children, openByID)
-	}
-	if err != nil {
-		return nil, err
-	}
 
 	// Pin the schema version to whichever schema the phase points at,
 	// or the tenant's currently-active schema if the phase has no
@@ -832,6 +826,14 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			}
 		}
 
+		if capabilities.CareOfferingsEnabled {
+			overrides, capacityErr := s.applyCapacityOverflow(txCtx, phase, capacityChildren, openByID)
+			if capacityErr != nil {
+				return capacityErr
+			}
+			childStatusOverrides = overrides
+		}
+
 		var schemaID *int64
 		if schema != nil {
 			id := schema.ID
@@ -966,6 +968,25 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		StatusURL: statusURL,
 		Warnings:  warnings,
 	}, nil
+}
+
+func childrenWithMaterializedOfferingSelections(
+	children []SubmitChild,
+	materialized [][]materializedOfferingSelection,
+) []SubmitChild {
+	withMaterialized := make([]SubmitChild, len(children))
+	for i, child := range children {
+		withMaterialized[i] = child
+		if i >= len(materialized) {
+			continue
+		}
+		ids := make([]int64, 0, len(materialized[i]))
+		for _, selection := range materialized[i] {
+			ids = append(ids, selection.OfferingID)
+		}
+		withMaterialized[i].OfferingIDs = ids
+	}
+	return withMaterialized
 }
 
 func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error) {
@@ -1788,6 +1809,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	var (
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
+		childIDs  []int64
 		guardians []*enrollmentModels.RequestGuardian
 		links     []*enrollmentModels.RequestChildOffering
 		school    *platformModels.School
@@ -1815,15 +1837,9 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			}
 			guardians = loadedGuardians
 		}
-		childIDs := make([]int64, 0, len(children))
 		for _, c := range children {
 			childIDs = append(childIDs, c.ID)
 		}
-		loadedLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(tenantCtx, childIDs)
-		if err != nil {
-			return fmt.Errorf("edit draft: list child offerings: %w", err)
-		}
-		links = loadedLinks
 		if s.SchoolRepo != nil {
 			loadedSchool, err := s.SchoolRepo.FindByID(adminCtx, req.GetTenantID())
 			if err != nil {
@@ -1834,11 +1850,6 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil
 	}); err != nil {
 		return nil, err
-	}
-
-	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
-	for _, link := range links {
-		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
 	var (
@@ -1879,6 +1890,18 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			return ErrEnrollmentWindowClosed
 		}
 		phase = loadedPhase
+		// Loaded here rather than with the other request data above because it
+		// needs the phase: the form has to reopen on the booking in force now.
+		// The unscoped read returns every interval, so after a dated change the
+		// parent would find the superseded and the current selection both
+		// ticked - and saving that would book both.
+		loadedLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			txCtx, childIDs, currentOfferingSelectionDate(phase),
+		)
+		if linkErr != nil {
+			return fmt.Errorf("edit draft: list child offerings: %w", linkErr)
+		}
+		links = loadedLinks
 		// Reopening the form is a self-service load like the public one, so it
 		// must present exactly the world the save will accept. Both edit paths
 		// (ReplaceEditable, prepareProposed) re-run the per-child eligibility
@@ -1952,6 +1975,11 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
+	for _, link := range links {
+		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
 	return &EditDraft{
@@ -2170,16 +2198,39 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				return err
 			}
 		}
-		existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
+		// One point-in-time read serves both consumers below. Preserving a
+		// hidden selection means preserving the one in force now: across the
+		// full interval history a superseded booking would be restored
+		// alongside the live one and written back as current.
+		activeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			txCtx, existingChildIDs, currentOfferingSelectionDate(phase),
+		)
 		if err != nil {
-			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
+			return fmt.Errorf("edit replace: load active child offerings: %w", err)
 		}
-		preservedClaims := make(map[int64]int, len(existingLinks))
-		for _, link := range existingLinks {
+		preservedClaims := make(map[int64]int, len(activeLinks))
+		seenClaims := make(map[[2]int64]struct{}, len(activeLinks))
+		for _, link := range activeLinks {
+			if link == nil {
+				continue
+			}
+			key := [2]int64{link.RequestChildID, link.CareOfferingID}
+			if _, seen := seenClaims[key]; seen {
+				continue
+			}
+			seenClaims[key] = struct{}{}
 			preservedClaims[link.CareOfferingID]++
 		}
 		if !capabilities.CareOfferingsEnabled {
-			materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
+			materializedSelections = preservedOfferingSelections(children, editReq.Children, activeLinks)
+		}
+
+		childStatusOverrides := map[int]string{}
+		if capabilities.CareOfferingsEnabled {
+			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
+			if err != nil {
+				return err
+			}
 		}
 
 		if s.RequestGuardianRepo != nil {
@@ -2209,14 +2260,6 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			duplicatePolicy != configModel.EnrollmentDuplicateHandlingWarn &&
 			duplicatePolicy != configModel.EnrollmentDuplicateHandlingIgnore {
 			return fmt.Errorf("edit replace: unsupported duplicate handling %q", duplicatePolicy)
-		}
-
-		childStatusOverrides := map[int]string{}
-		if capabilities.CareOfferingsEnabled {
-			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
-			if err != nil {
-				return err
-			}
 		}
 
 		req.GuardianFirstName = strings.TrimSpace(editReq.GuardianFirstName)
@@ -4221,9 +4264,12 @@ func (s *requestService) applyCapacityOverflow(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
-	return s.applyCapacityOverflowWithPreservedClaims(ctx, phase, children, openByID, nil)
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, nil, nil)
 }
 
+// applyCapacityOverflowWithPreservedClaims keeps slots a parent already held
+// while replacing an editable request. Claims are point-in-time selections,
+// not the request's historical offering intervals.
 func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
@@ -4231,9 +4277,67 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	openByID map[int64]*enrollmentModels.CareOffering,
 	preservedClaims map[int64]int,
 ) (map[int]string, error) {
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, preservedClaims, nil)
+}
+
+func (s *requestService) applyCapacityOverflowWithReplacedChildren(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	replacedRequestChildIDs []int64,
+) (map[int]string, error) {
+	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, openByID, nil, replacedRequestChildIDs)
+}
+
+func (s *requestService) applyCapacityOverflowWithCapacityClaims(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
+	replacedRequestChildIDs []int64,
+) (map[int]string, error) {
 	overrides := make(map[int]string)
 	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
+	}
+	// Historical manual approvals and late invites can legitimately target a
+	// completed care period. They create no present or future capacity claim,
+	// so querying from today through the already-ended phase would be empty.
+	if phase.ServiceEndDate.Before(timezone.TodayDate()) {
+		return overrides, nil
+	}
+	// Serialize this count with offering-change approvals and other
+	// submissions. Both paths lock care offerings by ascending id before they
+	// inspect capacity and write the booking links.
+	if s.CareOfferingRepo == nil {
+		return nil, errors.New("care offering repository is not configured")
+	}
+	selectedIDs := make([]int64, 0)
+	seen := make(map[int64]bool)
+	for _, child := range children {
+		for _, offeringID := range child.OfferingIDs {
+			if offeringID > 0 && !seen[offeringID] {
+				seen[offeringID] = true
+				selectedIDs = append(selectedIDs, offeringID)
+			}
+		}
+	}
+	sort.Slice(selectedIDs, func(i, j int) bool { return selectedIDs[i] < selectedIDs[j] })
+	lockedOfferings, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs)
+	if err != nil {
+		return nil, fmt.Errorf("lock care offering capacity: %w", err)
+	}
+	// The catalog was read before entering the write transaction. Replace it
+	// with the locked rows so a concurrent capacity reduction or deactivation
+	// cannot be missed between selection validation and booking creation.
+	openByID = offeringsByID(lockedOfferings)
+	for _, offeringID := range selectedIDs {
+		offering := openByID[offeringID]
+		if offering == nil || !offering.IsActive {
+			return nil, ErrCareOfferingClosed
+		}
 	}
 
 	mode := phase.CareOverflowMode
@@ -4260,7 +4364,7 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	type slot struct {
 		capacity  *int // nil = unlimited
 		current   int  // pre-existing claimants (DB)
-		preserved int  // claims this edit already held before replacement
+		preserved int  // selections the editable request already held
 		queued    int  // count from earlier children in this submission
 	}
 	slots := make(map[int64]*slot)
@@ -4274,19 +4378,19 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 			// Should be impossible (validateOfferingSelections ran first).
 			return nil, fmt.Errorf("submit: offering %d not in open catalog", offeringID)
 		}
-		count, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offeringID)
+		capacityFrom := timezone.TodayDate()
+		if phase.ServiceStartDate.After(capacityFrom) {
+			capacityFrom = phase.ServiceStartDate
+		}
+		capacityUntil := phase.ServiceEndDate.AddDays(1)
+		count, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, capacityFrom, capacityUntil)
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
-		preserved := preservedClaims[offeringID]
-		current := count - preserved
-		if current < 0 {
-			current = 0
-		}
 		s := &slot{
 			capacity:  offering.Capacity,
-			current:   current,
-			preserved: preserved,
+			current:   max(count-preservedClaims[offeringID], 0),
+			preserved: preservedClaims[offeringID],
 		}
 		slots[offeringID] = s
 		return s, nil

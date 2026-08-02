@@ -11,7 +11,7 @@ import (
 
 const (
 	careScheduleChangeRequestsVersion     = "1.15.164"
-	careScheduleChangeRequestsDescription = "Create schedule.care_schedule_change_requests - parent care-schedule change requests reviewed on the Aenderungsanfragen page (#1803)"
+	careScheduleChangeRequestsDescription = "Create schedule.care_schedule_change_requests - parent care-schedule change requests reviewed on the Änderungsanfragen page (#1803)"
 )
 
 func init() {

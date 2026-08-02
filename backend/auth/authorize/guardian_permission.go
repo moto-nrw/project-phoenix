@@ -12,6 +12,10 @@ const (
 	GuardianPermissionNotesWrite       = "parent_portal.notes.write"
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+	// GuardianPermissionPollResponse allows a guardian to submit or replace a
+	// per-child parent-announcement poll response. It is deliberately separate
+	// from portal access because viewing a poll must not imply voting authority.
+	GuardianPermissionPollResponse = "parent_portal.poll.response"
 	// GuardianPermissionRequestSubmit allows a parent to submit (and withdraw)
 	// structured change-requests — care-schedule changes that OVERWRITE the
 	// child's permanent weekday schedule once staff confirm them. It is
@@ -55,6 +59,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionRequestSubmit,
 	GuardianPermissionEnrollmentsView,
 	GuardianPermissionEnrollmentSubmit,
+	GuardianPermissionPollResponse,
 	GuardianPermissionMasterDataEdit,
 	GuardianPermissionMasterDataRequest,
 	GuardianPermissionGuardianEdit,

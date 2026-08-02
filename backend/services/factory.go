@@ -46,6 +46,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
@@ -149,9 +150,13 @@ type Factory struct {
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
+	// OfferingChanges is the post-enrollment offering change-request lifecycle
+	// (#1665), shared by the parents portal and the staff review queue.
+	OfferingChanges      enrollment.OfferingChangeRequestService
 	ExcusedRequests      absence.ExcusedAbsenceRequestService
 	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
+	OGSGroupLive         ogsgrouplive.Getter
 	TimetableData        *schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
@@ -300,6 +305,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Staff,
 		repos.Student,
 	)
+	// Announces group_access_changed after a handover, Vertretung or group-leader
+	// change (#2084) — the union of both tables decides who may open which group.
+	if broadcastAware, ok := educationService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
@@ -369,9 +381,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
-		DB:                   db,
-		SettingsService:      settingsService,
-		Logger:               logger.With("service", "users"),
+
+		// Staff Stammdaten (#1423)
+		StaffMasterDataRepo:    repos.StaffMasterData,
+		StaffQualificationRepo: repos.StaffQualification,
+		StaffFinancialRepo:     repos.StaffFinancialData,
+		StammdatenAudit:        repos.StaffMasterDataChange,
+		DataAccessLog:          repos.DataAccessLog,
+
+		DB:              db,
+		SettingsService: settingsService,
+		Logger:          logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -1203,6 +1223,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                     db,
 		Logger:                 logger.With("service", "staff_offboarding"),
 	})
+	if broadcastAware, ok := staffOffboardingService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
@@ -1606,6 +1631,25 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		studentAuditService,
 	)
 
+	// Post-enrollment offering changes (#1665): the parents portal submits them,
+	// staff decide them on the same review page, and an approval applies the
+	// switch through the decision service's dated adjustment path.
+	offeringChangeRequestService := enrollment.NewOfferingChangeRequestService(enrollment.OfferingChangeRequestServiceConfig{
+		ChangeRepo:               repos.OfferingChangeRequest,
+		RequestChildRepo:         repos.RequestChild,
+		RequestRepo:              repos.Request,
+		PhaseRepo:                repos.Phase,
+		CareOfferingRepo:         repos.CareOffering,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		StudentRepo:              repos.Student,
+		PersonRepo:               repos.Person,
+		UserContext:              userContextService,
+		Applier:                  enrollmentDecisionApplier,
+		Settings:                 settingsService,
+		Emitter:                  pillEmitter,
+		Logger:                   logger.With("service", "offering-change-requests"),
+	})
+
 	// Excused-absence approval requests (#1845): the optional office-approval
 	// gate for parent-submitted excused absences. Reuses the same review queue,
 	// badge and pill machinery as the care-schedule requests above; on approval
@@ -1700,37 +1744,43 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
-		ChildRepo:               repos.ParentChild,
-		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
-		EnrollmentRequestRepo:   repos.ParentEnrollmentRequest,
-		GuardianProfileRepo:     repos.GuardianProfile,
-		StatusDayRepo:           repos.StudentStatusDay,
-		MealPlanRepo:            repos.MealPlanEntry,
-		StudentRepo:             repos.Student,
-		PickupExceptionRepo:     repos.StudentPickupException,
-		ArrivalExceptionRepo:    repos.StudentArrivalException,
-		Settings:                settingsService,
-		Broadcaster:             realtimeHub,
-		PersonRepo:              repos.Person,
-		ChangeRequestRepo:       repos.StudentDataChangeRequest,
-		StudentAudit:            studentAuditService,
-		MessageThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:             repos.ParentMessage,
-		MessageReadRepo:         repos.ParentMessageRead,
-		ArrivalSchedules:        arrivalScheduleService,
-		PickupSchedules:         pickupScheduleService,
-		CareRequests:            careRequestService,
-		ExcusedRequests:         excusedRequestService,
-		Emitter:                 pillEmitter,
-		AnnouncementRepo:        repos.ParentAnnouncement,
-		Suggestions:             suggestionsService,
-		GuardianInvites:         guardianInvitationService,
-		GuardianInviteRepo:      repos.GuardianInvitation,
-		StudentGuardianRepo:     repos.StudentGuardian,
-		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
-		GuardianChangeAuditRepo: repos.GuardianChange,
-		DB:                      db,
-		Logger:                  logger.With("service", "parent"),
+		ChildRepo:                repos.ParentChild,
+		EnrollablePhaseRepo:      repos.ParentEnrollablePhase,
+		EnrollmentRequestRepo:    repos.ParentEnrollmentRequest,
+		GuardianProfileRepo:      repos.GuardianProfile,
+		StatusDayRepo:            repos.StudentStatusDay,
+		MealPlanRepo:             repos.MealPlanEntry,
+		StudentRepo:              repos.Student,
+		PickupExceptionRepo:      repos.StudentPickupException,
+		ArrivalExceptionRepo:     repos.StudentArrivalException,
+		Settings:                 settingsService,
+		Broadcaster:              realtimeHub,
+		PersonRepo:               repos.Person,
+		ChangeRequestRepo:        repos.StudentDataChangeRequest,
+		StudentAudit:             studentAuditService,
+		MessageThreadRepo:        repos.ParentMessageThread,
+		MessageRepo:              repos.ParentMessage,
+		MessageReadRepo:          repos.ParentMessageRead,
+		ArrivalSchedules:         arrivalScheduleService,
+		PickupSchedules:          pickupScheduleService,
+		CareRequests:             careRequestService,
+		ExcusedRequests:          excusedRequestService,
+		Emitter:                  pillEmitter,
+		AnnouncementRepo:         repos.ParentAnnouncement,
+		Suggestions:              suggestionsService,
+		GuardianInvites:          guardianInvitationService,
+		GuardianInviteRepo:       repos.GuardianInvitation,
+		StudentGuardianRepo:      repos.StudentGuardian,
+		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		GuardianChangeAuditRepo:  repos.GuardianChange,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		StudentEnrollmentRepo:    repos.StudentEnrollment,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		OfferingChanges:          offeringChangeRequestService,
+		DB:                       db,
+		Logger:                   logger.With("service", "parent"),
 	})
 
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
@@ -1865,6 +1915,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
 	workTimeModelService.SetBroadcaster(realtimeHub)
+	studentStatusDayService := active.NewStudentStatusDayService(repos.StudentStatusDay)
+	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+		People:          usersService,
+		Education:       educationService,
+		UserContext:     userContextService,
+		Active:          activeService,
+		Settings:        settingsService,
+		Pickups:         pickupScheduleService,
+		Arrivals:        arrivalScheduleService,
+		Instances:       instanceService,
+		CareDays:        careDayService,
+		ExcusedRequests: excusedRequestService,
+		StatusDays:      studentStatusDayService,
+		Logger:          logger.With("service", "ogs-group-live"),
+	})
 
 	factory := &Factory{
 		Auth:                     authService,
@@ -1961,9 +2026,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentAudit:         studentAuditService,
 		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
+		OfferingChanges:      offeringChangeRequestService,
 		ExcusedRequests:      excusedRequestService,
-		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
+		StudentStatusDays:    studentStatusDayService,
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		OGSGroupLive:         ogsGroupLiveService,
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
 			InstanceStudentRepo:        repos.InstanceStudent,
 			ActivityInstanceRepo:       repos.ActivityInstance,

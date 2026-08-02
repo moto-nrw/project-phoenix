@@ -23,6 +23,7 @@ type fakeAnnouncementRepo struct {
 	announcement *usersModels.ParentAnnouncement
 	recipients   []*usersModels.AnnouncementRecipient
 	audience     []*usersModels.AnnouncementRecipientStatus
+	reminders    []*usersModels.AnnouncementPollReminderRecipient
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
@@ -34,6 +35,16 @@ type fakeAnnouncementRepo struct {
 
 func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
 	return f.announcement, nil
+}
+
+// ReplaceOptions is a no-op: these tests drive plain Mitteilungen, whose option
+// set is empty, but Update/Create call it unconditionally (#1371).
+func (f *fakeAnnouncementRepo) ReplaceOptions(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementOption) error {
+	return nil
+}
+
+func (f *fakeAnnouncementRepo) ListOptions(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementOption, error) {
+	return nil, nil
 }
 
 func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *usersModels.ParentAnnouncement) error {
@@ -91,6 +102,10 @@ func (f *fakeAnnouncementRepo) SchoolName(_ context.Context, _ int64) (string, e
 	return "OGS Testschule", nil
 }
 
+func (f *fakeAnnouncementRepo) UnansweredReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return f.reminders, nil
+}
+
 // fakeSettings answers the parent-news feature flag; everything else panics.
 type fakeSettings struct {
 	configService.SettingsService
@@ -108,8 +123,9 @@ func (f *fakeSettings) GetLoginImageURL(_ context.Context, _ int64) (string, err
 
 // fakeOutbox captures enqueued e-mails.
 type fakeOutbox struct {
-	requests    []platformService.EnqueueRequest
-	cancelCalls int
+	requests           []platformService.EnqueueRequest
+	cancelRelatedTypes []string
+	enqueueErr         error
 }
 
 type fakeNotifier struct {
@@ -123,12 +139,15 @@ func (f *fakeNotifier) Notify(_ context.Context, event notifications.Event) erro
 }
 
 func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	if f.enqueueErr != nil {
+		return nil, f.enqueueErr
+	}
 	f.requests = append(f.requests, req)
 	return &platformModels.EmailOutbox{}, nil
 }
 
-func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
-	f.cancelCalls++
+func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
+	f.cancelRelatedTypes = append(f.cancelRelatedTypes, relatedType)
 	return 0, nil
 }
 
@@ -218,8 +237,8 @@ func TestUnpublish_CancelsPendingEmails(t *testing.T) {
 	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
 	}
-	if outbox.cancelCalls != 1 {
-		t.Fatalf("expected unpublish to cancel pending e-mails once, got %d", outbox.cancelCalls)
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+		t.Fatalf("unpublish cancelled related types %v, want %v", got, want)
 	}
 }
 
@@ -234,11 +253,74 @@ func TestDelete_CancelsPendingEmails(t *testing.T) {
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if outbox.cancelCalls != 1 {
-		t.Fatalf("expected delete to cancel pending e-mails once, got %d", outbox.cancelCalls)
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+		t.Fatalf("delete cancelled related types %v, want %v", got, want)
 	}
 	if repo.deleteCalls != 1 {
 		t.Fatalf("expected exactly one repo delete, got %d", repo.deleteCalls)
+	}
+}
+
+func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
+	poll := draftAnnouncement(false)
+	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	now := time.Now()
+	poll.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{
+		announcement: poll,
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 101, Email: ""},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     &fakeOutbox{},
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	delivered, err := svc.RemindUnanswered(context.Background(), poll.ID)
+	if err != nil {
+		t.Fatalf("remind unanswered: %v", err)
+	}
+	if delivered != 1 {
+		t.Fatalf("expected one push recipient, got %d", delivered)
+	}
+	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
+		t.Fatalf("unexpected push recipients: %+v", notifier.events)
+	}
+}
+
+func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
+	poll := draftAnnouncement(false)
+	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	now := time.Now()
+	poll.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{
+		announcement: poll,
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 101, Email: "parent@example.test"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     &fakeOutbox{enqueueErr: errors.New("outbox unavailable")},
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	_, err := svc.RemindUnanswered(context.Background(), poll.ID)
+	if err == nil {
+		t.Fatal("expected reminder to fail when e-mail queueing fails")
+	}
+	if len(notifier.events) != 0 {
+		t.Fatalf("expected no push before e-mail queueing succeeds, got %d", len(notifier.events))
 	}
 }
 
@@ -314,6 +396,44 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		event.Priority != notifications.PriorityNormal ||
 		event.DeepLink != "/" {
 		t.Fatalf("unexpected guardian notification metadata: %+v", event)
+	}
+}
+
+func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
+	poll := draftAnnouncement(true)
+	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	repo := &fakeAnnouncementRepo{
+		announcement: poll,
+		// The general audience contains a portal-visible guardian who may not
+		// respond. Publication still reaches them; response permission matters
+		// only for manual unanswered reminders.
+		audience: []*usersModels.AnnouncementRecipientStatus{{AccountID: 999}},
+		recipients: []*usersModels.AnnouncementRecipient{
+			{AccountID: 999, Email: "viewer@example.test"},
+		},
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 101, Email: "permitted@example.test"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	outbox := &fakeOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     outbox,
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), poll.ID); err != nil {
+		t.Fatalf("publish poll: %v", err)
+	}
+	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{999}) {
+		t.Fatalf("unexpected poll push audience: %+v", notifier.events)
+	}
+	if len(outbox.requests) != 1 || outbox.requests[0].Payload[emailPayloadRecipient] != "viewer@example.test" {
+		t.Fatalf("unexpected poll e-mail audience: %+v", outbox.requests)
 	}
 }
 

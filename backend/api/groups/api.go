@@ -587,14 +587,14 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		// Assign teachers to the group if any were provided
 		if len(req.TeacherIDs) > 0 {
 			if err := rs.EducationService.UpdateGroupTeachers(ctx, group.ID, req.TeacherIDs); err != nil {
-				// Log the error but don't fail the entire operation
-				slog.Default().Warn("failed to assign teachers to group",
-					slog.Int64("group_id", group.ID),
-					slog.String("error", err.Error()))
+				return err
 			}
 		}
 		return nil
 	}); err != nil {
+		// The route-level tenant transaction is the outer transaction. A 4xx
+		// response would otherwise commit partial group/teacher writes.
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -648,14 +648,15 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 		// Update teacher assignments if provided
 		if req.TeacherIDs != nil {
 			if err := rs.EducationService.UpdateGroupTeachers(ctx, group.ID, req.TeacherIDs); err != nil {
-				slog.Default().Error("failed to update group teachers",
-					slog.Int64("group_id", group.ID),
-					slog.String("error", err.Error()))
-				// Continue anyway - the group update was successful
+				return err
 			}
 		}
 		return nil
 	}); err != nil {
+		// ErrorRenderer maps validation failures to 4xx; explicitly request a
+		// rollback so a partial teacher-set mutation cannot commit with that
+		// non-5xx response.
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

@@ -642,9 +642,19 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 	require.Len(t, deps.studentRepo.updates, 1)
 	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
 	assert.Equal(t, &note, deps.studentRepo.updates[0].patch.Note)
-	require.Len(t, deps.broadcaster.Calls(), 1)
-	assert.Equal(t, int64(721), deps.broadcaster.Calls()[0].TenantID)
-	assert.Equal(t, realtime.EventActiveSupervisionChanged, deps.broadcaster.Calls()[0].Event.Type)
+	calls := deps.broadcaster.Calls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(721), calls[0].TenantID)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, calls[0].Event.Type)
+
+	// #2085: the refresh is tenant-wide, so it must not name the child whose
+	// attendance was patched — every staff client of the school receives it,
+	// including colleagues outside gdpr.student_data_scope. The instance id
+	// (block scope, not child identity) is what clients refetch on.
+	assert.Equal(t, "tenant", calls[0].Method)
+	testpkg.AssertNoTenantWideStudentIdentity(t, deps.broadcaster)
+	require.NotNil(t, calls[0].Event.Data.InstanceID)
+	assert.Equal(t, "403", *calls[0].Event.Data.InstanceID)
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
@@ -1034,14 +1044,14 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.service.(*timetableOperationsService).deps.Broadcaster = nil
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 	})
 
 	t.Run("skips inactive instance without active group", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.instanceRepo.byID[414] = instanceWithTimes(414, scheduleModel.InstanceStatusPlanned, time.Now(), time.Now().Add(time.Hour))
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 
 		assert.Empty(t, deps.broadcaster.Calls())
 	})
@@ -1051,7 +1061,7 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps.broadcaster.Err = errors.New("send failed")
 		deps.instanceRepo.byID[414] = activeInstance(414, 300)
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 
 		require.Len(t, deps.broadcaster.Calls(), 1)
 	})
@@ -1060,7 +1070,7 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.instanceRepo.err = errors.New("instance failed")
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 
 		assert.Empty(t, deps.broadcaster.Calls())
 	})

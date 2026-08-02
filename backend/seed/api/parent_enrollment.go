@@ -280,8 +280,8 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 				"ogs-kurz":    {"mon", "fri"},
 				"mittagessen": {"mon", "fri"},
 			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
-		seedSubmission("public", "Jonas", "Krueger", "2017-08-15", 2,
-			"Petra", "Krueger", "petra.krueger@example.test", "approved-3-days",
+		seedSubmission("public", "Jonas", "Krüger", "2017-08-15", 2,
+			"Petra", "Krüger", "petra.krueger@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
@@ -315,7 +315,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fuenf Betreuungstage"),
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fünf Betreuungstage"),
 		seedSubmission("public", "Sophie", "Adler", "2016-12-19", 3,
 			"Florian", "Adler", "florian.adler@example.test", "approved-5-days-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
@@ -326,12 +326,12 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fuenf Betreuungstage"),
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fünf Betreuungstage"),
 		seedSubmission("public", "Mika", "Winter", "2018-11-03", 2,
 			"Robert", "Winter", "robert.winter@example.test", "waitlisted-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste wegen begrenzter Plaetze"),
+			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste wegen begrenzter Plätze"),
 		seedSubmission("public", "Tom", "Ahrens", "2017-09-13", 2,
 			"Melanie", "Ahrens", "melanie.ahrens@example.test", "waitlisted-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
@@ -349,7 +349,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, enrollmentModels.ChildStatusRejected, "Demo-Absage fuer Testdaten"),
+			}, enrollmentModels.ChildStatusRejected, "Demo-Absage für Testdaten"),
 		seedSubmission("public", "Mats", "Hoffmann", "2018-01-26", 1,
 			"Kerstin", "Hoffmann", "kerstin.hoffmann@example.test", "rejected-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
@@ -495,7 +495,7 @@ func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixa
 		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10},
 		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20},
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
-		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plaetze fuer die Herbstferien", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40},
+		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40},
 	}
 
 	created := make(map[string]int64, len(offerings))
@@ -568,7 +568,7 @@ func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, of
 		},
 		"custom_data": map[string]any{
 			"seed_source": source,
-			"note":        "Demo-Datensatz fuer Anmeldung und Elternportal",
+			"note":        "Demo-Datensatz für Anmeldung und Elternportal",
 		},
 		"children": []map[string]any{
 			{

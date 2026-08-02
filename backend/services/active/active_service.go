@@ -897,7 +897,7 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
 	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
 }
 
 // broadcastVisitMoved publishes a checkout from the source active group and a
@@ -1008,7 +1008,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
 		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
-		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
+		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonStudentMoved)
 	}
 }
 
@@ -1040,7 +1040,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	// refresh. No group scope: a session end affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
 	s.broadcastDashboardCountsChanged(ctx, nil)
-	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonActivityEnded)
+	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonActivityEnded)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.

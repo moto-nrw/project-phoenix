@@ -225,8 +225,9 @@ describe("Parent portal components", () => {
       "href",
       "/parents/children/42",
     );
+    // School, class and care period share one detail line on the row.
     expect(
-      screen.getByText("Betreuung 01.08.2026 bis 31.07.2027"),
+      screen.getByText(/Betreuung 01\.08\.2026 bis 31\.07\.2027/),
     ).toBeInTheDocument();
 
     cleanup();
