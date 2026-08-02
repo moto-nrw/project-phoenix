@@ -146,6 +146,22 @@ function keyTargetsId(
 }
 
 /**
+ * Returns the child whose detail page is already open, if any.
+ *
+ * The id comes from the viewer's own URL, never from a tenant-wide event. This
+ * lets an identifier-free refresh wake the currently mounted detail/care-plan
+ * views without revealing which child changed or revalidating every child the
+ * viewer opened earlier in the session.
+ */
+function currentStudentDetailId(): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    /(?:^|\/)students\/(\d+)(?:\/|$)/.exec(window.location.pathname)?.[1] ??
+    null
+  );
+}
+
+/**
  * Global SSE hook that maintains a single connection for the entire app.
  *
  * Features:
@@ -186,6 +202,11 @@ export function useGlobalSSE(): SSEHookState {
   // mix them (#2057).
   const pendingGroupIds = useRef(new Set<string>());
   const pendingStudentIds = useRef(new Set<string>());
+  // Student ids taken from an already-open detail route after an id-less
+  // tenant refresh. Kept separate from event-supplied pendingStudentIds: a
+  // route-derived fallback must refresh only that detail/care-plan view, not
+  // fan out into student lists, dashboard counts or reminders.
+  const pendingOpenStudentIds = useRef(new Set<string>());
   // Educational group ids whose ogs-students-{gid} caches need revalidation.
   const pendingEduGroupIds = useRef(new Set<string>());
   // Set when a count-affecting event arrives WITHOUT educational group scope
@@ -370,7 +391,11 @@ export function useGlobalSSE(): SSEHookState {
     // student-detail-* plus care-plan-* — the per-child Betreuungsplan day/week
     // view, whose timeline shows the attendance a check-in/out just changed —
     // and matches the id as a whole segment, never as a prefix of a longer id.
-    for (const studentId of pendingStudentIds.current) {
+    const studentDetailIds = new Set([
+      ...pendingStudentIds.current,
+      ...pendingOpenStudentIds.current,
+    ]);
+    for (const studentId of studentDetailIds) {
       mutate(
         (key) => typeof key === "string" && keyTargetsId(key, studentId),
       ).catch((err) => {
@@ -703,6 +728,7 @@ export function useGlobalSSE(): SSEHookState {
     // Reset pending state
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
+    pendingOpenStudentIds.current.clear();
     pendingEduGroupIds.current.clear();
     hasPendingBroadOgsEvent.current = false;
     hasPendingActivityEvent.current = false;
@@ -857,11 +883,18 @@ export function useGlobalSSE(): SSEHookState {
           if (event.active_group_id) {
             pendingGroupIds.current.add(event.active_group_id);
           }
-          // No per-child invalidation here (#2085): the event is tenant-wide
-          // and carries no student_id — see the student_id contract in
-          // sse-types.ts. The group-scoped student_checkin / student_checkout /
-          // bulk_student_checkout emitted alongside it own that invalidation
-          // and reach exactly the supervisors entitled to the child's data.
+          // The tenant-wide event carries no student_id (#2085). Still wake a
+          // child detail/care-plan view that this user already has open: the id
+          // comes from the viewer's own route and the refetch remains subject
+          // to the backend access check. This covers all_staff users outside
+          // the child's group and timetable attendance patches, which have no
+          // child-identifying companion event. Group-scoped check-in/checkout
+          // events continue to target background caches for entitled group
+          // supervisors.
+          const openStudentId = currentStudentDetailId();
+          if (openStudentId) {
+            pendingOpenStudentIds.current.add(openStudentId);
+          }
           hasPendingActiveSupervisionEvent.current = true;
           scheduleFlush();
           break;

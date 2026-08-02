@@ -70,6 +70,7 @@ describe("useGlobalSSE", () => {
   });
 
   afterEach(() => {
+    window.history.replaceState({}, "", "/");
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -578,6 +579,36 @@ describe("useGlobalSSE", () => {
 
       expect(matchedKeys(["tenant:student-detail-77"])).toEqual([
         "tenant:student-detail-77",
+      ]);
+    });
+
+    it("revalidates only the already-open child on an id-less tenant refresh", () => {
+      window.history.replaceState({}, "", "/tenant/students/88?tab=care-plan");
+      renderHook(() => useGlobalSSE());
+
+      // A mixed-version backend may still send student_id. The tenant-wide
+      // payload must not choose the cache: only the viewer's current,
+      // access-checked detail route may do that.
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "456",
+        data: { reason: "timetable_attendance_updated", student_id: "77" },
+      });
+
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:student-detail-77",
+          "tenant:care-plan-day-77-2026-08-02",
+          "tenant:student-detail-88",
+          "tenant:care-plan-day-88-2026-08-02",
+          "tenant:care-plan-week-88-2026-08-03-2026-08-07",
+        ]),
+      ).toEqual([
+        "tenant:student-detail-88",
+        "tenant:care-plan-day-88-2026-08-02",
+        "tenant:care-plan-week-88-2026-08-03-2026-08-07",
       ]);
     });
 
