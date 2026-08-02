@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	fixAppointmentReminderPushReleaseVersion     = "1.15.249"
+	fixAppointmentReminderPushReleaseVersion     = "1.15.256"
 	fixAppointmentReminderPushReleaseDescription = "Fix appointment reminder push release function"
 )
 

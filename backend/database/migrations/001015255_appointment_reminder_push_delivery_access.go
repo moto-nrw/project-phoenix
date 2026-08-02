@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	appointmentReminderPushDeliveryAccessVersion     = "1.15.248"
+	appointmentReminderPushDeliveryAccessVersion     = "1.15.255"
 	appointmentReminderPushDeliveryAccessDescription = "Restrict appointment reminder push delivery access"
 )
 
@@ -90,17 +90,17 @@ func appointmentReminderPushDeliveryAccessUp(ctx context.Context, db *bun.DB) er
 	return nil
 }
 
+// appointmentReminderPushDeliveryAccessDown drops the two SECURITY DEFINER
+// functions and stops there. Restoring direct phoenix_tenant CRUD would be a
+// cross-tenant leak, not a reversal: the table is created without RLS (1.15.253)
+// because nothing outside these functions ever touches it, so a restored policy
+// would be inert and the grants would let any tenant role read and delete other
+// schools' claims. Reverting this migration therefore leaves the table exactly
+// as 1.15.253/1.15.254 left it — reachable through the owner connection only.
 func appointmentReminderPushDeliveryAccessDown(ctx context.Context, db *bun.DB) error {
 	_, err := db.ExecContext(ctx, `
 		DROP FUNCTION IF EXISTS calendar.release_appointment_reminder_push_delivery(BIGINT, INTEGER, DATE, BIGINT);
 		DROP FUNCTION IF EXISTS calendar.claim_appointment_reminder_push_delivery(BIGINT, INTEGER, DATE, BIGINT);
-
-		CREATE POLICY tenant_isolation_calendar_appointment_reminder_push_deliveries
-			ON calendar.appointment_reminder_push_deliveries FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-		GRANT SELECT, INSERT, UPDATE, DELETE ON calendar.appointment_reminder_push_deliveries TO phoenix_tenant;
-		GRANT USAGE ON SEQUENCE calendar.appointment_reminder_push_deliveries_id_seq TO phoenix_tenant;
 	`)
 	if err != nil {
 		return fmt.Errorf("restore appointment reminder push delivery access: %w", err)

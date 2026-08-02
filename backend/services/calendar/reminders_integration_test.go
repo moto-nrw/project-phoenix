@@ -46,12 +46,20 @@ func (reminderPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs
 	return accountIDs, nil
 }
 
+// optedOutAppointmentPreferences opts one account out of exactly one
+// notification type. The lifecycle mail and the reminder are separate types
+// behind the same explicit-opt-out gate, so a type-blind double would suppress
+// both and no test could tell which gate it proved.
 type optedOutAppointmentPreferences struct {
 	notifications.PreferenceService
+	optedOutType string
 }
 
-func (optedOutAppointmentPreferences) FilterNotOptedOut(_ context.Context, _ string, _ []int64) ([]int64, error) {
-	return nil, nil
+func (p optedOutAppointmentPreferences) FilterNotOptedOut(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	if notificationType == p.optedOutType {
+		return nil, nil
+	}
+	return accountIDs, nil
 }
 
 func (optedOutAppointmentPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
@@ -152,7 +160,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg := calendarTestConfig(db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutAppointmentPreferences{}
+	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
 	service := calendarSvc.NewService(cfg)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
@@ -367,7 +375,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg := calendarTestConfig(db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutAppointmentPreferences{}
+	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointment}
 	service := calendarSvc.NewService(cfg)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -544,6 +552,74 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 	assert.Len(t, outbox.enqueued, sameWindowCount)
 
 	assert.Greater(t, len(outbox.enqueued), before)
+}
+
+// A count-bounded series with a huge interval is valid input: only
+// occurrence_count is capped, interval_count is not. The candidate query bounds
+// such a series by computing its final date, and an unguarded computation runs
+// past the date range — which fails the scan for the whole tenant, not just for
+// this appointment, so nobody in that school gets a reminder that tick.
+func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ExtremeRem", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	ctx := calendarContext(organizerAccount.ID)
+	appointmentDate := timezone.NewDate(2026, 4, 2)
+	// The series starts before the scan window, so it only reaches the candidate
+	// query through its recurrence bound — the arm that does the date arithmetic.
+	seriesStart := timezone.NewDate(2025, 4, 2)
+	occurrenceCount := calModels.MaxRecurrenceOccurrenceCount
+	extreme, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+		Title:        "Jahrhundertreihe",
+		StartDate:    seriesStart,
+		EndDate:      seriesStart,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:       calModels.RecurrenceFrequencyYearly,
+			IntervalCount:   10000,
+			OccurrenceCount: &occurrenceCount,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, extreme.Appointment.ID) })
+
+	// A second, ordinary appointment in the same window: the point is that it
+	// still gets its reminder while the extreme series sits in the same scan.
+	plain, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    appointmentDate,
+		EndDate:      appointmentDate,
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, plain.Appointment.ID) })
+
+	startsAt := berlinInstant(t, appointmentDate, 18, 0)
+	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.NoError(t, err, "the scan must survive a series whose bound overshoots the date range")
+	assert.GreaterOrEqual(t, queued, 1, "the ordinary appointment is still reminded")
 }
 
 func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testing.T) {

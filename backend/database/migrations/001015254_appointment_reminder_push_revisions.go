@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	appointmentReminderPushRevisionsVersion     = "1.15.247"
+	appointmentReminderPushRevisionsVersion     = "1.15.254"
 	appointmentReminderPushRevisionsDescription = "Deduplicate appointment reminder pushes by revision"
 )
 

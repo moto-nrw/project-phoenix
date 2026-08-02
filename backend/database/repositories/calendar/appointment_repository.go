@@ -281,11 +281,21 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			    -- rr.frequency against the BOOLEAN result of that test — Postgres
 			    -- casts 'daily' to boolean and the whole query dies with
 			    -- "invalid input syntax for type boolean" before it reads a row.
+			    -- Each branch also caps its own span. Only occurrence_count is
+			    -- bounded (366); interval_count is not, so a yearly rule with 366
+			    -- occurrences and interval_count 10000 aims at year 7.6 million and
+			    -- the scan dies with "timestamp out of range" — for the whole tenant,
+			    -- not just that appointment, on input the API accepts. The guards
+			    -- multiply in bigint so they cannot overflow int themselves; a span
+			    -- past the cap falls through to 'infinity', which keeps the
+			    -- appointment a candidate and is the safe direction. start_date is
+			    -- capped above by the window predicate, so every sum stays well
+			    -- inside the date range.
 			    OR CASE
-			      WHEN rr.frequency = 'daily' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
-			      WHEN rr.frequency = 'weekly' AND rr.interval_count <= 10000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
-			      WHEN rr.frequency = 'monthly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
-			      WHEN rr.frequency = 'yearly' AND rr.interval_count <= 10000 THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
+			      WHEN rr.frequency = 'daily' AND rr.occurrence_count::bigint * rr.interval_count <= 1000000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count)
+			      WHEN rr.frequency = 'weekly' AND rr.occurrence_count::bigint * rr.interval_count * 7 <= 1000000 THEN "appointment".start_date + (rr.occurrence_count * rr.interval_count * 7)
+			      WHEN rr.frequency = 'monthly' AND (rr.occurrence_count::bigint + 1) * rr.interval_count <= 32000 THEN ("appointment".start_date + make_interval(months => (rr.occurrence_count + 1) * rr.interval_count))::date
+			      WHEN rr.frequency = 'yearly' AND (rr.occurrence_count::bigint + 401) * rr.interval_count <= 100000 THEN ("appointment".start_date + make_interval(years => (rr.occurrence_count + 401) * rr.interval_count))::date
 			      ELSE 'infinity'::date
 			    END + ("appointment".end_date - "appointment".start_date) >= ?
 			  )
