@@ -293,6 +293,7 @@ GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
 GET /api/staff/dashboard-summary
+GET /api/staff/documents-directory
 GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
 GET /api/staff/pin

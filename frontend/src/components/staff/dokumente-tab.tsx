@@ -19,7 +19,7 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   formatFileSize,
@@ -59,7 +59,7 @@ function documentIcon(contentType: string) {
 // flip to orange once it has passed.
 function RetentionCell({ doc }: { readonly doc: StaffDocument }) {
   if (doc.reviewDue) {
-    const overdue = doc.reviewDue < todayISO();
+    const overdue = doc.reviewDue < berlinTodayISO();
     return (
       <StatusBadge
         tone={overdue ? "orange" : "gray"}

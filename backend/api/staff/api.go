@@ -97,6 +97,7 @@ func (rs *Resource) Router() chi.Router {
 		// Staff profile reads are also needed by absence management and the
 		// section-specific Stammdaten workflows below.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-directory", rs.listDocumentDirectory)
 		r.With(authorize.RequiresPermission(permissions.StaffFinancial), withTx).Get("/financial-profile/{id}", rs.getFinancialProfile)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-profile/{id}", rs.getDocumentProfile)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)

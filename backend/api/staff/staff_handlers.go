@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"sort"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -104,6 +105,41 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Staff members retrieved successfully")
+}
+
+type documentDirectoryEntry struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+}
+
+// listDocumentDirectory exposes only staff identities to document-capable
+// roles. It intentionally omits directory, attendance, and account data.
+func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request) {
+	staffMembers, err := rs.PersonService.ListStaffWithPerson(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	entries := make([]documentDirectoryEntry, 0, len(staffMembers))
+	for _, staff := range staffMembers {
+		rs.ensureStaffPerson(r.Context(), staff)
+		if staff.Person == nil {
+			continue
+		}
+		entries = append(entries, documentDirectoryEntry{
+			ID:        staff.ID,
+			Name:      staff.Person.FirstName + " " + staff.Person.LastName,
+			FirstName: staff.Person.FirstName,
+			LastName:  staff.Person.LastName,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name < entries[j].Name
+	})
+	common.Respond(w, r, http.StatusOK, entries, "Document staff directory retrieved successfully")
 }
 
 // getStaff handles getting a staff member by ID

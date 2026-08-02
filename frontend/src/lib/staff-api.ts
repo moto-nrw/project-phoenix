@@ -87,6 +87,13 @@ export interface StaffFilters {
   type?: "all" | "teachers" | "staff";
 }
 
+export interface StaffDocumentDirectoryEntry {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+}
+
 /** Active group with supervisors and room info */
 interface ActiveGroupInfo {
   supervisors?: Array<{
@@ -351,6 +358,16 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
 
 // Staff service
 class StaffService {
+  async getDocumentDirectory(): Promise<StaffDocumentDirectoryEntry[]> {
+    const response = await sessionFetch("/api/staff/documents-directory");
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch document directory: ${response.statusText}`,
+      );
+    }
+    return (await response.json()) as StaffDocumentDirectoryEntry[];
+  }
+
   // Get all staff members with their current supervision status.
   // `options.strict` opts into the /api/staff route's non-swallowing path so a
   // backend failure rejects here instead of masquerading as an empty staff list

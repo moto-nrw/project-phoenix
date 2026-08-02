@@ -11,6 +11,7 @@ import type {
 import {
   staffMonthCloseService,
   staffService,
+  type StaffDocumentDirectoryEntry,
   type Staff,
 } from "~/lib/staff-api";
 import {
@@ -44,6 +45,55 @@ import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffPageSkeleton } from "./page-skeleton";
 
+function DocumentDirectory({
+  entries,
+}: {
+  readonly entries: readonly StaffDocumentDirectoryEntry[];
+}) {
+  const router = useTenantRouter();
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLocaleLowerCase("de-DE");
+  const filteredEntries = entries.filter((entry) =>
+    entry.name.toLocaleLowerCase("de-DE").includes(normalizedSearch),
+  );
+
+  return (
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch
+        title="Personalunterlagen"
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Mitarbeiter/in suchen...",
+        }}
+      />
+      <p className="mb-4 text-sm text-gray-600">
+        Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
+      </p>
+      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+        {filteredEntries.map((entry) => (
+          <button
+            key={entry.id}
+            type="button"
+            onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5080D8]"
+          >
+            {entry.name}
+            <span aria-hidden="true" className="text-gray-400">
+              ›
+            </span>
+          </button>
+        ))}
+        {filteredEntries.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-gray-500">
+            Keine Mitarbeiter/innen gefunden.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function StaffPageContent() {
   const { data: session, status } = useSession({
     required: true,
@@ -59,6 +109,13 @@ function StaffPageContent() {
   // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canReadUsers = hasPermission(session, "users:read");
+  const canAccessDocuments =
+    userIsAdmin ||
+    hasPermission(session, "users:update") ||
+    hasPermission(session, "staff:financial") ||
+    hasPermission(session, "staff_documents:health");
+  const documentDirectoryOnly =
+    canAccessDocuments && !canReadUsers && !canManageTimeTracking;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -119,6 +176,13 @@ function StaffPageContent() {
 
   const staff = staffData ?? [];
   const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
+
+  const { data: documentDirectory, isLoading: isDocumentDirectoryLoading } =
+    useSWRAuth<StaffDocumentDirectoryEntry[]>(
+      documentDirectoryOnly ? "staff-document-directory" : null,
+      () => staffService.getDocumentDirectory(),
+      { revalidateOnFocus: false },
+    );
 
   // Zeitkonten (#1417 Tranche 2a). Beschäftigungstyp und Saldo-Grenzen gehen
   // an den Server — der Beschäftigungstyp spart dort die Rechnung pro Person,
@@ -450,12 +514,16 @@ function StaffPageContent() {
     view,
   ]);
 
-  if (status === "loading" || isLoading) {
+  if (status === "loading" || isLoading || isDocumentDirectoryLoading) {
     return <StaffPageSkeleton />;
   }
 
-  if (!canReadUsers && !canManageTimeTracking) {
+  if (!canReadUsers && !canManageTimeTracking && !canAccessDocuments) {
     return <ForbiddenPage />;
+  }
+
+  if (documentDirectoryOnly) {
+    return <DocumentDirectory entries={documentDirectory ?? []} />;
   }
 
   return (
