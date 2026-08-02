@@ -287,7 +287,11 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 	case ScopeAdmin:
 		return c.repo.FindForTenantAdmins(ctx)
 	case ScopeGuardian:
-		return c.repo.FindForGuardians(ctx, guardianAccountIDs(audience))
+		// Audience.StudentID (when set) is re-checked here for the same reason
+		// ScopeStaff re-checks eligibility below: the recipient list was decided
+		// in an earlier transaction, and a guardian's access to that child can be
+		// revoked in between.
+		return c.repo.FindForGuardians(ctx, guardianAccountIDs(audience), audience.StudentID)
 	case ScopeStaff:
 		// Eligibility is re-checked here rather than trusted from the recipient
 		// list: that list was assembled in an earlier transaction, and an

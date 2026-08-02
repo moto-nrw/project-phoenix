@@ -409,6 +409,10 @@ func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID i
 				TenantID:           tenantID,
 				Scope:              notifications.ScopeGuardian,
 				GuardianAccountIDs: optedIn,
+				// The recheck above answers the access question for this
+				// transaction; StudentID carries it into the delivery transaction,
+				// which is the last one before the payload leaves the backend.
+				StudentID: studentID,
 			},
 		})
 	})

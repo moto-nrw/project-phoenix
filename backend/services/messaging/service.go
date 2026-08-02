@@ -610,6 +610,12 @@ func (s *Service) broadcastValues(tenantID, guardianAccountID, threadID, student
 // transaction commits, and the consent read it performs has to happen inside
 // that transaction to be RLS-scoped at all.
 //
+// The audience carries the child (Audience.StudentID) so the devices are looked
+// up under parent_portal.access for THAT child. The send path checks this here,
+// in the request transaction, and the delivery transaction checks it again from
+// the row it sees: a school can revoke a guardian's access to a child in the
+// moments between the two, and the second answer is the one the push is sent on.
+//
 // The copy names neither the child nor the sender. A push payload leaves the
 // backend and is rendered on a lock screen; the thread behind the deep link is
 // authenticated, and that is where the details belong.
@@ -643,6 +649,7 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 			TenantID:           thread.TenantID,
 			Scope:              notifications.ScopeGuardian,
 			GuardianAccountIDs: optedIn,
+			StudentID:          thread.StudentID,
 		},
 	})
 	switch {

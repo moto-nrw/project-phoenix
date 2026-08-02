@@ -122,5 +122,10 @@ type PushSubscriptionRepository interface {
 	// FindForGuardians returns parent-portal subscriptions of guardian accounts
 	// with active guardian access in the current tenant. Pending-enrollment-only
 	// recipients are deliberately excluded from Web Push.
-	FindForGuardians(ctx context.Context, guardianAccountIDs []int64) ([]*PushSubscription, error)
+	//
+	// A positive studentID additionally requires parent_portal.access for that
+	// child on the caller's users.students_guardians row, so a notification about
+	// one child reaches only the accounts that may still hear about it at
+	// delivery time. Pass 0 for events that are not about a single child.
+	FindForGuardians(ctx context.Context, guardianAccountIDs []int64, studentID int64) ([]*PushSubscription, error)
 }

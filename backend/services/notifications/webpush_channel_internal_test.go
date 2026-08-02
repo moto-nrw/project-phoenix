@@ -36,6 +36,10 @@ type fakePushRepo struct {
 	staffAccountsAsked []int64
 	staffAccountsErr   error
 	deleteErr          error
+	// guardiansStudentID records the child the guardian lookup was scoped to,
+	// and hiddenStudentID is the child whose access the school has revoked.
+	guardiansStudentID int64
+	hiddenStudentID    int64
 	mu                 sync.Mutex
 }
 
@@ -47,7 +51,11 @@ func (f *fakePushRepo) FindForTenantAdmins(context.Context) ([]*iot.PushSubscrip
 	return f.admins, nil
 }
 
-func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64, studentID int64) ([]*iot.PushSubscription, error) {
+	f.guardiansStudentID = studentID
+	if studentID > 0 && studentID == f.hiddenStudentID {
+		return nil, nil
+	}
 	var subscriptions []*iot.PushSubscription
 	for _, accountID := range accountIDs {
 		subscriptions = append(subscriptions, f.guardians[accountID]...)
@@ -235,6 +243,42 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+
+	// A child-scoped audience carries the child into the device lookup, which is
+	// where parent_portal.access is answered for the transaction that sends.
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+		StudentID:          55,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+	assert.Equal(t, int64(55), repo.guardiansStudentID,
+		"the lookup must be told which child the notification is about")
+
+	// Access to that child revoked since the producer picked its audience: the
+	// account keeps its devices and its consent, and still gets nothing.
+	repo.hiddenStudentID = 55
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+		StudentID:          55,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	// An event that is not about one child stays unscoped.
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+	assert.Zero(t, repo.guardiansStudentID)
+	repo.hiddenStudentID = 0
 
 	// Group scope is deliberately unsupported: no error, no recipients.
 	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGroup, ActiveGroupID: "g1"})
