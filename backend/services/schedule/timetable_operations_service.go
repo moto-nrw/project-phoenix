@@ -901,9 +901,8 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 }
 
 // broadcastAttendanceChanged wakes the tenant's clients after a roster
-// attendance patch. Deliberately id-less about the child (#2085): the event is
-// tenant-wide, so a student id here would tell every colleague of the school
-// whose attendance a supervisor just changed. Clients refetch the roster /
+// attendance patch. Deliberately id-less about the child — see
+// realtime.EventActiveSupervisionChanged (#2085). Clients refetch the roster /
 // supervision views their own permissions allow.
 func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Context, instanceID int64) {
 	if s.deps.Broadcaster == nil {

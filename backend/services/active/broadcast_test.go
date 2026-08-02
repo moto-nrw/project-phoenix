@@ -503,17 +503,13 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	require.NoError(t, svc.CreateVisit(ctx, visit))
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
-	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
-	assertSupervisionRefreshIsAnonymous(t, broadcaster)
-	assertGroupScopedEventNamesStudent(t, broadcaster, realtime.EventStudentCheckIn, studentIDStr)
+	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventStudentCheckIn, studentIDStr)
 
 	// --- check-out ----------------------------------------------------------
 	broadcaster.Reset()
 	require.NoError(t, svc.EndVisit(ctx, visit.ID))
 
-	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
-	assertSupervisionRefreshIsAnonymous(t, broadcaster)
-	assertGroupScopedEventNamesStudent(t, broadcaster, realtime.EventStudentCheckOut, studentIDStr)
+	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventStudentCheckOut, studentIDStr)
 
 	// --- whole-session end (bulk path) --------------------------------------
 	broadcaster.Reset()
@@ -521,22 +517,30 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, bulkVisit.ID)
 	require.NoError(t, svc.EndActivitySession(ctx, activeGroup.ID))
 
-	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
-	assertSupervisionRefreshIsAnonymous(t, broadcaster)
-	assertGroupScopedEventNamesStudent(t, broadcaster, realtime.EventBulkStudentCheckOut, studentIDStr)
+	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventBulkStudentCheckOut, studentIDStr)
 }
 
-// assertSupervisionRefreshIsAnonymous checks that the flow emitted an
-// active_supervision_changed and that no copy of it names a child.
-func assertSupervisionRefreshIsAnonymous(tb testing.TB, broadcaster *testpkg.RecordingBroadcaster) {
+// assertBothHalvesOfTheContract checks one flow's broadcasts: nothing
+// tenant-wide names the child, a refresh actually fired (carrying the reason
+// clients branch on instead of an id), and the group-scoped movement event
+// still names the child for the entitled supervisors.
+func assertBothHalvesOfTheContract(
+	tb testing.TB,
+	broadcaster *testpkg.RecordingBroadcaster,
+	groupScopedEvent realtime.EventType,
+	studentIDStr string,
+) {
 	tb.Helper()
-	events := broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged)
-	require.NotEmpty(tb, events, "expected an active_supervision_changed refresh")
-	for _, e := range events {
-		assert.Nil(tb, e.Data.StudentID, "active_supervision_changed must not carry a student id")
-		assert.Nil(tb, e.Data.StudentIDs, "active_supervision_changed must not carry student ids")
-		assert.NotNil(tb, e.Data.Reason, "the refresh reason is what clients branch on instead")
+
+	testpkg.AssertNoTenantWideStudentIdentity(tb, broadcaster)
+
+	refreshes := broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged)
+	require.NotEmpty(tb, refreshes, "expected an active_supervision_changed refresh")
+	for _, e := range refreshes {
+		assert.NotNil(tb, e.Data.Reason, "the refresh reason is what clients branch on instead of an id")
 	}
+
+	assertGroupScopedEventNamesStudent(tb, broadcaster, groupScopedEvent, studentIDStr)
 }
 
 // assertGroupScopedEventNamesStudent checks the other half of the contract: the
