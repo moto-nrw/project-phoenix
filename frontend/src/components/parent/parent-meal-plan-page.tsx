@@ -243,7 +243,7 @@ export function ParentMealPlanPage() {
   }
 
   return (
-    <ParentPage width="wide">
+    <ParentPage>
       <ParentPageHeader
         title={t("title")}
         description={t("subtitle")}

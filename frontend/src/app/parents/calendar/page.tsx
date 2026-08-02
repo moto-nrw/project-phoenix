@@ -147,7 +147,7 @@ export default function ParentCalendarPage() {
   };
 
   return (
-    <ParentPage width="wide">
+    <ParentPage>
       <PersonalCalendar
         title="Familienkalender"
         subtitle="Termine, Einladungen und Betreuungsangebote Ihrer Kinder."

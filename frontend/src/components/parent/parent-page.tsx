@@ -18,27 +18,21 @@ import { Skeleton } from "~/components/ui/skeleton";
  */
 
 /**
- * Page container: one column, one rhythm, one max width.
+ * Page container: one column, one rhythm, full width.
  *
- * `wide` is for the two pages that render a five-column week (calendar, meal
- * plan) and genuinely need the room; everything else stays at the reading width
- * so a two-line paragraph doesn't stretch across a 27-inch monitor.
+ * No `max-w-*` cap — the parents portal fills the shell's content area like
+ * every tenant page does (`AppShell` already supplies the page padding). Long
+ * prose stays readable because the text blocks inside carry their own
+ * `max-w-2xl`, not because the whole page is narrowed.
  */
 export function ParentPage({
   children,
-  width = "default",
   className = "",
 }: Readonly<{
   children: React.ReactNode;
-  width?: "default" | "wide";
   className?: string;
 }>) {
-  const max = width === "wide" ? "max-w-7xl" : "max-w-5xl";
-  return (
-    <div className={`mx-auto w-full space-y-5 ${max} ${className}`}>
-      {children}
-    </div>
-  );
+  return <div className={`w-full space-y-5 ${className}`}>{children}</div>;
 }
 
 /**
