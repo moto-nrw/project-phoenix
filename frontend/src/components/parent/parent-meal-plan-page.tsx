@@ -5,6 +5,12 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
+import { Alert } from "~/components/ui/alert";
+import {
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+} from "~/components/parent/parent-page";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
@@ -233,34 +239,29 @@ export function ParentMealPlanPage() {
   const todayInWeek = weekDates.includes(today);
 
   if (loadingSchools) {
-    return (
-      <div className="mx-auto w-full max-w-7xl">
-        <Loading fullPage={false} />
-      </div>
-    );
+    return <ParentPageSkeleton rows={2} />;
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-        <p className="mt-1 text-sm text-gray-500">{t("subtitle")}</p>
-      </section>
+    <ParentPage width="wide">
+      <ParentPageHeader
+        kicker={t("weekHeading")}
+        title={t("title")}
+        description={t("subtitle")}
+      />
 
       {schoolsError ? (
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 shadow-sm">
-          {t("loadError")}
-        </section>
+        <Alert type="error" message={t("loadError")} />
       ) : schools.length === 0 ? (
-        <section className="moto-content-surface rounded-2xl border p-6 text-sm text-gray-500 shadow-sm">
+        <div className="moto-content-surface rounded-2xl border p-5 text-sm text-gray-500 shadow-sm backdrop-blur-md">
           {t("empty")}
-        </section>
+        </div>
       ) : (
         <>
-          <section className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-start">
+          <section className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-start">
             {schools.length > 1 && (
               <div className="flex w-full flex-col gap-1.5 sm:w-64">
-                <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                <span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
                   {t("school")}
                 </span>
                 <CustomSelect
@@ -276,7 +277,7 @@ export function ParentMealPlanPage() {
             )}
 
             <div className="flex w-full flex-col gap-1.5 sm:w-56">
-              <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
                 {t("week")}
               </span>
               <CustomSelect
@@ -294,13 +295,11 @@ export function ParentMealPlanPage() {
           {!weekReady ? (
             <Loading fullPage={false} />
           ) : weekError ? (
-            <section className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
-              {t("loadError")}
-            </section>
+            <Alert type="error" message={t("loadError")} />
           ) : weekIsEmpty ? (
-            <section className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400 shadow-sm">
+            <div className="moto-content-surface rounded-2xl border p-8 text-center text-sm text-gray-500 shadow-sm backdrop-blur-md">
               {t("emptyWeek")}
-            </section>
+            </div>
           ) : (
             <div>
               {/* Mobile: today first, then the rest of the week as a list. */}
@@ -432,6 +431,6 @@ export function ParentMealPlanPage() {
           )}
         </>
       )}
-    </div>
+    </ParentPage>
   );
 }

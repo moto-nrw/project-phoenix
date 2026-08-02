@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Clock } from "lucide-react";
+import { CalendarClock, Clock } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
 import { Section } from "~/components/parent/child-detail-section";
@@ -137,17 +139,17 @@ export function ChildCareScheduleSection({
   }, [data, tMsg]);
 
   if (loading) {
-    return (
-      <div className="h-48 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-    );
+    return <Skeleton className="h-48 w-full rounded-2xl" />;
   }
 
   if (error || !data) {
     return (
-      <Section title={t("sections.careSchedule")} hint={t("careSchedule.hint")}>
-        <p className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
-          {t("careSchedule.loadError")}
-        </p>
+      <Section
+        icon={CalendarClock}
+        title={t("sections.careSchedule")}
+        hint={t("careSchedule.hint")}
+      >
+        <Alert type="error" message={t("careSchedule.loadError")} />
       </Section>
     );
   }
@@ -173,7 +175,23 @@ export function ChildCareScheduleSection({
   };
 
   return (
-    <Section title={t("sections.careSchedule")} hint={t("careSchedule.hint")}>
+    <Section
+      icon={CalendarClock}
+      title={t("sections.careSchedule")}
+      hint={t("careSchedule.hint")}
+      actions={
+        data.can_request && !pending ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setModalOpen(true)}
+          >
+            {t("requestButton")}
+          </Button>
+        ) : undefined
+      }
+    >
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {WEEKDAYS.map((num) => {
           const w = byWeekday.get(num);
@@ -182,11 +200,8 @@ export function ChildCareScheduleSection({
               ? w.modes.map((m) => t(`departureModes.${m}`)).join(", ")
               : EMPTY;
           return (
-            <div
-              key={num}
-              className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-            >
-              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            <div key={num} className="rounded-xl bg-gray-50 p-3">
+              <dt className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
                 {t(`departureDays.${WEEKDAY_DAY_KEYS[num]}`)}
               </dt>
               <dd className="mt-2 space-y-1 text-sm">
@@ -205,7 +220,7 @@ export function ChildCareScheduleSection({
       </dl>
 
       {pending && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl bg-gray-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
               <Clock className="h-3 w-3" aria-hidden="true" />
@@ -242,19 +257,6 @@ export function ChildCareScheduleSection({
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {data.can_request && !pending && (
-        <div>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setModalOpen(true)}
-          >
-            {t("requestButton")}
-          </Button>
         </div>
       )}
 

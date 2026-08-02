@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { ArrowRight, Newspaper, Plus, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -24,10 +23,17 @@ import { PushNotificationSection } from "~/components/settings/push-notification
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
+import { ChildRow, type ChildRowItem } from "~/components/parent/child-row";
 import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
+  ParentLinkAction,
+  ParentLoadError,
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+} from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "ParentDashboard" });
 
@@ -44,16 +50,6 @@ const statusTone: Record<EnrollmentChildStatus | ChildStatus, StatusBadgeTone> =
     inactive: "gray",
     alumnus: "gray",
   };
-
-interface ChildOverviewItem {
-  readonly key: string;
-  readonly name: string;
-  readonly schoolName: string;
-  readonly detail: string;
-  readonly status: EnrollmentChildStatus | ChildStatus;
-  readonly statusLabel?: string;
-  readonly href?: string;
-}
 
 function formatDate(
   iso: string | undefined,
@@ -94,20 +90,16 @@ function buildChildOverviewItems(
   requests: readonly EnrollmentRequest[],
   locale: string,
   t: ReturnType<typeof useTranslations<"parentDashboard">>,
-): ChildOverviewItem[] {
-  const items: ChildOverviewItem[] = children.map((child) => {
-    const name = `${child.first_name} ${child.last_name}`;
-    return {
-      key: `child-${child.tenant_id}-${child.student_id}`,
-      name,
-      schoolName: child.school_name,
-      detail: child.enrolled_from
-        ? `${child.school_class ? `${child.school_class} · ` : ""}${t("careRange", { range: formatServiceRange(child.enrolled_from, child.enrolled_until, locale, t("notSet"), t("dateRangeConnector")) })}`
-        : child.school_class || t("careRecorded"),
-      status: child.status,
-      href: `/parents/children/${child.student_id}`,
-    };
-  });
+): ChildRowItem[] {
+  const items: ChildRowItem[] = children.map((child) => ({
+    key: `child-${child.tenant_id}-${child.student_id}`,
+    name: `${child.first_name} ${child.last_name}`,
+    schoolName: child.school_name,
+    detail: child.enrolled_from
+      ? `${child.school_class ? `${child.school_class} · ` : ""}${t("careRange", { range: formatServiceRange(child.enrolled_from, child.enrolled_until, locale, t("notSet"), t("dateRangeConnector")) })}`
+      : child.school_class || t("careRecorded"),
+    href: `/parents/children/${child.student_id}`,
+  }));
 
   const seen = new Set(
     items.map((item) => normalizeChildIdentity(item.name, item.schoolName)),
@@ -123,15 +115,9 @@ function buildChildOverviewItems(
         key: `request-${request.request_id}-${child.child_id}`,
         name,
         schoolName: request.school_name,
-        detail: `${request.phase_name} · ${formatServiceRange(
-          request.service_start_date,
-          request.service_end_date,
-          locale,
-          t("rangeOpen"),
-          t("dateRangeConnector"),
-        )}`,
-        status: child.status,
-        statusLabel: getEnrollmentOverviewStatus(child.status, t),
+        detail: `${request.phase_name} · ${getEnrollmentOverviewStatus(child.status, t)}`,
+        badgeLabel: t("open"),
+        badgeTone: statusTone[child.status] ?? "blue",
         href: `/parents/enroll/status/${request.status_token}`,
       });
     }
@@ -139,6 +125,9 @@ function buildChildOverviewItems(
 
   return items;
 }
+
+/** How many children the dashboard lists before deferring to /parents/children. */
+const CHILDREN_PREVIEW_LIMIT = 4;
 
 export function ParentDashboard() {
   const t = useTranslations("parentDashboard");
@@ -175,158 +164,63 @@ export function ParentDashboard() {
     () => buildChildOverviewItems(children, requests, locale, t),
     [children, requests, locale, t],
   );
+
   if (loading) {
-    return <ParentDashboardSkeleton />;
+    return <ParentPageSkeleton rows={2} />;
   }
 
   if (error) {
-    return (
-      <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
-          {t("loadError")}
-        </div>
-      </div>
-    );
+    return <ParentLoadError message={t("loadError")} />;
   }
 
+  const previewItems = childOverviewItems.slice(0, CHILDREN_PREVIEW_LIMIT);
+  const hasMore = childOverviewItems.length > previewItems.length;
+
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
-          <div className="p-5 sm:p-6 lg:p-8">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("eyebrow")}
-            </p>
-            <div className="mt-2 max-w-3xl">
-              <h1 className="text-2xl font-semibold text-balance text-gray-900 sm:text-3xl">
-                {t("title")}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
-                {t("description")}
-              </p>
-            </div>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("eyebrow")}
+        title={t("title")}
+        description={t("description")}
+        actions={
+          <ParentLinkAction href="/parents/enroll">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t("newEnrollment")}
+          </ParentLinkAction>
+        }
+      />
+
+      <SectionCard
+        icon={Users}
+        title={t("childrenEyebrow")}
+        description={t("childrenDescription")}
+        actions={
+          hasMore ? (
+            <ParentLinkAction href="/parents/children" variant="secondary">
+              {t("allChildren")}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </ParentLinkAction>
+          ) : undefined
+        }
+      >
+        {previewItems.length === 0 ? (
+          <p className="text-sm leading-6 text-gray-600">
+            {t("emptyChildren")}
+          </p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {previewItems.map((item) => (
+              <ChildRow key={item.key} item={item} />
+            ))}
           </div>
-          <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <div className="relative z-10 space-y-4">
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  {t("childrenEyebrow")}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-gray-600">
-                  {t("childrenDescription")}
-                </p>
-              </div>
-              <HeroChildrenList items={childOverviewItems} />
-              <Link
-                href="/parents/enroll"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827] focus-visible:ring-2 focus-visible:ring-[#83CD2D] focus-visible:ring-offset-2 focus-visible:outline-none"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                {t("newEnrollment")}
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+        )}
+      </SectionCard>
 
       <StartNewsPanel />
 
       <NotificationPreferencesSection portal="parent" />
       <PushNotificationSection portal="parent" />
-    </div>
-  );
-}
-
-function ParentDashboardSkeleton() {
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-      <div className="grid gap-4 lg:grid-cols-3">
-        {[0, 1, 2].map((item) => (
-          <div
-            key={item}
-            className="h-32 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm"
-          />
-        ))}
-      </div>
-      <div className="h-80 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-    </div>
-  );
-}
-
-function HeroChildrenList({
-  items,
-}: Readonly<{ items: readonly ChildOverviewItem[] }>) {
-  const t = useTranslations("parentDashboard");
-  const previewItems = items.slice(0, 3);
-
-  if (previewItems.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-gray-300 bg-white/75 p-4 text-sm leading-6 text-gray-600 shadow-sm">
-        {t("emptyChildren")}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {previewItems.map((item) => (
-        <HeroChildItem key={item.key} item={item} />
-      ))}
-      {items.length > previewItems.length ? (
-        <Link
-          href="/parents/children"
-          className="inline-flex h-9 items-center rounded-lg px-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-white/80 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          {t("allChildren")}
-        </Link>
-      ) : null}
-    </div>
-  );
-}
-
-function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
-  const t = useTranslations("parentDashboard");
-  const tone = statusTone[item.status] ?? statusTone.submitted;
-  const content = (
-    <div className="flex min-w-0 items-center gap-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#5A8E1F]">
-        <Users className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-gray-900">
-          {item.name}
-        </p>
-        <p className="truncate text-sm text-gray-600">{item.schoolName}</p>
-      </div>
-      {item.statusLabel ? (
-        <span className="shrink-0">
-          <StatusBadge label={t("open")} tone={tone} />
-        </span>
-      ) : (
-        <ArrowRight
-          className="h-4 w-4 shrink-0 text-gray-400"
-          aria-hidden="true"
-        />
-      )}
-    </div>
-  );
-
-  if (!item.href) {
-    return (
-      <div className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <Link
-      href={item.href}
-      className="block rounded-xl border border-gray-200 bg-white/90 p-3 shadow-sm transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {content}
-    </Link>
+    </ParentPage>
   );
 }
 
@@ -395,52 +289,36 @@ function StartNewsPanel() {
   if (!newsEnabled) return null;
 
   return (
-    <section
+    <SectionCard
       id="news"
-      className="scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-    >
-      <PanelHeader
-        eyebrow={t("newsEyebrow")}
-        title={t("newsTitle")}
-        description={t("newsDescription")}
-      />
-
-      {loaded && items.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
-              <Newspaper className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-gray-900">
-                {t("noNewsTitle")}
-              </h3>
-              <p className="mt-1 text-sm leading-6 text-gray-600">
-                {t("noNewsDescription")}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <ul className="mt-5 space-y-3">
-            {visible.map((item) => (
-              <li key={item.id}>
-                <NewsCard
-                  item={item}
-                  onOpen={(opened) => setOpenId(opened.id)}
-                />
-              </li>
-            ))}
-          </ul>
-          <Link
-            href="/parents/news"
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
-          >
+      icon={Newspaper}
+      title={t("newsTitle")}
+      description={t("newsDescription")}
+      className="scroll-mt-24"
+      actions={
+        items.length > 0 ? (
+          <ParentLinkAction href="/parents/news" variant="secondary">
             {t("newsShowAll")}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </>
+          </ParentLinkAction>
+        ) : undefined
+      }
+    >
+      {loaded && items.length === 0 ? (
+        <EmptyState
+          icon={<Newspaper className="h-8 w-8" aria-hidden="true" />}
+          title={t("noNewsTitle")}
+          description={t("noNewsDescription")}
+          className="py-8"
+        />
+      ) : (
+        <ul className="space-y-2">
+          {visible.map((item) => (
+            <li key={item.id}>
+              <NewsCard item={item} onOpen={(opened) => setOpenId(opened.id)} />
+            </li>
+          ))}
+        </ul>
       )}
 
       {openItem && (
@@ -451,28 +329,6 @@ function StartNewsPanel() {
           onStale={refetchOnStale}
         />
       )}
-    </section>
-  );
-}
-
-function PanelHeader({
-  eyebrow,
-  title,
-  description,
-}: Readonly<{
-  eyebrow: string;
-  title: string;
-  description: string;
-}>) {
-  return (
-    <header>
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {eyebrow}
-      </p>
-      <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
-        {title}
-      </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
-    </header>
+    </SectionCard>
   );
 }
