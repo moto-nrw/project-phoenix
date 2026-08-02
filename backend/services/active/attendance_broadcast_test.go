@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -19,16 +22,19 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Regression suite for #2113: the staff-side checkout stopped emitting any SSE
-// event when 976b32f moved the visit-ending from ActiveService.EndVisit (which
-// broadcasts) to the repository call inside performCheckOut (which does not).
-// Every colleague's open tab kept showing the child as present, and none of the
+// Regression suite for #2113: attendance changes stopped reaching the SSE bus.
+// On the checkout side 976b32f moved the visit-ending from
+// ActiveService.EndVisit (which broadcasts) to the repository call inside
+// performCheckOut (which does not); on the check-in side performCheckIn never
+// broadcast at all, so every attendance write without a room visit was silent.
+// Colleagues' open tabs kept showing the stale presence, and none of the
 // affected views revalidate on focus or on an interval, so nothing corrected it.
 
-// checkoutFixtures is one child checked into one room, plus everything the
-// checkout path reads: an OGS group for the edu:{id} topic, an open attendance
-// row for CloseOpenForToday, and an open visit for endOpenVisitForStudent.
-type checkoutFixtures struct {
+// attendanceFixtures is one child in one OGS group plus the room session and
+// device the attendance paths read. Depending on the builder used, the child is
+// already checked in (open attendance row, optionally an open visit) or still
+// absent.
+type attendanceFixtures struct {
 	studentID     int64
 	staffID       int64
 	activeGroupID int64
@@ -36,54 +42,73 @@ type checkoutFixtures struct {
 	deviceID      int64
 }
 
-func (f checkoutFixtures) eduGroupIDStr() string {
+func (f attendanceFixtures) eduGroupIDStr() string {
 	return strconv.FormatInt(f.eduGroupID, 10)
 }
 
-func (f checkoutFixtures) activeGroupTopic() string {
+func (f attendanceFixtures) activeGroupTopic() string {
 	return strconv.FormatInt(f.activeGroupID, 10)
 }
 
-func (f checkoutFixtures) eduTopic() string {
+func (f attendanceFixtures) eduTopic() string {
 	return "edu:" + f.eduGroupIDStr()
 }
 
-// setupCheckedInStudent builds the fixtures above and returns the cleanup to
-// defer (the caller's own `defer db.Close()` must outlive it, so cleanup cannot
-// hide in t.Cleanup). withVisit=false leaves the child checked in without a
-// room visit — the binary-mode shape, where the tenant keeps no visit rows.
-func setupCheckedInStudent(t *testing.T, db *bun.DB, label string, withVisit bool) (checkoutFixtures, func()) {
+// setupAbsentStudent builds the base fixtures without any attendance row and
+// returns the cleanup to defer (the caller's own `defer db.Close()` must
+// outlive it, so cleanup cannot hide in t.Cleanup).
+func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtures, func()) {
 	t.Helper()
 
-	activity := testpkg.CreateTestActivityGroup(t, db, "checkout-"+label)
-	room := testpkg.CreateTestRoom(t, db, "Checkout Room "+label)
+	activity := testpkg.CreateTestActivityGroup(t, db, "attendance-"+label)
+	room := testpkg.CreateTestRoom(t, db, "Attendance Room "+label)
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Checkout-"+label)
-	student := testpkg.CreateTestStudent(t, db, "Checkout", label, "2b")
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Attendance-"+label)
+	student := testpkg.CreateTestStudent(t, db, "Attendance", label, "2b")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
-	staff := testpkg.CreateTestStaff(t, db, "Checkout", "Staff"+label)
-	iotDevice := testpkg.CreateTestDevice(t, db, "checkout-device-"+label)
+	staff := testpkg.CreateTestStaff(t, db, "Attendance", "Staff"+label)
+	iotDevice := testpkg.CreateTestDevice(t, db, "attendance-device-"+label)
 
-	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, iotDevice.ID, time.Now(), nil)
-	if withVisit {
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	}
-
-	f := checkoutFixtures{
+	f := attendanceFixtures{
 		studentID:     student.ID,
 		staffID:       staff.ID,
 		activeGroupID: activeGroup.ID,
 		eduGroupID:    eduGroup.ID,
 		deviceID:      iotDevice.ID,
 	}
-	// The attendance and visit rows are removed via their student_id, so they
-	// need no ids of their own here. Students before their education group: the
-	// FK is ON DELETE SET NULL and would null students.tenant_id otherwise.
+	// Attendance and visit rows are removed via their student_id, so they need
+	// no ids of their own here. Students before their education group: the FK is
+	// ON DELETE SET NULL and would null students.tenant_id otherwise.
 	cleanup := func() {
 		testpkg.CleanupActivityFixtures(t, db,
 			activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID, staff.ID, iotDevice.ID)
 	}
 	return f, cleanup
+}
+
+// setupCheckedInStudent is setupAbsentStudent plus an open attendance row.
+// withVisit=false leaves the child checked in without a room visit — the
+// binary-mode shape, where the tenant keeps no visit rows.
+func setupCheckedInStudent(t *testing.T, db *bun.DB, label string, withVisit bool) (attendanceFixtures, func()) {
+	t.Helper()
+
+	f, cleanup := setupAbsentStudent(t, db, label)
+	testpkg.CreateTestAttendance(t, db, f.studentID, f.staffID, f.deviceID, time.Now(), nil)
+	if withVisit {
+		testpkg.CreateTestVisit(t, db, f.studentID, f.activeGroupID, time.Now(), nil)
+	}
+	return f, cleanup
+}
+
+// checkinEventsOnTopic returns the student_checkin events routed to one topic.
+func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []realtime.Event {
+	out := make([]realtime.Event, 0)
+	for _, c := range b.GroupCallsForTopic(topic) {
+		if c.Event.Type == realtime.EventStudentCheckIn {
+			out = append(out, c.Event)
+		}
+	}
+	return out
 }
 
 // newDailyCheckoutService is setupServiceWithBroadcaster plus the PersonService
@@ -321,4 +346,141 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 
 	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
 		"a daily checkout must emit exactly one dashboard_counts_changed")
+}
+
+// =============================================================================
+// Check-in — the mirror gap (#2113 follow-up)
+// =============================================================================
+
+// TestCheckin_WebCheckinBroadcastsEduTopic is the regression test for the
+// check-in half: POST /api/students/{id}/school-checkin with action "in" lands
+// on CheckInStudent, which wrote attendance and told nobody.
+func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	f, cleanup := setupAbsentStudent(t, db, "WebCheckin")
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	broadcaster.Reset()
+
+	result, err := svc.CheckInStudent(ctx, f.studentID, f.staffID, 0, true)
+	require.NoError(t, err)
+	require.NotZero(t, result.AttendanceID, "an attendance row must have been opened")
+
+	studentIDStr := strconv.FormatInt(f.studentID, 10)
+
+	eduEvents := checkinEventsOnTopic(broadcaster, f.eduTopic())
+	require.Len(t, eduEvents, 1, "expected one student_checkin on the edu:{id} topic")
+	assert.Empty(t, eduEvents[0].ActiveGroupID, "no room was entered, so there is no active group")
+	require.NotNil(t, eduEvents[0].Data.StudentID)
+	assert.Equal(t, studentIDStr, *eduEvents[0].Data.StudentID)
+	require.NotNil(t, eduEvents[0].Data.GroupIDs, "the check-in must carry its edu group scope (#2057)")
+	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
+
+	assert.Empty(t, checkinEventsOnTopic(broadcaster, f.activeGroupTopic()),
+		"a roomless check-in must not address an active-group topic")
+
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed")
+	require.NotNil(t, counts[0].Event.Data.GroupIDs,
+		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
+	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
+	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
+
+	assert.False(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
+		"no room roster changed, so active_supervision_changed must stay out of this shape")
+
+	// #2085: the child id rides the group-scoped topics only.
+	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
+}
+
+// TestCheckin_RepeatedCheckinIsSilent pins the mirror of the idempotent
+// checkout: the second "in" is absorbed by the partial unique index, no row
+// moves, so no client has anything to refetch.
+func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	f, cleanup := setupAbsentStudent(t, db, "RepeatCheckin")
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, err := svc.CheckInStudent(ctx, f.studentID, f.staffID, 0, true)
+	require.NoError(t, err)
+
+	broadcaster.Reset()
+	_, err = svc.CheckInStudent(ctx, f.studentID, f.staffID, 0, true)
+	require.NoError(t, err)
+
+	assert.Empty(t, broadcaster.Calls(), "an absorbed check-in must broadcast nothing")
+}
+
+// TestCheckin_BroadcastRunsAfterCommit is the check-in twin of
+// TestCheckout_BroadcastRunsAfterCommit — same ordering requirement, same trap:
+// the student read has to happen inside the transaction, because the tx carried
+// in ctx is closed by the time the after-commit hook runs.
+func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	f, cleanup := setupAbsentStudent(t, db, "CheckinCommit")
+	defer cleanup()
+	broadcaster.Reset()
+
+	err := tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := svc.CheckInStudent(txCtx, f.studentID, f.staffID, 0, true); err != nil {
+			return err
+		}
+		assert.Empty(t, broadcaster.Calls(),
+			"nothing may reach the SSE bus before the transaction commits")
+		return nil
+	})
+	require.NoError(t, err)
+
+	eduEvents := checkinEventsOnTopic(broadcaster, f.eduTopic())
+	require.Len(t, eduEvents, 1, "the check-in must reach the SSE bus once the tx committed")
+	require.NotNil(t, eduEvents[0].Data.StudentName)
+	assert.NotEmpty(t, *eduEvents[0].Data.StudentName,
+		"the student name proves the repository read happened inside the transaction")
+	require.NotNil(t, eduEvents[0].Data.GroupIDs)
+	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
+}
+
+// TestCheckin_RoomCheckinBroadcastsOnce guards the disjointness the check-in
+// fix rests on. The detailed-mode room check-in writes its attendance row
+// through CreateVisit's own path (ensureOrUpdateAttendance), never through
+// performCheckIn, so it must keep emitting exactly one student_checkin per
+// topic. If someone later routes CreateVisit through performCheckIn, every room
+// entry would wake each client twice and this test fails.
+func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
+	defer cleanup()
+
+	staff := &usersModels.Staff{}
+	staff.ID = f.staffID
+	ctx := context.WithValue(testpkg.TenantContext(1), device.CtxStaff, staff)
+	broadcaster.Reset()
+
+	visit := &activeModels.Visit{
+		StudentID:     f.studentID,
+		ActiveGroupID: f.activeGroupID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, svc.CreateVisit(ctx, visit))
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	assert.Len(t, checkinEventsOnTopic(broadcaster, f.activeGroupTopic()), 1,
+		"exactly one student_checkin on the active-group topic")
+	assert.Len(t, checkinEventsOnTopic(broadcaster, f.eduTopic()), 1,
+		"exactly one student_checkin on the edu:{id} topic")
+	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
+		"exactly one dashboard_counts_changed")
 }
