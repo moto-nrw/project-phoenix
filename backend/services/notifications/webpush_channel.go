@@ -51,6 +51,10 @@ const (
 	pushSendTimeout        = 10 * time.Second
 )
 
+// ErrNoWebPushSubscribers reports that no push service accepted a durable
+// notification because VAPID is unavailable or the audience has no devices.
+var ErrNoWebPushSubscribers = errors.New("no web push subscribers are available")
+
 // webPushChannel delivers notifications as Web Push messages (#2003) to the
 // devices registered in iot.push_subscriptions. Delivery is fire-and-forget:
 // per-subscription failures are logged, expired subscriptions (HTTP 404/410)
@@ -140,7 +144,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 // attempt; normal notifications continue to use Deliver's async path.
 func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) error {
 	if !c.vapid.Configured() {
-		return nil
+		return ErrNoWebPushSubscribers
 	}
 	payload, err := marshalPushPayload(event)
 	if err != nil {
@@ -152,10 +156,13 @@ func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) 
 		subs, resolveErr = c.resolveSubscriptions(txCtx, event.Audience)
 		return resolveErr
 	})
-	if err != nil || len(subs) == 0 {
+	if err != nil {
 		return err
 	}
-	return c.sendAllSynchronously(context.WithoutCancel(ctx), event, payload, subs)
+	if len(subs) == 0 {
+		return ErrNoWebPushSubscribers
+	}
+	return c.sendAllSynchronously(ctx, event, payload, subs)
 }
 
 // DeliverBatch resolves the devices of every recipient in ONE transaction and

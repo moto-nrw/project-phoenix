@@ -444,6 +444,51 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 	}
 }
 
+func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
+	event := Event{Type: "test", Audience: Audience{TenantID: 41, Scope: ScopeTenant}, Title: "Test"}
+
+	t.Run("without VAPID configuration", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		channel.vapid = VAPIDConfig{}
+		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
+	})
+
+	t.Run("without matching subscriptions", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		db, mock := mockTenantTx(t)
+		channel.db = db
+
+		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestWebPushDeliverSynchronouslyPreservesCallerDeadline(t *testing.T) {
+	channel := testChannel(&fakePushRepo{staff: []*iot.PushSubscription{
+		testSub(1, 41, "https://fcm.googleapis.com/device"),
+	}}, &fakeSender{})
+	db, mock := mockTenantTx(t)
+	channel.db = db
+
+	deadline := time.Now().Add(time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	var sendDeadline time.Time
+	channel.sender.(*fakeSender).sendFn = func(sendCtx context.Context) {
+		var ok bool
+		sendDeadline, ok = sendCtx.Deadline()
+		require.True(t, ok, "synchronous sends must inherit the scheduler deadline")
+	}
+
+	require.NoError(t, channel.DeliverSynchronously(ctx, Event{
+		Type:     "test",
+		Audience: Audience{TenantID: 41, Scope: ScopeTenant},
+		Title:    "Test",
+	}))
+	assert.WithinDuration(t, deadline, sendDeadline, 100*time.Millisecond)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // findForStaffAccounts is the batch path's finder. Kept next to the other
 // finders on the same double so both delivery paths see one fake repository.
 func (f *fakePushRepo) FindForStaffAccounts(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {

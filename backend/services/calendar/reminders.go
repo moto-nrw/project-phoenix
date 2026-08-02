@@ -36,6 +36,30 @@ const allDayReminderHour = 8
 // NOTHING, so a re-run, an overlapping window, or a second scheduler process
 // cannot produce a second mail for the same occurrence revision.
 func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return 0, errors.New("calendar: tenant id is required for appointment reminders")
+	}
+
+	// The scheduler already iterates tenants in a transaction, but reminder
+	// e-mails, delivery claims, and their after-commit push dispatch must share
+	// one transaction of their own. Otherwise a later scan error could roll back
+	// an e-mail while a separately committed claim suppresses its push retry.
+	var queued int
+	var dispatchErr error
+	independentCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	err := tenant.WithTenantTx(independentCtx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var enqueueErr error
+		queued, enqueueErr = s.enqueueDueAppointmentReminders(txCtx, from, to, &dispatchErr)
+		return enqueueErr
+	})
+	if err != nil {
+		return queued, err
+	}
+	return queued, dispatchErr
+}
+
+func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to time.Time, dispatchErr *error) (int, error) {
 	if s.cfg.Outbox == nil || !to.After(from) {
 		return 0, nil
 	}
@@ -145,7 +169,7 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 			if startsAt.Before(from) || !startsAt.Before(to) {
 				continue
 			}
-			count, _, err := s.enqueueAppointmentReminder(ctx, current, effective, occurrence)
+			count, _, err := s.enqueueAppointmentReminder(ctx, current, effective, occurrence, dispatchErr)
 			if err != nil {
 				return queued, err
 			}
@@ -241,6 +265,7 @@ func (s *service) enqueueAppointmentReminder(
 	appointment *calModels.Appointment,
 	effective *calModels.Appointment,
 	occurrence timezone.Date,
+	dispatchErr *error,
 ) (int, []int64, error) {
 	guardianIDs, profiles, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
@@ -321,32 +346,42 @@ func (s *service) enqueueAppointmentReminder(
 		if len(claimedProfileIDs) == 0 {
 			continue
 		}
-		dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{accountID})
-		if err != nil || !dispatched {
+		appointmentCopy := *appointment
+		profileIDsCopy := append([]int64(nil), claimedProfileIDs...)
+		postCommitCtx := modelBase.ContextWithoutTx(ctx)
+		tenant.RegisterAfterCommit(ctx, func() {
+			dispatched, err := s.dispatchGuardianAccountReminderDevices(postCommitCtx, &appointmentCopy, []int64{accountID})
+			if err == nil && dispatched {
+				return
+			}
+
 			s.logger().Warn("calendar: appointment reminder push failed",
-				slog.Int64("appointment_id", appointment.ID),
+				slog.Int64("appointment_id", appointmentCopy.ID),
 				slog.Int64("guardian_account_id", accountID),
 			)
 			if err != nil {
 				s.logger().Warn("calendar: appointment reminder push error",
-					slog.Int64("appointment_id", appointment.ID),
+					slog.Int64("appointment_id", appointmentCopy.ID),
 					slog.Int64("guardian_account_id", accountID),
 					slog.String("error", err.Error()),
 				)
 			}
-			for _, profileID := range claimedProfileIDs {
-				if releaseErr := s.releaseReminderPush(ctx, appointment, occurrence, profileID); releaseErr != nil {
-					return queued, nil, fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
+			for _, profileID := range profileIDsCopy {
+				if releaseErr := s.releaseReminderPush(postCommitCtx, &appointmentCopy, occurrence, profileID); releaseErr != nil {
+					if *dispatchErr == nil {
+						*dispatchErr = fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
+					}
+					return
 				}
 			}
-			if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
-				continue
+			if *dispatchErr == nil {
+				if err != nil {
+					*dispatchErr = fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
+				} else {
+					*dispatchErr = errors.New("calendar: appointment reminder push was not accepted")
+				}
 			}
-			if err != nil {
-				return queued, nil, fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
-			}
-			return queued, nil, fmt.Errorf("calendar: appointment reminder push was not accepted")
-		}
+		})
 	}
 
 	s.logger().Info("appointment reminders queued",
@@ -357,18 +392,11 @@ func (s *service) enqueueAppointmentReminder(
 	return queued, nil, nil
 }
 
-// Reminder delivery claims must commit before external Web Push I/O. The
-// scheduler invokes this method in a wider tenant transaction; using a fresh
-// transaction here prevents a later database error from rolling back a claim
-// after a push service has already accepted the notification.
+// Reminder delivery claims are created in the same transaction as the e-mail
+// outbox row. The push is dispatched by an after-commit hook, so a durable
+// claim can never outlive a rolled-back reminder.
 func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) (bool, error) {
-	var claimed bool
-	err := tenant.WithTenantTx(modelBase.ContextWithoutTx(ctx), s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var err error
-		claimed, err = s.cfg.RecipientRepo.ClaimReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
-		return err
-	})
-	return claimed, err
+	return s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID)
 }
 
 func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
