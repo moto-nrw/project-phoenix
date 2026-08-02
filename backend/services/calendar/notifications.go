@@ -283,20 +283,9 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 			return err
 		}
 		accountIDs = guardianAccountIDs(guardianIDs, profiles)
-		return nil
+		_, err = s.dispatchGuardianAccountDevices(txCtx, current, kind, accountIDs)
+		return err
 	})
-	if err != nil {
-		s.logger().Warn("calendar: resolve guardian recipients for push failed",
-			slog.Int64("appointment_id", appointment.ID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	s.notifyGuardianAccountDevices(ctx, appointment, kind, accountIDs)
-}
-
-func (s *service) notifyGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs []int64) {
-	_, err := s.dispatchGuardianAccountDevices(ctx, appointment, kind, accountIDs)
 	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
 		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",
 			slog.Int64("appointment_id", appointment.ID),
@@ -304,7 +293,7 @@ func (s *service) notifyGuardianAccountDevices(ctx context.Context, appointment 
 			slog.String("reason", err.Error()),
 		)
 	} else if err != nil {
-		s.logger().Warn("calendar: appointment push failed",
+		s.logger().Warn("calendar: queue guardian appointment push failed",
 			slog.Int64("appointment_id", appointment.ID),
 			slog.String("error", err.Error()),
 		)

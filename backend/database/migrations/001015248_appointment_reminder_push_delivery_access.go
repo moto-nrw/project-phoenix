@@ -94,6 +94,13 @@ func appointmentReminderPushDeliveryAccessDown(ctx context.Context, db *bun.DB) 
 	_, err := db.ExecContext(ctx, `
 		DROP FUNCTION IF EXISTS calendar.release_appointment_reminder_push_delivery(BIGINT, INTEGER, DATE, BIGINT);
 		DROP FUNCTION IF EXISTS calendar.claim_appointment_reminder_push_delivery(BIGINT, INTEGER, DATE, BIGINT);
+
+		CREATE POLICY tenant_isolation_calendar_appointment_reminder_push_deliveries
+			ON calendar.appointment_reminder_push_deliveries FOR ALL
+			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+		GRANT SELECT, INSERT, UPDATE, DELETE ON calendar.appointment_reminder_push_deliveries TO phoenix_tenant;
+		GRANT USAGE ON SEQUENCE calendar.appointment_reminder_push_deliveries_id_seq TO phoenix_tenant;
 	`)
 	if err != nil {
 		return fmt.Errorf("restore appointment reminder push delivery access: %w", err)
