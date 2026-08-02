@@ -1220,7 +1220,7 @@ function AnnouncementFormModal({
                     onChange={(e) => setMultiChoice(e.target.checked)}
                   />
                   <span className="text-sm text-gray-800">
-                    Mehrfachauswahl erlauben
+                    <span className="block">Mehrfachauswahl erlauben</span>
                     <span className="block text-xs text-gray-500">
                       Eltern können pro Kind mehrere Antworten auswählen.
                     </span>
@@ -1315,7 +1315,7 @@ function AnnouncementFormModal({
                     onChange={(e) => setRequiresAck(e.target.checked)}
                   />
                   <span className="text-sm text-gray-800">
-                    Lesebestätigung erforderlich
+                    <span className="block">Lesebestätigung erforderlich</span>
                     <span className="block text-xs text-gray-500">
                       Eltern bestätigen ausdrücklich, dass sie die Mitteilung
                       gelesen haben.
@@ -1334,7 +1334,9 @@ function AnnouncementFormModal({
                   onChange={(e) => setSendEmail(e.target.checked)}
                 />
                 <span className="text-sm text-gray-800">
-                  Eltern zusätzlich per E-Mail benachrichtigen
+                  <span className="block">
+                    Eltern zusätzlich per E-Mail benachrichtigen
+                  </span>
                   <span className="block text-xs text-gray-500">
                     Beim Veröffentlichen erhalten die erreichten Eltern eine
                     E-Mail mit Titel und Link ins Elternportal.

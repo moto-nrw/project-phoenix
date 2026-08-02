@@ -183,8 +183,12 @@ function usePollAnswers(
   };
 
   const isDirty = (child: ParentAnnouncementPollChild): boolean => {
-    const saved = [...child.selected_options].sort().join(",");
-    const current = [...selectionFor(child)].sort().join(",");
+    const saved = [...child.selected_options]
+      .sort((a, b) => a.localeCompare(b))
+      .join(",");
+    const current = [...selectionFor(child)]
+      .sort((a, b) => a.localeCompare(b))
+      .join(",");
     return saved !== current;
   };
   const dirtyChildren = children.filter(isDirty);
