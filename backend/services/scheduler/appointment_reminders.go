@@ -100,10 +100,12 @@ func (s *Scheduler) advanceAppointmentReminderWindow(now time.Time) (time.Time, 
 	s.appointmentReminderScanMu.Lock()
 	defer s.appointmentReminderScanMu.Unlock()
 
-	// Re-scan the full bounded recovery window on every tick. A tenant that
-	// failed in a previous pass must be retried even if the failure happened
-	// before the normal polling overlap.
-	from := now.Add(-appointmentReminderMaxLookback)
+	from := s.appointmentReminderScannedAt
+	if from.IsZero() || now.Sub(from) > appointmentReminderMaxLookback {
+		// On startup or after a long pause, recover only the useful bounded
+		// lookback so a prolonged outage does not mail stale reminders.
+		from = now.Add(-appointmentReminderMaxLookback)
+	}
 	s.appointmentReminderScannedAt = now
 	return from, now
 }

@@ -192,6 +192,7 @@ describe("StaffCalendarPage", () => {
         all_day: false,
         overview_visibility: "organizer",
         delivery_mode: "informational",
+        notify_guardians: true,
       },
       recurrence: {
         frequency: "weekly",
@@ -223,7 +224,7 @@ describe("StaffCalendarPage", () => {
     await waitFor(() =>
       expect(mockUpdateStaffAppointment).toHaveBeenCalledWith(
         "5",
-        expect.objectContaining({ start_date: "2026-01-05" }),
+        expect.objectContaining({ start_date: "2026-01-05", send_email: true }),
       ),
     );
     // Never sends the occurrence date as the new series anchor.

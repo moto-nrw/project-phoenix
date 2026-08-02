@@ -47,7 +47,7 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 			"a zero-valued last-scan recovers useful reminders without scanning indefinitely")
 	})
 
-	t.Run("every tick retries the bounded recovery window", func(t *testing.T) {
+	t.Run("consecutive ticks cover adjacent windows", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		second := first.Add(7 * time.Minute)
@@ -55,8 +55,8 @@ func TestAdvanceAppointmentReminderWindow(t *testing.T) {
 		_, _ = s.advanceAppointmentReminderWindow(first)
 		secondFrom, secondTo := s.advanceAppointmentReminderWindow(second)
 
-		assert.Equal(t, secondTo.Add(-appointmentReminderMaxLookback), secondFrom,
-			"every tick retries the full bounded recovery window")
+		assert.Equal(t, first, secondFrom,
+			"a normal tick resumes at the prior scan boundary")
 		assert.Equal(t, second, secondTo)
 	})
 

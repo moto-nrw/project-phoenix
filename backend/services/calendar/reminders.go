@@ -306,7 +306,7 @@ func (s *service) enqueueAppointmentReminder(
 	for accountID, profileIDs := range pushProfilesByAccount {
 		claimedProfileIDs := profileIDs[:0]
 		for _, profileID := range profileIDs {
-			claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, occurrence, profileID)
+			claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID)
 			if err != nil {
 				return queued, nil, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
 			}
@@ -331,7 +331,7 @@ func (s *service) enqueueAppointmentReminder(
 				)
 			}
 			for _, profileID := range claimedProfileIDs {
-				if releaseErr := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, occurrence, profileID); releaseErr != nil {
+				if releaseErr := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID); releaseErr != nil {
 					return queued, nil, fmt.Errorf("calendar: release reminder push delivery: %w", releaseErr)
 				}
 			}

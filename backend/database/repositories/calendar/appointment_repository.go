@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -617,20 +618,24 @@ func (r *AppointmentRecipientRepository) UpdateResponse(ctx context.Context, rec
 	return base.AssertRowsAffected(res, 1, "update calendar recipient response")
 }
 
-func (r *AppointmentRecipientRepository) ClaimReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error) {
-	if appointmentID <= 0 || guardianProfileID <= 0 || occurrenceDate.IsZero() {
-		return false, errors.New("appointment id, occurrence date, and guardian profile id are required")
+func (r *AppointmentRecipientRepository) ClaimReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error) {
+	if appointmentID <= 0 || revision < 0 || guardianProfileID <= 0 || occurrenceDate.IsZero() {
+		return false, errors.New("appointment id, revision, occurrence date, and guardian profile id are required")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return false, errors.New("tenant id is required")
 	}
 
 	var id int64
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		INSERT INTO calendar.appointment_reminder_push_deliveries
-			(tenant_id, appointment_id, occurrence_date, guardian_profile_id)
+			(tenant_id, appointment_id, appointment_revision, occurrence_date, guardian_profile_id)
 		VALUES
-			(NULLIF(current_setting('app.current_tenant_id', true), '')::bigint, ?, ?, ?)
-		ON CONFLICT (tenant_id, appointment_id, occurrence_date, guardian_profile_id) DO NOTHING
+			(?, ?, ?, ?, ?)
+		ON CONFLICT (tenant_id, appointment_id, appointment_revision, occurrence_date, guardian_profile_id) DO NOTHING
 		RETURNING id
-	`, appointmentID, occurrenceDate, guardianProfileID).Scan(ctx, &id)
+	`, tenantID, appointmentID, revision, occurrenceDate, guardianProfileID).Scan(ctx, &id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -640,16 +645,21 @@ func (r *AppointmentRecipientRepository) ClaimReminderPush(ctx context.Context, 
 	return id > 0, nil
 }
 
-func (r *AppointmentRecipientRepository) ReleaseReminderPush(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date, guardianProfileID int64) error {
-	if appointmentID <= 0 || guardianProfileID <= 0 || occurrenceDate.IsZero() {
-		return errors.New("appointment id, occurrence date, and guardian profile id are required")
+func (r *AppointmentRecipientRepository) ReleaseReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) error {
+	if appointmentID <= 0 || revision < 0 || guardianProfileID <= 0 || occurrenceDate.IsZero() {
+		return errors.New("appointment id, revision, occurrence date, and guardian profile id are required")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("tenant id is required")
 	}
 
 	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*calModels.AppointmentRecipient)(nil)).
 		ModelTableExpr(`calendar.appointment_reminder_push_deliveries AS "delivery"`).
-		Where(`"delivery".tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint`).
+		Where(`"delivery".tenant_id = ?`, tenantID).
 		Where(`"delivery".appointment_id = ?`, appointmentID).
+		Where(`"delivery".appointment_revision = ?`, revision).
 		Where(`"delivery".occurrence_date = ?`, occurrenceDate).
 		Where(`"delivery".guardian_profile_id = ?`, guardianProfileID).
 		Exec(ctx)
