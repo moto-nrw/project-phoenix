@@ -1763,6 +1763,23 @@ describe("useGlobalSSE", () => {
       expect(matchedKeys(searchKeys)).toEqual(searchKeys);
     });
 
+    it("refreshes every Kindersuche view on a group-access change", () => {
+      // A handover or leader change rewrites the viewer's own has_full_access
+      // for whole groups. It carries no group id and the affected tab is keyed
+      // on a different group than the changed one, so this one stays broad.
+      // Before #2097 it rode along on any check-in in the school; the scoping
+      // removed that crutch, so it needs its own trigger.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(searchKeys)).toEqual(searchKeys);
+    });
+
     it("request-budget guard: a foreign group's check-in leaves a filtered Kindersuche tab alone", () => {
       // The acceptance criterion of #2097: a check-in in group 7 (with the
       // tenant-wide active_supervision_changed that always accompanies it)

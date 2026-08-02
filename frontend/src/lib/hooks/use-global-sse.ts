@@ -417,7 +417,18 @@ export function useGlobalSSE(): SSEHookState {
         hasPendingBroadOgsEvent.current ||
         hasPendingArrivalScheduleEvent.current ||
         hasPendingPickupScheduleEvent.current ||
-        hasPendingStudentUpdateEvent.current;
+        hasPendingStudentUpdateEvent.current ||
+        // A group handover or leader change rewrites GetMyGroups and with it
+        // the has_full_access of every row (services/usercontext/
+        // student_access.go), which decides whether a card shows absence,
+        // times and the precise location at all. Broad, never scoped: the
+        // event deliberately carries no group id, and the recipient's tab is
+        // keyed on the group they were already viewing, not on the changed
+        // one (#2084). Until #2097 this rode along on every check-in in the
+        // school via hasPendingDashboardEvent; with the scoping above that
+        // crutch is gone, so the trigger has to be explicit. Rare event, so
+        // the extra refetch costs nothing in practice.
+        hasPendingGroupAccessEvent.current;
       const scopedEduGroupIds = new Set(pendingEduGroupIds.current);
       if (broadSearch || scopedEduGroupIds.size > 0) {
         mutate(
