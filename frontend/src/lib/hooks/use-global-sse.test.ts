@@ -697,13 +697,14 @@ describe("useGlobalSSE — companion announcements", () => {
   const AUFSICHT_PICKUP_KEY = "t1:pickup-supervisions-2026-07-22-7,8,9";
   const AUFSICHT_ARRIVAL_KEY = "t1:arrival-supervisions-2026-07-22-7,8,9";
 
-  it("refreshes the Aufsicht pickup cache on pickup_schedule_changed", () => {
+  // Fires one event, flushes the burst debounce, and asserts that some matcher
+  // handed to mutate() claims each key.
+  function expectEventInvalidates(
+    event: Parameters<typeof fireSSE>[0],
+    keys: readonly string[],
+  ) {
     renderHook(() => useGlobalSSE());
-
-    // A staff Gehzeit write (weekly plan or date exception) emits only this
-    // event — see api/students/pickup_schedule_handlers.go. The supervising
-    // staff member watching the room is exactly who must see the new time.
-    fireSSE(makeEvent("pickup_schedule_changed", {}));
+    fireSSE(event);
     act(() => {
       vi.advanceTimersByTime(500);
     });
@@ -714,38 +715,34 @@ describe("useGlobalSSE — companion announcements", () => {
         (matcher): matcher is (key: unknown) => boolean =>
           typeof matcher === "function",
       );
-    expect(
-      matchers.some((matcher) => matcher(AUFSICHT_PICKUP_KEY)),
-      "pickup_schedule_changed must invalidate the Aufsicht pickup cache",
-    ).toBe(true);
+    for (const key of keys) {
+      expect(
+        matchers.some((matcher) => matcher(key)),
+        `${event.type} must invalidate ${key}`,
+      ).toBe(true);
+    }
+  }
+
+  it("refreshes the Aufsicht pickup cache on pickup_schedule_changed", () => {
+    // A staff Gehzeit write (weekly plan or date exception) emits only this
+    // event — see api/students/pickup_schedule_handlers.go. The supervising
+    // staff member watching the room is exactly who must see the new time.
+    expectEventInvalidates(makeEvent("pickup_schedule_changed", {}), [
+      AUFSICHT_PICKUP_KEY,
+    ]);
   });
 
   it("refreshes both Aufsicht time caches on student_updated", () => {
-    renderHook(() => useGlobalSSE());
-
     // A parent care exception (submit AND delete) rewrites that day's pickup
     // and arrival override under student_updated alone, and an approved care
     // request rewrites the weekly pickup plan while announcing only
     // student_updated + arrival_schedule_changed. Both writes can target a
     // child already standing in the room, so neither rotates the roster-keyed
     // cache key.
-    fireSSE(makeEvent("student_updated", { student_id: "7" }));
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-
-    const matchers = mockMutate.mock.calls
-      .map(([matcher]) => matcher)
-      .filter(
-        (matcher): matcher is (key: unknown) => boolean =>
-          typeof matcher === "function",
-      );
-    for (const key of [AUFSICHT_PICKUP_KEY, AUFSICHT_ARRIVAL_KEY]) {
-      expect(
-        matchers.some((matcher) => matcher(key)),
-        `student_updated must invalidate ${key}`,
-      ).toBe(true);
-    }
+    expectEventInvalidates(makeEvent("student_updated", { student_id: "7" }), [
+      AUFSICHT_PICKUP_KEY,
+      AUFSICHT_ARRIVAL_KEY,
+    ]);
   });
 
   it("does not revalidate another child whose id merely starts with the event's", () => {
