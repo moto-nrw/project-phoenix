@@ -132,6 +132,25 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 		renderDocumentError(w, r, err)
 		return
 	}
+	// Retry any unlink that failed after a prior committed metadata delete.
+	// The durable soft-deleted row supplies the filename; category filtering
+	// ensures a list caller never triggers cleanup outside their authority.
+	if storedNames, err := rs.StaffDocumentService.ListDeletedStaffDocumentFiles(r.Context(), id, actor); err != nil {
+		rs.getLogger().Warn("staff document cleanup retry lookup failed",
+			"staff_id", id,
+			"error", err,
+		)
+	} else {
+		for _, storedName := range storedNames {
+			if err := rs.removeStoredDocument(r, storedName); err != nil {
+				rs.getLogger().Warn("staff document cleanup retry failed",
+					"staff_id", id,
+					"stored_name", storedName,
+					"error", err,
+				)
+			}
+		}
+	}
 	resp := &StaffDocumentListResponse{
 		StaffID:           id,
 		Documents:         make([]StaffDocumentResponse, 0, len(infos)),

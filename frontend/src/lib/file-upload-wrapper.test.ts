@@ -114,7 +114,31 @@ describe("createFileUploadHandler", () => {
         method: "POST",
         body: new FormData(),
       });
-      request.headers.set("content-length", String(7 * 1024 * 1024));
+      request.headers.set("content-length", String(8 * 1024 * 1024));
+      const context = { params: Promise.resolve({}) };
+
+      const response = await wrappedHandler(request, context);
+
+      expect(response.status).toBe(413);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("rejects an oversized chunked request without Content-Length", async () => {
+      const handler = vi.fn();
+      const wrappedHandler = createFileUploadHandler(handler, {
+        maxSizeInMB: 1,
+      });
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(4 * 1024 * 1024));
+          controller.close();
+        },
+      });
+      const request = new NextRequest("http://localhost:3000/api/upload", {
+        method: "POST",
+        headers: { "content-type": "multipart/form-data; boundary=test" },
+        body: stream,
+      });
       const context = { params: Promise.resolve({}) };
 
       const response = await wrappedHandler(request, context);

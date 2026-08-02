@@ -100,6 +100,9 @@ type StaffDocumentRepository interface {
 	// ListStoredByStaffID returns all stored filenames, including soft-deleted
 	// rows, for after-commit filesystem cleanup during staff offboarding.
 	ListStoredByStaffID(ctx context.Context, staffID int64) ([]string, error)
+	// ListDeletedStoredByStaffID returns soft-deleted stored filenames limited
+	// to visible categories, so normal document-list reads can retry cleanup.
+	ListDeletedStoredByStaffID(ctx context.Context, staffID int64, categories []string) ([]string, error)
 	// FindForStaffIncludingDeleted loads a document by the staff/document URL
 	// pair even after its metadata was soft-deleted, so filesystem cleanup can
 	// be retried without exposing unrelated records.

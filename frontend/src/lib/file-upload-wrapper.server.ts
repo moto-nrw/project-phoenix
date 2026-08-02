@@ -11,7 +11,7 @@ interface FileUploadOptions {
   allowedExtensions?: string[];
 }
 
-const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
+const MULTIPART_OVERHEAD_BYTES = 2 * 1024 * 1024;
 
 /** Error thrown by file validation with the appropriate HTTP status code. */
 export class FileValidationError extends Error {
@@ -93,6 +93,57 @@ function validateFile(file: File, options: FileUploadOptions): void {
   }
 }
 
+async function parseBoundedMultipartFormData(
+  request: NextRequest,
+  maxSizeInBytes: number,
+): Promise<FormData> {
+  const maxBodySize = maxSizeInBytes + MULTIPART_OVERHEAD_BYTES;
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null && Number(contentLength) > maxBodySize) {
+    throw new FileValidationError(
+      `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
+      413,
+    );
+  }
+
+  if (!request.body) {
+    return request.formData();
+  }
+
+  const reader = request.body.getReader();
+  const chunks: ArrayBuffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      size += value.byteLength;
+      if (size > maxBodySize) {
+        await reader.cancel();
+        throw new FileValidationError(
+          `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
+          413,
+        );
+      }
+      const chunk = new Uint8Array(value.byteLength);
+      chunk.set(value);
+      chunks.push(chunk.buffer);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return new Request(request.url, {
+    method: request.method,
+    headers: {
+      "content-type": request.headers.get("content-type") ?? "",
+    },
+    body: new Blob(chunks),
+  }).formData();
+}
+
 /**
  * Wrapper function for handling file upload API routes
  */
@@ -133,19 +184,10 @@ export function createFileUploadHandler<T>(
 
         // Get form data
         const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
-        const contentLength = request.headers.get("content-length");
-        if (
-          contentLength !== null &&
-          Number(contentLength) > maxSizeInBytes + MULTIPART_OVERHEAD_BYTES
-        ) {
-          return NextResponse.json(
-            {
-              error: `Request body exceeds ${options?.maxSizeInMB ?? 5}MB limit`,
-            },
-            { status: 413 },
-          );
-        }
-        const formData = await request.formData();
+        const formData = await parseBoundedMultipartFormData(
+          request,
+          maxSizeInBytes,
+        );
 
         // Validate all files in the form data — return the semantically correct
         // HTTP status (413/415/422) instead of letting validation errors fall

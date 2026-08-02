@@ -103,6 +103,27 @@ func (r *StaffDocumentRepository) ListStoredByStaffID(ctx context.Context, staff
 	return filenames, nil
 }
 
+func (r *StaffDocumentRepository) ListDeletedStoredByStaffID(ctx context.Context, staffID int64, categories []string) ([]string, error) {
+	if len(categories) == 0 {
+		return []string{}, nil
+	}
+	var filenames []string
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.StaffDocument)(nil)).
+		ModelTableExpr(`users.staff_documents AS "staff_document"`).
+		ColumnExpr(`"staff_document".filename_stored`).
+		Where(`"staff_document".staff_id = ?`, staffID).
+		Where(`"staff_document".category IN (?)`, bun.List(categories)).
+		Where(`"staff_document".deleted_at IS NOT NULL`).
+		WhereAllWithDeleted()
+
+	query = base.WithTenantFilter(ctx, query, "staff_document")
+	if err := query.Scan(ctx, &filenames); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list deleted stored staff documents", Err: err}
+	}
+	return filenames, nil
+}
+
 // SoftDelete stamps deleted_at and deleted_by in one update. The model's
 // soft_delete tag then hides the row from every subsequent select.
 func (r *StaffDocumentRepository) SoftDelete(ctx context.Context, doc *users.StaffDocument, deletedBy int64) error {

@@ -88,6 +88,9 @@ type StaffDocumentService interface {
 	// offboarding after-commit cleanup attempt. Repeated offboarding retries
 	// files left behind by an earlier failed unlink.
 	ListStoredStaffDocumentFiles(ctx context.Context, staffID int64) ([]string, error)
+	// ListDeletedStaffDocumentFiles returns failed-cleanup candidates only for
+	// categories the caller may access.
+	ListDeletedStaffDocumentFiles(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]string, error)
 	// ResolveStaffDocumentCleanup authorizes a retry of the filesystem cleanup
 	// for a document that may already be soft-deleted.
 	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error)
@@ -354,6 +357,10 @@ func (s *staffDocumentService) DeleteStaffDocument(ctx context.Context, staffID,
 
 func (s *staffDocumentService) ListStoredStaffDocumentFiles(ctx context.Context, staffID int64) ([]string, error) {
 	return s.documents.ListStoredByStaffID(ctx, staffID)
+}
+
+func (s *staffDocumentService) ListDeletedStaffDocumentFiles(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]string, error) {
+	return s.documents.ListDeletedStoredByStaffID(ctx, staffID, visibleStaffDocumentCategories(actor))
 }
 
 func (s *staffDocumentService) ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*userModels.StaffDocument, error) {
