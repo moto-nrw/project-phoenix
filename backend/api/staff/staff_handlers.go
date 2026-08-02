@@ -136,6 +136,32 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
+// getFinancialProfile returns only the identity needed to operate the
+// staff:financial Stammdaten section. It deliberately excludes the generic
+// profile's notes, RFID, account, presence, and absence data.
+func (rs *Resource) getFinancialProfile(w http.ResponseWriter, r *http.Request) {
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
+		return
+	}
+	staff, err := rs.PersonService.GetStaffWithPerson(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		return
+	}
+	rs.ensureStaffPerson(r.Context(), staff)
+	if staff.Person == nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"id":        staff.ID,
+		"name":      staff.Person.FirstName + " " + staff.Person.LastName,
+		"firstName": staff.Person.FirstName,
+		"lastName":  staff.Person.LastName,
+	}, "Financial staff profile retrieved successfully")
+}
+
 // ensureStaffPerson lazily loads the linked person when GetStaffWithPerson did
 // not populate it. Best-effort: a failure is logged, not fatal.
 func (rs *Resource) ensureStaffPerson(ctx context.Context, staff *users.Staff) {
