@@ -308,7 +308,11 @@ new one:
   guardian whose access was revoked gets none of the three, and a school with
   parent messaging switched off gets none either (the pill is that school's
   in-app channel too, and pushing about something the app does not show would be
-  a dead end).
+  a dead end). The push runs in a transaction of its own and therefore re-reads
+  the child access there instead of inheriting the pill transaction's verdict —
+  a payload rendered on a lock screen answers that question against the row the
+  sending transaction sees. The recheck can only narrow the push against the
+  pill, never widen it.
 
 ### Appointment reminders (scheduler task `appointment-reminders`)
 

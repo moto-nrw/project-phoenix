@@ -96,6 +96,49 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 		"the pill and the push are the same event, not two code paths")
 }
 
+// revokedBeforePush answers the child's guardian list truthfully once — for the
+// pill's transaction — and empty afterwards, which is exactly what the push
+// transaction sees when the guardian's parent_portal.access is withdrawn in
+// between the two.
+type revokedBeforePush struct {
+	usersModels.ParentMessageThreadRepository
+	reads int
+}
+
+func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*usersModels.MessageableGuardian, error) {
+	r.reads++
+	if r.reads > 1 {
+		return nil, nil
+	}
+	return r.ParentMessageThreadRepository.ListGuardiansForStudent(ctx, studentID)
+}
+
+// The push runs in its own transaction, so it asks the access question again
+// instead of trusting the answer the pill's (already committed) transaction got.
+func TestEmitChildEvent_DecisionPushRechecksChildAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: repos.ParentMessageThread}
+	notifier := &capturingNotifier{}
+	emitter := parentmessaging.NewEmitter(db, threadRepo, repos.ParentMessage,
+		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
+		WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
+
+	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, staffDecision(chain.AccountID, 309))
+
+	assert.Empty(t, notifier.events,
+		"an account the parent APIs now hide must not be told about the child on a lock screen")
+	assert.Equal(t, 2, threadRepo.reads,
+		"the push must read the access itself, not inherit the pill's verdict")
+	_, msgs := threadPills(t, db, repos, chain)
+	assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
+		"the staff timeline still gets its closing pill")
+}
+
 func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { require.NoError(t, db.Close()) }()

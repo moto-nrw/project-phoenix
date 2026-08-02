@@ -309,7 +309,10 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	// guardian whose access was revoked gets none of the three, and a school with
 	// messaging off gets none either — the decision pill is that school's
 	// in-app channel too, and pushing about something the app does not show
-	// would be a dead end.
+	// would be a dead end. The push additionally re-reads the access itself (see
+	// notifyRequestDecision): it runs in a transaction of its own, so it must not
+	// inherit a verdict from one that has already committed. That can only make
+	// the push narrower than the pill, never wider.
 	if !messagingOff && !skipGuardianBroadcast {
 		e.notifyRequestDecision(tenantID, studentID, guardianAccountID, ev)
 	}
@@ -363,17 +366,31 @@ func requestDecisionCopy(requestType, requestStatus string) (title, body string)
 // itself. Fire-and-forget on a detached background context, like everything else
 // past the emitter's own commit.
 func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID int64, ev ChildEvent) {
-	if e.notifier == nil || e.preferences == nil || e.db == nil {
+	if e.notifier == nil || e.preferences == nil || e.db == nil || e.threadRepo == nil {
 		return
 	}
 	if !isStaffDecisionPill(ev) {
 		return
 	}
 
-	// The consent read and the delivery are RLS-scoped, so they need a tenant
-	// transaction of their own — the originating one committed long ago.
+	// The access recheck, the consent read and the delivery are RLS-scoped, so
+	// they need a tenant transaction of their own — the pill's transaction
+	// committed before this call.
 	bgCtx := context.Background()
 	err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Authorization first, and read here rather than carried over from the
+		// pill's transaction: a push payload is rendered on a lock screen, so the
+		// question "may this account still hear about this child?" is answered
+		// against the students_guardians row this transaction sees, not against a
+		// verdict from a snapshot that is already history. Consent is the second
+		// gate and never a substitute for the first.
+		hasAccess, aerr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
+		if aerr != nil {
+			return aerr
+		}
+		if !hasAccess {
+			return nil
+		}
 		optedIn, ferr := e.preferences.FilterOptedIn(txCtx, notifications.TypeParentRequestDecided, []int64{guardianAccountID})
 		if ferr != nil {
 			return ferr
