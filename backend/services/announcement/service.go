@@ -460,38 +460,20 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	}
 	var accountIDs []int64
 	seen := make(map[int64]struct{})
-	if a.IsPoll() {
-		recipients, err := s.repo.UnansweredReminderRecipients(ctx, a.GetTenantID(), a.ID)
-		if err != nil {
-			return fmt.Errorf("resolve poll guardian recipients: %w", err)
+	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
+	if err != nil {
+		return fmt.Errorf("resolve guardian recipients: %w", err)
+	}
+	accountIDs = make([]int64, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.AccountID <= 0 {
+			continue
 		}
-		accountIDs = make([]int64, 0, len(recipients))
-		for _, recipient := range recipients {
-			if recipient.AccountID <= 0 {
-				continue
-			}
-			if _, exists := seen[recipient.AccountID]; exists {
-				continue
-			}
-			seen[recipient.AccountID] = struct{}{}
-			accountIDs = append(accountIDs, recipient.AccountID)
+		if _, exists := seen[recipient.AccountID]; exists {
+			continue
 		}
-	} else {
-		recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
-		if err != nil {
-			return fmt.Errorf("resolve guardian recipients: %w", err)
-		}
-		accountIDs = make([]int64, 0, len(recipients))
-		for _, recipient := range recipients {
-			if recipient.AccountID <= 0 {
-				continue
-			}
-			if _, exists := seen[recipient.AccountID]; exists {
-				continue
-			}
-			seen[recipient.AccountID] = struct{}{}
-			accountIDs = append(accountIDs, recipient.AccountID)
-		}
+		seen[recipient.AccountID] = struct{}{}
+		accountIDs = append(accountIDs, recipient.AccountID)
 	}
 	if len(accountIDs) == 0 {
 		return nil
@@ -569,26 +551,10 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	}
 	tenantID := a.GetTenantID()
 	var recipients []*usersModels.AnnouncementRecipient
-	if a.IsPoll() {
-		pollRecipients, err := s.repo.UnansweredReminderRecipients(ctx, tenantID, a.ID)
-		if err != nil {
-			return fmt.Errorf("announcement: resolve poll e-mail recipients: %w", err)
-		}
-		recipients = make([]*usersModels.AnnouncementRecipient, 0, len(pollRecipients))
-		for _, recipient := range pollRecipients {
-			recipients = append(recipients, &usersModels.AnnouncementRecipient{
-				AccountID: recipient.AccountID,
-				Email:     recipient.Email,
-				FirstName: recipient.FirstName,
-				LastName:  recipient.LastName,
-			})
-		}
-	} else {
-		var err error
-		recipients, err = s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
-		if err != nil {
-			return fmt.Errorf("announcement: resolve audience e-mails: %w", err)
-		}
+	var err error
+	recipients, err = s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
+	if err != nil {
+		return fmt.Errorf("announcement: resolve audience e-mails: %w", err)
 	}
 	if len(recipients) == 0 {
 		return nil

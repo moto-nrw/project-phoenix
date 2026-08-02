@@ -399,14 +399,18 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 	}
 }
 
-func TestPublish_PollNotifiesOnlyResponsePermittedGuardians(t *testing.T) {
+func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
 	poll := draftAnnouncement(true)
 	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
 	repo := &fakeAnnouncementRepo{
 		announcement: poll,
 		// The general audience contains a portal-visible guardian who may not
-		// respond. Poll publication must ignore that broader audience.
+		// respond. Publication still reaches them; response permission matters
+		// only for manual unanswered reminders.
 		audience: []*usersModels.AnnouncementRecipientStatus{{AccountID: 999}},
+		recipients: []*usersModels.AnnouncementRecipient{
+			{AccountID: 999, Email: "viewer@example.test"},
+		},
 		reminders: []*usersModels.AnnouncementPollReminderRecipient{
 			{AccountID: 101, Email: "permitted@example.test"},
 		},
@@ -425,10 +429,10 @@ func TestPublish_PollNotifiesOnlyResponsePermittedGuardians(t *testing.T) {
 	if _, err := svc.Publish(context.Background(), poll.ID); err != nil {
 		t.Fatalf("publish poll: %v", err)
 	}
-	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
+	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{999}) {
 		t.Fatalf("unexpected poll push audience: %+v", notifier.events)
 	}
-	if len(outbox.requests) != 1 || outbox.requests[0].Payload[emailPayloadRecipient] != "permitted@example.test" {
+	if len(outbox.requests) != 1 || outbox.requests[0].Payload[emailPayloadRecipient] != "viewer@example.test" {
 		t.Fatalf("unexpected poll e-mail audience: %+v", outbox.requests)
 	}
 }

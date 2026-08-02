@@ -476,7 +476,8 @@ func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantI
 			WHERE resp.announcement_id = ? AND resp.tenant_id = ? AND resp.student_id = s.id
 		) ans ON TRUE
 		ORDER BY last_name ASC, first_name ASC, student_id ASC`
-	sqlArgs := append(append(append([]any{}, args...), args...), announcementID, tenantID)
+	sqlArgs := append(append([]any{}, args...), args...)
+	sqlArgs = append(sqlArgs, announcementID, tenantID)
 	var rows []*users.AnnouncementPollChildStatus
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "parent announcement poll children", Err: err}
