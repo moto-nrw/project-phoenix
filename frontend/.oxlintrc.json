@@ -9,6 +9,7 @@
   ],
   "jsPlugins": [
     "./scripts/oxlint-plugin-date-safety.mjs",
+    "./scripts/oxlint-plugin-logging-safety.mjs",
     "./scripts/oxlint-plugin-ui-kit.mjs"
   ],
   "categories": {
@@ -18,6 +19,7 @@
   },
   "rules": {
     "date-safety/no-utc-date-extraction": "error",
+    "logging-safety/no-serialized-context": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",
     "ui-kit/no-rounded-3xl": "error",
