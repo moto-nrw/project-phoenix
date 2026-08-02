@@ -101,7 +101,7 @@ Per-school config resolves tenant DB override → registry default; the service 
 - Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
 - Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see Development Commands for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`
-- **Logging: no student names at Info level or above** (IDs only; names at Debug)
+- **Logging: no student names at Info level or above** (IDs only; names at Debug) — CI-enforced by `TestGDPRLogPIIRatchet` (`test/gdpr_log_pii_ratchet_test.go`): no log call at Info+ may read `FirstName`/`LastName`/`GreetingMsg`, and the IoT tree additionally bans name-bearing log keys. Which check-in fields stay, why, and how long: `docs/gdpr-checkin-logging.md`
 
 ### Guardian Parent-Portal Permissions
 
