@@ -105,9 +105,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 		s := &Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings: &fakeSettingsResolver{intValues: map[string]int{
-				configModel.KeyCalendarAppointmentReminderLeadHours: 24,
-			}},
+			settings:             appointmentReminderSettings(24, true),
 		}
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
@@ -121,11 +119,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 		s := &Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings: &fakeSettingsResolver{
-				intValues: map[string]int{
-					configModel.KeyCalendarAppointmentReminderLeadHours: 12,
-				},
-			},
+			settings:             appointmentReminderSettings(12, true),
 		}
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
@@ -142,11 +136,7 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 		s := &Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings: &fakeSettingsResolver{
-				boolValues: map[string]bool{
-					configModel.KeyCalendarAppointmentReminderEnabled: false,
-				},
-			},
+			settings:             appointmentReminderSettings(24, false),
 		}
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
@@ -154,18 +144,18 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 		assert.Empty(t, queuer.calls, "the off switch has to stop the work, not just the delivery")
 	})
 
-	t.Run("without an override the registered default applies", func(t *testing.T) {
+	t.Run("a registry-resolved default applies", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
 		s := &Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             &fakeSettingsResolver{},
+			settings:             appointmentReminderSettings(24, true),
 		}
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
 		require.Len(t, queuer.calls, 1, "the feature defaults on")
-		assert.Equal(t, scanFrom.Add(defaultAppointmentReminderLeadHours*time.Hour), queuer.calls[0].from)
+		assert.Equal(t, scanFrom.Add(24*time.Hour), queuer.calls[0].from)
 	})
 
 	t.Run("a failing tenant is logged, not fatal", func(t *testing.T) {
@@ -173,19 +163,19 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 		s := &Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             &fakeSettingsResolver{},
+			settings:             appointmentReminderSettings(24, true),
 		}
 
 		assert.Error(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo),
 			"the caller must leave the failed tenant's checkpoint unchanged")
 	})
 
-	t.Run("a failed reminder-enabled lookup fails closed", func(t *testing.T) {
+	t.Run("a failed reminder-enabled resolution fails closed", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
 		s := &Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             &fakeSettingsResolver{overrideErr: assertAnError{}},
+			settings:             &fakeSettingsResolver{},
 		}
 
 		assert.Error(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
@@ -195,5 +185,12 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 }
 
 type assertAnError struct{}
+
+func appointmentReminderSettings(leadHours int, enabled bool) *fakeSettingsResolver {
+	return &fakeSettingsResolver{
+		boolValues: map[string]bool{configModel.KeyCalendarAppointmentReminderEnabled: enabled},
+		intValues:  map[string]int{configModel.KeyCalendarAppointmentReminderLeadHours: leadHours},
+	}
+}
 
 func (assertAnError) Error() string { return "calendar unavailable" }

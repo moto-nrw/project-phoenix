@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,9 +17,7 @@ func TestRunAppointmentRemindersForTenantDecreasedLeadUsesActiveWindow(t *testin
 	s := &Scheduler{
 		logger:               slog.Default(),
 		appointmentReminders: queuer,
-		settings: &fakeSettingsResolver{intValues: map[string]int{
-			configModel.KeyCalendarAppointmentReminderLeadHours: 12,
-		}},
+		settings:             appointmentReminderSettings(12, true),
 	}
 
 	require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))

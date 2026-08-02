@@ -13,6 +13,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -31,8 +32,6 @@ const (
 	// moment is long gone. One hour late is still a useful reminder; six hours
 	// late is noise.
 	appointmentReminderMaxLookback = time.Hour
-
-	defaultAppointmentReminderLeadHours = 24
 )
 
 // AppointmentReminderQueuer is the narrow slice of the calendar service the
@@ -130,53 +129,30 @@ func (s *Scheduler) markAppointmentReminderScanned(tenantID int64, scannedAt tim
 // shifts both window bounds, so the window stays exactly as long as the tick
 // interval and every occurrence is offered to exactly one tick.
 func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenantID int64, scanFrom, scanTo time.Time) error {
-	enabled := true
-	if s.settings != nil {
-		hasOverride, err := s.settings.HasTenantOverride(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
-		if err != nil {
-			s.getLogger().Error("appointment reminder setting lookup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return err
-		}
-		if hasOverride {
-			enabled, err = s.settings.ResolveBool(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
-			if err != nil {
-				s.getLogger().Error("appointment reminder setting resolution failed",
-					slog.Int64("tenant_id", tenantID),
-					slog.String("error", err.Error()),
-				)
-				return err
-			}
-		}
+	if s.settings == nil {
+		return errors.New("appointment reminder settings are not configured")
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
+	if err != nil {
+		s.getLogger().Error("appointment reminder setting resolution failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
 	if !enabled {
 		return nil
 	}
-	leadHours := defaultAppointmentReminderLeadHours
-	if s.settings != nil {
-		hasOverride, err := s.settings.HasTenantOverride(ctx, configModel.KeyCalendarAppointmentReminderLeadHours)
-		if err != nil {
-			s.getLogger().Error("appointment reminder lead setting lookup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return err
-		}
-		if hasOverride {
-			leadHours, err = s.settings.ResolveInt(ctx, configModel.KeyCalendarAppointmentReminderLeadHours)
-			if err != nil {
-				s.getLogger().Error("appointment reminder lead setting resolution failed",
-					slog.Int64("tenant_id", tenantID),
-					slog.String("error", err.Error()),
-				)
-				return err
-			}
-		}
+	leadHours, err := s.settings.ResolveInt(ctx, configModel.KeyCalendarAppointmentReminderLeadHours)
+	if err != nil {
+		s.getLogger().Error("appointment reminder lead setting resolution failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
 	if leadHours < 1 {
-		leadHours = defaultAppointmentReminderLeadHours
+		return errors.New("appointment reminder lead setting must be positive")
 	}
 	lead := time.Duration(leadHours) * time.Hour
 

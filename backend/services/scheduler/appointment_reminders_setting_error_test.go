@@ -16,9 +16,7 @@ func TestRunAppointmentRemindersForTenantLeadSettingErrorDoesNotScan(t *testing.
 		logger:               slog.Default(),
 		appointmentReminders: queuer,
 		settings: &fakeSettingsResolver{boolValues: map[string]bool{
-			// Make HasTenantOverride report an override for the integer key while
-			// ResolveInt reports its missing integer value.
-			configModel.KeyCalendarAppointmentReminderLeadHours: true,
+			configModel.KeyCalendarAppointmentReminderEnabled: true,
 		}},
 	}
 
