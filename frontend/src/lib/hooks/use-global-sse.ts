@@ -22,10 +22,12 @@
 
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
@@ -157,6 +159,10 @@ function keyTargetsId(
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
+  const [groupAccessRevision, setGroupAccessRevision] = useState(0);
+  const now = useMinuteClock();
+  const groupAccessDay = berlinTodayISO(now);
+  const groupAccessDayRef = useRef(groupAccessDay);
 
   // Enable SSE for staff and effective admins. The backend treats admin:* and
   // *:* as admin scope even when a custom role does not include the literal
@@ -204,6 +210,16 @@ export function useGlobalSSE(): SSEHookState {
   // actually have changed the "läuft mit" links sets it.
   const hasPendingCompanionEvent = useRef(false);
   const hasPendingTimetableEvent = useRef(false);
+  // A handover, Vertretung or group-leader edit changed WHICH groups the
+  // viewer may open (#2084). Kept apart from the OGS count flags: it
+  // invalidates a different key set (the group list itself, the Vertretungen
+  // page, the user-context BFF) and, unlike a check-in, it is rare.
+  const hasPendingGroupAccessEvent = useRef(false);
+  // Reconnecting recalculates the server-side group topics fixed at SSE
+  // connection time. Keep this separate from cache invalidation so a
+  // date-bound access change can refresh subscriptions without another broad
+  // OGS refetch; both paths still share the same burst debounce.
+  const hasPendingGroupSubscriptionRefresh = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Per-burst flush state (#2057): jitter drawn once when a burst starts, and
   // the burst's start time for the MAX_FLUSH_WAIT_MS cap.
@@ -263,7 +279,14 @@ export function useGlobalSSE(): SSEHookState {
         // A Gehzeit change moves the pickup time the list rows render
         // (student list responses carry it for full-access rows).
         hasPendingPickupScheduleEvent.current ||
-        hasPendingStudentUpdateEvent.current;
+        hasPendingStudentUpdateEvent.current ||
+        // A group-access change rewrites the GROUP LIST inside the aggregated
+        // live response, and it cannot be scoped to the affected group id
+        // (#2084): the recipient's open tab is keyed on a DIFFERENT group —
+        // the one they were already viewing — or on "auto" when they had no
+        // group at all, so a scoped invalidation would miss exactly the tab
+        // this event exists for.
+        hasPendingGroupAccessEvent.current;
       const scopedEduGroupIds = new Set(pendingEduGroupIds.current);
       if (broadOgs || scopedEduGroupIds.size > 0) {
         mutate(
@@ -577,6 +600,41 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // Group access changed (#2084). Besides the OGS live view above, four
+    // caches carry that fact and none of them revalidates on focus: the admin
+    // Vertretungen page (its list, group choices and teacher availability) and
+    // the user-context BFF. Both group lists are fetched as immutable — without
+    // an explicit invalidation they never refetch for the whole session.
+    if (hasPendingGroupAccessEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("active-substitutions") ||
+            key.includes("substitution-groups") ||
+            key.includes("substitution-teachers") ||
+            key.includes("user-context")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "group_access",
+        });
+      });
+
+      // The sidebar's "Meine Gruppen" list lives in SupervisionContext, which
+      // keeps it in local state behind its own fetch and only refreshes on a
+      // one-minute tick — there is no SWR key to invalidate. That list is
+      // exactly what a colleague looks at after a handover, so announce
+      // staleness and let the provider refetch (same decoupling as reminders
+      // and the care-schedule editor above).
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+      }
+    }
+
+    if (hasPendingGroupSubscriptionRefresh.current) {
+      setGroupAccessRevision((revision) => revision + 1);
+    }
+
     if (hasPendingTimetableEvent.current) {
       mutate(
         (key) =>
@@ -657,6 +715,8 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingStudentUpdateEvent.current = false;
     hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
+    hasPendingGroupAccessEvent.current = false;
+    hasPendingGroupSubscriptionRefresh.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -703,6 +763,18 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingBroadOgsEvent.current = true;
     }
   }, []);
+
+  // Date-bound substitutions can start or expire at Berlin midnight without
+  // a database write. Detect the boundary here in the always-mounted global
+  // hook: an OGS page opened after midnight has no previous day to compare,
+  // while this clock also resyncs after background throttling on focus.
+  useEffect(() => {
+    if (groupAccessDayRef.current === groupAccessDay) return;
+    groupAccessDayRef.current = groupAccessDay;
+    hasPendingGroupAccessEvent.current = true;
+    hasPendingGroupSubscriptionRefresh.current = true;
+    scheduleFlush();
+  }, [groupAccessDay, scheduleFlush]);
 
   // Handle SSE events by collecting targeted invalidations
   const handleSSEEvent = useCallback(
@@ -803,6 +875,21 @@ export function useGlobalSSE(): SSEHookState {
           // without OGS group) falls back to the broad refresh.
           hasPendingDashboardEvent.current = true;
           collectEduGroupScope(event.data.group_ids);
+          scheduleFlush();
+          break;
+        }
+
+        case "group_access_changed": {
+          // A group was handed over or taken back, a Vertretung was
+          // created/edited/deleted, a group's leaders were reassigned, or a
+          // group was deleted. Debounced like the other cache triggers, which
+          // also collapses the burst a delete cascade emits (one event per
+          // revoked link) into a single refetch.
+          // The backend fixes group-topic subscriptions when the connection
+          // opens. Refresh them with the same burst debounce so a group-delete
+          // cascade tears down the EventSource only once.
+          hasPendingGroupSubscriptionRefresh.current = true;
+          hasPendingGroupAccessEvent.current = true;
           scheduleFlush();
           break;
         }
@@ -924,10 +1011,16 @@ export function useGlobalSSE(): SSEHookState {
 
   // Use the underlying SSE hook with global event handler.
   // reconnectKey ensures the EventSource tears down and reconnects with a
-  // fresh JWT whenever the user switches tenant.
+  // fresh JWT whenever the user switches tenant, and refreshes the server's
+  // fixed group-topic subscription after an access change.
+  const tenantID = session?.user?.tenantId;
+  const reconnectKey =
+    groupAccessRevision === 0
+      ? tenantID
+      : `${tenantID ?? ""}:${groupAccessRevision}`;
   return useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
-    reconnectKey: session?.user?.tenantId,
+    reconnectKey,
   });
 }

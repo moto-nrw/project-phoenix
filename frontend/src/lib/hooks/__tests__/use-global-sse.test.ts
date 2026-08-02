@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SSEEvent, SSEHookOptions } from "~/lib/sse-types";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
@@ -39,6 +39,14 @@ vi.mock("~/lib/hooks/use-sse", () => ({
   })),
 }));
 
+const mockMinuteClock = vi.hoisted(() => ({
+  current: new Date("2026-01-01T22:59:00Z"),
+}));
+
+vi.mock("~/lib/pickup-helpers", () => ({
+  useMinuteClock: () => mockMinuteClock.current,
+}));
+
 // Import after mocking
 import {
   useGlobalSSE,
@@ -54,6 +62,7 @@ describe("useGlobalSSE", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockMinuteClock.current = new Date("2026-01-01T22:59:00Z");
     // Pin the per-burst flush jitter (#2057) to 0 so the existing
     // advanceTimersByTime(500) timing assertions stay deterministic. Jitter
     // bounds get their own explicit tests.
@@ -64,6 +73,30 @@ describe("useGlobalSSE", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
+
+  /** Fires an event through the captured onMessage callback. */
+  function fire(event: {
+    type: SSEEvent["type"];
+    active_group_id?: string;
+    data?: SSEEvent["data"];
+  }) {
+    const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+    onMessage?.({
+      type: event.type,
+      active_group_id: event.active_group_id ?? "",
+      data: event.data ?? {},
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /** Every key from the inventory that ANY recorded mutate matcher accepts. */
+  function matchedKeys(inventory: readonly string[]): string[] {
+    const matchers = vi
+      .mocked(mutate)
+      .mock.calls.map((call) => call[0])
+      .filter((m): m is (key: string) => boolean => typeof m === "function");
+    return inventory.filter((key) => matchers.some((m) => m(key)));
+  }
 
   describe("hook initialization", () => {
     it("returns SSE connection state", () => {
@@ -1414,30 +1447,6 @@ describe("useGlobalSSE", () => {
 
   // #2057: scoped invalidation, jitter, and the request-herd regression guard.
   describe("scoped OGS invalidation (#2057)", () => {
-    /** Fires an event through the captured onMessage callback. */
-    function fire(event: {
-      type: SSEEvent["type"];
-      active_group_id?: string;
-      data?: SSEEvent["data"];
-    }) {
-      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
-      onMessage?.({
-        type: event.type,
-        active_group_id: event.active_group_id ?? "",
-        data: event.data ?? {},
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    /** Every key from the inventory that ANY recorded mutate matcher accepts. */
-    function matchedKeys(inventory: readonly string[]): string[] {
-      const matchers = vi
-        .mocked(mutate)
-        .mock.calls.map((call) => call[0])
-        .filter((m): m is (key: string) => boolean => typeof m === "function");
-      return inventory.filter((key) => matchers.some((m) => m(key)));
-    }
-
     it("scopes ogs-students invalidation to the event's group_ids", () => {
       renderHook(() => useGlobalSSE());
 
@@ -1634,6 +1643,192 @@ describe("useGlobalSSE", () => {
       }
       // Elapsed > MAX_FLUSH_WAIT_MS: the capped flush has fired.
       expect(mutate).toHaveBeenCalled();
+    });
+  });
+
+  describe("group_access_changed (#2084)", () => {
+    it("reconnects once per group-access burst", () => {
+      renderHook(() => useGlobalSSE());
+
+      const initialReconnectKey = vi
+        .mocked(useSSE)
+        .mock.calls.at(-1)?.[1]?.reconnectKey;
+      expect(initialReconnectKey).toBeDefined();
+
+      act(() => {
+        for (let i = 0; i < 3; i++) {
+          fire({
+            type: "group_access_changed",
+            data: { source: "group_transfer" },
+          });
+        }
+      });
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        initialReconnectKey,
+      );
+
+      act(() => vi.advanceTimersByTime(500));
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        `${initialReconnectKey}:1`,
+      );
+    });
+
+    it("reconnects and refreshes access caches after a Berlin-day boundary", () => {
+      const supervisionListener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", supervisionListener);
+      const { rerender } = renderHook(() => useGlobalSSE());
+
+      const initialReconnectKey = vi
+        .mocked(useSSE)
+        .mock.calls.at(-1)?.[1]?.reconnectKey;
+      expect(initialReconnectKey).toBeDefined();
+
+      mockMinuteClock.current = new Date("2026-01-01T23:01:00Z");
+      act(() => {
+        rerender();
+      });
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        initialReconnectKey,
+      );
+
+      act(() => vi.advanceTimersByTime(500));
+
+      expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
+        `${initialReconnectKey}:1`,
+      );
+      expect(
+        matchedKeys([
+          "tenant:active-substitutions",
+          "tenant:substitution-groups",
+          "tenant:substitution-teachers",
+          "tenant:user-context",
+        ]),
+      ).toEqual([
+        "tenant:active-substitutions",
+        "tenant:substitution-groups",
+        "tenant:substitution-teachers",
+        "tenant:user-context",
+      ]);
+      expect(supervisionListener).toHaveBeenCalledTimes(1);
+      window.removeEventListener(
+        "phoenix:supervision-stale",
+        supervisionListener,
+      );
+    });
+
+    it("refreshes EVERY ogs-students key, not just the transferred group", () => {
+      // The acceptance criterion: a group handed to this user must appear in
+      // their open tab. That tab is keyed on the group they were ALREADY
+      // viewing (or "auto" when they had none), so a scoped invalidation would
+      // miss exactly the client the event exists for.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:ogs-students-7",
+          "tenant:ogs-students-8",
+          "tenant:ogs-students-auto",
+        ]),
+      ).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-students-auto",
+      ]);
+    });
+
+    it("refreshes the Vertretungen page and the user-context group list", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "substitution_create" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:active-substitutions",
+          "tenant:substitution-groups",
+          "tenant:substitution-teachers",
+          "tenant:user-context",
+        ]),
+      ).toEqual([
+        "tenant:active-substitutions",
+        "tenant:substitution-groups",
+        "tenant:substitution-teachers",
+        "tenant:user-context",
+      ]);
+    });
+
+    it("does not drag unrelated cache families into a handover", () => {
+      // A handover changes access, not attendance, staff hours or timetable
+      // blocks. Refetching those would re-create the request herd #2083 removed.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:staff-dashboard-summary-month",
+          "tenant:timetable-roster-2026-01",
+          "tenant:supervision-visits-3",
+          "tenant:student-detail-42",
+        ]),
+      ).toEqual([]);
+    });
+
+    it("announces phoenix:supervision-stale so the sidebar group list refetches", () => {
+      // SupervisionContext owns the sidebar's "Meine Gruppen" list in local
+      // state behind its own fetch — no SWR key exists to invalidate, and its
+      // own refresh is a one-minute tick. Without this announcement a handover
+      // stays invisible in the sidebar for up to a minute.
+      const listener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", listener);
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      window.removeEventListener("phoenix:supervision-stale", listener);
+    });
+
+    it("leaves every group-access cache and the sidebar alone on an unrelated event", () => {
+      // A check-in must not drag the group list, the Vertretungen page or the
+      // sidebar refetch along — that is the herd #2083 removed.
+      const listener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", listener);
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:active-substitutions",
+          "tenant:substitution-groups",
+          "tenant:substitution-teachers",
+          "tenant:user-context",
+        ]),
+      ).toEqual([]);
+      expect(listener).not.toHaveBeenCalled();
+      window.removeEventListener("phoenix:supervision-stale", listener);
     });
   });
 });

@@ -519,6 +519,17 @@ describe("OGSGroupPage", () => {
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
+  // The Berlin day rollover is handled once in useGlobalSSE (always mounted),
+  // which invalidates every ogs-students-* key — see
+  // src/lib/hooks/__tests__/use-global-sse.test.ts.
+  it("reconciles periodically and on focus after missed SSE events", () => {
+    render(<OGSGroupPage />);
+
+    const options = vi.mocked(useSWRAuth).mock.calls[0]?.[2];
+    expect(options).toMatchObject({ revalidateOnFocus: true });
+    expect(options?.refreshInterval).toBe(15 * 60_000);
+  });
+
   it("shows no access state when user has no OGS groups", async () => {
     // Mock SWR to return empty data indicating no access
     vi.mocked(useSWRAuth).mockReturnValue({

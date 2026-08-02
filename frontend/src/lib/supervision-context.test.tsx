@@ -303,6 +303,121 @@ describe("SupervisionProvider", () => {
     intervalSpy.mockRestore();
   });
 
+  it("refetches on phoenix:supervision-stale, bypassing the 5s throttle (#2084)", async () => {
+    // A group handed to this account must show up in the sidebar without a
+    // reload. The announcement arrives right after the provider's own initial
+    // load, so it MUST beat the 5-second refresh throttle — otherwise the new
+    // group stays invisible until the next one-minute tick.
+    setupFetchMock();
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    const initialFetchCount = mockFetch.mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockFetch.mock.calls.length).toBeGreaterThan(initialFetchCount);
+    });
+
+    const refetched = mockFetch.mock.calls
+      .slice(initialFetchCount)
+      .map((call) => String(call[0]));
+
+    // The group list is what changed...
+    expect(refetched.some((url) => url.includes("/api/groups/context"))).toBe(
+      true,
+    );
+    // ...and nothing else. checkSupervision reads active.supervisors and the
+    // Schulhof status, neither of which a group-access write can touch, so
+    // firing them here would cost every client two guaranteed no-op requests.
+    expect(
+      refetched.some((url) => url.includes("/api/me/groups/supervised")),
+    ).toBe(false);
+    expect(
+      refetched.some((url) => url.includes("/api/active/schulhof/status")),
+    ).toBe(false);
+  });
+
+  it("queues a stale-event group refetch while another refresh is active", async () => {
+    setupFetchMock();
+    const fallbackFetch = mockFetch.getMockImplementation();
+    let resolveInitialGroups: ((value: unknown) => void) | undefined;
+    let groupRequestCount = 0;
+
+    mockFetch.mockImplementation((url: string) => {
+      if (!url.includes("/api/groups/context")) {
+        return fallbackFetch?.(url);
+      }
+      groupRequestCount++;
+      if (groupRequestCount === 1) {
+        return new Promise((resolve) => {
+          resolveInitialGroups = resolve;
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ groups: [{ id: 42, name: "Queued Group" }] }),
+      });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => expect(groupRequestCount).toBe(1));
+
+    window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+
+    await act(async () => {
+      resolveInitialGroups?.({
+        ok: true,
+        json: async () => ({ groups: [] }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(groupRequestCount).toBe(2);
+      expect(result.current.groups).toEqual([{ id: 42, name: "Queued Group" }]);
+    });
+
+    const supervisedRequests = mockFetch.mock.calls.filter((call) =>
+      String(call[0]).includes("/api/me/groups/supervised"),
+    );
+    expect(supervisedRequests).toHaveLength(1);
+  });
+
+  it("stops listening for phoenix:supervision-stale after unmount", async () => {
+    setupFetchMock();
+
+    const { result, unmount } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    unmount();
+    const afterUnmount = mockFetch.mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+      await Promise.resolve();
+    });
+
+    expect(mockFetch.mock.calls.length).toBe(afterUnmount);
+  });
+
   it("should not setup periodic refresh without token", () => {
     vi.useFakeTimers();
 

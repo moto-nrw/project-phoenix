@@ -2,8 +2,11 @@ package test
 
 import (
 	"sync"
+	"testing"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // BroadcastCall records one realtime.Broadcaster invocation.
@@ -130,6 +133,34 @@ func (b *RecordingBroadcaster) EventsOfType(t realtime.EventType) []realtime.Eve
 // HasEventType reports whether any recorded event has the given type.
 func (b *RecordingBroadcaster) HasEventType(t realtime.EventType) bool {
 	return len(b.EventsOfType(t)) > 0
+}
+
+// AssertSingleTenantEvent asserts that exactly one event of the given type was
+// broadcast tenant-wide to tenantID, and returns it so the caller can assert
+// its payload. It also pins the shared privacy contract of the tenant-wide
+// invalidation events: they reach every staff client of a school, so they must
+// carry no student or staff identity.
+//
+// Lives here rather than in each API test package because the same five lines
+// were being re-hand-rolled per package, and the copies drifted — each one
+// checked a different identity field, so each covered half the contract.
+func AssertSingleTenantEvent(tb testing.TB, b *RecordingBroadcaster, eventType realtime.EventType, tenantID int64) realtime.Event {
+	tb.Helper()
+
+	events := b.EventsOfType(eventType)
+	require.Len(tb, events, 1, "expected exactly one %s event", eventType)
+
+	event := events[0]
+	assert.Empty(tb, event.ActiveGroupID, "%s is tenant-wide, not group-scoped", eventType)
+	assert.Nil(tb, event.Data.StudentID, "%s must not carry student identity", eventType)
+	assert.Nil(tb, event.Data.StudentIDs, "%s must not carry student identity", eventType)
+	assert.Nil(tb, event.Data.SupervisorIDs, "%s must not carry staff identity", eventType)
+
+	calls := b.CallsByMethod("tenant")
+	require.NotEmpty(tb, calls, "expected a tenant-scoped broadcast")
+	assert.Equal(tb, tenantID, calls[0].TenantID)
+
+	return event
 }
 
 // Reset drops all recorded calls.
