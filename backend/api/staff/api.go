@@ -19,6 +19,7 @@ import (
 // Resource defines the staff API resource
 type Resource struct {
 	PersonService           usersSvc.PersonService
+	StaffDocumentService    usersSvc.StaffDocumentService
 	StaffOffboardingService usersSvc.StaffOffboardingService
 	EducationService        educationSvc.Service
 	AuthService             authSvc.AuthService
@@ -37,6 +38,7 @@ type Resource struct {
 // NewResource creates a new staff resource
 func NewResource(
 	personService usersSvc.PersonService,
+	staffDocumentService usersSvc.StaffDocumentService,
 	staffOffboardingService usersSvc.StaffOffboardingService,
 	educationService educationSvc.Service,
 	authService authSvc.AuthService,
@@ -53,6 +55,7 @@ func NewResource(
 ) *Resource {
 	return &Resource{
 		PersonService:           personService,
+		StaffDocumentService:    staffDocumentService,
 		StaffOffboardingService: staffOffboardingService,
 		EducationService:        educationService,
 		AuthService:             authService,
@@ -134,6 +137,18 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.StaffFinancial), withTx).Get("/{id}/stammdaten/bank-steuer", rs.getStammdatenFinancial)
 		r.With(authorize.RequiresPermission(permissions.StaffFinancial), withTx).Put("/{id}/stammdaten/bank-steuer", rs.updateStammdatenFinancial)
 		r.With(authorize.RequiresPermission(permissions.StaffFinancial), withTx).Post("/{id}/stammdaten/bank-steuer/reveal", rs.revealStammdatenFinancial)
+
+		// Dokumente tab (#1424). The route gate only proves the caller may
+		// reach the tab at all — any of the three category permissions.
+		// Per-category authority (AU → staff_documents:health, Lohn →
+		// staff:financial, rest → users:update) is enforced in the document
+		// service, including list filtering, so a payroll-only account sees
+		// exactly the Lohnabrechnung category and nothing else.
+		documentsGate := authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth)
+		r.With(documentsGate, withTx).Get("/{id}/documents", rs.listStaffDocuments)
+		r.With(documentsGate, withTx).Post("/{id}/documents", rs.uploadStaffDocument)
+		r.With(documentsGate, withTx).Get("/{id}/documents/{documentId}/download", rs.downloadStaffDocument)
+		r.With(documentsGate, withTx).Delete("/{id}/documents/{documentId}", rs.deleteStaffDocument)
 
 		// Work schedule endpoints expose contractual target hours.
 		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.TimeTrackingOwn), withTx).Get("/{id}/schedule", rs.getSchedule)

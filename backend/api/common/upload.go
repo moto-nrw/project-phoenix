@@ -142,7 +142,13 @@ func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, er
 		return "", errors.New("failed to generate filename")
 	}
 
-	filename := prefix + "_" + randomStr + ext
+	return SaveNamedFile(file, targetDir, prefix+"_"+randomStr+ext)
+}
+
+// SaveNamedFile writes the uploaded file to targetDir under the exact given
+// filename (callers generate collision-free names, e.g. UUIDs). It creates
+// targetDir if it doesn't exist. Returns the full file path on disk.
+func SaveNamedFile(file io.Reader, targetDir, filename string) (string, error) {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return "", errors.New("failed to create upload directory")
 	}

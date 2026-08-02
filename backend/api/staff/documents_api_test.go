@@ -1,0 +1,200 @@
+// Router-level tests for /api/staff/{id}/documents (#1424): the route gate
+// admits any of the three category permissions, the service narrows per
+// category (AU → staff_documents:health, Lohn → staff:financial, rest →
+// users:update), uploads are magic-number-validated, and downloads serve
+// the original filename as an attachment.
+package staff_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// fakePDF carries the %PDF magic bytes http.DetectContentType keys off.
+var fakePDF = []byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n")
+
+// fakeZIP carries the PK ZIP magic — a DOCX container as far as magic bytes
+// can tell.
+var fakeZIP = []byte("PK\x03\x04fake-zip-content-for-magic-byte-detection")
+
+type documentsAPIContext struct {
+	tc      *testContext
+	staffID int64
+	account int64
+}
+
+func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
+	t.Helper()
+	tc := setupTestContext(t)
+	suffix := time.Now().UnixNano()
+
+	target := testpkg.CreateTestStaff(t, tc.db, "Dokumente", fmt.Sprintf("API-%d", suffix))
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("dokumente-api-%d@example.test", suffix))
+	t.Cleanup(func() {
+		ctx := testpkg.TenantContext(1)
+		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
+		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
+		testpkg.CleanupStaffFixtures(t, tc.db, target.ID)
+		testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+		if pubDir, err := common.ResolvePublicDir(); err == nil {
+			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "staff-documents"))
+		}
+	})
+
+	return &documentsAPIContext{tc: tc, staffID: target.ID, account: account.ID}
+}
+
+func (c *documentsAPIContext) token(t *testing.T, perms ...string) string {
+	t.Helper()
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(c.account)
+	claims.Permissions = perms
+	return testutil.MintTestJWT(t, claims)
+}
+
+func (c *documentsAPIContext) request(t *testing.T, method, path string, body io.Reader, contentType string, perms ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, body)
+	req.Header.Set("Authorization", "Bearer "+c.token(t, perms...))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	rec := httptest.NewRecorder()
+	c.tc.router.ServeHTTP(rec, req)
+	return rec
+}
+
+func (c *documentsAPIContext) upload(t *testing.T, category, filename string, content []byte, perms ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	require.NoError(t, writer.WriteField("category", category))
+	part, err := writer.CreateFormFile("file", filename)
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	return c.request(t, http.MethodPost, fmt.Sprintf("/staff/%d/documents", c.staffID), &buf, writer.FormDataContentType(), perms...)
+}
+
+// uploadedDocument extracts the created document from the response envelope.
+func uploadedDocument(t *testing.T, body []byte) (id int64, filename string) {
+	t.Helper()
+	var resp struct {
+		Data struct {
+			ID       int64  `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(body, &resp))
+	return resp.Data.ID, resp.Data.Filename
+}
+
+func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
+	c := setupDocumentsAPI(t)
+	base := fmt.Sprintf("/staff/%d/documents", c.staffID)
+
+	rec := c.upload(t, "zeugnis", "Erste-Hilfe Zeugnis.pdf", fakePDF, "users:update")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	docID, filename := uploadedDocument(t, rec.Body.Bytes())
+	require.NotZero(t, docID)
+	assert.Equal(t, "Erste-Hilfe Zeugnis.pdf", filename)
+
+	rec = c.request(t, http.MethodGet, base, nil, "", "users:update")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"category":"zeugnis"`)
+	assert.Contains(t, rec.Body.String(), `"visible_categories"`)
+	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`,
+		"users:update must not see the AU category")
+
+	downloadPath := fmt.Sprintf("%s/%d/download", base, docID)
+	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "users:update")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, fakePDF, rec.Body.Bytes())
+	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment")
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "Erste-Hilfe Zeugnis.pdf")
+
+	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "users:update")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "users:update")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "users:update")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
+	c := setupDocumentsAPI(t)
+	base := fmt.Sprintf("/staff/%d/documents", c.staffID)
+
+	// Route gate: the staff-list tier does not open the tab.
+	rec := c.request(t, http.MethodGet, base, nil, "", "users:read")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+
+	// AU-Bescheinigungen need staff_documents:health end to end.
+	rec = c.upload(t, "au_bescheinigung", "au.pdf", fakePDF, "users:update")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	rec = c.upload(t, "au_bescheinigung", "au.pdf", fakePDF, "staff_documents:health")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	auID, _ := uploadedDocument(t, rec.Body.Bytes())
+
+	rec = c.request(t, http.MethodGet, fmt.Sprintf("%s/%d/download", base, auID), nil, "", "users:update")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	rec = c.request(t, http.MethodGet, fmt.Sprintf("%s/%d/download", base, auID), nil, "", "staff_documents:health")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Lohnabrechnungen ride the payroll permission; a payroll-only account
+	// sees exactly that category.
+	rec = c.upload(t, "lohnabrechnung", "lohn-07.pdf", fakePDF, "staff:financial")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = c.request(t, http.MethodGet, base, nil, "", "staff:financial")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"lohnabrechnung"`)
+	assert.NotContains(t, rec.Body.String(), `"zeugnis"`)
+	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`)
+}
+
+func TestStaffDocumentsAPI_FileValidation(t *testing.T) {
+	c := setupDocumentsAPI(t)
+
+	// Executables (and anything else off the allow-list) are rejected by
+	// magic bytes.
+	rec := c.upload(t, "sonstiges", "tool.exe", []byte("MZ\x90\x00executable"), "users:update")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	// A bare ZIP is rejected even though DOCX shares its magic bytes...
+	rec = c.upload(t, "sonstiges", "archiv.zip", fakeZIP, "users:update")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	// ...while the same bytes under a .docx name pass as DOCX.
+	rec = c.upload(t, "sonstiges", "vertrag.docx", fakeZIP, "users:update")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "officedocument.wordprocessingml.document")
+
+	// Unknown categories are a 400, not a 500.
+	rec = c.upload(t, "geheim", "datei.pdf", fakePDF, "users:update")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	// Oversized uploads are refused at the advertised cap.
+	big := bytes.Repeat([]byte("A"), 10*1024*1024+1)
+	copy(big, "%PDF-1.4")
+	rec = c.upload(t, "sonstiges", "gross.pdf", big, "users:update")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+}
