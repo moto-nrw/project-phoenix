@@ -78,6 +78,9 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 
 	configureSchedulerServices(sched, api.Services)
 	configureSchedulerRepos(sched, api)
+	if api.Staff != nil {
+		sched.SetStaffDocumentFileCleaner(api.Staff)
+	}
 
 	return sched
 }

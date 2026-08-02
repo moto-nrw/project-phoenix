@@ -96,6 +96,10 @@ type SchoolRepository interface {
 	FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*School, error)
 	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
 	List(ctx context.Context) ([]*School, error)
+	// ListNonDeleted returns all non-deleted schools, regardless of whether
+	// they currently admit users. Retention recovery uses this to clean files
+	// for inactive tenants too.
+	ListNonDeleted(ctx context.Context) ([]School, error)
 	ListActive(ctx context.Context) ([]School, error)
 	ListPublic(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)

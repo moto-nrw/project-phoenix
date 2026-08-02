@@ -203,7 +203,7 @@ func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`)
 }
 
-func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T) {
+func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *testing.T) {
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654321)
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
@@ -226,8 +226,9 @@ func TestStaffDocumentsAPI_DirectoryRetriesQueuedOrphanWithoutStaff(t *testing.T
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
 	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
 
-	rec := c.request(t, http.MethodGet, "/staff/documents-directory", nil, "", "staff_documents:health")
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	removed, err := c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, removed)
 	_, err = os.Stat(filePath)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
