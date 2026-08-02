@@ -296,7 +296,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Zero(t, queued)
 	assert.Empty(t, notifier.events, "a failed dispatch must not be marked delivered")
 
