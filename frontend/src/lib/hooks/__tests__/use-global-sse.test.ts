@@ -1675,7 +1675,9 @@ describe("useGlobalSSE", () => {
       );
     });
 
-    it("reconnects after a Berlin-day access boundary", () => {
+    it("reconnects and refreshes access caches after a Berlin-day boundary", () => {
+      const supervisionListener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", supervisionListener);
       const { rerender } = renderHook(() => useGlobalSSE());
 
       const initialReconnectKey = vi
@@ -1696,6 +1698,24 @@ describe("useGlobalSSE", () => {
 
       expect(vi.mocked(useSSE).mock.calls.at(-1)?.[1]?.reconnectKey).toBe(
         `${initialReconnectKey}:1`,
+      );
+      expect(
+        matchedKeys([
+          "tenant:active-substitutions",
+          "tenant:substitution-groups",
+          "tenant:substitution-teachers",
+          "tenant:user-context",
+        ]),
+      ).toEqual([
+        "tenant:active-substitutions",
+        "tenant:substitution-groups",
+        "tenant:substitution-teachers",
+        "tenant:user-context",
+      ]);
+      expect(supervisionListener).toHaveBeenCalledTimes(1);
+      window.removeEventListener(
+        "phoenix:supervision-stale",
+        supervisionListener,
       );
     });
 
@@ -1737,11 +1757,13 @@ describe("useGlobalSSE", () => {
       expect(
         matchedKeys([
           "tenant:active-substitutions",
+          "tenant:substitution-groups",
           "tenant:substitution-teachers",
           "tenant:user-context",
         ]),
       ).toEqual([
         "tenant:active-substitutions",
+        "tenant:substitution-groups",
         "tenant:substitution-teachers",
         "tenant:user-context",
       ]);
@@ -1800,6 +1822,7 @@ describe("useGlobalSSE", () => {
       expect(
         matchedKeys([
           "tenant:active-substitutions",
+          "tenant:substitution-groups",
           "tenant:substitution-teachers",
           "tenant:user-context",
         ]),

@@ -128,6 +128,30 @@ func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	assertGroupAccessChanged(t, broadcaster, "substitution_update")
 }
 
+func TestUpdateSubstitution_AccessUnchanged_BroadcastsNothing(t *testing.T) {
+	ctx, broadcaster := setupRecordingContext(t)
+	staffID, groupID := substitutionFixtures(t, ctx, "UpdateReason")
+
+	today := timezone.TodayDate()
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
+	defer cleanupSubstitution(t, ctx.db, substitution.ID)
+
+	body := map[string]interface{}{
+		"group_id":            groupID,
+		"substitute_staff_id": staffID,
+		"start_date":          today.String(),
+		"end_date":            today.AddDays(3).String(),
+		"reason":              "Updated reason only",
+	}
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/substitutions/%d", substitution.ID), body,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
+	)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged))
+}
+
 func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Delete")

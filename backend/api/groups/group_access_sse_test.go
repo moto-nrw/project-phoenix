@@ -240,8 +240,8 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 // Deleting a group revokes access for its leaders AND its substitutes. The
 // cascade runs inside services/education, so it would have been invisible to a
-// handler-level emit. It legitimately announces once per removed link — the
-// client debounce collapses the burst into one refetch.
+// handler-level emit. It announces once per removed link plus one structural
+// delete — the client debounce collapses the burst into one refetch.
 func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSEDeleteGroup")
@@ -268,6 +268,21 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	}
 	assert.True(t, sources["group_teacher_remove"], "the removed leader link must be announced")
 	assert.True(t, sources["substitution_delete"], "the removed substitution must be announced")
+	assert.True(t, sources["group_delete"], "the deleted group list entry must be announced")
+}
+
+func TestDeleteEmptyGroup_BroadcastsGroupAccessChanged(t *testing.T) {
+	tc, router, broadcaster := setupRecordingRouter(t)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSEDeleteEmptyGroup")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	claims := testutil.DefaultTestClaims()
+	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil, claims, "groups:delete")
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	assertGroupAccessChanged(t, broadcaster, "group_delete", int64(claims.TenantID))
 }
 
 // A rejected handover writes nothing, so it must announce nothing: every

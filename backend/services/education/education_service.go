@@ -224,6 +224,10 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 		return &EducationError{Op: "DeleteGroup", Err: err}
 	}
 
+	// Even an empty group changes the structural group list. Per-link cleanup
+	// emits above only when leaders or active substitutions exist, so it cannot
+	// be the sole signal for immutable group caches.
+	s.announceGroupAccessChanged(ctx, "group_delete")
 	return nil
 }
 
@@ -604,6 +608,10 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 	if err != nil {
 		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionNotFound}
 	}
+	accessChanged := existing.GroupID != substitution.GroupID ||
+		existing.SubstituteStaffID != substitution.SubstituteStaffID ||
+		existing.StartDate != substitution.StartDate ||
+		existing.EndDate != substitution.EndDate
 
 	// Carry the stored tenant over the caller's model. Callers that decode a
 	// JSON body into a bare model leave tenant_id at 0 (tenancy is a
@@ -654,7 +662,9 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "UpdateSubstitution", Err: err}
 	}
 
-	s.announceGroupAccessChanged(ctx, "substitution_update")
+	if accessChanged {
+		s.announceGroupAccessChanged(ctx, "substitution_update")
+	}
 	return nil
 }
 

@@ -600,17 +600,17 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Group access changed (#2084). Besides the OGS live view above, three
+    // Group access changed (#2084). Besides the OGS live view above, four
     // caches carry that fact and none of them revalidates on focus: the admin
-    // Vertretungen page (its list and the teacher availability it renders) and
-    // the user-context BFF, whose educational-group list is fetched as
-    // immutable — without an explicit invalidation it never refetches for the
-    // whole session.
+    // Vertretungen page (its list, group choices and teacher availability) and
+    // the user-context BFF. Both group lists are fetched as immutable — without
+    // an explicit invalidation they never refetch for the whole session.
     if (hasPendingGroupAccessEvent.current) {
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("active-substitutions") ||
+            key.includes("substitution-groups") ||
             key.includes("substitution-teachers") ||
             key.includes("user-context")),
       ).catch((err) => {
@@ -771,6 +771,7 @@ export function useGlobalSSE(): SSEHookState {
   useEffect(() => {
     if (groupAccessDayRef.current === groupAccessDay) return;
     groupAccessDayRef.current = groupAccessDay;
+    hasPendingGroupAccessEvent.current = true;
     hasPendingGroupSubscriptionRefresh.current = true;
     scheduleFlush();
   }, [groupAccessDay, scheduleFlush]);
