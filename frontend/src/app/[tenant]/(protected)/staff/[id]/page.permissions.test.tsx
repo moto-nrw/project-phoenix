@@ -24,8 +24,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string) =>
-    key.startsWith("staff-detail-")
+  useSWRAuth: (key: string | null) =>
+    key?.startsWith("staff-detail-")
       ? {
           data: {
             id: "42",
@@ -175,4 +175,30 @@ describe("StaffDetailContent permissions", () => {
       "/payroll",
     );
   });
+
+  it.each(["users:read", "users:update", "staff:financial"])(
+    "shows Stammdaten to a role with %s",
+    (permission) => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["teacher"],
+            permissions: [permission],
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      expect(
+        screen.getByRole("button", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
+      expect(replaceMock).not.toHaveBeenCalled();
+    },
+  );
 });

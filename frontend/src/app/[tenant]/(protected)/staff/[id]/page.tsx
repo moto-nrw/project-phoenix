@@ -128,7 +128,13 @@ export default function StaffDetailContent() {
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
   const canEditStammdaten = hasPermission(session, "users:update");
+  const canViewStammdatenSections =
+    canEdit ||
+    canManageTimeTracking ||
+    hasPermission(session, "users:read") ||
+    canEditStammdaten;
   const canViewFinancial = hasPermission(session, "staff:financial");
+  const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
 
   const {
     data: staff,
@@ -173,7 +179,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewTimeTracking) {
+  if (!canViewTimeTracking && !canViewStammdaten) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -210,7 +216,13 @@ export default function StaffDetailContent() {
 
       {/* Tabs */}
       <Tabs
-        defaultValue={canViewTimeTracking ? "uebersicht" : "abwesenheiten"}
+        defaultValue={
+          canViewTimeTracking
+            ? "uebersicht"
+            : canViewStammdaten
+              ? "stammdaten"
+              : "abwesenheiten"
+        }
         className="w-full"
       >
         <TabsList
@@ -238,7 +250,7 @@ export default function StaffDetailContent() {
               )}
             </span>
           </TabsTrigger>
-          {canManageTimeTracking ? (
+          {canViewStammdaten ? (
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
           ) : null}
           {canEdit ? (
@@ -275,12 +287,13 @@ export default function StaffDetailContent() {
           />
         </TabsPrimitive.Content>
 
-        {canManageTimeTracking ? (
+        {canViewStammdaten ? (
           <TabsPrimitive.Content value="stammdaten">
             <StammdatenTab
               staffId={staffId}
               canManagePayroll={canManageTimeTracking}
               canManagePayrollSettings={canManagePayrollSettings}
+              canViewSections={canViewStammdatenSections}
               canEditSections={canEditStammdaten}
               canViewFinancial={canViewFinancial}
             />

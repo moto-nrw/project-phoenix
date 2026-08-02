@@ -661,6 +661,9 @@ func qualificationsAuditValue(rows []*userModels.StaffQualification) string {
 	parts := make([]string, 0, len(rows))
 	for _, q := range rows {
 		entry := q.Name
+		if q.AcquiredOn != nil {
+			entry += " (erworben " + q.AcquiredOn.String() + ")"
+		}
 		if q.ExpiresOn != nil {
 			entry += " (bis " + q.ExpiresOn.String() + ")"
 		}

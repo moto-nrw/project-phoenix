@@ -91,9 +91,10 @@ func (rs *Resource) Router() chi.Router {
 		// the staff list at all.
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
 
-		// Staff profile reads are also needed by the absence-management view.
+		// Staff profile reads are also needed by absence management and the
+		// section-specific Stammdaten workflows below.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
-		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.UsersUpdate, permissions.TimeTrackingManage, permissions.StaffFinancial), withTx).Get("/{id}", rs.getStaff)
 
 		// Other staff reads require users:read permission.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
@@ -119,7 +120,7 @@ func (rs *Resource) Router() chi.Router {
 		// users:update. The bank & tax section is staff:financial ONLY —
 		// the directory maintainers are not the Träger payroll office (school
 		// admins still match via the admin:* wildcard).
-		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.TimeTrackingManage), withTx).Get("/{id}/stammdaten", rs.getStammdaten)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).Get("/{id}/stammdaten", rs.getStammdaten)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/person", rs.updateStammdatenPerson)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/kontakt", rs.updateStammdatenKontakt)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/arbeitsvertrag", rs.updateStammdatenArbeitsvertrag)

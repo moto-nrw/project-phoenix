@@ -165,12 +165,14 @@ export function StammdatenTab({
   staffId,
   canManagePayroll,
   canManagePayrollSettings,
+  canViewSections = false,
   canEditSections = false,
   canViewFinancial = false,
 }: {
   readonly staffId: string;
   readonly canManagePayroll: boolean;
   readonly canManagePayrollSettings: boolean;
+  readonly canViewSections?: boolean;
   readonly canEditSections?: boolean;
   readonly canViewFinancial?: boolean;
 }) {
@@ -182,8 +184,9 @@ export function StammdatenTab({
     isLoading: payrollLoading,
     isValidating: payrollValidating,
     mutate: mutatePayroll,
-  } = useSWRAuth(`staff-payroll-number-${staffId}`, () =>
-    staffPayrollNumberService.get(staffId),
+  } = useSWRAuth(
+    canManagePayroll ? `staff-payroll-number-${staffId}` : null,
+    () => staffPayrollNumberService.get(staffId),
   );
 
   const {
@@ -192,15 +195,18 @@ export function StammdatenTab({
     isLoading: stammdatenLoading,
     isValidating: stammdatenValidating,
     mutate: mutateStammdaten,
-  } = useSWRAuth(`staff-stammdaten-${staffId}`, () =>
+  } = useSWRAuth(canViewSections ? `staff-stammdaten-${staffId}` : null, () =>
     staffStammdatenService.get(staffId),
   );
 
-  if (payrollLoading || stammdatenLoading) {
+  if (
+    (canManagePayroll && payrollLoading) ||
+    (canViewSections && stammdatenLoading)
+  ) {
     return <Loading fullPage={false} />;
   }
 
-  if (payrollError) {
+  if (canManagePayroll && payrollError) {
     return (
       <div className="space-y-2">
         <Alert
@@ -221,7 +227,7 @@ export function StammdatenTab({
     );
   }
 
-  if (stammdatenError) {
+  if (canViewSections && stammdatenError) {
     return (
       <div className="space-y-2">
         <Alert
@@ -419,37 +425,39 @@ export function StammdatenTab({
       )}
 
       {/* Abrechnung (#1417 Tranche 2b) */}
-      <SectionCard
-        kicker="Abrechnung"
-        title="Personalnummer"
-        description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
-        action={
-          <EditAction
-            visible={canManagePayroll}
-            onClick={() => setOpenModal("payroll")}
-          />
-        }
-      >
-        <FieldGrid>
-          <Field
-            label="Personalnummer"
-            value={personnelNumber ?? null}
-            emptyText="Nicht gesetzt"
-            mono
-          />
-        </FieldGrid>
-        <p className="mt-4 text-xs text-gray-500">
-          Lohnarten und DATEV-Mandantendaten werden zentral unter{" "}
-          {canManagePayrollSettings ? (
-            <Link href="/payroll" className="text-[#5080D8] hover:underline">
-              Abrechnung
-            </Link>
-          ) : (
-            "Abrechnung"
-          )}{" "}
-          gepflegt.
-        </p>
-      </SectionCard>
+      {canManagePayroll ? (
+        <SectionCard
+          kicker="Abrechnung"
+          title="Personalnummer"
+          description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
+          action={
+            <EditAction
+              visible={canManagePayroll}
+              onClick={() => setOpenModal("payroll")}
+            />
+          }
+        >
+          <FieldGrid>
+            <Field
+              label="Personalnummer"
+              value={personnelNumber ?? null}
+              emptyText="Nicht gesetzt"
+              mono
+            />
+          </FieldGrid>
+          <p className="mt-4 text-xs text-gray-500">
+            Lohnarten und DATEV-Mandantendaten werden zentral unter{" "}
+            {canManagePayrollSettings ? (
+              <Link href="/payroll" className="text-[#5080D8] hover:underline">
+                Abrechnung
+              </Link>
+            ) : (
+              "Abrechnung"
+            )}{" "}
+            gepflegt.
+          </p>
+        </SectionCard>
+      ) : null}
 
       {/* Bank & Steuer (#1423) */}
       {canViewFinancial ? (

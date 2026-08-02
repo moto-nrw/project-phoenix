@@ -244,6 +244,22 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, "qualifications", rows[0].FieldName)
 	assert.Contains(t, rows[0].NewValue, "Erste-Hilfe-Kurs (bis 2026-03-10)")
+	assert.Contains(t, rows[0].NewValue, "Erste-Hilfe-Kurs (erworben 2023-03-10)")
+
+	// Changing only the acquisition date must persist and create an audit row.
+	updatedAcquired := timezone.NewDate(2023, 4, 10)
+	err = s.svc.ReplaceStaffQualifications(s.ctx, staff.ID, []usersSvc.StammdatenQualificationInput{
+		{Name: "Erste-Hilfe-Kurs", AcquiredOn: &updatedAcquired, ExpiresOn: &expires},
+		{Name: "Schwimmschein"},
+	}, actor.ID, "Erwerbsdatum korrigiert")
+	require.NoError(t, err)
+	data, err = s.svc.GetStaffStammdaten(s.ctx, staff.ID)
+	require.NoError(t, err)
+	assert.Equal(t, updatedAcquired, *data.Qualifications[0].AcquiredOn)
+	rows = s.auditRows(t, staff.ID)
+	require.Len(t, rows, 2)
+	assert.Contains(t, rows[1].OldValue, "erworben 2023-03-10")
+	assert.Contains(t, rows[1].NewValue, "erworben 2023-04-10")
 
 	// Replace with a shorter list.
 	err = s.svc.ReplaceStaffQualifications(s.ctx, staff.ID, []usersSvc.StammdatenQualificationInput{
@@ -254,7 +270,7 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, data.Qualifications, 1)
 	assert.Equal(t, "Schwimmschein", data.Qualifications[0].Name)
-	require.Len(t, s.auditRows(t, staff.ID), 2)
+	require.Len(t, s.auditRows(t, staff.ID), 3)
 
 	// Expiry before acquisition is rejected.
 	err = s.svc.ReplaceStaffQualifications(s.ctx, staff.ID, []usersSvc.StammdatenQualificationInput{

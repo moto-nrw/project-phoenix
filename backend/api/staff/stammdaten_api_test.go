@@ -20,8 +20,10 @@ func TestStammdatenAPI_PermissionSplit(t *testing.T) {
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)
 
-	// Aggregate GET: directory read or time-tracking manager.
+	// Aggregate GET: directory read/update or time-tracking manager.
 	rec := ctx.get(base, "users:read")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = ctx.get(base, "users:update")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = ctx.get(base, "time_tracking:manage")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

@@ -15,9 +15,9 @@ const swrData = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string) => ({
+  useSWRAuth: (key: string | null) => ({
     data: [...swrData.current.entries()].find(([prefix]) =>
-      key.startsWith(prefix),
+      key?.startsWith(prefix),
     )?.[1],
     error: undefined,
     isLoading: false,
@@ -102,6 +102,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
         staffId="42"
         canManagePayroll={false}
         canManagePayrollSettings={false}
+        canViewSections
       />,
     );
 
@@ -128,6 +129,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
         staffId="42"
         canManagePayroll={false}
         canManagePayrollSettings={false}
+        canViewSections
         canEditSections
       />,
     );
@@ -147,6 +149,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
         staffId="42"
         canManagePayroll={false}
         canManagePayrollSettings={false}
+        canViewSections
       />,
     );
 
@@ -169,6 +172,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
         staffId="42"
         canManagePayroll={false}
         canManagePayrollSettings={false}
+        canViewSections
         canViewFinancial
       />,
     );
@@ -198,6 +202,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
         staffId="42"
         canManagePayroll={false}
         canManagePayrollSettings={false}
+        canViewSections
       />,
     );
 
