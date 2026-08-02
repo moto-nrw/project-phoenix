@@ -32,7 +32,7 @@ const SENSITIVE_QUOTED_TEXT_FIELD_PATTERN = new RegExp(
   "gi",
 );
 const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*)[^'",}\s&]+`,
+  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*)(?!["'])[^,}\]\r\n&]+`,
   "gi",
 );
 const SENSITIVE_QUOTED_HEADER_FIELD_PATTERN =

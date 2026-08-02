@@ -133,4 +133,14 @@ describe("redactSensitiveLogData", () => {
       `{"password":"${REDACTED_LOG_VALUE}","pin":'${REDACTED_LOG_VALUE}',"X-API-Key":"${REDACTED_LOG_VALUE}","safe":"kept"}`,
     );
   });
+
+  it("redacts unquoted credential values through explicit boundaries", () => {
+    expect(
+      redactSensitiveLogString(
+        "password=correct horse battery\npin: 12 34, status=401\nsecret=alpha beta gamma",
+      ),
+    ).toBe(
+      `password=${REDACTED_LOG_VALUE}\npin: ${REDACTED_LOG_VALUE}, status=401\nsecret=${REDACTED_LOG_VALUE}`,
+    );
+  });
 });
