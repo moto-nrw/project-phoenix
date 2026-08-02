@@ -536,6 +536,29 @@ export function SupervisionProvider({
     }
   }, [session?.user?.token]); // Only depend on token
 
+  // A group handover or Vertretung changed which groups this account may open
+  // (#2084). This provider holds its group list in local state behind its own
+  // fetch, not SWR, so the global SSE cache invalidation cannot reach it — and
+  // the sidebar's "Meine Gruppen" list is exactly what a colleague looks at
+  // after a handover. useGlobalSSE announces the change on this window event
+  // (mirroring the reminders / care-schedule decoupling) and the provider owns
+  // the refetch. force: true bypasses the 5-second throttle, which a handover
+  // arriving right after another refresh would otherwise swallow, leaving the
+  // group invisible until the next minute tick.
+  useEffect(() => {
+    if (!session?.user?.token) return;
+
+    const handleStale = () => {
+      refreshRef.current?.({ silent: true, force: true }).catch(() => {
+        // Intentionally ignored - silent background refresh
+      });
+    };
+
+    window.addEventListener("phoenix:supervision-stale", handleStale);
+    return () =>
+      window.removeEventListener("phoenix:supervision-stale", handleStale);
+  }, [session?.user?.token]);
+
   // Periodic refresh every minute for timely supervision updates (silent mode)
   useEffect(() => {
     if (!session?.user?.token) return;

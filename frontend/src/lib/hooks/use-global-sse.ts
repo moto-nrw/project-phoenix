@@ -204,6 +204,11 @@ export function useGlobalSSE(): SSEHookState {
   // actually have changed the "läuft mit" links sets it.
   const hasPendingCompanionEvent = useRef(false);
   const hasPendingTimetableEvent = useRef(false);
+  // A group handover or Vertretung changed WHICH groups the viewer may open
+  // (#2084). Kept apart from the OGS count flags: it invalidates a different
+  // key set (the group list itself, the Vertretungen page, the user-context
+  // BFF) and, unlike a check-in, it is rare.
+  const hasPendingSubstitutionEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Per-burst flush state (#2057): jitter drawn once when a burst starts, and
   // the burst's start time for the MAX_FLUSH_WAIT_MS cap.
@@ -263,7 +268,14 @@ export function useGlobalSSE(): SSEHookState {
         // A Gehzeit change moves the pickup time the list rows render
         // (student list responses carry it for full-access rows).
         hasPendingPickupScheduleEvent.current ||
-        hasPendingStudentUpdateEvent.current;
+        hasPendingStudentUpdateEvent.current ||
+        // A handover/Vertretung changes the GROUP LIST inside the aggregated
+        // live response, and it cannot be scoped to the affected group id
+        // (#2084): the recipient's open tab is keyed on a DIFFERENT group —
+        // the one they were already viewing — or on "auto" when they had no
+        // group at all, so a scoped invalidation would miss exactly the tab
+        // this event exists for.
+        hasPendingSubstitutionEvent.current;
       const scopedEduGroupIds = new Set(pendingEduGroupIds.current);
       if (broadOgs || scopedEduGroupIds.size > 0) {
         mutate(
@@ -577,6 +589,38 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // A group handover or Vertretung changed who may open which group (#2084).
+    // Besides the OGS live view above, three caches carry that fact and none of
+    // them revalidates on focus: the admin Vertretungen page (its list and the
+    // teacher availability it renders) and the user-context BFF, whose
+    // educational-group list drives the sidebar group switcher and is fetched
+    // as immutable — without an explicit invalidation it never refetches for
+    // the whole session.
+    if (hasPendingSubstitutionEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("active-substitutions") ||
+            key.includes("substitution-teachers") ||
+            key.includes("user-context")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "substitutions",
+        });
+      });
+
+      // The sidebar's "Meine Gruppen" list lives in SupervisionContext, which
+      // keeps it in local state behind its own fetch and only refreshes on a
+      // one-minute tick — there is no SWR key to invalidate. That list is
+      // exactly what a colleague looks at after a handover, so announce
+      // staleness and let the provider refetch (same decoupling as reminders
+      // and the care-schedule editor above).
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+      }
+    }
+
     if (hasPendingTimetableEvent.current) {
       mutate(
         (key) =>
@@ -657,6 +701,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingStudentUpdateEvent.current = false;
     hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
+    hasPendingSubstitutionEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -803,6 +848,16 @@ export function useGlobalSSE(): SSEHookState {
           // without OGS group) falls back to the broad refresh.
           hasPendingDashboardEvent.current = true;
           collectEduGroupScope(event.data.group_ids);
+          scheduleFlush();
+          break;
+        }
+
+        case "substitution_changed": {
+          // A group was handed over/taken back, or a Vertretung was
+          // created/edited/deleted. Debounced like the other cache triggers so
+          // an admin editing several Vertretungen in a row produces one flush,
+          // not one per save.
+          hasPendingSubstitutionEvent.current = true;
           scheduleFlush();
           break;
         }

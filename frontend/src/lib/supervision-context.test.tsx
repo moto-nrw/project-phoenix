@@ -303,6 +303,60 @@ describe("SupervisionProvider", () => {
     intervalSpy.mockRestore();
   });
 
+  it("refetches on phoenix:supervision-stale, bypassing the 5s throttle (#2084)", async () => {
+    // A group handed to this account must show up in the sidebar without a
+    // reload. The announcement arrives right after the provider's own initial
+    // load, so it MUST beat the 5-second refresh throttle — otherwise the new
+    // group stays invisible until the next one-minute tick.
+    setupFetchMock();
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    const initialFetchCount = mockFetch.mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockFetch.mock.calls.length).toBeGreaterThan(initialFetchCount);
+    });
+    expect(
+      mockFetch.mock.calls.some((call) =>
+        String(call[0]).includes("/api/groups/context"),
+      ),
+    ).toBe(true);
+  });
+
+  it("stops listening for phoenix:supervision-stale after unmount", async () => {
+    setupFetchMock();
+
+    const { result, unmount } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    unmount();
+    const afterUnmount = mockFetch.mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
+      await Promise.resolve();
+    });
+
+    expect(mockFetch.mock.calls.length).toBe(afterUnmount);
+  });
+
   it("should not setup periodic refresh without token", () => {
     vi.useFakeTimers();
 

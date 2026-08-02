@@ -280,10 +280,11 @@ function OGSGroupPageContent() {
     {
       keepPreviousData: true, // Show cached data while revalidating
       revalidateOnFocus: false, // Handled by global SSE
-      // Safety net (#2057): group transfers/substitutions emit NO SSE event
-      // today. Without a periodic refresh, a group transferred to this user
-      // would stay invisible until a hard reload.
-      refreshInterval: 5 * 60_000,
+      // No periodic refresh: group transfers and substitutions now emit
+      // substitution_changed (#2084), which invalidates this key. The
+      // five-minute poll that covered that gap (#2057) is gone — it cost every
+      // open tab a full aggregated request twelve times an hour to catch a
+      // change that happens a handful of times a day.
     },
   );
 
@@ -368,7 +369,7 @@ function OGSGroupPageContent() {
       // `auto` key is outside the scoped SSE invalidation (#2057 targets
       // numeric group ids), so an event arriving while the cold-start request
       // was in flight would otherwise leave a stale seed pinned until the
-      // next event or the five-minute poll.
+      // next event.
       if (dataGroupId) {
         void tenantMutate(`ogs-students-${dataGroupId}`, liveData, {
           revalidate: true,

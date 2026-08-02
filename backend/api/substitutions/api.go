@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -28,7 +29,11 @@ const (
 
 type Resource struct {
 	Service education.Service
-	db      *bun.DB
+	// Broadcaster emits the tenant-wide substitution_changed signal after a
+	// Vertretung is created, edited or deleted (#2084). Optional: a nil
+	// broadcaster disables the SSE notification, never the write.
+	Broadcaster realtime.Broadcaster
+	db          *bun.DB
 }
 
 func NewResource(educationService education.Service, db *bun.DB) *Resource {
@@ -270,6 +275,10 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A Vertretung decides which groups the substitute may open — announce it
+	// so their already-open "Meine Gruppe" tab picks the group up (#2084).
+	realtime.QueueSubstitutionChanged(r.Context(), rs.Broadcaster, nil, "substitution_create")
+
 	// Convert to response DTO
 	response := newSubstitutionResponse(substitution)
 	common.Respond(w, r, http.StatusCreated, response, "Substitution created successfully")
@@ -331,6 +340,15 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Carry the stored tenant over the decoded body. The handler decodes into a
+	// bare model, so a request without a tenant_id field (every real client —
+	// tenancy is a server-side fact, not a client input) leaves it at 0, and the
+	// generic repository Update writes EVERY column: the row would be rewritten
+	// with tenant_id = 0 and RLS rejects it with "new row violates row-level
+	// security policy". Taking the value from the row we just loaded also means
+	// a client cannot move a substitution into another tenant by sending one.
+	substitution.SetTenantID(existing.GetTenantID())
+
 	// Perform update
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
@@ -339,6 +357,10 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	// An edit can move the Vertretung to a different substitute or group, so
+	// it changes access on both sides — same signal as create/delete.
+	realtime.QueueSubstitutionChanged(r.Context(), rs.Broadcaster, nil, "substitution_update")
 
 	updated, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
@@ -429,6 +451,9 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	// The substitute loses the group — their open tab must drop it live.
+	realtime.QueueSubstitutionChanged(r.Context(), rs.Broadcaster, nil, "substitution_delete")
 
 	common.RespondNoContent(w, r)
 }

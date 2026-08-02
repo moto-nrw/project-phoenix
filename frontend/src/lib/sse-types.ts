@@ -53,6 +53,14 @@ type SSEEventType =
   // activity_update), so timetable + own-assignment caches refetch on this
   // instead. See backend/realtime/events.go EventStaffingDeviationChanged.
   | "staffing_deviation_changed"
+  // Tenant-wide signal that a group substitution row changed: an admin
+  // Vertretung was created/edited/deleted, or a group leader handed their group
+  // to a colleague (Gruppenübergabe) or took it back. Both decide WHICH groups a
+  // staff member may open in "Meine Gruppe", and the receiving colleague's
+  // client makes no request of its own — no other event covers it. Carries no
+  // staff identity; clients refetch their own access-filtered views. See
+  // backend/realtime/events.go EventSubstitutionChanged.
+  | "substitution_changed"
   // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
   // for the staff inbox / child thread / parent thread to refetch and update
   // the unread badge. See backend/realtime/events.go EventParentMessage.

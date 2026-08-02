@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -51,7 +52,11 @@ type Resource struct {
 	ActiveService      activeService.Service
 	UserService        userService.PersonService
 	UserContextService userContextService.UserContextService
-	db                 *bun.DB
+	// Broadcaster emits the tenant-wide substitution_changed signal after a
+	// group handover is created or cancelled (#2084). Optional: a nil
+	// broadcaster disables the SSE notification, never the write.
+	Broadcaster realtime.Broadcaster
+	db          *bun.DB
 }
 
 // NewResource creates a new groups resource
@@ -1063,6 +1068,11 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The receiving colleague's client made no request of its own and no other
+	// event covers a handover, so without this their open "Meine Gruppe" tab
+	// would not learn about the new group until a reload (#2084).
+	realtime.QueueSubstitutionChanged(r.Context(), rs.Broadcaster, nil, "group_transfer")
+
 	common.Respond(w, r, http.StatusCreated, map[string]interface{}{
 		"substitution_id": substitution.ID,
 		"group_id":        groupID,
@@ -1134,6 +1144,10 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+
+	// Same reasoning as the handover itself: the colleague who LOSES access
+	// must stop seeing the group without waiting for a reload.
+	realtime.QueueSubstitutionChanged(r.Context(), rs.Broadcaster, nil, "group_transfer_cancel")
 
 	common.Respond(w, r, http.StatusOK, nil, "Transfer cancelled successfully")
 }

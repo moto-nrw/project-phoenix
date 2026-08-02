@@ -1636,4 +1636,173 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
   });
+
+  describe("substitution_changed (#2084)", () => {
+    function fire(event: {
+      type: SSEEvent["type"];
+      active_group_id?: string;
+      data?: SSEEvent["data"];
+    }) {
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: event.type,
+        active_group_id: event.active_group_id ?? "",
+        data: event.data ?? {},
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    function matchedKeys(inventory: readonly string[]): string[] {
+      const matchers = vi
+        .mocked(mutate)
+        .mock.calls.map((call) => call[0])
+        .filter((m): m is (key: string) => boolean => typeof m === "function");
+      return inventory.filter((key) => matchers.some((m) => m(key)));
+    }
+
+    it("refreshes EVERY ogs-students key, not just the transferred group", () => {
+      // The acceptance criterion: a group handed to this user must appear in
+      // their open tab. That tab is keyed on the group they were ALREADY
+      // viewing (or "auto" when they had none), so a scoped invalidation would
+      // miss exactly the client the event exists for.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "substitution_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:ogs-students-7",
+          "tenant:ogs-students-8",
+          "tenant:ogs-students-auto",
+        ]),
+      ).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:ogs-students-8",
+        "tenant:ogs-students-auto",
+      ]);
+    });
+
+    it("refreshes the Vertretungen page and the user-context group list", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "substitution_changed",
+        data: { source: "substitution_create" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:active-substitutions",
+          "tenant:substitution-teachers",
+          "tenant:user-context",
+        ]),
+      ).toEqual([
+        "tenant:active-substitutions",
+        "tenant:substitution-teachers",
+        "tenant:user-context",
+      ]);
+    });
+
+    it("does not drag unrelated cache families into a handover", () => {
+      // A handover changes access, not attendance, staff hours or timetable
+      // blocks. Refetching those would re-create the request herd #2083 removed.
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "substitution_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:staff-dashboard-summary-month",
+          "tenant:timetable-roster-2026-01",
+          "tenant:supervision-visits-3",
+          "tenant:student-detail-42",
+        ]),
+      ).toEqual([]);
+    });
+
+    it("collapses a burst of substitution writes into one flush", () => {
+      // An admin saving several Vertretungen in a row must cost every open tab
+      // one refetch, not one per save.
+      renderHook(() => useGlobalSSE());
+
+      for (let i = 0; i < 4; i++) {
+        fire({
+          type: "substitution_changed",
+          data: { source: "substitution_create" },
+        });
+        vi.advanceTimersByTime(100);
+      }
+      expect(mutate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(DEBOUNCE_MS + FLUSH_JITTER_MS);
+      const flushes = vi
+        .mocked(mutate)
+        .mock.calls.filter(
+          (call) =>
+            typeof call[0] === "function" &&
+            (call[0] as (key: string) => boolean)(
+              "tenant:active-substitutions",
+            ),
+        );
+      expect(flushes).toHaveLength(1);
+    });
+
+    it("announces phoenix:supervision-stale so the sidebar group list refetches", () => {
+      // SupervisionContext owns the sidebar's "Meine Gruppen" list in local
+      // state behind its own fetch — no SWR key exists to invalidate, and its
+      // own refresh is a one-minute tick. Without this announcement a handover
+      // stays invisible in the sidebar for up to a minute.
+      const listener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", listener);
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "substitution_changed",
+        data: { source: "group_transfer" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      window.removeEventListener("phoenix:supervision-stale", listener);
+    });
+
+    it("does not announce phoenix:supervision-stale on an unrelated event", () => {
+      const listener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", listener);
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "dashboard_counts_changed", data: { group_ids: ["7"] } });
+      vi.advanceTimersByTime(500);
+
+      expect(listener).not.toHaveBeenCalled();
+      window.removeEventListener("phoenix:supervision-stale", listener);
+    });
+
+    it("leaves the substitution caches alone on an unrelated event", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        data: { group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(
+        matchedKeys([
+          "tenant:active-substitutions",
+          "tenant:substitution-teachers",
+          "tenant:user-context",
+        ]),
+      ).toEqual([]);
+    });
+  });
 });

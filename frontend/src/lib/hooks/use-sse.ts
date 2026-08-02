@@ -186,6 +186,10 @@ export function useSSE(
           // remount (the #1694 bus it drives never fired).
           "staffing_deviation_changed",
           "student_companions_changed",
+          // Group handovers and Vertretungen (#2084). Same named-event rule:
+          // unregistered means the handler in useGlobalSSE never runs and a
+          // group handed to this user stays invisible until a reload.
+          "substitution_changed",
           // Notification abstraction (#1624): rendered directly as a toast by
           // NotificationBridge via useGlobalSSE — not a cache trigger.
           "notification",
