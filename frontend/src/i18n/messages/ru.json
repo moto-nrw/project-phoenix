@@ -62,7 +62,8 @@
     "role": "Родитель",
     "childProfile": "Профиль ребенка",
     "loading": "Загрузка...",
-    "feedback": "Обратная связь"
+    "feedback": "Обратная связь",
+    "settings": "Настройки"
   },
   "parentMealPlan": {
     "title": "Меню питания",
@@ -130,6 +131,11 @@
     "newsPollNeedsAnswer": "Требуется ответ",
     "newsClose": "Закрыть",
     "newEnrollment": "Новая заявка"
+  },
+  "parentSettings": {
+    "eyebrow": "Ваш аккаунт",
+    "title": "Настройки",
+    "description": "Выберите, о чём moto будет вас информировать и на каком устройстве."
   },
   "parentEnroll": {
     "back": "Назад в родительский портал",

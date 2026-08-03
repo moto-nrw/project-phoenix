@@ -64,6 +64,8 @@ var schedulerPollingSettingKeys = []string{
 	configModel.KeyRemindersActivityOverdueEnabled,
 	configModel.KeyRemindersPickupUpcomingLeadMinutes,
 	configModel.KeyRemindersActivityStartLeadMinutes,
+	configModel.KeyCalendarAppointmentReminderEnabled,
+	configModel.KeyCalendarAppointmentReminderLeadHours,
 	configModel.KeyPresenceMode,
 	configModel.KeyStudentDataScope,
 	configModel.KeyEnrollmentWaitlistEnabled,
@@ -149,7 +151,8 @@ func (s *Scheduler) forEachKnownTenant(
 	tenantIDs []int64,
 	opName string,
 	fn func(context.Context, int64) error,
-) {
+) []int64 {
+	completed := make([]int64, 0, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
 		err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			return fn(txCtx, tenantID)
@@ -160,6 +163,9 @@ func (s *Scheduler) forEachKnownTenant(
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
+			continue
 		}
+		completed = append(completed, tenantID)
 	}
+	return completed
 }

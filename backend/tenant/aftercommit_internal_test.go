@@ -79,6 +79,15 @@ func TestWithAfterCommitHooks_ReusesExistingHolder(t *testing.T) {
 	assert.Equal(t, outerCtx, innerCtx, "ctx must NOT be re-wrapped on nested call")
 }
 
+func TestContextWithoutAfterCommitHooksIsolatesIndependentTransactions(t *testing.T) {
+	outerCtx, outerHooks := withAfterCommitHooks(context.Background())
+	isolateCtx := ContextWithoutAfterCommitHooks(outerCtx)
+	innerCtx, innerHooks := withAfterCommitHooks(isolateCtx)
+
+	assert.NotSame(t, outerHooks, innerHooks)
+	assert.NotEqual(t, outerCtx, innerCtx)
+}
+
 // TestRunAfterCommitHooks_NilHolderIsNoop covers the safety guard: if
 // WithTenantTx never reached the outer-attach path (e.g. a defensive
 // caller path), runAfterCommitHooks must not panic on nil.

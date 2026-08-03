@@ -17,15 +17,22 @@ import {
 
 const logger = createLogger({ component: "NotificationPreferencesSection" });
 
-/** German headings for the registry groups, in display order. */
+/**
+ * German headings for the registry groups (services/notifications/types.go).
+ *
+ * Only the wording lives here — the order and the set of groups come from the
+ * backend response, which is already sorted. An unknown key falls back to the
+ * raw group name, so a new backend group renders with an ugly heading rather
+ * than disappearing: a missing group would take its types with it, and since
+ * "no row means off", nobody could ever switch them on.
+ */
 const GROUP_LABELS: Record<string, string> = {
   abholung: "Abholungen",
   aktivitaeten: "Aktivitäten",
   kinder: "Kinder",
   mitteilungen: "Mitteilungen",
+  termine: "Termine",
 };
-
-const GROUP_ORDER = ["abholung", "aktivitaeten", "kinder", "mitteilungen"];
 
 interface NotificationPreferencesSectionProps {
   readonly portal?: PreferencePortal;
@@ -109,11 +116,25 @@ export function NotificationPreferencesSection({
   };
 
   const anyEnabled = types.some((t) => t.enabled);
-  const groups = GROUP_ORDER.map((group) => ({
-    group,
-    label: GROUP_LABELS[group] ?? group,
-    items: types.filter((t) => t.group === group),
-  })).filter((g) => g.items.length > 0);
+  // Groups come from the response, in the order the backend sent them — the
+  // catalogue is already sorted by group and then by rank. Deriving them here
+  // rather than from a local list means a new backend group shows up instead of
+  // silently dropping its types out of the card.
+  const groups = types.reduce<
+    { group: string; label: string; items: typeof types }[]
+  >((acc, type) => {
+    const existing = acc.find((g) => g.group === type.group);
+    if (existing) {
+      existing.items.push(type);
+      return acc;
+    }
+    acc.push({
+      group: type.group,
+      label: GROUP_LABELS[type.group] ?? type.group,
+      items: [type],
+    });
+    return acc;
+  }, []);
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">

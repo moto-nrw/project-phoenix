@@ -38,7 +38,13 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // unmappedDateColumns classifies DATE columns that have no models/ struct
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
-var unmappedDateColumns = map[string]string{}
+var unmappedDateColumns = map[string]string{
+	// Reminder push claims are written and deleted exclusively by the two
+	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
+	// a timezone.Date parameter there and never scanned into a struct, so the
+	// table has no model to carry a field.
+	"calendar.appointment_reminder_push_deliveries.occurrence_date": "claim table touched only through calendar.claim/release_appointment_reminder_push_delivery — no model struct",
+}
 
 // renamedDateColumns maps a DATE column declared under an old name in a
 // migration to its current name after an ALTER TABLE ... RENAME COLUMN.

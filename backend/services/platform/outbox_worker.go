@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -170,6 +171,12 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	tenantCtx := tenant.WithTenantID(ctx, row.GetTenantID())
 	msg, renderErr := renderer.Render(tenantCtx, row)
 	if renderErr != nil {
+		// A cancelled render is a decision, not a fault: the row may never be sent,
+		// so retrying it would only delay the same answer. Retire it now.
+		if errors.Is(renderErr, ErrRenderCancelled) {
+			w.cancelRow(ctx, row, renderErr.Error())
+			return
+		}
 		w.recordFailure(ctx, row, fmt.Sprintf("render: %v", renderErr))
 		return
 	}
@@ -245,6 +252,27 @@ func (w *OutboxWorker) recordFailure(ctx context.Context, row *platformModels.Em
 		slog.Int("attempts", attempts),
 		slog.Time("next_retry_at", nextRetry),
 		slog.String("error", errMsg))
+}
+
+// cancelRow retires a row its renderer refused to build. It shares the terminal
+// 'failed' state with a permanent delivery failure — the same state
+// CancelPendingByRelatedEntity uses to retract queued mail — but logs at Info,
+// because nothing here is broken.
+func (w *OutboxWorker) cancelRow(ctx context.Context, row *platformModels.EmailOutbox, reason string) {
+	attempts := row.Attempts + 1
+	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return w.repo.MarkFailed(adminCtx, row.ID, attempts, reason)
+	}); err != nil {
+		w.logger.Error("outbox: mark cancelled failed",
+			slog.Int64("outbox_id", row.ID),
+			slog.String("error", err.Error()))
+		return
+	}
+	w.logger.Info("outbox: send cancelled by renderer",
+		slog.Int64("outbox_id", row.ID),
+		slog.Int64("tenant_id", row.GetTenantID()),
+		slog.String("kind", row.Kind),
+		slog.String("reason", reason))
 }
 
 func (w *OutboxWorker) markFailedAdmin(ctx context.Context, row *platformModels.EmailOutbox, errMsg string) {
