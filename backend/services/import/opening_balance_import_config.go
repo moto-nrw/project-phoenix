@@ -14,6 +14,7 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // maxOpeningHours mirrors the ledger's carryover bound (10.000 h).
@@ -290,14 +291,28 @@ func rangeError(field, message, actual string) importModels.ValidationError {
 // parseGermanDecimal parses "12,5", "-3,25", or "7.5" into a float64.
 func parseGermanDecimal(raw string) (float64, error) {
 	normalized := strings.ReplaceAll(strings.TrimSpace(raw), ",", ".")
-	return strconv.ParseFloat(normalized, 64)
+	value, err := strconv.ParseFloat(normalized, 64)
+	if err != nil {
+		return 0, err
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, errors.New("value must be finite")
+	}
+	return value, nil
 }
 
-// ValidateBatch reports staff members appearing on more than one row.
+// ValidateBatch reports staff members appearing on more than one row. Batch
+// validation runs before per-row validation, so it resolves a sanitized copy
+// of each row rather than relying on the later Validate call to set StaffID.
 func (c *OpeningBalanceImportConfig) ValidateBatch(_ context.Context, rows []importModels.OpeningBalanceImportRow) map[int][]importModels.ValidationError {
 	seen := make(map[int64]int, len(rows))
 	errs := make(map[int][]importModels.ValidationError)
-	for i, row := range rows {
+	for i := range rows {
+		row := rows[i]
+		row.PersonnelNumber = strings.TrimSpace(row.PersonnelNumber)
+		row.FirstName = strings.TrimSpace(row.FirstName)
+		row.LastName = strings.TrimSpace(row.LastName)
+		_ = c.resolveStaff(&row)
 		if row.StaffID <= 0 {
 			continue
 		}
@@ -323,13 +338,29 @@ func (c *OpeningBalanceImportConfig) FindExisting(_ context.Context, _ importMod
 	return nil, nil
 }
 
-// Create books the sides the row carries: the Stundenkonto opening, the
-// vacation quota (Jahresanspruch/Übertrag), and the vacation takeover — in
-// that order, because the takeover derives taken_before from the quota.
+// Create books the sides the row carries atomically: the Stundenkonto opening,
+// the vacation quota (Jahresanspruch/Übertrag), and the vacation takeover —
+// in that order, because the takeover derives taken_before from the quota.
+// A failed row is reported and skipped, so its writes must be rolled back
+// without losing other valid rows from the surrounding import transaction.
 func (c *OpeningBalanceImportConfig) Create(ctx context.Context, row importModels.OpeningBalanceImportRow) (int64, error) {
 	if row.StaffID <= 0 {
 		return 0, errors.New("interner Fehler: Zeile ohne aufgelöste Person")
 	}
+
+	var createdID int64
+	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+		var err error
+		createdID, err = c.create(ctx, row)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	return createdID, nil
+}
+
+func (c *OpeningBalanceImportConfig) create(ctx context.Context, row importModels.OpeningBalanceImportRow) (int64, error) {
 	if row.HoursBalanceMinutes != nil {
 		if _, err := c.BalanceAdjustService.CreateOpeningBalance(ctx, row.StaffID, c.DecidedByStaffID, c.EffectiveDate, *row.HoursBalanceMinutes, c.Note); err != nil {
 			return 0, translateOpeningBookingError(err)

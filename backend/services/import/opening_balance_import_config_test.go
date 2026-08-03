@@ -91,6 +91,9 @@ func TestParseGermanDecimal(t *testing.T) {
 		{raw: " 12,5 ", want: 12.5},
 		{raw: "abc", wantErr: true},
 		{raw: "", wantErr: true},
+		{raw: "NaN", wantErr: true},
+		{raw: "+Inf", wantErr: true},
+		{raw: "-Inf", wantErr: true},
 		// The German thousands separator is NOT supported — "1.234,5" would
 		// silently become an invalid float rather than 1234,5.
 		{raw: "1.234,5", wantErr: true},
@@ -368,9 +371,9 @@ func TestOpeningBalanceValidate_AcceptsCompleteRow(t *testing.T) {
 func TestOpeningBalanceValidateBatch_DuplicateStaffInFile(t *testing.T) {
 	c := newOpeningConfig()
 	rows := []importModels.OpeningBalanceImportRow{
-		{FirstName: "Anna", LastName: "Lehmann", StaffID: openingStaffAnnaID},
-		{FirstName: "Bernd", LastName: "Schulz", StaffID: openingStaffBerndID},
-		{FirstName: "Anna", LastName: "Lehmann", StaffID: openingStaffAnnaID},
+		{FirstName: "Anna", LastName: "Lehmann"},
+		{FirstName: "Bernd", LastName: "Schulz"},
+		{FirstName: " Anna ", LastName: " Lehmann "},
 	}
 
 	errs := c.ValidateBatch(context.Background(), rows)
