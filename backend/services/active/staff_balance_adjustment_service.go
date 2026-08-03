@@ -501,7 +501,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 // reduction-capacity check — a migrated account legitimately starts negative
 // when the staff member owed hours in the previous system.
 func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
-	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note)
+	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, true)
 	if err != nil {
 		return nil, err
 	}
@@ -532,15 +532,16 @@ func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context
 	return adjustment, nil
 }
 
-// ValidateOpeningBalance runs the same read-only booking guards used by
-// CreateOpeningBalance. Import previews use it to report constraints before
-// an operator commits the file.
+// ValidateOpeningBalance runs the read-only booking guards used by
+// CreateOpeningBalance. It deliberately does not take the transaction-scoped
+// staff lock: bulk imports validate every uploaded row before their sorted
+// creation pass, and file-order locks here could deadlock concurrent imports.
 func (s *staffBalanceAdjustmentService) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) error {
-	_, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note)
+	_, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, false)
 	return err
 }
 
-func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (int, error) {
+func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string, lockWrites bool) (int, error) {
 	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
 		return 0, err
 	}
@@ -560,8 +561,10 @@ func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Conte
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
 		return 0, err
 	}
-	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
-		return 0, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	if lockWrites {
+		if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+			return 0, fmt.Errorf("failed to lock staff balance writes: %w", err)
+		}
 	}
 	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
 		return 0, err

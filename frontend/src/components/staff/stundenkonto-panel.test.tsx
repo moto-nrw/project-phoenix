@@ -164,6 +164,10 @@ describe("StundenkontoPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Eröffnungssaldo" }));
 
+    expect(
+      screen.getByLabelText("Übernommener Saldo (Stunden)"),
+    ).toHaveAttribute("type", "text");
+
     const openingDate = screen.getByLabelText("Stichtag");
     expect(openingDate).toHaveAttribute("min", "2026-01-01");
     expect(openingDate).toHaveAttribute("max", "2026-07-23");

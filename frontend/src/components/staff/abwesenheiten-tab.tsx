@@ -997,10 +997,8 @@ function VacationOpeningModal({
           </label>
           <input
             id="vacation-opening-remaining"
-            type="number"
-            min="-999"
-            max="999"
-            step="0.5"
+            type="text"
+            inputMode="decimal"
             value={remainingDays}
             onChange={(e) => setRemainingDays(e.target.value)}
             placeholder="z. B. 12,5"

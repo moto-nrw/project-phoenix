@@ -127,9 +127,7 @@ const existingOpening = {
 };
 
 function renderTab() {
-  return render(
-    <AbwesenheitenTab staffId="4" canEdit canManageSickReports={false} />,
-  );
+  return render(<AbwesenheitenTab staffId="4" canEdit canManageSickReports />);
 }
 
 describe("AbwesenheitenTab vacation takeover", () => {
@@ -146,14 +144,14 @@ describe("AbwesenheitenTab vacation takeover", () => {
     const date = screen.getByLabelText("Stichtag");
     fireEvent.change(date, { target: { value: `${year}-02-28` } });
     fireEvent.change(screen.getByLabelText("Resturlaub zum Stichtag (Tage)"), {
-      target: { value: "26" },
+      target: { value: "26,5" },
     });
     fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
       target: { value: "Übernahme aus Urlaubsliste" },
     });
 
-    // Anspruch 30 + Übertrag 2 − Rest 26 = 6, wie der Server rechnet.
-    expect(screen.getByText("6 Tage")).toBeInTheDocument();
+    // Anspruch 30 + Übertrag 2 − Rest 26,5 = 5,5, wie der Server rechnet.
+    expect(screen.getByText("5,5 Tage")).toBeInTheDocument();
     // Der Stichtag bleibt im angezeigten Jahr.
     expect(date).toHaveAttribute("min", `${year}-01-01`);
 
@@ -162,7 +160,7 @@ describe("AbwesenheitenTab vacation takeover", () => {
     await waitFor(() => {
       expect(mocks.setVacationOpening).toHaveBeenCalledWith("4", {
         effectiveDate: `${year}-02-28`,
-        remainingDays: 26,
+        remainingDays: 26.5,
         note: "Übernahme aus Urlaubsliste",
       });
     });

@@ -655,10 +655,8 @@ function OpeningModal({
           </label>
           <input
             id="opening-balance"
-            type="number"
-            min="-10000"
-            max="10000"
-            step="0.25"
+            type="text"
+            inputMode="decimal"
             value={openingHours}
             onChange={(e) => setOpeningHours(e.target.value)}
             placeholder="z. B. 12,5 oder -3"
