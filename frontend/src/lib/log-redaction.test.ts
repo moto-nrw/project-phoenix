@@ -17,6 +17,7 @@ describe("redactSensitiveLogData", () => {
         jwt: "jwt-value",
         JWTToken: "compound-jwt-token-value",
         PINCode: "compound-pin-value",
+        xStaffId: "header-staff-id-value",
         display_name: "Safe Name",
       },
       entries: [
@@ -47,6 +48,7 @@ describe("redactSensitiveLogData", () => {
         jwt: REDACTED_LOG_VALUE,
         JWTToken: REDACTED_LOG_VALUE,
         PINCode: REDACTED_LOG_VALUE,
+        xStaffId: REDACTED_LOG_VALUE,
         display_name: "Safe Name",
       },
       entries: [
@@ -73,22 +75,27 @@ describe("redactSensitiveLogData", () => {
       redactSensitiveLogData({
         mapping: "kept",
         shipping: "kept",
+        staff_id: "kept",
         authorization_status: "kept",
         cookie_consent: "kept",
       }),
     ).toEqual({
       mapping: "kept",
       shipping: "kept",
+      staff_id: "kept",
       authorization_status: "kept",
       cookie_consent: "kept",
     });
     expect(
       redactSensitiveLogString(
-        "?mapping=kept&shipping=kept&authorization_status=kept&cookie_consent=kept\nmapping=kept, shipping=kept",
+        "?mapping=kept&shipping=kept&authorization_status=kept&cookie_consent=kept\nmapping=kept, shipping=kept, staff_id=kept",
       ),
     ).toBe(
-      "?mapping=kept&shipping=kept&authorization_status=kept&cookie_consent=kept\nmapping=kept, shipping=kept",
+      "?mapping=kept&shipping=kept&authorization_status=kept&cookie_consent=kept\nmapping=kept, shipping=kept, staff_id=kept",
     );
+    expect(
+      redactSensitiveLogString("POST /operator/auth/invitations/validate"),
+    ).toBe("POST /operator/auth/invitations/validate");
   });
 
   it("preserves typed token-state metadata while redacting credentials", () => {
@@ -132,10 +139,10 @@ describe("redactSensitiveLogData", () => {
   it("redacts credentials embedded in routes, query strings, and text", () => {
     expect(
       redactSensitiveLogString(
-        'GET /parents/enroll/status/route-token/edit?access_token=query-token&status_token=query-status-token&statusToken=query-camel-status-token&token_value=query-token-value&staffPIN=query-staff-pin&PINCode=query-pin-code&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nproxy=http://server:8080/public/calendar/backend-calendar-token?format=ics\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nX-Device-Key: raw-device-key\nX-Staff-PIN: 1234\nX-Staff-Auth-PIN: 5678\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","status_token":"serialized-status-token","statusToken":"serialized-camel-status-token","token_value":"serialized-token-value","staffPIN":"serialized-staff-pin","PINCode":"serialized-pin-code","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","X-Staff-PIN":"serialized-staff-pin","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
+        'GET /parents/enroll/status/route-token/edit?access_token=query-token&status_token=query-status-token&statusToken=query-camel-status-token&token_value=query-token-value&staffPIN=query-staff-pin&PINCode=query-pin-code&jwt=query-jwt&apiKey=query-api-key&authorization=query-authorization&cookie=query-cookie&late_invite=invite-token\nproxy=http://server:8080/public/calendar/backend-calendar-token?format=ics\ninvite=http://server:8080/auth/invitations/standard-invite-token/accept\nAuthorization: Basic basic-credential\nX-API-Key: raw-api-key\nX-Device-Key: raw-device-key\nX-Staff-ID: 42\nX-Staff-PIN: 1234\nX-Staff-Auth-PIN: 5678\nCookie: session=cookie-value; csrf=csrf-value\n{"password":"plain-password","status_token":"serialized-status-token","statusToken":"serialized-camel-status-token","token_value":"serialized-token-value","staffPIN":"serialized-staff-pin","PINCode":"serialized-pin-code","jwt":"serialized-jwt","api_key":"serialized-api-key","X-API-Key":"serialized-header-key","x_staff_id":"serialized-staff-id","X-Staff-PIN":"serialized-staff-pin","authorization":"raw-authorization","cookie":"session=serialized-cookie"}',
       ),
     ).toBe(
-      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&status_token=[REDACTED]&statusToken=[REDACTED]&token_value=[REDACTED]&staffPIN=[REDACTED]&PINCode=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nproxy=http://server:8080/public/calendar/[REDACTED]?format=ics\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nX-Device-Key: [REDACTED]\nX-Staff-PIN: [REDACTED]\nX-Staff-Auth-PIN: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","status_token":"[REDACTED]","statusToken":"[REDACTED]","token_value":"[REDACTED]","staffPIN":"[REDACTED]","PINCode":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","X-Staff-PIN":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
+      'GET /parents/enroll/status/[REDACTED]/edit?access_token=[REDACTED]&status_token=[REDACTED]&statusToken=[REDACTED]&token_value=[REDACTED]&staffPIN=[REDACTED]&PINCode=[REDACTED]&jwt=[REDACTED]&apiKey=[REDACTED]&authorization=[REDACTED]&cookie=[REDACTED]&late_invite=[REDACTED]\nproxy=http://server:8080/public/calendar/[REDACTED]?format=ics\ninvite=http://server:8080/auth/invitations/[REDACTED]/accept\nAuthorization: [REDACTED]\nX-API-Key: [REDACTED]\nX-Device-Key: [REDACTED]\nX-Staff-ID: [REDACTED]\nX-Staff-PIN: [REDACTED]\nX-Staff-Auth-PIN: [REDACTED]\nCookie: [REDACTED]\n{"password":"[REDACTED]","status_token":"[REDACTED]","statusToken":"[REDACTED]","token_value":"[REDACTED]","staffPIN":"[REDACTED]","PINCode":"[REDACTED]","jwt":"[REDACTED]","api_key":"[REDACTED]","X-API-Key":"[REDACTED]","x_staff_id":"[REDACTED]","X-Staff-PIN":"[REDACTED]","authorization":"[REDACTED]","cookie":"[REDACTED]"}',
     );
   });
 

@@ -17,10 +17,13 @@ const SENSITIVE_LOG_KEYS = new Set([
   "proxy_authorization",
   "set_cookie",
   "x_device_key",
+  "x_staff_id",
 ]);
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|public\/calendar|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
+const SENSITIVE_INVITATION_PATH_PATTERN =
+  /((?:^|\/)auth\/invitations\/)(?!(?:accept|session|validate)(?:[/?#\s"']|$))[^/?#\s"']+/gi;
 const TEXT_FIELD_NAME = String.raw`[^\s"'=:,;{}\[\]&?#]+`;
 const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
   String.raw`([?&])(${TEXT_FIELD_NAME})(=)[^&#\s"']*`,
@@ -35,7 +38,7 @@ const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
   "gi",
 );
 const SENSITIVE_QUOTED_HEADER_FIELD_PATTERN =
-  /((?:^|[\s,{])["']?(?:authorization|cookies?|(?:x[-_])?api[-_]?key|x[-_]device[-_]?key|x[-_]staff[-_](?:auth[-_])?pin)["']?\s*:\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi;
+  /((?:^|[\s,{])["']?(?:authorization|cookies?|(?:x[-_])?api[-_]?key|x[-_]device[-_]?key|x[-_]staff[-_](?:id|(?:auth[-_])?pin))["']?\s*:\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi;
 const AUTHORIZATION_CREDENTIAL_PATTERN =
   /(\b(?:Bearer|Basic|Digest|ApiKey)\s+)[^\s"',;]+/gi;
 const AUTHORIZATION_HEADER_PATTERN =
@@ -46,6 +49,8 @@ const DEVICE_KEY_HEADER_PATTERN =
   /(\bX[-_]Device[-_]Key["']?\s*:\s*["']?)[^"',}\s]+/gi;
 const STAFF_PIN_HEADER_PATTERN =
   /(\bX[-_]Staff[-_](?:Auth[-_])?PIN["']?\s*:\s*["']?)[^"',}\s]+/gi;
+const STAFF_ID_HEADER_PATTERN =
+  /(\bX[-_]Staff[-_]ID["']?\s*:\s*["']?)[^"',}\s]+/gi;
 const COOKIE_HEADER_PATTERN = /(\b(?:Set-)?Cookie\s*:\s*)[^\r\n]+/gi;
 const SAFE_TOKEN_PRESENCE_KEY_PATTERN = /^has_(?:[a-z0-9]+_)*tokens?$/;
 const SAFE_TOKEN_EXPIRY_KEY_PATTERN =
@@ -124,6 +129,7 @@ function isSafeTokenMetadata(key: string, value: unknown): boolean {
 export function redactSensitiveLogString(value: string): string {
   return value
     .replace(SENSITIVE_PATH_SEGMENT_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(SENSITIVE_INVITATION_PATH_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_QUERY_PARAMETER_PATTERN, redactSensitiveParameter)
     .replace(
       SENSITIVE_QUOTED_HEADER_FIELD_PATTERN,
@@ -136,6 +142,7 @@ export function redactSensitiveLogString(value: string): string {
     .replace(API_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(DEVICE_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(STAFF_PIN_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(STAFF_ID_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(COOKIE_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`);
 }
 
