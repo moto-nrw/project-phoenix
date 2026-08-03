@@ -149,6 +149,16 @@ describe("redactSensitiveLogData", () => {
     );
   });
 
+  it("redacts credentials in escaped serialized content", () => {
+    expect(
+      redactSensitiveLogString(
+        String.raw`payload={\"access_token\":\"escaped-secret\",\"safe\":\"kept\"}`,
+      ),
+    ).toBe(
+      String.raw`payload={\"access_token\":\"[REDACTED]\",\"safe\":\"kept\"}`,
+    );
+  });
+
   it("redacts unquoted credential values through explicit boundaries", () => {
     expect(
       redactSensitiveLogString(

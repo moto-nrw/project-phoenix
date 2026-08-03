@@ -27,7 +27,7 @@ const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
   "gi",
 );
 const SENSITIVE_QUOTED_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{;])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(["'])(?:\\.|(?!\4)[^\\])*\4`,
+  String.raw`((?:^|[\s,{;])(?:\\?["'])?)(${TEXT_FIELD_NAME})((?:\\?["'])?\s*[:=]\s*)(\\?["'])(?:(?!\4)(?:\\.|[^\\]))*\4`,
   "gi",
 );
 const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
