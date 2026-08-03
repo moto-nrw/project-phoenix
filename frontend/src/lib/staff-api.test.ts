@@ -1741,6 +1741,39 @@ describe("staff-api", () => {
       expect(result.entitled_days).toBe(30);
     });
 
+    it("maps vacation opening identifiers to strings", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 7,
+              staff_id: 4,
+              year: 2026,
+              effective_date: "2026-02-28",
+              taken_before_days: 5.5,
+              entered_remaining_days: 26.5,
+              note: "Übernahme aus Urlaubsliste",
+              decided_by: 9,
+              decided_at: "2026-03-01T08:00:00Z",
+            },
+          }),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.setVacationOpening("4", {
+          effectiveDate: "2026-02-28",
+          remainingDays: 26.5,
+          note: "Übernahme aus Urlaubsliste",
+        }),
+      ).resolves.toMatchObject({
+        id: "7",
+        staff_id: "4",
+        decided_by: "9",
+      });
+    });
+
     it("throws when saving vacation quota fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({

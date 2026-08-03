@@ -115,14 +115,14 @@ function quota(
 }
 
 const existingOpening = {
-  id: 7,
-  staff_id: 4,
+  id: "7",
+  staff_id: "4",
   year,
   effective_date: `${year}-02-28`,
   taken_before_days: 6,
   entered_remaining_days: 26,
   note: "Übernahme aus Urlaubsliste",
-  decided_by: 9,
+  decided_by: "9",
   decided_at: `${year}-03-01T08:00:00Z`,
 };
 
@@ -164,6 +164,38 @@ describe("AbwesenheitenTab vacation takeover", () => {
         note: "Übernahme aus Urlaubsliste",
       });
     });
+  });
+
+  it("rejects malformed and over-precise vacation opening values", async () => {
+    mocks.getVacationQuota.mockResolvedValue(quota());
+    mocks.getAbsences.mockResolvedValue([]);
+    renderTab();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Urlaubs-Übernahme" }),
+    );
+    fireEvent.change(screen.getByLabelText("Stichtag"), {
+      target: { value: `${year}-02-28` },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Übernahme aus Urlaubsliste" },
+    });
+
+    const remainingInput = screen.getByLabelText(
+      "Resturlaub zum Stichtag (Tage)",
+    );
+    for (const value of ["14,5 Tage", "12abc", "12,25"]) {
+      fireEvent.change(remainingInput, { target: { value } });
+
+      expect(
+        screen.getByRole("button", { name: "Übernahme buchen" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(
+          "Bitte eine Zahl zwischen -999 und 999 mit höchstens einer Nachkommastelle eingeben.",
+        ),
+      ).toBeInTheDocument();
+    }
   });
 
   it("shows the booked takeover and deletes it instead of editing", async () => {

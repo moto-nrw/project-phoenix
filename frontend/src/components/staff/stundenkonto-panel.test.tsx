@@ -190,6 +190,29 @@ describe("StundenkontoPanel", () => {
     });
   });
 
+  it("rejects opening balances with trailing text", () => {
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={0}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Eröffnungssaldo" }));
+    fireEvent.change(screen.getByLabelText("Übernommener Saldo (Stunden)"), {
+      target: { value: "-3,25x" },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Übernahme Altsystem" },
+    });
+
+    expect(screen.getByRole("button", { name: "Buchen" })).toBeDisabled();
+  });
+
   it("sperrt einen zweiten Eröffnungssaldo", () => {
     render(
       <StundenkontoPanel

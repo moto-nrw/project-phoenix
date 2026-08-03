@@ -22,6 +22,15 @@ import {
   type BalanceAdjustment,
 } from "~/lib/time-tracking-helpers";
 
+const DECIMAL_INPUT_PATTERN = /^[+-]?(?:\d+(?:[,.]\d+)?|[,.]\d+)$/;
+
+function parseDecimalInput(value: string): number | null {
+  const normalized = value.trim();
+  if (!DECIMAL_INPUT_PATTERN.test(normalized)) return null;
+  const parsed = Number(normalized.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 import { formatSignedDuration } from "./staff-time-views";
 
 interface StundenkontoPanelProps {
@@ -552,12 +561,12 @@ function OpeningModal({
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
 
-  const opening = Number.parseFloat(openingHours.replace(",", "."));
+  const opening = parseDecimalInput(openingHours);
   const openingValid =
-    !Number.isNaN(opening) && opening >= -10_000 && opening <= 10_000;
+    opening !== null && opening >= -10_000 && opening <= 10_000;
 
   const handleSubmit = async () => {
-    if (!openingValid) {
+    if (opening === null || opening < -10_000 || opening > 10_000) {
       toast.error("Eröffnungssaldo ungültig.");
       return;
     }
@@ -616,7 +625,7 @@ function OpeningModal({
                 {formatSignedDuration(balanceMinutes)}
               </span>
             </p>
-            {openingValid && (
+            {opening !== null && openingValid && (
               <p>
                 Gewünschter Stand am Stichtag:{" "}
                 <span className="font-medium tabular-nums">

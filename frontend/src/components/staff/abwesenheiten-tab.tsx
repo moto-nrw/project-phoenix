@@ -67,6 +67,15 @@ const VACATION_WORKFLOW_STATUSES = new Set([
   "canceled",
 ]);
 
+const ONE_DECIMAL_INPUT_PATTERN = /^[+-]?(?:\d+(?:[,.]\d)?|[,.]\d)$/;
+
+function parseOneDecimalInput(value: string): number | null {
+  const normalized = value.trim();
+  if (!ONE_DECIMAL_INPUT_PATTERN.test(normalized)) return null;
+  const parsed = Number(normalized.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function formatRange(start: string, end: string): string {
   return formatAbsenceRange(start, end);
 }
@@ -833,18 +842,19 @@ function VacationOpeningModal({
   const maxEffectiveDateKey =
     yesterdayKey < yearEndKey ? yesterdayKey : yearEndKey;
 
-  const remaining = Number.parseFloat(remainingDays.replace(",", "."));
+  const remaining = parseOneDecimalInput(remainingDays);
   const remainingValid =
-    !Number.isNaN(remaining) && remaining >= -999 && remaining <= 999;
+    remaining !== null && remaining >= -999 && remaining <= 999;
   const entitledTotal = quota.entitled_days + quota.carryover_days;
-  const computedTakenBefore = entitledTotal - remaining;
+  const computedTakenBefore =
+    remaining === null ? null : entitledTotal - remaining;
 
   const handleSubmit = async () => {
     if (!effectiveDate) {
       toast.error("Stichtag fehlt.");
       return;
     }
-    if (!remainingValid) {
+    if (remaining === null || remaining < -999 || remaining > 999) {
       toast.error("Resturlaub ungültig (-999 bis 999).");
       return;
     }
@@ -1004,6 +1014,12 @@ function VacationOpeningModal({
             placeholder="z. B. 12,5"
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
+          {remainingDays.trim() !== "" && !remainingValid && (
+            <p className="mt-1 text-xs text-[#FF3130]" role="alert">
+              Bitte eine Zahl zwischen -999 und 999 mit höchstens einer
+              Nachkommastelle eingeben.
+            </p>
+          )}
         </div>
         <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <p>
@@ -1012,7 +1028,7 @@ function VacationOpeningModal({
               {formatDayCount(entitledTotal)}
             </span>
           </p>
-          {remainingValid && (
+          {remainingValid && computedTakenBefore !== null && (
             <p>
               Errechnet vor Einführung genommen:{" "}
               <span className="font-medium tabular-nums">
@@ -1022,7 +1038,7 @@ function VacationOpeningModal({
           )}
           {/* Brand orange (LOCATION_COLORS.SCHOOLYARD) statt einer generischen
               Tailwind-Warnfarbe. */}
-          {remainingValid && computedTakenBefore < 0 && (
+          {computedTakenBefore !== null && computedTakenBefore < 0 && (
             <p className="text-xs text-[#F78C10]">
               Der eingegebene Resturlaub liegt über dem Jahresanspruch. moto
               schreibt die Differenz zusätzlich gut.

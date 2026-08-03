@@ -23,14 +23,14 @@ const quotaWithOpening: StaffVacationQuotaSummary = {
   taken_before_days: 6,
   remaining_days: 15,
   opening: {
-    id: 7,
-    staff_id: 1,
+    id: "7",
+    staff_id: "1",
     year: quota.year,
     effective_date: `${quota.year}-02-28`,
     taken_before_days: 6,
     entered_remaining_days: 26,
     note: "Übernahme aus Urlaubsliste, Stand 28.02.",
-    decided_by: 4,
+    decided_by: "4",
     decided_at: `${quota.year}-03-01T08:00:00Z`,
   },
 };

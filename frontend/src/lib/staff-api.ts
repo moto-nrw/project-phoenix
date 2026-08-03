@@ -378,8 +378,7 @@ class StaffService {
     }
 
     const staffData = (await staffResponse.json()) as
-      | BackendStaffResponse[]
-      | { data: BackendStaffResponse[] };
+      BackendStaffResponse[] | { data: BackendStaffResponse[] };
     const staffList = extractStaffList(staffData);
     const staffGroupsMap = buildStaffGroupsMap(activeGroups);
 
@@ -472,8 +471,7 @@ class StaffService {
       }
 
       const data = (await response.json()) as
-        | ActiveSupervisionResponse[]
-        | { data: ActiveSupervisionResponse[] };
+        ActiveSupervisionResponse[] | { data: ActiveSupervisionResponse[] };
 
       if (Array.isArray(data)) {
         return data;
@@ -591,8 +589,7 @@ interface UpdateScheduleTemplateRequest {
 }
 
 export type UpdateScheduleRequest =
-  | UpdateScheduleCustomRequest
-  | UpdateScheduleTemplateRequest;
+  UpdateScheduleCustomRequest | UpdateScheduleTemplateRequest;
 
 class StaffScheduleService {
   async getSchedule(staffId: string): Promise<StaffSchedule> {
@@ -758,15 +755,35 @@ export interface StaffAbsenceRow {
 // before the Stichtag in the previous system. The row is its own audit
 // record (Stichtag, entered Resturlaub, note, actor).
 export interface StaffVacationOpening {
-  id: number;
-  staff_id: number;
+  id: string;
+  staff_id: string;
   year: number;
   effective_date: string;
   taken_before_days: number;
   entered_remaining_days: number;
   note: string;
-  decided_by: number;
+  decided_by: string;
   decided_at: string;
+}
+
+interface BackendStaffVacationOpening extends Omit<
+  StaffVacationOpening,
+  "id" | "staff_id" | "decided_by"
+> {
+  id: number;
+  staff_id: number;
+  decided_by: number;
+}
+
+function mapStaffVacationOpening(
+  data: BackendStaffVacationOpening,
+): StaffVacationOpening {
+  return {
+    ...data,
+    id: data.id.toString(),
+    staff_id: data.staff_id.toString(),
+    decided_by: data.decided_by.toString(),
+  };
 }
 
 export interface StaffVacationQuotaSummary {
@@ -779,6 +796,24 @@ export interface StaffVacationQuotaSummary {
   reserved_days: number;
   remaining_days: number;
   opening?: StaffVacationOpening | null;
+}
+
+interface BackendStaffVacationQuotaSummary extends Omit<
+  StaffVacationQuotaSummary,
+  "opening"
+> {
+  opening?: BackendStaffVacationOpening | null;
+}
+
+function mapStaffVacationQuotaSummary(
+  data: BackendStaffVacationQuotaSummary,
+): StaffVacationQuotaSummary {
+  return {
+    ...data,
+    opening: data.opening
+      ? mapStaffVacationOpening(data.opening)
+      : data.opening,
+  };
 }
 
 // Body for the admin "Abwesenheit anlegen" endpoint (POST
@@ -826,9 +861,9 @@ class StaffAbsenceService {
       throw new Error(`Failed to fetch quota: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: StaffVacationQuotaSummary;
+      data: BackendStaffVacationQuotaSummary;
     };
-    return json.data;
+    return mapStaffVacationQuotaSummary(json.data);
   }
 
   async setVacationQuota(
@@ -851,9 +886,9 @@ class StaffAbsenceService {
       throw new Error(`Failed to save quota: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: StaffVacationQuotaSummary;
+      data: BackendStaffVacationQuotaSummary;
     };
-    return json.data;
+    return mapStaffVacationQuotaSummary(json.data);
   }
 
   // Vacation takeover (#2132): the admin enters the Resturlaub as of the
@@ -895,8 +930,10 @@ class StaffAbsenceService {
       }
       throw new Error(error.message);
     }
-    const json = (await response.json()) as { data: StaffVacationOpening };
-    return json.data;
+    const json = (await response.json()) as {
+      data: BackendStaffVacationOpening;
+    };
+    return mapStaffVacationOpening(json.data);
   }
 
   async deleteVacationOpening(staffId: string, year: number): Promise<void> {
