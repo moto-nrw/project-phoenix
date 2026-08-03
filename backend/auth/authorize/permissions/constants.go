@@ -203,6 +203,19 @@ const (
 	StaffFinancial = ResourceStaff + ":financial"
 )
 
+// Staff document permissions (#1424). staff_documents:health gates the
+// AU-Bescheinigung category — health data is an Art. 9 GDPR special
+// category, so seeing a sick note requires more than maintaining the staff
+// directory. Catalog-only like staff:financial: admins match via the
+// admin:* wildcard, other categories map to existing permissions in the
+// document service (Lohnabrechnung → staff:financial, the rest →
+// users:update).
+const (
+	ResourceStaffDocuments = "staff_documents"
+
+	StaffDocumentsHealth = ResourceStaffDocuments + ":health"
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"

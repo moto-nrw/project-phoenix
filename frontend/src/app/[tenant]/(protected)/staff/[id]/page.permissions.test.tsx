@@ -2,9 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { staffService } from "~/lib/staff-api";
 import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
+const searchParams = vi.hoisted(() => new URLSearchParams());
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -13,6 +15,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useParams: () => ({ id: "42" }),
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -24,27 +27,34 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string | null) =>
-    key?.startsWith("staff-detail-")
-      ? {
-          data: {
-            id: "42",
-            name: "Mila Muster",
-            firstName: "Mila",
-            lastName: "Muster",
-            hasRfid: false,
-            isTeacher: false,
-            isSupervising: false,
-            supervisions: [],
-          },
-          isLoading: false,
-          error: null,
-        }
-      : { data: 0, isLoading: false, error: null },
+  useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-detail-")) {
+      void fetcher?.();
+      return {
+        data: {
+          id: "42",
+          name: "Mila Muster",
+          firstName: "Mila",
+          lastName: "Muster",
+          hasRfid: false,
+          isTeacher: false,
+          isSupervising: false,
+          supervisions: [],
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
+    return { data: 0, isLoading: false, error: null };
+  },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffService: { getStaffById: vi.fn() },
+  staffService: {
+    getStaffById: vi.fn(),
+    getFinancialProfile: vi.fn(),
+    getDocumentProfile: vi.fn(),
+  },
   staffAbsenceService: { getAbsences: vi.fn() },
 }));
 
@@ -74,7 +84,13 @@ vi.mock("@radix-ui/react-tabs", () => ({
 }));
 
 vi.mock("~/components/ui/tabs", () => ({
-  Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Tabs: ({
+    children,
+    defaultValue,
+  }: {
+    children: React.ReactNode;
+    defaultValue: string;
+  }) => <div data-default-tab={defaultValue}>{children}</div>,
   TabsList: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -110,6 +126,7 @@ vi.mock("./page-skeleton", () => ({
 describe("StaffDetailContent permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchParams.delete("tab");
     window.scrollTo = vi.fn();
   });
 
@@ -176,6 +193,38 @@ describe("StaffDetailContent permissions", () => {
     );
   });
 
+  // The backend grants everything to admin:* / *:* holders regardless of the
+  // role name, so a custom role carrying the wildcard must see the same
+  // admin-gated UI as the literal admin role.
+  it.each(["admin:*", "*:*"])(
+    "treats a custom role holding %s as an admin",
+    (permission) => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["lohnbuero"],
+            permissions: [permission],
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      expect(
+        screen.getByRole("button", { name: "Arbeitszeitmodell" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("arbeitszeitmodell-tab")).toBeInTheDocument();
+      expect(screen.getByTestId("abwesenheiten-tab")).toBeInTheDocument();
+      expect(staffService.getStaffById).toHaveBeenCalledWith("42");
+      expect(replaceMock).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["users:update", "staff:financial"])(
     "shows Stammdaten to a role with %s",
     (permission) => {
@@ -199,6 +248,60 @@ describe("StaffDetailContent permissions", () => {
         screen.getByRole("button", { name: "Stammdaten" }),
       ).toBeInTheDocument();
       expect(replaceMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("shows only the documents tab to a health-document role", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff_documents:health"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(
+      screen.getByRole("button", { name: "Dokumente" }),
+    ).toBeInTheDocument();
+    expect(staffService.getDocumentProfile).toHaveBeenCalledWith("42");
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["users:update", "staff:financial"])(
+    "opens the documents tab from a document-directory deep link for %s",
+    (permission) => {
+      searchParams.set("tab", "dokumente");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["teacher"],
+            permissions: [permission],
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      expect(
+        screen.getByRole("button", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+      expect(document.querySelector("[data-default-tab]")).toHaveAttribute(
+        "data-default-tab",
+        "dokumente",
+      );
     },
   );
 

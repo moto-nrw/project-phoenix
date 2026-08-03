@@ -30,6 +30,7 @@ func TestStaffMasterDataChange_Validate(t *testing.T) {
 		StammdatenSectionArbeitsvertrag,
 		StammdatenSectionQualifikation,
 		StammdatenSectionBankSteuer,
+		StammdatenSectionDokumente,
 	} {
 		change := valid()
 		change.Section = section
@@ -43,7 +44,9 @@ func TestStaffMasterDataChange_Validate(t *testing.T) {
 	}{
 		{"missing staff", func(c *StaffMasterDataChange) { c.StaffID = 0 }, "staff_id is required"},
 		{"missing actor", func(c *StaffMasterDataChange) { c.ChangedBy = 0 }, "changed_by is required"},
-		{"unknown section", func(c *StaffMasterDataChange) { c.Section = "dokumente" }, "unknown stammdaten section"},
+		// "dokumente" became a real section with #1424 — the unknown-section
+		// example must stay outside the enum.
+		{"unknown section", func(c *StaffMasterDataChange) { c.Section = "gehaltsverhandlung" }, "unknown stammdaten section"},
 		{"missing field", func(c *StaffMasterDataChange) { c.FieldName = "" }, "field_name is required"},
 		{"no-op change", func(c *StaffMasterDataChange) { c.NewValue = c.OldValue }, "old and new value are identical"},
 	}

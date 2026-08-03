@@ -42,6 +42,7 @@ DELETE /api/staff-shifts/series/{id}
 DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
+DELETE /api/staff/{id}/documents/{documentId}
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
@@ -293,6 +294,8 @@ GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
 GET /api/staff/dashboard-summary
+GET /api/staff/documents-directory
+GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
 GET /api/staff/pin
 GET /api/staff/time-tracking/audit-log
@@ -303,6 +306,8 @@ GET /api/staff/time-tracking/overview
 GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar
+GET /api/staff/{id}/documents
+GET /api/staff/{id}/documents/{documentId}/download
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
@@ -625,6 +630,7 @@ POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/documents
 POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 POST /api/staff/{id}/time-tracking/adjustments
 POST /api/staff/{id}/time-tracking/month-close/reopen

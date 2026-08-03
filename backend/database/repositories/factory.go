@@ -85,6 +85,9 @@ type Factory struct {
 	StaffQualification userModels.StaffQualificationRepository
 	StaffFinancialData userModels.StaffFinancialDataRepository
 
+	// Staff documents (#1424)
+	StaffDocument userModels.StaffDocumentRepository
+
 	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
@@ -291,6 +294,9 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),
 		StaffQualification: users.NewStaffQualificationRepository(db),
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
+
+		// Staff documents (#1424)
+		StaffDocument: users.NewStaffDocumentRepository(db),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 

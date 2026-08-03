@@ -78,12 +78,20 @@ export interface Staff {
   workStatus?: string;
   absenceType?: string;
   isFinancialProfile?: boolean;
+  isLimitedProfile?: boolean;
 }
 
 export interface StaffFilters {
   search?: string;
   status?: "all" | "supervising" | "available";
   type?: "all" | "teachers" | "staff";
+}
+
+export interface StaffDocumentDirectoryEntry {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
 }
 
 /** Active group with supervisors and room info */
@@ -350,6 +358,17 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
 
 // Staff service
 class StaffService {
+  async getDocumentDirectory(): Promise<StaffDocumentDirectoryEntry[]> {
+    const response = await sessionFetch("/api/staff/documents-directory");
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch document directory: ${response.statusText}`,
+      );
+    }
+    return ((await response.json()) as { data: StaffDocumentDirectoryEntry[] })
+      .data;
+  }
+
   // Get all staff members with their current supervision status.
   // `options.strict` opts into the /api/staff route's non-swallowing path so a
   // backend failure rejects here instead of masquerading as an empty staff list
@@ -432,10 +451,27 @@ class StaffService {
   }
 
   async getFinancialProfile(id: string): Promise<Staff> {
-    const response = await sessionFetch(`/api/staff/financial-profile/${id}`);
+    return this.getMinimalProfile(
+      `/api/staff/financial-profile/${id}`,
+      "financial",
+    );
+  }
+
+  async getDocumentProfile(id: string): Promise<Staff> {
+    return this.getMinimalProfile(
+      `/api/staff/documents-profile/${id}`,
+      "document",
+    );
+  }
+
+  async getMinimalProfile(
+    url: string,
+    profileType: "financial" | "document",
+  ): Promise<Staff> {
+    const response = await sessionFetch(url);
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch financial staff profile: ${response.statusText}`,
+        `Failed to fetch ${profileType} staff profile: ${response.statusText}`,
       );
     }
     const json = (await response.json()) as {
@@ -451,7 +487,8 @@ class StaffService {
       isTeacher: false,
       isSupervising: false,
       supervisions: [],
-      isFinancialProfile: true,
+      isFinancialProfile: profileType === "financial",
+      isLimitedProfile: true,
     };
   }
 

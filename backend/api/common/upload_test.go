@@ -1,6 +1,7 @@
 package common
 
 import (
+	"archive/zip"
 	"bytes"
 	"mime/multipart"
 	"net/http"
@@ -183,6 +184,37 @@ func makePDFBytes() []byte {
 	return []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
 }
 
+func makeZIP(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := zip.NewWriter(&buf)
+	for name, content := range files {
+		entry, err := writer.Create(name)
+		require.NoError(t, err)
+		_, err = entry.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+	return buf.Bytes()
+}
+
+func TestParseDocumentWithLimits_ValidatesOOXMLPackage(t *testing.T) {
+	validDOCX := makeZIP(t, map[string]string{
+		"[Content_Types].xml": "<Types/>",
+		"word/document.xml":   "<w:document/>",
+	})
+	req := createMultipartRequest(t, "document", "contract.docx", validDOCX)
+	uploaded, err := ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+	require.NoError(t, err)
+	defer func() { _ = uploaded.File.Close() }()
+	assert.Equal(t, DocxContentType, uploaded.ContentType)
+
+	plainZIP := makeZIP(t, map[string]string{"notes.txt": "not a Word document"})
+	req = createMultipartRequest(t, "document", "renamed.docx", plainZIP)
+	_, err = ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+	require.EqualError(t, err, invalidDocumentTypeMessage)
+}
+
 func TestParseImage_ValidJPEG(t *testing.T) {
 	req := createMultipartRequest(t, "image", "photo.jpg", makeJPEGBytes())
 	w := httptest.NewRecorder()
@@ -325,6 +357,19 @@ func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
 	savedContent, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, content, savedContent)
+}
+
+func TestSavePrivateNamedFile_UsesOwnerOnlyPermissions(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "staff-documents")
+	path, err := SavePrivateNamedFile(bytes.NewReader([]byte("sensitive")), dir, "document.pdf")
+	require.NoError(t, err)
+
+	dirInfo, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), dirInfo.Mode().Perm())
+	fileInfo, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), fileInfo.Mode().Perm())
 }
 
 func TestServeImage_ValidFile(t *testing.T) {
