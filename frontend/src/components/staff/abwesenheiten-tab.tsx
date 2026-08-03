@@ -40,9 +40,10 @@ import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   formatDate,
+  berlinTodayISO,
   parseISODate,
-  toISODate,
   todayISO,
+  toISODate,
 } from "~/lib/date-helpers";
 import {
   staffAbsenceService,
@@ -828,7 +829,7 @@ function VacationOpeningModal({
   const toast = useToast();
 
   const yearEndKey = `${year}-12-31`;
-  const yesterdayKey = previousDayISO(todayISO());
+  const yesterdayKey = previousDayISO(berlinTodayISO());
   const maxEffectiveDateKey =
     yesterdayKey < yearEndKey ? yesterdayKey : yearEndKey;
 

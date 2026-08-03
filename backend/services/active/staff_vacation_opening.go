@@ -90,6 +90,12 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	if !req.EffectiveDate.Before(timezone.TodayDate()) {
 		return nil, fmt.Errorf("%w: effective_date must be before today", ErrVacationOpeningInvalid)
 	}
+	// Vacation absences use the same per-staff advisory lock. Holding it from
+	// the pre-cutoff check through the insert makes the double-count guard
+	// serializable with concurrent absence writes.
+	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, fmt.Errorf("failed to lock staff absence writes: %w", err)
+	}
 
 	year := req.EffectiveDate.Year
 	existing, err := s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
@@ -138,6 +144,15 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return opening, nil
+}
+
+// ValidateVacationOpeningAbsencesBefore exposes the read-only half of the
+// opening guard for import previews.
+func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
+	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff absence writes: %w", err)
+	}
+	return s.rejectVacationAbsencesBefore(ctx, staffID, effectiveDate)
 }
 
 // DeleteVacationOpening removes a takeover row and writes an append-only

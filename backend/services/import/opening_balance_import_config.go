@@ -228,6 +228,18 @@ func (c *OpeningBalanceImportConfig) validateDerivedVacationOpening(ctx context.
 			ActualValue: row.VacationRemaining,
 		}}
 	}
+	if validator, ok := c.StaffAbsenceService.(interface {
+		ValidateVacationOpeningAbsencesBefore(context.Context, int64, timezone.Date) error
+	}); ok {
+		if err := validator.ValidateVacationOpeningAbsencesBefore(ctx, row.StaffID, c.EffectiveDate); err != nil {
+			return []importModels.ValidationError{{
+				Field:    "vacation_remaining",
+				Message:  fmt.Sprintf("Urlaubs-Übernahme kann nicht gebucht werden: %s", translateOpeningBookingError(err)),
+				Code:     "vacation_opening_preflight_failed",
+				Severity: importModels.ErrorSeverityError,
+			}}
+		}
+	}
 	return nil
 }
 

@@ -241,10 +241,11 @@ export default function OpeningBalanceImportPage() {
 
   // Ein Eröffnungssaldo beschreibt einen abgeschlossenen Stand; der heutige
   // Tag läuft noch, deshalb ist gestern der späteste sinnvolle Stichtag.
-  const latestEffectiveDate = useMemo(
-    () => toISODate(new Date(parseISODate(berlinToday).getTime() - 86_400_000)),
-    [berlinToday],
-  );
+  const latestEffectiveDate = useMemo(() => {
+    const latest = parseISODate(berlinToday);
+    latest.setDate(latest.getDate() - 1);
+    return toISODate(latest);
+  }, [berlinToday]);
 
   const paramsComplete = effectiveDate !== "" && note.trim() !== "";
 
