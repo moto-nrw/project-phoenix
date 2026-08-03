@@ -672,7 +672,11 @@ function OpeningModal({
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
         </div>
-        <NoteField note={note} onChange={setNote} />
+        <NoteField
+          note={note}
+          onChange={setNote}
+          placeholder="z. B. Übernahme aus Altsystem, Stand 31.07."
+        />
       </div>
     </Modal>
   );
@@ -718,9 +722,12 @@ function AdjustmentModalFooter({
 function NoteField({
   note,
   onChange,
+  placeholder = "z. B. Auszahlung mit Juligehalt",
 }: {
   readonly note: string;
   readonly onChange: (value: string) => void;
+  /** Beispieltext passend zur Buchungsart; Standard ist die Auszahlung. */
+  readonly placeholder?: string;
 }) {
   return (
     <div>
@@ -735,7 +742,7 @@ function NoteField({
         value={note}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
-        placeholder="z. B. Auszahlung mit Juligehalt"
+        placeholder={placeholder}
         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
       />
     </div>
