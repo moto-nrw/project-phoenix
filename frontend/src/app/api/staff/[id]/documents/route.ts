@@ -87,11 +87,18 @@ export const POST = createFileUploadHandler<unknown>(
   },
   {
     maxSizeInMB: 10,
+    // DOCX is an OOXML ZIP container, so browsers without the OOXML mapping
+    // label a valid .docx as a plain ZIP (or not at all). Accepting the ZIP
+    // labels here costs nothing: the extension gate below still requires
+    // .docx, and the backend rejects an archive that lacks the OOXML parts
+    // (api/common/upload_documents.go).
     allowedMimeTypes: [
       "",
       "application/octet-stream",
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/zip",
+      "application/x-zip-compressed",
       "image/png",
       "image/jpeg",
       "image/jpg",
