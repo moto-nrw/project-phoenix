@@ -502,9 +502,12 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	require.NoError(t, err)
 	periodBRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &periodB.ID)
 	require.NoError(t, err)
+	unscopedRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	require.NoError(t, err)
 
 	assertWeekdayRosterPeople(t, periodARows, []int64{s.staffA}, []int64{s.studentA})
 	assertWeekdayRosterPeople(t, periodBRows, []int64{s.staffB}, []int64{s.studentB})
+	assert.Empty(t, unscopedRows, "a nil period must not merge the two period-specific rosters")
 }
 
 func assertWeekdayRosterPeople(

@@ -57,6 +57,11 @@ var ErrWeekdayAssignmentUnscheduled = errors.New("weekday assignment refers to a
 // ErrWeekdayAssignmentDuplicate reports two roster entries for the same weekday.
 var ErrWeekdayAssignmentDuplicate = errors.New("weekday assignment is listed twice")
 
+// ErrWeekdayAssignmentPrimaryStaffMissing reports a primary supervisor who is
+// not part of the same weekday's staff roster. Accepting it would silently
+// persist the weekday without any primary supervisor.
+var ErrWeekdayAssignmentPrimaryStaffMissing = errors.New("primary staff does not belong to the weekday assignment")
+
 // resolveTemplateRoster expands a template's shared roster plus its per-weekday
 // deviations into the concrete rows to persist.
 //
@@ -129,9 +134,21 @@ func indexWeekdayAssignments(
 		if _, dup := byWeekday[assignment.Weekday]; dup {
 			return nil, fmt.Errorf("%w: %d", ErrWeekdayAssignmentDuplicate, assignment.Weekday)
 		}
+		if assignment.PrimaryStaffID != nil && !rosterContainsPersonID(assignment.StaffIDs, *assignment.PrimaryStaffID) {
+			return nil, fmt.Errorf("%w: %d", ErrWeekdayAssignmentPrimaryStaffMissing, assignment.Weekday)
+		}
 		byWeekday[assignment.Weekday] = assignment
 	}
 	return byWeekday, nil
+}
+
+func rosterContainsPersonID(ids []int64, wanted int64) bool {
+	for _, id := range ids {
+		if id == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // uniqueSortedWeekdays deduplicates and orders the template's weekdays so the

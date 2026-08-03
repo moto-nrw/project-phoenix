@@ -58,18 +58,28 @@ export function sharedRoster(form: EventFormState): WeekdayRosterState {
 }
 
 /**
- * Seeds every weekday of the series with the shared roster, keeping any
- * weekday that already has one. Called when the planner switches a series to
- * per-weekday staffing so no day starts out empty.
+ * Seeds every weekday of the series, keeping any weekday that already has a
+ * roster. When per-weekday editing is already active, a newly added weekday
+ * copies the first existing scheduled day instead of the top-level aggregate,
+ * which may be the union of several different weekday rosters.
  */
 export function seedWeekdayRosters(
   form: EventFormState,
   weekdays: number[],
 ): Record<number, WeekdayRosterState> {
   const shared = sharedRoster(form);
+  const existing = form.weekdays
+    .map((weekday) => form.weekdayRosters[weekday])
+    .find((roster): roster is WeekdayRosterState => roster !== undefined);
+  const seed = form.perWeekdayRoster && existing ? existing : shared;
   const seeded: Record<number, WeekdayRosterState> = {};
   for (const weekday of weekdays) {
-    seeded[weekday] = form.weekdayRosters[weekday] ?? { ...shared };
+    const roster = form.weekdayRosters[weekday] ?? seed;
+    seeded[weekday] = {
+      staffIds: [...roster.staffIds],
+      primaryStaffId: roster.primaryStaffId,
+      studentIds: [...roster.studentIds],
+    };
   }
   return seeded;
 }
@@ -144,8 +154,8 @@ export interface EventFormState {
    * Per-weekday staffing (#2129). When false the series uses ONE roster on
    * every weekday and `weekdayRosters` is ignored. When true each weekday of
    * the series carries its own staff, zuständige Person and child list, and
-   * `studentIds`/`staffIds`/`primaryStaffId` above act as the shared starting
-   * point a newly enabled weekday is seeded from.
+   * `studentIds`/`staffIds`/`primaryStaffId` above seed the mode initially;
+   * weekdays added later copy an existing scheduled day's roster.
    */
   perWeekdayRoster: boolean;
   /** Roster per ISO weekday (1 = Mo … 5 = Fr); only read when perWeekdayRoster. */

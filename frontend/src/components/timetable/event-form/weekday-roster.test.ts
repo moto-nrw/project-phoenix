@@ -54,10 +54,13 @@ describe("per-weekday roster state (#2129)", () => {
     }
   });
 
-  it("keeps a weekday that already has its own roster when reseeding", () => {
+  it("seeds an added weekday from an existing day instead of the aggregate", () => {
     const form = seriesForm({
+      weekdays: [1, 2],
+      studentIds: ["100", "200"],
       perWeekdayRoster: true,
       weekdayRosters: {
+        1: { staffIds: ["10"], primaryStaffId: "10", studentIds: ["100"] },
         2: { staffIds: ["20"], primaryStaffId: "20", studentIds: ["200"] },
       },
     });
@@ -69,7 +72,11 @@ describe("per-weekday roster state (#2129)", () => {
       primaryStaffId: "20",
       studentIds: ["200"],
     });
-    expect(seeded[3]?.staffIds).toEqual(["10", "11"]);
+    expect(seeded[3]).toEqual({
+      staffIds: ["10"],
+      primaryStaffId: "10",
+      studentIds: ["100"],
+    });
   });
 
   it("flags only the weekdays whose roster differs from the first weekday", () => {

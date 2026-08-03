@@ -323,9 +323,10 @@ func (s *TimetableDataService) ListTemplateRows(
 
 // ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
 // the templates the caller may see (issue #2129), optionally narrowed to one
-// template and calendar period. It is a thin read: the grouping into
-// per-weekday assignments is a presentation concern and stays in the API
-// layer.
+// template and calendar period. A nil period selects only unscoped roster
+// rows so period-specific assignments cannot be merged. It is a thin read:
+// the grouping into per-weekday assignments is a presentation concern and
+// stays in the API layer.
 func (s *TimetableDataService) ListTemplateWeekdayRoster(
 	ctx context.Context,
 	templateID, calendarPeriodID *int64,

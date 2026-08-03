@@ -936,9 +936,9 @@ export function useEventForm({
       const next = has
         ? prev.weekdays.filter((day) => day !== iso)
         : [...prev.weekdays, iso].sort((a, b) => a - b);
-      // A weekday added while per-weekday staffing is on starts from the
-      // shared roster rather than empty; a removed weekday keeps its roster in
-      // state so re-adding it by accident does not wipe the day's people.
+      // A weekday added while per-weekday staffing is on starts from an
+      // existing day's roster rather than the aggregate or empty; a removed
+      // weekday keeps its roster so re-adding it does not wipe its people.
       const weekdayRosters = prev.perWeekdayRoster
         ? seedWeekdayRosters(prev, next)
         : prev.weekdayRosters;

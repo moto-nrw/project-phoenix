@@ -79,8 +79,9 @@ type GroupRepository interface {
 
 	// ListTemplateWeekdayRoster returns the weekday-scoped roster rows of the
 	// active (open) roster of every non-archived template, optionally narrowed
-	// to one template and calendar period (issue #2129). The period filter also
-	// includes series-wide rows whose calendar_period_id is NULL. It includes
+	// to one template and calendar period (issue #2129). A concrete period also
+	// includes series-wide rows whose calendar_period_id is NULL; a nil period
+	// returns only unscoped rows and never merges several periods. It includes
 	// empty markers for scheduled weekdays and expands protected series-wide
 	// enrollments onto the weekdays where they materialize. Ordinary series-wide
 	// roster rows remain represented by TemplateListRow.

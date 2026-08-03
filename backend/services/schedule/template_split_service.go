@@ -635,27 +635,13 @@ func validateSplitWeekdayAssignments(in TemplateSplitInput) error {
 	if len(in.WeekdayAssignments) == 0 {
 		return nil
 	}
-	if in.StudentIDs == nil && in.StaffIDs == nil {
-		return fmt.Errorf("%w: weekday assignments require an explicit student or staff roster", ErrSplitInvalidInput)
+	if in.StudentIDs == nil || in.StaffIDs == nil {
+		return fmt.Errorf("%w: weekday assignments require explicit student and staff rosters", ErrSplitInvalidInput)
 	}
 	if _, err := indexWeekdayAssignments(in.Weekdays, in.WeekdayAssignments); err != nil {
 		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
 	}
-	for _, assignment := range in.WeekdayAssignments {
-		if assignment.PrimaryStaffID != nil && !rosterContainsID(assignment.StaffIDs, *assignment.PrimaryStaffID) {
-			return fmt.Errorf("%w: primary staff must belong to the same weekday assignment", ErrSplitInvalidInput)
-		}
-	}
 	return nil
-}
-
-func rosterContainsID(ids []int64, wanted int64) bool {
-	for _, id := range ids {
-		if id == wanted {
-			return true
-		}
-	}
-	return false
 }
 
 func validateSplitTemplateFields(in TemplateSplitInput) error {
