@@ -137,6 +137,45 @@ func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
 func rosterWeekdayScopeDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.261: Removing weekday scope from activity roster rows...")
 
+	// The old indexes cannot represent several active weekday rows for the same
+	// person, group, and period. Collapse those rows first so rollback remains
+	// executable after weekday-specific rosters have been used. Prefer a legacy
+	// series-wide row when one exists; for supervisors, otherwise keep a primary
+	// row. Closed history remains untouched.
+	if _, err := db.NewRaw(`
+		WITH ranked AS (
+			SELECT id,
+				ROW_NUMBER() OVER (
+					PARTITION BY tenant_id, student_id, activity_group_id, COALESCE(calendar_period_id, 0)
+					ORDER BY (weekday IS NULL) DESC, id ASC
+				) AS position
+			FROM activities.student_enrollments
+			WHERE valid_until IS NULL
+		), duplicates AS (
+			SELECT id FROM ranked WHERE position > 1
+		)
+		DELETE FROM activities.student_enrollments AS enrollment
+		USING duplicates
+		WHERE enrollment.id = duplicates.id;
+
+		WITH ranked AS (
+			SELECT id,
+				ROW_NUMBER() OVER (
+					PARTITION BY tenant_id, staff_id, group_id, COALESCE(calendar_period_id, 0)
+					ORDER BY (weekday IS NULL) DESC, is_primary DESC, id ASC
+				) AS position
+			FROM activities.supervisors
+			WHERE valid_until IS NULL
+		), duplicates AS (
+			SELECT id FROM ranked WHERE position > 1
+		)
+		DELETE FROM activities.supervisors AS supervisor
+		USING duplicates
+		WHERE supervisor.id = duplicates.id;
+	`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed collapsing weekday-scoped roster rows: %w", err)
+	}
+
 	// Restore the period-scoped (weekday-agnostic) uniqueness of migration
 	// 1.15.52 before the column disappears.
 	if _, err := db.NewRaw(`

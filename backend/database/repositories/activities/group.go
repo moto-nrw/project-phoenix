@@ -564,10 +564,10 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 }
 
 // ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
-// the open roster of every non-archived template (issue #2129). Staff and
-// students come back as one flat, kind-tagged stream so the caller can group
-// them into per-weekday assignments in Go instead of building a second
-// jsonb-aggregating monster query.
+// the open roster of every non-archived template (issue #2129). Staff, students,
+// and empty-day markers come back as one flat, kind-tagged stream so the caller
+// can group them into per-weekday assignments in Go instead of building a
+// second jsonb-aggregating monster query.
 //
 // The `valid_until IS NULL` filter mirrors the flat aggregates in
 // templateListSelect: the editor reads the currently open roster, not the
@@ -576,6 +576,48 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateWeekdayRosterRow, 0)
 	query := `
+		WITH per_weekday_templates AS (
+			SELECT supervisor.group_id AS template_id
+			FROM activities.supervisors AS supervisor
+			WHERE supervisor.tenant_id = ?
+			  AND supervisor.valid_until IS NULL
+			  AND supervisor.weekday IS NOT NULL
+			GROUP BY supervisor.group_id
+			UNION
+			SELECT enrollment.activity_group_id AS template_id
+			FROM activities.student_enrollments AS enrollment
+			WHERE enrollment.tenant_id = ?
+			  AND enrollment.valid_until IS NULL
+			  AND enrollment.weekday IS NOT NULL
+			GROUP BY enrollment.activity_group_id
+		), template_weekdays AS (
+			SELECT scoped.template_id, schedule.weekday
+			FROM per_weekday_templates AS scoped
+			INNER JOIN activities.groups AS g
+				ON g.id = scoped.template_id
+			INNER JOIN activities.schedules AS schedule
+				ON schedule.activity_group_id = g.id
+				AND schedule.tenant_id = g.tenant_id
+			WHERE g.tenant_id = ?
+			  AND g.is_template = TRUE
+			  AND g.archived_at IS NULL
+			  AND schedule.valid_until IS NULL`
+	args := []any{tenantID, tenantID, tenantID}
+	if templateID != nil {
+		query += ` AND g.id = ?`
+		args = append(args, *templateID)
+	}
+	query += `
+			GROUP BY scoped.template_id, schedule.weekday
+		)
+		SELECT
+			template_day.template_id,
+			template_day.weekday,
+			'empty' AS kind,
+			0 AS person_id,
+			FALSE AS is_primary
+		FROM template_weekdays AS template_day
+		UNION ALL
 		SELECT
 			supervisor.group_id AS template_id,
 			supervisor.weekday,
@@ -583,19 +625,11 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			supervisor.staff_id AS person_id,
 			BOOL_OR(supervisor.is_primary) AS is_primary
 		FROM activities.supervisors AS supervisor
-		INNER JOIN activities.groups AS g
-			ON g.id = supervisor.group_id AND g.tenant_id = supervisor.tenant_id
+		INNER JOIN template_weekdays AS template_day
+			ON template_day.template_id = supervisor.group_id
+			AND template_day.weekday = supervisor.weekday
 		WHERE supervisor.tenant_id = ?
 		  AND supervisor.valid_until IS NULL
-		  AND supervisor.weekday IS NOT NULL
-		  AND g.is_template = TRUE
-		  AND g.archived_at IS NULL`
-	args := []any{tenantID}
-	if templateID != nil {
-		query += ` AND supervisor.group_id = ?`
-		args = append(args, *templateID)
-	}
-	query += `
 		GROUP BY supervisor.group_id, supervisor.weekday, supervisor.staff_id
 		UNION ALL
 		SELECT
@@ -605,21 +639,37 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			enrollment.student_id AS person_id,
 			FALSE AS is_primary
 		FROM activities.student_enrollments AS enrollment
-		INNER JOIN activities.groups AS g
-			ON g.id = enrollment.activity_group_id AND g.tenant_id = enrollment.tenant_id
+		INNER JOIN template_weekdays AS template_day
+			ON template_day.template_id = enrollment.activity_group_id
+			AND template_day.weekday = enrollment.weekday
 		WHERE enrollment.tenant_id = ?
 		  AND enrollment.valid_until IS NULL
-		  AND enrollment.weekday IS NOT NULL
-		  AND g.is_template = TRUE
-		  AND g.archived_at IS NULL`
-	args = append(args, tenantID)
-	if templateID != nil {
-		query += ` AND enrollment.activity_group_id = ?`
-		args = append(args, *templateID)
-	}
-	query += `
 		GROUP BY enrollment.activity_group_id, enrollment.weekday, enrollment.student_id
+		UNION ALL
+		SELECT
+			enrollment.activity_group_id AS template_id,
+			template_day.weekday,
+			'student' AS kind,
+			enrollment.student_id AS person_id,
+			FALSE AS is_primary
+		FROM activities.student_enrollments AS enrollment
+		INNER JOIN template_weekdays AS template_day
+			ON template_day.template_id = enrollment.activity_group_id
+		WHERE enrollment.tenant_id = ?
+		  AND enrollment.valid_until IS NULL
+		  AND enrollment.weekday IS NULL
+		  AND (
+			enrollment.enrollment_request_child_id IS NOT NULL
+			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
+		  )
+		  AND (
+			enrollment.selected_weekdays IS NULL
+			OR jsonb_array_length(enrollment.selected_weekdays) = 0
+			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
+		  )
+		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
 		ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
+	args = append(args, tenantID, tenantID, tenantID)
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}

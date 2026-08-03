@@ -297,6 +297,65 @@ func TestCreateTemplate_WeekdayAssignmentOutsideRecurrence_IsRejected(t *testing
 	require.ErrorIs(t, err, scheduleSvc.ErrWeekdayAssignmentUnscheduled)
 }
 
+func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:            fmt.Sprintf("Read-Roster-%d", time.Now().UnixNano()),
+		Type:            activitiesModels.GroupTypeCare,
+		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		StartTime:       clockTime(14, 0),
+		EndTime:         clockTime(15, 0),
+		RoomID:          s.roomID,
+		CategoryID:      s.categoryID,
+		MaxParticipants: 20,
+		RosterValidFrom: monday.AddDays(-30),
+		GradeLevelMax:   4,
+		WeekdayAssignments: []scheduleSvc.WeekdayRosterAssignment{
+			{Weekday: activitiesModels.WeekdayMonday},
+			{
+				Weekday:    activitiesModels.WeekdayTuesday,
+				StaffIDs:   []int64{s.staffB},
+				StudentIDs: []int64{s.studentB},
+			},
+		},
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	protected := &activitiesModels.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+	}
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+
+	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID)
+	require.NoError(t, err)
+
+	type rosterKey struct {
+		weekday int
+		kind    string
+		person  int64
+	}
+	found := make(map[rosterKey]bool, len(rows))
+	for _, row := range rows {
+		found[rosterKey{weekday: row.Weekday, kind: row.Kind, person: row.PersonID}] = true
+	}
+	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}],
+		"an intentionally empty Monday needs an API marker")
+	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}])
+	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
+		"the protected child must remain visible on the weekday where it materializes")
+	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
+		"selected_weekdays still limits the protected child")
+	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
+	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
+}
+
 // -----------------------------------------------------------------------------
 // Scenario plumbing
 // -----------------------------------------------------------------------------

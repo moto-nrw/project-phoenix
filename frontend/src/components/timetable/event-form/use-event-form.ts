@@ -307,6 +307,10 @@ export function useEventForm({
   // template override it may inherit. Remember user intent separately so an
   // unrelated all/following edit can preserve the freshly fetched template.
   const requiredStaffTouched = useRef(false);
+  // Loading a materialized occurrence's child snapshot must not turn that
+  // snapshot into a series edit. Track an actual picker change separately so
+  // all/following writes preserve the fetched template roster until then.
+  const studentRosterTouched = useRef(false);
   // An occurrence may carry substitute rows that do not belong to the series
   // roster. Preserve the fetched template roster for all/following edits until
   // the user explicitly changes Personal; otherwise a title-only split would
@@ -451,6 +455,7 @@ export function useEventForm({
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
+    studentRosterTouched.current = false;
     staffRosterTouched.current = false;
     listKindTouched.current = false;
     manualWeekPattern.current = null;
@@ -883,6 +888,7 @@ export function useEventForm({
     key: K,
     value: EventFormState[K],
   ) => {
+    if (key === "studentIds") studentRosterTouched.current = true;
     setForm((prev) => ({ ...prev, [key]: value }));
     setValidationError(null);
     clearFieldError(key);
@@ -990,7 +996,7 @@ export function useEventForm({
    * the shared lists to know who is there on a given day.
    */
   const weekdayAssignmentsBody = (): WeekdayAssignmentBody[] | undefined => {
-    if (!form.perWeekdayRoster || form.weekdays.length < 2) return undefined;
+    if (!form.perWeekdayRoster || form.weekdays.length === 0) return undefined;
     return [...form.weekdays]
       .sort((a, b) => a - b)
       .map((weekday) => {
@@ -1237,9 +1243,13 @@ export function useEventForm({
     const editedWeekday = initialInstance
       ? isoWeekday(initialInstance.date)
       : undefined;
-    const rosterWasEdited = staffRosterTouched.current || studentRosterEditable;
+    const staffWasEdited = staffRosterTouched.current;
+    const studentsWereEdited = studentRosterTouched.current;
     return template.weekdayAssignments.map((assignment) => {
-      if (!rosterWasEdited || assignment.weekday !== editedWeekday) {
+      if (
+        (!staffWasEdited && !studentsWereEdited) ||
+        assignment.weekday !== editedWeekday
+      ) {
         return {
           weekday: assignment.weekday,
           staff_ids: assignment.staffIds.map(Number),
@@ -1251,11 +1261,19 @@ export function useEventForm({
       }
       return {
         weekday: assignment.weekday,
-        staff_ids: staffIDs.map(Number),
-        student_ids: studentIDs.map(Number),
-        primary_staff_id:
-          primaryStaffId && staffIDs.includes(primaryStaffId)
+        staff_ids: (staffWasEdited ? staffIDs : assignment.staffIds).map(
+          Number,
+        ),
+        student_ids: (studentsWereEdited
+          ? studentIDs
+          : assignment.studentIds
+        ).map(Number),
+        primary_staff_id: staffWasEdited
+          ? primaryStaffId && staffIDs.includes(primaryStaffId)
             ? Number(primaryStaffId)
+            : undefined
+          : assignment.primaryStaffId
+            ? Number(assignment.primaryStaffId)
             : undefined,
       };
     });
@@ -1279,9 +1297,10 @@ export function useEventForm({
     // users:read is unavailable, the occurrence snapshot is authoritative only
     // for the single-instance scope; an all/following write targets the fetched
     // template and must preserve that template's own roster instead.
-    const templateStudentIDs = studentRosterEditable
-      ? form.studentIds
-      : template.studentIds;
+    const templateStudentIDs =
+      studentRosterEditable && studentRosterTouched.current
+        ? form.studentIds
+        : template.studentIds;
     const templateStaffIDs =
       staffRosterEditable && staffRosterTouched.current
         ? form.staffIds
@@ -2120,6 +2139,7 @@ export function useEventForm({
 
   const addTargetCohort = () => {
     if (targetCohort.memberIds.length === 0) return;
+    studentRosterTouched.current = true;
     setForm((current) => ({
       ...current,
       studentIds: Array.from(

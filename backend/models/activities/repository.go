@@ -79,8 +79,10 @@ type GroupRepository interface {
 
 	// ListTemplateWeekdayRoster returns the weekday-scoped roster rows of the
 	// active (open) roster of every non-archived template, optionally narrowed
-	// to one template (issue #2129). Rows without a weekday scope are omitted:
-	// they are the series-wide roster already carried by TemplateListRow.
+	// to one template (issue #2129). It includes empty markers for scheduled
+	// weekdays and expands protected series-wide enrollments onto the weekdays
+	// where they materialize. Ordinary series-wide roster rows remain represented
+	// by TemplateListRow.
 	ListTemplateWeekdayRoster(ctx context.Context, templateID *int64) ([]TemplateWeekdayRosterRow, error)
 
 	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual
@@ -346,9 +348,9 @@ type TemplateListRow struct {
 // recurring template (issue #2129). Kind is either
 // TemplateWeekdayRosterKindStaff or TemplateWeekdayRosterKindStudent; PersonID
 // is the staff or student id accordingly. Only rows that actually carry a
-// weekday scope are returned — a template whose roster applies on every day of
-// the series produces none, which is how "no per-weekday deviations" is
-// represented.
+// weekday scope are returned, except protected series-wide enrollments, which
+// are expanded onto each applicable scheduled weekday. Empty marker rows make
+// an intentionally empty weekday distinguishable from a shared roster.
 type TemplateWeekdayRosterRow struct {
 	TemplateID int64  `bun:"template_id"`
 	Weekday    int    `bun:"weekday"`
@@ -358,6 +360,7 @@ type TemplateWeekdayRosterRow struct {
 }
 
 const (
+	TemplateWeekdayRosterKindEmpty   = "empty"
 	TemplateWeekdayRosterKindStaff   = "staff"
 	TemplateWeekdayRosterKindStudent = "student"
 )

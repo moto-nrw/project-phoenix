@@ -180,6 +180,30 @@ const template: TimetableTemplate = {
   ],
 };
 
+const templateWithWeekdayRosters: TimetableTemplate = {
+  ...template,
+  studentIds: ["21", "22"],
+  staffIds: ["11", "12"],
+  schedules: [
+    { ...template.schedules[0]!, weekday: 1 },
+    { ...template.schedules[0]!, id: "10", weekday: 2 },
+  ],
+  weekdayAssignments: [
+    {
+      weekday: 1,
+      staffIds: ["11"],
+      studentIds: ["21"],
+      primaryStaffId: "11",
+    },
+    {
+      weekday: 2,
+      staffIds: ["12"],
+      studentIds: ["22"],
+      primaryStaffId: "12",
+    },
+  ],
+};
+
 const templateWithTemplateOnlyPeriodPin: TimetableTemplate = {
   ...template,
   calendarPeriodId: "6",
@@ -1524,6 +1548,34 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("keeps the remaining day's scoped roster when a series is reduced to one weekday", async () => {
+    renderModal({
+      initialSeries: templateWithWeekdayRosters,
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(2);
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekdays: [1],
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+          ],
+        }),
+      ),
+    );
+  });
+
   it("cancels a direct Regeltermin edit and writes nothing (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({
       count: 1,
@@ -2691,6 +2743,48 @@ describe("TimetableEventModal", () => {
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
         "7",
         expect.objectContaining({ student_ids: [21, 22] }),
+      ),
+    );
+  });
+
+  it("preserves weekday child rosters after a successful untouched occurrence load", async () => {
+    mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        studentIds: ["31"],
+      },
+    });
+
+    await goToStep(3);
+    await screen.findByText("Max Kind");
+    await clickSave();
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          student_ids: [21, 22],
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
       ),
     );
   });

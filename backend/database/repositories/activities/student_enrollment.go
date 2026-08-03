@@ -170,7 +170,11 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		Join(`LEFT JOIN activities.groups AS "activity_group" ON "activity_group".tenant_id = "student_enrollment".tenant_id AND "activity_group".id = "student_enrollment".activity_group_id`).
 		Where(`"student_enrollment".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_enrollment".valid_from <= ?`, onDate).
-		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate)
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate).
+		Where(`(
+				"student_enrollment".weekday IS NULL
+				OR "student_enrollment".weekday = EXTRACT(ISODOW FROM CAST(? AS DATE))::INT
+			)`, onDate)
 
 	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 

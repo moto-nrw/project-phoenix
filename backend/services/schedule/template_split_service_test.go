@@ -906,6 +906,21 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
 	})
 
+	t.Run("weekday assignment outside recurrence", func(t *testing.T) {
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Ungueltiger-Wochentag-%d", suffix))
+		in.StudentIDs = []int64{s.students[0]}
+		in.WeekdayAssignments = []scheduleSvc.WeekdayRosterAssignment{{
+			Weekday:    activitiesModels.WeekdayTuesday,
+			StudentIDs: []int64{s.students[0]},
+		}}
+		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+
+		schedules := loadSplitSchedules(t, s, s.template.ID)
+		require.Len(t, schedules, 1)
+		assert.Nil(t, schedules[0].ValidUntil, "rejected input must not cap the source series")
+	})
+
 	t.Run("non-template id", func(t *testing.T) {
 		roomID := s.roomID
 		plain := &activitiesModels.Group{

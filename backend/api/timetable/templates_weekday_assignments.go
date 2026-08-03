@@ -123,6 +123,8 @@ func buildTemplateWeekdayAssignments(
 		}
 		entry := &byTemplate[row.TemplateID][position]
 		switch row.Kind {
+		case activitiesModel.TemplateWeekdayRosterKindEmpty:
+			// The entry itself is the payload: no person belongs to this day.
 		case activitiesModel.TemplateWeekdayRosterKindStaff:
 			entry.StaffIDs = append(entry.StaffIDs, row.PersonID)
 			if row.IsPrimary && entry.PrimaryStaffID == nil {
