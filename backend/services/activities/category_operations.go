@@ -95,9 +95,9 @@ func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Ca
 }
 
 // RestoreCategory brings an archived category back into the pickers. It fails
-// when an active category has meanwhile taken the same name — the partial
-// unique index on (tenant_id, name) WHERE archived_at IS NULL is what detects
-// that, so the check cannot race a concurrent create.
+// when an active category has meanwhile taken the same case-insensitive name —
+// the partial unique index on (tenant_id, LOWER(name)) WHERE archived_at IS
+// NULL detects that, so the check cannot race a concurrent create.
 func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Category, error) {
 	category, err := s.loadEditableCategory(ctx, id, opRestoreCategory)
 	if err != nil {
@@ -120,7 +120,7 @@ func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Ca
 // setCategoryArchivedAt persists just the archived_at column of category.
 // Deliberately a partial write rather than a full entity Update: an
 // archive/restore must not clobber a concurrent rename, and a restore has to
-// surface the partial unique index violation on (tenant_id, name) as a name
+// surface the case-insensitive partial unique-index violation as a name
 // conflict rather than a generic failure.
 func (s *Service) setCategoryArchivedAt(ctx context.Context, category *activities.Category, op string) error {
 	updated, err := s.categoryRepo.UpdateColumns(ctx, category, "archived_at")

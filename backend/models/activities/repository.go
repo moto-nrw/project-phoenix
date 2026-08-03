@@ -17,6 +17,11 @@ type CategoryRepository interface {
 	// FindByName finds a category by its name
 	FindByName(ctx context.Context, name string) (*Category, error)
 
+	// FindByIDForShare returns a category while holding a transaction-scoped
+	// FOR SHARE lock. New category assignments use it so an archive cannot
+	// commit between validation and the referencing write.
+	FindByIDForShare(ctx context.Context, id int64) (*Category, error)
+
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
 
@@ -37,8 +42,8 @@ type CategoryRepository interface {
 	// embedded base repository: updates only the named columns by primary key
 	// and returns the number of rows affected. Archive/restore writes just
 	// archived_at through it (#2131), so a concurrent rename is never
-	// clobbered and a restore still surfaces the partial unique index
-	// violation on its own.
+	// clobbered and a restore still surfaces the case-insensitive partial
+	// unique-index violation on its own.
 	UpdateColumns(ctx context.Context, category *Category, columns ...string) (int64, error)
 }
 

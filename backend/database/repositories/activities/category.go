@@ -57,6 +57,24 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 	return category, nil
 }
 
+// FindByIDForShare locks a category against concurrent archive updates until
+// the current transaction finishes. Callers must use it inside a transaction
+// when the lock must span a subsequent referencing write.
+func (r *CategoryRepository) FindByIDForShare(ctx context.Context, id int64) (*activities.Category, error) {
+	category := new(activities.Category)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(category).
+		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
+		Where(`"category".id = ?`, id).
+		For("SHARE")
+
+	query = base.WithTenantFilter(ctx, query, "category")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find category by id for share", Err: err}
+	}
+	return category, nil
+}
+
 // UpdateIfActive conditionally updates a category while it is still active.
 // This domain write cannot use the generic Update helper because the
 // archived_at predicate must be part of the same statement as the full-row

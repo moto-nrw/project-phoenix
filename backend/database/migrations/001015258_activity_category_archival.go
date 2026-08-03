@@ -34,8 +34,8 @@ func activityCategoryArchivalUp(ctx context.Context, db *bun.DB) error {
 
 	// Scope uniqueness to active rows so a school can archive
 	// "Kochen" and later create a fresh category under the same
-	// name. Restoring an archived row whose name is taken by an
-	// active one still fails on this index — that is the intended
+	// name, including case variants. Restoring an archived row whose name is
+	// taken by an active one still fails on this index — that is the intended
 	// guard, surfaced to the user as a name conflict.
 	if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS activities.idx_categories_tenant_name;
@@ -44,7 +44,7 @@ func activityCategoryArchivalUp(ctx context.Context, db *bun.DB) error {
 	}
 	if _, err := db.NewRaw(`
 				CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_tenant_name_active
-				ON activities.categories(tenant_id, name)
+				ON activities.categories(tenant_id, LOWER(name))
 				WHERE archived_at IS NULL;
 			`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating idx_categories_tenant_name_active: %w", err)

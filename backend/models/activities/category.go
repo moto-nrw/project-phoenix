@@ -34,7 +34,8 @@ type Category struct {
 	// ArchivedAt marks a category as retired (#2131). Archived categories stay
 	// in the table so existing Termine and Aktivitäten keep resolving their
 	// category, but they are no longer offered for new assignments. NULL =
-	// active. Only active rows take part in the (tenant_id, name) unique index.
+	// active. Only active rows take part in the case-insensitive tenant/name
+	// unique index.
 	ArchivedAt *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
 }
 

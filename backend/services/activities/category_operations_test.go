@@ -3,6 +3,7 @@ package activities_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,12 +197,13 @@ func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testin
 
 	// The partial unique index only covers active rows, so the freed name can
 	// be taken again.
-	replacement, err := service.CreateCategory(ctx, &activitiesModels.Category{Name: original.Name})
+	replacement, err := service.CreateCategory(ctx, &activitiesModels.Category{Name: strings.ToLower(original.Name)})
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, replacement.ID, 0)
 
 	// Restoring the archived one would now produce two active rows with the
-	// same name — the index rejects it and the service reports a conflict.
+	// same case-insensitive name — the index rejects it and the service reports
+	// a conflict.
 	_, err = service.RestoreCategory(ctx, original.ID)
 	require.Error(t, err)
 	require.ErrorIs(t, err, activities.ErrCategoryNameExists)

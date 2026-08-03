@@ -1984,14 +1984,14 @@ export function useEventForm({
    * away — the user opened the dialog because the one they needed was missing.
    */
   const refreshCategories = useCallback(async (selectId?: string) => {
+    if (selectId) {
+      setForm((prev) => ({ ...prev, categoryId: selectId }));
+    }
     try {
       const data = await fetchPlannerActivityCategories();
       setCategories(
         [...data].sort((a, b) => a.name.localeCompare(b.name, "de")),
       );
-      if (selectId) {
-        setForm((prev) => ({ ...prev, categoryId: selectId }));
-      }
     } catch (err: unknown) {
       logger.error("categories_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),

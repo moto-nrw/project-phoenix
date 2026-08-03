@@ -22,7 +22,7 @@ func validateAssignableCategory(
 	categoryID int64,
 	op string,
 ) error {
-	category, err := repo.FindByID(ctx, categoryID)
+	category, err := repo.FindByIDForShare(ctx, categoryID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return &ScheduleError{Op: op, Err: ErrCategoryNotAssignable}

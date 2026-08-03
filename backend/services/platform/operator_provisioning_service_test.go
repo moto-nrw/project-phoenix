@@ -157,6 +157,9 @@ func (m *mockCategoryRepo) Create(_ context.Context, category *activityModels.Ca
 func (m *mockCategoryRepo) FindByID(context.Context, interface{}) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (m *mockCategoryRepo) FindByIDForShare(context.Context, int64) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (m *mockCategoryRepo) Update(context.Context, *activityModels.Category) error { return nil }
 func (m *mockCategoryRepo) UpdateIfActive(context.Context, *activityModels.Category) (bool, error) {
 	return true, nil

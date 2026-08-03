@@ -13,6 +13,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -98,6 +99,39 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 		_, err = repo.FindByName(ctx, category.Name)
 		require.Error(t, err)
 	})
+}
+
+func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityCategory
+	category := testpkg.CreateTestActivityCategory(t, db, "AssignmentLock")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+
+	ctx := context.Background()
+	err := tenant.WithTenantTx(ctx, db, category.TenantID, func(lockCtx context.Context, _ bun.Tx) error {
+		locked, lockErr := repo.FindByIDForShare(lockCtx, category.ID)
+		require.NoError(t, lockErr)
+		require.Equal(t, category.ID, locked.ID)
+
+		now := time.Now()
+		category.ArchivedAt = &now
+		archiveErr := tenant.WithTenantTx(ctx, db, category.TenantID, func(archiveCtx context.Context, tx bun.Tx) error {
+			if _, timeoutErr := tx.ExecContext(archiveCtx, "SET LOCAL lock_timeout = '100ms'"); timeoutErr != nil {
+				return timeoutErr
+			}
+			_, updateErr := repo.UpdateColumns(archiveCtx, category, "archived_at")
+			return updateErr
+		})
+		require.Error(t, archiveErr, "archive must wait for the assignment transaction's share lock")
+		return nil
+	})
+	require.NoError(t, err)
+
+	updated, err := repo.UpdateColumns(testpkg.TenantContext(category.TenantID), category, "archived_at")
+	require.NoError(t, err)
+	require.Positive(t, updated)
 }
 
 func TestCategoryRepository_Update(t *testing.T) {

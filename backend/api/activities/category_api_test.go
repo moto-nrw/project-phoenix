@@ -95,6 +95,19 @@ func TestCreateCategory_RejectsEmptyName(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
 }
 
+func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{
+		"name":  fmt.Sprintf("InvalidColor-%d", time.Now().UnixNano()),
+		"color": "not-a-color",
+	})
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+}
+
 func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
@@ -125,6 +138,22 @@ func TestUpdateCategory_Success(t *testing.T) {
 	data := categoryDataFromResponse(t, rr.Body.Bytes())
 	assert.Equal(t, newName, data["name"])
 	assert.Equal(t, "#5080D8", data["color"])
+}
+
+func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiInvalidColor")
+	defer cleanupCategory(t, ctx.db, category.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/categories/%d", category.ID), map[string]string{
+		"name":  category.Name,
+		"color": "#XYZXYZ",
+	})
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
 }
 
 func TestArchiveAndRestoreCategory(t *testing.T) {

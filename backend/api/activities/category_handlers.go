@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/go-chi/render"
@@ -27,6 +28,8 @@ const maxCategoryNameLength = 60
 
 const maxCategoryDescriptionLength = 255
 
+var categoryColorPattern = regexp.MustCompile(`^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
+
 // CategoryRequest is the create/update payload for an activity category.
 // is_system is deliberately absent: schools must not be able to mint system
 // categories, and the existing ones stay read-only (#2131).
@@ -49,6 +52,9 @@ func (req *CategoryRequest) Bind(_ *http.Request) error {
 		),
 		validation.Field(&req.Description,
 			validation.Length(0, maxCategoryDescriptionLength).Error("Beschreibung darf höchstens 255 Zeichen lang sein"),
+		),
+		validation.Field(&req.Color,
+			validation.Match(categoryColorPattern).Error("Farbe muss ein gültiger Hex-Farbwert sein"),
 		),
 	)
 }

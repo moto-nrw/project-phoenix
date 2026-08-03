@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CategoryManageModal } from "./category-manage-modal";
 import type { ActivityCategory } from "~/lib/activity-helpers";
@@ -116,6 +122,44 @@ describe("CategoryManageModal", () => {
       );
     });
     expect(onChanged).toHaveBeenCalledWith(created);
+  });
+
+  it("keeps saving blocked until the caller selects the created category", async () => {
+    const created = makeCategory({ id: "10", name: "Mensa" });
+    mockCreateCategory.mockResolvedValue(created);
+    let finishSelection: (() => void) | undefined;
+    const onChanged = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSelection = resolve;
+        }),
+    );
+
+    render(
+      <CategoryManageModal
+        isOpen
+        initialView="create"
+        onClose={vi.fn()}
+        onChanged={onChanged}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText(/Name/), {
+      target: { value: "Mensa" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anlegen und auswählen" }),
+    );
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledWith(created));
+    expect(screen.getByRole("button", { name: "Speichern…" })).toBeDisabled();
+
+    await act(async () => finishSelection?.());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Anlegen und auswählen" }),
+      ).toBeEnabled(),
+    );
   });
 
   it("refuses to save an empty name without calling the API", async () => {

@@ -18,7 +18,7 @@ type assignableCategoryRepo struct {
 	err      error
 }
 
-func (r *assignableCategoryRepo) FindByID(context.Context, any) (*activitiesModel.Category, error) {
+func (r *assignableCategoryRepo) FindByIDForShare(context.Context, int64) (*activitiesModel.Category, error) {
 	return r.category, r.err
 }
 

@@ -79,8 +79,8 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 	// Set tenant ID from context
 	category.SetTenantID(tenant.FromContext(ctx))
 	if err := s.categoryRepo.Create(ctx, category); err != nil {
-		// Only active rows share the (tenant_id, name) unique index, so a
-		// violation always means another live category holds the name.
+		// Only active rows share the case-insensitive tenant/name unique index,
+		// so a violation always means another live category holds the name.
 		if base.IsUniqueViolation(err) {
 			return nil, &ActivityError{Op: "create category", Err: ErrCategoryNameExists}
 		}
@@ -168,7 +168,7 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 		return nil
 	}
 
-	category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+	category, err := s.categoryRepo.FindByIDForShare(ctx, group.CategoryID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActivityError{Op: "validate category", Err: ErrCategoryNotFound}
@@ -178,7 +178,6 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 	if category.IsArchived() {
 		return &ActivityError{Op: "validate category", Err: ErrCategoryArchived}
 	}
-
 	group.Category = category
 	return nil
 }

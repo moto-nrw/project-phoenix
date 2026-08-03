@@ -171,6 +171,9 @@ func (s *internalCategoryRepoStub) Create(ctx context.Context, cat *activityMode
 func (s *internalCategoryRepoStub) FindByID(context.Context, interface{}) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (s *internalCategoryRepoStub) FindByIDForShare(context.Context, int64) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (s *internalCategoryRepoStub) Update(context.Context, *activityModels.Category) error {
 	return nil
 }

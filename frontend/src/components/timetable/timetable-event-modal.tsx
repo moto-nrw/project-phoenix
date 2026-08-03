@@ -851,8 +851,8 @@ export function TimetableEventModal({
             isOpen
             initialView={categoryDialog}
             onClose={() => setCategoryDialog(null)}
-            onChanged={(created) => {
-              void refreshCategories(created?.id);
+            onChanged={async (created) => {
+              await refreshCategories(created?.id);
               if (created) setCategoryDialog(null);
             }}
           />

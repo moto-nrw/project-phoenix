@@ -35,7 +35,7 @@ interface CategoryManageModalProps {
    * `created` is set only when a new category was just added, so the Termin
    * form can select it right away.
    */
-  readonly onChanged: (created?: ActivityCategory) => void;
+  readonly onChanged: (created?: ActivityCategory) => void | Promise<void>;
 }
 
 type View = "list" | "form";
@@ -222,14 +222,14 @@ export function CategoryManageModal({
         if (editing) {
           await categoryService.updateCategory(editing.id, payload);
           await reload();
-          onChanged();
+          await onChanged();
           setView("list");
           return;
         }
         // No reload and no view switch: the caller closes the dialog as soon
         // as a category was created (it gets selected in the Termin), so both
         // would be thrown away along with the fetch they cost.
-        onChanged(await categoryService.createCategory(payload));
+        await onChanged(await categoryService.createCategory(payload));
       },
     );
   };
