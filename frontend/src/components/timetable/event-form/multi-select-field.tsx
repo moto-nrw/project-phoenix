@@ -13,6 +13,7 @@ import {
 import type { PersonOption } from "./form-model";
 
 const FORM_SEARCH_CLASS = timetableSearchClass;
+const EMPTY_PROTECTED_VALUES: readonly string[] = [];
 
 export function MultiSelectField({
   label,
@@ -21,6 +22,7 @@ export function MultiSelectField({
   onChange,
   metadata,
   bulkOptions,
+  protectedValues = EMPTY_PROTECTED_VALUES,
 }: {
   label: string;
   options: PersonOption[];
@@ -32,12 +34,18 @@ export function MultiSelectField({
    * action row; choosing one unions its memberIds into the selection.
    */
   bulkOptions?: Array<{ key: string; label: string; memberIds: string[] }>;
+  /** Selected values owned by another workflow and therefore not removable. */
+  protectedValues?: readonly string[];
 }) {
   const [query, setQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const selected = useMemo(() => new Set(value), [value]);
+  const protectedSet = useMemo(
+    () => new Set(protectedValues),
+    [protectedValues],
+  );
   const normalizedQuery = query.trim().toLocaleLowerCase("de");
 
   const classOptions = useMemo(
@@ -99,12 +107,15 @@ export function MultiSelectField({
   );
 
   const toggle = (id: string) => {
+    if (protectedSet.has(id)) return;
     const next = selected.has(id)
       ? value.filter((item) => item !== id)
       : [...value, id];
     onChange(next);
   };
-  const visibleIds = filteredOptions.map((option) => option.id);
+  const visibleIds = filteredOptions
+    .map((option) => option.id)
+    .filter((id) => !protectedSet.has(id));
   const selectedVisibleCount = visibleIds.filter((id) =>
     selected.has(id),
   ).length;
@@ -125,6 +136,9 @@ export function MultiSelectField({
     const visibleSet = new Set(visibleIds);
     onChange(value.filter((id) => !visibleSet.has(id)));
   };
+  const removableSelectedCount = value.filter(
+    (id) => !protectedSet.has(id),
+  ).length;
 
   return (
     <div className={`${timetableMutedSurface} flex flex-col gap-2 p-3`}>
@@ -222,10 +236,10 @@ export function MultiSelectField({
             triggerClassName="h-8 border-gray-200 bg-white font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-100"
           />
         )}
-        {value.length > 0 && (
+        {removableSelectedCount > 0 && (
           <button
             type="button"
-            onClick={() => onChange([])}
+            onClick={() => onChange(value.filter((id) => protectedSet.has(id)))}
             className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             Auswahl leeren
@@ -258,27 +272,42 @@ export function MultiSelectField({
           </div>
         ) : (
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredOptions.map((option) => (
-              <label
-                key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 [contain-intrinsic-size:auto_36px] [content-visibility:auto] hover:bg-gray-50"
-              >
-                <Checkbox
-                  checked={selected.has(option.id)}
-                  onChange={() => toggle(option.id)}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{option.name}</span>
-                  {(option.schoolClass || option.groupName) && (
-                    <span className="block truncate text-[11px] text-gray-400">
-                      {[option.schoolClass, option.groupName]
-                        .filter(Boolean)
-                        .join(" · ")}
+            {filteredOptions.map((option) => {
+              const isProtected = protectedSet.has(option.id);
+              return (
+                <label
+                  key={option.id}
+                  className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 [contain-intrinsic-size:auto_36px] [content-visibility:auto] ${
+                    isProtected
+                      ? "cursor-not-allowed"
+                      : "cursor-pointer hover:bg-gray-50"
+                  }`}
+                >
+                  <Checkbox
+                    checked={selected.has(option.id)}
+                    onChange={() => toggle(option.id)}
+                    disabled={isProtected}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate">{option.name}</span>
+                      {isProtected && (
+                        <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+                          aus Anmeldung
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </label>
-            ))}
+                    {(option.schoolClass || option.groupName) && (
+                      <span className="block truncate text-[11px] text-gray-400">
+                        {[option.schoolClass, option.groupName]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
           </div>
         )}
       </div>

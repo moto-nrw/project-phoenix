@@ -176,6 +176,9 @@ export function StepPersonalKinder({
         onChange={(ids) => update("studentIds", ids)}
         metadata="student"
         bulkOptions={studentBulkOptions}
+        protectedValues={form.protectedStudentAssignments.flatMap(
+          (assignment) => assignment.studentIds,
+        )}
       />
     );
   }

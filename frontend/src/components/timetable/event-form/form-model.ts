@@ -75,7 +75,8 @@ export function seedWeekdayRosters(
   const seed = form.perWeekdayRoster && existing ? existing : shared;
   const seeded: Record<number, WeekdayRosterState> = {};
   for (const weekday of weekdays) {
-    const roster = form.weekdayRosters[weekday] ?? seed;
+    const existingRoster = form.weekdayRosters[weekday];
+    const roster = existingRoster ?? rosterSeedForWeekday(form, seed, weekday);
     seeded[weekday] = {
       staffIds: [...roster.staffIds],
       primaryStaffId: roster.primaryStaffId,
@@ -96,7 +97,6 @@ export function changePerWeekdayRosterMode(
   form: EventFormState,
   enabled: boolean,
   activeWeekday: number,
-  protectedStudents: readonly TemplateProtectedStudentAssignment[],
 ): EventFormState {
   if (!enabled) {
     const source = rosterForWeekday(
@@ -116,10 +116,12 @@ export function changePerWeekdayRosterMode(
   }
 
   const protectedIDs = new Set(
-    protectedStudents.flatMap((assignment) => assignment.studentIds),
+    form.protectedStudentAssignments.flatMap(
+      (assignment) => assignment.studentIds,
+    ),
   );
   const protectedByWeekday = new Map(
-    protectedStudents.map((assignment) => [
+    form.protectedStudentAssignments.map((assignment) => [
       assignment.weekday,
       assignment.studentIds,
     ]),
@@ -145,6 +147,62 @@ export function changePerWeekdayRosterMode(
     };
   }
   return { ...form, perWeekdayRoster: true, weekdayRosters };
+}
+
+/**
+ * Replaces the recurrence weekdays without losing the roster state rules.
+ * New days copy one concrete existing day, never the aggregate read model;
+ * collapsing to one day turns the surviving concrete roster into the shared
+ * controls that are serialized by the single-day flow.
+ */
+export function changeRosterWeekdays(
+  form: EventFormState,
+  weekdays: number[],
+  fallbackWeekday: number,
+): EventFormState {
+  const weekdayRosters = form.perWeekdayRoster
+    ? seedWeekdayRosters(form, weekdays)
+    : form.weekdayRosters;
+  if (form.perWeekdayRoster && weekdays.length < 2) {
+    const source =
+      weekdayRosters[weekdays[0] ?? fallbackWeekday] ??
+      rosterForWeekday(form, weekdays[0] ?? fallbackWeekday);
+    return {
+      ...form,
+      weekdays,
+      staffIds: [...source.staffIds],
+      primaryStaffId: source.primaryStaffId,
+      studentIds: [...source.studentIds],
+      perWeekdayRoster: false,
+      weekdayRosters,
+    };
+  }
+  return { ...form, weekdays, weekdayRosters };
+}
+
+/** Copies a roster to a newly introduced day without widening protected rows. */
+export function rosterSeedForWeekday(
+  form: EventFormState,
+  roster: WeekdayRosterState,
+  weekday: number,
+): WeekdayRosterState {
+  const protectedIDs = new Set(
+    form.protectedStudentAssignments.flatMap(
+      (assignment) => assignment.studentIds,
+    ),
+  );
+  const coveredIDs = new Set(
+    form.protectedStudentAssignments.find(
+      (assignment) => assignment.weekday === weekday,
+    )?.studentIds ?? [],
+  );
+  return {
+    staffIds: [...roster.staffIds],
+    primaryStaffId: roster.primaryStaffId,
+    studentIds: roster.studentIds.filter(
+      (id) => !protectedIDs.has(id) || coveredIDs.has(id),
+    ),
+  };
 }
 
 /**
@@ -223,6 +281,8 @@ export interface EventFormState {
   perWeekdayRoster: boolean;
   /** Roster per ISO weekday (1 = Mo … 5 = Fr); only read when perWeekdayRoster. */
   weekdayRosters: Record<number, WeekdayRosterState>;
+  /** Enrollment-owned children and the weekdays on which they are immutable. */
+  protectedStudentAssignments: TemplateProtectedStudentAssignment[];
   /**
    * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
    * occurrence inherits the series value, otherwise the Betreuungsschlüssel
@@ -285,6 +345,7 @@ export function emptyForm(
     primaryStaffId: "",
     perWeekdayRoster: false,
     weekdayRosters: {},
+    protectedStudentAssignments: [],
     requiredStaff: "",
     targetGroupType: "none",
     targetGradeLevel: "",
@@ -324,6 +385,7 @@ export function formFromInstance(
     // series-only concept here.
     perWeekdayRoster: false,
     weekdayRosters: {},
+    protectedStudentAssignments: [],
     requiredStaff:
       instance.requiredStaffOverride !== undefined
         ? String(instance.requiredStaffOverride)
@@ -373,6 +435,7 @@ export function formFromSeries(
     // one shared roster.
     perWeekdayRoster: series.weekdayAssignments.length > 0,
     weekdayRosters: weekdayRostersFromSeries(series),
+    protectedStudentAssignments: series.protectedStudentAssignments ?? [],
     requiredStaff:
       series.requiredStaffOverride !== undefined
         ? String(series.requiredStaffOverride)

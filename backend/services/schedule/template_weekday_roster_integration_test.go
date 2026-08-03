@@ -359,6 +359,89 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 	}
 }
 
+func TestUpdateTemplate_PinningPeriodRetiresUnscopedEditorRoster(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	tuesday := monday.AddDays(1)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	name := fmt.Sprintf("Pinned-Roster-%d", time.Now().UnixNano())
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:            name,
+		Type:            activitiesModels.GroupTypeCare,
+		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		StartTime:       clockTime(14, 0),
+		EndTime:         clockTime(15, 0),
+		RoomID:          s.roomID,
+		CategoryID:      s.categoryID,
+		MaxParticipants: 20,
+		RosterValidFrom: monday.AddDays(-30),
+		GradeLevelMax:   4,
+		StaffIDs:        []int64{s.staffA},
+		PrimaryStaffID:  &s.staffA,
+		StudentIDs:      []int64{s.studentA},
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: result.TemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:             name,
+			Type:             activitiesModels.GroupTypeCare,
+			CategoryID:       s.categoryID,
+			RoomID:           s.roomID,
+			MaxParticipants:  20,
+			CalendarPeriodID: &s.periodID,
+			TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+		},
+		Weekdays:         []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		TimeframeID:      result.TimeframeID,
+		CalendarPeriodID: &s.periodID,
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    4,
+		WeekdayAssignments: []scheduleSvc.WeekdayRosterAssignment{
+			{
+				Weekday:        activitiesModels.WeekdayMonday,
+				StaffIDs:       []int64{s.staffB},
+				PrimaryStaffID: &s.staffB,
+				StudentIDs:     []int64{s.studentB},
+			},
+			{
+				Weekday:        activitiesModels.WeekdayTuesday,
+				StaffIDs:       []int64{s.staffB},
+				PrimaryStaffID: &s.staffB,
+				StudentIDs:     []int64{s.studentB},
+			},
+		},
+	}))
+
+	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
+		require.NotNil(t, row.CalendarPeriodID)
+		assert.Equal(t, s.periodID, *row.CalendarPeriodID)
+		assert.Equal(t, s.staffB, row.StaffID)
+	}
+	openEnrollments := 0
+	for _, row := range s.enrollmentRows(t, result.TemplateID) {
+		if row.ValidUntil != nil {
+			continue
+		}
+		openEnrollments++
+		require.NotNil(t, row.CalendarPeriodID)
+		assert.Equal(t, s.periodID, *row.CalendarPeriodID)
+		assert.Equal(t, s.studentB, row.StudentID)
+	}
+	assert.Equal(t, 2, openEnrollments)
+
+	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	for _, date := range []timezone.Date{monday, tuesday} {
+		instance := s.singleInstance(t, result.TemplateID, date)
+		assert.Equal(t, []int64{s.staffB}, s.instanceStaffIDs(t, instance))
+		assert.Equal(t, []int64{s.studentB}, s.instanceStudentIDs(t, instance))
+	}
+}
+
 func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *testing.T) {
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)

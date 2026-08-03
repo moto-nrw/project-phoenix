@@ -40,6 +40,7 @@ import {
 import { useDebounce } from "~/lib/use-debounce";
 import {
   changePerWeekdayRosterMode,
+  changeRosterWeekdays,
   emptyForm,
   fetchAllStudentOptions,
   formFromInstance,
@@ -50,6 +51,7 @@ import {
   isoWeekday,
   parseRequiredStaffOverride,
   rosterForWeekday,
+  rosterSeedForWeekday,
   schoolClassLabel,
   seedWeekdayRosters,
   sortPeople,
@@ -980,25 +982,7 @@ export function useEventForm({
       const next = has
         ? prev.weekdays.filter((day) => day !== iso)
         : [...prev.weekdays, iso].sort((a, b) => a - b);
-      // A weekday added while per-weekday staffing is on starts from an
-      // existing day's roster rather than the aggregate or empty; a removed
-      // weekday keeps its roster so re-adding it does not wipe its people.
-      const weekdayRosters = prev.perWeekdayRoster
-        ? seedWeekdayRosters(prev, next)
-        : prev.weekdayRosters;
-      if (prev.perWeekdayRoster && next.length < 2) {
-        const source = rosterForWeekday(prev, next[0] ?? iso);
-        return {
-          ...prev,
-          weekdays: next,
-          staffIds: [...source.staffIds],
-          primaryStaffId: source.primaryStaffId,
-          studentIds: [...source.studentIds],
-          perWeekdayRoster: false,
-          weekdayRosters,
-        };
-      }
-      return { ...prev, weekdays: next, weekdayRosters };
+      return changeRosterWeekdays(prev, next, iso);
     });
     setValidationError(null);
     clearFieldError("weekdays");
@@ -1024,12 +1008,7 @@ export function useEventForm({
     staffRosterTouched.current = true;
     studentRosterTouched.current = true;
     setForm((prev) =>
-      changePerWeekdayRosterMode(
-        prev,
-        enabled,
-        activeRosterWeekday,
-        initialSeries?.protectedStudentAssignments ?? [],
-      ),
+      changePerWeekdayRosterMode(prev, enabled, activeRosterWeekday),
     );
     setValidationError(null);
   };
@@ -1059,7 +1038,14 @@ export function useEventForm({
       const source = rosterForWeekday(prev, activeRosterWeekday);
       const next: Record<number, WeekdayRosterState> = {};
       for (const weekday of prev.weekdays) {
-        next[weekday] = { ...source };
+        next[weekday] =
+          weekday === activeRosterWeekday
+            ? {
+                staffIds: [...source.staffIds],
+                primaryStaffId: source.primaryStaffId,
+                studentIds: [...source.studentIds],
+              }
+            : rosterSeedForWeekday(prev, source, weekday);
       }
       return { ...prev, weekdayRosters: next };
     });
@@ -1245,14 +1231,21 @@ export function useEventForm({
         break;
       case "woechentlich-am":
         updateRepeat("weekly");
-        update(
-          "weekdays",
-          dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
+        setForm((prev) =>
+          changeRosterWeekdays(
+            prev,
+            dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
+            dateWeekday,
+          ),
         );
+        clearFieldError("weekdays");
         break;
       case "jeden-wochentag":
         updateRepeat("weekly");
-        update("weekdays", [...WEEKDAYS]);
+        setForm((prev) =>
+          changeRosterWeekdays(prev, [...WEEKDAYS], dateWeekday),
+        );
+        clearFieldError("weekdays");
         break;
       case "benutzerdefiniert":
         setExpanded(true);

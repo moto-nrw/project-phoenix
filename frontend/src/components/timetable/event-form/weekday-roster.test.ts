@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   changePerWeekdayRosterMode,
+  changeRosterWeekdays,
   emptyForm,
   formFromSeries,
   rosterForWeekday,
@@ -56,12 +57,15 @@ describe("per-weekday roster state (#2129)", () => {
   });
 
   it("keeps protected children only on their enrollment weekdays", () => {
-    const form = seriesForm({ studentIds: ["100", "200"] });
+    const form = seriesForm({
+      studentIds: ["100", "200"],
+      protectedStudentAssignments: [
+        { weekday: 1, studentIds: ["200"] },
+        { weekday: 2, studentIds: ["300"] },
+      ],
+    });
 
-    const changed = changePerWeekdayRosterMode(form, true, 1, [
-      { weekday: 1, studentIds: ["200"] },
-      { weekday: 2, studentIds: ["300"] },
-    ]);
+    const changed = changePerWeekdayRosterMode(form, true, 1);
 
     expect(changed.weekdayRosters[1]?.studentIds).toEqual(["100", "200"]);
     expect(changed.weekdayRosters[2]?.studentIds).toEqual(["100", "300"]);
@@ -78,7 +82,7 @@ describe("per-weekday roster state (#2129)", () => {
       },
     });
 
-    const shared = changePerWeekdayRosterMode(form, false, 1, []);
+    const shared = changePerWeekdayRosterMode(form, false, 1);
     expect(shared.weekdayRosters).toEqual({});
 
     const edited = {
@@ -87,7 +91,7 @@ describe("per-weekday roster state (#2129)", () => {
       primaryStaffId: "40",
       studentIds: ["400"],
     };
-    const changed = changePerWeekdayRosterMode(edited, true, 1, []);
+    const changed = changePerWeekdayRosterMode(edited, true, 1);
 
     for (const weekday of changed.weekdays) {
       expect(changed.weekdayRosters[weekday]).toEqual({
@@ -121,6 +125,47 @@ describe("per-weekday roster state (#2129)", () => {
       primaryStaffId: "10",
       studentIds: ["100"],
     });
+  });
+
+  it("seeds every weekday preset from a concrete day instead of the aggregate", () => {
+    const form = seriesForm({
+      weekdays: [1, 2],
+      staffIds: ["10", "20"],
+      studentIds: ["100", "200"],
+      perWeekdayRoster: true,
+      weekdayRosters: {
+        1: { staffIds: ["10"], primaryStaffId: "10", studentIds: ["100"] },
+        2: { staffIds: ["20"], primaryStaffId: "20", studentIds: ["200"] },
+      },
+    });
+
+    const changed = changeRosterWeekdays(form, [1, 2, 3, 4, 5], 1);
+
+    expect(changed.weekdayRosters[2]?.staffIds).toEqual(["20"]);
+    for (const weekday of [3, 4, 5]) {
+      expect(changed.weekdayRosters[weekday]).toEqual({
+        staffIds: ["10"],
+        primaryStaffId: "10",
+        studentIds: ["100"],
+      });
+    }
+  });
+
+  it("does not copy protected children to newly added uncovered weekdays", () => {
+    const form = seriesForm({
+      weekdays: [1, 2],
+      perWeekdayRoster: true,
+      protectedStudentAssignments: [{ weekday: 1, studentIds: ["100"] }],
+      weekdayRosters: {
+        1: { staffIds: ["10"], primaryStaffId: "10", studentIds: ["100"] },
+        2: { staffIds: ["20"], primaryStaffId: "20", studentIds: ["200"] },
+      },
+    });
+
+    const changed = changeRosterWeekdays(form, [1, 2, 3], 1);
+
+    expect(changed.weekdayRosters[1]?.studentIds).toEqual(["100"]);
+    expect(changed.weekdayRosters[3]?.studentIds).toEqual([]);
   });
 
   it("flags only the weekdays whose roster differs from the first weekday", () => {

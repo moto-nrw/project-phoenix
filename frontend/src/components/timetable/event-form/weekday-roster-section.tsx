@@ -153,6 +153,11 @@ export function WeekdayRosterSection({
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
+          protectedStudentIds={
+            form.protectedStudentAssignments.find(
+              (assignment) => assignment.weekday === activeWeekday,
+            )?.studentIds ?? []
+          }
         />
       ) : null}
     </div>
@@ -166,6 +171,7 @@ function WeekdayRosterFields({
   staff,
   students,
   studentBulkOptions,
+  protectedStudentIds,
 }: Readonly<{
   roster: WeekdayRosterState;
   weekday: number;
@@ -177,6 +183,7 @@ function WeekdayRosterFields({
     label: string;
     memberIds: string[];
   }>;
+  protectedStudentIds: readonly string[];
 }>) {
   const dayLabel = WEEKDAY_LABELS[weekday] ?? "";
   return (
@@ -224,6 +231,7 @@ function WeekdayRosterFields({
         onChange={(ids) => onChange({ ...roster, studentIds: ids })}
         metadata="student"
         bulkOptions={studentBulkOptions}
+        protectedValues={protectedStudentIds}
       />
 
       {roster.staffIds.length === 0 && (
