@@ -142,7 +142,13 @@ func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, er
 		return "", errors.New("failed to generate filename")
 	}
 
-	filename := prefix + "_" + randomStr + ext
+	return SaveNamedFile(file, targetDir, prefix+"_"+randomStr+ext)
+}
+
+// SaveNamedFile writes the uploaded file to targetDir under the exact given
+// filename (callers generate collision-free names, e.g. UUIDs). It creates
+// targetDir if it doesn't exist. Returns the full file path on disk.
+func SaveNamedFile(file io.Reader, targetDir, filename string) (string, error) {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return "", errors.New("failed to create upload directory")
 	}
@@ -160,6 +166,40 @@ func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, er
 
 	if _, err := io.Copy(dst, file); err != nil {
 		// Clean up the partially written file
+		_ = os.Remove(filePath)
+		return "", errors.New("failed to save file")
+	}
+
+	return filePath, nil
+}
+
+// SavePrivateNamedFile writes a file that must never be exposed through a
+// static mount. Both the directory and file are owner-only so access remains
+// mediated by the authenticated download handler.
+func SavePrivateNamedFile(file io.Reader, targetDir, filename string) (string, error) {
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
+		return "", errors.New("failed to create upload directory")
+	}
+	if err := os.Chmod(targetDir, 0700); err != nil {
+		return "", errors.New("failed to secure upload directory")
+	}
+
+	filePath := filepath.Join(targetDir, filename)
+	dst, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return "", errors.New("failed to save file")
+	}
+	defer func() {
+		if err := dst.Close(); err != nil {
+			slog.Default().Error("file close error", slog.String("error", err.Error()))
+		}
+	}()
+	if err := dst.Chmod(0600); err != nil {
+		_ = os.Remove(filePath)
+		return "", errors.New("failed to secure uploaded file")
+	}
+
+	if _, err := io.Copy(dst, file); err != nil {
 		_ = os.Remove(filePath)
 		return "", errors.New("failed to save file")
 	}

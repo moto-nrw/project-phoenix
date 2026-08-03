@@ -13,19 +13,29 @@ import StaffPage from "./page";
 const getTimeAccounts = vi.hoisted(() => vi.fn());
 const getDashboardSummary = vi.hoisted(() => vi.fn());
 const getAllStaff = vi.hoisted(() => vi.fn());
+const getDocumentDirectory = vi.hoisted(() => vi.fn());
+const routerPush = vi.hoisted(() => vi.fn());
 const swrKeys = vi.hoisted(() => [] as (string | null)[]);
 const berlinToday = vi.hoisted(() => vi.fn());
 const closeMonth = vi.hoisted(() => vi.fn());
 const mutateMonthClose = vi.hoisted(() => vi.fn());
+const mutateDocumentDirectory = vi.hoisted(() => vi.fn());
 const globalMutate = vi.hoisted(() => vi.fn());
 const monthCloseRequest = vi.hoisted(() => ({
   error: null as Error | null,
+}));
+const documentDirectoryRequest = vi.hoisted(() => ({
+  error: null as Error | null,
+  data: [] as unknown[],
+}));
+const staffListRequest = vi.hoisted(() => ({
+  data: undefined as unknown,
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ push: vi.fn() }),
+  useTenantRouter: () => ({ push: routerPush }),
 }));
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: berlinToday,
@@ -47,12 +57,25 @@ vi.mock("~/lib/swr", () => ({
         mutate: mutateMonthClose,
       };
     }
+    if (key === "staff-document-directory") {
+      return {
+        data: documentDirectoryRequest.error
+          ? undefined
+          : documentDirectoryRequest.data,
+        isLoading: false,
+        error: documentDirectoryRequest.error,
+        mutate: mutateDocumentDirectory,
+      };
+    }
+    if (key === "staff-list") {
+      return { data: staffListRequest.data, isLoading: false, error: null };
+    }
     return { data: undefined, isLoading: false, error: null };
   },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffService: { getAllStaff },
+  staffService: { getAllStaff, getDocumentDirectory },
   staffMonthCloseService: {
     getStatus: vi.fn().mockResolvedValue([]),
     closeMonth,
@@ -106,9 +129,15 @@ describe("/staff — Berechtigungs-Split", () => {
     berlinToday.mockReset().mockReturnValue("2026-09-01");
     closeMonth.mockReset().mockResolvedValue({});
     mutateMonthClose.mockReset().mockResolvedValue(undefined);
+    mutateDocumentDirectory.mockReset().mockResolvedValue(undefined);
     globalMutate.mockReset().mockResolvedValue(undefined);
     monthCloseRequest.error = null;
+    documentDirectoryRequest.error = null;
+    documentDirectoryRequest.data = [];
+    staffListRequest.data = undefined;
     getAllStaff.mockReset().mockResolvedValue([]);
+    getDocumentDirectory.mockReset().mockResolvedValue([]);
+    routerPush.mockReset();
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
       year: 2026,
@@ -174,6 +203,81 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getAllStaff).not.toHaveBeenCalled();
     expect(getTimeAccounts).not.toHaveBeenCalled();
     expect(getDashboardSummary).not.toHaveBeenCalled();
+  });
+
+  it("behält mit users:read die Personalliste und öffnet Dokumente über die Karte", () => {
+    const staff = [
+      {
+        id: "42",
+        name: "Dokumente Test",
+        firstName: "Dokumente",
+        lastName: "Test",
+        hasRfid: false,
+        isTeacher: false,
+        isSupervising: false,
+        supervisions: [],
+      },
+    ];
+    staffListRequest.data = staff;
+    getAllStaff.mockResolvedValue(staff);
+    mockSession(["users:read", "staff_documents:health"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.queryByText(/Wählen Sie eine Person/),
+    ).not.toBeInTheDocument();
+    expect(getAllStaff).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /Dokumente Test/ }));
+    expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=dokumente");
+  });
+
+  it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {
+    documentDirectoryRequest.data = [
+      {
+        id: "1",
+        name: "Dokumente Eins",
+        firstName: "Dokumente",
+        lastName: "Eins",
+      },
+      {
+        id: "2",
+        name: "Dokumente Zwei",
+        firstName: "Dokumente",
+        lastName: "Zwei",
+      },
+    ];
+    mockSession(["time_tracking:manage", "staff_documents:health"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.queryByText(/Wählen Sie eine Person/),
+    ).not.toBeInTheDocument();
+    expect(getDocumentDirectory).not.toHaveBeenCalled();
+    expect(getTimeAccounts).toHaveBeenCalledTimes(1);
+
+    const documentsTab = screen.getByRole("tab", {
+      name: "Personalunterlagen",
+    });
+    fireEvent.pointerDown(documentsTab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(documentsTab, { button: 0 });
+    fireEvent.click(documentsTab);
+
+    expect(screen.getByText(/Wählen Sie eine Person/)).toBeInTheDocument();
+    expect(getDocumentDirectory).toHaveBeenCalled();
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("behandelt admin:* als Vollzugriff statt als Dokumentenrolle", () => {
+    mockSession(["admin:*"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.queryByText(/Wählen Sie eine Person/),
+    ).not.toBeInTheDocument();
+    expect(getDocumentDirectory).not.toHaveBeenCalled();
   });
 
   it("blendet den Zeitkonten-Umschalter ohne time_tracking:manage aus und fragt die Zeitkonten nicht ab", () => {
@@ -273,6 +377,26 @@ describe("/staff — Berechtigungs-Split", () => {
 
     await waitFor(() => {
       expect(mutateMonthClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("zeigt einen retrybaren Fehler, wenn das Dokumentenverzeichnis nicht lädt", async () => {
+    documentDirectoryRequest.error = new Error("Bad Gateway");
+    mockSession(["staff_documents:health"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.getByText("Das Personalverzeichnis konnte nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Mitarbeiter/innen gefunden."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    await waitFor(() => {
+      expect(mutateDocumentDirectory).toHaveBeenCalledTimes(1);
     });
   });
 });

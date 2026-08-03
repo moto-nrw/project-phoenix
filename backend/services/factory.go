@@ -113,6 +113,7 @@ type Factory struct {
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
+	StaffDocuments           users.StaffDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -393,6 +394,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SettingsService: settingsService,
 		Logger:          logger.With("service", "users"),
 	})
+
+	// Staff documents (#1424): metadata + per-category authority for the
+	// Dokumente tab. Shares the Stammdaten audit trail and access log.
+	staffDocumentService := users.NewStaffDocumentService(
+		db,
+		repos.StaffDocument,
+		repos.Staff,
+		repos.StaffMasterData,
+		repos.StaffMasterDataChange,
+		repos.DataAccessLog,
+		logger.With("service", "staff_documents"),
+	)
 
 	// Initialize guardian service
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
@@ -1986,6 +1999,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
+		StaffDocuments:           staffDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

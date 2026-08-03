@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useParams, redirect } from "next/navigation";
+import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
+import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
@@ -85,7 +86,7 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
-        {!staff.isFinancialProfile ? (
+        {!staff.isLimitedProfile ? (
           <span
             className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
             style={{
@@ -103,16 +104,6 @@ function StaffHeader({
   );
 }
 
-// ─── Placeholder tab (for disabled tabs) ─────────────────────────────────────
-
-function PlaceholderTab({ title }: { readonly title: string }) {
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-8 text-center shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <p className="text-sm text-gray-400">{title} — kommt bald.</p>
-    </div>
-  );
-}
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function StaffDetailContent() {
@@ -124,8 +115,13 @@ export default function StaffDetailContent() {
   });
   const router = useTenantRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const staffId = params.id as string;
-  const canEdit = isAdmin(session);
+  // Effective admin: the backend grants everything to `admin:*` / `*:*`
+  // holders regardless of the role name, so a custom role carrying the
+  // wildcard must see the same admin-gated UI as the literal admin role
+  // (mirrors the staff list).
+  const canEdit = isAdmin(session) || hasPermission(session, "admin:*");
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canManageAbsences =
     canEdit ||
@@ -141,6 +137,15 @@ export default function StaffDetailContent() {
     canEdit || canManageTimeTracking || canEditStammdaten;
   const canViewFinancial = hasPermission(session, "staff:financial");
   const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
+  // Dokumente (#1424): mirrors the backend route gate — any of the three
+  // category permissions opens the tab; the backend then filters the list
+  // to exactly the categories the caller may see.
+  const canViewDocuments =
+    canEdit ||
+    canEditStammdaten ||
+    canViewFinancial ||
+    hasPermission(session, "staff_documents:health");
+  const requestedTab = searchParams.get("tab");
 
   const {
     data: staff,
@@ -149,7 +154,9 @@ export default function StaffDetailContent() {
   } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
     canViewFinancial && !canViewStammdatenSections
       ? staffService.getFinancialProfile(staffId)
-      : staffService.getStaffById(staffId),
+      : canViewDocuments && !canViewTimeTracking && !canViewStammdaten
+        ? staffService.getDocumentProfile(staffId)
+        : staffService.getStaffById(staffId),
   );
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
@@ -187,7 +194,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewTimeTracking && !canViewStammdaten) {
+  if (!canViewTimeTracking && !canViewStammdaten && !canViewDocuments) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -225,11 +232,15 @@ export default function StaffDetailContent() {
       {/* Tabs */}
       <Tabs
         defaultValue={
-          canViewTimeTracking
-            ? "uebersicht"
-            : canViewStammdaten
-              ? "stammdaten"
-              : "abwesenheiten"
+          requestedTab === "dokumente" && canViewDocuments
+            ? "dokumente"
+            : canViewTimeTracking
+              ? "uebersicht"
+              : canViewStammdaten
+                ? "stammdaten"
+                : canViewDocuments
+                  ? "dokumente"
+                  : "abwesenheiten"
         }
         className="w-full"
       >
@@ -263,10 +274,8 @@ export default function StaffDetailContent() {
           {canViewStammdaten ? (
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
           ) : null}
-          {canEdit ? (
-            <TabsTrigger value="dokumente" disabled>
-              Dokumente
-            </TabsTrigger>
+          {canViewDocuments ? (
+            <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -312,9 +321,9 @@ export default function StaffDetailContent() {
           </TabsPrimitive.Content>
         ) : null}
 
-        {canEdit ? (
+        {canViewDocuments ? (
           <TabsPrimitive.Content value="dokumente">
-            <PlaceholderTab title="Dokumente" />
+            <DokumenteTab staffId={staffId} />
           </TabsPrimitive.Content>
         ) : null}
       </Tabs>

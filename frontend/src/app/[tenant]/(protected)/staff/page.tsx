@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -11,6 +14,7 @@ import type {
 import {
   staffMonthCloseService,
   staffService,
+  type StaffDocumentDirectoryEntry,
   type Staff,
 } from "~/lib/staff-api";
 import {
@@ -44,6 +48,91 @@ import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffPageSkeleton } from "./page-skeleton";
 
+function DocumentDirectory({
+  entries,
+  error,
+  onRetry,
+  embedded = false,
+}: {
+  readonly entries: readonly StaffDocumentDirectoryEntry[];
+  readonly error?: Error;
+  readonly onRetry: () => void;
+  readonly embedded?: boolean;
+}) {
+  const router = useTenantRouter();
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLocaleLowerCase("de-DE");
+  const filteredEntries = entries.filter((entry) =>
+    entry.name.toLocaleLowerCase("de-DE").includes(normalizedSearch),
+  );
+
+  return (
+    <div className="-mt-1.5 w-full">
+      {!embedded && (
+        <PageHeaderWithSearch
+          title="Personalunterlagen"
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: "Mitarbeiter/in suchen...",
+          }}
+        />
+      )}
+      {embedded && (
+        <div className="mb-4">
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Mitarbeiter/in suchen..."
+            className="w-full"
+          />
+        </div>
+      )}
+      <p className="mb-4 text-sm text-gray-600">
+        Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
+      </p>
+      {error ? (
+        <Alert
+          type="error"
+          message="Das Personalverzeichnis konnte nicht geladen werden."
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={onRetry}
+            >
+              Erneut versuchen
+            </Button>
+          }
+        />
+      ) : (
+        <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          {filteredEntries.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5080D8]"
+            >
+              {entry.name}
+              <span aria-hidden="true" className="text-gray-400">
+                ›
+              </span>
+            </button>
+          ))}
+          {filteredEntries.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-gray-500">
+              Keine Mitarbeiter/innen gefunden.
+            </p>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StaffPageContent() {
   const { data: session, status } = useSession({
     required: true,
@@ -53,19 +142,35 @@ function StaffPageContent() {
   });
 
   const router = useTenantRouter();
-  const userIsAdmin = isAdmin(session);
+  // Custom roles can carry the same wildcard permissions as the built-in
+  // admin role. Keep the client-side navigation model aligned with backend
+  // authorization, which treats both forms as full access.
+  const userIsAdmin = isAdmin(session) || hasPermission(session, "admin:*");
 
   // Die Zeitkonten-Ansicht ist an time_tracking:manage gebunden, nicht an
   // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canReadUsers = hasPermission(session, "users:read");
+  const canAccessDocuments =
+    userIsAdmin ||
+    hasPermission(session, "users:update") ||
+    hasPermission(session, "staff:financial") ||
+    hasPermission(session, "staff_documents:health");
+  // Document-only roles have no other staff view to navigate from. Roles that
+  // can already manage staff stay in their established view; its entries link
+  // directly to the documents tab below.
+  const documentDirectoryOnly =
+    canAccessDocuments &&
+    !userIsAdmin &&
+    !canReadUsers &&
+    !canManageTimeTracking;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
   const [selectedView, setSelectedView] = useState<
-    "status" | "accounts" | "audit"
+    "status" | "accounts" | "audit" | "documents"
   >("status");
   const [employmentFilter, setEmploymentFilter] = useState("all");
   // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
@@ -87,7 +192,12 @@ function StaffPageContent() {
   // landen deshalb direkt in den Zeitkonten, können aber zwischen Zeitkonten
   // und Änderungsprotokoll wechseln.
   const view =
-    canReadUsers || selectedView === "audit" ? selectedView : "accounts";
+    canReadUsers || selectedView === "audit" || selectedView === "documents"
+      ? selectedView
+      : "accounts";
+  const showDocumentDirectory =
+    documentDirectoryOnly ||
+    (canManageTimeTracking && canAccessDocuments && view === "documents");
 
   // Handle mobile detection
   useEffect(() => {
@@ -119,6 +229,17 @@ function StaffPageContent() {
 
   const staff = staffData ?? [];
   const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
+
+  const {
+    data: documentDirectory,
+    error: documentDirectoryError,
+    isLoading: isDocumentDirectoryLoading,
+    mutate: mutateDocumentDirectory,
+  } = useSWRAuth<StaffDocumentDirectoryEntry[]>(
+    showDocumentDirectory ? "staff-document-directory" : null,
+    () => staffService.getDocumentDirectory(),
+    { revalidateOnFocus: false },
+  );
 
   // Zeitkonten (#1417 Tranche 2a). Beschäftigungstyp und Saldo-Grenzen gehen
   // an den Server — der Beschäftigungstyp spart dort die Rechnung pro Person,
@@ -379,7 +500,7 @@ function StaffPageContent() {
   // Das Änderungsprotokoll bringt seine eigenen Filter mit (MA, Editor,
   // Bereich, Zeitraum) — Header-Filter würden dort ins Leere laufen.
   const filterConfigs: FilterConfig[] =
-    view === "audit"
+    view === "audit" || view === "documents"
       ? []
       : view === "accounts"
         ? [employmentFilterConfig]
@@ -450,12 +571,22 @@ function StaffPageContent() {
     view,
   ]);
 
-  if (status === "loading" || isLoading) {
+  if (status === "loading" || isLoading || isDocumentDirectoryLoading) {
     return <StaffPageSkeleton />;
   }
 
-  if (!canReadUsers && !canManageTimeTracking) {
+  if (!canReadUsers && !canManageTimeTracking && !canAccessDocuments) {
     return <ForbiddenPage />;
+  }
+
+  if (documentDirectoryOnly) {
+    return (
+      <DocumentDirectory
+        entries={documentDirectory ?? []}
+        error={documentDirectoryError}
+        onRetry={() => void mutateDocumentDirectory()}
+      />
+    );
   }
 
   return (
@@ -480,12 +611,16 @@ function StaffPageContent() {
             </svg>
           ),
           count:
-            view === "accounts" ? accountRows.length : filteredStaff.length,
+            view === "accounts"
+              ? accountRows.length
+              : view === "documents"
+                ? (documentDirectory?.length ?? 0)
+                : filteredStaff.length,
         }}
         search={
           // Im Änderungsprotokoll filtert die Komponente selbst; ein
           // wirkungsloses Suchfeld wäre irreführend.
-          view === "audit"
+          view === "audit" || view === "documents"
             ? undefined
             : {
                 value: searchTerm,
@@ -523,7 +658,9 @@ function StaffPageContent() {
         <Tabs
           value={view}
           onValueChange={(value) =>
-            setSelectedView(value as "status" | "accounts" | "audit")
+            setSelectedView(
+              value as "status" | "accounts" | "audit" | "documents",
+            )
           }
           className="mb-4"
         >
@@ -531,6 +668,9 @@ function StaffPageContent() {
             {canReadUsers && <TabsTrigger value="status">Status</TabsTrigger>}
             <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
             <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
+            {canAccessDocuments && (
+              <TabsTrigger value="documents">Personalunterlagen</TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
       )}
@@ -539,6 +679,15 @@ function StaffPageContent() {
           Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
       {view === "audit" && canManageTimeTracking && (
         <StaffAuditLog staffOptions={auditStaffOptions} />
+      )}
+
+      {view === "documents" && canManageTimeTracking && canAccessDocuments && (
+        <DocumentDirectory
+          entries={documentDirectory ?? []}
+          error={documentDirectoryError}
+          onRetry={() => void mutateDocumentDirectory()}
+          embedded
+        />
       )}
 
       {view === "accounts" && (
@@ -563,7 +712,11 @@ function StaffPageContent() {
           error={
             accountsError ? "Zeitkonten konnten nicht geladen werden." : null
           }
-          onRowClick={(row) => router.push(`/staff/${row.staffId}`)}
+          onRowClick={(row) =>
+            router.push(
+              `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+            )
+          }
           saldoPreset={saldoPreset}
           onSaldoPresetChange={setSaldoPreset}
           customSaldoHours={customSaldoHours}
@@ -656,14 +809,17 @@ function StaffPageContent() {
                 const notes = formatStaffNotes(staffMember.staffNotes, 80);
                 const supervisions = staffMember.supervisions ?? [];
 
-                const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${userIsAdmin ? "cursor-pointer" : ""}`;
+                const canNavigateToStaff = userIsAdmin || canAccessDocuments;
+                const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
                 const navigateToStaff = () =>
-                  router.push(`/staff/${staffMember.id}`);
+                  router.push(
+                    `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                  );
 
                 return (
                   <div
                     key={staffMember.id}
-                    {...(userIsAdmin
+                    {...(canNavigateToStaff
                       ? {
                           role: "button" as const,
                           tabIndex: 0,
@@ -689,7 +845,7 @@ function StaffPageContent() {
                               <h3 className="truncate text-base font-bold text-gray-900">
                                 {staffMember.firstName} {staffMember.lastName}
                               </h3>
-                              {userIsAdmin && (
+                              {canNavigateToStaff && (
                                 <svg
                                   className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
                                   fill="none"
@@ -773,9 +929,11 @@ function StaffPageContent() {
                           )}
                         </div>
 
-                        {userIsAdmin && (
+                        {canNavigateToStaff && (
                           <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
-                            Tippen für mehr Infos
+                            {userIsAdmin
+                              ? "Tippen für mehr Infos"
+                              : "Tippen für Personalunterlagen"}
                           </p>
                         )}
                       </div>

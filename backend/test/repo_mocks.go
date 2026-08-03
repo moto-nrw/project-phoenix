@@ -21,6 +21,7 @@ type SchoolRepoMock struct {
 	FindByOrganizationAndSlugFn       func(ctx context.Context, organizationID int64, slug string) (*platform.School, error)
 	FindBySubdomainFn                 func(ctx context.Context, subdomain string) (*platform.School, error)
 	ListFn                            func(ctx context.Context) ([]*platform.School, error)
+	ListNonDeletedFn                  func(ctx context.Context) ([]platform.School, error)
 	ListActiveFn                      func(ctx context.Context) ([]platform.School, error)
 	ListPublicFn                      func(ctx context.Context) ([]platform.School, error)
 	FindActiveByAccountIDFn           func(ctx context.Context, accountID int64) ([]platform.School, error)
@@ -85,6 +86,13 @@ func (m *SchoolRepoMock) FindBySubdomain(ctx context.Context, subdomain string) 
 func (m *SchoolRepoMock) List(ctx context.Context) ([]*platform.School, error) {
 	if m.ListFn != nil {
 		return m.ListFn(ctx)
+	}
+	return nil, nil
+}
+
+func (m *SchoolRepoMock) ListNonDeleted(ctx context.Context) ([]platform.School, error) {
+	if m.ListNonDeletedFn != nil {
+		return m.ListNonDeletedFn(ctx)
 	}
 	return nil, nil
 }

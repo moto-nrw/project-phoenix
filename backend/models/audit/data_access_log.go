@@ -31,6 +31,11 @@ const (
 	// "Anzeigen"-toggle (#1423). StudentID stays NULL; metadata carries
 	// staff_id.
 	ResourceTypeStaffFinancialReveal = "staff_financial_reveal"
+	// ResourceTypeStaffDocumentDownload records serving a sensitive staff
+	// document (#1424): AU-Bescheinigungen (Art. 9 health data) and
+	// Lohnabrechnungen. StudentID stays NULL; metadata carries staff_id,
+	// document_id and category.
+	ResourceTypeStaffDocumentDownload = "staff_document_download"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive
