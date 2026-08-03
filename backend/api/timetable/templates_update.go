@@ -41,6 +41,9 @@ type updateTemplateRequest struct {
 	StudentIDs     []int64 `json:"student_ids,omitempty"`
 	StaffIDs       []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID *int64  `json:"primary_staff_id,omitempty"`
+	// WeekdayAssignments overrides the shared roster for individual weekdays
+	// (#2129); omitted/empty resets the series to one shared roster.
+	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -66,6 +69,9 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		return errors.New("at least one weekday is required")
 	}
 	if err := validateTemplateWeekdays(req.Weekdays); err != nil {
+		return err
+	}
+	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
 	target := &activitiesModel.Group{
@@ -266,15 +272,16 @@ func buildUpdateTemplateInput(
 			ListKind:          req.ListKind,
 			Notes:             normalizeNotes(req.Notes),
 		},
-		Weekdays:         req.Weekdays,
-		TimeframeID:      timeframeID,
-		WeekPattern:      parsed.weekPattern,
-		CalendarPeriodID: req.CalendarPeriodID,
-		RosterValidFrom:  rosterValidFrom,
-		StudentIDs:       req.StudentIDs,
-		StaffIDs:         req.StaffIDs,
-		PrimaryStaffID:   req.PrimaryStaffID,
-		GradeLevelMax:    gradeLevelMax,
+		Weekdays:           req.Weekdays,
+		TimeframeID:        timeframeID,
+		WeekPattern:        parsed.weekPattern,
+		CalendarPeriodID:   req.CalendarPeriodID,
+		RosterValidFrom:    rosterValidFrom,
+		StudentIDs:         req.StudentIDs,
+		StaffIDs:           req.StaffIDs,
+		PrimaryStaffID:     req.PrimaryStaffID,
+		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
+		GradeLevelMax:      gradeLevelMax,
 	}
 }
 

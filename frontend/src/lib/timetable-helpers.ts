@@ -920,6 +920,18 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
         validFrom: schedule.valid_from,
         validUntil: schedule.valid_until,
       })),
+      weekdayAssignments: (template.weekday_assignments ?? []).map(
+        (assignment) => ({
+          weekday: assignment.weekday,
+          staffIds: (assignment.staff_ids ?? []).map(String),
+          studentIds: (assignment.student_ids ?? []).map(String),
+          primaryStaffId:
+            assignment.primary_staff_id !== undefined &&
+            assignment.primary_staff_id !== null
+              ? String(assignment.primary_staff_id)
+              : undefined,
+        }),
+      ),
     })),
   };
 }

@@ -225,6 +225,11 @@ export function TimetableEventModal({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    activeRosterWeekday,
+    setActiveRosterWeekday,
+    setPerWeekdayRoster,
+    setWeekdayRoster,
+    applyActiveWeekdayRosterToAll,
     listKindTouched,
     manualWeekPattern,
   } = useEventForm({
@@ -548,6 +553,11 @@ export function TimetableEventModal({
                 coverageCheckError={coverageCheckError}
                 requiredStaffTouched={requiredStaffTouched}
                 staffRosterTouched={staffRosterTouched}
+                activeRosterWeekday={activeRosterWeekday}
+                setActiveRosterWeekday={setActiveRosterWeekday}
+                setPerWeekdayRoster={setPerWeekdayRoster}
+                setWeekdayRoster={setWeekdayRoster}
+                applyActiveWeekdayRosterToAll={applyActiveWeekdayRosterToAll}
               />
             )}
 

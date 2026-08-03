@@ -563,6 +563,69 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 	return rows, nil
 }
 
+// ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
+// the open roster of every non-archived template (issue #2129). Staff and
+// students come back as one flat, kind-tagged stream so the caller can group
+// them into per-weekday assignments in Go instead of building a second
+// jsonb-aggregating monster query.
+//
+// The `valid_until IS NULL` filter mirrors the flat aggregates in
+// templateListSelect: the editor reads the currently open roster, not the
+// historical retired rows.
+func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templateID *int64) ([]activities.TemplateWeekdayRosterRow, error) {
+	tenantID := tenant.FromContext(ctx)
+	rows := make([]activities.TemplateWeekdayRosterRow, 0)
+	query := `
+		SELECT
+			supervisor.group_id AS template_id,
+			supervisor.weekday,
+			'staff' AS kind,
+			supervisor.staff_id AS person_id,
+			BOOL_OR(supervisor.is_primary) AS is_primary
+		FROM activities.supervisors AS supervisor
+		INNER JOIN activities.groups AS g
+			ON g.id = supervisor.group_id AND g.tenant_id = supervisor.tenant_id
+		WHERE supervisor.tenant_id = ?
+		  AND supervisor.valid_until IS NULL
+		  AND supervisor.weekday IS NOT NULL
+		  AND g.is_template = TRUE
+		  AND g.archived_at IS NULL`
+	args := []any{tenantID}
+	if templateID != nil {
+		query += ` AND supervisor.group_id = ?`
+		args = append(args, *templateID)
+	}
+	query += `
+		GROUP BY supervisor.group_id, supervisor.weekday, supervisor.staff_id
+		UNION ALL
+		SELECT
+			enrollment.activity_group_id AS template_id,
+			enrollment.weekday,
+			'student' AS kind,
+			enrollment.student_id AS person_id,
+			FALSE AS is_primary
+		FROM activities.student_enrollments AS enrollment
+		INNER JOIN activities.groups AS g
+			ON g.id = enrollment.activity_group_id AND g.tenant_id = enrollment.tenant_id
+		WHERE enrollment.tenant_id = ?
+		  AND enrollment.valid_until IS NULL
+		  AND enrollment.weekday IS NOT NULL
+		  AND g.is_template = TRUE
+		  AND g.archived_at IS NULL`
+	args = append(args, tenantID)
+	if templateID != nil {
+		query += ` AND enrollment.activity_group_id = ?`
+		args = append(args, *templateID)
+	}
+	query += `
+		GROUP BY enrollment.activity_group_id, enrollment.weekday, enrollment.student_id
+		ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
+	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // ListTemplateRowsForPeriod is the calendar-period-filtered template list
 // (issue #584: moved verbatim from api/timetable).
 func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activities.TemplateListRow, error) {
@@ -735,6 +798,12 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 						EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
 					)
 				)
+				-- Weekday-scoped roster row (#2129): NULL applies on every
+				-- weekday of the series, a value only on that weekday.
+				AND (
+					enrollment.weekday IS NULL
+					OR enrollment.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+				)
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
 		), supervisor_counts AS (
 			SELECT
@@ -749,6 +818,10 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 				AND supervisor.valid_from <= occurrence.occurrence_date
 				AND (supervisor.valid_until IS NULL OR supervisor.valid_until > occurrence.occurrence_date)
 				AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = occurrence.calendar_period_id)
+				AND (
+					supervisor.weekday IS NULL
+					OR supervisor.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+				)
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
 		)
 		SELECT

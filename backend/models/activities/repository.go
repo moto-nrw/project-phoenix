@@ -77,6 +77,12 @@ type GroupRepository interface {
 	// on the period when given).
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error)
 
+	// ListTemplateWeekdayRoster returns the weekday-scoped roster rows of the
+	// active (open) roster of every non-archived template, optionally narrowed
+	// to one template (issue #2129). Rows without a weekday scope are omitted:
+	// they are the series-wide roster already carried by TemplateListRow.
+	ListTemplateWeekdayRoster(ctx context.Context, templateID *int64) ([]TemplateWeekdayRosterRow, error)
+
 	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual
 	// recurrence date in periodID. It applies the same schedule, A/B-week,
 	// cancellation, roster-validity, period, and selected-weekday rules as
@@ -335,6 +341,26 @@ type TemplateListRow struct {
 	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
 }
+
+// TemplateWeekdayRosterRow is one weekday-scoped roster membership of a
+// recurring template (issue #2129). Kind is either
+// TemplateWeekdayRosterKindStaff or TemplateWeekdayRosterKindStudent; PersonID
+// is the staff or student id accordingly. Only rows that actually carry a
+// weekday scope are returned — a template whose roster applies on every day of
+// the series produces none, which is how "no per-weekday deviations" is
+// represented.
+type TemplateWeekdayRosterRow struct {
+	TemplateID int64  `bun:"template_id"`
+	Weekday    int    `bun:"weekday"`
+	Kind       string `bun:"kind"`
+	PersonID   int64  `bun:"person_id"`
+	IsPrimary  bool   `bun:"is_primary"`
+}
+
+const (
+	TemplateWeekdayRosterKindStaff   = "staff"
+	TemplateWeekdayRosterKindStudent = "student"
+)
 
 // TemplateCapacityOccurrence is the capacity-relevant roster for one date on
 // which a recurring template actually runs. OccurrenceDate is a calendar day,

@@ -33,7 +33,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -137,8 +136,12 @@ type TemplateSplitInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
-	MaterializeFrom  *timezone.Date
-	MaterializeTo    *timezone.Date
+	// WeekdayAssignments carries the per-weekday roster deviations (#2129)
+	// onto the successor. It only applies to the explicit-roster path: a
+	// carried-over roster keeps each row's own weekday scope.
+	WeekdayAssignments []WeekdayRosterAssignment
+	MaterializeFrom    *timezone.Date
+	MaterializeTo      *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -1109,12 +1112,19 @@ func buildSuccessorStudentRows(
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
 	if in.StudentIDs != nil {
-		rows := make([]*activitiesModel.StudentEnrollment, 0, len(in.StudentIDs))
-		for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
-			if _, protected := protectedStudents[studentID]; protected {
+		resolved, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, nil, nil, in.WeekdayAssignments)
+		if err != nil {
+			resolved = resolvedTemplateRoster{Students: sharedRosterRows(in.StudentIDs, nil)}
+		}
+		rows := make([]*activitiesModel.StudentEnrollment, 0, len(resolved.Students))
+		for _, row := range resolved.Students {
+			if _, protected := protectedStudents[row.PersonID]; protected {
 				continue
 			}
-			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
+			rows = append(rows, &activitiesModel.StudentEnrollment{
+				StudentID: row.PersonID,
+				Weekday:   weekdayScopePtr(row.Weekday),
+			})
 		}
 		return rows
 	}
@@ -1126,23 +1136,27 @@ func carriedStudentRowsByPerson(
 	periodID *int64,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
-	byStudent := make(map[int64][]*activitiesModel.StudentEnrollment, len(carried))
-	order := make([]int64, 0, len(carried))
+	// Keyed by (student, weekday scope) — see carriedStaffRowsByPerson for why
+	// the weekday must be part of the key (#2129).
+	byStudent := make(map[rosterPersonScope][]*activitiesModel.StudentEnrollment, len(carried))
+	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
-		if _, seen := byStudent[row.StudentID]; !seen {
-			order = append(order, row.StudentID)
+		key := rosterPersonScope{PersonID: row.StudentID, Weekday: weekdayScopeKey(row.Weekday)}
+		if _, seen := byStudent[key]; !seen {
+			order = append(order, key)
 		}
-		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
+		byStudent[key] = append(byStudent[key], row)
 	}
 	rows := make([]*activitiesModel.StudentEnrollment, 0, len(order))
-	for _, studentID := range order {
-		group := byStudent[studentID]
+	for _, key := range order {
+		group := byStudent[key]
 		preferred := preferCarriedRow(group, periodID, func(row *activitiesModel.StudentEnrollment) *int64 { return row.CalendarPeriodID })
 		rows = append(rows, &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        key.PersonID,
 			ValidFrom:        preferred.ValidFrom,
 			ValidUntil:       earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
 			SelectedWeekdays: unionSelectedWeekdays(group, preferred),
+			Weekday:          weekdayScopePtr(preferred.Weekday),
 		})
 	}
 	return rows
@@ -1192,6 +1206,7 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 			CalendarPeriodID:         protectedEnrollmentPeriodAfterRebase(source.CalendarPeriodID, in.CalendarPeriodID),
 			EnrollmentRequestChildID: cloneOptionalInt64(source.EnrollmentRequestChildID),
 			SelectedWeekdays:         append([]int(nil), source.SelectedWeekdays...),
+			Weekday:                  weekdayScopePtr(source.Weekday),
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
@@ -1249,11 +1264,19 @@ func buildSuccessorStaffRows(
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.SupervisorPlanned {
 	if in.StaffIDs != nil {
-		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(in.StaffIDs))
-		for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+		resolved, err := resolveTemplateRoster(in.Weekdays, nil, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+		if err != nil {
+			// The handler validates the assignments before reaching the split,
+			// so an error here means a caller bypassed that check; fall back to
+			// the shared roster rather than dropping the staff entirely.
+			resolved = resolvedTemplateRoster{Staff: sharedRosterRows(in.StaffIDs, in.PrimaryStaffID)}
+		}
+		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(resolved.Staff))
+		for _, row := range resolved.Staff {
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
-				StaffID:   staffID,
-				IsPrimary: in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+				StaffID:   row.PersonID,
+				IsPrimary: row.IsPrimary,
+				Weekday:   weekdayScopePtr(row.Weekday),
 			})
 		}
 		return rows
@@ -1266,25 +1289,45 @@ func carriedStaffRowsByPerson(
 	periodID *int64,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.SupervisorPlanned {
-	byStaff := make(map[int64][]*activitiesModel.SupervisorPlanned, len(carried))
-	order := make([]int64, 0, len(carried))
+	// Keyed by (staff, weekday scope), not by staff alone: collapsing a
+	// per-weekday roster (#2129) to one row per person would turn "Anna
+	// montags, Bea dienstags" into "Anna and Bea every day" on the successor.
+	byStaff := make(map[rosterPersonScope][]*activitiesModel.SupervisorPlanned, len(carried))
+	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
-		if _, seen := byStaff[row.StaffID]; !seen {
-			order = append(order, row.StaffID)
+		key := rosterPersonScope{PersonID: row.StaffID, Weekday: weekdayScopeKey(row.Weekday)}
+		if _, seen := byStaff[key]; !seen {
+			order = append(order, key)
 		}
-		byStaff[row.StaffID] = append(byStaff[row.StaffID], row)
+		byStaff[key] = append(byStaff[key], row)
 	}
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(order))
-	for _, staffID := range order {
-		preferred := preferCarriedRow(byStaff[staffID], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
+	for _, key := range order {
+		preferred := preferCarriedRow(byStaff[key], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
 		rows = append(rows, &activitiesModel.SupervisorPlanned{
-			StaffID:    staffID,
+			StaffID:    key.PersonID,
 			IsPrimary:  preferred.IsPrimary,
 			ValidFrom:  preferred.ValidFrom,
 			ValidUntil: earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
+			Weekday:    weekdayScopePtr(preferred.Weekday),
 		})
 	}
 	return rows
+}
+
+// rosterPersonScope keys a carried roster row by person AND weekday scope.
+type rosterPersonScope struct {
+	PersonID int64
+	// Weekday is 0 for the series-wide scope (a real ISO weekday is 1..7),
+	// which makes the struct usable as a map key without a pointer.
+	Weekday int
+}
+
+func weekdayScopeKey(weekday *int) int {
+	if weekday == nil {
+		return 0
+	}
+	return *weekday
 }
 
 // preferCarriedRow picks the carried roster row whose calendar_period_id

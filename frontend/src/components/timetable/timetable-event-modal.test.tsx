@@ -167,6 +167,7 @@ const template: TimetableTemplate = {
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
+  weekdayAssignments: [],
   schedules: [
     {
       id: "9",
@@ -2256,6 +2257,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1 },
         { ...template.schedules[0]!, id: "10", weekday: 3 },
@@ -2328,6 +2330,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
         {
@@ -2379,6 +2382,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
         {
@@ -3143,6 +3147,7 @@ describe("TimetableEventModal", () => {
     };
     const mondayWednesday: TimetableTemplate = {
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1 },
         { ...template.schedules[0]!, id: "10", weekday: 3 },
@@ -3227,6 +3232,7 @@ describe("TimetableEventModal", () => {
   it("moves a legacy Saturday to Monday even when another workday remains", async () => {
     const fridaySaturdayTemplate: TimetableTemplate = {
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 5 },
         { ...template.schedules[0]!, id: "10", weekday: 6 },

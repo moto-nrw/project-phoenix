@@ -21,6 +21,7 @@ const baseTemplate: TimetableTemplate = {
   assignedStaffCount: 2,
   studentIds: [],
   staffIds: [],
+  weekdayAssignments: [],
   schedules: [
     {
       id: "s1",
@@ -80,6 +81,7 @@ export const ExternalActivityNoRoom: Story = {
       roomName: undefined,
       enrollmentCount: 1,
       supervisorCount: 1,
+      weekdayAssignments: [],
       schedules: [
         {
           id: "s3",
@@ -103,6 +105,7 @@ export const NoSchedules: Story = {
       categoryName: "Extern",
       enrollmentCount: 0,
       supervisorCount: 0,
+      weekdayAssignments: [],
       schedules: [],
     },
   },

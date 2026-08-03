@@ -7,7 +7,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -51,6 +50,9 @@ type TemplateUpdateInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
+	// WeekdayAssignments carries the per-weekday deviations from the shared
+	// roster above (issue #2129). Empty = identical roster on every weekday.
+	WeekdayAssignments []WeekdayRosterAssignment
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -410,20 +412,29 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		}
 	}
 
+	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+	if err != nil {
+		return &ScheduleError{Op: "update template: resolve roster", Err: err}
+	}
+
 	preservedStudents, err := s.retireTemplateEnrollments(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil)
 	if err != nil {
 		return err
 	}
-	for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
-		if _, preserved := preservedStudents[studentID]; preserved {
+	for _, row := range roster.Students {
+		// A child kept by a care-offering row is already on the roster with a
+		// provenance this editor must not overwrite; adding an editor row would
+		// duplicate them on every occurrence.
+		if _, preserved := preservedStudents[row.PersonID]; preserved {
 			continue
 		}
 		enrollment := &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        row.PersonID,
 			ActivityGroupID:  in.TemplateID,
 			ValidFrom:        rosterValidFrom,
 			ValidUntil:       cloneOptionalDate(scheduleValidUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
@@ -434,14 +445,15 @@ func (s *TimetableDataService) replaceTemplateRoster(
 	if err := s.retireTemplateSupervisors(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil); err != nil {
 		return err
 	}
-	for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+	for _, row := range roster.Staff {
 		supervisor := &activitiesModel.SupervisorPlanned{
-			StaffID:          staffID,
+			StaffID:          row.PersonID,
 			GroupID:          in.TemplateID,
-			IsPrimary:        in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+			IsPrimary:        row.IsPrimary,
 			ValidFrom:        rosterValidFrom,
 			ValidUntil:       cloneOptionalDate(scheduleValidUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		supervisor.SetTenantID(tenantID)
 		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {

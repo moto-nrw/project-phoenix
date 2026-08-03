@@ -969,6 +969,8 @@ describe("backend mappers", () => {
       staffIds: [],
       primaryStaffId: undefined,
       schedules: [],
+      // #2129: a template with no per-weekday deviations maps to an empty list.
+      weekdayAssignments: [],
     });
   });
 });

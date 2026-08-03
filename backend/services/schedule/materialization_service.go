@@ -746,6 +746,7 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 //   - valid_until IS NULL OR valid_until > date  (end is exclusive; a row
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
+//   - weekday IS NULL OR weekday == date's ISO weekday (#2129)
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
 //
 // enrollmentStudentIsAlumnus reports whether the enrollment's joined student
@@ -769,6 +770,9 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 		return false
 	}
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
+		return false
+	}
+	if !rosterWeekdayApplies(e.Weekday, date) {
 		return false
 	}
 	if len(e.SelectedWeekdays) > 0 {
@@ -816,7 +820,17 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 	if sp.CalendarPeriodID != nil && *sp.CalendarPeriodID != periodID {
 		return false
 	}
-	return true
+	return rosterWeekdayApplies(sp.Weekday, date)
+}
+
+// rosterWeekdayApplies answers whether a weekday-scoped roster row (#2129)
+// contributes on `date`. A nil scope is the series-wide default and applies on
+// every weekday the template runs; a set scope applies only on that ISO
+// weekday. This is the single rule behind per-weekday staff and child lists —
+// the template writer expands "shared default + deviations" into concrete
+// per-weekday rows, so nothing here needs to know about that distinction.
+func rosterWeekdayApplies(weekday *int, date timezone.Date) bool {
+	return weekday == nil || *weekday == isoWeekday(date)
 }
 
 // applyException returns the effective (start, end, room) for a candidate and

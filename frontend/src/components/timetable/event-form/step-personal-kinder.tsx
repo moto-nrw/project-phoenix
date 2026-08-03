@@ -6,8 +6,13 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
-import type { EventFormState, PersonOption } from "./form-model";
+import type {
+  EventFormState,
+  PersonOption,
+  WeekdayRosterState,
+} from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
+import { WeekdayRosterSection } from "./weekday-roster-section";
 import type { GroupOption } from "./use-event-form";
 import type {
   ConflictWarningItem,
@@ -68,6 +73,12 @@ export interface StepPersonalKinderProps {
   coverageCheckError: string | null;
   requiredStaffTouched: React.RefObject<boolean>;
   staffRosterTouched: React.RefObject<boolean>;
+  /** Per-weekday roster controls (#2129); only rendered in the series flow. */
+  activeRosterWeekday: number;
+  setActiveRosterWeekday: (weekday: number) => void;
+  setPerWeekdayRoster: (enabled: boolean) => void;
+  setWeekdayRoster: (weekday: number, roster: WeekdayRosterState) => void;
+  applyActiveWeekdayRosterToAll: () => void;
 }
 
 /**
@@ -109,7 +120,25 @@ export function StepPersonalKinder({
   coverageCheckError,
   requiredStaffTouched,
   staffRosterTouched,
+  activeRosterWeekday,
+  setActiveRosterWeekday,
+  setPerWeekdayRoster,
+  setWeekdayRoster,
+  applyActiveWeekdayRosterToAll,
 }: Readonly<StepPersonalKinderProps>) {
+  // Per-weekday rosters only make sense for a recurring series, and only once
+  // the people lists have actually loaded — otherwise a save would write the
+  // empty placeholder lists onto every weekday.
+  const rosterWeekdays = [...form.weekdays].sort((a, b) => a - b);
+  const showWeekdayRoster =
+    isSeriesFlow &&
+    !loadingStaff &&
+    !staffLoadError &&
+    !loadingStudents &&
+    !studentLoadError;
+  const usePerWeekdayRoster =
+    showWeekdayRoster && form.perWeekdayRoster && rosterWeekdays.length >= 2;
+
   let studentRosterField: React.ReactNode;
   if (loadingStudents) {
     studentRosterField = (
@@ -375,7 +404,31 @@ export function StepPersonalKinder({
         </div>
       )}
 
-      {staffRosterField}
+      {showWeekdayRoster && (
+        <WeekdayRosterSection
+          form={form}
+          weekdays={rosterWeekdays}
+          activeWeekday={activeRosterWeekday}
+          setActiveWeekday={setActiveRosterWeekday}
+          setPerWeekdayRoster={(enabled) => {
+            staffRosterTouched.current = true;
+            setPerWeekdayRoster(enabled);
+          }}
+          setWeekdayRoster={(weekday, roster) => {
+            staffRosterTouched.current = true;
+            setWeekdayRoster(weekday, roster);
+          }}
+          applyActiveWeekdayToAll={() => {
+            staffRosterTouched.current = true;
+            applyActiveWeekdayRosterToAll();
+          }}
+          staff={staff}
+          students={students}
+          studentBulkOptions={studentBulkOptions}
+        />
+      )}
+
+      {!usePerWeekdayRoster && staffRosterField}
 
       <Field label="Benötigtes Personal" htmlFor="event_required_staff">
         <Input
@@ -399,7 +452,7 @@ export function StepPersonalKinder({
         </p>
       </Field>
 
-      {studentRosterField}
+      {!usePerWeekdayRoster && studentRosterField}
 
       {(conflictWarnings.length > 0 ||
         coverageWarnings.length > 0 ||

@@ -39,10 +39,19 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 	if err != nil {
 		return nil, err
 	}
-	return mapTemplateRows(rows, childrenPerStaffRatio), nil
+	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+	return mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster), nil
 }
 
-func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateResponse {
+func mapTemplateRows(
+	rows []templateRow,
+	childrenPerStaffRatio int,
+	weekdayRoster []activities.TemplateWeekdayRosterRow,
+) []templateResponse {
+	assignmentsByTemplate := buildTemplateWeekdayAssignments(weekdayRoster)
 	templates := make([]templateResponse, 0)
 	byID := make(map[int64]int)
 	for _, row := range rows {
@@ -51,6 +60,9 @@ func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateRe
 			templates = append(templates, templateResponseFromRow(row, childrenPerStaffRatio))
 			idx = len(templates) - 1
 			byID[row.TemplateID] = idx
+			if assignments, found := assignmentsByTemplate[row.TemplateID]; found {
+				templates[idx].WeekdayAssignments = assignments
+			}
 		}
 		templates[idx].Schedules = append(templates[idx].Schedules, templateScheduleResponseFromRow(row))
 	}
@@ -87,6 +99,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		StaffIDs:              row.StaffIDs,
 		PrimaryStaffID:        nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
 		Schedules:             []templateScheduleResponse{},
+		WeekdayAssignments:    []templateWeekdayAssignmentResponse{},
 	}
 }
 
@@ -200,6 +213,11 @@ type templateResponse struct {
 	StaffIDs              []int64                    `json:"staff_ids"`
 	PrimaryStaffID        *int64                     `json:"primary_staff_id,omitempty"`
 	Schedules             []templateScheduleResponse `json:"schedules"`
+	// WeekdayAssignments lists the per-weekday roster deviations (#2129).
+	// Empty means the series uses one roster on every weekday; when it is
+	// populated it covers every weekday the series runs, so a client can
+	// render each day's staff and children without further merging.
+	WeekdayAssignments []templateWeekdayAssignmentResponse `json:"weekday_assignments"`
 }
 
 type listTemplatesResponse struct {
@@ -245,6 +263,13 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
 	}
+	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
+		return
+	}
 
-	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: mapTemplateRows(rows, childrenPerStaffRatio)}, "Templates retrieved")
+	common.Respond(w, r, http.StatusOK, listTemplatesResponse{
+		Templates: mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster),
+	}, "Templates retrieved")
 }

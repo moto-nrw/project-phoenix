@@ -12,6 +12,100 @@ const STUDENT_PAGE_SIZE = 500;
 
 export type RepeatMode = "none" | "weekly" | "biweekly";
 
+/** One weekday's roster inside the per-weekday editing mode (#2129). */
+export interface WeekdayRosterState {
+  staffIds: string[];
+  primaryStaffId: string;
+  studentIds: string[];
+}
+
+/** German weekday labels for the per-weekday roster tabs, ISO-indexed. */
+export const WEEKDAY_LABELS: Record<number, string> = {
+  1: "Montag",
+  2: "Dienstag",
+  3: "Mittwoch",
+  4: "Donnerstag",
+  5: "Freitag",
+  6: "Samstag",
+  7: "Sonntag",
+};
+
+export const WEEKDAY_SHORT_LABELS: Record<number, string> = {
+  1: "Mo",
+  2: "Di",
+  3: "Mi",
+  4: "Do",
+  5: "Fr",
+  6: "Sa",
+  7: "So",
+};
+
+/** The roster that applies on `weekday`, honouring the per-weekday mode. */
+export function rosterForWeekday(
+  form: EventFormState,
+  weekday: number,
+): WeekdayRosterState {
+  if (!form.perWeekdayRoster) return sharedRoster(form);
+  return form.weekdayRosters[weekday] ?? sharedRoster(form);
+}
+
+export function sharedRoster(form: EventFormState): WeekdayRosterState {
+  return {
+    staffIds: form.staffIds,
+    primaryStaffId: form.primaryStaffId,
+    studentIds: form.studentIds,
+  };
+}
+
+/**
+ * Seeds every weekday of the series with the shared roster, keeping any
+ * weekday that already has one. Called when the planner switches a series to
+ * per-weekday staffing so no day starts out empty.
+ */
+export function seedWeekdayRosters(
+  form: EventFormState,
+  weekdays: number[],
+): Record<number, WeekdayRosterState> {
+  const shared = sharedRoster(form);
+  const seeded: Record<number, WeekdayRosterState> = {};
+  for (const weekday of weekdays) {
+    seeded[weekday] = form.weekdayRosters[weekday] ?? { ...shared };
+  }
+  return seeded;
+}
+
+/**
+ * True when `weekday` staffs differently from the series baseline — the signal
+ * behind the "abweichend" badge. The baseline is the first weekday's roster:
+ * with no stored notion of "the shared default" (the writer expands it away),
+ * deviation is a comparison between days, which is also what a planner means
+ * by it.
+ */
+export function weekdayDeviatesFromBaseline(
+  form: EventFormState,
+  weekday: number,
+  weekdays: number[],
+): boolean {
+  if (!form.perWeekdayRoster) return false;
+  const baselineWeekday = weekdays[0];
+  if (baselineWeekday === undefined || baselineWeekday === weekday) {
+    return false;
+  }
+  const baseline = rosterForWeekday(form, baselineWeekday);
+  const current = rosterForWeekday(form, weekday);
+  return (
+    !sameIdSet(baseline.staffIds, current.staffIds) ||
+    !sameIdSet(baseline.studentIds, current.studentIds) ||
+    baseline.primaryStaffId !== current.primaryStaffId
+  );
+}
+
+function sameIdSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const seen = new Set(left);
+  return right.every((id) => seen.has(id));
+}
+
 export interface EventFormState {
   title: string;
   date: string;
@@ -46,6 +140,16 @@ export interface EventFormState {
   studentIds: string[];
   staffIds: string[];
   primaryStaffId: string;
+  /**
+   * Per-weekday staffing (#2129). When false the series uses ONE roster on
+   * every weekday and `weekdayRosters` is ignored. When true each weekday of
+   * the series carries its own staff, zuständige Person and child list, and
+   * `studentIds`/`staffIds`/`primaryStaffId` above act as the shared starting
+   * point a newly enabled weekday is seeded from.
+   */
+  perWeekdayRoster: boolean;
+  /** Roster per ISO weekday (1 = Mo … 5 = Fr); only read when perWeekdayRoster. */
+  weekdayRosters: Record<number, WeekdayRosterState>;
   /**
    * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
    * occurrence inherits the series value, otherwise the Betreuungsschlüssel
@@ -106,6 +210,8 @@ export function emptyForm(
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    perWeekdayRoster: false,
+    weekdayRosters: {},
     requiredStaff: "",
     targetGroupType: "none",
     targetGradeLevel: "",
@@ -141,6 +247,10 @@ export function formFromInstance(
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    // A single occurrence has exactly one date, so per-weekday staffing is a
+    // series-only concept here.
+    perWeekdayRoster: false,
+    weekdayRosters: {},
     requiredStaff:
       instance.requiredStaffOverride !== undefined
         ? String(instance.requiredStaffOverride)
@@ -185,6 +295,11 @@ export function formFromSeries(
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    // A series that carries weekday assignments was saved in per-weekday mode
+    // and must reopen in it, or saving again would silently flatten it back to
+    // one shared roster.
+    perWeekdayRoster: series.weekdayAssignments.length > 0,
+    weekdayRosters: weekdayRostersFromSeries(series),
     requiredStaff:
       series.requiredStaffOverride !== undefined
         ? String(series.requiredStaffOverride)
@@ -196,6 +311,20 @@ export function formFromSeries(
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
   };
+}
+
+function weekdayRostersFromSeries(
+  series: TimetableTemplate,
+): Record<number, WeekdayRosterState> {
+  const rosters: Record<number, WeekdayRosterState> = {};
+  for (const assignment of series.weekdayAssignments) {
+    rosters[assignment.weekday] = {
+      staffIds: assignment.staffIds,
+      primaryStaffId: assignment.primaryStaffId ?? "",
+      studentIds: assignment.studentIds,
+    };
+  }
+  return rosters;
 }
 
 // parseRequiredStaffOverride maps the "Benötigtes Personal" input to the

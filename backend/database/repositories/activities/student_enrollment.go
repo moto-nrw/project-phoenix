@@ -152,6 +152,7 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
 		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
+		ColumnExpr(`"student_enrollment".weekday AS "student_enrollment__weekday"`).
 		ColumnExpr(`"activity_group".id AS "activity_group__id"`).
 		ColumnExpr(`"activity_group".created_at AS "activity_group__created_at"`).
 		ColumnExpr(`"activity_group".updated_at AS "activity_group__updated_at"`).
@@ -221,6 +222,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
 		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
+		ColumnExpr(`"student_enrollment".weekday AS "student_enrollment__weekday"`).
 		ColumnExpr(`"student".id AS "student__id"`).
 		ColumnExpr(`"student".created_at AS "student__created_at"`).
 		ColumnExpr(`"student".updated_at AS "student__updated_at"`).
