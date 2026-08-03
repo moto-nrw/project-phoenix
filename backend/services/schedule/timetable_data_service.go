@@ -53,6 +53,12 @@ type TimetableDataDependencies struct {
 	// depends on the template being live. Production always wires it; partial
 	// read-only test facades may leave it nil.
 	ValidateCareOfferingSeries func(context.Context, int64) error
+	// ResyncOfferingRoster reconciles an offering-sourced template's roster
+	// with the offering's approved enrollments (#2137). Implemented by the
+	// enrollment decision service (injected to avoid the enrollment→schedule
+	// import cycle); production always wires it, tests that never save a
+	// sourced template may leave it nil.
+	ResyncOfferingRoster func(context.Context, OfferingRosterResyncInput) error
 	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
 	DeviationEventRepo auditModel.DeviationEventRepository
 	// Broadcaster invalidates planner and "Heute geplant" caches after

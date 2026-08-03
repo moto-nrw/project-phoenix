@@ -9,8 +9,10 @@ import { Field } from "./field";
 import type { EventFormState, PersonOption } from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
 import type { GroupOption } from "./use-event-form";
+import { Checkbox } from "~/components/ui/checkbox";
 import type {
   ConflictWarningItem,
+  OfferingSourceOption,
   ShiftCoverageWarningItem,
   TargetGroupType,
 } from "~/lib/timetable-types";
@@ -62,6 +64,14 @@ export interface StepPersonalKinderProps {
   missingTargetCohortCount: number;
   targetCohortButtonLabel: string;
   addTargetCohort: () => void;
+  offeringSources: OfferingSourceOption[] | null;
+  offeringSourcesError: string | null;
+  selectedOfferingSource: OfferingSourceOption | null;
+  sourceGradeOptions: number[];
+  sourceFilteredCount: number;
+  sourceOverlapWarnings: string[];
+  changeSourceOffering: (offeringId: string) => void;
+  toggleSourceGradeLevel: (grade: number) => void;
   conflictWarnings: ConflictWarningItem[];
   coverageWarnings: ShiftCoverageWarningItem[];
   coverageWarningCount: number;
@@ -103,6 +113,14 @@ export function StepPersonalKinder({
   missingTargetCohortCount,
   targetCohortButtonLabel,
   addTargetCohort,
+  offeringSources,
+  offeringSourcesError,
+  selectedOfferingSource,
+  sourceGradeOptions,
+  sourceFilteredCount,
+  sourceOverlapWarnings,
+  changeSourceOffering,
+  toggleSourceGradeLevel,
   conflictWarnings,
   coverageWarnings,
   coverageWarningCount,
@@ -110,6 +128,10 @@ export function StepPersonalKinder({
   requiredStaffTouched,
   staffRosterTouched,
 }: Readonly<StepPersonalKinderProps>) {
+  const hasOfferingSource =
+    isSeriesFlow &&
+    form.targetGroupType === "angebot" &&
+    form.sourceCareOfferingId !== "";
   let studentRosterField: React.ReactNode;
   if (loadingStudents) {
     studentRosterField = (
@@ -344,11 +366,92 @@ export function StepPersonalKinder({
           )}
 
           {form.targetGroupType === "angebot" && (
-            <p className="mt-1 text-xs text-gray-500">
-              Kinder kommen automatisch über ein Betreuungsangebot hinzu. Die
-              Verknüpfung wird unter „Angebote“ beim jeweiligen Angebot gepflegt
-              (Feld „Regeltermin“).
-            </p>
+            <div className="mt-1 flex flex-col gap-2">
+              <Field label="Betreuungsangebot" htmlFor="event_source_offering">
+                <CustomSelect
+                  id="event_source_offering"
+                  ariaLabel="Betreuungsangebot"
+                  value={form.sourceCareOfferingId}
+                  options={[
+                    { value: "", label: "Kein Angebot als Quelle" },
+                    ...(offeringSources ?? []).map((offering) => ({
+                      value: offering.id,
+                      label: `${offering.name} (${offering.phaseName || "ohne Phase"}, ${offering.totalCount} ${offering.totalCount === 1 ? "Kind" : "Kinder"})`,
+                    })),
+                  ]}
+                  onChange={changeSourceOffering}
+                  disabled={offeringSources === null}
+                  placeholder="Angebot wählen …"
+                />
+              </Field>
+              {offeringSourcesError ? (
+                <Alert type="warning" message={offeringSourcesError} />
+              ) : null}
+              {form.sourceCareOfferingId === "" && (
+                <p className="text-xs text-gray-500">
+                  Mit einem Angebot als Quelle übernimmt der Regeltermin die
+                  angemeldeten Kinder automatisch – auch bei späteren An- und
+                  Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die
+                  unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld
+                  „Regeltermin“).
+                </p>
+              )}
+              {selectedOfferingSource && (
+                <>
+                  <fieldset className="flex flex-col gap-1">
+                    <legend className="text-xs font-semibold text-gray-700">
+                      Nach Jahrgang filtern
+                    </legend>
+                    <p className="text-xs text-gray-500">
+                      Keine Auswahl = alle Kinder des Angebots.
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-3">
+                      {sourceGradeOptions.map((grade) => (
+                        <label
+                          key={grade}
+                          className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-700"
+                        >
+                          <Checkbox
+                            checked={form.sourceGradeLevels.includes(grade)}
+                            onChange={() => toggleSourceGradeLevel(grade)}
+                          />
+                          Jahrgang {grade} (
+                          {selectedOfferingSource.gradeCounts[grade] ?? 0})
+                        </label>
+                      ))}
+                      {sourceGradeOptions.length === 0 && (
+                        <p className="text-xs text-gray-500">
+                          Für dieses Angebot sind noch keine Jahrgänge
+                          ableitbar.
+                        </p>
+                      )}
+                    </div>
+                  </fieldset>
+                  {sourceFilteredCount === 0 ? (
+                    <Alert
+                      type="warning"
+                      message="Der aktuelle Filter erfasst keine Kinder. Der Regeltermin würde ohne Kinder eingeplant."
+                      announce="off"
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-600" role="status">
+                      Der aktuelle Filter erfasst {sourceFilteredCount}{" "}
+                      {sourceFilteredCount === 1 ? "Kind" : "Kinder"}. Neue,
+                      geänderte oder beendete Anmeldungen wirken sich
+                      automatisch auf zukünftige Planungen aus.
+                    </p>
+                  )}
+                  {sourceOverlapWarnings.map((warning) => (
+                    <Alert
+                      key={warning}
+                      type="warning"
+                      message={`Hinweis: ${warning}`}
+                      announce="off"
+                    />
+                  ))}
+                </>
+              )}
+            </div>
           )}
 
           {targetCohort.label && !loadingStudents && !studentLoadError && (
@@ -399,7 +502,18 @@ export function StepPersonalKinder({
         </p>
       </Field>
 
-      {studentRosterField}
+      {hasOfferingSource ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-700">Kinder</span>
+          <p className="text-xs text-gray-500">
+            Die Kinderliste kommt aus dem gewählten Betreuungsangebot und wird
+            automatisch aktuell gehalten. Eine manuelle Auswahl ist bei einem
+            Angebot als Quelle nicht nötig.
+          </p>
+        </div>
+      ) : (
+        studentRosterField
+      )}
 
       {(conflictWarnings.length > 0 ||
         coverageWarnings.length > 0 ||

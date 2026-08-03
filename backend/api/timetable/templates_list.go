@@ -58,6 +58,12 @@ func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateRe
 }
 
 func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templateResponse {
+	sourceGradeLevels, err := row.ParseSourceGradeLevels()
+	if err != nil {
+		// Corrupt jsonb cannot happen via the write path (validated slice);
+		// degrade to "no filter" instead of failing the whole list read.
+		sourceGradeLevels = nil
+	}
 	return templateResponse{
 		ID:                    row.TemplateID,
 		Name:                  row.Name,
@@ -74,6 +80,8 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		TargetGroupType:       row.TargetGroupType,
 		TargetGradeLevel:      nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
 		TargetSchoolClass:     nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		SourceCareOfferingID:  nullableTemplateInt64(row.SourceCareOfferingID.Valid, row.SourceCareOfferingID.Int64),
+		SourceGradeLevels:     sourceGradeLevels,
 		ListKind:              nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                 nullableTemplateString(row.Notes.Valid, row.Notes.String),
 		ShiftTypeName:         row.ShiftTypeName,
@@ -177,6 +185,11 @@ type templateResponse struct {
 	TargetGroupType   string  `json:"target_group_type"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// Offering-source rule (#2137): set only on "angebot" templates whose
+	// roster derives from a Betreuungsangebot. Lets the editor prefill the
+	// Angebots- and Jahrgangsauswahl on edit.
+	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
+	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil when the template has no list kind.
 	ListKind *string `json:"list_kind,omitempty"`

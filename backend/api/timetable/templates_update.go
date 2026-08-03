@@ -33,6 +33,9 @@ type updateTemplateRequest struct {
 	TargetGroupType   string  `json:"target_group_type,omitempty"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// Offering-source rule (#2137) — see createTemplateRequest.
+	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
+	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -69,16 +72,19 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	target := &activitiesModel.Group{
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		EducationGroupID:  req.EducationGroupID,
+		TargetGroupType:      req.TargetGroupType,
+		TargetGradeLevel:     req.TargetGradeLevel,
+		TargetSchoolClass:    req.TargetSchoolClass,
+		EducationGroupID:     req.EducationGroupID,
+		SourceCareOfferingID: req.SourceCareOfferingID,
+		SourceGradeLevels:    req.SourceGradeLevels,
 	}
 	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
 	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
+	req.SourceGradeLevels = target.SourceGradeLevels
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -252,19 +258,21 @@ func buildUpdateTemplateInput(
 	return scheduleSvc.TemplateUpdateInput{
 		TemplateID: id,
 		Fields: activitiesModel.TemplateFieldsUpdate{
-			Name:              req.Name,
-			Type:              req.Type,
-			CategoryID:        req.CategoryID,
-			RoomID:            req.RoomID,
-			EducationGroupID:  req.EducationGroupID,
-			MaxParticipants:   parsed.maxParticipants,
-			RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-			CalendarPeriodID:  req.CalendarPeriodID,
-			TargetGroupType:   req.TargetGroupType,
-			TargetGradeLevel:  req.TargetGradeLevel,
-			TargetSchoolClass: req.TargetSchoolClass,
-			ListKind:          req.ListKind,
-			Notes:             normalizeNotes(req.Notes),
+			Name:                 req.Name,
+			Type:                 req.Type,
+			CategoryID:           req.CategoryID,
+			RoomID:               req.RoomID,
+			EducationGroupID:     req.EducationGroupID,
+			MaxParticipants:      parsed.maxParticipants,
+			RequiredStaff:        normalizeRequiredStaff(req.RequiredStaff),
+			CalendarPeriodID:     req.CalendarPeriodID,
+			TargetGroupType:      req.TargetGroupType,
+			TargetGradeLevel:     req.TargetGradeLevel,
+			TargetSchoolClass:    req.TargetSchoolClass,
+			SourceCareOfferingID: req.SourceCareOfferingID,
+			SourceGradeLevels:    req.SourceGradeLevels,
+			ListKind:             req.ListKind,
+			Notes:                normalizeNotes(req.Notes),
 		},
 		Weekdays:         req.Weekdays,
 		TimeframeID:      timeframeID,
@@ -290,6 +298,8 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
+	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):

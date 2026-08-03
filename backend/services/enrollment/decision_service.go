@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -2406,7 +2407,7 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return err
 	}
-	drafts, err := s.careEnrollmentDraftsForChild(ctx, requestChildID, phase)
+	drafts, err := s.careEnrollmentDraftsForChild(ctx, requestChildID, studentID, phase)
 	if err != nil {
 		return err
 	}
@@ -2426,7 +2427,7 @@ func (s *decisionService) hasEnrollmentMaterializationDependencies() bool {
 
 func (s *decisionService) careEnrollmentDraftsForChild(
 	ctx context.Context,
-	requestChildID int64,
+	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 ) (map[int64]*careEnrollmentDraft, error) {
 	// A future phase's selections are bounded to its service window and are
@@ -2435,7 +2436,7 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offerings: %w", err)
 	}
-	return s.careEnrollmentDraftsForLinks(ctx, requestChildID, links, phase)
+	return s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, links, phase)
 }
 
 // careEnrollmentDraftsForLinks materializes an explicitly supplied selection.
@@ -2444,7 +2445,7 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 // but incorrectly materialize that old selection at the switch date.
 func (s *decisionService) careEnrollmentDraftsForLinks(
 	ctx context.Context,
-	requestChildID int64,
+	requestChildID, studentID int64,
 	links []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 ) (map[int64]*careEnrollmentDraft, error) {
@@ -2456,7 +2457,7 @@ func (s *decisionService) careEnrollmentDraftsForLinks(
 	if err != nil {
 		return nil, fmt.Errorf("decision: list linked care offerings: %w", err)
 	}
-	drafts, err := s.buildCareEnrollmentDrafts(ctx, requestChildID, links, offerings, phase)
+	drafts, err := s.buildCareEnrollmentDrafts(ctx, requestChildID, studentID, links, offerings, phase)
 	if err != nil {
 		return nil, err
 	}
@@ -2547,7 +2548,7 @@ func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int
 
 func (s *decisionService) buildCareEnrollmentDrafts(
 	ctx context.Context,
-	requestChildID int64,
+	requestChildID, studentID int64,
 	links []*enrollmentModels.RequestChildOffering,
 	offerings []*enrollmentModels.CareOffering,
 	phase *enrollmentModels.Phase,
@@ -2555,6 +2556,10 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
+	}
+	gradeLevel, err := s.studentGradeLevel(ctx, studentID)
+	if err != nil {
+		return nil, err
 	}
 	drafts := make(map[int64]*careEnrollmentDraft)
 	for _, link := range links {
@@ -2565,14 +2570,50 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 				slog.Int64("care_offering_id", link.CareOfferingID))
 			continue
 		}
-		if err := s.addCareOfferingDrafts(ctx, drafts, offering, link, phase); err != nil {
+		if err := s.addCareOfferingDrafts(ctx, drafts, offering, link, phase, gradeLevel); err != nil {
 			return nil, err
 		}
 	}
 	return drafts, nil
 }
 
+// studentGradeLevel derives the child's Jahrgang for offering-source filters
+// (#2137). A missing student row or a class without a grade number yields nil
+// — grade-filtered templates then skip the child, unfiltered ones keep it.
+func (s *decisionService) studentGradeLevel(ctx context.Context, studentID int64) (*int16, error) {
+	if studentID <= 0 || s.StudentRepo == nil {
+		return nil, nil
+	}
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("decision: load student for grade filter: %w", err)
+	}
+	if student == nil {
+		return nil, nil
+	}
+	return gradeLevelFromSchoolClass(student.SchoolClass), nil
+}
+
 func (s *decisionService) addCareOfferingDrafts(
+	ctx context.Context,
+	drafts map[int64]*careEnrollmentDraft,
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+	phase *enrollmentModels.Phase,
+	gradeLevel *int16,
+) error {
+	if err := s.addLegacyLinkedGroupDrafts(ctx, drafts, offering, link, phase); err != nil {
+		return err
+	}
+	return s.addSourcedTemplateDrafts(ctx, drafts, offering, link, phase, gradeLevel)
+}
+
+// addLegacyLinkedGroupDrafts is the pre-#2137 offering→template feed: the one
+// activity group the offering points at via ActivityGroupID.
+func (s *decisionService) addLegacyLinkedGroupDrafts(
 	ctx context.Context,
 	drafts map[int64]*careEnrollmentDraft,
 	offering *enrollmentModels.CareOffering,
@@ -2615,6 +2656,65 @@ func (s *decisionService) addCareOfferingDrafts(
 		return fmt.Errorf("decision: care offering %d is not materializable: %w", link.CareOfferingID, err)
 	}
 	for _, segment := range segments {
+		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// addSourcedTemplateDrafts is the #2137 feed: every template that declares
+// this offering as its roster source pulls the child in when the template's
+// Jahrgang filter matches. Misconfigured templates (no schedules, no
+// resolvable period, period drifted away from the phase) are skipped with a
+// warning instead of failing the approval — the editor surfaces the mismatch,
+// and blocking every approval on one broken template would be worse.
+func (s *decisionService) addSourcedTemplateDrafts(
+	ctx context.Context,
+	drafts map[int64]*careEnrollmentDraft,
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+	phase *enrollmentModels.Phase,
+	gradeLevel *int16,
+) error {
+	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offering.ID)
+	if err != nil {
+		return fmt.Errorf("decision: list sourced templates for care offering %d: %w", link.CareOfferingID, err)
+	}
+	if len(templates) == 0 {
+		return nil
+	}
+	days, err := effectiveOfferingDaysForEnrollment(offering, link)
+	if err != nil {
+		return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
+	}
+	deps := careOfferingTemplateDeps{
+		activityGroupRepo:    s.ActivityGroupRepo,
+		activityScheduleRepo: s.ActivityScheduleRepo,
+		calendarPeriodRepo:   s.CalendarPeriodRepo,
+	}
+	for _, tmpl := range templates {
+		if tmpl == nil || !tmpl.MatchesSourceGradeFilter(gradeLevel) {
+			continue
+		}
+		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, tmpl.ID)
+		if err != nil {
+			return fmt.Errorf("decision: load schedules of sourced template %d: %w", tmpl.ID, err)
+		}
+		if len(schedules) == 0 || !schedulesOverlapEnrollmentPhase(schedules, phase) {
+			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "no schedule overlaps the enrollment phase", nil)
+			continue
+		}
+		period, err := resolveTemplatePeriodForGroup(ctx, deps, tmpl)
+		if err != nil {
+			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "calendar period not resolvable", err)
+			continue
+		}
+		if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "phase outside template period", err)
+			continue
+		}
+		segment := linkedCareOfferingGroup{group: tmpl, period: period, schedules: schedules}
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
 			return err
 		}

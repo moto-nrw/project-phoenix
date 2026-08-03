@@ -953,25 +953,40 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
 	}
+	// Offering source (#2137): the split dialog does not expose the source
+	// rule, so the successor inherits it — otherwise a plain "this and
+	// following" edit would silently cut the segment off its Betreuungsangebot
+	// feed. Dropped when the split changes the Zielgruppe away from 'angebot'
+	// (the DB CHECK ties the source to that type).
+	var sourceCareOfferingID *int64
+	var sourceGradeLevels []int
+	if in.TargetGroupType == activitiesModel.TargetGroupTypeAngebot {
+		sourceCareOfferingID = cloneOptionalInt64(old.SourceCareOfferingID)
+		if len(old.SourceGradeLevels) > 0 {
+			sourceGradeLevels = append(sourceGradeLevels, old.SourceGradeLevels...)
+		}
+	}
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
-		Name:              in.Name,
-		MaxParticipants:   maxParticipants,
-		RequiredStaff:     requiredStaff,
-		IsOpen:            old.IsOpen,
-		CategoryID:        in.CategoryID,
-		PlannedRoomID:     &roomID,
-		CreatedBy:         old.CreatedBy,
-		Type:              in.Type,
-		EducationGroupID:  in.EducationGroupID,
-		IsTemplate:        true,
-		SeriesRootID:      &seriesRootID,
-		CalendarPeriodID:  in.CalendarPeriodID,
-		TargetGroupType:   in.TargetGroupType,
-		TargetGradeLevel:  in.TargetGradeLevel,
-		TargetSchoolClass: in.TargetSchoolClass,
-		ListKind:          listKind,
-		Notes:             notes,
+		Name:                 in.Name,
+		MaxParticipants:      maxParticipants,
+		RequiredStaff:        requiredStaff,
+		IsOpen:               old.IsOpen,
+		CategoryID:           in.CategoryID,
+		PlannedRoomID:        &roomID,
+		CreatedBy:            old.CreatedBy,
+		Type:                 in.Type,
+		EducationGroupID:     in.EducationGroupID,
+		IsTemplate:           true,
+		SeriesRootID:         &seriesRootID,
+		CalendarPeriodID:     in.CalendarPeriodID,
+		TargetGroupType:      in.TargetGroupType,
+		TargetGradeLevel:     in.TargetGradeLevel,
+		TargetSchoolClass:    in.TargetSchoolClass,
+		SourceCareOfferingID: sourceCareOfferingID,
+		SourceGradeLevels:    sourceGradeLevels,
+		ListKind:             listKind,
+		Notes:                notes,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {

@@ -212,6 +212,14 @@ export function TimetableEventModal({
     studentBulkOptions,
     targetClassOptions,
     targetClassDescriptionIDs,
+    offeringSources,
+    offeringSourcesError,
+    selectedOfferingSource,
+    sourceGradeOptions,
+    sourceFilteredCount,
+    sourceOverlapWarnings,
+    changeSourceOffering,
+    toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,
@@ -542,6 +550,14 @@ export function TimetableEventModal({
                 missingTargetCohortCount={missingTargetCohortCount}
                 targetCohortButtonLabel={targetCohortButtonLabel}
                 addTargetCohort={addTargetCohort}
+                offeringSources={offeringSources}
+                offeringSourcesError={offeringSourcesError}
+                selectedOfferingSource={selectedOfferingSource}
+                sourceGradeOptions={sourceGradeOptions}
+                sourceFilteredCount={sourceFilteredCount}
+                sourceOverlapWarnings={sourceOverlapWarnings}
+                changeSourceOffering={changeSourceOffering}
+                toggleSourceGradeLevel={toggleSourceGradeLevel}
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}
                 coverageWarningCount={coverageWarningCount}

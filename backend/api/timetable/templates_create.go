@@ -64,6 +64,12 @@ type createTemplateRequest struct {
 	TargetGroupType   string  `json:"target_group_type,omitempty"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// SourceCareOfferingID/SourceGradeLevels declare the offering-source rule
+	// (#2137, target_group_type "angebot" only): the roster derives from the
+	// offering's approved enrollments, optionally filtered to the given
+	// Jahrgänge (empty = all). student_ids must be empty when set.
+	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
+	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565):
 	// one of activitiesModel.ListKind* ("edge_hours" | "learning_time" |
 	// "activity" | "mensa") or omitted/empty for none.
@@ -109,16 +115,19 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	target := &activitiesModel.Group{
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		EducationGroupID:  req.EducationGroupID,
+		TargetGroupType:      req.TargetGroupType,
+		TargetGradeLevel:     req.TargetGradeLevel,
+		TargetSchoolClass:    req.TargetSchoolClass,
+		EducationGroupID:     req.EducationGroupID,
+		SourceCareOfferingID: req.SourceCareOfferingID,
+		SourceGradeLevels:    req.SourceGradeLevels,
 	}
 	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
 	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
+	req.SourceGradeLevels = target.SourceGradeLevels
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -280,29 +289,31 @@ func buildCreateTemplateInput(
 		createdByPtr = &c
 	}
 	return scheduleSvc.CreateTemplateInput{
-		Name:              req.Name,
-		Type:              req.Type,
-		Weekdays:          req.Weekdays,
-		StartTime:         parsed.startTime,
-		EndTime:           parsed.endTime,
-		RoomID:            req.RoomID,
-		CategoryID:        req.CategoryID,
-		MaxParticipants:   parsed.maxParticipants,
-		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-		WeekPattern:       parsed.weekPattern,
-		CalendarPeriodID:  req.CalendarPeriodID,
-		EducationGroupID:  req.EducationGroupID,
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		ListKind:          req.ListKind,
-		Notes:             normalizeNotes(req.Notes),
-		StudentIDs:        req.StudentIDs,
-		StaffIDs:          req.StaffIDs,
-		PrimaryStaffID:    req.PrimaryStaffID,
-		CreatedBy:         createdByPtr,
-		RosterValidFrom:   rosterValidFrom,
-		GradeLevelMax:     gradeLevelMax,
+		Name:                 req.Name,
+		Type:                 req.Type,
+		Weekdays:             req.Weekdays,
+		StartTime:            parsed.startTime,
+		EndTime:              parsed.endTime,
+		RoomID:               req.RoomID,
+		CategoryID:           req.CategoryID,
+		MaxParticipants:      parsed.maxParticipants,
+		RequiredStaff:        normalizeRequiredStaff(req.RequiredStaff),
+		WeekPattern:          parsed.weekPattern,
+		CalendarPeriodID:     req.CalendarPeriodID,
+		EducationGroupID:     req.EducationGroupID,
+		TargetGroupType:      req.TargetGroupType,
+		TargetGradeLevel:     req.TargetGradeLevel,
+		TargetSchoolClass:    req.TargetSchoolClass,
+		SourceCareOfferingID: req.SourceCareOfferingID,
+		SourceGradeLevels:    req.SourceGradeLevels,
+		ListKind:             req.ListKind,
+		Notes:                normalizeNotes(req.Notes),
+		StudentIDs:           req.StudentIDs,
+		StaffIDs:             req.StaffIDs,
+		PrimaryStaffID:       req.PrimaryStaffID,
+		CreatedBy:            createdByPtr,
+		RosterValidFrom:      rosterValidFrom,
+		GradeLevelMax:        gradeLevelMax,
 	}
 }
 
@@ -313,6 +324,8 @@ func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
+	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):
 	default:

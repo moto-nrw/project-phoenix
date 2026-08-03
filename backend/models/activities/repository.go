@@ -3,6 +3,8 @@ package activities
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -123,6 +125,12 @@ type GroupRepository interface {
 	// FindTemplateSeries returns every non-archived template segment in the
 	// same split lineage as groupID. An unsplit template is one segment.
 	FindTemplateSeries(ctx context.Context, groupID int64) ([]*Group, error)
+
+	// FindTemplatesBySourceOffering returns every non-archived template that
+	// declares the given care offering as its roster source (#2137). One
+	// offering may feed many parallel Regeltermine; split successors carry
+	// the copied source column, so every live segment appears individually.
+	FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*Group, error)
 }
 
 // TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time
@@ -273,6 +281,10 @@ type TemplateFieldsUpdate struct {
 	ListKind *string
 	// Notes is the durable Wochennotiz for the template; nil clears it.
 	Notes *string
+	// SourceCareOfferingID/SourceGradeLevels are the offering-source rule
+	// (#2137); nil source clears both.
+	SourceCareOfferingID *int64
+	SourceGradeLevels    []int
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -302,6 +314,10 @@ type TemplateListRow struct {
 	TargetGroupType          string         `bun:"target_group_type"`
 	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
 	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
+	SourceCareOfferingID     sql.NullInt64  `bun:"source_care_offering_id"`
+	// SourceGradeLevelsJSON carries the jsonb grade filter as its text form
+	// ('' = NULL); parse with ParseSourceGradeLevels.
+	SourceGradeLevelsJSON string `bun:"source_grade_levels_json"`
 	// ListKind classifies the template for printable daily lists (#1565).
 	ListKind sql.NullString `bun:"list_kind"`
 	// Notes is the template's durable Wochennotiz (#1837 follow-up); NULL = none.
@@ -334,6 +350,22 @@ type TemplateListRow struct {
 	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
 	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
+}
+
+// ParseSourceGradeLevels decodes the SourceGradeLevelsJSON text form of the
+// jsonb grade filter. Empty text (NULL column) yields nil.
+func (r TemplateListRow) ParseSourceGradeLevels() ([]int, error) {
+	if r.SourceGradeLevelsJSON == "" {
+		return nil, nil
+	}
+	var levels []int
+	if err := json.Unmarshal([]byte(r.SourceGradeLevelsJSON), &levels); err != nil {
+		return nil, fmt.Errorf("parse source_grade_levels: %w", err)
+	}
+	if len(levels) == 0 {
+		return nil, nil
+	}
+	return levels, nil
 }
 
 // TemplateCapacityOccurrence is the capacity-relevant roster for one date on

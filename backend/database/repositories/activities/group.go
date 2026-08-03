@@ -3,6 +3,7 @@ package activities
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -106,6 +107,26 @@ func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64)
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find template series", Err: err}
+	}
+	return groups, nil
+}
+
+// FindTemplatesBySourceOffering returns every live template sourced from the
+// given care offering (#2137).
+func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*activities.Group, error) {
+	tenantID := tenant.FromContext(ctx)
+	groups := make([]*activities.Group, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".is_template = TRUE`).
+		Where(`"group".archived_at IS NULL`).
+		Where(`"group".source_care_offering_id = ?`, offeringID).
+		OrderExpr(`"group".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find templates by source offering", Err: err}
 	}
 	return groups, nil
 }
@@ -482,6 +503,8 @@ const templateListSelect = `
 			g.target_group_type,
 			g.target_grade_level,
 			g.target_school_class,
+			g.source_care_offering_id,
+			COALESCE(g.source_grade_levels::text, '') AS source_grade_levels_json,
 			g.list_kind,
 			g.notes,
 			COALESCE(st.name, '') AS shift_type_name,
@@ -809,6 +832,19 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		targetGroupType = activities.TargetGroupTypeNone
 	}
 
+	// jsonb column via raw Set(): bind the JSON text (PostgreSQL casts the
+	// parameter to the column type); nil keeps the column NULL. A grade
+	// filter without a source is normalized away to satisfy
+	// chk_activities_groups_offering_source.
+	var sourceGradeLevels any
+	if fields.SourceCareOfferingID != nil && len(fields.SourceGradeLevels) > 0 {
+		encoded, err := json.Marshal(fields.SourceGradeLevels)
+		if err != nil {
+			return 0, fmt.Errorf("marshal source_grade_levels: %w", err)
+		}
+		sourceGradeLevels = string(encoded)
+	}
+
 	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
 		Set("name = ?", fields.Name).
@@ -822,6 +858,8 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("target_group_type = ?", targetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).
 		Set("target_school_class = ?", fields.TargetSchoolClass).
+		Set("source_care_offering_id = ?", fields.SourceCareOfferingID).
+		Set("source_grade_levels = ?", sourceGradeLevels).
 		Set("list_kind = ?", fields.ListKind).
 		Set("notes = ?", fields.Notes).
 		Set("updated_at = ?", time.Now()).

@@ -62,6 +62,15 @@ export interface EventFormState {
   targetGroupType: TargetGroupType;
   targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
   targetSchoolClass: string; // "", only meaningful for "klasse"
+  /**
+   * Offering-source rule (#2137), only meaningful for "angebot": the
+   * Betreuungsangebot whose approved children feed this Regeltermin, plus the
+   * Jahrgang filter (empty = alle Kinder des Angebots). With a source set the
+   * manual student picker is hidden and studentIds stays empty — the roster
+   * is server-managed.
+   */
+  sourceCareOfferingId: string;
+  sourceGradeLevels: number[];
 }
 
 export interface PersonOption {
@@ -110,6 +119,8 @@ export function emptyForm(
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
+    sourceCareOfferingId: "",
+    sourceGradeLevels: [],
   };
 }
 
@@ -148,6 +159,8 @@ export function formFromInstance(
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
+    sourceCareOfferingId: "",
+    sourceGradeLevels: [],
   };
 }
 
@@ -182,7 +195,10 @@ export function formFromSeries(
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
       resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
-    studentIds: series.studentIds,
+    // A sourced roster is server-managed: the backend rejects student_ids
+    // next to a source, and the list's studentIds are exactly the sourced
+    // rows — prefilling them would turn the rule into a snapshot.
+    studentIds: series.sourceCareOfferingId ? [] : series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
     requiredStaff:
@@ -195,6 +211,8 @@ export function formFromSeries(
         ? String(series.targetGradeLevel)
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
+    sourceCareOfferingId: series.sourceCareOfferingId ?? "",
+    sourceGradeLevels: series.sourceGradeLevels ?? [],
   };
 }
 

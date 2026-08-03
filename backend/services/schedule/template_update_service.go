@@ -150,10 +150,19 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	// instance propagation can tell an untouched occurrence (still carrying the
 	// series value) from a per-occurrence override.
 	previousListKind := existing.ListKind
+	previousSourceOfferingID := cloneOptionalInt64(existing.SourceCareOfferingID)
 	if err := s.updateTemplateFields(ctx, in); err != nil {
 		return err
 	}
 	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
+		return err
+	}
+	// Resync BEFORE the roster replacement: sourced rows are protected there
+	// (EnrollmentRequestChildID != nil), so a removed source must clear its
+	// rows first or a manually re-picked child would end up with no row at
+	// all (the protected row suppresses the manual create, then a later
+	// cleanup would delete it).
+	if err := s.resyncUpdatedTemplateOfferingRoster(ctx, in, previousSourceOfferingID, validFrom); err != nil {
 		return err
 	}
 	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
@@ -175,6 +184,38 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 			"updated recurrence is incompatible with an existing care offering",
 			err,
 		)
+	}
+	return nil
+}
+
+// resyncUpdatedTemplateOfferingRoster runs the offering-source reconcile when
+// the edit involves a source (kept, changed, added, or removed). A template
+// that never had a source and gets none skips the hook entirely.
+func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
+	ctx context.Context,
+	in TemplateUpdateInput,
+	previousSourceOfferingID *int64,
+	scheduleValidFrom *timezone.Date,
+) error {
+	if in.Fields.SourceCareOfferingID == nil && previousSourceOfferingID == nil {
+		return nil
+	}
+	if s.deps.ResyncOfferingRoster == nil {
+		return &ScheduleError{Op: updateTemplateOp, Err: errors.New("offering roster resync is not configured")}
+	}
+	effectiveFrom := in.RosterValidFrom
+	if scheduleValidFrom != nil {
+		effectiveFrom = *scheduleValidFrom
+	}
+	if err := s.deps.ResyncOfferingRoster(ctx, OfferingRosterResyncInput{
+		TemplateID:         in.TemplateID,
+		PreviousOfferingID: previousSourceOfferingID,
+		OfferingID:         in.Fields.SourceCareOfferingID,
+		GradeLevels:        in.Fields.SourceGradeLevels,
+		CalendarPeriodID:   in.CalendarPeriodID,
+		EffectiveFrom:      effectiveFrom,
+	}); err != nil {
+		return &ScheduleError{Op: "update template: resync offering roster", Err: err}
 	}
 	return nil
 }
@@ -384,6 +425,14 @@ func validateTemplateUpdateInput(in TemplateUpdateInput) error {
 		return errors.New("roster valid_from is required")
 	}
 	if err := validateTemplateGradeLevelMax(in.GradeLevelMax); err != nil {
+		return err
+	}
+	if err := validateOfferingSourceInput(
+		in.Fields.SourceCareOfferingID,
+		in.Fields.SourceGradeLevels,
+		in.Fields.TargetGroupType,
+		in.StudentIDs,
+	); err != nil {
 		return err
 	}
 	return nil

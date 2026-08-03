@@ -1550,6 +1550,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		},
 		Logger: logger.With("service", "enrollment-decision"),
 	})
+	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
+	}
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,
@@ -2105,6 +2109,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			TimeframeRepo:              repos.Timeframe,
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+			ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
 			DeviationEventRepo:         repos.DeviationEvent,
 			Broadcaster:                realtimeHub,
 			Logger:                     logger.With("service", "timetable-data"),

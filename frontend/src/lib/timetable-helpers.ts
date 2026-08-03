@@ -34,8 +34,10 @@ import type {
   BackendReplanWeekResult,
   BackendEditedInWindowResult,
   EditedInWindowResult,
+  BackendOfferingSourcesResponse,
   BackendSplitTemplateResult,
   BackendTemplatesResponse,
+  OfferingSourceOption,
   BackendStartInstanceResult,
   BackendWeeklyInstancesResponse,
   AttendanceResponse,
@@ -894,6 +896,12 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       targetGroupType: template.target_group_type,
       targetGradeLevel: template.target_grade_level,
       targetSchoolClass: template.target_school_class,
+      sourceCareOfferingId:
+        template.source_care_offering_id !== undefined &&
+        template.source_care_offering_id !== null
+          ? String(template.source_care_offering_id)
+          : undefined,
+      sourceGradeLevels: template.source_grade_levels ?? undefined,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
@@ -922,6 +930,40 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       })),
     })),
   };
+}
+
+/**
+ * Maps the offering-source editor support payload (#2137). Grade-count keys
+ * arrive as JSON object strings and become numbers (0 = ohne Jahrgang).
+ */
+export function mapOfferingSourceOptions(
+  raw: BackendOfferingSourcesResponse,
+): OfferingSourceOption[] {
+  return (raw.offerings ?? []).map((offering) => {
+    const gradeCounts: Record<number, number> = {};
+    for (const [grade, count] of Object.entries(offering.grade_counts ?? {})) {
+      const parsed = Number.parseInt(grade, 10);
+      if (!Number.isNaN(parsed)) gradeCounts[parsed] = count;
+    }
+    return {
+      id: String(offering.id),
+      name: offering.name,
+      phaseId: String(offering.phase_id),
+      phaseName: offering.phase_name,
+      totalCount: offering.total_count,
+      gradeCounts,
+      sourcedTemplates: (offering.sourced_templates ?? []).map((template) => ({
+        id: String(template.id),
+        name: template.name,
+        gradeLevels: template.grade_levels ?? [],
+      })),
+      legacyLinkedTemplateId:
+        offering.legacy_linked_template_id !== undefined &&
+        offering.legacy_linked_template_id !== null
+          ? String(offering.legacy_linked_template_id)
+          : undefined,
+    };
+  });
 }
 
 /**

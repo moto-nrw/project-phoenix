@@ -19,9 +19,11 @@ const (
 
 // Target-group ("Zielgruppe") type constants for Betreuungsplan templates.
 // "gruppe" deliberately has no dedicated value column - it reuses
-// EducationGroupID. "angebot" (Angebotsauswahl) needs no value column
-// either: its roster comes from the existing CareOffering.ActivityGroupID
-// bridge, not from a value stored on the Group.
+// EducationGroupID. "angebot" (Angebotsauswahl) has two sourcing modes:
+// with SourceCareOfferingID set the template declares the offering (plus an
+// optional SourceGradeLevels filter) as its dynamic roster source (#2137);
+// without it the roster comes from the legacy CareOffering.ActivityGroupID
+// bridge (#1651), where the offering points at the template instead.
 const (
 	TargetGroupTypeJahrgang = "jahrgang"
 	TargetGroupTypeKlasse   = "klasse"
@@ -103,11 +105,21 @@ type Group struct {
 	//   jahrgang -> TargetGradeLevel
 	//   klasse   -> TargetSchoolClass
 	//   gruppe   -> EducationGroupID (existing field, no new column)
-	//   angebot  -> none (roster derives from CareOffering.ActivityGroupID)
+	//   angebot  -> SourceCareOfferingID (+ optional SourceGradeLevels), or
+	//               none for the legacy CareOffering.ActivityGroupID bridge
 	//   none     -> none (today's default: manually curated roster)
 	TargetGroupType   string  `bun:"target_group_type,notnull,default:'none'" json:"target_group_type"`
 	TargetGradeLevel  *int16  `bun:"target_grade_level" json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `bun:"target_school_class" json:"target_school_class,omitempty"`
+
+	// Offering-source fields (#2137): an "angebot" template may declare one
+	// care offering as its dynamic roster source plus an optional grade
+	// filter, so one Betreuungsangebot can feed several parallel Regeltermine
+	// (one per Jahrgang). Empty/nil SourceGradeLevels means "all enrolled
+	// children of the offering". An "angebot" template WITHOUT a source keeps
+	// the legacy behavior (roster fed via CareOffering.ActivityGroupID).
+	SourceCareOfferingID *int64 `bun:"source_care_offering_id" json:"source_care_offering_id,omitempty"`
+	SourceGradeLevels    []int  `bun:"source_grade_levels,type:jsonb,nullzero" json:"source_grade_levels,omitempty"`
 
 	// Notes is the durable Wochennotiz for a recurring template (issue #1837
 	// follow-up). NULL means no series note. It is joined onto every
@@ -181,6 +193,10 @@ func (g *Group) ValidateTargetGroup() error {
 		g.TargetGroupType = TargetGroupTypeNone
 	}
 
+	if err := g.validateOfferingSource(); err != nil {
+		return err
+	}
+
 	switch g.TargetGroupType {
 	case TargetGroupTypeJahrgang:
 		return g.validateGradeTarget()
@@ -193,6 +209,60 @@ func (g *Group) ValidateTargetGroup() error {
 	}
 
 	return nil
+}
+
+// validateOfferingSource mirrors the DB CHECK
+// chk_activities_groups_offering_source plus grade-range sanity: a source
+// offering only on 'angebot' templates, a grade filter only with a source,
+// filter values within the supported grade bounds and free of duplicates.
+func (g *Group) validateOfferingSource() error {
+	if g.SourceCareOfferingID == nil {
+		if len(g.SourceGradeLevels) > 0 {
+			return errors.New("source_grade_levels requires source_care_offering_id")
+		}
+		g.SourceGradeLevels = nil
+		return nil
+	}
+	if *g.SourceCareOfferingID <= 0 {
+		return errors.New("source_care_offering_id must be positive when set")
+	}
+	if g.TargetGroupType != TargetGroupTypeAngebot {
+		return errors.New("source_care_offering_id requires target group type 'angebot'")
+	}
+	seen := make(map[int]bool, len(g.SourceGradeLevels))
+	for _, level := range g.SourceGradeLevels {
+		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+			return errors.New("source_grade_levels entries must be between 1 and 13")
+		}
+		if seen[level] {
+			return errors.New("source_grade_levels must not contain duplicates")
+		}
+		seen[level] = true
+	}
+	if len(g.SourceGradeLevels) == 0 {
+		g.SourceGradeLevels = nil
+	}
+	return nil
+}
+
+// MatchesSourceGradeFilter reports whether a child with the given grade level
+// (nil = grade not derivable from the school class) passes this template's
+// offering grade filter. An empty filter admits every child; a set filter
+// never admits a child without grade data — silently planning a child whose
+// grade is unknown into a Jahrgang-scoped Termin would hide data problems.
+func (g *Group) MatchesSourceGradeFilter(gradeLevel *int16) bool {
+	if len(g.SourceGradeLevels) == 0 {
+		return true
+	}
+	if gradeLevel == nil {
+		return false
+	}
+	for _, level := range g.SourceGradeLevels {
+		if level == int(*gradeLevel) {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Group) validateGradeTarget() error {

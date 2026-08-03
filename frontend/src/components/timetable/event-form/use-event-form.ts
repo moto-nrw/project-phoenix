@@ -58,6 +58,7 @@ import type {
   CreateTemplateBody,
   EditedInWindowResult,
   EnrichedInstance,
+  OfferingSourceOption,
   ShiftCoverageCheckParams,
   ShiftCoverageWarningItem,
   TargetGroupType,
@@ -880,6 +881,10 @@ export function useEventForm({
       targetGradeLevel: nextType === "jahrgang" ? current.targetGradeLevel : "",
       targetSchoolClass: nextType === "klasse" ? current.targetSchoolClass : "",
       educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
+      sourceCareOfferingId:
+        nextType === "angebot" ? current.sourceCareOfferingId : "",
+      sourceGradeLevels:
+        nextType === "angebot" ? current.sourceGradeLevels : [],
     }));
     setValidationError(null);
     setFieldErrors((current) => {
@@ -1068,10 +1073,25 @@ export function useEventForm({
       form.targetGroupType === "klasse" && form.targetSchoolClass
         ? form.targetSchoolClass.trim()
         : undefined,
+    source_care_offering_id:
+      form.targetGroupType === "angebot" && form.sourceCareOfferingId
+        ? Number(form.sourceCareOfferingId)
+        : undefined,
+    source_grade_levels:
+      form.targetGroupType === "angebot" &&
+      form.sourceCareOfferingId &&
+      form.sourceGradeLevels.length > 0
+        ? [...form.sourceGradeLevels].sort((a, b) => a - b)
+        : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
     required_staff: parseRequiredStaffOverride(form.requiredStaff),
-    student_ids: studentIDsForSave.map(Number),
+    // A sourced roster is server-managed — the backend rejects student_ids
+    // next to a source.
+    student_ids:
+      form.targetGroupType === "angebot" && form.sourceCareOfferingId
+        ? []
+        : studentIDsForSave.map(Number),
     staff_ids: staffIDsForSave.map(Number),
     primary_staff_id: primaryStaffIDForSave
       ? Number(primaryStaffIDForSave)
@@ -1144,6 +1164,15 @@ export function useEventForm({
       target_group_type: template.targetGroupType,
       target_grade_level: template.targetGradeLevel,
       target_school_class: template.targetSchoolClass,
+      source_care_offering_id: template.sourceCareOfferingId
+        ? Number(template.sourceCareOfferingId)
+        : undefined,
+      source_grade_levels:
+        template.sourceCareOfferingId &&
+        template.sourceGradeLevels &&
+        template.sourceGradeLevels.length > 0
+          ? template.sourceGradeLevels
+          : undefined,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
       // An occurrence form starts from the occurrence's own pin, which is
@@ -1156,7 +1185,11 @@ export function useEventForm({
       calendar_period_id: calendarPeriodId
         ? Number(calendarPeriodId)
         : undefined,
-      student_ids: templateStudentIDs.map(Number),
+      // A sourced template's studentIds ARE the sourced rows; echoing them
+      // next to the source would be rejected by the backend.
+      student_ids: template.sourceCareOfferingId
+        ? []
+        : templateStudentIDs.map(Number),
       staff_ids: templateStaffIDs.map(Number),
       primary_staff_id:
         primaryStaffId && templateStaffIDs.includes(primaryStaffId)
@@ -1938,6 +1971,126 @@ export function useEventForm({
     }));
   };
 
+  // -------------------------------------------------------------------
+  // Offering source (#2137): Betreuungsangebot als dynamische Kinderquelle
+  // eines Regeltermins. Loaded lazily when the Angebot tab is active;
+  // per-Jahrgang counts drive the live filter preview and the overlap
+  // Hinweis against other Termine sourcing the same offering.
+  // -------------------------------------------------------------------
+  const [offeringSources, setOfferingSources] = useState<
+    OfferingSourceOption[] | null
+  >(null);
+  const [offeringSourcesError, setOfferingSourcesError] = useState<
+    string | null
+  >(null);
+  const wantsOfferingSources =
+    expanded && isSeriesFlow && form.targetGroupType === "angebot";
+  useEffect(() => {
+    if (!wantsOfferingSources) return;
+    let cancelled = false;
+    setOfferingSourcesError(null);
+    timetableService
+      .getOfferingSources(form.calendarPeriodId || undefined)
+      .then((options) => {
+        if (!cancelled) setOfferingSources(options);
+      })
+      .catch((err: unknown) => {
+        logger.error("offering_sources_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) {
+          setOfferingSources([]);
+          setOfferingSourcesError(
+            "Betreuungsangebote konnten nicht geladen werden.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsOfferingSources, form.calendarPeriodId]);
+
+  const selectedOfferingSource = useMemo(
+    () =>
+      offeringSources?.find(
+        (offering) => offering.id === form.sourceCareOfferingId,
+      ) ?? null,
+    [form.sourceCareOfferingId, offeringSources],
+  );
+
+  // Jahrgänge offered for the filter: every grade with enrolled children plus
+  // the already-selected ones (so a saved filter stays visible even when its
+  // grade currently has no children).
+  const sourceGradeOptions = useMemo(() => {
+    const grades = new Set<number>(form.sourceGradeLevels);
+    if (selectedOfferingSource) {
+      for (const grade of Object.keys(selectedOfferingSource.gradeCounts)) {
+        const parsed = Number(grade);
+        if (parsed > 0) grades.add(parsed);
+      }
+    }
+    return [...grades].sort((a, b) => a - b);
+  }, [form.sourceGradeLevels, selectedOfferingSource]);
+
+  // Live count of children the current filter captures.
+  const sourceFilteredCount = useMemo(() => {
+    if (!selectedOfferingSource) return 0;
+    if (form.sourceGradeLevels.length === 0) {
+      return selectedOfferingSource.totalCount;
+    }
+    return form.sourceGradeLevels.reduce(
+      (sum, grade) => sum + (selectedOfferingSource.gradeCounts[grade] ?? 0),
+      0,
+    );
+  }, [form.sourceGradeLevels, selectedOfferingSource]);
+
+  // Other Termine sourcing the same offering whose Jahrgang subsets overlap
+  // the current filter (empty filter = alle Jahrgänge). Advisory only — the
+  // save is never blocked, mirroring the conflict warnings.
+  const sourceOverlapWarnings = useMemo(() => {
+    if (!selectedOfferingSource) return [] as string[];
+    const currentTemplateId = initialSeries?.id;
+    const selected = form.sourceGradeLevels;
+    return selectedOfferingSource.sourcedTemplates
+      .filter((template) => template.id !== currentTemplateId)
+      .filter((template) => {
+        const other = template.gradeLevels;
+        if (selected.length === 0 || other.length === 0) return true;
+        return other.some((grade) => selected.includes(grade));
+      })
+      .map((template) => {
+        const scope =
+          template.gradeLevels.length > 0
+            ? `Jahrgang ${template.gradeLevels.join(", ")}`
+            : "alle Jahrgänge";
+        return `„${template.name}“ nutzt dasselbe Angebot (${scope}). Kinder mit gemeinsamem Jahrgang werden in beiden Regelterminen eingeplant.`;
+      });
+  }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSource]);
+
+  const changeSourceOffering = (offeringId: string) => {
+    setForm((current) => ({
+      ...current,
+      sourceCareOfferingId: offeringId,
+      // A filter belongs to one offering; switching resets it.
+      sourceGradeLevels:
+        offeringId === current.sourceCareOfferingId
+          ? current.sourceGradeLevels
+          : [],
+      // The sourced roster is server-managed.
+      studentIds: offeringId ? [] : current.studentIds,
+    }));
+    setValidationError(null);
+  };
+
+  const toggleSourceGradeLevel = (grade: number) => {
+    setForm((current) => ({
+      ...current,
+      sourceGradeLevels: current.sourceGradeLevels.includes(grade)
+        ? current.sourceGradeLevels.filter((item) => item !== grade)
+        : [...current.sourceGradeLevels, grade].sort((a, b) => a - b),
+    }));
+  };
+
   const retryStudentLoad = async () => {
     const studentSeq = ++studentLoadSeq.current;
     const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
@@ -2092,6 +2245,14 @@ export function useEventForm({
     studentBulkOptions,
     targetClassOptions,
     targetClassDescriptionIDs,
+    offeringSources,
+    offeringSourcesError,
+    selectedOfferingSource,
+    sourceGradeOptions,
+    sourceFilteredCount,
+    sourceOverlapWarnings,
+    changeSourceOffering,
+    toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,

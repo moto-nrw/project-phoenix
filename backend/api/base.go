@@ -68,7 +68,21 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
+
+// offeringSourceOptions narrows the enrollment decision service to the
+// timetable editor's offering-source view (#2137). Returns nil when the
+// concrete service does not implement it (partial test wiring) — the handler
+// then responds 500 instead of panicking, matching the resource's nil-dep
+// contract.
+func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.OfferingSourceOptionLister {
+	lister, ok := svc.(enrollmentSvc.OfferingSourceOptionLister)
+	if !ok {
+		return nil
+	}
+	return lister
+}
 
 // API represents the API structure
 type API struct {
@@ -569,6 +583,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
 		SlotListsService:       api.Services.SlotLists,
+		OfferingSourceOptions:  offeringSourceOptions(api.Services.EnrollmentDecision),
 		PlanExportService:      api.Services.PlanExport,
 		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "timetable"),

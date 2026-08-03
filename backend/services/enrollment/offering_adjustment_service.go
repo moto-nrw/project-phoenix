@@ -669,7 +669,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 	phase *enrollmentModels.Phase,
 	effectiveFrom timezone.Date,
 ) error {
-	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, replacement, phase)
+	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, replacement, phase)
 	if err != nil {
 		return err
 	}
