@@ -242,8 +242,12 @@ func (rs *Resource) PreviewOpeningBalanceImport(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// GDPR Compliance: Audit log for preview (Article 30)
-	svc.RecordAudit("opening_balance", reqCtx.Filename, result, reqCtx.AccountID, true, tenant.FromContext(r.Context()))
+	// GDPR Compliance: Audit log for preview (Article 30). The route's tenant
+	// transaction supplies the RLS context required by the audit repository.
+	if err := svc.RecordAuditInTransaction(r.Context(), "opening_balance", reqCtx.Filename, result, reqCtx.AccountID, true, tenant.FromContext(r.Context())); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau konnte nicht protokolliert werden: %w", err)))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -286,7 +290,10 @@ func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request
 			UserID:          reqCtx.AccountID,
 			SkipInvalidRows: true,
 		})
-		return txErr
+		if txErr != nil {
+			return txErr
+		}
+		return svc.RecordAuditInTransaction(ctx, "opening_balance", reqCtx.Filename, result, reqCtx.AccountID, false, tenantID)
 	}); err != nil {
 		if deciderError != nil {
 			common.RenderError(w, r, common.ErrorUnauthorized(deciderError))
@@ -300,9 +307,6 @@ func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request
 		slog.Int("created", result.CreatedCount),
 		slog.Int("errors", result.ErrorCount),
 		slog.String("filename", reqCtx.Filename))
-
-	// GDPR Compliance: Audit log for actual import (Article 30)
-	svc.RecordAudit("opening_balance", reqCtx.Filename, result, reqCtx.AccountID, false, tenantID)
 
 	message := fmt.Sprintf("Import abgeschlossen: %d übernommen, %d Fehler",
 		result.CreatedCount, result.ErrorCount)

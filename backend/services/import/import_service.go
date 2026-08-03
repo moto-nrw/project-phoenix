@@ -103,6 +103,36 @@ func (s *ImportService[T]) RecordAudit(entityType, filename string, result *impo
 	}()
 }
 
+// RecordAuditInTransaction writes a GDPR import audit record using the caller's
+// tenant-scoped transaction. Use this when completing the import must not be
+// acknowledged unless its required audit record has been persisted.
+func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) error {
+	if s.auditRepo == nil {
+		return fmt.Errorf("import audit repository not wired")
+	}
+
+	auditRecord := &audit.DataImport{
+		EntityType:   entityType,
+		Filename:     filename,
+		TotalRows:    result.TotalRows,
+		CreatedCount: result.CreatedCount,
+		UpdatedCount: result.UpdatedCount,
+		SkippedCount: 0, // Not tracked separately
+		ErrorCount:   result.ErrorCount,
+		WarningCount: result.WarningCount,
+		DryRun:       dryRun,
+		ImportedBy:   userID,
+		StartedAt:    result.StartedAt,
+		CompletedAt:  &result.CompletedAt,
+		Metadata:     audit.JSONBMap{},
+	}
+	auditRecord.SetTenantID(tenantID)
+	if err := s.auditRepo.Create(ctx, auditRecord); err != nil {
+		return fmt.Errorf("create import audit record: %w", err)
+	}
+	return nil
+}
+
 // Import executes the import operation
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
 	result := &importModels.ImportResult[T]{

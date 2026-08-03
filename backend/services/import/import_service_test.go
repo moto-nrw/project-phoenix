@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,6 +27,26 @@ type mockImportConfig struct {
 	createErr       error
 	updateErr       error
 	entityName      string
+}
+
+type mockDataImportRepository struct {
+	created *auditModels.DataImport
+	ctx     context.Context
+	err     error
+}
+
+func (m *mockDataImportRepository) Create(ctx context.Context, record *auditModels.DataImport) error {
+	m.ctx = ctx
+	m.created = record
+	return m.err
+}
+
+func (m *mockDataImportRepository) FindByID(context.Context, int64) (*auditModels.DataImport, error) {
+	return nil, nil
+}
+
+func (m *mockDataImportRepository) List(context.Context, map[string]interface{}) ([]*auditModels.DataImport, error) {
+	return nil, nil
 }
 
 func (m *mockImportConfig) PreloadReferenceData(_ context.Context) error {
@@ -71,6 +92,31 @@ func TestNewImportService(t *testing.T) {
 		require.NotNil(t, service)
 		assert.Equal(t, 100, service.batchSize)
 	})
+}
+
+func TestImportService_RecordAuditInTransaction(t *testing.T) {
+	service := NewImportService[testRow](&mockImportConfig{})
+	repo := &mockDataImportRepository{}
+	service.SetAuditRepository(repo)
+	result := &importModels.ImportResult[testRow]{
+		TotalRows:    4,
+		CreatedCount: 3,
+		ErrorCount:   1,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := service.RecordAuditInTransaction(ctx, "opening_balance", "opening.csv", result, 42, false, 7)
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.created)
+	assert.Same(t, ctx, repo.ctx)
+	assert.Equal(t, int64(7), repo.created.TenantID)
+	assert.Equal(t, "opening_balance", repo.created.EntityType)
+	assert.Equal(t, "opening.csv", repo.created.Filename)
+	assert.Equal(t, 3, repo.created.CreatedCount)
+	assert.Equal(t, 1, repo.created.ErrorCount)
+	assert.False(t, repo.created.DryRun)
 }
 
 // ============================================================================
