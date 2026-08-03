@@ -732,6 +732,12 @@ function TimetablesContent() {
     [updateUrlParams],
   );
 
+  // Sind alle Konflikte quittiert, verschwindet der Banner komplett ("nicht
+  // bei jedem Aufruf erneut erscheinen", #2139). Der Wiedereinstieg zu den
+  // Ausgeblendeten liegt im ⋮-Menü der Kopfzeile und öffnet dieses Panel.
+  const [hiddenConflictsPanelOpen, setHiddenConflictsPanelOpen] =
+    useState(false);
+
   const selectedInstance = useMemo(
     () =>
       visibleInstances.find((inst) => inst.id === selectedInstanceId) ?? null,
@@ -1154,6 +1160,21 @@ function TimetablesContent() {
     })),
   ];
 
+  // Wiedereinstieg zu quittierten Konflikten (#2139): der Banner ist bei
+  // "alles quittiert" bewusst weg, also führt dieser Menü-Eintrag zurück zum
+  // ausgeblendeten Bestand. Nur angeboten, wenn es welche gibt.
+  const hiddenConflictsMenuItems: OverflowMenuEntry[] =
+    shouldLoadInstances && hiddenConflicts.length > 0
+      ? [
+          { kind: "header", label: "Konflikte" },
+          {
+            label: `Ausgeblendete Konflikte anzeigen`,
+            badge: hiddenConflicts.length,
+            onClick: () => setHiddenConflictsPanelOpen(true),
+          },
+        ]
+      : [];
+
   // Leerzustand (Kriterium 5): solange kein Planungszeitraum existiert, zeigt
   // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
@@ -1191,14 +1212,31 @@ function TimetablesContent() {
         }
         actions={
           <>
-            {view === "week" && (
-              // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
-              // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
-              // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
-              // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
-              <span className="hidden sm:contents">
-                <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
-              </span>
+            {hiddenConflictsMenuItems.length > 0 ? (
+              // Mit ausgeblendeten Konflikten trägt das Menü den Wieder-
+              // einstieg und muss überall erreichbar sein (auch mobil und in
+              // der Monatsansicht); die Zeilenhöhe bleibt an die Wochenansicht
+              // gebunden.
+              <OverflowMenu
+                ariaLabel="Weitere Optionen"
+                items={[
+                  ...(view === "week" ? densityMenuItems : []),
+                  ...hiddenConflictsMenuItems,
+                ]}
+              />
+            ) : (
+              view === "week" && (
+                // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
+                // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
+                // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
+                // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
+                <span className="hidden sm:contents">
+                  <OverflowMenu
+                    ariaLabel="Zeilenhöhe"
+                    items={densityMenuItems}
+                  />
+                </span>
+              )
             )}
             {/* Drucken/Exportieren (#2079): gehört auf die Fläche, weil der
                 Export die Woche meint, die gerade zu sehen ist. Unter sm nur
@@ -1280,6 +1318,8 @@ function TimetablesContent() {
               onHideAll={handleHideAllConflicts}
               onUnhide={handleUnhideConflict}
               onJump={handleJumpToConflict}
+              revealHidden={hiddenConflictsPanelOpen}
+              onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
             />
           )}
 

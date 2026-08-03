@@ -14,6 +14,8 @@ const meta = {
     onHideAll: () => undefined,
     onUnhide: () => undefined,
     onJump: () => undefined,
+    revealHidden: false,
+    onDismissHiddenPanel: () => undefined,
   },
 } satisfies Meta<typeof ConflictWarningsBanner>;
 
@@ -74,9 +76,15 @@ export const WithHiddenConflicts: Story = {
   },
 };
 
-export const AllHidden: Story = {
+/**
+ * All conflicts acknowledged: the banner itself renders NOTHING (#2139 —
+ * dismissed warnings must not reappear). This story shows the hidden-conflicts
+ * panel as the page's ⋮ menu opens it (`revealHidden`).
+ */
+export const AllHiddenPanelRevealed: Story = {
   args: {
     openConflicts: [],
     hiddenConflicts: [studentConflict, staffConflict],
+    revealHidden: true,
   },
 };

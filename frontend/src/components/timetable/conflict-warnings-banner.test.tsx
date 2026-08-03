@@ -43,6 +43,8 @@ function renderBanner(
     onHideAll: vi.fn(),
     onUnhide: vi.fn(),
     onJump: vi.fn(),
+    revealHidden: false,
+    onDismissHiddenPanel: vi.fn(),
   };
   const merged = { ...defaults, ...props };
   return { ...render(<ConflictWarningsBanner {...merged} />), props: merged };
@@ -51,6 +53,14 @@ function renderBanner(
 describe("ConflictWarningsBanner", () => {
   it("renders nothing without open or hidden conflicts", () => {
     const { container } = renderBanner();
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("disappears entirely when every conflict is hidden (#2139)", () => {
+    const { container } = renderBanner({
+      hiddenConflicts: [studentConflict, staffConflict],
+    });
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -148,12 +158,33 @@ describe("ConflictWarningsBanner", () => {
     expect(props.onHideAll).toHaveBeenCalledTimes(1);
   });
 
-  it("reveals hidden conflicts and restores them", () => {
-    const { props } = renderBanner({ hiddenConflicts: [staffConflict] });
+  it("shows the hidden panel on request and restores conflicts from it", () => {
+    const { props } = renderBanner({
+      hiddenConflicts: [staffConflict],
+      revealHidden: true,
+    });
 
     expect(screen.getByRole("status")).toHaveTextContent(
       "Keine offenen Konflikte diese Woche",
     );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Konflikt für Maria Muster wieder anzeigen",
+      }),
+    );
+    expect(props.onUnhide).toHaveBeenCalledWith(staffConflict);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgeblendete Konflikte schließen" }),
+    );
+    expect(props.onDismissHiddenPanel).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps hidden conflicts reachable inside the details while open ones exist", () => {
+    const { props } = renderBanner({
+      openConflicts: [studentConflict],
+      hiddenConflicts: [staffConflict],
+    });
 
     fireEvent.click(
       screen.getByRole("button", { name: "Konfliktdetails anzeigen" }),
