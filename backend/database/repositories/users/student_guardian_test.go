@@ -694,6 +694,108 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 	})
 }
 
+// TestStudentGuardianRepository_FilterAccountsWithStudentAccess covers the
+// batched delivery-time probe (#1671): a notification's recipients are resolved
+// in the producer's transaction and SENT in a later one, so the send path asks
+// again which of them still hold parent_portal.access for the children the event
+// is about. The filter must narrow (never widen) the caller's list, honour the
+// relationship scope, and isolate tenants.
+func TestStudentGuardianRepository_FilterAccountsWithStudentAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+	perm := authorize.GuardianPermissionPortalAccess
+
+	// Primary guardian with parent_portal.access on chain.StudentID.
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// A second child of the SAME guardian, linked WITHOUT any permission — the
+	// revoked-access shape.
+	revokedChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
+	revokedLink := createTestStudentGuardian(t, db, revokedChild.ID, chain.GuardianProfileID, "parent", false)
+	defer func() {
+		cleanupStudentGuardians(t, db, revokedLink.ID)
+		testpkg.CleanupActivityFixtures(t, db, revokedChild.ID)
+	}()
+
+	// Another family in the same school.
+	otherFamily := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, otherFamily)
+
+	t.Run("keeps a guardian who still sees the child", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{chain.AccountID}, permitted)
+	})
+
+	t.Run("drops a guardian whose link to that child carries no access", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{revokedChild.ID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Empty(t, permitted, "access to one child must not deliver a notification about another")
+	})
+
+	t.Run("keeps a recipient with access to at least one listed child", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{revokedChild.ID, chain.StudentID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{chain.AccountID}, permitted)
+	})
+
+	t.Run("never returns an account the caller did not list", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID},
+			[]int64{chain.StudentID, otherFamily.StudentID},
+			chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{chain.AccountID}, permitted,
+			"the filter may only narrow the audience the producer resolved")
+	})
+
+	t.Run("drops an unrelated account", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID, otherFamily.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{chain.AccountID}, permitted)
+	})
+
+	t.Run("isolates tenants", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID+1, perm)
+		require.NoError(t, err)
+		assert.Empty(t, permitted)
+	})
+
+	t.Run("empty inputs resolve to no recipients", func(t *testing.T) {
+		permitted, err := repo.FilterAccountsWithStudentAccess(ctx, nil, []int64{chain.StudentID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Empty(t, permitted)
+
+		permitted, err = repo.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, nil, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Empty(t, permitted)
+	})
+
+	t.Run("rejects invalid arguments", func(t *testing.T) {
+		_, err := repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{chain.StudentID}, 0, perm)
+		require.Error(t, err)
+		_, err = repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, "  ")
+		require.Error(t, err)
+		_, err = repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{0}, []int64{chain.StudentID}, chain.TenantID, perm)
+		require.Error(t, err)
+		_, err = repo.FilterAccountsWithStudentAccess(ctx,
+			[]int64{chain.AccountID}, []int64{-1}, chain.TenantID, perm)
+		require.Error(t, err)
+	})
+}
+
 // isLockTimeoutError reports whether PostgreSQL refused a lock request because
 // the transaction-local lock_timeout elapsed (SQLSTATE 55P03). Used by the
 // FOR UPDATE serialization test to detect a held lock deterministically instead

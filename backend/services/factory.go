@@ -1682,7 +1682,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	notificationsService := notifications.NewService(
 		settingsService,
 		logger.With("service", "notifications"),
-		notifications.NewSSEChannel(realtimeHub),
+		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
+			db, repos.StudentGuardian, logger.With("channel", "sse"))),
 		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
 	)
 	notificationPreferencesService := notifications.NewPreferenceService(
