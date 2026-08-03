@@ -50,6 +50,12 @@ interface ConflictWarningsBannerProps {
   /** Copy for the checked window, e.g. "diese Woche" / "in diesem Monat". */
   periodLabel: string;
   onHide: (entry: ConflictBannerEntry) => void;
+  /**
+   * Bulk convenience: acknowledges every currently OPEN conflict, each by its
+   * own fingerprint. Deliberately not a category switch — new or changed
+   * conflicts still reappear (#2139).
+   */
+  onHideAll: () => void;
   onUnhide: (entry: ConflictBannerEntry) => void;
   onJump: (entry: ConflictBannerEntry, instanceId: string) => void;
 }
@@ -134,6 +140,7 @@ export function ConflictWarningsBanner({
   hiddenConflicts,
   periodLabel,
   onHide,
+  onHideAll,
   onUnhide,
   onJump,
 }: ConflictWarningsBannerProps) {
@@ -197,18 +204,34 @@ export function ConflictWarningsBanner({
       {expanded && (
         <div className="mt-1 border-t border-gray-100 pl-8">
           {hasOpen ? (
-            <ul className="divide-y divide-gray-100">
-              {openConflicts.map((entry) => (
-                <ConflictRow
-                  key={entry.fingerprint}
-                  entry={entry}
-                  hidden={false}
-                  onHide={onHide}
-                  onUnhide={onUnhide}
-                  onJump={onJump}
-                />
-              ))}
-            </ul>
+            <>
+              <ul className="divide-y divide-gray-100">
+                {openConflicts.map((entry) => (
+                  <ConflictRow
+                    key={entry.fingerprint}
+                    entry={entry}
+                    hidden={false}
+                    onHide={onHide}
+                    onUnhide={onUnhide}
+                    onJump={onJump}
+                  />
+                ))}
+              </ul>
+              {openCount > 1 && (
+                <div className="flex justify-end border-t border-gray-100 py-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    onClick={onHideAll}
+                    aria-label="Alle Konflikte ausblenden"
+                  >
+                    <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                    Alle ausblenden
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <p className="py-2 text-xs text-gray-500">
               Alle Konflikte sind geprüft und ausgeblendet.

@@ -40,6 +40,7 @@ function renderBanner(
     hiddenConflicts: [] as ConflictBannerEntry[],
     periodLabel: "diese Woche",
     onHide: vi.fn(),
+    onHideAll: vi.fn(),
     onUnhide: vi.fn(),
     onJump: vi.fn(),
   };
@@ -121,6 +122,30 @@ describe("ConflictWarningsBanner", () => {
     );
 
     expect(props.onHide).toHaveBeenCalledWith(studentConflict);
+  });
+
+  it("offers Alle ausblenden only for more than one open conflict", () => {
+    const { rerender, props } = renderBanner({
+      openConflicts: [studentConflict],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Konfliktdetails anzeigen" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Alle Konflikte ausblenden" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <ConflictWarningsBanner
+        {...props}
+        openConflicts={[studentConflict, staffConflict]}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Alle Konflikte ausblenden" }),
+    );
+    expect(props.onHideAll).toHaveBeenCalledTimes(1);
   });
 
   it("reveals hidden conflicts and restores them", () => {

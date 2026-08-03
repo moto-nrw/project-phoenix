@@ -11,6 +11,7 @@ const meta = {
   args: {
     periodLabel: "diese Woche",
     onHide: () => undefined,
+    onHideAll: () => undefined,
     onUnhide: () => undefined,
     onJump: () => undefined,
   },

@@ -688,6 +688,27 @@ function TimetablesContent() {
     [tenantMutate, toast],
   );
 
+  // Sammel-Quittierung: jeder offene Konflikt wird einzeln über seinen
+  // Fingerprint quittiert — kein Kategorien-Schalter, Neues taucht wieder auf.
+  const handleHideAllConflicts = useCallback(async () => {
+    try {
+      await Promise.all(
+        openConflicts.map((entry) =>
+          timetableService.acknowledgeConflict(entry.fingerprint),
+        ),
+      );
+      await tenantMutate(CONFLICT_ACKS_SWR_KEY);
+    } catch (err) {
+      logger.error("conflict_ack_all_failed", {
+        count: openConflicts.length,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Konflikte konnten nicht ausgeblendet werden");
+      // Teil-Erfolge sichtbar machen: was durchging, ist quittiert.
+      await tenantMutate(CONFLICT_ACKS_SWR_KEY);
+    }
+  }, [openConflicts, tenantMutate, toast]);
+
   const handleUnhideConflict = useCallback(
     async (entry: ConflictBannerEntry) => {
       try {
@@ -1256,6 +1277,7 @@ function TimetablesContent() {
               hiddenConflicts={hiddenConflicts}
               periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
               onHide={handleHideConflict}
+              onHideAll={handleHideAllConflicts}
               onUnhide={handleUnhideConflict}
               onJump={handleJumpToConflict}
             />
