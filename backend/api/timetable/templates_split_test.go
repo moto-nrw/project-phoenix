@@ -28,6 +28,7 @@ import (
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -700,8 +701,10 @@ func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
 		assert.NotEqual(t, created.TemplateID, tpl.ID, "ended template must not remain in the active template list")
 	}
 
+	period := createTemplateTestPeriod(t, s.db, "Tpl-End-Hidden-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	getW := doTemplateJSON(t, router, http.MethodGet,
-		fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, getW.Code, "body=%s", getW.Body.String())
 
 	updateBody := createTemplateBody(s, "Tpl-End-Hidden-Resurrected")

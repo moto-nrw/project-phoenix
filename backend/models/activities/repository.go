@@ -72,10 +72,23 @@ type GroupRepository interface {
 	// generic repository shape.
 	ListTemplateRows(ctx context.Context, templateID *int64) ([]TemplateListRow, error)
 
+	// ListTemplateRowsForTemplatePeriod returns the editable detail read model
+	// for one template, scoped to one calendar period.
+	ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]TemplateListRow, error)
+
 	// ListTemplateRowsForPeriod is the calendar-period-filtered variant used
 	// by the template list endpoint (people aggregates and schedules filter
 	// on the period when given).
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error)
+
+	// ListTemplateWeekdayRoster returns the weekday-scoped roster rows of the
+	// active (open) roster of every non-archived template, optionally narrowed
+	// to one template and calendar period (issue #2129). A concrete period also
+	// includes series-wide rows whose calendar_period_id is NULL; a nil period
+	// returns only unscoped rows and never merges several periods. It includes
+	// empty markers for scheduled weekdays and expands every applicable
+	// series-wide roster row onto the weekdays where it materializes.
+	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]TemplateWeekdayRosterRow, error)
 
 	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual
 	// recurrence date in periodID. It applies the same schedule, A/B-week,
@@ -335,6 +348,31 @@ type TemplateListRow struct {
 	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
 }
+
+// TemplateWeekdayRosterRow is one weekday-scoped roster membership of a
+// recurring template (issue #2129). Kind is either
+// TemplateWeekdayRosterKindStaff, TemplateWeekdayRosterKindStudent, or
+// TemplateWeekdayRosterKindProtectedStudent; PersonID is the staff or student
+// id accordingly. Only rows that actually carry a weekday scope are returned,
+// except protected enrollments, which are expanded onto each applicable
+// scheduled weekday. Empty marker rows make an intentionally empty weekday
+// distinguishable from a shared roster.
+type TemplateWeekdayRosterRow struct {
+	TemplateID int64  `bun:"template_id"`
+	Weekday    int    `bun:"weekday"`
+	Kind       string `bun:"kind"`
+	PersonID   int64  `bun:"person_id"`
+	IsPrimary  bool   `bun:"is_primary"`
+}
+
+const (
+	TemplateWeekdayRosterKindEmpty   = "empty"
+	TemplateWeekdayRosterKindStaff   = "staff"
+	TemplateWeekdayRosterKindStudent = "student"
+	// ProtectedStudent is read metadata for enrollment-owned rows. It lets the
+	// editor seed explicit weekday lists without broadening selected_weekdays.
+	TemplateWeekdayRosterKindProtectedStudent = "protected_student"
+)
 
 // TemplateCapacityOccurrence is the capacity-relevant roster for one date on
 // which a recurring template actually runs. OccurrenceDate is a calendar day,

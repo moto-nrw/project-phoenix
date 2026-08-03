@@ -600,6 +600,7 @@ const template: TimetableTemplate = {
   assignedStaffCount: 1,
   studentIds: ["21"],
   staffIds: ["11"],
+  weekdayAssignments: [],
   schedules: [
     {
       id: "9",
