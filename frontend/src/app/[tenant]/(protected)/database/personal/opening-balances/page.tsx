@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
@@ -238,6 +238,7 @@ export default function OpeningBalanceImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previewRequestVersion = useRef(0);
 
   // Ein Eröffnungssaldo beschreibt einen abgeschlossenen Stand; der heutige
   // Tag läuft noch, deshalb ist gestern der späteste sinnvolle Stichtag.
@@ -310,6 +311,7 @@ export default function OpeningBalanceImportPage() {
 
   const runPreview = useCallback(
     async (file: File) => {
+      const requestVersion = ++previewRequestVersion.current;
       setError(null);
       setIsLoading(true);
       setImportResult(null);
@@ -333,17 +335,21 @@ export default function OpeningBalanceImportPage() {
         }
 
         const result = payload.data as ImportResult;
+        if (requestVersion !== previewRequestVersion.current) return;
         setPreviewResult(result);
         setPreviewRows(buildDisplayRows(result));
       } catch (err) {
         logger.error("opening_balance_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(err instanceof Error ? err.message : "Unbekannter Fehler");
-        setPreviewRows([]);
-        setPreviewResult(null);
+        if (requestVersion === previewRequestVersion.current) {
+          setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+          setPreviewRows([]);
+          setPreviewResult(null);
+        }
       } finally {
-        setIsLoading(false);
+        if (requestVersion === previewRequestVersion.current)
+          setIsLoading(false);
       }
     },
     [buildFormData, session],
@@ -351,6 +357,7 @@ export default function OpeningBalanceImportPage() {
 
   const handleFileSelect = useCallback(
     (file: File) => {
+      previewRequestVersion.current++;
       setUploadedFile(file);
       if (!paramsComplete) {
         resetPreview();
@@ -368,6 +375,7 @@ export default function OpeningBalanceImportPage() {
   // mit anderen Werten gerechnet wurde, darf nicht bestätigt werden.
   const handleParamChange = useCallback(
     (apply: () => void) => {
+      previewRequestVersion.current++;
       apply();
       setPreviewRows([]);
       setPreviewResult(null);
