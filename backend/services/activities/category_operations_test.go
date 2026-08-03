@@ -149,6 +149,14 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 		require.NoError(t, restoreErr)
 		assert.False(t, restored.IsArchived())
 	})
+
+	t.Run("restoring an active category is a no-op", func(t *testing.T) {
+		// Symmetric to the double-archive case: the manage dialog can fire a
+		// restore on a row another tab already restored.
+		again, restoreErr := service.RestoreCategory(ctx, group.CategoryID)
+		require.NoError(t, restoreErr)
+		assert.False(t, again.IsArchived())
+	})
 }
 
 func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testing.T) {

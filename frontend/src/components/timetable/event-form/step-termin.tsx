@@ -139,14 +139,12 @@ export function StepTermin({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <label
-                htmlFor="event_category"
-                className="text-xs font-semibold text-gray-700"
-              >
-                Kategorie<span className={timetableRequiredMark}>*</span>
-              </label>
+          <Field
+            label="Kategorie"
+            htmlFor="event_category"
+            required
+            error={fieldErrors.categoryId}
+            action={
               <button
                 type="button"
                 onClick={() => onManageCategories("list")}
@@ -154,7 +152,8 @@ export function StepTermin({
               >
                 Verwalten
               </button>
-            </div>
+            }
+          >
             <CustomSelect
               id="event_category"
               ariaLabel="Kategorie"
@@ -194,16 +193,7 @@ export function StepTermin({
                 loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"
               }
             />
-            {fieldErrors.categoryId && (
-              <p
-                id="event_category_error"
-                role="alert"
-                className="mt-1 text-xs text-[#FF3130]"
-              >
-                {fieldErrors.categoryId}
-              </p>
-            )}
-          </div>
+          </Field>
         </>
       )}
 
