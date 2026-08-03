@@ -37,8 +37,6 @@ const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
   String.raw`((?:^|[\s,{;])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(?!["'])[^,;}\]\r\n&]+`,
   "gi",
 );
-const SENSITIVE_QUOTED_HEADER_FIELD_PATTERN =
-  /((?:^|[\s,{])["']?(?:authorization|cookies?|(?:x[-_])?api[-_]?key|x[-_]device[-_]?key|x[-_]staff[-_](?:id|(?:auth[-_])?pin))["']?\s*:\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi;
 const AUTHORIZATION_CREDENTIAL_PATTERN =
   /(\b(?:Bearer|Basic|Digest|ApiKey)\s+)[^\s"',;]+/gi;
 const AUTHORIZATION_HEADER_PATTERN =
@@ -61,7 +59,7 @@ const ISO_TIMESTAMP_PATTERN =
 
 function normalizeLogKey(key: string): string {
   return key
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/([A-Z])(?=[A-Z][a-z])/g, "$1_")
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .toLowerCase()
     .split(/[^a-z0-9]+/)
@@ -131,10 +129,6 @@ export function redactSensitiveLogString(value: string): string {
     .replace(SENSITIVE_PATH_SEGMENT_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_INVITATION_PATH_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_QUERY_PARAMETER_PATTERN, redactSensitiveParameter)
-    .replace(
-      SENSITIVE_QUOTED_HEADER_FIELD_PATTERN,
-      `$1$2${REDACTED_LOG_VALUE}$2`,
-    )
     .replace(SENSITIVE_QUOTED_TEXT_FIELD_PATTERN, redactSensitiveQuotedField)
     .replace(SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN, redactSensitiveParameter)
     .replace(AUTHORIZATION_CREDENTIAL_PATTERN, `$1${REDACTED_LOG_VALUE}`)

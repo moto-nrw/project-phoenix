@@ -98,6 +98,23 @@ describe("redactSensitiveLogData", () => {
     ).toBe("POST /operator/auth/invitations/validate");
   });
 
+  it("normalizes long uppercase keys in linear time", () => {
+    const longSafeKey = "A".repeat(80_000);
+    const longSensitiveKey = `${longSafeKey}Token`;
+    const startedAt = performance.now();
+
+    const result = redactSensitiveLogData({
+      [longSafeKey]: "kept",
+      [longSensitiveKey]: "credential-value",
+    }) as Record<string, unknown>;
+
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(result[longSafeKey]).toBe("kept");
+    expect(result[longSensitiveKey]).toBe(REDACTED_LOG_VALUE);
+    expect(elapsedMs).toBeLessThan(1_000);
+  });
+
   it("preserves typed token-state metadata while redacting credentials", () => {
     const tokenExpiry = new Date("2026-08-03T12:00:00.000Z");
 
