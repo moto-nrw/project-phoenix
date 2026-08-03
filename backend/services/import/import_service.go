@@ -169,7 +169,19 @@ func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int]
 
 // processAllRows processes all rows in the import request
 func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
+	order := make([]int, len(request.Rows))
 	for i := range request.Rows {
+		order[i] = i
+	}
+	if !request.DryRun {
+		if orderer, ok := s.config.(importModels.ProcessingOrderer[T]); ok {
+			if configuredOrder := orderer.ProcessingOrder(request.Rows); validProcessingOrder(configuredOrder, len(request.Rows)) {
+				order = configuredOrder
+			}
+		}
+	}
+
+	for _, i := range order {
 		row := &request.Rows[i]
 		rowNum := i + 2
 
@@ -178,6 +190,22 @@ func (s *ImportService[T]) processAllRows(ctx context.Context, request importMod
 		}
 	}
 	return false
+}
+
+// validProcessingOrder verifies an optional config's order before using it so
+// a malformed implementation cannot skip a row or panic the generic importer.
+func validProcessingOrder(order []int, rowCount int) bool {
+	if len(order) != rowCount {
+		return false
+	}
+	seen := make([]bool, rowCount)
+	for _, index := range order {
+		if index < 0 || index >= rowCount || seen[index] {
+			return false
+		}
+		seen[index] = true
+	}
+	return true
 }
 
 // processImportRow processes a single row

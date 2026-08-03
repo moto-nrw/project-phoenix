@@ -32,6 +32,15 @@ type BatchValidator[T any] interface {
 	ValidateBatch(ctx context.Context, rows []T) map[int][]ValidationError
 }
 
+// ProcessingOrderer can be implemented by imports that must create rows in a
+// deterministic order. The returned indexes always refer to the original
+// upload order, so row numbers in validation errors remain accurate.
+//
+// It is used only for real imports; previews preserve upload order.
+type ProcessingOrderer[T any] interface {
+	ProcessingOrder(rows []T) []int
+}
+
 // ImportMode defines how to handle existing records
 type ImportMode string
 

@@ -175,7 +175,7 @@ func (rs *Resource) deleteBalanceAdjustment(w http.ResponseWriter, r *http.Reque
 // a migrated Stundenkonto may start negative.
 type openingBalanceRequest struct {
 	EffectiveDate  string `json:"effective_date"`
-	BalanceMinutes int    `json:"balance_minutes"`
+	BalanceMinutes *int   `json:"balance_minutes"`
 	Note           string `json:"note"`
 }
 
@@ -199,12 +199,16 @@ func (rs *Resource) createOpeningBalance(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if req.BalanceMinutes == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("balance_minutes is required")))
+		return
+	}
 	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
 		return
 	}
-	adjustment, err := rs.BalanceAdjustService.CreateOpeningBalance(r.Context(), staffID, decidedBy, effectiveDate, req.BalanceMinutes, req.Note)
+	adjustment, err := rs.BalanceAdjustService.CreateOpeningBalance(r.Context(), staffID, decidedBy, effectiveDate, *req.BalanceMinutes, req.Note)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderBalanceAdjustmentError(w, r, err)

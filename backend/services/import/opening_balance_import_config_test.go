@@ -120,6 +120,17 @@ func TestOpeningBalanceValidate_RowWithoutValues(t *testing.T) {
 	assert.Equal(t, openingStaffAnnaID, row.StaffID, "the person still resolves")
 }
 
+func TestOpeningBalanceProcessingOrder_SortsResolvedStaffIDs(t *testing.T) {
+	c := newOpeningConfig()
+	rows := []importModels.OpeningBalanceImportRow{
+		{PersonnelNumber: "P-100", HoursBalance: "1"},
+		{FirstName: "Bernd", LastName: "Schulz", HoursBalance: "1"},
+		{PersonnelNumber: "unknown", HoursBalance: "1"},
+	}
+
+	assert.Equal(t, []int{2, 0, 1}, c.ProcessingOrder(rows))
+}
+
 func TestOpeningBalanceValidate_UnknownPersonnelNumber(t *testing.T) {
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{

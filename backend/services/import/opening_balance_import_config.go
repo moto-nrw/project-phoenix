@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -429,6 +430,28 @@ func (c *OpeningBalanceImportConfig) ValidateBatch(_ context.Context, rows []imp
 		seen[row.StaffID] = i
 	}
 	return errs
+}
+
+// ProcessingOrder acquires the transaction-scoped per-staff locks in a stable
+// order. Concurrent uploads containing the same staff in different file
+// orders therefore cannot deadlock. Resolution uses copies, leaving normal
+// validation to report errors against the original upload rows.
+func (c *OpeningBalanceImportConfig) ProcessingOrder(rows []importModels.OpeningBalanceImportRow) []int {
+	order := make([]int, len(rows))
+	staffIDs := make([]int64, len(rows))
+	for i := range rows {
+		order[i] = i
+		row := rows[i]
+		row.PersonnelNumber = strings.TrimSpace(row.PersonnelNumber)
+		row.FirstName = strings.TrimSpace(row.FirstName)
+		row.LastName = strings.TrimSpace(row.LastName)
+		_ = c.resolveStaff(&row)
+		staffIDs[i] = row.StaffID
+	}
+	sort.SliceStable(order, func(i, j int) bool {
+		return staffIDs[order[i]] < staffIDs[order[j]]
+	})
+	return order
 }
 
 // FindExisting always answers "new": duplicate takeovers are reported per

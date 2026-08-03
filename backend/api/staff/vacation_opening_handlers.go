@@ -33,9 +33,9 @@ func renderVacationOpeningError(w http.ResponseWriter, r *http.Request, err erro
 // /api/staff/{id}/vacation/opening (#2132). The admin enters the Resturlaub
 // as of the Stichtag; the backend derives the pre-introduction days.
 type setVacationOpeningRequest struct {
-	EffectiveDate string  `json:"effective_date"`
-	RemainingDays float64 `json:"remaining_days"`
-	Note          string  `json:"note"`
+	EffectiveDate string   `json:"effective_date"`
+	RemainingDays *float64 `json:"remaining_days"`
+	Note          string   `json:"note"`
 }
 
 // setVacationOpening handles POST /api/staff/{id}/vacation/opening
@@ -58,6 +58,10 @@ func (rs *Resource) setVacationOpening(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if req.RemainingDays == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("remaining_days is required")))
+		return
+	}
 	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
@@ -65,7 +69,7 @@ func (rs *Resource) setVacationOpening(w http.ResponseWriter, r *http.Request) {
 	}
 	opening, err := rs.StaffAbsenceService.SetVacationOpening(r.Context(), staffID, decidedBy, activeSvc.SetVacationOpeningRequest{
 		EffectiveDate: effectiveDate,
-		RemainingDays: req.RemainingDays,
+		RemainingDays: *req.RemainingDays,
 		Note:          req.Note,
 	})
 	if err != nil {
