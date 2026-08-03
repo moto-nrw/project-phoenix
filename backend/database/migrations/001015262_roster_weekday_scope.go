@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	rosterWeekdayScopeVersion     = "1.15.261"
+	rosterWeekdayScopeVersion     = "1.15.262"
 	rosterWeekdayScopeDescription = "Scope activity roster rows (staff and children) to a single weekday (issue #2129)"
 )
 
@@ -44,7 +44,7 @@ func init() {
 // (services/schedule/template_update_service.go). Overloading it would make
 // editor-owned and offer-owned rows indistinguishable.
 func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.261: Adding weekday scope to activity roster rows...")
+	fmt.Println("Migration 1.15.262: Adding weekday scope to activity roster rows...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.supervisors
@@ -136,7 +136,7 @@ func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
 }
 
 func rosterWeekdayScopeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.261: Removing weekday scope from activity roster rows...")
+	fmt.Println("Rolling back migration 1.15.262: Removing weekday scope from activity roster rows...")
 
 	// The old indexes cannot represent several active weekday rows for the same
 	// person, group, and period. Collapse those rows first so rollback remains
