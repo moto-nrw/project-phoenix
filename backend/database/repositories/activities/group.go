@@ -649,7 +649,7 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 			WHERE tenant_id = ?
 			  AND is_active = TRUE
 			  AND (?::BIGINT IS NULL OR id = ?)
-		), candidate_occurrences AS (
+		), candidate_occurrences AS MATERIALIZED (
 			SELECT DISTINCT
 				g.id AS template_id,
 				period.calendar_period_id,
@@ -715,12 +715,13 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 					) + 1
 				)
 			  )
-		), student_counts AS (
+		), capacity_parts AS (
 			SELECT
 				occurrence.template_id,
 				occurrence.calendar_period_id,
 				occurrence.occurrence_date,
-				COUNT(DISTINCT enrollment.student_id)::INT AS enrollment_count
+				COUNT(DISTINCT enrollment.student_id)::INT AS enrollment_count,
+				0::INT AS supervisor_count
 			FROM candidate_occurrences AS occurrence
 			INNER JOIN activities.student_enrollments AS enrollment
 				ON enrollment.tenant_id = ?
@@ -736,11 +737,14 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 					)
 				)
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
-		), supervisor_counts AS (
+
+			UNION ALL
+
 			SELECT
 				occurrence.template_id,
 				occurrence.calendar_period_id,
 				occurrence.occurrence_date,
+				0::INT AS enrollment_count,
 				COUNT(DISTINCT supervisor.staff_id)::INT AS supervisor_count
 			FROM candidate_occurrences AS occurrence
 			INNER JOIN activities.supervisors AS supervisor
@@ -750,23 +754,32 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 				AND (supervisor.valid_until IS NULL OR supervisor.valid_until > occurrence.occurrence_date)
 				AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = occurrence.calendar_period_id)
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
+
+			UNION ALL
+
+			-- Preserve occurrences with no matching roster rows. Keeping the
+			-- student and staff aggregates in UNION branches avoids joining two
+			-- severely underestimated aggregate CTEs: PostgreSQL otherwise
+			-- rescans them through nested loops for every generated date.
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				0::INT AS enrollment_count,
+				0::INT AS supervisor_count
+			FROM candidate_occurrences AS occurrence
 		)
+		-- Each aggregate branch populates one metric and zeroes the other;
+		-- MAX recombines them without multiplying student and staff rows.
 		SELECT
-			occurrence.template_id,
-			occurrence.calendar_period_id,
-			occurrence.occurrence_date,
-			COALESCE(students.enrollment_count, 0) AS enrollment_count,
-			COALESCE(staff.supervisor_count, 0) AS supervisor_count
-		FROM candidate_occurrences AS occurrence
-		LEFT JOIN student_counts AS students
-			ON students.template_id = occurrence.template_id
-			AND students.calendar_period_id = occurrence.calendar_period_id
-			AND students.occurrence_date = occurrence.occurrence_date
-		LEFT JOIN supervisor_counts AS staff
-			ON staff.template_id = occurrence.template_id
-			AND staff.calendar_period_id = occurrence.calendar_period_id
-			AND staff.occurrence_date = occurrence.occurrence_date
-		ORDER BY occurrence.template_id ASC, occurrence.occurrence_date ASC, occurrence.calendar_period_id ASC
+			template_id,
+			calendar_period_id,
+			occurrence_date,
+			MAX(enrollment_count) AS enrollment_count,
+			MAX(supervisor_count) AS supervisor_count
+		FROM capacity_parts
+		GROUP BY template_id, calendar_period_id, occurrence_date
+		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC
 	`, tenantID, periodID, periodID,
 		tenantID, bun.List(templateIDs),
 		tenantID,
