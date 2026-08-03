@@ -12,10 +12,6 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 )
 
-// openingBalanceRequiredColumns are the normalized header keys the opening
-// balance import file must contain. The value columns are all optional.
-var openingBalanceRequiredColumns = []string{"vorname", "nachname"}
-
 // MapOpeningBalanceRow maps column values to an OpeningBalanceImportRow.
 // The four value columns use GetRawCol: sanitizeCellValue's CSV-injection
 // guard prefixes leading '-' with a quote, which would break exactly the
@@ -35,8 +31,11 @@ func MapOpeningBalanceRow(mapper *ColumnMapper) importModels.OpeningBalanceImpor
 
 // missingOpeningBalanceColumns returns the required columns absent from the mapping.
 func missingOpeningBalanceColumns(mapping map[string]int) []string {
-	var missing []string
-	for _, col := range openingBalanceRequiredColumns {
+	if _, ok := mapping["personalnummer"]; ok {
+		return nil
+	}
+	missing := make([]string, 0, 2)
+	for _, col := range []string{"vorname", "nachname"} {
 		if _, ok := mapping[col]; !ok {
 			missing = append(missing, col)
 		}

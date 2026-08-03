@@ -49,31 +49,27 @@ func TestParseOpeningBalanceCSV_HeaderIsCaseInsensitiveAndOptionalAnnotated(t *t
 	assert.Equal(t, "17,5", rows[0].VacationRemaining)
 }
 
-func TestParseOpeningBalanceCSV_MissingRequiredColumns(t *testing.T) {
+func TestParseOpeningBalanceCSV_PersonnelNumberDoesNotRequireNames(t *testing.T) {
 	tests := []struct {
-		name    string
-		header  string
-		missing string
+		name   string
+		header string
 	}{
 		{
-			name:    "ohne Vorname",
-			header:  "Personalnummer,Nachname,Stundensaldo\nP-100,Lehmann,\"12,5\"",
-			missing: "vorname",
+			name:   "ohne Vorname",
+			header: "Personalnummer,Nachname,Stundensaldo\nP-100,Lehmann,\"12,5\"",
 		},
 		{
-			name:    "ohne Nachname",
-			header:  "Personalnummer,Vorname,Stundensaldo\nP-100,Anna,\"12,5\"",
-			missing: "nachname",
+			name:   "ohne Nachname",
+			header: "Personalnummer,Vorname,Stundensaldo\nP-100,Anna,\"12,5\"",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			rows, err := ParseOpeningBalanceCSV(strings.NewReader(tc.header))
-			require.Error(t, err)
-			assert.Nil(t, rows)
-			assert.Contains(t, err.Error(), "fehlende erforderliche Spalten")
-			assert.Contains(t, err.Error(), tc.missing)
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			assert.Equal(t, "P-100", rows[0].PersonnelNumber)
 		})
 	}
 }
@@ -127,7 +123,7 @@ func TestParseOpeningBalanceXLSX_MapsColumns(t *testing.T) {
 	assert.Equal(t, "5", rows[1].VacationRemaining)
 }
 
-func TestParseOpeningBalanceXLSX_MissingRequiredColumns(t *testing.T) {
+func TestParseOpeningBalanceXLSX_PersonnelNumberDoesNotRequireNames(t *testing.T) {
 	reader := buildStaffXLSX(t, [][]string{
 		{"Personalnummer", "Nachname", "Stundensaldo"},
 		{"P-100", "Lehmann", "12,5"},
@@ -135,9 +131,9 @@ func TestParseOpeningBalanceXLSX_MissingRequiredColumns(t *testing.T) {
 
 	rows, err := ParseOpeningBalanceXLSX(reader)
 
-	require.Error(t, err)
-	assert.Nil(t, rows)
-	assert.Contains(t, err.Error(), "vorname")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "P-100", rows[0].PersonnelNumber)
 }
 
 // TestParseOpeningBalanceCSV_NegativeValuesSurviveTheSanitizer is the
