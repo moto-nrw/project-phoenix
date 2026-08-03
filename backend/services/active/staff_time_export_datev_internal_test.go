@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDatevCategoryValue_ExcludesOpeningCarryFromPlusHours(t *testing.T) {
+func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.T) {
 	minutes, _, _, ok := datevCategoryValue(configSvc.PayrollCategoryStatus{ID: "plus_stunden"}, MonthExportRow{
 		BalanceMinutes:      180,
 		OpeningMinutes:      120,
@@ -22,14 +22,14 @@ func TestDatevCategoryValue_ExcludesOpeningCarryFromPlusHours(t *testing.T) {
 		OpeningCarryMinutes: 120,
 	})
 	assert.True(t, ok)
-	assert.Equal(t, 60, minutes, "a later month's saldo must exclude the carried opening")
+	assert.Equal(t, 180, minutes, "a later month's delta must not subtract the carried opening")
 
 	minutes, _, _, ok = datevCategoryValue(configSvc.PayrollCategoryStatus{ID: "plus_stunden"}, MonthExportRow{
 		BalanceMinutes:      60,
 		OpeningCarryMinutes: 120,
 	})
-	assert.False(t, ok, "a carried opening alone must not be exported as payable work")
-	assert.Zero(t, minutes)
+	assert.True(t, ok)
+	assert.Equal(t, 60, minutes)
 }
 
 // The DATEV files carry no free text today (personnel numbers, Lohnarten,

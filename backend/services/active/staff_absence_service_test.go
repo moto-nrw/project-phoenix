@@ -25,6 +25,7 @@ import (
 // ============================================================================
 
 type absStaffAbsenceRepoMock struct {
+	lockStaffAbsenceWritesFunc func(ctx context.Context, staffID int64) error
 	createFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
 	findByIDFunc               func(ctx context.Context, id any) (*activeModels.StaffAbsence, error)
 	updateFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
@@ -37,7 +38,10 @@ type absStaffAbsenceRepoMock struct {
 	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
-func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(context.Context, int64) error {
+func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
+	if m.lockStaffAbsenceWritesFunc != nil {
+		return m.lockStaffAbsenceWritesFunc(ctx, staffID)
+	}
 	return nil
 }
 
@@ -333,6 +337,24 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 		deletionRepo: noopDeletionAuditRepo{},
 	}
 	return svc, absRepo, workRepo
+}
+
+func TestValidateVacationOpeningAbsencesBefore_DoesNotLockPreview(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	lockCalls := 0
+	absRepo.lockStaffAbsenceWritesFunc = func(context.Context, int64) error {
+		lockCalls++
+		return nil
+	}
+
+	err := svc.ValidateVacationOpeningAbsencesBefore(
+		context.Background(),
+		42,
+		timezone.NewDate(2026, time.March, 1),
+	)
+
+	require.NoError(t, err)
+	assert.Zero(t, lockCalls)
 }
 
 // ============================================================================

@@ -147,11 +147,11 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 }
 
 // ValidateVacationOpeningAbsencesBefore exposes the read-only half of the
-// opening guard for import previews.
+// opening guard for import previews. It deliberately takes no lock: imports
+// validate rows in file order before their sorted creation pass, and retaining
+// per-staff locks here could deadlock concurrent previews or imports. The
+// actual SetVacationOpening path still locks through insertion.
 func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
-	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
-		return fmt.Errorf("failed to lock staff absence writes: %w", err)
-	}
 	return s.rejectVacationAbsencesBefore(ctx, staffID, effectiveDate)
 }
 
