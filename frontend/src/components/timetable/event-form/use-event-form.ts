@@ -111,6 +111,23 @@ const logger = createLogger({ component: "TimetableEventModal" });
 export const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
 /**
+ * Keeps a category selection only while the refreshed picker still offers it.
+ * A newly created category is authoritative even if the following refetch is
+ * stale; an archived category is cleared so saving cannot submit its old ID.
+ */
+export function reconcileCategoryId(
+  currentId: string,
+  categories: readonly Pick<ActivityCategory, "id">[],
+  createdId?: string,
+): string {
+  if (createdId) return createdId;
+  if (currentId && !categories.some((category) => category.id === currentId)) {
+    return "";
+  }
+  return currentId;
+}
+
+/**
  * Backend cap for a single materialization window
  * (MaxMaterializationWindowDays in services/schedule/materialization_service.go).
  * Whole-period runs are split into windows of this size.
@@ -266,10 +283,12 @@ export function useEventForm({
   // replace only its own roster while stale completions cannot overwrite a
   // newer modal state.
   const referenceLoadSeq = useRef(0);
+  const categoryLoadSeq = useRef(0);
   const studentLoadSeq = useRef(0);
   const staffLoadSeq = useRef(0);
   const invalidateReferenceLoads = useCallback(() => {
     referenceLoadSeq.current++;
+    categoryLoadSeq.current++;
     studentLoadSeq.current++;
     staffLoadSeq.current++;
   }, []);
@@ -399,6 +418,7 @@ export function useEventForm({
       return;
     }
     const referenceSeq = ++referenceLoadSeq.current;
+    const categorySeq = ++categoryLoadSeq.current;
     const studentSeq = ++studentLoadSeq.current;
     const staffSeq = ++staffLoadSeq.current;
     const isCurrentReferenceLoad = () =>
@@ -493,13 +513,15 @@ export function useEventForm({
         );
         if (isCurrentReferenceLoad()) {
           setRooms(sortedRooms);
-          setCategories(sortedCategories);
           setGroups(sortedGroups);
-          setForm((prev) =>
-            prev.categoryId || sortedCategories.length === 0
-              ? prev
-              : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
-          );
+          if (categoryLoadSeq.current === categorySeq) {
+            setCategories(sortedCategories);
+            setForm((prev) =>
+              prev.categoryId || sortedCategories.length === 0
+                ? prev
+                : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+            );
+          }
         }
       })
       .finally(() => {
@@ -1978,6 +2000,38 @@ export function useEventForm({
         ? "Termin wiederholen"
         : "Termin";
 
+  /**
+   * Re-reads the category list after the Kategorie-verwalten dialog wrote
+   * something (#2131). When a category was just created, it is selected right
+   * away — the user opened the dialog because the one they needed was missing.
+   */
+  const refreshCategories = useCallback(async (selectId?: string) => {
+    const categorySeq = ++categoryLoadSeq.current;
+    if (selectId) {
+      setForm((prev) => ({ ...prev, categoryId: selectId }));
+    }
+    try {
+      const data = await fetchPlannerActivityCategories();
+      const sorted = [...data].sort((a, b) =>
+        a.name.localeCompare(b.name, "de"),
+      );
+      if (categoryLoadSeq.current !== categorySeq) return;
+      setCategories(sorted);
+      setForm((prev) => {
+        const categoryId = reconcileCategoryId(
+          prev.categoryId,
+          sorted,
+          selectId,
+        );
+        return categoryId === prev.categoryId ? prev : { ...prev, categoryId };
+      });
+    } catch (err: unknown) {
+      logger.error("categories_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   return {
     form,
     update,
@@ -1988,6 +2042,7 @@ export function useEventForm({
     validationError,
     rooms,
     categories,
+    refreshCategories,
     groups,
     students,
     staff,

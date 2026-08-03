@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -30,16 +31,27 @@ type Category struct {
 	// Schichtart (schedule.shift_types, #1836). NULL = no mapping. Managed from
 	// the "Schichtarten verwalten" modal; see #1837 follow-up.
 	ShiftTypeID *int64 `bun:"shift_type_id" json:"shift_type_id,omitempty"`
+	// ArchivedAt marks a category as retired (#2131). Archived categories stay
+	// in the table so existing Termine and Aktivitäten keep resolving their
+	// category, but they are no longer offered for new assignments. NULL =
+	// active. Only active rows take part in the case-insensitive tenant/name
+	// unique index.
+	ArchivedAt *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
+}
+
+// IsArchived reports whether the category has been retired and should no
+// longer be offered when picking a category.
+func (c *Category) IsArchived() bool {
+	return c.ArchivedAt != nil
 }
 
 // Validate ensures category data is valid
 func (c *Category) Validate() error {
+	// Normalize first so whitespace-only input cannot pass the required check.
+	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" {
 		return errors.New("category name is required")
 	}
-
-	// Trim spaces from name
-	c.Name = strings.TrimSpace(c.Name)
 
 	// Validate color if provided
 	if c.Color != "" {

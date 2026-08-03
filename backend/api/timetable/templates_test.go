@@ -277,6 +277,23 @@ func createTemplateBody(s *templateSetup, name string) map[string]any {
 	}
 }
 
+func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{})
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	_, err := s.db.NewUpdate().
+		Table("activities.categories").
+		Set("archived_at = ?", time.Now()).
+		Where("id = ?", s.category.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", createTemplateBody(s, "Tpl-ArchivedCategory"))
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "category is archived or unavailable")
+}
+
 func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	mat := &mockMaterializationService{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 3},

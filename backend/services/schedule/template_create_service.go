@@ -92,7 +92,8 @@ func (s *TimetableDataService) validateTemplateCreateRequest(ctx context.Context
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
 		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil ||
-		s.deps.TimeframeRepo == nil || s.deps.EducationGroupRepo == nil {
+		s.deps.TimeframeRepo == nil || s.deps.EducationGroupRepo == nil ||
+		s.deps.ActivityCategoryRepo == nil {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
 	return tenantID, nil
@@ -143,6 +144,9 @@ func (s *TimetableDataService) createTemplateLocked(
 		return err
 	}
 	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
+		return err
+	}
+	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
 		return err
 	}
 

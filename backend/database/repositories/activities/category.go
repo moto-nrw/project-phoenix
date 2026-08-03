@@ -4,6 +4,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -36,11 +37,32 @@ func NewCategoryRepository(db *bun.DB) activities.CategoryRepository {
 
 // FindByName finds a category by its name
 func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*activities.Category, error) {
+	return r.findByName(ctx, name, false)
+}
+
+// FindByNameIncludingArchivedForShare finds and locks the preferred category
+// for a name even when only archived rows exist. An active row wins over
+// historical archived rows. Callers must keep the ambient transaction open
+// through their referencing write so an archive cannot race that write.
+func (r *CategoryRepository) FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activities.Category, error) {
+	return r.findByName(ctx, name, true)
+}
+
+func (r *CategoryRepository) findByName(ctx context.Context, name string, includeArchived bool) (*activities.Category, error) {
 	category := new(activities.Category)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(category).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
-		Where("LOWER(name) = LOWER(?)", name)
+		Where(`LOWER("category".name) = LOWER(?)`, name)
+	if includeArchived {
+		query = query.
+			OrderExpr(`"category".archived_at ASC NULLS FIRST`).
+			OrderExpr(`"category".updated_at DESC`).
+			Limit(1).
+			For("SHARE")
+	} else {
+		query = query.Where(`"category".archived_at IS NULL`)
+	}
 
 	query = base.WithTenantFilter(ctx, query, "category")
 
@@ -54,6 +76,58 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 	}
 
 	return category, nil
+}
+
+// FindByIDForShare locks a category against concurrent archive updates until
+// the current transaction finishes. Callers must use it inside a transaction
+// when the lock must span a subsequent referencing write.
+func (r *CategoryRepository) FindByIDForShare(ctx context.Context, id int64) (*activities.Category, error) {
+	category := new(activities.Category)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(category).
+		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
+		Where(`"category".id = ?`, id).
+		For("SHARE")
+
+	query = base.WithTenantFilter(ctx, query, "category")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find category by id for share", Err: err}
+	}
+	return category, nil
+}
+
+// UpdateIfActive conditionally updates a category while it is still active.
+// This domain write cannot use the generic Update helper because the
+// archived_at predicate must be part of the same statement as the editable
+// field update; a separate read would leave a check-then-write race.
+func (r *CategoryRepository) UpdateIfActive(ctx context.Context, category *activities.Category) (bool, error) {
+	if category == nil {
+		return false, fmt.Errorf("category cannot be nil")
+	}
+	if err := category.Validate(); err != nil {
+		return false, err
+	}
+
+	category.UpdatedAt = time.Now()
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(category).
+		Column("name", "description", "color", "updated_at").
+		Where("id = ?", category.ID).
+		Where("archived_at IS NULL").
+		ModelTableExpr(tableActivitiesCategories)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "update active category", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "update active category", Err: err}
+	}
+	return rows == 1, nil
 }
 
 // ListAll returns all categories

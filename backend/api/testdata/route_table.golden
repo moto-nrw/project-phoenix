@@ -3,6 +3,7 @@ DELETE /api/active/combined/{id}
 DELETE /api/active/groups/{id}
 DELETE /api/active/supervisors/{id}
 DELETE /api/active/visits/{id}
+DELETE /api/activities/categories/{categoryId}
 DELETE /api/activities/{id}
 DELETE /api/activities/{id}/schedules/{scheduleId}
 DELETE /api/activities/{id}/students/{studentId}
@@ -523,6 +524,8 @@ POST /api/active/visits/student/{studentId}/checkout
 POST /api/active/visits/transit/assign
 POST /api/active/visits/{id}/end
 POST /api/activities/
+POST /api/activities/categories
+POST /api/activities/categories/{categoryId}/restore
 POST /api/activities/quick-create
 POST /api/activities/{id}/schedules
 POST /api/activities/{id}/students/{studentId}
@@ -785,6 +788,7 @@ PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
 PUT /api/active/visits/{id}
+PUT /api/activities/categories/{categoryId}
 PUT /api/activities/{id}
 PUT /api/activities/{id}/schedules/{scheduleId}
 PUT /api/activities/{id}/students

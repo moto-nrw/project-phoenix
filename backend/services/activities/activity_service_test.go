@@ -2504,6 +2504,21 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Group Name", result.Name)
 	})
+
+	t.Run("rejects changing to an archived category", func(t *testing.T) {
+		group := testpkg.CreateTestActivityGroup(t, db, "update-archived-category")
+		archived := testpkg.CreateTestActivityCategory(t, db, "ArchivedUpdateTarget")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID, 0, 0, group.CategoryID, archived.ID)
+
+		_, err := service.ArchiveCategory(ctx, archived.ID)
+		require.NoError(t, err)
+		group.CategoryID = archived.ID
+
+		result, err := service.UpdateGroup(ctx, group, *group.CreatedBy, true)
+		require.Error(t, err)
+		require.ErrorIs(t, err, activities.ErrCategoryArchived)
+		assert.Nil(t, result)
+	})
 }
 
 func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
@@ -2532,6 +2547,26 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "category")
+	})
+
+	t.Run("rejects an archived category", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "ArchivedCat", "Staff")
+		category := testpkg.CreateTestActivityCategory(t, db, "ArchivedForCreate")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
+
+		_, err := service.ArchiveCategory(ctx, category.ID)
+		require.NoError(t, err)
+		group := &activitiesModels.Group{
+			Name:            "Archived Category Group",
+			CategoryID:      category.ID,
+			MaxParticipants: 20,
+			CreatedBy:       &staff.ID,
+		}
+
+		result, err := service.CreateGroup(ctx, group, nil, nil)
+		require.Error(t, err)
+		require.ErrorIs(t, err, activities.ErrCategoryArchived)
+		assert.Nil(t, result)
 	})
 }
 

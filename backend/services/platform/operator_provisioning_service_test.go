@@ -157,12 +157,21 @@ func (m *mockCategoryRepo) Create(_ context.Context, category *activityModels.Ca
 func (m *mockCategoryRepo) FindByID(context.Context, interface{}) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (m *mockCategoryRepo) FindByIDForShare(context.Context, int64) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (m *mockCategoryRepo) Update(context.Context, *activityModels.Category) error { return nil }
-func (m *mockCategoryRepo) Delete(context.Context, interface{}) error              { return nil }
+func (m *mockCategoryRepo) UpdateIfActive(context.Context, *activityModels.Category) (bool, error) {
+	return true, nil
+}
+func (m *mockCategoryRepo) Delete(context.Context, interface{}) error { return nil }
 func (m *mockCategoryRepo) List(context.Context, *base.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil
 }
 func (m *mockCategoryRepo) FindByName(context.Context, string) (*activityModels.Category, error) {
+	return nil, nil
+}
+func (m *mockCategoryRepo) FindByNameIncludingArchivedForShare(context.Context, string) (*activityModels.Category, error) {
 	return nil, nil
 }
 func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category, error) {
@@ -171,6 +180,10 @@ func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category,
 
 func (m *mockCategoryRepo) SetShiftTypeForCategories(context.Context, int64, []int64) error {
 	return nil
+}
+
+func (m *mockCategoryRepo) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
+	return 1, nil
 }
 
 func (m *mockRoleRepo) Create(context.Context, *authModels.Role) error { return nil }

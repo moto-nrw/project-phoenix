@@ -1,9 +1,13 @@
 package activities
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -43,6 +47,22 @@ func (rs *Resource) Router() chi.Router {
 		r.With(withTx).Get("/", rs.listActivities)
 		r.With(withTx).Get("/{id}", rs.getActivity)
 		r.With(withTx).Get("/categories", rs.listCategories)
+
+		// Category Stammdaten (#2131) — admin-only. Every activities:* write
+		// permission is also held by the plain `user` role, so these use the
+		// dedicated activities:manage_categories permission instead.
+		r.With(authorize.RequiresPermission(permissions.ActivitiesManageCategories), withTx).
+			Post("/categories", common.BindAction(
+				func() *CategoryRequest { return &CategoryRequest{} },
+				http.StatusCreated, rs.createCategory, categoryErrorRenderer, "Category created successfully"))
+		r.With(authorize.RequiresPermission(permissions.ActivitiesManageCategories), withTx).
+			Put("/categories/{categoryId}", rs.updateCategory)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesManageCategories), withTx).
+			Delete("/categories/{categoryId}", common.IDFetch(
+				categoryIDParam, msgInvalidCategoryID, rs.archiveCategory, categoryErrorRenderer, "Category archived successfully"))
+		r.With(authorize.RequiresPermission(permissions.ActivitiesManageCategories), withTx).
+			Post("/categories/{categoryId}/restore", common.IDFetch(
+				categoryIDParam, msgInvalidCategoryID, rs.restoreCategory, categoryErrorRenderer, "Category restored successfully"))
 		r.With(withTx).Get("/timespans", rs.getTimespans)
 
 		// Basic Activity Group operations (Write) - All authenticated users can create/update/delete

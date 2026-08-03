@@ -17,8 +17,23 @@ type CategoryRepository interface {
 	// FindByName finds a category by its name
 	FindByName(ctx context.Context, name string) (*Category, error)
 
+	// FindByNameIncludingArchivedForShare finds a category by name across active
+	// and archived rows, preferring the active row and holding a transaction-
+	// scoped FOR SHARE lock against a concurrent archive.
+	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*Category, error)
+
+	// FindByIDForShare returns a category while holding a transaction-scoped
+	// FOR SHARE lock. New category assignments use it so an archive cannot
+	// commit between validation and the referencing write.
+	FindByIDForShare(ctx context.Context, id int64) (*Category, error)
+
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
+
+	// UpdateIfActive writes only editable fields while archived_at is still
+	// NULL. The condition and update run in one statement so a stale editor
+	// cannot reactivate a category or overwrite a concurrent shift mapping.
+	UpdateIfActive(ctx context.Context, category *Category) (updated bool, err error)
 
 	// SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one
 	// shift type (#1837 follow-up): it sets shift_type_id = shiftTypeID for the
@@ -27,6 +42,14 @@ type CategoryRepository interface {
 	// isn't reducible to a single-entity filter, so it lives here rather than on
 	// the generic Repository[T].
 	SetShiftTypeForCategories(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary key
+	// and returns the number of rows affected. Archive/restore writes just
+	// archived_at through it (#2131), so a concurrent rename is never
+	// clobbered and a restore still surfaces the case-insensitive partial
+	// unique-index violation on its own.
+	UpdateColumns(ctx context.Context, category *Category, columns ...string) (int64, error)
 }
 
 // GroupRepository defines operations for managing activity groups
@@ -72,6 +95,13 @@ type GroupRepository interface {
 
 	// FindByCategory finds all groups in a specific category
 	FindByCategory(ctx context.Context, categoryID int64) ([]*Group, error)
+
+	// CountByCategory returns how many activity groups (Aktivitäten and
+	// Termin-Vorlagen alike) reference each category in the current tenant,
+	// keyed by category id. Categories with no groups are absent from the map.
+	// A GROUP BY aggregate across the whole table that the generic
+	// Repository[T] shape cannot express (#2131).
+	CountByCategory(ctx context.Context) (map[int64]int, error)
 
 	// FindOpenGroups finds all groups that are open for enrollment
 	FindOpenGroups(ctx context.Context) ([]*Group, error)

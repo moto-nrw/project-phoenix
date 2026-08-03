@@ -56,7 +56,17 @@ export interface StepTerminProps {
   // series edit writes the new value instead of echoing the fetched template
   // (#1565 review).
   listKindTouched: React.RefObject<boolean>;
+  /** Whether category catalog controls may be shown to this user. */
+  canManageCategories: boolean;
+  /** Opens the Kategorien-verwalten dialog, either on the list or straight in the create form. */
+  onManageCategories: (mode: "list" | "create") => void;
 }
+
+/**
+ * Sentinel option value for "+ Neue Kategorie anlegen". Picked so it can never
+ * collide with a real category id (those are numeric strings).
+ */
+export const CREATE_CATEGORY_OPTION = "__create_category__";
 
 /**
  * Wizard step 1 "Termin": the fields that make an event savable on their own —
@@ -76,6 +86,8 @@ export function StepTermin({
   isSeriesFlow,
   quickPreset,
   listKindTouched,
+  canManageCategories,
+  onManageCategories,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -135,6 +147,17 @@ export function StepTermin({
             htmlFor="event_category"
             required
             error={fieldErrors.categoryId}
+            action={
+              canManageCategories ? (
+                <button
+                  type="button"
+                  onClick={() => onManageCategories("list")}
+                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                >
+                  Verwalten
+                </button>
+              ) : undefined
+            }
           >
             <CustomSelect
               id="event_category"
@@ -154,8 +177,24 @@ export function StepTermin({
                   value: category.id,
                   label: category.name,
                 })),
+                ...(canManageCategories
+                  ? [
+                      // Last entry, so the missing category can be created without
+                      // leaving the Termin (#2131 — the reported Essenszeiten case).
+                      {
+                        value: CREATE_CATEGORY_OPTION,
+                        label: "+ Neue Kategorie anlegen",
+                      },
+                    ]
+                  : []),
               ]}
-              onChange={(next) => update("categoryId", next)}
+              onChange={(next) => {
+                if (next === CREATE_CATEGORY_OPTION) {
+                  onManageCategories("create");
+                  return;
+                }
+                update("categoryId", next);
+              }}
               required
               disabled={loadingRefs}
               invalid={Boolean(fieldErrors.categoryId)}

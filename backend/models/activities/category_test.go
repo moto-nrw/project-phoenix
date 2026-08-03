@@ -48,6 +48,14 @@ func TestCategoryValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Whitespace-only name",
+			category: &Category{
+				Name:  "   ",
+				Color: "#FF5733",
+			},
+			wantErr: true,
+		},
+		{
 			name: "Invalid color - wrong format",
 			category: &Category{
 				Name:        "Test Category",

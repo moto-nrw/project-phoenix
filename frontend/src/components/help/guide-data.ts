@@ -28,6 +28,7 @@ import {
   Search,
   SlidersHorizontal,
   TabletSmartphone,
+  Tags,
   UtensilsCrossed,
   Users,
   Wrench,
@@ -762,6 +763,27 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot: "Aktivitätenliste mit Suche, Filter und neuer Aktivität.",
         image: "/help/screens/aktivitaeten.webp",
+      },
+      {
+        id: "kategorien",
+        title: "Kategorien",
+        icon: Tags,
+        summary:
+          "Jeder Regeltermin braucht eine Kategorie. Fehlt die passende, zum Beispiel für die Essenszeiten, legst du sie direkt im Termin-Formular an, ohne den Termin zu verlassen.",
+        steps: [
+          "Im `Betreuungsplan` einen Regeltermin anlegen.",
+          "Beim Pflichtfeld `Kategorie` die Auswahl öffnen und ganz unten `+ Neue Kategorie anlegen` wählen.",
+          "Name eintragen, optional Farbe und Beschreibung, dann `Anlegen und auswählen`. Die neue Kategorie ist sofort im Termin gesetzt.",
+          "Bestehende Kategorien ändern: neben `Kategorie` auf `Verwalten` klicken, dann das Stiftsymbol der gewünschten Zeile.",
+          "Nicht mehr benötigte Kategorien im selben Dialog über `Archivieren` aus der Auswahl nehmen; unter `Archiviert` holt `Wiederherstellen` sie zurück.",
+        ],
+        callout: {
+          title: "Archivieren löscht nichts",
+          body: "Eine archivierte Kategorie wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben unverändert gültig. Die Kategorien `WC` und `Schulhof` gehören zum System und können nicht bearbeitet werden.",
+          tone: "blue",
+        },
+        screenshot:
+          "Kategorie-Auswahl im Termin-Formular mit dem Eintrag Neue Kategorie anlegen.",
       },
       {
         id: "raeume",

@@ -28,6 +28,7 @@ import {
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
+import { CategoryManageModal } from "./category-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -112,6 +113,7 @@ interface TimetableEventModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  canManageCategories: boolean;
   /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
    * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
@@ -142,10 +144,14 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  canManageCategories,
   closingDayRanges,
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
+  const [categoryDialog, setCategoryDialog] = useState<
+    "list" | "create" | null
+  >(null);
   const {
     form,
     update,
@@ -156,6 +162,7 @@ export function TimetableEventModal({
     validationError,
     rooms,
     categories,
+    refreshCategories,
     groups,
     students,
     staff,
@@ -480,6 +487,8 @@ export function TimetableEventModal({
                 isSeriesFlow={isSeriesFlow}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
+                canManageCategories={canManageCategories}
+                onManageCategories={setCategoryDialog}
               />
             )}
 
@@ -834,6 +843,20 @@ export function TimetableEventModal({
             </div>
           )}
         </ConfirmationModal>
+
+        {/* Kategorien verwalten (#2131): mounted only while open so its fetch
+            and dialog context stay out of every test that never opens it. */}
+        {canManageCategories && categoryDialog && (
+          <CategoryManageModal
+            isOpen
+            initialView={categoryDialog}
+            onClose={() => setCategoryDialog(null)}
+            onChanged={async (created) => {
+              await refreshCategories(created?.id);
+              if (created) setCategoryDialog(null);
+            }}
+          />
+        )}
       </SlideOverContent>
     </SlideOver>
   );

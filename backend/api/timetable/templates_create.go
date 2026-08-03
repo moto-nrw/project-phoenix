@@ -311,6 +311,8 @@ func buildCreateTemplateInput(
 // 400, everything else a 500.
 func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):
 	default:

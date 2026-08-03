@@ -101,7 +101,8 @@ func (s *TimetableDataService) validateTemplateUpdateRequest(ctx context.Context
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("database is not configured")}
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
-		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil {
+		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil ||
+		s.deps.ActivityCategoryRepo == nil {
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
 	return tenantID, nil
@@ -120,6 +121,11 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	}
 	if existing == nil || !existing.IsTemplate || existing.ArchivedAt != nil {
 		return &ScheduleError{Op: "update template: load target", Err: ErrTemplateSegmentNotEditable}
+	}
+	if in.Fields.CategoryID != existing.CategoryID {
+		if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.Fields.CategoryID, "update template: validate category"); err != nil {
+			return err
+		}
 	}
 	if err := ValidateTemplateTargetGradeLimit(
 		in.GradeLevelMax,

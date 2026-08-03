@@ -297,6 +297,8 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
