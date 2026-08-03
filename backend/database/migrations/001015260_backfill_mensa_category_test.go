@@ -1,6 +1,6 @@
 package migrations
 
-// Coverage for the 1.15.259 backfill (issue #2131): every existing school must
+// Coverage for the 1.15.260 backfill (issue #2131): every existing school must
 // end up with a "Mensa" category so Essenszeiten have a fitting
 // Pflichtkategorie, without duplicating one for schools that already have it.
 

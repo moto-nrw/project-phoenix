@@ -1209,7 +1209,7 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 		// Essenszeiten need a fitting Pflichtkategorie when a Termin is
 		// created. Mensa existed in the pre-multi-tenant seed but was missing
 		// from this list, so every operator-provisioned school lacked it
-		// (#2131). Migration 1.15.259 backfills the schools created before
+		// (#2131). Migration 1.15.260 backfills the schools created before
 		// this line; keep the three values in sync with it.
 		{Name: "Mensa", Description: "Aktivitäten rund um das Mittagessen", Color: "#FF9500"},
 	}

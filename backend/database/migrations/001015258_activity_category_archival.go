@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	activityCategoryArchivalVersion     = "1.15.257"
+	activityCategoryArchivalVersion     = "1.15.258"
 	activityCategoryArchivalDescription = "Add archived_at to activities.categories and scope the tenant/name unique index to active rows (issue #2131)"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.257: Adding archived_at to activities.categories...")
+			fmt.Println("Migration 1.15.258: Adding archived_at to activities.categories...")
 
 			if _, err := db.NewRaw(`
 				ALTER TABLE activities.categories
@@ -51,7 +51,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.257...")
+			fmt.Println("Rolling back migration 1.15.258...")
 
 			// Archived rows would break the unconditional unique index when a
 			// live row reuses their name, so drop them before restoring it.

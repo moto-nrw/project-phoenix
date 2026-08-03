@@ -61,7 +61,7 @@ const (
 	// granted activities:create/update/delete/manage to the plain `user` role,
 	// so every Betreuer holds them. Category Stammdaten are school-wide
 	// configuration and stay with the OGS-Leitung (admin role, migration
-	// 1.15.258).
+	// 1.15.259).
 	ActivitiesManageCategories = ResourceActivities + ":manage_categories"
 )
 

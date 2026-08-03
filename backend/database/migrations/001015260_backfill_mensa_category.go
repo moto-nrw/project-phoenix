@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	backfillMensaCategoryVersion     = "1.15.259"
+	backfillMensaCategoryVersion     = "1.15.260"
 	backfillMensaCategoryDescription = "Provision the 'Mensa' activity category for every existing tenant that lacks it (issue #2131)"
 
 	// mensaCategoryName / mensaCategoryDescription / mensaCategoryColor mirror
@@ -45,7 +45,7 @@ func init() {
 // row a school deliberately archived would be worse than leaving it archived,
 // and the admin can restore it from the UI.
 func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.259: Backfilling 'Mensa' activity category per tenant...")
+	fmt.Println("Migration 1.15.260: Backfilling 'Mensa' activity category per tenant...")
 
 	res, err := db.NewRaw(`
 		INSERT INTO activities.categories (tenant_id, name, description, color, is_system, created_at, updated_at)
@@ -63,7 +63,7 @@ func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, rowsErr := res.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.259: Added 'Mensa' category to %d tenant(s)\n", affected)
+		fmt.Printf("Migration 1.15.260: Added 'Mensa' category to %d tenant(s)\n", affected)
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
 // by an activity group or timetable template are always kept; deleting them
 // would violate the FK and destroy real planning data.
 func backfillMensaCategoryDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.259: Removing unused 'Mensa' categories...")
+	fmt.Println("Rolling back migration 1.15.260: Removing unused 'Mensa' categories...")
 
 	if _, err := db.NewRaw(`
 		DELETE FROM activities.categories c
