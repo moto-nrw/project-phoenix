@@ -56,6 +56,9 @@ func (s *Service) UpdateCategory(ctx context.Context, id int64, input CategoryIn
 	if err := category.Validate(); err != nil {
 		return nil, &ActivityError{Op: opUpdateCategory, Err: err}
 	}
+	if isReservedSystemCategoryName(category.Name) {
+		return nil, &ActivityError{Op: opUpdateCategory, Err: ErrSystemCategoryNameReserved}
+	}
 
 	updated, err := s.categoryRepo.UpdateIfActive(ctx, category)
 	if err != nil {
@@ -91,7 +94,9 @@ func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Ca
 		return nil, err
 	}
 
-	return category, nil
+	// The database trigger advances updated_at; reload so the response carries
+	// the persisted timestamp rather than the value read before the update.
+	return s.loadEditableCategory(ctx, id, opArchiveCategory)
 }
 
 // RestoreCategory brings an archived category back into the pickers. It fails
@@ -114,7 +119,9 @@ func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Ca
 		return nil, err
 	}
 
-	return category, nil
+	// The database trigger advances updated_at; reload so the response carries
+	// the persisted timestamp rather than the value read before the update.
+	return s.loadEditableCategory(ctx, id, opRestoreCategory)
 }
 
 // setCategoryArchivedAt persists just the archived_at column of category.

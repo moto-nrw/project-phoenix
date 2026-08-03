@@ -121,6 +121,16 @@ func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code, "body: %s", rr.Body.String())
 }
 
+func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": " wc "})
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
+
+	assert.Equal(t, http.StatusConflict, rr.Code, "body: %s", rr.Body.String())
+}
+
 func TestUpdateCategory_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()

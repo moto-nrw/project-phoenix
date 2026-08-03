@@ -29,6 +29,7 @@ var errorRules = []common.ErrorRule{
 	{Target: activities.ErrStudentIsAlumnus, Render: common.ErrorInvalidRequest},
 	{Target: activities.ErrSystemActivityProtected, Render: common.ErrorForbidden},
 	{Target: activities.ErrSystemCategoryProtected, Render: common.ErrorForbidden},
+	{Target: activities.ErrSystemCategoryNameReserved, Render: common.ErrorConflict},
 	{Target: activities.ErrCategoryNameExists, Render: common.ErrorConflict},
 	{Target: activities.ErrCategoryArchived, Render: common.ErrorConflict},
 	{Target: activities.ErrGroupClosed, Render: common.ErrorForbidden},

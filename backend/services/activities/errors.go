@@ -78,6 +78,10 @@ var (
 	// the kiosk flows resolve by name (#2131).
 	ErrSystemCategoryProtected = errors.New("Systemkategorie kann nicht bearbeitet oder archiviert werden") //nolint:staticcheck // ST1005: user-facing German message
 
+	// ErrSystemCategoryNameReserved prevents school-owned categories from
+	// occupying names that the WC and Schulhof infrastructure provisions.
+	ErrSystemCategoryNameReserved = errors.New("Dieser Name ist für eine Systemkategorie reserviert") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrCategoryNameExists is returned when a create, rename, or restore would
 	// produce two active categories with the same name in one tenant.
 	ErrCategoryNameExists = errors.New("Eine Kategorie mit diesem Namen existiert bereits") //nolint:staticcheck // ST1005: user-facing German message

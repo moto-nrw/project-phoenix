@@ -45,6 +45,21 @@ func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
 	require.ErrorIs(t, err, activities.ErrCategoryNameExists)
 }
 
+func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	for _, name := range []string{" wc ", "sChUlHoF"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := service.CreateCategory(ctx, &activitiesModels.Category{Name: name})
+			require.ErrorIs(t, err, activities.ErrSystemCategoryNameReserved)
+		})
+	}
+}
+
 func TestServiceUpdateCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -89,6 +104,14 @@ func TestServiceUpdateCategory(t *testing.T) {
 
 		_, err := service.UpdateCategory(ctx, category.ID, activities.CategoryInput{Name: "   "})
 		require.Error(t, err)
+	})
+
+	t.Run("rejects a reserved system name", func(t *testing.T) {
+		category := testpkg.CreateTestActivityCategory(t, db, "ReservedRename")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+
+		_, err := service.UpdateCategory(ctx, category.ID, activities.CategoryInput{Name: " schulHOF "})
+		require.ErrorIs(t, err, activities.ErrSystemCategoryNameReserved)
 	})
 
 	t.Run("refuses to touch a system category", func(t *testing.T) {
@@ -154,6 +177,7 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 	stillThere, err := service.GetCategory(ctx, group.CategoryID)
 	require.NoError(t, err)
 	assert.True(t, stillThere.IsArchived())
+	assert.Equal(t, stillThere.UpdatedAt, archived.UpdatedAt)
 
 	t.Run("archiving twice is a no-op", func(t *testing.T) {
 		again, archiveErr := service.ArchiveCategory(ctx, group.CategoryID)
@@ -171,6 +195,10 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 		restored, restoreErr := service.RestoreCategory(ctx, group.CategoryID)
 		require.NoError(t, restoreErr)
 		assert.False(t, restored.IsArchived())
+
+		reloaded, reloadErr := service.GetCategory(ctx, group.CategoryID)
+		require.NoError(t, reloadErr)
+		assert.Equal(t, reloaded.UpdatedAt, restored.UpdatedAt)
 	})
 
 	t.Run("restoring an active category is a no-op", func(t *testing.T) {
