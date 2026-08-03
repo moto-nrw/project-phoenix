@@ -2,15 +2,33 @@ package calendar
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
+
+// GuardianChildAccessChecker answers, at the moment a queued mail is sent, which
+// of its addressed guardian accounts still hold parent_portal.access for at
+// least one of the children the appointment concerns.
+type GuardianChildAccessChecker interface {
+	FilterAccountsWithStudentAccess(ctx context.Context, guardianAccountIDs, studentIDs []int64, tenantID int64, permission string) ([]int64, error)
+}
 
 // EmailConfig is the static config for the appointment e-mail renderer.
 type EmailConfig struct {
 	DefaultFrom email.Email
+
+	// DB and Guardians re-check the authorization scope a row carries before it
+	// is rendered. Both are required for rows that carry one; rows without a
+	// scope (queued before this existed) render as they always did.
+	DB        *bun.DB
+	Guardians GuardianChildAccessChecker
 }
 
 // NewAppointmentRenderer renders any appointment outbox row (published /
@@ -19,7 +37,10 @@ type EmailConfig struct {
 // Registered in the email template registry for each appointment kind and
 // drained by the outbox worker.
 func NewAppointmentRenderer(cfg EmailConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+	return func(ctx context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+		if err := cfg.ensureGuardianStillPermitted(ctx, row); err != nil {
+			return nil, err
+		}
 		recipient, _ := row.Payload[apptPayloadRecipient].(string)
 		if recipient == "" {
 			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
@@ -60,6 +81,94 @@ func NewAppointmentRenderer(cfg EmailConfig) func(context.Context, *platformMode
 			},
 		}, nil
 	}
+}
+
+// ensureGuardianStillPermitted asks the child-access question again at the
+// moment the mail is sent, and refuses to render when the answer changed.
+//
+// The recipient list of an appointment mail is resolved when it is queued, but
+// the mail leaves later — a reminder waits for the school's whole lead time,
+// 24 hours by default. An appointment mail names a title, a time and a place;
+// once a guardian's parent_portal.access for the child that put them on the
+// invitation is revoked, they are no longer someone this school tells those
+// things to, and cancelling every queued row from every revocation path would
+// have to catch each of those paths to be worth anything. Asking here is the
+// same recheck the push channels do immediately before delivery.
+//
+// Rows without a scope have nothing to re-check: they predate this or address a
+// recipient with no portal account, and they render as they always did.
+func (cfg EmailConfig) ensureGuardianStillPermitted(ctx context.Context, row *platformModels.EmailOutbox) error {
+	accountID := payloadInt64(row.Payload[apptPayloadGuardianAccountID])
+	studentIDs := payloadInt64Slice(row.Payload[apptPayloadStudentIDs])
+	if accountID <= 0 || len(studentIDs) == 0 {
+		return nil
+	}
+	tenantID := row.GetTenantID()
+	if cfg.DB == nil || cfg.Guardians == nil || tenantID <= 0 {
+		// The row asked to be re-checked and nothing here can answer. Sending it
+		// anyway would defeat the point of stamping the scope in the first place.
+		return fmt.Errorf("%w: cannot re-check guardian child access for %s",
+			platformService.ErrRenderCancelled, row.Kind)
+	}
+
+	var permitted []int64
+	if err := tenant.WithTenantTx(ctx, cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		allowed, err := cfg.Guardians.FilterAccountsWithStudentAccess(
+			txCtx, []int64{accountID}, studentIDs, tenantID, authorize.GuardianPermissionPortalAccess)
+		if err != nil {
+			return err
+		}
+		permitted = allowed
+		return nil
+	}); err != nil {
+		// A lookup failure is not an answer — retry it rather than dropping a mail
+		// the guardian may well still be entitled to.
+		return fmt.Errorf("re-check guardian child access: %w", err)
+	}
+	if len(permitted) == 0 {
+		return fmt.Errorf("%w: guardian no longer has access to the children of this appointment",
+			platformService.ErrRenderCancelled)
+	}
+	return nil
+}
+
+// payloadInt64 reads an ID out of a jsonb payload. A row that round-tripped
+// through the database arrives as float64 (or json.Number under a decoder that
+// asked for it); one that never left the process keeps its Go type.
+func payloadInt64(raw any) int64 {
+	switch value := raw.(type) {
+	case int64:
+		return value
+	case int:
+		return int64(value)
+	case float64:
+		return int64(value)
+	case json.Number:
+		parsed, err := value.Int64()
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func payloadInt64Slice(raw any) []int64 {
+	if direct, ok := raw.([]int64); ok {
+		return direct
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		if id := payloadInt64(item); id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // appointmentCopy returns the German header kicker, subject verb and intro

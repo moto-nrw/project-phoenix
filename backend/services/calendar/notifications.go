@@ -53,7 +53,33 @@ const (
 	apptPayloadPortalURL   = "portal_url"
 	apptPayloadLogoURL     = "logo_url"
 	apptPayloadMotoLogoURL = "moto_logo_url"
+
+	// The authorization scope the row is sent under, re-checked by the renderer
+	// when the mail actually leaves. A reminder can wait in the outbox for the
+	// school's whole lead time (24 hours by default), and a guardian's access to
+	// the child that put them on the invitation can be revoked in that window.
+	apptPayloadGuardianAccountID = "guardian_account_id"
+	apptPayloadStudentIDs        = "student_ids"
 )
+
+// addGuardianDeliveryScope stamps the row with the account it is addressed to
+// and the children of this appointment that account was let through by — the
+// same pair the push carries into its delivery transaction. A recipient without
+// a portal account contributes no scope; nothing about them can be re-checked,
+// and no such recipient reaches this point (reachableGuardianRecipients drops
+// them).
+func addGuardianDeliveryScope(payload map[string]any, recipients guardianRecipients, guardianProfileID int64) {
+	profile, ok := recipients.profiles[guardianProfileID]
+	if !ok || profile.AccountID == nil || *profile.AccountID <= 0 {
+		return
+	}
+	studentIDs := recipients.studentsByGuardian[guardianProfileID]
+	if len(studentIDs) == 0 {
+		return
+	}
+	payload[apptPayloadGuardianAccountID] = *profile.AccountID
+	payload[apptPayloadStudentIDs] = append([]int64(nil), studentIDs...)
+}
 
 // notifyGuardians enqueues one outbox e-mail per reachable guardian recipient of
 // the appointment. Best-effort branding (school name / logo) never aborts the
@@ -118,20 +144,22 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 				continue
 			}
 		}
+		payload := map[string]any{
+			apptPayloadRecipient:   *profile.Email,
+			apptPayloadFirstName:   profile.FirstName,
+			apptPayloadLastName:    profile.LastName,
+			apptPayloadTitle:       appointment.Title,
+			apptPayloadWhen:        whenText,
+			apptPayloadLocation:    location,
+			apptPayloadSchoolName:  schoolName,
+			apptPayloadPortalURL:   s.cfg.ParentsURL,
+			apptPayloadLogoURL:     logoURL,
+			apptPayloadMotoLogoURL: motoLogoURL,
+		}
+		addGuardianDeliveryScope(payload, recipients, id)
 		if _, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
-			Kind: kind,
-			Payload: map[string]any{
-				apptPayloadRecipient:   *profile.Email,
-				apptPayloadFirstName:   profile.FirstName,
-				apptPayloadLastName:    profile.LastName,
-				apptPayloadTitle:       appointment.Title,
-				apptPayloadWhen:        whenText,
-				apptPayloadLocation:    location,
-				apptPayloadSchoolName:  schoolName,
-				apptPayloadPortalURL:   s.cfg.ParentsURL,
-				apptPayloadLogoURL:     logoURL,
-				apptPayloadMotoLogoURL: motoLogoURL,
-			},
+			Kind:              kind,
+			Payload:           payload,
 			RelatedEntityType: platformModels.EmailRelatedTypeAppointment,
 			RelatedEntityID:   appointment.ID,
 		}); err != nil {

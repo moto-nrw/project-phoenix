@@ -32,6 +32,19 @@ type reminderPushDelivery struct {
 	occurrence  timezone.Date
 	accountID   int64
 	profileIDs  []int64
+
+	// from and to are the scan window this occurrence fell due in. Preparation
+	// re-measures the occurrence against them, because an edit between claim and
+	// dispatch can move it: one that is still due delivers now, one that moved
+	// away releases its claim and waits for the tick that reaches its new moment.
+	from time.Time
+	to   time.Time
+}
+
+// stillDue reports whether the occurrence starts inside the window this delivery
+// was scanned in.
+func (d reminderPushDelivery) stillDue(startsAt time.Time) bool {
+	return !startsAt.Before(d.from) && startsAt.Before(d.to)
 }
 
 // EnqueueDueAppointmentReminders queues the guardian reminder e-mail for every
@@ -193,7 +206,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 			if startsAt.Before(from) || !startsAt.Before(to) {
 				continue
 			}
-			count, _, err := s.enqueueAppointmentReminder(ctx, current, effective, occurrence, deliveries)
+			count, err := s.enqueueAppointmentReminder(ctx, current, effective, occurrence, from, to, deliveries)
 			if err != nil {
 				return queued, err
 			}
@@ -297,15 +310,16 @@ func (s *service) enqueueAppointmentReminder(
 	appointment *calModels.Appointment,
 	effective *calModels.Appointment,
 	occurrence timezone.Date,
+	from, to time.Time,
 	deliveries *[]reminderPushDelivery,
-) (int, []int64, error) {
+) (int, error) {
 	recipients, err := s.reachableGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
-		return 0, nil, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
+		return 0, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
 	}
 	guardianIDs, profiles := recipients.guardianIDs, recipients.profiles
 	if len(guardianIDs) == 0 {
-		return 0, nil, nil
+		return 0, nil
 	}
 
 	schoolName := s.resolveSchoolName(ctx, appointment.TenantID)
@@ -333,22 +347,24 @@ func (s *service) enqueueAppointmentReminder(
 		if sendEmail && profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
 			optedIn, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
-				return queued, nil, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
+				return queued, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
 			}
 			sendEmail = len(optedIn) > 0
 		}
 		if sendEmail {
+			payload := map[string]any{
+				apptPayloadRecipient: *profile.Email, apptPayloadFirstName: profile.FirstName, apptPayloadLastName: profile.LastName,
+				apptPayloadTitle: effective.Title, apptPayloadWhen: whenText, apptPayloadLocation: location,
+				apptPayloadSchoolName: schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: logoURL, apptPayloadMotoLogoURL: motoLogoURL,
+			}
+			addGuardianDeliveryScope(payload, recipients, id)
 			row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
-				Kind: platformModels.EmailKindAppointmentReminder,
-				Payload: map[string]any{
-					apptPayloadRecipient: *profile.Email, apptPayloadFirstName: profile.FirstName, apptPayloadLastName: profile.LastName,
-					apptPayloadTitle: effective.Title, apptPayloadWhen: whenText, apptPayloadLocation: location,
-					apptPayloadSchoolName: schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: logoURL, apptPayloadMotoLogoURL: motoLogoURL,
-				},
+				Kind:           platformModels.EmailKindAppointmentReminder,
+				Payload:        payload,
 				IdempotencyKey: appointmentReminderKey(appointment.ID, appointment.Revision, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
 			})
 			if err != nil {
-				return queued, nil, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
+				return queued, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
 			}
 			if row.ID != 0 {
 				queued++
@@ -357,7 +373,7 @@ func (s *service) enqueueAppointmentReminder(
 		if profile.AccountID != nil && *profile.AccountID > 0 && s.reminderPushConfigured() {
 			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
 			if err != nil {
-				return queued, nil, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
+				return queued, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
 			}
 			if len(optedIn) > 0 {
 				pushProfilesByAccount[*profile.AccountID] = append(pushProfilesByAccount[*profile.AccountID], id)
@@ -369,7 +385,7 @@ func (s *service) enqueueAppointmentReminder(
 		for _, profileID := range profileIDs {
 			claimed, err := s.claimReminderPush(ctx, appointment, occurrence, profileID)
 			if err != nil {
-				return queued, nil, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
+				return queued, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
 			}
 			if claimed {
 				claimedProfileIDs = append(claimedProfileIDs, profileID)
@@ -384,6 +400,8 @@ func (s *service) enqueueAppointmentReminder(
 			occurrence:  occurrence,
 			accountID:   accountID,
 			profileIDs:  append([]int64(nil), claimedProfileIDs...),
+			from:        from,
+			to:          to,
 		})
 	}
 
@@ -392,7 +410,7 @@ func (s *service) enqueueAppointmentReminder(
 		slog.String("occurrence_date", occurrence.String()),
 		slog.Int("recipient_count", len(pushProfilesByAccount)),
 	)
-	return queued, nil, nil
+	return queued, nil
 }
 
 func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []reminderPushDelivery) error {
@@ -447,6 +465,10 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 					return
 				}
 			}
+			// Claims are keyed by revision, and preparation may have re-taken them
+			// under a newer one. Every release from here on has to name the revision
+			// the claims are actually held at, not the one the scan started with.
+			delivery.appointment = appointment
 			delivery.profileIDs = profileIDs
 			dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{delivery.accountID}, studentIDs)
 			if err == nil && dispatched {
@@ -497,14 +519,17 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 }
 
 // prepareReminderPushDispatch takes a short tenant transaction to ensure the
-// claim still belongs to a live, guardian-notified appointment and that the
-// guardian still consents to reminders. The transaction commits before the
-// synchronous Web Push request begins, so network latency never holds a DB
-// connection or a lifecycle row lock.
+// claim still belongs to a live, guardian-notified appointment that is still due
+// in this delivery's scan window, and that the guardian still consents to
+// reminders. The transaction commits before the synchronous Web Push request
+// begins, so network latency never holds a DB connection or a lifecycle row lock.
 //
 // It also reports the children this account is still let through by, so the
 // device lookup can ask the access question once more — that lookup runs in yet
 // another transaction, and the payload it produces is rendered on a lock screen.
+//
+// The appointment it returns is the one the claims are now held under, which is
+// not necessarily the one the scan started with: see the revision handling below.
 func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery reminderPushDelivery) (*calModels.Appointment, []int64, []int64, error) {
 	var appointment *calModels.Appointment
 	var profileIDs []int64
@@ -517,8 +542,17 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 		if current == nil {
 			return nil
 		}
-		if current.Revision != delivery.appointment.Revision {
-			return nil
+		// An edit between claim and dispatch bumps the revision, which invalidates
+		// the claim this delivery holds — nothing can ever match it again, so it is
+		// released here. Dropping the reminder with it would lose it for good: the
+		// scan boundary has already moved past this occurrence and no later tick
+		// offers it again. So the claim is re-taken under the new revision instead,
+		// and only the checks below decide whether the reminder is still warranted.
+		revised := current.Revision != delivery.appointment.Revision
+		if revised {
+			if err := s.releaseReminderPushProfiles(txCtx, delivery.appointment, delivery.occurrence, delivery.profileIDs); err != nil {
+				return err
+			}
 		}
 		rule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(txCtx, current.ID)
 		if err != nil {
@@ -532,7 +566,18 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 		if err != nil {
 			return fmt.Errorf("reload reminder override: %w", err)
 		}
-		if len(overrides) > 0 && overrides[0].Cancelled {
+		var override *calModels.AppointmentOccurrenceOverride
+		if len(overrides) > 0 {
+			override = overrides[0]
+		}
+		if override != nil && override.Cancelled {
+			return nil
+		}
+		// An edit can also have moved the occurrence. A reminder is only worth
+		// sending at the moment it was due for, so one that moved away is not sent
+		// now — returning nothing releases the claim (below), which leaves the tick
+		// that reaches the occurrence's new moment free to take it.
+		if !delivery.stillDue(occurrenceStartInstant(appointmentWithOverride(current, delivery.occurrence, override))) {
 			return nil
 		}
 		if s.cfg.Preferences == nil {
@@ -557,9 +602,21 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 			}
 		}
 		for _, profileID := range delivery.profileIDs {
-			if _, ok := reachableSet[profileID]; ok {
-				profileIDs = append(profileIDs, profileID)
+			if _, ok := reachableSet[profileID]; !ok {
+				continue
 			}
+			// The claim released above has to be replaced before the push goes out,
+			// or a re-scan of this window could send the reminder a second time.
+			if revised {
+				claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(txCtx, current.ID, current.Revision, delivery.occurrence, profileID)
+				if err != nil {
+					return fmt.Errorf("claim revised reminder push delivery: %w", err)
+				}
+				if !claimed {
+					continue
+				}
+			}
+			profileIDs = append(profileIDs, profileID)
 		}
 		if len(profileIDs) == 0 {
 			return nil
@@ -600,6 +657,19 @@ func (s *service) releaseReminderPush(ctx context.Context, appointment *calModel
 	return tenant.WithTenantTx(cleanupCtx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
 	})
+}
+
+// releaseReminderPushProfiles drops the claims one appointment revision holds
+// for these guardians, inside the caller's transaction. Used where a claim is
+// superseded rather than abandoned — the caller commits the release together
+// with whatever replaces it.
+func (s *service) releaseReminderPushProfiles(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileIDs []int64) error {
+	for _, profileID := range profileIDs {
+		if err := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID); err != nil {
+			return fmt.Errorf("calendar: release superseded reminder push delivery: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *service) releaseReminderPushDelivery(ctx context.Context, delivery reminderPushDelivery) error {

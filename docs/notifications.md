@@ -50,6 +50,10 @@ receiving the mail it received before consent existed. Tying e-mail to
 `FilterOptedIn` would have made the reach of a backfill decide whether a
 long-standing channel works at all.
 
+What e-mail does share with push is the child-access question. A queued mail
+about a child is re-checked when it is sent, not only when it is queued — see
+"Queued mail is re-checked when it is sent" below.
+
 ## Triggering a notification (backend)
 
 ```go
@@ -361,7 +365,8 @@ addressed to. Their audience already comes from `parent_portal.access` on the
 appointment's recipient rows; carrying those children into the event means the
 delivery path asks again, so an access revoked between resolving recipients and
 sending drops both the push and the in-app wake instead of putting the event on
-a lock screen or into an open session.
+a lock screen or into an open session. Their e-mails carry the same scope into
+the outbox and are re-checked when the worker sends them.
 
 ### Appointment reminders (scheduler task `appointment-reminders`)
 
@@ -419,11 +424,36 @@ many evening appointments raise `notifications.active_window_end`.
 Duplicate delivery is impossible by construction: each row carries an
 idempotency key of (appointment, occurrence, guardian) and the outbox insert is
 `ON CONFLICT DO NOTHING`, so a re-run, an overlapping window or a second
-scheduler process cannot produce a second mail. The flip side of that stability
-is a small, deliberate gap: an appointment edited within the few minutes between
-queueing and sending has its pending reminder cancelled with the other pending
-mails and is not re-queued — the parent receives the "Termin geändert" mail
-instead.
+scheduler process cannot produce a second mail.
+
+An **edit between queueing and dispatch** bumps the revision and therefore
+invalidates the claim the pending push holds. The claim is not simply dropped
+with it: the scan boundary has already moved past that occurrence and no later
+tick offers it again, so preparation releases the old claim and re-takes one
+under the new revision, provided the occurrence still exists, is not cancelled,
+and still starts inside the window it was scanned in. An occurrence the edit
+moved out of that window is left alone — its released claim lets the tick that
+reaches its new moment deliver it. The e-mail half keeps its documented gap: the
+pending reminder mail is cancelled with the other pending mails of the edited
+appointment and not re-queued, so the parent gets the "Termin geändert" mail and
+the reminder push.
+
+### Queued mail is re-checked when it is sent
+
+An appointment mail carries the account it addresses and the children of that
+appointment the account was let through by (`guardian_account_id`,
+`student_ids`). The renderer asks `FilterAccountsWithStudentAccess` again inside
+the row's tenant transaction immediately before building the message, and
+returns `platform.ErrRenderCancelled` when the answer changed — the worker then
+retires the row instead of spending its retry budget on something it may never
+deliver.
+
+This matters most for the reminder, which waits in the outbox for the whole lead
+time (24 hours by default) while naming a title, a time and a place. Cancelling
+queued rows from each revocation path instead would have to catch every one of
+them to be worth anything; asking at delivery is the same recheck the push
+channels do. Rows without the scope — queued before this existed, or addressed
+to a recipient with no portal account — render unchanged.
 
 ## Verifying a tenant's setup
 
