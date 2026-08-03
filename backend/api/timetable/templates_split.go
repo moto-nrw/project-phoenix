@@ -188,7 +188,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 	// Same tenant-scoped period check the create/update handlers run; the
 	// returned roster start date is unused — the split anchors rosters on
 	// the effective date instead.
-	if _, err := rs.templateRosterValidFrom(r.Context(), req.CalendarPeriodID); err != nil {
+	if _, err := rs.templateRosterValidFrom(r.Context(), req.CalendarPeriodID, nil); err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
