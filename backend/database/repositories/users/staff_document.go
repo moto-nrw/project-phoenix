@@ -235,13 +235,20 @@ func (r *StaffDocumentRepository) ListQueuedFileCleanups(ctx context.Context) ([
 	return r.listQueuedFileCleanups(ctx, "", nil)
 }
 
+// listQueuedFileCleanups returns eligible orphan rows and locks them for the
+// caller's transaction. FOR UPDATE SKIP LOCKED is load-bearing: an upload whose
+// metadata transaction has already stamped cleaned_at but not yet committed
+// holds that row lock, and skipping it keeps this pass from deleting the bytes
+// of a document that is about to exist. Concurrent cleanup passes skip each
+// other's rows for the same reason.
 func (r *StaffDocumentRepository) listQueuedFileCleanups(ctx context.Context, where string, arg any) ([]*users.StaffDocumentFileCleanup, error) {
 	var cleanups []*users.StaffDocumentFileCleanup
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&cleanups).
 		ModelTableExpr(`users.staff_document_file_cleanup AS "staff_document_file_cleanup"`).
 		Where(`"staff_document_file_cleanup".retry_after <= ?`, time.Now()).
-		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`).
+		For("UPDATE SKIP LOCKED")
 	if where != "" {
 		query = query.Where(where, arg)
 	}

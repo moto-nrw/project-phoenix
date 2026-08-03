@@ -26,6 +26,21 @@ import (
 // sensitive category is refused when the access-log write fails — the same
 // two hard rules as the Stammdaten service.
 
+const (
+	// StaffDocumentUploadDeadline bounds every step an upload request may still
+	// perform once its cleanup intent exists — the file write and the metadata
+	// transaction. The handler enforces it, so no request can persist a document
+	// row after its queued intent has become eligible for the cleanup scheduler.
+	StaffDocumentUploadDeadline = 2 * time.Minute
+
+	// staffDocumentCleanupDelay keeps a queued intent ineligible until well past
+	// StaffDocumentUploadDeadline. The difference is deliberate slack: it covers
+	// a metadata transaction whose commit was still in flight when the deadline
+	// fired, so the cleanup pass only ever sees uploads whose outcome is settled.
+	// It MUST stay larger than StaffDocumentUploadDeadline.
+	staffDocumentCleanupDelay = 5 * time.Minute
+)
+
 // ErrStaffDocumentInvalid marks a semantically invalid document payload —
 // HTTP 400. Wrapped with a field-specific message.
 var ErrStaffDocumentInvalid = errors.New("invalid staff document")
@@ -100,8 +115,10 @@ type StaffDocumentService interface {
 	// never retried during a later list or offboarding request.
 	MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error
 	// QueueStaffDocumentFileCleanup durably records the cleanup intent before
-	// the file is written. It remains ineligible for retries until the upload
-	// fails or the initial grace period has elapsed after an interrupted upload.
+	// the file is written. It stays ineligible for retries until the upload
+	// explicitly fails or staffDocumentCleanupDelay has elapsed — by which time
+	// the upload request has been cut off by StaffDocumentUploadDeadline, so an
+	// eligible intent can never race a still-running upload.
 	QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error
 	// ListQueuedStaffDocumentFileCleanup returns orphaned upload files that
 	// should be retried for this staff record during list or offboarding flows.
@@ -430,7 +447,7 @@ func (s *staffDocumentService) QueueStaffDocumentFileCleanup(ctx context.Context
 		return s.documents.QueueFileCleanup(ctx, &userModels.StaffDocumentFileCleanup{
 			StaffID:        staffID,
 			FilenameStored: storedName,
-			RetryAfter:     time.Now().Add(5 * time.Minute),
+			RetryAfter:     time.Now().Add(staffDocumentCleanupDelay),
 		})
 	})
 }

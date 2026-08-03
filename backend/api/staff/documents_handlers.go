@@ -242,6 +242,15 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// The queued intent becomes eligible for the cleanup scheduler after a fixed
+	// delay, so every step that can still persist metadata for this file must be
+	// bounded well inside that delay: a stalled write or metadata transaction
+	// would otherwise commit a document row after the scheduler had already
+	// removed its bytes. The bookkeeping calls below deliberately stay on the
+	// request context so they still run once the upload deadline has fired.
+	uploadCtx, cancelUpload := context.WithTimeout(r.Context(), usersSvc.StaffDocumentUploadDeadline)
+	defer cancelUpload()
+
 	dir := staffDocumentsDir(tenant.FromContext(r.Context()))
 	filePath, err := common.SavePrivateNamedFile(uploaded.File, dir, storedName)
 	if err != nil {
@@ -254,7 +263,7 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	info, err := rs.StaffDocumentService.CreateStaffDocument(r.Context(), usersSvc.CreateStaffDocumentInput{
+	info, err := rs.StaffDocumentService.CreateStaffDocument(uploadCtx, usersSvc.CreateStaffDocumentInput{
 		StaffID:         id,
 		Category:        r.FormValue("category"),
 		FilenameDisplay: uploaded.Filename,
@@ -263,23 +272,7 @@ func (rs *Resource) uploadStaffDocument(w http.ResponseWriter, r *http.Request) 
 		ContentType:     uploaded.ContentType,
 	}, actor)
 	if err != nil {
-		if err := rs.removeUploadedDocument(filePath); err != nil {
-			rs.getLogger().Error("staff document cleanup failed after upload error",
-				"staff_id", id,
-				"error", err,
-			)
-			if activateErr := rs.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(r.Context(), storedName); activateErr != nil {
-				rs.getLogger().Error("staff document cleanup intent activation failed",
-					"staff_id", id,
-					"error", activateErr,
-				)
-			}
-		} else if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
-			rs.getLogger().Warn("staff document cleanup intent completion failed",
-				"staff_id", id,
-				"error", completeErr,
-			)
-		}
+		rs.releaseFailedDocumentUpload(r.Context(), id, filePath, storedName, err)
 		renderDocumentError(w, r, err)
 		return
 	}
@@ -370,6 +363,50 @@ func newStoredDocumentName(contentType string) (string, error) {
 		return "", errors.New("failed to generate document filename")
 	}
 	return id.String() + ext, nil
+}
+
+// isUnresolvedUploadError reports whether an upload failure leaves the metadata
+// transaction's outcome undecided, in which case the file must not be removed
+// by this request.
+func isUnresolvedUploadError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// releaseFailedDocumentUpload disposes of the bytes of an upload whose metadata
+// could not be persisted, and settles its queued cleanup intent: completed when
+// the file is gone, re-activated when removal failed so the scheduler retries.
+// A cancelled or timed-out metadata transaction is the one case that touches
+// neither — its commit may still have landed, and deleting the file here would
+// strand a committed document row. The intent decides instead: a committed
+// transaction marks it complete (the file must stay), a rolled-back one leaves
+// it queued for the scheduler.
+func (rs *Resource) releaseFailedDocumentUpload(ctx context.Context, staffID int64, filePath, storedName string, cause error) {
+	if isUnresolvedUploadError(cause) {
+		rs.getLogger().Warn("staff document upload interrupted, leaving cleanup to the queued intent",
+			"staff_id", staffID,
+			"error", cause,
+		)
+		return
+	}
+	if err := rs.removeUploadedDocument(filePath); err != nil {
+		rs.getLogger().Error("staff document cleanup failed after upload error",
+			"staff_id", staffID,
+			"error", err,
+		)
+		if activateErr := rs.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName); activateErr != nil {
+			rs.getLogger().Error("staff document cleanup intent activation failed",
+				"staff_id", staffID,
+				"error", activateErr,
+			)
+		}
+		return
+	}
+	if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx, storedName); completeErr != nil {
+		rs.getLogger().Warn("staff document cleanup intent completion failed",
+			"staff_id", staffID,
+			"error", completeErr,
+		)
+	}
 }
 
 // fileSizeOnDisk returns the stored file's size; 0 on stat errors (the

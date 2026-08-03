@@ -22,6 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -235,6 +236,70 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 	cleanups, err = c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, cleanups)
+}
+
+// The cleanup pass must never delete the bytes of an upload whose metadata
+// transaction is still open: that transaction has already stamped the intent
+// complete and may commit right after, leaving a document row without a file.
+func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) {
+	c := setupDocumentsAPI(t)
+	const orphanStaffID = int64(987654322)
+	storedName := fmt.Sprintf("inflight-%d.pdf", time.Now().UnixNano())
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
+	t.Cleanup(func() {
+		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
+	})
+	require.NoError(t, c.tc.services.StaffDocuments.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
+
+	pubDir, err := common.ResolvePublicDir()
+	require.NoError(t, err)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
+	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
+
+	// Stand in for the upload's metadata transaction: it completes the intent
+	// but has not committed yet, so it holds the row lock.
+	uploadTx, err := c.tc.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	rolledBack := false
+	t.Cleanup(func() {
+		if !rolledBack {
+			_ = uploadTx.Rollback()
+		}
+	})
+	_, err = uploadTx.ExecContext(ctx,
+		`UPDATE users.staff_document_file_cleanup SET cleaned_at = NOW() WHERE filename_stored = ?`, storedName)
+	require.NoError(t, err)
+
+	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	require.NoError(t, err)
+	assert.False(t, containsStoredName(cleanups, storedName),
+		"an uncommitted upload's intent must not be eligible for cleanup")
+
+	_, err = c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
+	require.NoError(t, err)
+	_, err = os.Stat(filePath)
+	require.NoError(t, err, "the file of an uncommitted upload must survive the cleanup pass")
+
+	// The upload fails after all: the intent stays queued and the pass recovers.
+	require.NoError(t, uploadTx.Rollback())
+	rolledBack = true
+
+	removed, err := c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
+	require.NoError(t, err)
+	assert.Positive(t, removed)
+	_, err = os.Stat(filePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func containsStoredName(cleanups []*users.StaffDocumentFileCleanup, storedName string) bool {
+	for _, cleanup := range cleanups {
+		if cleanup.FilenameStored == storedName {
+			return true
+		}
+	}
+	return false
 }
 
 func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T) {
