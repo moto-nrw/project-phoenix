@@ -152,7 +152,7 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	// instance propagation can tell an untouched occurrence (still carrying the
 	// series value) from a per-occurrence override.
 	previousListKind := existing.ListKind
-	retireUnscopedRoster := existing.CalendarPeriodID == nil && in.CalendarPeriodID != nil
+	previousCalendarPeriodID := cloneOptionalInt64(existing.CalendarPeriodID)
 	if err := s.updateTemplateFields(ctx, in); err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if err := s.deleteRemovedLegacyWeekendInstances(ctx, in.TemplateID, previousSchedules, in.Weekdays); err != nil {
 		return err
 	}
-	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil, retireUnscopedRoster); err != nil {
+	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil, previousCalendarPeriodID); err != nil {
 		return err
 	}
 	if s.deps.ValidateCareOfferingSeries == nil {
@@ -397,7 +397,7 @@ func (s *TimetableDataService) replaceTemplateRoster(
 	in TemplateUpdateInput,
 	tenantID int64,
 	scheduleValidFrom, scheduleValidUntil *timezone.Date,
-	retireUnscopedRoster bool,
+	previousCalendarPeriodID *int64,
 ) error {
 	rosterValidFrom := in.RosterValidFrom
 	if scheduleValidFrom != nil {
@@ -426,7 +426,7 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		in.Weekdays,
 		rosterValidFrom,
 		scheduleValidUntil,
-		retireUnscopedRoster,
+		previousCalendarPeriodID,
 	)
 	if err != nil {
 		return err
@@ -448,7 +448,7 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		}
 	}
 
-	if err := s.retireTemplateSupervisors(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil, retireUnscopedRoster); err != nil {
+	if err := s.retireTemplateSupervisors(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil, previousCalendarPeriodID); err != nil {
 		return err
 	}
 	for _, row := range roster.Staff {
@@ -485,7 +485,7 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 	weekdays []int,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-	retireUnscopedRoster bool,
+	previousCalendarPeriodID *int64,
 ) (map[int64]protectedStudentCoverage, error) {
 	rows, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
@@ -497,7 +497,7 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 		calendarPeriodID,
 		replacementFrom,
 		replacementUntil,
-		retireUnscopedRoster,
+		previousCalendarPeriodID,
 	)
 	if err != nil {
 		return nil, err
@@ -511,7 +511,7 @@ func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-	retireUnscopedRoster bool,
+	previousCalendarPeriodID *int64,
 ) ([]*activitiesModel.StudentEnrollment, error) {
 	protected := make([]*activitiesModel.StudentEnrollment, 0)
 	for _, row := range rows {
@@ -520,7 +520,7 @@ func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
 			protected = append(protected, row)
 			continue
 		}
-		action := classifyEnrollmentRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, retireUnscopedRoster)
+		action := classifyEnrollmentRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, previousCalendarPeriodID)
 		if err := s.applyEnrollmentRetirement(ctx, row, action, replacementFrom); err != nil {
 			return nil, err
 		}
@@ -591,7 +591,7 @@ func classifyEnrollmentRetirement(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-	retireUnscopedRoster bool,
+	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
 	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
@@ -609,7 +609,7 @@ func classifyEnrollmentRetirement(
 	return classifyOwnedRosterRetirement(
 		row.ValidFrom,
 		row.ValidUntil,
-		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, retireUnscopedRoster),
+		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
 		replacementUntil,
 	)
@@ -621,14 +621,14 @@ func (s *TimetableDataService) retireTemplateSupervisors(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-	retireUnscopedRoster bool,
+	previousCalendarPeriodID *int64,
 ) error {
 	rows, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return &ScheduleError{Op: "update template: load supervisors", Err: err}
 	}
 	for _, row := range rows {
-		switch classifySupervisorRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, retireUnscopedRoster) {
+		switch classifySupervisorRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, previousCalendarPeriodID) {
 		case rosterRetirementDelete:
 			if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
 				return &ScheduleError{Op: "update template: delete future supervisor", Err: err}
@@ -647,7 +647,7 @@ func classifySupervisorRetirement(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-	retireUnscopedRoster bool,
+	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
 	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
@@ -655,15 +655,15 @@ func classifySupervisorRetirement(
 	return classifyOwnedRosterRetirement(
 		row.ValidFrom,
 		row.ValidUntil,
-		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, retireUnscopedRoster),
+		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
 		replacementUntil,
 	)
 }
 
-func ownedRosterPeriodMatches(rowPeriodID, targetPeriodID *int64, retireUnscopedRoster bool) bool {
+func ownedRosterPeriodMatches(rowPeriodID, targetPeriodID, previousPeriodID *int64) bool {
 	return optionalInt64sEqual(rowPeriodID, targetPeriodID) ||
-		(retireUnscopedRoster && rowPeriodID == nil && targetPeriodID != nil)
+		optionalInt64sEqual(rowPeriodID, previousPeriodID)
 }
 
 func classifyOwnedRosterRetirement(
