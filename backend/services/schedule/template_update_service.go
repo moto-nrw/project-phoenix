@@ -417,17 +417,20 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		return &ScheduleError{Op: "update template: resolve roster", Err: err}
 	}
 
-	preservedStudents, err := s.retireTemplateEnrollments(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil)
+	protectedCoverage, err := s.retireTemplateEnrollments(
+		ctx,
+		in.TemplateID,
+		in.CalendarPeriodID,
+		in.Weekdays,
+		rosterValidFrom,
+		scheduleValidUntil,
+	)
 	if err != nil {
 		return err
 	}
-	for _, row := range roster.Students {
+	for _, row := range excludeProtectedStudentWeekdays(roster.Students, in.Weekdays, protectedCoverage) {
 		// A child kept by a care-offering row is already on the roster with a
-		// provenance this editor must not overwrite; adding an editor row would
-		// duplicate them on every occurrence.
-		if _, preserved := preservedStudents[row.PersonID]; preserved {
-			continue
-		}
+		// provenance this editor must not overwrite on the weekdays it covers.
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        row.PersonID,
 			ActivityGroupID:  in.TemplateID,
@@ -476,9 +479,10 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 	ctx context.Context,
 	templateID int64,
 	calendarPeriodID *int64,
+	weekdays []int,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-) (map[int64]struct{}, error) {
+) (map[int64]protectedStudentCoverage, error) {
 	rows, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "update template: load enrollments", Err: err}
@@ -493,7 +497,7 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 	if err != nil {
 		return nil, err
 	}
-	return s.rebaseProtectedTemplateEnrollments(ctx, protected, calendarPeriodID)
+	return s.rebaseProtectedTemplateEnrollments(ctx, protected, calendarPeriodID, weekdays)
 }
 
 func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
@@ -541,20 +545,23 @@ func (s *TimetableDataService) rebaseProtectedTemplateEnrollments(
 	ctx context.Context,
 	protected []*activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
-) (map[int64]struct{}, error) {
+	weekdays []int,
+) (map[int64]protectedStudentCoverage, error) {
 	if err := validateProtectedEnrollmentRebase(protected, calendarPeriodID); err != nil {
 		return nil, &ScheduleError{Op: "update template: rebase protected enrollments", Err: err}
 	}
-	preservedStudents := make(map[int64]struct{})
 	for _, row := range protected {
 		if err := s.rebaseProtectedEnrollmentPeriod(ctx, row, calendarPeriodID); err != nil {
 			return nil, err
 		}
-		if rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID) {
-			preservedStudents[row.StudentID] = struct{}{}
-		}
 	}
-	return preservedStudents, nil
+	return buildProtectedStudentCoverage(
+		protected,
+		weekdays,
+		func(row *activitiesModel.StudentEnrollment) bool {
+			return rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID)
+		},
+	), nil
 }
 
 func (s *TimetableDataService) rebaseProtectedEnrollmentPeriod(

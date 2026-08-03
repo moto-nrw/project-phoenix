@@ -39,6 +39,15 @@ type resolvedTemplateRoster struct {
 	Staff    []resolvedRosterRow
 }
 
+// protectedStudentCoverage records both the presence of an externally-owned
+// enrollment and the scheduled weekdays it actually covers. Presence matters
+// even when none of the successor's weekdays overlap: a series-wide manual row
+// would still collide with the protected row's NULL weekday in the active
+// unique index, so it must be expanded onto the uncovered concrete weekdays.
+type protectedStudentCoverage struct {
+	weekdays map[int]struct{}
+}
+
 // ErrWeekdayAssignmentUnscheduled reports a per-weekday roster for a weekday
 // the template does not run on. Silently dropping it would lose the planner's
 // input; silently adding the weekday would change the recurrence behind their
@@ -159,6 +168,80 @@ func scopedRosterRows(personIDs []int64, primaryID *int64, weekday *int) []resol
 		})
 	}
 	return rows
+}
+
+func buildProtectedStudentCoverage(
+	rows []*activitiesModel.StudentEnrollment,
+	scheduledWeekdays []int,
+	appliesToPeriod func(*activitiesModel.StudentEnrollment) bool,
+) map[int64]protectedStudentCoverage {
+	coverage := make(map[int64]protectedStudentCoverage)
+	weekdays := uniqueSortedWeekdays(scheduledWeekdays)
+	for _, row := range rows {
+		if row == nil || !appliesToPeriod(row) {
+			continue
+		}
+		studentCoverage, exists := coverage[row.StudentID]
+		if !exists {
+			studentCoverage = protectedStudentCoverage{weekdays: make(map[int]struct{})}
+			coverage[row.StudentID] = studentCoverage
+		}
+		for _, weekday := range weekdays {
+			if protectedEnrollmentAppliesOnWeekday(row, weekday) {
+				studentCoverage.weekdays[weekday] = struct{}{}
+			}
+		}
+	}
+	return coverage
+}
+
+func protectedEnrollmentAppliesOnWeekday(row *activitiesModel.StudentEnrollment, weekday int) bool {
+	if row.Weekday != nil && *row.Weekday != weekday {
+		return false
+	}
+	if len(row.SelectedWeekdays) == 0 {
+		return true
+	}
+	for _, selected := range row.SelectedWeekdays {
+		if selected == weekday {
+			return true
+		}
+	}
+	return false
+}
+
+// excludeProtectedStudentWeekdays removes only the manual weekday rows that
+// an externally-owned enrollment already supplies. A shared manual row is
+// expanded onto uncovered scheduled weekdays so a Monday-only protected row
+// cannot erase the same child's manual Tuesday assignment.
+func excludeProtectedStudentWeekdays(
+	rows []resolvedRosterRow,
+	scheduledWeekdays []int,
+	coverage map[int64]protectedStudentCoverage,
+) []resolvedRosterRow {
+	weekdays := uniqueSortedWeekdays(scheduledWeekdays)
+	out := make([]resolvedRosterRow, 0, len(rows))
+	for _, row := range rows {
+		studentCoverage, protected := coverage[row.PersonID]
+		if !protected {
+			out = append(out, row)
+			continue
+		}
+		if row.Weekday != nil {
+			if _, covered := studentCoverage.weekdays[*row.Weekday]; !covered {
+				out = append(out, row)
+			}
+			continue
+		}
+		for _, weekday := range weekdays {
+			if _, covered := studentCoverage.weekdays[weekday]; covered {
+				continue
+			}
+			scope := weekday
+			out = append(out, resolvedRosterRow{PersonID: row.PersonID, Weekday: &scope})
+		}
+	}
+	return out
 }
 
 // weekdayScopePtr copies a weekday scope so persisted rows never share the

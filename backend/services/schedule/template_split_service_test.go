@@ -605,6 +605,55 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 	})
 }
 
+func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *testing.T) {
+	monday := futureMonday(1)
+	tuesday := monday.AddDays(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Set("selected_weekdays = ?::jsonb", `[1]`).
+		Where(`"student_enrollment".id = ?`, s.enrollmentIDs[0]).
+		Where(`"student_enrollment".tenant_id = ?`, s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	in := baseSplitInput(s, monday, fmt.Sprintf("Split-Protected-Weekday-%d", time.Now().UnixNano()))
+	in.Weekdays = []int{activitiesModels.WeekdayTuesday}
+	in.StudentIDs = []int64{s.students[0]}
+	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, result.NewTemplateID)
+
+	rows := loadSplitEnrollments(t, s, result.NewTemplateID)
+	var protected, manual *activitiesModels.StudentEnrollment
+	for _, row := range rows {
+		if row.StudentID != s.students[0] {
+			continue
+		}
+		if len(row.SelectedWeekdays) > 0 {
+			protected = row
+		} else {
+			manual = row
+		}
+	}
+	require.NotNil(t, protected)
+	assert.Equal(t, []int{activitiesModels.WeekdayMonday}, protected.SelectedWeekdays)
+	require.NotNil(t, manual)
+	require.NotNil(t, manual.Weekday)
+	assert.Equal(t, activitiesModels.WeekdayTuesday, *manual.Weekday)
+
+	materialized, err := s.svc.MaterializeForTenant(s.ctx, tuesday, tuesday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 1, materialized.InstancesCreated)
+	instances := listInstancesForDate(t, s.db, result.NewTemplateID, tuesday)
+	require.Len(t, instances, 1)
+	s.registerCleanup("schedule.activity_instances", instances[0].ID)
+	assert.True(t, splitInstanceContainsStudent(t, s, instances[0].ID, s.students[0]))
+}
+
 func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)

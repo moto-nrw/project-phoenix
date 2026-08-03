@@ -1074,8 +1074,15 @@ func (s *TemplateSplitService) createStudentRoster(
 	if err := validateProtectedEnrollmentRebase(protected, in.CalendarPeriodID); err != nil {
 		return &ScheduleError{Op: "split template: rebase protected enrollments", Err: err}
 	}
-	protectedStudents := protectedStudentsForPeriod(protected, in.CalendarPeriodID)
-	rows := buildSuccessorStudentRows(in, manual, protectedStudents, segmentValidUntil)
+	protectedCoverage := buildProtectedStudentCoverage(
+		protected,
+		in.Weekdays,
+		func(row *activitiesModel.StudentEnrollment) bool {
+			return rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) ||
+				(in.CalendarPeriodID != nil && row.CalendarPeriodID != nil)
+		},
+	)
+	rows := buildSuccessorStudentRows(in, manual, protectedCoverage, segmentValidUntil)
 	if err := s.persistSuccessorStudentRows(ctx, groupID, in, rows, tenantID, segmentValidUntil); err != nil {
 		return err
 	}
@@ -1095,20 +1102,6 @@ func partitionCarriedEnrollments(
 		}
 	}
 	return manual, protected
-}
-
-func protectedStudentsForPeriod(
-	rows []*activitiesModel.StudentEnrollment,
-	periodID *int64,
-) map[int64]struct{} {
-	students := make(map[int64]struct{})
-	for _, row := range rows {
-		if rosterPeriodApplies(row.CalendarPeriodID, periodID) ||
-			(periodID != nil && row.CalendarPeriodID != nil) {
-			students[row.StudentID] = struct{}{}
-		}
-	}
-	return students
 }
 
 func validateProtectedEnrollmentRebase(
@@ -1138,7 +1131,7 @@ func validateProtectedEnrollmentRebase(
 func buildSuccessorStudentRows(
 	in TemplateSplitInput,
 	carried []*activitiesModel.StudentEnrollment,
-	protectedStudents map[int64]struct{},
+	protectedCoverage map[int64]protectedStudentCoverage,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
 	if in.StudentIDs != nil {
@@ -1146,11 +1139,9 @@ func buildSuccessorStudentRows(
 		if err != nil {
 			resolved = resolvedTemplateRoster{Students: sharedRosterRows(in.StudentIDs, nil)}
 		}
-		rows := make([]*activitiesModel.StudentEnrollment, 0, len(resolved.Students))
-		for _, row := range resolved.Students {
-			if _, protected := protectedStudents[row.PersonID]; protected {
-				continue
-			}
+		manualRows := excludeProtectedStudentWeekdays(resolved.Students, in.Weekdays, protectedCoverage)
+		rows := make([]*activitiesModel.StudentEnrollment, 0, len(manualRows))
+		for _, row := range manualRows {
 			rows = append(rows, &activitiesModel.StudentEnrollment{
 				StudentID: row.PersonID,
 				Weekday:   weekdayScopePtr(row.Weekday),

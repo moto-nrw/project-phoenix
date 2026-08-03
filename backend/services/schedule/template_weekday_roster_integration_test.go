@@ -271,6 +271,77 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 	}
 }
 
+func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	tuesday := monday.AddDays(1)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	name := fmt.Sprintf("Protected-Weekday-Update-%d", time.Now().UnixNano())
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:            name,
+		Type:            activitiesModels.GroupTypeCare,
+		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		StartTime:       clockTime(14, 0),
+		EndTime:         clockTime(15, 0),
+		RoomID:          s.roomID,
+		CategoryID:      s.categoryID,
+		MaxParticipants: 20,
+		RosterValidFrom: monday.AddDays(-30),
+		GradeLevelMax:   4,
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	protected := &activitiesModels.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+	}
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+
+	update := scheduleSvc.TemplateUpdateInput{
+		TemplateID: result.TemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:            name,
+			Type:            activitiesModels.GroupTypeCare,
+			CategoryID:      s.categoryID,
+			RoomID:          s.roomID,
+			MaxParticipants: 20,
+			TargetGroupType: activitiesModels.TargetGroupTypeNone,
+		},
+		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		TimeframeID:     result.TimeframeID,
+		RosterValidFrom: monday.AddDays(-30),
+		GradeLevelMax:   4,
+		StudentIDs:      []int64{s.studentA},
+		WeekdayAssignments: []scheduleSvc.WeekdayRosterAssignment{
+			{Weekday: activitiesModels.WeekdayMonday, StudentIDs: []int64{s.studentA}},
+			{Weekday: activitiesModels.WeekdayTuesday, StudentIDs: []int64{s.studentA}},
+		},
+	}
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, update))
+
+	rows := s.enrollmentRows(t, result.TemplateID)
+	manualWeekdays := make([]int, 0)
+	for _, row := range rows {
+		if row.StudentID != s.studentA || len(row.SelectedWeekdays) > 0 || row.EnrollmentRequestChildID != nil {
+			continue
+		}
+		require.NotNil(t, row.Weekday)
+		manualWeekdays = append(manualWeekdays, *row.Weekday)
+	}
+	assert.Equal(t, []int{activitiesModels.WeekdayTuesday}, manualWeekdays)
+
+	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	for _, date := range []timezone.Date{monday, tuesday} {
+		instance := s.singleInstance(t, result.TemplateID, date)
+		assert.Contains(t, s.instanceStudentIDs(t, instance), s.studentA)
+	}
+}
+
 // A weekday the series does not run on is rejected rather than silently
 // dropped or silently added to the recurrence.
 func TestCreateTemplate_WeekdayAssignmentOutsideRecurrence_IsRejected(t *testing.T) {

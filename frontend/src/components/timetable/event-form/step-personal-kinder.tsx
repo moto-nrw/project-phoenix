@@ -410,18 +410,9 @@ export function StepPersonalKinder({
           weekdays={rosterWeekdays}
           activeWeekday={activeRosterWeekday}
           setActiveWeekday={setActiveRosterWeekday}
-          setPerWeekdayRoster={(enabled) => {
-            staffRosterTouched.current = true;
-            setPerWeekdayRoster(enabled);
-          }}
-          setWeekdayRoster={(weekday, roster) => {
-            staffRosterTouched.current = true;
-            setWeekdayRoster(weekday, roster);
-          }}
-          applyActiveWeekdayToAll={() => {
-            staffRosterTouched.current = true;
-            applyActiveWeekdayRosterToAll();
-          }}
+          setPerWeekdayRoster={setPerWeekdayRoster}
+          setWeekdayRoster={setWeekdayRoster}
+          applyActiveWeekdayToAll={applyActiveWeekdayRosterToAll}
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}

@@ -93,6 +93,12 @@ const COVERAGE_CHECK_ERROR =
   "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.";
 const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
 
+function sameIDSelection(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightIDs = new Set(right);
+  return left.every((id) => rightIDs.has(id));
+}
+
 function checkShiftCoverageWithSignal(
   probe: ShiftCoverageCheckParams,
   signal: AbortSignal,
@@ -936,6 +942,18 @@ export function useEventForm({
       const weekdayRosters = prev.perWeekdayRoster
         ? seedWeekdayRosters(prev, next)
         : prev.weekdayRosters;
+      if (prev.perWeekdayRoster && next.length < 2) {
+        const source = rosterForWeekday(prev, next[0] ?? iso);
+        return {
+          ...prev,
+          weekdays: next,
+          staffIds: [...source.staffIds],
+          primaryStaffId: source.primaryStaffId,
+          studentIds: [...source.studentIds],
+          perWeekdayRoster: false,
+          weekdayRosters,
+        };
+      }
       return { ...prev, weekdays: next, weekdayRosters };
     });
     setValidationError(null);
@@ -959,17 +977,44 @@ export function useEventForm({
   }, [form.weekdays, activeRosterWeekday]);
 
   const setPerWeekdayRoster = (enabled: boolean) => {
-    setForm((prev) => ({
-      ...prev,
-      perWeekdayRoster: enabled,
-      weekdayRosters: enabled
-        ? seedWeekdayRosters(prev, prev.weekdays)
-        : prev.weekdayRosters,
-    }));
+    staffRosterTouched.current = true;
+    studentRosterTouched.current = true;
+    setForm((prev) => {
+      if (enabled) {
+        return {
+          ...prev,
+          perWeekdayRoster: true,
+          weekdayRosters: seedWeekdayRosters(prev, prev.weekdays),
+        };
+      }
+      const source = rosterForWeekday(
+        prev,
+        prev.weekdays.includes(activeRosterWeekday)
+          ? activeRosterWeekday
+          : (prev.weekdays[0] ?? activeRosterWeekday),
+      );
+      return {
+        ...prev,
+        staffIds: [...source.staffIds],
+        primaryStaffId: source.primaryStaffId,
+        studentIds: [...source.studentIds],
+        perWeekdayRoster: false,
+      };
+    });
     setValidationError(null);
   };
 
   const setWeekdayRoster = (weekday: number, roster: WeekdayRosterState) => {
+    const previous = rosterForWeekday(form, weekday);
+    if (
+      !sameIDSelection(previous.staffIds, roster.staffIds) ||
+      previous.primaryStaffId !== roster.primaryStaffId
+    ) {
+      staffRosterTouched.current = true;
+    }
+    if (!sameIDSelection(previous.studentIds, roster.studentIds)) {
+      studentRosterTouched.current = true;
+    }
     setForm((prev) => ({
       ...prev,
       weekdayRosters: { ...prev.weekdayRosters, [weekday]: roster },
@@ -978,6 +1023,8 @@ export function useEventForm({
   };
 
   const applyActiveWeekdayRosterToAll = () => {
+    staffRosterTouched.current = true;
+    studentRosterTouched.current = true;
     setForm((prev) => {
       const source = rosterForWeekday(prev, activeRosterWeekday);
       const next: Record<number, WeekdayRosterState> = {};
@@ -996,7 +1043,7 @@ export function useEventForm({
    * the shared lists to know who is there on a given day.
    */
   const weekdayAssignmentsBody = (): WeekdayAssignmentBody[] | undefined => {
-    if (!form.perWeekdayRoster || form.weekdays.length === 0) return undefined;
+    if (!form.perWeekdayRoster || form.weekdays.length < 2) return undefined;
     return [...form.weekdays]
       .sort((a, b) => a - b)
       .map((weekday) => {
@@ -2126,9 +2173,16 @@ export function useEventForm({
     students,
   ]);
   const missingTargetCohortCount = useMemo(() => {
+    if (form.perWeekdayRoster && form.weekdays.length >= 2) {
+      return targetCohort.memberIds.filter((id) =>
+        form.weekdays.some(
+          (weekday) => !rosterForWeekday(form, weekday).studentIds.includes(id),
+        ),
+      ).length;
+    }
     const selected = new Set(form.studentIds);
     return targetCohort.memberIds.filter((id) => !selected.has(id)).length;
-  }, [form.studentIds, targetCohort.memberIds]);
+  }, [form, targetCohort.memberIds]);
   const targetCohortButtonLabel = targetCohort.label
     ? targetCohortActionLabel(
         targetCohort.label,
@@ -2140,12 +2194,25 @@ export function useEventForm({
   const addTargetCohort = () => {
     if (targetCohort.memberIds.length === 0) return;
     studentRosterTouched.current = true;
-    setForm((current) => ({
-      ...current,
-      studentIds: Array.from(
+    setForm((current) => {
+      const studentIds = Array.from(
         new Set([...current.studentIds, ...targetCohort.memberIds]),
-      ),
-    }));
+      );
+      if (!current.perWeekdayRoster || current.weekdays.length < 2) {
+        return { ...current, studentIds };
+      }
+      const weekdayRosters = seedWeekdayRosters(current, current.weekdays);
+      for (const weekday of current.weekdays) {
+        const roster = weekdayRosters[weekday]!;
+        weekdayRosters[weekday] = {
+          ...roster,
+          studentIds: Array.from(
+            new Set([...roster.studentIds, ...targetCohort.memberIds]),
+          ),
+        };
+      }
+      return { ...current, studentIds, weekdayRosters };
+    });
   };
 
   const retryStudentLoad = async () => {

@@ -1548,7 +1548,7 @@ describe("TimetableEventModal", () => {
     );
   });
 
-  it("keeps the remaining day's scoped roster when a series is reduced to one weekday", async () => {
+  it("collapses the remaining day's roster into the visible shared fields", async () => {
     renderModal({
       initialSeries: templateWithWeekdayRosters,
       defaultDate: "2026-05-04",
@@ -1556,6 +1556,8 @@ describe("TimetableEventModal", () => {
 
     await goToStep(2);
     fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
     await clickSave();
 
     await waitFor(() =>
@@ -1563,13 +1565,79 @@ describe("TimetableEventModal", () => {
         "7",
         expect.objectContaining({
           weekdays: [1],
+          staff_ids: [11],
+          student_ids: [],
+          primary_staff_id: 11,
+          weekday_assignments: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("uses the active weekday when switching back to one shared roster", async () => {
+    renderModal({
+      initialSeries: templateWithWeekdayRosters,
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für alle Tage gleich" }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          staff_ids: [12],
+          student_ids: [22],
+          primary_staff_id: 12,
+          weekday_assignments: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("adds a target cohort to every per-weekday child roster", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [
+        { id: "21", name: "Mara Drei A", school_class: "3a" },
+        { id: "22", name: "Mika Drei B", school_class: "3b" },
+        { id: "23", name: "Nora Drei C", school_class: "3c" },
+      ],
+    });
+    renderModal({
+      initialSeries: {
+        ...templateWithWeekdayRosters,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 3,
+      },
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(3);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Alle 3 Kinder aus Jahrgang 3 übernehmen",
+      }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
           weekday_assignments: [
-            {
+            expect.objectContaining({
               weekday: 1,
-              staff_ids: [11],
-              student_ids: [21],
-              primary_staff_id: 11,
-            },
+              student_ids: expect.arrayContaining([21, 22, 23]),
+            }),
+            expect.objectContaining({
+              weekday: 2,
+              student_ids: expect.arrayContaining([21, 22, 23]),
+            }),
           ],
         }),
       ),
