@@ -77,6 +77,12 @@ func (rs *Resource) parseAndGetStudentIncludingAlumni(w http.ResponseWriter, r *
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters and determine access
 	params := parseStudentListParams(r)
+	slimView, viewErr := parseStudentListView(r.URL.Query().Get("view"))
+	if viewErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(viewErr))
+		return
+	}
+	params.slimView = slimView
 	// Resolved BEFORE the fetch: the room/location pre-filters below query
 	// today's live active.visits state, so a non-today planning request has to
 	// be rejected before that query runs, not after it (#1939).
@@ -169,7 +175,14 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
+	pagination := common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}
+	// Projection happens last, after every filter, sort and pagination step has
+	// run on the full responses — the two views differ on the wire only (#2097).
+	if params.slimView {
+		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses), pagination, "Students retrieved successfully")
+		return
+	}
+	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
 }
 
 // enrichPaginatedPlanningTimes layers the planning-date time data onto the final

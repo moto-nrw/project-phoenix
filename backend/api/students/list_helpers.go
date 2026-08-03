@@ -1,6 +1,7 @@
 package students
 
 import (
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -58,11 +59,30 @@ type studentListParams struct {
 	// filters run in memory after the fetch, so a paginated page would hide
 	// matching children past the page boundary and silently shorten the list.
 	fetchAll bool
+	// slimView selects the Kindersuche wire projection (#2097). Purely a
+	// marshalling choice made after filtering and pagination — see
+	// list_projection.go.
+	slimView bool
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
 // so existing call sites in this package keep working unchanged.
 type studentAccessContext = common.StudentAccessContext
+
+// parseStudentListView resolves the `view` query parameter. Empty and "full"
+// keep the historical projection; only "slim" opts into the Kindersuche shape
+// (#2097). An unknown value is rejected instead of silently serving the full
+// payload, so a typo in a caller surfaces immediately.
+func parseStudentListView(value string) (bool, error) {
+	switch value {
+	case "", StudentListViewFull:
+		return false, nil
+	case StudentListViewSlim:
+		return true, nil
+	default:
+		return false, fmt.Errorf("invalid view %q: must be %q or %q", value, StudentListViewFull, StudentListViewSlim)
+	}
+}
 
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {

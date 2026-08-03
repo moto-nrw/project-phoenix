@@ -268,6 +268,7 @@ const PARENTS_PUBLIC_PATHS = [
   "/news",
   "/meal-plan",
   "/calendar",
+  "/settings",
   "/enroll",
   "/accept-guardian-invite",
 ];

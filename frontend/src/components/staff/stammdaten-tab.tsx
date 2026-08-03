@@ -204,6 +204,7 @@ export function StammdatenTab({
       {stammdaten && (
         <>
           <SectionCard
+            collapsible
             kicker="Stammdaten"
             title="Person"
             action={
@@ -236,6 +237,7 @@ export function StammdatenTab({
           </SectionCard>
 
           <SectionCard
+            collapsible
             kicker="Stammdaten"
             title="Kontakt"
             action={
@@ -260,6 +262,7 @@ export function StammdatenTab({
           </SectionCard>
 
           <SectionCard
+            collapsible
             kicker="Stammdaten"
             title="Arbeitsvertrag"
             action={
@@ -317,6 +320,7 @@ export function StammdatenTab({
           </SectionCard>
 
           <SectionCard
+            collapsible
             kicker="Stammdaten"
             title="Qualifikationen"
             description="Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, mit Ablaufdatum."
@@ -371,6 +375,7 @@ export function StammdatenTab({
       {/* Abrechnung (#1417 Tranche 2b) */}
       {canManagePayroll ? (
         <SectionCard
+          collapsible
           kicker="Abrechnung"
           title="Personalnummer"
           description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
@@ -515,6 +520,7 @@ function FinancialSection({ staffId }: { readonly staffId: string }) {
   return (
     <>
       <SectionCard
+        collapsible
         kicker="Vertraulich"
         title="Bank & Steuer"
         description="Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."

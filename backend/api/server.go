@@ -128,6 +128,11 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.EmailOutboxWorker != nil {
 		sched.SetOutboxWorker(svc.EmailOutboxWorker)
 	}
+	// Issue #1671: per-tenant guardian appointment reminders. The calendar
+	// service already satisfies the narrow queuer interface.
+	if svc.Calendar != nil {
+		sched.SetAppointmentReminderQueuer(svc.Calendar)
+	}
 	// Phase rollover slice 1: per-tenant deadline resolver tick.
 	// The adapter narrows the typed return value behind `any` so
 	// the scheduler doesn't import the enrollment package.

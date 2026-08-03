@@ -306,6 +306,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Staff,
 		repos.Student,
 	)
+	// Announces group_access_changed after a handover, Vertretung or group-leader
+	// change (#2084) — the union of both tables decides who may open which group.
+	if broadcastAware, ok := educationService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
@@ -1159,6 +1166,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
 	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
 		DefaultFrom: defaultFrom,
+		DB:          db,
+		Guardians:   repos.StudentGuardian,
 	}))
 	for _, kind := range []string{
 		platformModels.EmailKindAppointmentPublished,
@@ -1229,6 +1238,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                     db,
 		Logger:                 logger.With("service", "staff_offboarding"),
 	})
+	if broadcastAware, ok := staffOffboardingService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
@@ -1666,6 +1680,38 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "excused-requests"),
 	)
 
+	// The notification router and the consent service are built here, ahead of
+	// their consumers: messaging, the calendar (#1671) and the announcement
+	// producer all need them, and messaging is constructed first.
+	vapidConfig := notifications.VAPIDConfig{
+		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
+		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
+		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
+	}
+	if err := vapidConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
+	}
+	if !vapidConfig.Configured() {
+		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
+	}
+	notificationsService := notifications.NewService(
+		settingsService,
+		logger.With("service", "notifications"),
+		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
+			db, repos.StudentGuardian, logger.With("channel", "sse"))),
+		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
+	)
+	notificationPreferencesService := notifications.NewPreferenceService(
+		repos.NotificationPreference,
+		settingsService,
+		db,
+		repos.AccountTenant,
+	)
+
+	// Decided change requests reach the parent's devices through the pill
+	// emitter, which is where all three request flows already converge (#1671).
+	pillEmitter.WithDecisionNotifications(notificationsService, notificationPreferencesService)
+
 	messagingService := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
@@ -1676,6 +1722,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster: realtimeHub,
 		DB:          db,
 		Logger:      logger.With("service", "messaging"),
+		Notifier:    notificationsService,
+		Preferences: notificationPreferencesService,
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
@@ -1705,6 +1753,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:             settingsService,
 		AccountRepo:          repos.Account,
 		ParentsURL:           parentsURL,
+		Notifier:             notificationsService,
+		ReminderNotifier:     notificationsService,
+		Preferences:          notificationPreferencesService,
+		Logger:               logger.With("service", "calendar"),
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
@@ -1746,33 +1798,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "parent"),
 	})
-
-	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
-		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
-		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
-	}
-	if err := vapidConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
-	}
-	if !vapidConfig.Configured() {
-		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
-	}
-	notificationsService := notifications.NewService(
-		settingsService,
-		logger.With("service", "notifications"),
-		notifications.NewSSEChannel(realtimeHub),
-		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
-	)
-
-	// Built here rather than next to the other notification services because
-	// the announcement producer below needs it to gate its guardian push.
-	notificationPreferencesService := notifications.NewPreferenceService(
-		repos.NotificationPreference,
-		settingsService,
-		db,
-		repos.AccountTenant,
-	)
 
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
 		Repo:        repos.ParentAnnouncement,

@@ -344,7 +344,6 @@ func (m *trackingMockActiveService) CheckTeacherStudentAccess(ctx context.Contex
 	}
 	return false, nil
 }
-func (m *trackingMockActiveService) BroadcastDailyCheckout(ctx context.Context, studentID int64) {}
 func (m *trackingMockActiveService) GetUnclaimedActiveGroups(ctx context.Context) ([]*activeModel.Group, error) {
 	return nil, nil
 }

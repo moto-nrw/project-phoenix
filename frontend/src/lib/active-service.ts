@@ -854,8 +854,12 @@ export const activeService = {
       }
 
       if (!payloadIsEffectivelyEmpty(payload)) {
-        logger.warn("unexpected unclaimed groups response shape", {
-          payload: JSON.stringify(payload),
+        logger.warn("unexpected_unclaimed_groups_response_shape", {
+          payload_type: Array.isArray(payload) ? "array" : typeof payload,
+          payload_key_count:
+            typeof payload === "object" && payload !== null
+              ? Object.keys(payload).length
+              : 0,
         });
       }
 

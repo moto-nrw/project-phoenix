@@ -186,6 +186,73 @@ describe("GET /api/students", () => {
     expect(json.data.pagination).toEqual(mockResponse.pagination);
   });
 
+  it("keeps slim responses slim after mapping them for the browser", async () => {
+    const mockResponse = {
+      data: [
+        {
+          id: 7,
+          first_name: "Anna",
+          last_name: "Muster",
+          school_class: "2a",
+          current_location: "Raum 3",
+          location_since: "2026-08-03T08:00:00Z",
+          current_room_color: "#83CD2D",
+          group_id: 9,
+          group_name: "Füchse",
+          sick: false,
+          excused: false,
+          class_trip: false,
+          pickup_time: "15:30",
+          companion_student_ids: [8],
+          photo_consent_given: true,
+          has_full_access: true,
+          // A defensive probe: even an unexpectedly wide backend response
+          // must not make the proxy synthesize or forward full-detail fields.
+          bus_days: { mon: true },
+          guardian_name: "Nicht für die Liste",
+        },
+      ],
+      pagination: {
+        current_page: 1,
+        page_size: 1000,
+        total_pages: 1,
+        total_records: 1,
+      },
+    };
+    mockApiGet.mockResolvedValueOnce(mockResponse);
+
+    const request = createMockRequest("/api/students?view=slim");
+    const response = await GET(request, createMockContext());
+    const json = await parseJsonResponse<{
+      data: { data: Array<Record<string, unknown>> };
+    }>(response);
+    const student = json.data.data[0]!;
+
+    expect(student).toEqual(
+      expect.objectContaining({
+        id: "7",
+        name: "Anna Muster",
+        second_name: "Muster",
+        group_id: "9",
+        companion_student_ids: ["8"],
+      }),
+    );
+    for (const omittedField of [
+      "bus_days",
+      "pickup_days",
+      "departure_days",
+      "allowed_departure_modes",
+      "guardian_name",
+      "address_street",
+      "health_info",
+      "supervisor_notes",
+      "created_at",
+      "updated_at",
+    ]) {
+      expect(student).not.toHaveProperty(omittedField);
+    }
+  });
+
   it("handles null response gracefully", async () => {
     mockApiGet.mockResolvedValueOnce(null);
 

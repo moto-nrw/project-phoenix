@@ -9,6 +9,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Modal } from "~/components/ui/modal";
+import { ParentPage } from "~/components/parent/parent-page";
 import { useToast } from "~/contexts/ToastContext";
 import {
   getParentAppointmentOverview,
@@ -146,7 +147,7 @@ export default function ParentCalendarPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
+    <ParentPage>
       <PersonalCalendar
         title="Familienkalender"
         subtitle="Termine, Einladungen und Betreuungsangebote Ihrer Kinder."
@@ -162,9 +163,7 @@ export default function ParentCalendarPage() {
         respondingRecipientId={respondingRecipientId}
         icsHrefBase="/api/parent/calendar/appointments"
       />
-      <div className="mt-6">
-        <CalendarSubscribePanel />
-      </div>
+      <CalendarSubscribePanel />
       <Modal
         isOpen={overview !== null || overviewLoading}
         onClose={() => {
@@ -181,6 +180,6 @@ export default function ParentCalendarPage() {
           <CalendarOverviewList overview={overview} />
         ) : null}
       </Modal>
-    </div>
+    </ParentPage>
   );
 }

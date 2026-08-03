@@ -15,7 +15,6 @@ const meta = {
     studentId: "1",
     canInvite: true,
     canRemove: true,
-    mobile: false,
   },
 } satisfies Meta<typeof RelatedAccountsPanel>;
 
@@ -29,11 +28,5 @@ export const ReadOnly: Story = {
   args: {
     canInvite: false,
     canRemove: false,
-  },
-};
-
-export const Mobile: Story = {
-  args: {
-    mobile: true,
   },
 };

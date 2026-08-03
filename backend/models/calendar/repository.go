@@ -10,6 +10,10 @@ import (
 type AppointmentRepository interface {
 	Create(ctx context.Context, appointment *Appointment) error
 	FindByID(ctx context.Context, id int64) (*Appointment, error)
+	// FindByIDForUpdate locks an appointment until the current transaction
+	// completes. It serializes reminder delivery with lifecycle changes and
+	// per-occurrence overrides that affect that delivery.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Appointment, error)
 	Update(ctx context.Context, appointment *Appointment) error
 	// BumpRevision advances the revision counter without touching other fields,
 	// used when a change affecting the exported calendar lives in a child table.
@@ -36,6 +40,17 @@ type AppointmentRepository interface {
 	// purge them. Retention is bounded by the cancellation/deletion time, not by
 	// the date lookback window.
 	ListCancellationTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, since time.Time) ([]*Appointment, error)
+	// ListGuardianReminderCandidates returns the live, un-cancelled appointments
+	// of the current tenant that could produce a guardian-facing occurrence in
+	// the window: they carry the organizer's "notify guardians" opt-in and have
+	// at least one guardian recipient. Recurrence is only bounded here (the same
+	// window predicate the calendar listings use) — which concrete occurrences
+	// fall due is decided in the service, which owns occurrence expansion.
+	ListGuardianReminderCandidates(ctx context.Context, from, to timezone.Date) ([]*Appointment, error)
+	// LockReminderCandidate re-reads a reminder candidate while holding its row
+	// lock. It returns nil when a lifecycle transition has made the appointment
+	// ineligible since the scheduler's coarse candidate scan.
+	LockReminderCandidate(ctx context.Context, id int64) (*Appointment, error)
 }
 
 type RecurrenceRuleRepository interface {
@@ -51,6 +66,11 @@ type AppointmentRecipientRepository interface {
 	ReplaceForAppointment(ctx context.Context, appointmentID int64, recipients []*AppointmentRecipient) error
 	FindByAppointmentID(ctx context.Context, appointmentID int64) ([]*AppointmentRecipient, error)
 	UpdateResponse(ctx context.Context, recipientID int64, status string) error
+	// ClaimReminderPush records the one push delivery allowed for an appointment
+	// revision, occurrence, and guardian. It returns false when a prior scheduler
+	// scan already claimed the same delivery.
+	ClaimReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error)
+	ReleaseReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) error
 }
 
 type AppointmentRecipientStudentRepository interface {
@@ -67,6 +87,10 @@ type AppointmentOccurrenceOverrideRepository interface {
 	Create(ctx context.Context, override *AppointmentOccurrenceOverride) error
 	Update(ctx context.Context, override *AppointmentOccurrenceOverride) error
 	FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
+	// FindByAppointmentIDsAndStartDates returns moved occurrences whose effective
+	// start falls in the supplied dates. Reminder scans use it to find an
+	// occurrence moved outside its rule's normal expansion window.
+	FindByAppointmentIDsAndStartDates(ctx context.Context, appointmentIDs []int64, startDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
 	// FindCancelledByAppointmentIDs returns every cancelled occurrence override
 	// for the given appointments — used to emit iCalendar EXDATEs so subscribed
 	// external calendars drop occurrences cancelled via "Nur diesen Termin".

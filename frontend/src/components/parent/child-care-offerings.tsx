@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarClock, CheckCircle2, Clock, XCircle } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  XCircle,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Section } from "~/components/parent/child-detail-section";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
@@ -131,20 +139,17 @@ export function ChildCareOfferingsSection({
   }, [data, t]);
 
   if (loading) {
-    return (
-      <div className="h-48 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-    );
+    return <Skeleton className="h-48 w-full rounded-2xl" />;
   }
 
   if (error || !data) {
     return (
       <Section
+        icon={ClipboardList}
         title={t("sections.careOfferings")}
         hint={t("careOfferings.hint")}
       >
-        <p className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
-          {t("careOfferings.loadError")}
-        </p>
+        <Alert type="error" message={t("careOfferings.loadError")} />
       </Section>
     );
   }
@@ -171,11 +176,15 @@ export function ChildCareOfferingsSection({
   };
 
   return (
-    <Section title={t("sections.careOfferings")} hint={t("careOfferings.hint")}>
+    <Section
+      icon={ClipboardList}
+      title={t("sections.careOfferings")}
+      hint={t("careOfferings.hint")}
+    >
       {periodLabel && <p className="text-xs text-gray-500">{periodLabel}</p>}
 
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold tracking-wide text-gray-500">
+        <h3 className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
           {t("careOfferings.offeringsTitle")}
         </h3>
         {data.offerings.length === 0 ? (
@@ -187,7 +196,7 @@ export function ChildCareOfferingsSection({
             {data.offerings.map((offering) => (
               <li
                 key={`${offering.id}-${offering.valid_from ?? "current"}`}
-                className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
+                className="rounded-xl bg-gray-50 p-3"
               >
                 <p className="text-sm font-semibold text-gray-900">
                   {offering.name}
@@ -232,7 +241,7 @@ export function ChildCareOfferingsSection({
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold tracking-wide text-gray-500">
+        <h3 className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
           {t("careOfferings.groupsTitle")}
         </h3>
         {data.groups.length === 0 ? (
@@ -242,7 +251,7 @@ export function ChildCareOfferingsSection({
             {data.groups.map((group) => (
               <li
                 key={`${group.id}-${group.valid_from}`}
-                className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
+                className="rounded-xl bg-gray-50 p-3"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-semibold text-gray-900">
@@ -277,12 +286,12 @@ export function ChildCareOfferingsSection({
           lists above: what is booked and what was asked for are two different
           questions, and a decided request must not read like a booking. */}
       <div className="space-y-2 border-t border-gray-100 pt-4">
-        <h3 className="text-xs font-semibold tracking-wide text-gray-500">
+        <h3 className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
           {t("careOfferings.requestsTitle")}
         </h3>
 
         {pending && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl bg-gray-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
                 <Clock className="h-3 w-3" aria-hidden="true" />
@@ -350,7 +359,7 @@ export function ChildCareOfferingsSection({
             not only in the chat. No diff: after an approval was applied the
             comparison is empty and would read as "nothing changed". */}
         {!pending && decision && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl bg-gray-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               {decision.status === "approved" ? (
                 <p className="inline-flex items-center gap-1 rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-semibold text-[#4f7d18]">

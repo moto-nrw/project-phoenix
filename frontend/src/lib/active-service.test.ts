@@ -882,8 +882,8 @@ describe("active-service", () => {
 
         expect(result).toEqual([]);
         expect(consoleSpies.warn).toHaveBeenCalledWith(
-          "unexpected unclaimed groups response shape",
-          { payload: JSON.stringify({ unexpected: "format", value: 123 }) },
+          "unexpected_unclaimed_groups_response_shape",
+          { payload_type: "object", payload_key_count: 2 },
         );
       });
 

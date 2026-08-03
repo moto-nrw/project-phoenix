@@ -164,6 +164,9 @@ describe("teachersConfig", () => {
 
   describe("service.create handler", () => {
     it("returns teacher data on successful creation", async () => {
+      const consoleDebug = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => {});
       const { teacherService } = await import("@/lib/teacher-api");
       const createFn = teacherService.createTeacher;
       const mockedCreate = vi.mocked(createFn);
@@ -194,6 +197,13 @@ describe("teachersConfig", () => {
         id: "42",
         first_name: "Test",
       });
+      expect(consoleDebug).toHaveBeenCalledWith("teacher_create_started", {
+        link_existing: false,
+      });
+      expect(JSON.stringify(consoleDebug.mock.calls)).not.toContain(
+        "SecurePass123!",
+      );
+      consoleDebug.mockRestore();
     });
 
     it("returns account_exists result as Teacher-shaped object", async () => {
@@ -220,6 +230,9 @@ describe("teachersConfig", () => {
   });
 
   it("maps nested person fields including avatar and account id", () => {
+    const consoleDebug = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => {});
     const mapped = teachersConfig.service?.mapResponse?.({
       id: 42,
       account_role: "admin",
@@ -243,6 +256,14 @@ describe("teachersConfig", () => {
       account_role: "admin",
       account_id: 55,
     });
+    expect(consoleDebug).toHaveBeenCalledWith("teacher_mapped", {
+      teacher_id: "42",
+      account_id: 55,
+    });
+    expect(JSON.stringify(consoleDebug.mock.calls)).not.toContain(
+      "nested@example.com",
+    );
+    consoleDebug.mockRestore();
   });
 
   it("prefers direct teacher fields over nested person fields", () => {

@@ -732,7 +732,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Nichts zu sehen?",
-          body: "Erinnerungen sind im Auslieferungszustand komplett aus. Welche Arten erscheinen (und mit welcher Vorlaufzeit), schaltet ein Admin unter `Einstellungen` -> `Erinnerungen` ein. Solange keine Art aktiv ist oder gerade nichts ansteht, bleibt die Seite leer.",
+          body: "Erinnerungen sind im Auslieferungszustand komplett aus. Welche Arten erscheinen (und mit welcher Vorlaufzeit), schaltet ein Admin unter `Einstellungen` -> `Erinnerungen` ein. Solange keine Art aktiv ist oder gerade nichts ansteht, bleibt die Seite leer. Im selben Reiter steht auch die `Terminerinnerung für Eltern`: die betrifft nicht die Glocke, sondern die E-Mail, die Eltern vor einem Termin bekommen.",
           tone: "blue",
         },
         screenshot:
@@ -1007,6 +1007,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In `Empfänger auswählen` mehrere Zielgruppen kombinieren, zum Beispiel `Alle Mitarbeitenden`, einzelne Mitarbeitende, Eltern nach Klasse, Gruppe oder Kind sowie einzelne Eltern. Bereits durch eine Gruppe abgedeckte Personen werden markiert und nicht doppelt ausgewählt.",
           "Optional eine `Wiederholung` mit Intervall, Wochentagen und Enddatum setzen.",
           "Mit `Eltern per E-Mail benachrichtigen` optional eine E-Mail mit Titel und Termin an die eingeladenen Eltern senden. Ohne Haken erscheint der Termin nur im Eltern-Portal.",
+          "Ist der Haken gesetzt, erhalten die Eltern zusätzlich kurz vor dem Termin eine Erinnerung. Bei einer Terminreihe gilt das für jeden einzelnen Termin. Ob und wie früh erinnert wird, stellt ein Admin unter `Einstellungen` -> `Erinnerungen` ein; ohne Haken wird auch nicht erinnert.",
           "Mit `Termin speichern` anlegen. Termine mit Antwortregel zeigen im Kalender `Zusagen` und `Absagen`; über `Teilnehmer` öffnest du die Übersicht.",
           "Einen bestehenden Termin über `Bearbeiten` anpassen. Änderungen gelten für die ganze Serie; ist erneut `Eltern per E-Mail benachrichtigen` gesetzt, geht eine Aktualisierungs-E-Mail heraus. Ein bereits abgesagter Termin lässt sich nicht mehr bearbeiten.",
           "Mit `Absagen` bleibt der Termin sichtbar, aber als `Abgesagt` markiert; mit `Löschen` verschwindet er ganz. Bei einer Terminreihe fragt die App, ob die Aktion für `Nur diesen Termin entfernen` oder die `Ganze Reihe` gilt. Noch nicht versendete Benachrichtigungen werden dabei automatisch gestoppt.",

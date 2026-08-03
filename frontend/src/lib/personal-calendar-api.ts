@@ -255,6 +255,7 @@ export interface CalendarAppointmentDetail {
     readonly all_day: boolean;
     readonly overview_visibility: CalendarOverviewVisibility;
     readonly delivery_mode: CalendarDeliveryMode;
+    readonly notify_guardians: boolean;
   };
   readonly recurrence?: {
     readonly frequency: "daily" | "weekly" | "monthly" | "yearly";

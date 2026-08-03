@@ -348,6 +348,16 @@ const (
 	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
 )
 
+// Appointment reminder settings (issue #1671). Unlike the staff reminders
+// above, these address guardians: a school-configurable lead time before a
+// parent-facing appointment, delivered as the appointment_reminder e-mail and
+// (for guardians who asked for it) a push. Definitions live in
+// defaults/appointment_reminders.go.
+const (
+	KeyCalendarAppointmentReminderEnabled   = "calendar.appointment_reminder_enabled"
+	KeyCalendarAppointmentReminderLeadHours = "calendar.appointment_reminder_lead_hours"
+)
+
 // Payroll foundation settings (#1417 Tranche 2b). Lohnartnummern are
 // mandant-specific DATEV numbers — there are NO defaults on purpose: a
 // plausible-looking preset would silently bill wrong. Empty means "not
