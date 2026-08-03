@@ -112,6 +112,32 @@ function isLoggerBinding(identifier, sourceCode, seenVariables = new Set()) {
   );
 }
 
+function isStructuredLoggerCall(node, sourceCode) {
+  if (node?.type !== "CallExpression") return false;
+
+  const callee = node.callee;
+  return (
+    callee.type === "MemberExpression" &&
+    !callee.computed &&
+    callee.object.type === "Identifier" &&
+    isLoggerBinding(callee.object, sourceCode) &&
+    callee.property.type === "Identifier" &&
+    LOG_METHODS.has(callee.property.name)
+  );
+}
+
+function isJsonStringifyCall(node) {
+  const callee = node.callee;
+  return (
+    callee.type === "MemberExpression" &&
+    !callee.computed &&
+    callee.object.type === "Identifier" &&
+    callee.object.name === "JSON" &&
+    callee.property.type === "Identifier" &&
+    callee.property.name === "stringify"
+  );
+}
+
 const noSerializedContext = {
   meta: {
     type: "problem",
@@ -130,15 +156,15 @@ const noSerializedContext = {
 
     return {
       CallExpression(node) {
-        const callee = node.callee;
-        if (callee.type !== "MemberExpression" || callee.computed) return;
-        if (callee.object.type !== "Identifier") return;
-        if (!isLoggerBinding(callee.object, sourceCode)) return;
-        if (callee.property.type !== "Identifier") return;
-        if (!LOG_METHODS.has(callee.property.name)) return;
+        if (!isJsonStringifyCall(node)) return;
 
-        if (/\bJSON\s*\.\s*stringify\s*\(/.test(sourceCode.getText(node))) {
-          context.report({ node, messageId: "noSerializedContext" });
+        const ancestors = sourceCode.getAncestors(node);
+        for (let index = ancestors.length - 1; index >= 0; index -= 1) {
+          const ancestor = ancestors[index];
+          if (isStructuredLoggerCall(ancestor, sourceCode)) {
+            context.report({ node, messageId: "noSerializedContext" });
+            return;
+          }
         }
       },
     };

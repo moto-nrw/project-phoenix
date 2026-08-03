@@ -66,6 +66,23 @@ describe("logging-safety/no-serialized-context", () => {
     ).toHaveLength(1);
   });
 
+  it("ignores JSON.stringify text in logger strings and comments", () => {
+    const result = lintSource(`
+      import { createLogger } from "~/lib/logger";
+
+      const log = createLogger({ component: "TextProbe" });
+
+      log.info("JSON.stringify(payload) is not called here");
+      log.info("comment_probe", {
+        /* JSON.stringify({ password: "secret" }) */
+        safe: true,
+      });
+    `);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).not.toContain("logging-safety");
+  });
+
   it("ignores unrelated objects and shadowed logger names", () => {
     const result = lintSource(`
       import { createLogger } from "~/lib/logger";

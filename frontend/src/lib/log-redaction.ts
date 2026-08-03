@@ -16,31 +16,34 @@ const SENSITIVE_LOG_KEYS = new Set([
   "late_invite",
   "proxy_authorization",
   "set_cookie",
+  "x_device_key",
 ]);
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|public\/calendar|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
-const TEXT_FIELD_NAME = String.raw`[^\s"'=:,{}\[\]&?#]+`;
+const TEXT_FIELD_NAME = String.raw`[^\s"'=:,;{}\[\]&?#]+`;
 const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
   String.raw`([?&])(${TEXT_FIELD_NAME})(=)[^&#\s"']*`,
   "gi",
 );
 const SENSITIVE_QUOTED_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(["'])(?:\\.|(?!\4)[^\\])*\4`,
+  String.raw`((?:^|[\s,{;])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(["'])(?:\\.|(?!\4)[^\\])*\4`,
   "gi",
 );
 const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(?!["'])[^,}\]\r\n&]+`,
+  String.raw`((?:^|[\s,{;])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(?!["'])[^,;}\]\r\n&]+`,
   "gi",
 );
 const SENSITIVE_QUOTED_HEADER_FIELD_PATTERN =
-  /((?:^|[\s,{])["']?(?:authorization|cookies?|(?:x[-_])?api[-_]?key|x[-_]staff[-_](?:auth[-_])?pin)["']?\s*:\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi;
+  /((?:^|[\s,{])["']?(?:authorization|cookies?|(?:x[-_])?api[-_]?key|x[-_]device[-_]?key|x[-_]staff[-_](?:auth[-_])?pin)["']?\s*:\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi;
 const AUTHORIZATION_CREDENTIAL_PATTERN =
   /(\b(?:Bearer|Basic|Digest|ApiKey)\s+)[^\s"',;]+/gi;
 const AUTHORIZATION_HEADER_PATTERN =
   /(\b(?:Proxy-)?Authorization\s*:\s*)[^\r\n]+/gi;
 const API_KEY_HEADER_PATTERN =
   /(\b(?:X[-_])?API[-_]?Key["']?\s*:\s*["']?)[^"',}\s]+/gi;
+const DEVICE_KEY_HEADER_PATTERN =
+  /(\bX[-_]Device[-_]Key["']?\s*:\s*["']?)[^"',}\s]+/gi;
 const STAFF_PIN_HEADER_PATTERN =
   /(\bX[-_]Staff[-_](?:Auth[-_])?PIN["']?\s*:\s*["']?)[^"',}\s]+/gi;
 const COOKIE_HEADER_PATTERN = /(\b(?:Set-)?Cookie\s*:\s*)[^\r\n]+/gi;
@@ -131,6 +134,7 @@ export function redactSensitiveLogString(value: string): string {
     .replace(AUTHORIZATION_CREDENTIAL_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(AUTHORIZATION_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(API_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(DEVICE_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(STAFF_PIN_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(COOKIE_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`);
 }
