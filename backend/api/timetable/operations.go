@@ -187,11 +187,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	createdBy := currentStaffID
 	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
 	if err != nil {
-		if errors.Is(err, errSpontaneousCategoryArchived) {
-			common.RenderError(w, r, common.ErrorConflict(err))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
-		}
+		renderSpontaneousActivityResolutionError(w, r, err)
 		return
 	}
 
@@ -547,6 +543,14 @@ func appendUniquePositive(ids []int64, id int64) []int64 {
 		}
 	}
 	return append(ids, id)
+}
+
+func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errSpontaneousCategoryArchived) {
+		common.RenderError(w, r, common.ErrorConflict(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {
