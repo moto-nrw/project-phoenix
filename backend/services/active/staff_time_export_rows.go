@@ -49,21 +49,6 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 	if len(staffMembers) == 0 {
 		return []MonthExportRow{}, nil
 	}
-	staffIDs := make([]interface{}, 0, len(staffMembers))
-	for _, staff := range staffMembers {
-		staffIDs = append(staffIDs, staff.ID)
-	}
-	adjustmentOptions := modelBase.NewQueryOptions()
-	adjustmentOptions.Filter.In("staff_id", staffIDs...).In("type", activeModels.BalanceAdjustmentTypeOpening, activeModels.BalanceAdjustmentTypeReset).LessThanOrEqual("effective_date", lastKey.lastDay())
-	rebaselines, err := s.adjustmentRepo.List(ctx, adjustmentOptions)
-	if err != nil {
-		return nil, fmt.Errorf("load opening balance components: %w", err)
-	}
-	rebaselinesByStaff := make(map[int64][]*activeModels.StaffBalanceAdjustment)
-	for _, adjustment := range rebaselines {
-		rebaselinesByStaff[adjustment.StaffID] = append(rebaselinesByStaff[adjustment.StaffID], adjustment)
-	}
-
 	// One prefetch for the whole request. `lower` widens the window to the
 	// first requested month: for a year export the early months may lie before
 	// the account anchor and are then computed as standalone months — exactly
@@ -77,24 +62,12 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 
 	rows := make([]MonthExportRow, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		openingCarry, rebaselineIndex := 0, 0
-		staffRebaselines := rebaselinesByStaff[staff.ID]
 		for key := firstKey; !lastKey.before(key); key = key.next() {
 			summary, err := monthSvc.GetMonthSummary(ctx, staff.ID, key.Year, key.Month)
 			if err != nil {
 				return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
 			}
-			for rebaselineIndex < len(staffRebaselines) && !key.lastDay().Before(staffRebaselines[rebaselineIndex].EffectiveDate) {
-				adjustment := staffRebaselines[rebaselineIndex]
-				if adjustment.Type == activeModels.BalanceAdjustmentTypeOpening {
-					openingCarry += adjustment.MinutesDelta
-				} else {
-					openingCarry = 0
-				}
-				rebaselineIndex++
-			}
 			row := buildMonthExportRow(staff, summary)
-			row.OpeningCarryMinutes = openingCarry
 			rows = append(rows, row)
 		}
 	}

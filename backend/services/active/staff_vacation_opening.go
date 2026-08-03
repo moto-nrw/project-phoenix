@@ -162,12 +162,21 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 	if absence.AbsenceType != activeModels.AbsenceTypeVacation || s.openingRepo == nil {
 		return nil
 	}
-	opening, err := s.openingRepo.GetByStaffAndYear(ctx, absence.StaffID, absence.DateStart.Year)
-	if err != nil {
-		return fmt.Errorf("failed to check vacation opening: %w", err)
-	}
-	if opening != nil && absence.DateStart.Before(opening.EffectiveDate) {
-		return fmt.Errorf("%w: vacation absence begins before opening date %s", ErrVacationOpeningAbsencesBeforeCutoff, opening.EffectiveDate.String())
+	for year := absence.DateStart.Year; year <= absence.DateEnd.Year; year++ {
+		opening, err := s.openingRepo.GetByStaffAndYear(ctx, absence.StaffID, year)
+		if err != nil {
+			return fmt.Errorf("failed to check vacation opening: %w", err)
+		}
+		if opening == nil {
+			continue
+		}
+		firstDayInYear := absence.DateStart
+		if year != absence.DateStart.Year {
+			firstDayInYear = timezone.NewDate(year, time.January, 1)
+		}
+		if firstDayInYear.Before(opening.EffectiveDate) {
+			return fmt.Errorf("%w: vacation absence begins before opening date %s", ErrVacationOpeningAbsencesBeforeCutoff, opening.EffectiveDate.String())
+		}
 	}
 	return nil
 }
