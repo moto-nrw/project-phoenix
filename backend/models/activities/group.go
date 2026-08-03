@@ -19,7 +19,7 @@ const (
 
 // Target-group ("Zielgruppe") type constants for Betreuungsplan templates.
 // "gruppe" deliberately has no dedicated value column - it reuses
-// EducationGroupID. "angebot" (Angebotsauswahl) has two sourcing modes:
+// EducationGroupID. "angebot" (UI label "Angebot") has two sourcing modes:
 // with SourceCareOfferingID set the template declares the offering (plus an
 // optional SourceGradeLevels filter) as its dynamic roster source (#2137);
 // without it the roster comes from the legacy CareOffering.ActivityGroupID

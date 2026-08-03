@@ -23,7 +23,7 @@ const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
   { value: "jahrgang", label: "Jahrgang" },
   { value: "klasse", label: "Klasse" },
   { value: "gruppe", label: "Gruppe" },
-  { value: "angebot", label: "Angebotsauswahl" },
+  { value: "angebot", label: "Angebot" },
 ];
 
 export interface StepPersonalKinderProps {
@@ -244,7 +244,12 @@ export function StepPersonalKinder({
               changeTargetGroupType(value as TargetGroupType)
             }
           >
-            <TabsList aria-label="Zielgruppe" className="w-fit">
+            {/* Five pills exceed narrow viewports; wrap instead of bleeding
+                out of the dialog (h-auto overrides the kit's fixed h-9). */}
+            <TabsList
+              aria-label="Zielgruppe"
+              className="h-auto w-fit max-w-full flex-wrap justify-start"
+            >
               {TARGET_GROUP_OPTIONS.map((option) => (
                 <TabsTrigger key={option.value} value={option.value}>
                   {option.label}
@@ -367,7 +372,7 @@ export function StepPersonalKinder({
 
           {form.targetGroupType === "angebot" && (
             <div className="mt-1 flex flex-col gap-2">
-              <Field label="Betreuungsangebot" htmlFor="event_source_offering">
+              <Field label="Angebot als Quelle" htmlFor="event_source_offering">
                 <CustomSelect
                   id="event_source_offering"
                   ariaLabel="Betreuungsangebot"
