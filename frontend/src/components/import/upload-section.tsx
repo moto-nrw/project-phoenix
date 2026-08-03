@@ -4,6 +4,12 @@ interface UploadSectionProps {
   readonly isDragging: boolean;
   readonly isLoading: boolean;
   readonly uploadedFile: File | null;
+  /**
+   * Überschrift der Karte. Der Eröffnungssalden-Import (#2132) hat einen
+   * Schritt mehr (Stichtag und Begründung), deshalb ist die Schrittnummer
+   * überschreibbar. Ohne Angabe bleibt der bisherige Text stehen.
+   */
+  readonly title?: string;
   readonly onDragEnter: (e: React.DragEvent) => void;
   readonly onDragLeave: (e: React.DragEvent) => void;
   readonly onDragOver: (e: React.DragEvent) => void;
@@ -15,6 +21,7 @@ export function UploadSection({
   isDragging,
   isLoading,
   uploadedFile,
+  title = "Schritt 2: Datei hochladen",
   onDragEnter,
   onDragLeave,
   onDragOver,
@@ -49,7 +56,7 @@ export function UploadSection({
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
           />
         </svg>
-        Schritt 2: Datei hochladen
+        {title}
       </h3>
 
       {/* Hidden file input */}
@@ -61,6 +68,10 @@ export function UploadSection({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) onFileSelect(file);
+          // Clear the input so re-selecting the SAME filename fires change
+          // again — the common "Datei korrigieren und erneut hochladen" case
+          // would otherwise silently do nothing.
+          e.target.value = "";
         }}
         className="sr-only"
         aria-label="Datei auswählen"

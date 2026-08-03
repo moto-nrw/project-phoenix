@@ -27,6 +27,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/database/permissions",
   "/database/personal",
   "/database/personal/import",
+  "/database/personal/opening-balances",
   "/database/roles",
   "/database/rooms",
   "/database/students",

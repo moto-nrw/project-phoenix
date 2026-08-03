@@ -128,6 +128,43 @@ describe("StaffAuditLog", () => {
     });
   });
 
+  it("beschreibt Urlaubs-Übernahmen und deren Löschung", async () => {
+    const opening: AuditLogEvent = {
+      ...event(8),
+      source: "vacation_opening",
+      entryId: "opening-1",
+      detail: {
+        opening_id: 3,
+        year: 2026,
+        effective_date: "2026-08-01",
+        taken_before_days: 4,
+        entered_remaining_days: 12.5,
+      },
+    };
+    const deleted: AuditLogEvent = {
+      ...event(9),
+      source: "deletion",
+      entryId: "deletion-1",
+      detail: {
+        deleted_source: "vacation_opening",
+        source_id: 3,
+        payload: { year: 2026, entered_remaining_days: 12.5 },
+      },
+    };
+    getAuditLog.mockResolvedValueOnce(page([opening, deleted], null));
+
+    render(<StaffAuditLog staffOptions={[]} />);
+
+    expect(
+      await screen.findByText(
+        "Urlaubs-Übernahme 2026: 12,5 Tage Rest zum 01.08.2026",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Urlaubs-Übernahme gelöscht: 2026 (12,5 Tage Rest)"),
+    ).toBeInTheDocument();
+  });
+
   it("rendert Ereignisse mit gleichem Umschlag über eindeutige Entry-IDs", async () => {
     const first = event(6);
     const second = { ...event(6), entryId: "different-entry" };

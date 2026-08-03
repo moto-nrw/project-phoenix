@@ -1837,6 +1837,94 @@ describe("staff-api", () => {
       expect(result.entitled_days).toBe(30);
     });
 
+    it("maps vacation opening identifiers to strings", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 7,
+              staff_id: 4,
+              year: 2026,
+              effective_date: "2026-02-28",
+              taken_before_days: 5.5,
+              entered_remaining_days: 26.5,
+              note: "Übernahme aus Urlaubsliste",
+              decided_by: 9,
+              decided_at: "2026-03-01T08:00:00Z",
+            },
+          }),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.setVacationOpening("4", {
+          effectiveDate: "2026-02-28",
+          remainingDays: 26.5,
+          note: "Übernahme aus Urlaubsliste",
+        }),
+      ).resolves.toMatchObject({
+        id: "7",
+        staff_id: "4",
+        decided_by: "9",
+      });
+    });
+
+    it.each([
+      [
+        "vacation_opening_already_exists",
+        "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
+      ],
+      [
+        "vacation_opening_absences_before_cutoff",
+        "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
+      ],
+    ])("explains the takeover rejection %s", async (code, message) => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.setVacationOpening("4", {
+          effectiveDate: "2026-02-28",
+          remainingDays: 26.5,
+          note: "Übernahme aus Urlaubsliste",
+        }),
+      ).rejects.toThrow(message);
+    });
+
+    it("reports a failed takeover deletion", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ error: "Keine Übernahme für dieses Jahr" }),
+          ),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.deleteVacationOpening("4", 2026),
+      ).rejects.toThrow("Keine Übernahme für dieses Jahr");
+    });
+
+    it("deletes a takeover for the given year", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.deleteVacationOpening("4", 2026);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/4/vacation/opening?year=2026",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
     it("throws when saving vacation quota fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
@@ -2472,6 +2560,91 @@ describe("staff-api", () => {
           note: "x",
         }),
       ).rejects.toThrow("Ungültiger Reset");
+    });
+
+    // Eröffnungssaldo (#2132). The backend's stable error codes carry no German
+    // text; the copy the admin reads lives here, so it is pinned here too.
+    it("maps the opening balance response", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 21,
+              staff_id: 4,
+              type: "opening",
+              minutes_delta: -330,
+              effective_date: "2026-07-31",
+              note: "Übernahme aus Altsystem",
+              decided_by: 9,
+              decided_at: "2026-08-01T08:00:00Z",
+            },
+          }),
+      } as Response);
+
+      const opening = await staffBalanceAdjustmentService.createOpening("4", {
+        effectiveDate: "2026-07-31",
+        balanceMinutes: -330,
+        note: "Übernahme aus Altsystem",
+      });
+
+      expect(opening).toMatchObject({
+        id: "21",
+        type: "opening",
+        minutesDelta: -330,
+      });
+    });
+
+    it.each([
+      [
+        "opening_balance_already_exists",
+        "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
+      ],
+      [
+        "dependent_balance_reset",
+        "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
+      ],
+      [
+        "adjustment_in_closed_month",
+        "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
+      ],
+    ])("explains the opening rejection %s", async (code, message) => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.createOpening("4", {
+          effectiveDate: "2026-07-31",
+          balanceMinutes: 600,
+          note: "Übernahme",
+        }),
+      ).rejects.toThrow(message);
+    });
+
+    it("passes an unmapped opening rejection through verbatim", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ error: "Stichtag liegt in der Zukunft" }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.createOpening("4", {
+          effectiveDate: "2099-01-01",
+          balanceMinutes: 600,
+          note: "Übernahme",
+        }),
+      ).rejects.toThrow("Stichtag liegt in der Zukunft");
     });
   });
 

@@ -25,6 +25,7 @@ import (
 // ============================================================================
 
 type absStaffAbsenceRepoMock struct {
+	lockStaffAbsenceWritesFunc func(ctx context.Context, staffID int64) error
 	createFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
 	findByIDFunc               func(ctx context.Context, id any) (*activeModels.StaffAbsence, error)
 	updateFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
@@ -37,7 +38,10 @@ type absStaffAbsenceRepoMock struct {
 	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
-func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(context.Context, int64) error {
+func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
+	if m.lockStaffAbsenceWritesFunc != nil {
+		return m.lockStaffAbsenceWritesFunc(ctx, staffID)
+	}
 	return nil
 }
 
@@ -333,6 +337,24 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 		deletionRepo: noopDeletionAuditRepo{},
 	}
 	return svc, absRepo, workRepo
+}
+
+func TestValidateVacationOpeningAbsencesBefore_DoesNotLockPreview(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	lockCalls := 0
+	absRepo.lockStaffAbsenceWritesFunc = func(context.Context, int64) error {
+		lockCalls++
+		return nil
+	}
+
+	err := svc.ValidateVacationOpeningAbsencesBefore(
+		context.Background(),
+		42,
+		timezone.NewDate(2026, time.March, 1),
+	)
+
+	require.NoError(t, err)
+	assert.Zero(t, lockCalls)
 }
 
 // ============================================================================
@@ -1495,6 +1517,22 @@ func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
 	require.NotNil(t, summary)
 	assert.Equal(t, 2.0, summary.TakenDays)
 	assert.Equal(t, 28.0, summary.RemainingDays)
+}
+
+func TestAbsUpsertVacationQuota_RejectsInvalidPrecision(t *testing.T) {
+	quotaRepo := &absVacationQuotaRepoMock{}
+	upsertCalled := false
+	quotaRepo.upsertFunc = func(context.Context, *activeModels.StaffVacationQuota) error {
+		upsertCalled = true
+		return nil
+	}
+	svc := &staffAbsenceService{quotaRepo: quotaRepo}
+
+	err := svc.UpsertVacationQuota(context.Background(), 42, 2026, 30.25, 0)
+
+	require.ErrorIs(t, err, ErrVacationQuotaInvalid)
+	assert.Contains(t, err.Error(), "at most one decimal place")
+	assert.False(t, upsertCalled)
 }
 
 // Generic query helper stubs (interface additions for the issue #585
