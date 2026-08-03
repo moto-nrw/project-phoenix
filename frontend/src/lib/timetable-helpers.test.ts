@@ -38,6 +38,7 @@ import {
   mapInstanceStatusResult,
   mapMaterializeResult,
   materializedRecurrenceDates,
+  mapOfferingSourceOptions,
   mapReplanWeekResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
@@ -893,6 +894,94 @@ describe("backend mappers", () => {
     });
   });
 
+  it("maps the offering-source rule and per-weekday rosters (#2137/#2129)", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Frühbetreuung Jg. 1",
+          type: "care",
+          category_id: 2,
+          category_name: "Betreuung",
+          is_open: true,
+          max_participants: 20,
+          target_group_type: "angebot",
+          source_care_offering_id: 12,
+          source_grade_levels: [1, 2],
+          enrollment_count: 9,
+          supervisor_count: 1,
+          required_staff_count: 1,
+          assigned_staff_count: 1,
+          schedules: [],
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11, 12],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            // Dienstag ist bewusst leer und ohne feste Bezugsperson.
+            { weekday: 2, primary_staff_id: null as never },
+          ],
+          protected_student_assignments: [
+            { weekday: 1, student_ids: [21] },
+            { weekday: 2 },
+          ],
+        },
+      ],
+    }).templates[0];
+
+    expect(tpl).toMatchObject({
+      sourceCareOfferingId: "12",
+      sourceGradeLevels: [1, 2],
+      weekdayAssignments: [
+        {
+          weekday: 1,
+          staffIds: ["11", "12"],
+          studentIds: ["21"],
+          primaryStaffId: "11",
+        },
+        {
+          weekday: 2,
+          staffIds: [],
+          studentIds: [],
+          primaryStaffId: undefined,
+        },
+      ],
+      protectedStudentAssignments: [
+        { weekday: 1, studentIds: ["21"] },
+        { weekday: 2, studentIds: [] },
+      ],
+    });
+  });
+
+  it("leaves the offering source undefined when the backend sends null (#2137)", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 8,
+          name: "Yoga",
+          type: "activity",
+          category_id: 2,
+          category_name: "AG",
+          is_open: true,
+          max_participants: 12,
+          target_group_type: "none",
+          source_care_offering_id: null as never,
+          source_grade_levels: null as never,
+          enrollment_count: 0,
+          supervisor_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
+          schedules: [],
+        },
+      ],
+    }).templates[0];
+
+    expect(tpl?.sourceCareOfferingId).toBeUndefined();
+    expect(tpl?.sourceGradeLevels).toBeUndefined();
+  });
+
   it("maps the Wochennotiz and mapped shift type onto a template (#1837)", () => {
     const tpl = mapTemplates({
       templates: [
@@ -1597,5 +1686,95 @@ describe("staff pool + move mappers (#1884)", () => {
       timeConflicts: [],
       coverageWarnings: [],
     });
+  });
+});
+
+describe("mapOfferingSourceOptions (#2137)", () => {
+  it("maps offerings, numeric Jahrgang keys and the legacy link", () => {
+    expect(
+      mapOfferingSourceOptions({
+        offerings: [
+          {
+            id: 12,
+            name: "Frühbetreuung",
+            phase_id: 3,
+            phase_name: "Schuljahr 2026/27",
+            total_count: 18,
+            // "0" = Kinder ohne ableitbaren Jahrgang.
+            grade_counts: { "0": 2, "1": 9, "2": 7 },
+            sourced_templates: [
+              { id: 7, name: "Frühbetreuung Jg. 1", grade_levels: [1] },
+              { id: 8, name: "Frühbetreuung alle" },
+            ],
+            legacy_linked_template_id: 7,
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: "12",
+        name: "Frühbetreuung",
+        phaseId: "3",
+        phaseName: "Schuljahr 2026/27",
+        totalCount: 18,
+        gradeCounts: { 0: 2, 1: 9, 2: 7 },
+        sourcedTemplates: [
+          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
+          { id: "8", name: "Frühbetreuung alle", gradeLevels: [] },
+        ],
+        legacyLinkedTemplateId: "7",
+      },
+    ]);
+  });
+
+  it("skips unparsable Jahrgang keys and defaults the optional fields", () => {
+    expect(
+      mapOfferingSourceOptions({
+        offerings: [
+          {
+            id: 13,
+            name: "Spätbetreuung",
+            phase_id: 3,
+            phase_name: "Schuljahr 2026/27",
+            total_count: 0,
+            grade_counts: { unbekannt: 4, "3": 1 } as never,
+            sourced_templates: undefined as never,
+            legacy_linked_template_id: null as never,
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: "13",
+        name: "Spätbetreuung",
+        phaseId: "3",
+        phaseName: "Schuljahr 2026/27",
+        totalCount: 0,
+        gradeCounts: { 3: 1 },
+        sourcedTemplates: [],
+        legacyLinkedTemplateId: undefined,
+      },
+    ]);
+  });
+
+  it("maps a payload without offerings and without counts to an empty list", () => {
+    expect(mapOfferingSourceOptions({ offerings: undefined as never })).toEqual(
+      [],
+    );
+    expect(
+      mapOfferingSourceOptions({
+        offerings: [
+          {
+            id: 14,
+            name: "Ferienbetreuung",
+            phase_id: 4,
+            phase_name: "Ferien",
+            total_count: 0,
+            grade_counts: undefined as never,
+            sourced_templates: [],
+          },
+        ],
+      })[0]?.gradeCounts,
+    ).toEqual({});
   });
 });

@@ -124,3 +124,43 @@ func TestGroupMatchesSourceGradeFilter(t *testing.T) {
 		t.Fatal("a child without derivable grade must not match a set filter")
 	}
 }
+
+// The template list read model carries the jsonb grade filter as text
+// (ad-hoc scan struct, no bun type mapping) — decoding it is the only place
+// the filter turns back into the list the API serializes (#2137).
+func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    []int
+		wantErr bool
+	}{
+		{name: "NULL column yields no filter", raw: ""},
+		{name: "empty array yields no filter", raw: "[]"},
+		{name: "grade list is decoded", raw: "[1,2]", want: []int{1, 2}},
+		{name: "malformed json is reported", raw: "{oops", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			levels, err := TemplateListRow{SourceGradeLevelsJSON: tc.raw}.ParseSourceGradeLevels()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected a parse error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(levels) != len(tc.want) {
+				t.Fatalf("got %v, want %v", levels, tc.want)
+			}
+			for i, level := range levels {
+				if level != tc.want[i] {
+					t.Fatalf("got %v, want %v", levels, tc.want)
+				}
+			}
+		})
+	}
+}
