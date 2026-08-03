@@ -295,11 +295,13 @@ describe("timetableService", () => {
         }),
       );
 
-    await expect(timetableService.getTemplate("7")).resolves.toMatchObject({
-      id: "7",
-      name: "Yoga",
-      primaryStaffId: "11",
-    });
+    await expect(timetableService.getTemplate("7", "5")).resolves.toMatchObject(
+      {
+        id: "7",
+        name: "Yoga",
+        primaryStaffId: "11",
+      },
+    );
 
     const splitBody = {
       name: "Yoga",
@@ -335,7 +337,7 @@ describe("timetableService", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/timetable/templates/7",
+      "/api/timetable/templates/7?period_id=5",
       expect.objectContaining({ method: "GET", credentials: "include" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
