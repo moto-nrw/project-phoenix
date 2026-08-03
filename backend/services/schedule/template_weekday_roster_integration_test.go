@@ -551,6 +551,15 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
 	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	inconsistentWeekday := activitiesModels.WeekdayTuesday
+	inconsistentProtected := &activitiesModels.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+		Weekday:          &inconsistentWeekday,
+	}
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, inconsistentProtected))
 
 	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
@@ -572,7 +581,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
 		"the protected coverage must be exposed separately to the editor")
 	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
-		"selected_weekdays still limits the protected child")
+		"selected_weekdays must also limit a protected row carrying a weekday scope")
 	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
 		"protected coverage must retain selected_weekdays")
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])

@@ -791,6 +791,11 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		query += ` AND enrollment.calendar_period_id IS NULL`
 	}
 	query += `
+		  AND (
+			enrollment.selected_weekdays IS NULL
+			OR jsonb_array_length(enrollment.selected_weekdays) = 0
+			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
+		  )
 		GROUP BY enrollment.activity_group_id, enrollment.weekday, enrollment.student_id
 		UNION ALL
 		SELECT

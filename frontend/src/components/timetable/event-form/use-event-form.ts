@@ -1756,24 +1756,22 @@ export function useEventForm({
    * rebuilds future planned instances. A changed Datum only applies to
    * "single" — series-wide scopes ignore it.
    */
-  const seriesCoverageProbe = (
+  const seriesCoverageProbes = (
     template: TimetableTemplate,
     body: UpdateTemplateBody,
     fromISO: string,
     replanActivityGroupId?: string,
-  ) => {
+  ): ShiftCoverageCheckParams[] => {
     const calendarPeriodId =
       resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const period = findPeriod(calendarPeriodId);
-    const staffIds = (body.staff_ids ?? []).map(String);
     if (
       !period ||
       body.weekdays.length === 0 ||
-      staffIds.length === 0 ||
       !body.start_time ||
       !body.end_time
     ) {
-      return null;
+      return [];
     }
     // #2135: never probe before the segment's own series start (validFrom).
     const from = latestISODate(
@@ -1781,7 +1779,6 @@ export function useEventForm({
       fromISO,
       template.schedules[0]?.validFrom ?? "",
     );
-    let dates = weekdayDatesInRange(from, period.endDate, body.weekdays);
     // Without replanActivityGroupId the backend cannot apply the segment's
     // validity envelope, so the probe caps itself at the schedules'
     // validUntil (exclusive boundary): a split successor inherits it and
@@ -1798,19 +1795,45 @@ export function useEventForm({
         latestValidUntil = schedule.validUntil;
       }
     }
-    if (latestValidUntil) {
-      const boundary = latestValidUntil;
-      dates = dates.filter((date) => date < boundary);
+    const sharedStaffIDs = (body.staff_ids ?? []).map(String);
+    const assignmentsByWeekday = new Map(
+      (body.weekday_assignments ?? []).map((assignment) => [
+        assignment.weekday,
+        assignment,
+      ]),
+    );
+    const weekdayGroups =
+      assignmentsByWeekday.size > 0
+        ? body.weekdays.map((weekday) => ({
+            weekdays: [weekday],
+            staffIds: (
+              assignmentsByWeekday.get(weekday)?.staff_ids ??
+              body.staff_ids ??
+              []
+            ).map(String),
+          }))
+        : [{ weekdays: body.weekdays, staffIds: sharedStaffIDs }];
+
+    const probes: ShiftCoverageCheckParams[] = [];
+    for (const group of weekdayGroups) {
+      if (group.staffIds.length === 0) continue;
+      let dates = weekdayDatesInRange(from, period.endDate, group.weekdays);
+      if (latestValidUntil) {
+        const boundary = latestValidUntil;
+        dates = dates.filter((date) => date < boundary);
+      }
+      if (dates.length === 0) continue;
+      probes.push({
+        dates,
+        startTime: body.start_time,
+        endTime: body.end_time,
+        staffIds: group.staffIds,
+        replanActivityGroupId,
+        calendarPeriodId: period.id,
+        weekPattern: body.week_pattern ?? 0,
+      });
     }
-    return {
-      dates,
-      startTime: body.start_time,
-      endTime: body.end_time,
-      staffIds,
-      replanActivityGroupId,
-      calendarPeriodId: period.id,
-      weekPattern: body.week_pattern ?? 0,
-    };
+    return probes;
   };
 
   const findScopeClosingDayConflict = (
@@ -1869,13 +1892,13 @@ export function useEventForm({
   ) => {
     if (!initialInstance) return;
     const body = templateBodyFromForm(template, roomId);
-    const scopeProbe = seriesCoverageProbe(
+    const scopeProbes = seriesCoverageProbes(
       template,
       body,
       typedScope === "following" ? initialInstance.date : berlinTodayISO(),
       typedScope === "all" ? groupId : undefined,
     );
-    await checkCoverageBeforeSave(scopeProbe);
+    await checkCoverageBeforeSave(scopeProbes);
     if (typedScope === "following") {
       const effectiveDate = initialInstance.date;
       const chunks = chunkDateRange(

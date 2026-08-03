@@ -98,6 +98,7 @@ import { useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import type {
   EnrichedInstance,
+  ShiftCoverageCheckParams,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
@@ -2660,6 +2661,73 @@ describe("TimetableEventModal", () => {
       ),
     );
   });
+
+  it.each([
+    {
+      scope: "Ab jetzt dauerhaft",
+      buttonName: /Ab jetzt dauerhaft/,
+      expectedWrite: "split",
+    },
+    {
+      scope: "Alle Termine der Serie",
+      buttonName: /Alle Termine der Serie/,
+      expectedWrite: "update",
+    },
+  ])(
+    "checks weekday-specific staff separately for '$scope'",
+    async ({ buttonName, expectedWrite }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+      const shortPeriod: CalendarPeriod = {
+        ...periods[0]!,
+        startDate: "2026-05-04",
+        endDate: "2026-05-15",
+      };
+      mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+      renderModal({
+        initialInstance: {
+          ...savedInstance,
+          activityGroupId: "7",
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+        calendarPeriods: [shortPeriod],
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      mockCheckShiftCoverage.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+      await waitFor(() => {
+        const scopeProbes = mockCheckShiftCoverage.mock.calls
+          .map(([probe]) => probe as ShiftCoverageCheckParams)
+          .filter((probe) => probe.calendarPeriodId === "5");
+        expect(scopeProbes).toEqual([
+          expect.objectContaining({
+            dates: ["2026-05-04", "2026-05-11"],
+            staffIds: ["11"],
+          }),
+          expect.objectContaining({
+            dates: ["2026-05-05", "2026-05-12"],
+            staffIds: ["12"],
+          }),
+        ]);
+      });
+      if (expectedWrite === "split") {
+        await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+      } else {
+        await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      }
+    },
+  );
 
   it("checks all following occurrences and saves despite coverage warnings", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
