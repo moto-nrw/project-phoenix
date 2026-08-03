@@ -428,7 +428,7 @@ func (s *TimetableDataService) replaceTemplateRoster(
 	if err != nil {
 		return err
 	}
-	for _, row := range excludeProtectedStudentWeekdays(roster.Students, in.Weekdays, protectedCoverage) {
+	for _, row := range excludeProtectedStudentWeekdays(roster.Students, protectedCoverage) {
 		// A child kept by a care-offering row is already on the roster with a
 		// provenance this editor must not overwrite on the weekdays it covers.
 		enrollment := &activitiesModel.StudentEnrollment{

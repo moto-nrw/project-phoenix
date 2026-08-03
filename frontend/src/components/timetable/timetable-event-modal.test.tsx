@@ -851,6 +851,84 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("blocks the shared staff editor when a weekday roster cannot load students", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    renderModal({ initialSeries: templateWithWeekdayRosters });
+
+    await goToStep(3);
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    expect(
+      screen.getByText(
+        /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: /Ada Staff/ }),
+    ).not.toBeInTheDocument();
+
+    await clickSave();
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("blocks the shared student editor when a weekday roster cannot load staff", async () => {
+    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    renderModal({ initialSeries: templateWithWeekdayRosters });
+
+    await goToStep(3);
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    expect(
+      screen.getByText(
+        /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: /Max Kind/ }),
+    ).not.toBeInTheDocument();
+
+    await clickSave();
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
+  });
+
   it("reveals a student load failure immediately in quick mode", async () => {
     mockFetchStudents.mockRejectedValue(new Error("students unavailable"));
 

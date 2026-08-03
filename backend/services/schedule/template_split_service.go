@@ -1125,7 +1125,7 @@ func buildSuccessorStudentRows(
 		if err != nil {
 			resolved = resolvedTemplateRoster{Students: sharedRosterRows(in.StudentIDs, nil)}
 		}
-		manualRows := excludeProtectedStudentWeekdays(resolved.Students, in.Weekdays, protectedCoverage)
+		manualRows := excludeProtectedStudentWeekdays(resolved.Students, protectedCoverage)
 		rows := make([]*activitiesModel.StudentEnrollment, 0, len(manualRows))
 		for _, row := range manualRows {
 			rows = append(rows, &activitiesModel.StudentEnrollment{

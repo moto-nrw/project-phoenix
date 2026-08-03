@@ -138,6 +138,11 @@ export function StepPersonalKinder({
     !studentLoadError;
   const usePerWeekdayRoster =
     showWeekdayRoster && form.perWeekdayRoster && rosterWeekdays.length >= 2;
+  const preserveUnavailableWeekdayRoster =
+    isSeriesFlow &&
+    form.perWeekdayRoster &&
+    rosterWeekdays.length >= 2 &&
+    !showWeekdayRoster;
 
   let studentRosterField: React.ReactNode;
   if (loadingStudents) {
@@ -419,7 +424,20 @@ export function StepPersonalKinder({
         />
       )}
 
-      {!usePerWeekdayRoster && staffRosterField}
+      {preserveUnavailableWeekdayRoster && (
+        <div className="flex flex-col gap-2">
+          <Alert
+            type="info"
+            message="Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden, wenn Personal- und Kinderliste vollständig geladen sind. Die bestehenden Zuordnungen bleiben beim Speichern unverändert."
+          />
+          {(loadingStaff || staffLoadError) && staffRosterField}
+          {(loadingStudents || studentLoadError) && studentRosterField}
+        </div>
+      )}
+
+      {!usePerWeekdayRoster &&
+        !preserveUnavailableWeekdayRoster &&
+        staffRosterField}
 
       <Field label="Benötigtes Personal" htmlFor="event_required_staff">
         <Input
@@ -443,7 +461,9 @@ export function StepPersonalKinder({
         </p>
       </Field>
 
-      {!usePerWeekdayRoster && studentRosterField}
+      {!usePerWeekdayRoster &&
+        !preserveUnavailableWeekdayRoster &&
+        studentRosterField}
 
       {(conflictWarnings.length > 0 ||
         coverageWarnings.length > 0 ||

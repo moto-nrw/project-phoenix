@@ -623,6 +623,13 @@ func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *test
 	in := baseSplitInput(s, monday, fmt.Sprintf("Split-Protected-Weekday-%d", time.Now().UnixNano()))
 	in.Weekdays = []int{activitiesModels.WeekdayTuesday}
 	in.StudentIDs = []int64{s.students[0]}
+	in.StaffIDs = []int64{s.staffID}
+	in.WeekdayAssignments = []scheduleSvc.WeekdayRosterAssignment{{
+		Weekday:        activitiesModels.WeekdayTuesday,
+		StudentIDs:     []int64{s.students[0]},
+		StaffIDs:       []int64{s.staffID},
+		PrimaryStaffID: &s.staffID,
+	}}
 	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
 	registerSuccessorCleanup(t, s, result.NewTemplateID)
@@ -652,6 +659,46 @@ func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *test
 	require.Len(t, instances, 1)
 	s.registerCleanup("schedule.activity_instances", instances[0].ID)
 	assert.True(t, splitInstanceContainsStudent(t, s, instances[0].ID, s.students[0]))
+}
+
+func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T) {
+	monday := futureMonday(1)
+	tuesday := monday.AddDays(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Set("selected_weekdays = ?::jsonb", `[1]`).
+		Where(`"student_enrollment".id = ?`, s.enrollmentIDs[0]).
+		Where(`"student_enrollment".tenant_id = ?`, s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	in := baseSplitInput(s, monday, fmt.Sprintf("Split-Protected-Shared-%d", time.Now().UnixNano()))
+	in.Weekdays = []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday}
+	in.StudentIDs = []int64{s.students[0]}
+	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, result.NewTemplateID)
+
+	rows := loadSplitEnrollments(t, s, result.NewTemplateID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, s.students[0], rows[0].StudentID)
+	assert.Equal(t, []int{activitiesModels.WeekdayMonday}, rows[0].SelectedWeekdays)
+	assert.Nil(t, rows[0].Weekday)
+
+	materialized, err := s.svc.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 2, materialized.InstancesCreated)
+	mondayInstances := listInstancesForDate(t, s.db, result.NewTemplateID, monday)
+	tuesdayInstances := listInstancesForDate(t, s.db, result.NewTemplateID, tuesday)
+	require.Len(t, mondayInstances, 1)
+	require.Len(t, tuesdayInstances, 1)
+	s.registerCleanup("schedule.activity_instances", mondayInstances[0].ID, tuesdayInstances[0].ID)
+	assert.True(t, splitInstanceContainsStudent(t, s, mondayInstances[0].ID, s.students[0]))
+	assert.False(t, splitInstanceContainsStudent(t, s, tuesdayInstances[0].ID, s.students[0]))
 }
 
 func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {

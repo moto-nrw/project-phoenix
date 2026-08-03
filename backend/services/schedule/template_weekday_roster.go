@@ -41,9 +41,8 @@ type resolvedTemplateRoster struct {
 
 // protectedStudentCoverage records both the presence of an externally-owned
 // enrollment and the scheduled weekdays it actually covers. Presence matters
-// even when none of the successor's weekdays overlap: a series-wide manual row
-// would still collide with the protected row's NULL weekday in the active
-// unique index, so it must be expanded onto the uncovered concrete weekdays.
+// even when none of the successor's weekdays overlap: a shared roster does not
+// explicitly authorize broadening the protected enrollment to other weekdays.
 type protectedStudentCoverage struct {
 	weekdays map[int]struct{}
 }
@@ -227,16 +226,15 @@ func protectedEnrollmentAppliesOnWeekday(row *activitiesModel.StudentEnrollment,
 	return false
 }
 
-// excludeProtectedStudentWeekdays removes only the manual weekday rows that
-// an externally-owned enrollment already supplies. A shared manual row is
-// expanded onto uncovered scheduled weekdays so a Monday-only protected row
-// cannot erase the same child's manual Tuesday assignment.
+// excludeProtectedStudentWeekdays removes the manual rows that an
+// externally-owned enrollment already supplies. A shared manual row is
+// omitted entirely because it does not express which additional weekdays the
+// planner intended; only explicit weekday rows may supplement the protected
+// enrollment on uncovered days.
 func excludeProtectedStudentWeekdays(
 	rows []resolvedRosterRow,
-	scheduledWeekdays []int,
 	coverage map[int64]protectedStudentCoverage,
 ) []resolvedRosterRow {
-	weekdays := uniqueSortedWeekdays(scheduledWeekdays)
 	out := make([]resolvedRosterRow, 0, len(rows))
 	for _, row := range rows {
 		studentCoverage, protected := coverage[row.PersonID]
@@ -248,14 +246,6 @@ func excludeProtectedStudentWeekdays(
 			if _, covered := studentCoverage.weekdays[*row.Weekday]; !covered {
 				out = append(out, row)
 			}
-			continue
-		}
-		for _, weekday := range weekdays {
-			if _, covered := studentCoverage.weekdays[weekday]; covered {
-				continue
-			}
-			scope := weekday
-			out = append(out, resolvedRosterRow{PersonID: row.PersonID, Weekday: &scope})
 		}
 	}
 	return out
