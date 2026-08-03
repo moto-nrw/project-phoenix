@@ -563,6 +563,81 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 	return rows, nil
 }
 
+// ListTemplateRowsForTemplatePeriod returns the editable detail read model for
+// one template and calendar period. Unlike the list read, its top-level roster
+// must not merge assignments from other periods because the editor writes this
+// data back to the selected period.
+func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
+	ctx context.Context,
+	templateID, periodID int64,
+) ([]activities.TemplateListRow, error) {
+	tenantID := tenant.FromContext(ctx)
+	rows := make([]activities.TemplateListRow, 0)
+	query := templateListSelect + `
+		LEFT JOIN (
+			SELECT
+				activity_group_id,
+				COUNT(*) AS count,
+				ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
+			FROM (
+				SELECT DISTINCT activity_group_id, student_id
+				FROM activities.student_enrollments
+				WHERE tenant_id = ?
+				  AND valid_until IS NULL
+				  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
+			) AS active_enrollments
+			GROUP BY activity_group_id
+		) AS enrollments ON enrollments.activity_group_id = g.id
+		LEFT JOIN (
+			SELECT
+				group_id,
+				COUNT(*) AS count,
+				ARRAY_AGG(staff_id ORDER BY is_primary DESC, primary_rank DESC, staff_id) AS staff_ids,
+				(ARRAY_AGG(staff_id ORDER BY primary_rank DESC, staff_id)
+					FILTER (WHERE is_primary))[1] AS primary_staff_id
+			FROM (
+				SELECT
+					group_id,
+					staff_id,
+					BOOL_OR(is_primary) AS is_primary,
+					MAX(CASE
+						WHEN is_primary THEN
+							CASE WHEN calendar_period_id = ? THEN 2 ELSE 0 END
+							+ CASE WHEN weekday IS NOT NULL THEN 1 ELSE 0 END
+						ELSE -1
+					END) AS primary_rank
+				FROM activities.supervisors
+				WHERE tenant_id = ?
+				  AND valid_until IS NULL
+				  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
+				GROUP BY group_id, staff_id
+			) AS active_supervisors
+			GROUP BY group_id
+		) AS supervisors ON supervisors.group_id = g.id
+	WHERE g.tenant_id = ?
+	  AND g.is_template = TRUE
+	  AND g.archived_at IS NULL
+	  AND s.valid_until IS NULL
+	  AND (
+		s.calendar_period_id = ?
+		OR (
+			s.calendar_period_id IS NULL
+			AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
+		)
+	  )
+	  AND g.id = ?
+	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
+	args := []any{
+		tenantID, periodID,
+		periodID, tenantID, periodID,
+		tenantID, periodID, periodID, templateID,
+	}
+	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
 // the open roster of every non-archived template (issue #2129). Staff, students,
 // and empty-day markers come back as one flat, kind-tagged stream so the caller
@@ -656,7 +731,27 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 			supervisor.weekday,
 			'staff' AS kind,
 			supervisor.staff_id AS person_id,
-			BOOL_OR(supervisor.is_primary) AS is_primary
+			BOOL_OR(supervisor.is_primary`
+	if calendarPeriodID != nil {
+		query += ` AND (
+				supervisor.calendar_period_id = ?
+				OR (
+					supervisor.calendar_period_id IS NULL
+					AND NOT EXISTS (
+						SELECT 1
+						FROM activities.supervisors AS exact_primary
+						WHERE exact_primary.tenant_id = supervisor.tenant_id
+						  AND exact_primary.group_id = supervisor.group_id
+						  AND exact_primary.weekday IS NOT DISTINCT FROM supervisor.weekday
+						  AND exact_primary.calendar_period_id = ?
+						  AND exact_primary.valid_until IS NULL
+						  AND exact_primary.is_primary
+					)
+				)
+			)`
+		args = append(args, *calendarPeriodID, *calendarPeriodID)
+	}
+	query += `) AS is_primary
 		FROM activities.supervisors AS supervisor
 		INNER JOIN template_weekdays AS template_day
 			ON template_day.template_id = supervisor.group_id

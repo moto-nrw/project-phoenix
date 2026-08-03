@@ -226,7 +226,15 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
 	weekday := activitiesModels.WeekdayMonday
-	require.NoError(t, repositories.NewFactory(s.db).ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+	repos := repositories.NewFactory(s.db)
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+		StaffID:   s.staffA,
+		GroupID:   result.TemplateID,
+		IsPrimary: true,
+		ValidFrom: monday.AddDays(-30),
+		Weekday:   &weekday,
+	}))
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
 		IsPrimary:        true,
@@ -236,9 +244,37 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	}))
 
 	openRows := s.openSupervisorRows(t, result.TemplateID)
-	require.Len(t, openRows, 2)
-	assert.True(t, openRows[0].IsPrimary)
-	assert.True(t, openRows[1].IsPrimary, "the exact-scope trigger must preserve both fallback scopes")
+	require.Len(t, openRows, 3)
+	var globalWeekdayPrimary, periodWeekdayPrimary bool
+	for _, row := range openRows {
+		if row.Weekday == nil {
+			continue
+		}
+		if row.CalendarPeriodID == nil {
+			globalWeekdayPrimary = row.IsPrimary
+		} else if *row.CalendarPeriodID == s.periodID {
+			periodWeekdayPrimary = row.IsPrimary
+		}
+	}
+	assert.True(t, globalWeekdayPrimary, "the trigger must preserve the global weekday fallback")
+	assert.True(t, periodWeekdayPrimary, "the trigger must preserve the period-specific primary")
+
+	rosterRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(
+		s.ctx,
+		&result.TemplateID,
+		&s.periodID,
+	)
+	require.NoError(t, err)
+	primaryByStaff := make(map[int64]bool)
+	for _, row := range rosterRows {
+		if row.Kind == activitiesModels.TemplateWeekdayRosterKindStaff {
+			primaryByStaff[row.PersonID] = row.IsPrimary
+		}
+	}
+	assert.False(t, primaryByStaff[s.staffA],
+		"the editor read must not expose the shared fallback as effective primary")
+	assert.True(t, primaryByStaff[s.staffB],
+		"the editor read must preserve the period-specific effective primary")
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)

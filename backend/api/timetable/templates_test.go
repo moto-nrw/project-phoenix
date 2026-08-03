@@ -1404,10 +1404,9 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		scheduleQ.SetTenantID(1)
 		require.NoError(t, s.res.TimetableData.CreateActivitySchedule(s.ctx, scheduleQ))
 
-		validUntil := end.AddDays(1)
-		createCapacityEnrollment(t, s, templateID, s.studentA, start, &validUntil, &periodP.ID, nil)
-		createCapacityEnrollment(t, s, templateID, s.studentB, start, &validUntil, &periodQ.ID, nil)
-		createCapacitySupervisor(t, s, templateID, s.staffA, start, &validUntil, &periodP.ID)
+		createCapacityEnrollment(t, s, templateID, s.studentA, start, nil, &periodP.ID, nil)
+		createCapacityEnrollment(t, s, templateID, s.studentB, start, nil, &periodQ.ID, nil)
+		createCapacitySupervisor(t, s, templateID, s.staffA, start, nil, &periodP.ID)
 
 		periodPResult := listCapacityTemplate(t, router, periodP.ID, templateID)
 		assert.Equal(t, 1, periodPResult.RequiredStaffCount)
@@ -1421,6 +1420,28 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			"all-period capacity must not union period-specific rosters on the same date")
 		assert.Zero(t, unfiltered.AssignedStaffCount,
 			"the unstaffed period-Q occurrence is the real worst case")
+
+		periodPDetailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d?period_id=%d", templateID, periodP.ID), nil)
+		require.Equal(t, http.StatusOK, periodPDetailW.Code, "body=%s", periodPDetailW.Body.String())
+		periodPDetail := decodeTemplateData[templateResponse](t, periodPDetailW)
+		assert.Equal(t, 1, periodPDetail.EnrollmentCount)
+		assert.Equal(t, []int64{s.studentA}, periodPDetail.StudentIDs)
+		assert.Equal(t, 1, periodPDetail.SupervisorCount)
+		assert.Equal(t, []int64{s.staffA}, periodPDetail.StaffIDs)
+		assert.Equal(t, 1, periodPDetail.RequiredStaffCount)
+		assert.Equal(t, 1, periodPDetail.AssignedStaffCount)
+
+		periodQDetailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d?period_id=%d", templateID, periodQ.ID), nil)
+		require.Equal(t, http.StatusOK, periodQDetailW.Code, "body=%s", periodQDetailW.Body.String())
+		periodQDetail := decodeTemplateData[templateResponse](t, periodQDetailW)
+		assert.Equal(t, 1, periodQDetail.EnrollmentCount)
+		assert.Equal(t, []int64{s.studentB}, periodQDetail.StudentIDs)
+		assert.Zero(t, periodQDetail.SupervisorCount)
+		assert.Empty(t, periodQDetail.StaffIDs)
+		assert.Equal(t, 1, periodQDetail.RequiredStaffCount)
+		assert.Zero(t, periodQDetail.AssignedStaffCount)
 	})
 
 	t.Run("inactive period has no materializable staffing occurrences", func(t *testing.T) {

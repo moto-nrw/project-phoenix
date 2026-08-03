@@ -38,7 +38,20 @@ func (rs *Resource) loadTemplates(
 	templateID, calendarPeriodID *int64,
 ) ([]templateResponse, error) {
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(ctx)
-	rows, err := rs.TimetableData.ListTemplateRows(ctx, templateID, childrenPerStaffRatio)
+	var (
+		rows []activities.TemplateListRow
+		err  error
+	)
+	if templateID != nil && calendarPeriodID != nil {
+		rows, err = rs.TimetableData.ListTemplateRowsForTemplatePeriod(
+			ctx,
+			*templateID,
+			*calendarPeriodID,
+			childrenPerStaffRatio,
+		)
+	} else {
+		rows, err = rs.TimetableData.ListTemplateRows(ctx, templateID, childrenPerStaffRatio)
+	}
 	if err != nil {
 		return nil, err
 	}

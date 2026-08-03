@@ -72,6 +72,10 @@ type GroupRepository interface {
 	// generic repository shape.
 	ListTemplateRows(ctx context.Context, templateID *int64) ([]TemplateListRow, error)
 
+	// ListTemplateRowsForTemplatePeriod returns the editable detail read model
+	// for one template, scoped to one calendar period.
+	ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]TemplateListRow, error)
+
 	// ListTemplateRowsForPeriod is the calendar-period-filtered variant used
 	// by the template list endpoint (people aggregates and schedules filter
 	// on the period when given).

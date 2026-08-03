@@ -321,6 +321,30 @@ func (s *TimetableDataService) ListTemplateRows(
 	return rows, nil
 }
 
+// ListTemplateRowsForTemplatePeriod returns the detail read model for one
+// editable template period, including period-scoped roster and capacity data.
+func (s *TimetableDataService) ListTemplateRowsForTemplatePeriod(
+	ctx context.Context,
+	templateID, periodID int64,
+	childrenPerStaffRatio int,
+) ([]activitiesModel.TemplateListRow, error) {
+	rows, err := s.deps.ActivityGroupRepo.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
+	if err != nil {
+		return nil, err
+	}
+	setDisplayRosterCapacity(rows)
+	if err := s.attachWorstTemplateCapacity(
+		ctx,
+		rows,
+		&periodID,
+		[]int64{templateID},
+		childrenPerStaffRatio,
+	); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
 // the templates the caller may see (issue #2129), optionally narrowed to one
 // template and calendar period. A nil period selects only unscoped roster
