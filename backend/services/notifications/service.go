@@ -344,9 +344,28 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 			return ErrOutsideActiveWindow
 		}
 	}
+	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	// The durable producer waits for one channel, not for all of them. Every
+	// other channel stays fire-and-forget exactly as in Notify — a parent with
+	// the portal open must see the in-app notification even though only Web
+	// Push acceptance decides whether the producer may mark the delivery done.
+	// They run first so a push failure cannot skip them.
+	for _, ch := range r.channels {
+		if _, ok := ch.(synchronousChannel); ok {
+			continue
+		}
+		if err := ch.Deliver(dispatchCtx, event); err != nil {
+			r.getLogger().Error("notification channel delivery failed",
+				"channel", ch.Name(),
+				"notification_type", event.Type,
+				"tenant_id", event.Audience.TenantID,
+				"error", err.Error(),
+			)
+		}
+	}
 	for _, ch := range r.channels {
 		if synchronous, ok := ch.(synchronousChannel); ok {
-			if err := synchronous.DeliverSynchronously(modelBase.ContextWithoutTx(ctx), event); err != nil {
+			if err := synchronous.DeliverSynchronously(dispatchCtx, event); err != nil {
 				return fmt.Errorf("synchronous notification channel %s: %w", ch.Name(), err)
 			}
 		}

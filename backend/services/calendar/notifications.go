@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -244,15 +247,65 @@ func guardianAccountIDs(guardianIDs []int64, profiles map[int64]*userModels.Guar
 	return accountIDs
 }
 
+// guardianStudentGroup is one addressable slice of an appointment's guardian
+// audience: the accounts that were let through by exactly the same children.
+type guardianStudentGroup struct {
+	accountIDs []int64
+	studentIDs []int64
+}
+
+// guardianStudentGroups splits an addressed audience so every event carries the
+// children of ITS recipients, never the appointment-wide union.
+//
+// The scope travels to the device lookup and the SSE fan-out, which keep an
+// account that still sees at least one named child. With a union, an account
+// that lost access to the child it was invited for would survive that check
+// through a child of a different recipient it happens to be a guardian of —
+// a push about an appointment the parents portal would then refuse to show.
+// Grouping keeps the recheck as narrow as the resolution that produced it, and
+// costs one extra event only where recipients genuinely differ.
+func guardianStudentGroups(recipients guardianRecipients, accountIDs []int64) []guardianStudentGroup {
+	groups := make([]guardianStudentGroup, 0, len(accountIDs))
+	index := make(map[string]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		studentIDs := guardianStudentIDs(recipients, []int64{accountID})
+		if len(studentIDs) == 0 {
+			continue
+		}
+		key := guardianStudentGroupKey(studentIDs)
+		if at, ok := index[key]; ok {
+			groups[at].accountIDs = append(groups[at].accountIDs, accountID)
+			continue
+		}
+		index[key] = len(groups)
+		groups = append(groups, guardianStudentGroup{
+			accountIDs: []int64{accountID},
+			studentIDs: studentIDs,
+		})
+	}
+	return groups
+}
+
+// guardianStudentGroupKey identifies a set of children independently of the
+// order they were resolved in, so two accounts with the same children share one
+// event instead of producing one each.
+func guardianStudentGroupKey(studentIDs []int64) string {
+	sorted := slices.Clone(studentIDs)
+	slices.Sort(sorted)
+	parts := make([]string, len(sorted))
+	for i, studentID := range sorted {
+		parts[i] = strconv.FormatInt(studentID, 10)
+	}
+	return strings.Join(parts, ",")
+}
+
 // guardianStudentIDs collects the children the addressed accounts were let
 // through by — the authorization scope a push carries into its own delivery
 // transaction, where the access question is asked one last time.
 //
-// The union is per event, not per recipient, so a guardian addressed for one
-// child of this appointment survives delivery while they still hold access to
-// any child of it. That can only keep recipients the producer already resolved,
-// never add one: an account with no permitted child on the appointment is not
-// in the audience to begin with.
+// Callers address one account at a time (the reminder) or group accounts by
+// their children first (the lifecycle path), so the returned scope never
+// exceeds what its own recipients were let through by.
 func guardianStudentIDs(recipients guardianRecipients, accountIDs []int64) []int64 {
 	addressed := make(map[int64]struct{}, len(accountIDs))
 	for _, accountID := range accountIDs {
@@ -339,8 +392,12 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 			return err
 		}
 		accountIDs = guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
-		_, err = s.dispatchGuardianAccountDevices(txCtx, current, kind, accountIDs, guardianStudentIDs(recipients, accountIDs))
-		return err
+		for _, group := range guardianStudentGroups(recipients, accountIDs) {
+			if _, err := s.dispatchGuardianAccountDevices(txCtx, current, kind, group.accountIDs, group.studentIDs); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
 		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",

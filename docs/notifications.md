@@ -214,6 +214,14 @@ closed/locked devices.
   non-guardian scope with student ids is rejected as malformed, so a producer
   cannot believe it narrowed something it did not.
 
+  A producer addressing many accounts at once splits them by the children they
+  were let through by rather than sending one event with the union
+  (`calendar.guardianStudentGroups`). "At least one" is only as narrow as the
+  set it is asked against: with a union, an account that lost access to the
+  child it was invited for would still pass through a child of a **different**
+  recipient it happens to be a guardian of — and receive a push for an
+  appointment the parents portal then refuses to show it.
+
   **Both guardian-facing channels ask it**, not only Web Push. The Web Push
   channel folds the predicate into its device lookup
   (`PushSubscriptionRepository.FindForGuardians`); the SSE channel resolves the
@@ -381,6 +389,13 @@ a lock screen or into an open session.
    `parent_appointment_reminder` push. The two are independent: an installation
    without an e-mail outbox still sends the push, and a guardian without an
    e-mail address is still reachable on their device.
+
+The reminder is the one producer that dispatches through
+`NotifySynchronously`, because its claim may only be kept once the push service
+has answered. Only Web Push is waited for; the in-app channel delivers
+fire-and-forget from the same call, exactly as under `Notify`. A parent with the
+portal open therefore sees the reminder even when no device is registered, and a
+failing SSE hub never costs a delivered push its claim.
 
 The push half is guarded by a durable claim per (appointment, revision,
 occurrence, guardian) instead of an outbox key. A claim records that a push went

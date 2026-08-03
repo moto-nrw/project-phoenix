@@ -110,13 +110,42 @@ func TestNotifySynchronouslyReturnsChannelFailure(t *testing.T) {
 	assert.ErrorContains(t, err, "web_push")
 }
 
-func TestNotifySynchronouslySkipsAsyncOnlyChannels(t *testing.T) {
+// Only ONE channel is waited for; the rest still deliver. A parent with the
+// portal open must see the in-app notification even though Web Push acceptance
+// alone decides whether the producer may mark its durable delivery done.
+func TestNotifySynchronouslyStillDeliversAsyncChannels(t *testing.T) {
 	asyncOnly := &recordingChannel{name: "sse"}
 	svc := notifications.NewService(openWindowSettings(), nil, asyncOnly)
 
 	require.NoError(t, svc.NotifySynchronously(context.Background(), syncEvent()))
-	assert.Empty(t, asyncOnly.events,
-		"a channel without synchronous acceptance is skipped, not delivered to twice")
+	require.Len(t, asyncOnly.events, 1,
+		"a channel without synchronous acceptance delivers fire-and-forget, it is not dropped")
+	assert.Equal(t, notifications.TypeParentAppointmentReminder, asyncOnly.events[0].Type)
+}
+
+// An async channel is best-effort: its failure must never reach the claim
+// holder, which would release a claim whose push the durable channel accepted.
+func TestNotifySynchronouslyIgnoresAsyncChannelFailure(t *testing.T) {
+	asyncOnly := &recordingChannel{name: "sse", err: errors.New("hub unavailable")}
+	syncCh := &syncChannel{recordingChannel: recordingChannel{name: "web_push"}}
+	svc := notifications.NewService(openWindowSettings(), nil, asyncOnly, syncCh)
+
+	require.NoError(t, svc.NotifySynchronously(context.Background(), syncEvent()))
+	assert.Len(t, syncCh.syncEvents, 1)
+}
+
+// A failing durable channel must not cost the other channels their delivery:
+// the in-app notification is correct regardless of what the push service said.
+func TestNotifySynchronouslyDeliversAsyncChannelsDespiteSyncFailure(t *testing.T) {
+	asyncOnly := &recordingChannel{name: "sse"}
+	syncCh := &syncChannel{
+		recordingChannel: recordingChannel{name: "web_push"},
+		syncErr:          errors.New("push service unavailable"),
+	}
+	svc := notifications.NewService(openWindowSettings(), nil, syncCh, asyncOnly)
+
+	require.Error(t, svc.NotifySynchronously(context.Background(), syncEvent()))
+	assert.Len(t, asyncOnly.events, 1)
 }
 
 func TestNotifySynchronouslyHonorsTenantGates(t *testing.T) {

@@ -107,6 +107,45 @@ func TestGuardianStudentIDs(t *testing.T) {
 	assert.Empty(t, guardianStudentIDs(recipients, nil))
 }
 
+// The lifecycle path addresses many accounts at once, so the scope it hands to
+// the delivery recheck must not be the appointment-wide union: a parent who
+// lost access to their own invited child would otherwise ride through on a
+// child of a different recipient they happen to be a guardian of.
+func TestGuardianStudentGroups(t *testing.T) {
+	first := int64(77)
+	second := int64(88)
+	third := int64(99)
+
+	recipients := guardianRecipients{
+		guardianIDs: []int64{1, 2, 3, 4},
+		profiles: map[int64]*userModels.GuardianProfile{
+			1: guardianProfile(1, &first),
+			2: guardianProfile(2, &second),
+			3: guardianProfile(3, &third),
+			4: guardianProfile(4, nil),
+		},
+		studentsByGuardian: map[int64][]int64{
+			1: {10},
+			2: {12},
+			3: {12},
+			4: {13},
+		},
+	}
+
+	groups := guardianStudentGroups(recipients, []int64{first, second, third})
+
+	require.Len(t, groups, 2, "accounts let through by the same child share one event")
+	assert.Equal(t, []int64{first}, groups[0].accountIDs)
+	assert.Equal(t, []int64{10}, groups[0].studentIDs,
+		"the account invited for one child must not carry another recipient's child into the recheck")
+	assert.Equal(t, []int64{second, third}, groups[1].accountIDs)
+	assert.Equal(t, []int64{12}, groups[1].studentIDs)
+
+	assert.Empty(t, guardianStudentGroups(recipients, nil))
+	assert.Empty(t, guardianStudentGroups(recipients, []int64{int64(1234)}),
+		"an account no child let through is not addressable at all")
+}
+
 // dispatchGuardianAccountDevices is the single gate every appointment push goes
 // through. Consent narrows the audience the appointment already defined — it
 // never widens it, and a missing dependency means "do not push".
