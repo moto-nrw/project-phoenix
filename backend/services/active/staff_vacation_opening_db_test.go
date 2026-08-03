@@ -224,6 +224,21 @@ func TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff(t *testing.T) {
 	assert.Nil(t, stored, "nothing may be booked when the guard trips")
 }
 
+func TestSetVacationOpening_AllowsVacationBeginningOnWeekendBeforeCutoff(t *testing.T) {
+	f := newVacationOpeningFixture(t)
+	for f.cutoff.Weekday() != time.Monday {
+		f.cutoff = f.cutoff.AddDays(-1)
+	}
+
+	// The absence begins on Saturday but only consumes quota on the Monday
+	// Stichtag, which belongs to the moto-era calculation.
+	f.addVacationAbsence(t, activeModels.AbsenceStatusApproved, f.cutoff.AddDays(-2), f.cutoff)
+
+	opening, err := f.set(12)
+	require.NoError(t, err)
+	require.NotNil(t, opening)
+}
+
 // TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences: only absences that
 // actually spend quota before the Stichtag block the takeover.
 func TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences(t *testing.T) {

@@ -170,12 +170,9 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 		if opening == nil {
 			continue
 		}
-		firstDayInYear := absence.DateStart
-		if year != absence.DateStart.Year {
-			firstDayInYear = timezone.NewDate(year, time.January, 1)
-		}
-		if firstDayInYear.Before(opening.EffectiveDate) {
-			return fmt.Errorf("%w: vacation absence begins before opening date %s", ErrVacationOpeningAbsencesBeforeCutoff, opening.EffectiveDate.String())
+		yearStart := timezone.NewDate(year, time.January, 1)
+		if vacationAbsenceHasWorkingDayBefore(absence, yearStart, opening.EffectiveDate) {
+			return fmt.Errorf("%w: vacation absence contains a working day before opening date %s", ErrVacationOpeningAbsencesBeforeCutoff, opening.EffectiveDate.String())
 		}
 	}
 	return nil
@@ -238,13 +235,40 @@ func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, 
 		case activeModels.AbsenceStatusDeclined, activeModels.AbsenceStatusCanceled:
 			continue
 		}
-		if a.DateStart.Before(effectiveDate) {
+		if vacationAbsenceHasWorkingDayBefore(a, yearStart, effectiveDate) {
 			return fmt.Errorf(
-				"%w: absence %s-%s starts before %s",
+				"%w: absence %s-%s contains a working day before %s",
 				ErrVacationOpeningAbsencesBeforeCutoff,
 				a.DateStart.String(), a.DateEnd.String(), effectiveDate.String(),
 			)
 		}
 	}
 	return nil
+}
+
+// vacationAbsenceHasWorkingDayBefore reports whether the absence spends any
+// vacation quota before cutoff within the requested calendar year. Vacation
+// quota currently counts Monday through Friday only; holidays are deliberately
+// not excluded by countWorkingDays yet.
+func vacationAbsenceHasWorkingDayBefore(absence *activeModels.StaffAbsence, yearStart, cutoff timezone.Date) bool {
+	from := absence.DateStart
+	if from.Before(yearStart) {
+		from = yearStart
+	}
+	to := absence.DateEnd
+	cutoffPreviousDay := cutoff.AddDays(-1)
+	if cutoffPreviousDay.Before(to) {
+		to = cutoffPreviousDay
+	}
+	if to.Before(from) {
+		return false
+	}
+	startHalf, endHalf := effectiveBoundaryHalfDays(absence)
+	if from != absence.DateStart {
+		startHalf = false
+	}
+	if to != absence.DateEnd {
+		endHalf = false
+	}
+	return countWorkingDays(from, to, startHalf, endHalf) > 0
 }
