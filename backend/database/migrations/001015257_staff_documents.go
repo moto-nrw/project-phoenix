@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffDocumentsVersion     = "1.15.253"
+	staffDocumentsVersion     = "1.15.257"
 	staffDocumentsDescription = "Create users.staff_documents (Dokumente tab phase 1) and the staff_documents:health permission (#1424)"
 )
 
@@ -45,7 +45,7 @@ func init() {
 // The Lohnabrechnung category reuses the existing staff:financial
 // permission; both checks live in the document service.
 func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.253: Creating users.staff_documents + staff_documents:health permission...")
+	fmt.Println("Migration 1.15.257: Creating users.staff_documents + staff_documents:health permission...")
 
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.staff_documents (
@@ -160,7 +160,7 @@ func staffDocumentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffDocumentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.253: Dropping users.staff_documents...")
+	fmt.Println("Rolling back migration 1.15.257: Dropping users.staff_documents...")
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.permissions WHERE name = 'staff_documents:health';
 		DROP TABLE IF EXISTS users.staff_document_file_cleanup CASCADE;
