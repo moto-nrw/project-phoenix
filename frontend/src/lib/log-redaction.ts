@@ -19,7 +19,7 @@ const SENSITIVE_LOG_KEYS = new Set([
 ]);
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
-  /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
+  /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|public\/calendar|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
 const TEXT_FIELD_NAME = String.raw`[^\s"'=:,{}\[\]&?#]+`;
 const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
   String.raw`([?&])(${TEXT_FIELD_NAME})(=)[^&#\s"']*`,
