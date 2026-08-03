@@ -495,65 +495,15 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 // reduction-capacity check — a migrated account legitimately starts negative
 // when the staff member owed hours in the previous system.
 func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
-	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
-		return nil, err
-	}
-	if balanceMinutes < -maxBalanceCarryoverMinutes || balanceMinutes > maxBalanceCarryoverMinutes {
-		return nil, fmt.Errorf(
-			"%w: balance_minutes must be between %d and %d",
-			ErrAdjustmentInvalid,
-			-maxBalanceCarryoverMinutes,
-			maxBalanceCarryoverMinutes,
-		)
-	}
-	// Same reasoning as the reset: the Stichtag needs a closed cutoff so the
-	// stored delta cannot go stale before the day ends.
-	if !effectiveDate.Before(timezone.TodayDate()) {
-		return nil, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
-	}
-	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
-		return nil, err
-	}
-	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
-		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
-	}
-	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
-		return nil, err
-	}
-	existing, err := s.listOpenings(ctx, staffID)
+	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note)
 	if err != nil {
 		return nil, err
-	}
-	if len(existing) > 0 {
-		return nil, fmt.Errorf("%w: booked %s", ErrOpeningAlreadyExists, existing[0].EffectiveDate.String())
-	}
-	rebaselines, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
-	if err != nil {
-		return nil, err
-	}
-	if len(rebaselines) > 0 {
-		return nil, fmt.Errorf(
-			"%w: opening date %s is not after existing %s booking %s",
-			ErrAdjustmentHasDependentReset,
-			effectiveDate.String(),
-			rebaselines[0].Type,
-			rebaselines[0].EffectiveDate.String(),
-		)
-	}
-
-	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute balance for opening: %w", err)
-	}
-	delta := int64(balanceMinutes) - int64(previousBalance)
-	if delta < minPostgresInteger || delta > maxPostgresInteger {
-		return nil, fmt.Errorf("%w: calculated opening delta is outside the supported range", ErrAdjustmentInvalid)
 	}
 
 	adjustment := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
 		Type:          activeModels.BalanceAdjustmentTypeOpening,
-		MinutesDelta:  int(delta),
+		MinutesDelta:  delta,
 		EffectiveDate: effectiveDate,
 		Note:          note,
 		DecidedBy:     decidedBy,
@@ -574,6 +524,72 @@ func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context
 	)
 	s.broadcastTimeTrackingChanged(ctx)
 	return adjustment, nil
+}
+
+// ValidateOpeningBalance runs the same read-only booking guards used by
+// CreateOpeningBalance. Import previews use it to report constraints before
+// an operator commits the file.
+func (s *staffBalanceAdjustmentService) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) error {
+	_, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note)
+	return err
+}
+
+func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (int, error) {
+	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
+		return 0, err
+	}
+	if balanceMinutes < -maxBalanceCarryoverMinutes || balanceMinutes > maxBalanceCarryoverMinutes {
+		return 0, fmt.Errorf(
+			"%w: balance_minutes must be between %d and %d",
+			ErrAdjustmentInvalid,
+			-maxBalanceCarryoverMinutes,
+			maxBalanceCarryoverMinutes,
+		)
+	}
+	// Same reasoning as the reset: the Stichtag needs a closed cutoff so the
+	// stored delta cannot go stale before the day ends.
+	if !effectiveDate.Before(timezone.TodayDate()) {
+		return 0, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
+	}
+	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
+		return 0, err
+	}
+	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+		return 0, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
+		return 0, err
+	}
+	existing, err := s.listOpenings(ctx, staffID)
+	if err != nil {
+		return 0, err
+	}
+	if len(existing) > 0 {
+		return 0, fmt.Errorf("%w: booked %s", ErrOpeningAlreadyExists, existing[0].EffectiveDate.String())
+	}
+	rebaselines, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
+	if err != nil {
+		return 0, err
+	}
+	if len(rebaselines) > 0 {
+		return 0, fmt.Errorf(
+			"%w: opening date %s is not after existing %s booking %s",
+			ErrAdjustmentHasDependentReset,
+			effectiveDate.String(),
+			rebaselines[0].Type,
+			rebaselines[0].EffectiveDate.String(),
+		)
+	}
+
+	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute balance for opening: %w", err)
+	}
+	delta := int64(balanceMinutes) - int64(previousBalance)
+	if delta < minPostgresInteger || delta > maxPostgresInteger {
+		return 0, fmt.Errorf("%w: calculated opening delta is outside the supported range", ErrAdjustmentInvalid)
+	}
+	return int(delta), nil
 }
 
 // listOpenings lists all opening bookings for a staff member regardless of

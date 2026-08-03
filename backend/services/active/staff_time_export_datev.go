@@ -81,10 +81,11 @@ func datevCategoryValue(category configSvc.PayrollCategoryStatus, row MonthExpor
 	case "regelarbeit":
 		minutes = row.ActualMinutes
 	case "plus_stunden":
-		// Only a positive month balance is a Plus-Stunden booking; a negative
-		// month is an account matter, not a payroll line.
-		if row.BalanceMinutes > 0 {
-			minutes = row.BalanceMinutes
+		// An opening is a non-payroll go-live rebaseline. Exclude its delta
+		// from the generic Plus-Stunden line; CSV/XLSX expose it explicitly.
+		payrollBalance := row.BalanceMinutes - row.OpeningMinutes
+		if payrollBalance > 0 {
+			minutes = payrollBalance
 		}
 	case "auszahlung":
 		minutes = -row.PayoutMinutes

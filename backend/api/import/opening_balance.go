@@ -180,6 +180,10 @@ func (rs *Resource) parseOpeningBalanceRequest(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Stichtag (erwartet JJJJ-MM-TT)")))
 		return nil, false
 	}
+	if !effectiveDate.Before(timezone.TodayDate()) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("stichtag muss vor dem heutigen Tag liegen")))
+		return nil, false
+	}
 	note := strings.TrimSpace(r.FormValue("note"))
 	if note == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("begründung ist erforderlich")))

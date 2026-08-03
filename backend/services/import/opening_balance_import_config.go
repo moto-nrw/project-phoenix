@@ -117,7 +117,7 @@ func staffNameKey(firstName, lastName string) string {
 
 // Validate resolves the row's staff member, parses the German decimal values,
 // and reports duplicate takeovers per side.
-func (c *OpeningBalanceImportConfig) Validate(_ context.Context, row *importModels.OpeningBalanceImportRow) []importModels.ValidationError {
+func (c *OpeningBalanceImportConfig) Validate(ctx context.Context, row *importModels.OpeningBalanceImportRow) []importModels.ValidationError {
 	var errs []importModels.ValidationError
 
 	row.PersonnelNumber = strings.TrimSpace(row.PersonnelNumber)
@@ -130,6 +130,8 @@ func (c *OpeningBalanceImportConfig) Validate(_ context.Context, row *importMode
 
 	errs = append(errs, c.resolveStaff(row)...)
 	errs = append(errs, c.parseValues(row)...)
+	errs = append(errs, c.validateOpeningBalancePreflight(ctx, row)...)
+	errs = append(errs, c.validateDerivedVacationOpening(ctx, row)...)
 
 	if row.HoursBalance == "" && row.VacationEntitled == "" && row.VacationCarryover == "" && row.VacationRemaining == "" {
 		errs = append(errs, importModels.ValidationError{
@@ -160,6 +162,73 @@ func (c *OpeningBalanceImportConfig) Validate(_ context.Context, row *importMode
 	}
 
 	return errs
+}
+
+type openingBalancePreflightValidator interface {
+	ValidateOpeningBalance(context.Context, int64, int64, timezone.Date, int, string) error
+}
+
+func (c *OpeningBalanceImportConfig) validateOpeningBalancePreflight(ctx context.Context, row *importModels.OpeningBalanceImportRow) []importModels.ValidationError {
+	if row.StaffID <= 0 || row.HoursBalanceMinutes == nil {
+		return nil
+	}
+	validator, ok := c.BalanceAdjustService.(openingBalancePreflightValidator)
+	if !ok {
+		return nil
+	}
+	if err := validator.ValidateOpeningBalance(ctx, row.StaffID, c.DecidedByStaffID, c.EffectiveDate, *row.HoursBalanceMinutes, c.Note); err != nil {
+		return []importModels.ValidationError{{
+			Field:    "hours_balance",
+			Message:  fmt.Sprintf("Stundenkonto-Eröffnungssaldo kann nicht gebucht werden: %s", translateOpeningBookingError(err)),
+			Code:     "opening_preflight_failed",
+			Severity: importModels.ErrorSeverityError,
+		}}
+	}
+	return nil
+}
+
+// validateDerivedVacationOpening mirrors the model check that SetVacationOpening
+// performs after deriving taken_before_days. The import may replace either
+// quota component in the same row, so validation must use those supplied
+// values rather than only the currently persisted quota.
+func (c *OpeningBalanceImportConfig) validateDerivedVacationOpening(ctx context.Context, row *importModels.OpeningBalanceImportRow) []importModels.ValidationError {
+	if row.StaffID <= 0 || row.VacationRemainingDays == nil || c.StaffAbsenceService == nil {
+		return nil
+	}
+	summary, err := c.StaffAbsenceService.GetVacationQuotaSummary(ctx, row.StaffID, c.EffectiveDate.Year)
+	if err != nil {
+		return []importModels.ValidationError{{
+			Field:    "vacation_remaining",
+			Message:  "Urlaubskonto konnte nicht für die Übernahme geprüft werden.",
+			Code:     "vacation_quota_lookup_failed",
+			Severity: importModels.ErrorSeverityError,
+		}}
+	}
+	entitled, carryover := summary.EntitledDays, summary.CarryoverDays
+	if row.VacationEntitledDays != nil {
+		entitled = *row.VacationEntitledDays
+	}
+	if row.VacationCarryoverDays != nil {
+		carryover = *row.VacationCarryoverDays
+	}
+	opening := &activeModels.StaffVacationOpening{
+		StaffID:              row.StaffID,
+		Year:                 c.EffectiveDate.Year,
+		EffectiveDate:        c.EffectiveDate,
+		TakenBeforeDays:      entitled + carryover - *row.VacationRemainingDays,
+		EnteredRemainingDays: *row.VacationRemainingDays,
+		DecidedBy:            c.DecidedByStaffID,
+	}
+	if err := opening.Validate(); err != nil {
+		return []importModels.ValidationError{{
+			Field:       "vacation_remaining",
+			Message:     fmt.Sprintf("Resturlaub ist mit Jahresanspruch und Übertrag nicht gültig: %s.", err.Error()),
+			Code:        "invalid_vacation_opening",
+			Severity:    importModels.ErrorSeverityError,
+			ActualValue: row.VacationRemaining,
+		}}
+	}
+	return nil
 }
 
 // resolveStaff matches the row to a staff member: exact Personalnummer first,
@@ -234,6 +303,8 @@ func (c *OpeningBalanceImportConfig) parseValues(row *importModels.OpeningBalanc
 		switch {
 		case err != nil:
 			errs = append(errs, decimalError("vacation_entitled", "Jahresanspruch", row.VacationEntitled))
+		case !hasOneDecimalPlace(entitled):
+			errs = append(errs, precisionError("vacation_entitled", "Jahresanspruch", row.VacationEntitled))
 		case entitled < 0 || entitled > 366:
 			errs = append(errs, rangeError("vacation_entitled", "Jahresanspruch muss zwischen 0 und 366 Tagen liegen.", row.VacationEntitled))
 		default:
@@ -246,6 +317,8 @@ func (c *OpeningBalanceImportConfig) parseValues(row *importModels.OpeningBalanc
 		switch {
 		case err != nil:
 			errs = append(errs, decimalError("vacation_carryover", "Vorjahresübertrag", row.VacationCarryover))
+		case !hasOneDecimalPlace(carryover):
+			errs = append(errs, precisionError("vacation_carryover", "Vorjahresübertrag", row.VacationCarryover))
 		case carryover < 0 || carryover > 366:
 			errs = append(errs, rangeError("vacation_carryover", "Vorjahresübertrag muss zwischen 0 und 366 Tagen liegen.", row.VacationCarryover))
 		default:
@@ -258,6 +331,8 @@ func (c *OpeningBalanceImportConfig) parseValues(row *importModels.OpeningBalanc
 		switch {
 		case err != nil:
 			errs = append(errs, decimalError("vacation_remaining", "Resturlaub", row.VacationRemaining))
+		case !hasOneDecimalPlace(remaining):
+			errs = append(errs, precisionError("vacation_remaining", "Resturlaub", row.VacationRemaining))
 		case math.Abs(remaining) > 999:
 			errs = append(errs, rangeError("vacation_remaining", "Resturlaub muss zwischen -999 und 999 Tagen liegen.", row.VacationRemaining))
 		default:
@@ -268,11 +343,25 @@ func (c *OpeningBalanceImportConfig) parseValues(row *importModels.OpeningBalanc
 	return errs
 }
 
+func hasOneDecimalPlace(value float64) bool {
+	return math.Abs(value*10-math.Round(value*10)) < 1e-9
+}
+
 func decimalError(field, label, actual string) importModels.ValidationError {
 	return importModels.ValidationError{
 		Field:       field,
 		Message:     fmt.Sprintf("%s '%s' ist keine gültige Zahl (z. B. 12,5 oder -3,25).", label, actual),
 		Code:        "invalid_number",
+		Severity:    importModels.ErrorSeverityError,
+		ActualValue: actual,
+	}
+}
+
+func precisionError(field, label, actual string) importModels.ValidationError {
+	return importModels.ValidationError{
+		Field:       field,
+		Message:     fmt.Sprintf("%s '%s' darf höchstens eine Nachkommastelle haben.", label, actual),
+		Code:        "invalid_precision",
 		Severity:    importModels.ErrorSeverityError,
 		ActualValue: actual,
 	}

@@ -2,11 +2,16 @@ package active
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+func hasOneDecimalPlace(value float64) bool {
+	return math.Abs(value*10-math.Round(value*10)) < 1e-9
+}
 
 // Validation bounds for a vacation opening. NUMERIC(5,1) caps the magnitude;
 // the business range is far smaller, but the takeover derives taken_before
@@ -56,6 +61,9 @@ func (o *StaffVacationOpening) Validate() error {
 	}
 	if o.EnteredRemainingDays < -maxOpeningDays || o.EnteredRemainingDays > maxOpeningDays {
 		return errors.New("entered_remaining_days out of range")
+	}
+	if !hasOneDecimalPlace(o.TakenBeforeDays) || !hasOneDecimalPlace(o.EnteredRemainingDays) {
+		return errors.New("vacation opening days must have at most one decimal place")
 	}
 	if o.DecidedBy <= 0 {
 		return errors.New("decided_by is required")

@@ -113,6 +113,8 @@ func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthEx
 			row.CompTimeMinutes += adjustment.MinutesDelta
 		case activeModels.BalanceAdjustmentTypeReset:
 			row.ResetMinutes += adjustment.MinutesDelta
+		case activeModels.BalanceAdjustmentTypeOpening:
+			row.OpeningMinutes += adjustment.MinutesDelta
 		}
 	}
 	if staff.EmploymentType != nil {

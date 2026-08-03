@@ -237,31 +237,43 @@ func TestOpeningBalanceValidate_OutOfRangeValues(t *testing.T) {
 		name  string
 		row   importModels.OpeningBalanceImportRow
 		field string
+		code  string
 	}{
 		{
 			name:  "Jahresanspruch über 366 Tagen",
 			row:   importModels.OpeningBalanceImportRow{VacationEntitled: "400"},
 			field: "vacation_entitled",
+			code:  "out_of_range",
 		},
 		{
 			name:  "negativer Jahresanspruch",
 			row:   importModels.OpeningBalanceImportRow{VacationEntitled: "-1"},
 			field: "vacation_entitled",
+			code:  "out_of_range",
 		},
 		{
 			name:  "negativer Vorjahresübertrag",
 			row:   importModels.OpeningBalanceImportRow{VacationCarryover: "-1"},
 			field: "vacation_carryover",
+			code:  "out_of_range",
 		},
 		{
 			name:  "Stundensaldo über der Ledger-Grenze",
 			row:   importModels.OpeningBalanceImportRow{HoursBalance: "10001"},
 			field: "hours_balance",
+			code:  "out_of_range",
 		},
 		{
 			name:  "Resturlaub außerhalb ±999",
 			row:   importModels.OpeningBalanceImportRow{VacationRemaining: "1000"},
 			field: "vacation_remaining",
+			code:  "out_of_range",
+		},
+		{
+			name:  "Resturlaub mit mehr als einer Nachkommastelle",
+			row:   importModels.OpeningBalanceImportRow{VacationRemaining: "12,25"},
+			field: "vacation_remaining",
+			code:  "invalid_precision",
 		},
 	}
 
@@ -275,7 +287,7 @@ func TestOpeningBalanceValidate_OutOfRangeValues(t *testing.T) {
 			errs := c.Validate(context.Background(), &row)
 
 			require.Len(t, errs, 1)
-			assert.Equal(t, "out_of_range", errs[0].Code)
+			assert.Equal(t, tc.code, errs[0].Code)
 			assert.Equal(t, tc.field, errs[0].Field)
 		})
 	}
