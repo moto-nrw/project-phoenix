@@ -80,10 +80,11 @@ type MonthExportRow struct {
 	VacationDays            float64
 	TrainingDays            float64
 
-	PayoutMinutes   int
-	CompTimeMinutes int
-	ResetMinutes    int
-	OpeningMinutes  int
+	PayoutMinutes       int
+	CompTimeMinutes     int
+	ResetMinutes        int
+	OpeningMinutes      int
+	OpeningCarryMinutes int
 
 	BalanceMinutes int
 	// ClosingBalanceMinutes is the AUTHORITATIVE month-end carry: the frozen

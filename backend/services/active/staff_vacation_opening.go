@@ -155,6 +155,23 @@ func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.
 	return s.rejectVacationAbsencesBefore(ctx, staffID, effectiveDate)
 }
 
+// rejectVacationBeforeOpening keeps later vacation mutations from invalidating
+// an already-booked takeover. Callers hold LockStaffAbsenceWrites, the same
+// lock SetVacationOpening holds while checking and inserting its row.
+func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, absence *activeModels.StaffAbsence) error {
+	if absence.AbsenceType != activeModels.AbsenceTypeVacation || s.openingRepo == nil {
+		return nil
+	}
+	opening, err := s.openingRepo.GetByStaffAndYear(ctx, absence.StaffID, absence.DateStart.Year)
+	if err != nil {
+		return fmt.Errorf("failed to check vacation opening: %w", err)
+	}
+	if opening != nil && absence.DateStart.Before(opening.EffectiveDate) {
+		return fmt.Errorf("%w: vacation absence begins before opening date %s", ErrVacationOpeningAbsencesBeforeCutoff, opening.EffectiveDate.String())
+	}
+	return nil
+}
+
 // DeleteVacationOpening removes a takeover row and writes an append-only
 // tombstone (audit.time_tracking_deletions) in the same tenant transaction.
 func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error {

@@ -699,6 +699,9 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if err := validateSingleDayHalfDayAbsence(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
+	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
+		return nil, err
+	}
 
 	// Check for overlapping absences (excluding self)
 	if err := s.checkOverlapExcludingSelf(ctx, staffID, absenceID, absence.DateStart, absence.DateEnd); err != nil {
@@ -1149,6 +1152,9 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if absence.Status != activeModels.AbsenceStatusRequested &&
 		absence.Status != activeModels.AbsenceStatusQuestion {
 		return nil, fmt.Errorf("only requested absences can be approved")
+	}
+	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
+		return nil, err
 	}
 	fromStatus := absence.Status
 	now := time.Now()

@@ -560,7 +560,7 @@ function StaffPageContent() {
           onCloseMonth={() => setShowCloseModal(true)}
           onExport={() => setShowExportModal(true)}
           onOpeningBalances={
-            userIsAdmin
+            canManageTimeTracking
               ? () => router.push("/database/personal/opening-balances")
               : undefined
           }
