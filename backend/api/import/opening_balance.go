@@ -182,7 +182,7 @@ func (rs *Resource) parseOpeningBalanceRequest(w http.ResponseWriter, r *http.Re
 	}
 	note := strings.TrimSpace(r.FormValue("note"))
 	if note == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("Begründung ist erforderlich")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("begründung ist erforderlich")))
 		return nil, false
 	}
 

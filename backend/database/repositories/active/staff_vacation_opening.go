@@ -36,7 +36,7 @@ func NewStaffVacationOpeningRepository(db *bun.DB) active.StaffVacationOpeningRe
 // model columns with the struct-derived singular alias, which the plural
 // table name does not match.
 func (r *StaffVacationOpeningRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffVacationOpening, error) {
-	return r.Repository.ListWithOptions(ctx, options)
+	return r.ListWithOptions(ctx, options)
 }
 
 func (r *StaffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*active.StaffVacationOpening, error) {
