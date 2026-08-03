@@ -71,6 +71,73 @@ func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.
 	assert.Equal(t, secondID, referencedCategoryID)
 }
 
+func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	const (
+		variantTenantID   int64 = 9258
+		duplicateTenantID int64 = 9259
+	)
+	testpkg.EnsureTestTenant(t, db, variantTenantID)
+	testpkg.EnsureTestTenant(t, db, duplicateTenantID)
+	defer testpkg.CleanupTenantTestData(t, db, variantTenantID)
+	defer testpkg.CleanupTenantTestData(t, db, duplicateTenantID)
+
+	restored := false
+	require.NoError(t, activityCategoryArchivalDown(ctx, db))
+	defer func() {
+		if !restored {
+			require.NoError(t, activityCategoryArchivalUp(ctx, db))
+		}
+	}()
+
+	insertCategory := func(tenantID int64, name string, isSystem bool) int64 {
+		t.Helper()
+		var id int64
+		require.NoError(t, db.NewRaw(`
+			INSERT INTO activities.categories (tenant_id, name, is_system)
+			VALUES (?, ?, ?)
+			RETURNING id
+		`, tenantID, name, isSystem).Scan(ctx, &id))
+		return id
+	}
+
+	wcVariantID := insertCategory(variantTenantID, "wc", false)
+	schulhofVariantID := insertCategory(variantTenantID, "sCHulHOf", false)
+	canonicalWCID := insertCategory(duplicateTenantID, "WC", true)
+	duplicateWCID := insertCategory(duplicateTenantID, "wC", false)
+
+	require.NoError(t, activityCategoryArchivalUp(ctx, db))
+	restored = true
+
+	assertCategory := func(id int64, expectedName string, expectedSystem bool) {
+		t.Helper()
+		var row struct {
+			Name     string `bun:"name"`
+			IsSystem bool   `bun:"is_system"`
+		}
+		require.NoError(t, db.NewRaw(`
+			SELECT name, is_system
+			FROM activities.categories
+			WHERE id = ?
+		`, id).Scan(ctx, &row))
+		assert.Equal(t, expectedName, row.Name)
+		assert.Equal(t, expectedSystem, row.IsSystem)
+	}
+
+	assertCategory(wcVariantID, "WC", true)
+	assertCategory(schulhofVariantID, "Schulhof", true)
+	assertCategory(canonicalWCID, "WC", true)
+	assertCategory(duplicateWCID, fmt.Sprintf("wC (Duplikat #%d)", duplicateWCID), false)
+
+	_, err := db.NewRaw(`
+		INSERT INTO activities.categories (tenant_id, name)
+		VALUES (?, 'Wc')
+	`, variantTenantID).Exec(ctx)
+	require.Error(t, err, "the active-name index must reserve case variants of WC")
+}
+
 func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()

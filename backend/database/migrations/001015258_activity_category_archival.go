@@ -37,6 +37,49 @@ func activityCategoryArchivalUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed dropping idx_categories_tenant_name: %w", err)
 	}
 
+	// 1.15.168 only flagged exact "WC" and "Schulhof" names as system
+	// categories. Under the old case-sensitive index, a tenant could instead
+	// have a lone "wc" or "schulhof" row. Leaving that row unchanged would
+	// make the case-insensitive index below block lazy provisioning of the
+	// canonical name. Promote one deterministic row per reserved name to the
+	// canonical protected category. Keep additional variants and their
+	// references, but free the reserved name with the same stable suffix used
+	// for other legacy duplicates.
+	if _, err := db.NewRaw(`
+				WITH reserved_candidates AS (
+					SELECT id,
+					       tenant_id,
+					       name,
+					       is_system,
+					       CASE LOWER(name)
+					         WHEN 'wc' THEN 'WC'
+					         WHEN 'schulhof' THEN 'Schulhof'
+					       END AS canonical_name
+					FROM activities.categories
+					WHERE LOWER(name) IN ('wc', 'schulhof')
+				), ranked_candidates AS (
+					SELECT id,
+					       canonical_name,
+					       ROW_NUMBER() OVER (
+					         PARTITION BY tenant_id, canonical_name
+					         ORDER BY (name = canonical_name) DESC,
+					                  is_system DESC,
+					                  id
+					       ) AS reserved_rank
+					FROM reserved_candidates
+				)
+				UPDATE activities.categories AS category
+				SET name = CASE
+				             WHEN candidate.reserved_rank = 1 THEN candidate.canonical_name
+				             ELSE category.name || ' (Duplikat #' || category.id || ')'
+				           END,
+				    is_system = candidate.reserved_rank = 1
+				FROM ranked_candidates AS candidate
+				WHERE candidate.id = category.id;
+			`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed canonicalizing reserved system category names: %w", err)
+	}
+
 	// The old exact-case index allowed active names such as "Sport" and
 	// "sport" in one tenant. Preserve every row and reference while making the
 	// upgrade compatible with the new case-insensitive index: the lowest ID
