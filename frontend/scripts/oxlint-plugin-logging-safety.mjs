@@ -41,6 +41,27 @@ function isCreateLoggerCall(node, sourceCode) {
   );
 }
 
+function isLoggerType(identifier, sourceCode) {
+  const type = identifier.typeAnnotation?.typeAnnotation;
+  if (type?.type !== "TSTypeReference") return false;
+  if (type.typeName.type !== "Identifier") return false;
+
+  const variable = findVariable(sourceCode, type.typeName);
+  if (!variable) return false;
+
+  return variable.defs.some((definition) => {
+    if (definition.type !== "ImportBinding") return false;
+    if (definition.node.type !== "ImportSpecifier") return false;
+
+    const importedName =
+      definition.node.imported.name ?? definition.node.imported.value;
+    return (
+      importedName === "Logger" &&
+      isLoggerModule(definition.parent.source.value)
+    );
+  });
+}
+
 function isLoggerInitializer(node, sourceCode, seenVariables) {
   if (isCreateLoggerCall(node, sourceCode)) return true;
   if (node?.type !== "CallExpression") return false;
@@ -74,6 +95,14 @@ function isLoggerBinding(identifier, sourceCode, seenVariables = new Set()) {
   const variable = findVariable(sourceCode, identifier);
   if (!variable || seenVariables.has(variable)) return false;
   seenVariables.add(variable);
+
+  if (
+    variable.identifiers.some((declaration) =>
+      isLoggerType(declaration, sourceCode),
+    )
+  ) {
+    return true;
+  }
 
   return variable.defs.some(
     (definition) =>

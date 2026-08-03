@@ -44,7 +44,7 @@ describe("POST /api/logs", () => {
         entries: [
           {
             level: "debug",
-            msg: "X-API-Key: sentinel-header\nX-Staff-PIN: sentinel-staff-pin\nX-Staff-Auth-PIN: sentinel-staff-auth-pin\nstatusToken=sentinel-status-token\npassword=sentinel-password phrase suffix, status=401",
+            msg: "X-API-Key: sentinel-header\nX-Staff-PIN: sentinel-staff-pin\nX-Staff-Auth-PIN: sentinel-staff-auth-pin\nstatusToken=sentinel-status-token\nPINCode=sentinel-pin-code\nstaffPIN=sentinel-staff-pin\ntoken_value=sentinel-token-value\npassword=sentinel-password phrase suffix, status=401",
             password: "sentinel-password",
             nested: {
               device_pin: "sentinel-pin",
@@ -75,7 +75,7 @@ describe("POST /api/logs", () => {
     };
     expect(output).toMatchObject({
       password: REDACTED_LOG_VALUE,
-      msg: `X-API-Key: ${REDACTED_LOG_VALUE}\nX-Staff-PIN: ${REDACTED_LOG_VALUE}\nX-Staff-Auth-PIN: ${REDACTED_LOG_VALUE}\nstatusToken=${REDACTED_LOG_VALUE}\npassword=${REDACTED_LOG_VALUE}, status=401`,
+      msg: `X-API-Key: ${REDACTED_LOG_VALUE}\nX-Staff-PIN: ${REDACTED_LOG_VALUE}\nX-Staff-Auth-PIN: ${REDACTED_LOG_VALUE}\nstatusToken=${REDACTED_LOG_VALUE}\nPINCode=${REDACTED_LOG_VALUE}\nstaffPIN=${REDACTED_LOG_VALUE}\ntoken_value=${REDACTED_LOG_VALUE}\npassword=${REDACTED_LOG_VALUE}, status=401`,
       nested: {
         device_pin: REDACTED_LOG_VALUE,
         accessToken: REDACTED_LOG_VALUE,

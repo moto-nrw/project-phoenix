@@ -46,6 +46,26 @@ describe("logging-safety/no-serialized-context", () => {
     ).toHaveLength(3);
   });
 
+  it("reports logger parameters with imported Logger types", () => {
+    const result = lintSource(`
+      import { type Logger as StructuredLogger } from "~/lib/logger";
+
+      function report(log: StructuredLogger) {
+        log.error("parameter_probe", {
+          payload: JSON.stringify({ password: "secret" }),
+        });
+      }
+
+      void report;
+    `);
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(
+      output.match(/logging-safety\(no-serialized-context\)/g),
+    ).toHaveLength(1);
+  });
+
   it("ignores unrelated objects and shadowed logger names", () => {
     const result = lintSource(`
       import { createLogger } from "~/lib/logger";

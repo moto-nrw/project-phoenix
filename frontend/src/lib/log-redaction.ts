@@ -13,26 +13,24 @@ const SENSITIVE_LOG_KEYS = new Set([
   "authorization",
   "cookie",
   "cookies",
+  "late_invite",
   "proxy_authorization",
   "set_cookie",
 ]);
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:enroll\/status|accept-guardian-invite|calendar-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
-const SENSITIVE_CREDENTIAL_NAME =
-  "password|pin|[a-z0-9_-]*token|secret|jwt|api[_-]?key|client[_-]?secret|confirm[_-]?password|device[_-]?pin|late[_-]?invite";
-const SENSITIVE_TEXT_FIELD_NAME = `(?:${SENSITIVE_CREDENTIAL_NAME})`;
-const SENSITIVE_PARAMETER_NAME = `(?:${SENSITIVE_CREDENTIAL_NAME}|authorization|cookies?)`;
+const TEXT_FIELD_NAME = String.raw`[^\s"'=:,{}\[\]&?#]+`;
 const SENSITIVE_QUERY_PARAMETER_PATTERN = new RegExp(
-  String.raw`([?&]${SENSITIVE_PARAMETER_NAME}=)[^&#\s"']*`,
+  String.raw`([?&])(${TEXT_FIELD_NAME})(=)[^&#\s"']*`,
   "gi",
 );
 const SENSITIVE_QUOTED_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\])*\2`,
+  String.raw`((?:^|[\s,{])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(["'])(?:\\.|(?!\4)[^\\])*\4`,
   "gi",
 );
 const SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN = new RegExp(
-  String.raw`((?:^|[\s,{])['"]?${SENSITIVE_TEXT_FIELD_NAME}['"]?\s*[:=]\s*)(?!["'])[^,}\]\r\n&]+`,
+  String.raw`((?:^|[\s,{])['"]?)(${TEXT_FIELD_NAME})(['"]?\s*[:=]\s*)(?!["'])[^,}\]\r\n&]+`,
   "gi",
 );
 const SENSITIVE_QUOTED_HEADER_FIELD_PATTERN =
@@ -74,6 +72,29 @@ function isSensitiveLogKey(key: string): boolean {
   );
 }
 
+function redactSensitiveParameter(
+  match: string,
+  prefix: string,
+  key: string,
+  separator: string,
+): string {
+  return isSensitiveLogKey(key)
+    ? `${prefix}${key}${separator}${REDACTED_LOG_VALUE}`
+    : match;
+}
+
+function redactSensitiveQuotedField(
+  match: string,
+  prefix: string,
+  key: string,
+  separator: string,
+  quote: string,
+): string {
+  return isSensitiveLogKey(key)
+    ? `${prefix}${key}${separator}${quote}${REDACTED_LOG_VALUE}${quote}`
+    : match;
+}
+
 function isSafeTokenMetadata(key: string, value: unknown): boolean {
   const normalized = normalizeLogKey(key);
 
@@ -100,13 +121,13 @@ function isSafeTokenMetadata(key: string, value: unknown): boolean {
 export function redactSensitiveLogString(value: string): string {
   return value
     .replace(SENSITIVE_PATH_SEGMENT_PATTERN, `$1${REDACTED_LOG_VALUE}`)
-    .replace(SENSITIVE_QUERY_PARAMETER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(SENSITIVE_QUERY_PARAMETER_PATTERN, redactSensitiveParameter)
     .replace(
       SENSITIVE_QUOTED_HEADER_FIELD_PATTERN,
       `$1$2${REDACTED_LOG_VALUE}$2`,
     )
-    .replace(SENSITIVE_QUOTED_TEXT_FIELD_PATTERN, `$1$2${REDACTED_LOG_VALUE}$2`)
-    .replace(SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(SENSITIVE_QUOTED_TEXT_FIELD_PATTERN, redactSensitiveQuotedField)
+    .replace(SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN, redactSensitiveParameter)
     .replace(AUTHORIZATION_CREDENTIAL_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(AUTHORIZATION_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(API_KEY_HEADER_PATTERN, `$1${REDACTED_LOG_VALUE}`)
