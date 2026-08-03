@@ -482,8 +482,12 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// GDPR Compliance: Audit log for preview (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, accountID, true, tenant.FromContext(r.Context()))
+	// GDPR Compliance: Audit log for preview (Article 30). The route's tenant
+	// transaction supplies the RLS context required by the audit repository.
+	if err := rs.studentImportService.RecordAuditInTransaction(r.Context(), "student", uploadResult.Filename, result, accountID, true, tenant.FromContext(r.Context())); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau konnte nicht protokolliert werden: %w", err)))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -525,7 +529,13 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 
 		var txErr error
 		result, txErr = rs.studentImportService.Import(ctx, request)
-		return txErr
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for actual import (Article 30). Written
+		// inside the import transaction so the import is only acknowledged
+		// once its audit record is persisted.
+		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, false, tenantID)
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
@@ -537,9 +547,6 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		slog.Int("updated", result.UpdatedCount),
 		slog.Int("errors", result.ErrorCount),
 		slog.String("filename", uploadResult.Filename))
-
-	// GDPR Compliance: Audit log for actual import (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, accountID, false, tenant.FromContext(r.Context()))
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
@@ -583,9 +590,4 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 	}
 
 	return staff.ID, nil
-}
-
-// logImportAudit creates an audit record for student import operations (GDPR compliance)
-func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
-	rs.studentImportService.RecordAudit("student", filename, result, userID, dryRun, tenantID)
 }

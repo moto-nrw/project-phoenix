@@ -152,8 +152,12 @@ func (rs *Resource) PreviewStaffImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// GDPR Compliance: Audit log for preview (Article 30)
-	rs.staffImportService.RecordAudit("staff", uploadResult.Filename, result, accountID, true, tenant.FromContext(ctx))
+	// GDPR Compliance: Audit log for preview (Article 30). The route's tenant
+	// transaction supplies the RLS context required by the audit repository.
+	if err := rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, true, tenant.FromContext(ctx)); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau konnte nicht protokolliert werden: %w", err)))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -186,7 +190,13 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 
 		var txErr error
 		result, txErr = rs.staffImportService.Import(ctx, request)
-		return txErr
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for actual import (Article 30). Written
+		// inside the import transaction so the import is only acknowledged
+		// once its audit record is persisted.
+		return rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, false, tenantID)
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
@@ -197,9 +207,6 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 		slog.Int("updated", result.UpdatedCount),
 		slog.Int("errors", result.ErrorCount),
 		slog.String("filename", uploadResult.Filename))
-
-	// GDPR Compliance: Audit log for actual import (Article 30)
-	rs.staffImportService.RecordAudit("staff", uploadResult.Filename, result, accountID, false, tenantID)
 
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
 		result.CreatedCount, result.UpdatedCount, result.ErrorCount)
