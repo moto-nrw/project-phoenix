@@ -26,7 +26,7 @@ type ConflictKind = "staff" | "student";
  * stable identity — the per-user acknowledgement ("Konflikt ausblenden")
  * keys on it.
  */
-export interface ConflictWarning {
+interface ConflictWarning {
   kind: ConflictKind;
   resourceId: string;
   message: string;
