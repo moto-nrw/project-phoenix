@@ -33,16 +33,42 @@ type templateScheduleResponse struct {
 	ValidUntil string `json:"valid_until,omitempty"`
 }
 
-func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]templateResponse, error) {
+func (rs *Resource) loadTemplates(
+	ctx context.Context,
+	templateID, calendarPeriodID *int64,
+) ([]templateResponse, error) {
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(ctx)
-	rows, err := rs.TimetableData.ListTemplateRows(ctx, templateID, childrenPerStaffRatio)
+	var (
+		rows []activities.TemplateListRow
+		err  error
+	)
+	if templateID != nil && calendarPeriodID != nil {
+		rows, err = rs.TimetableData.ListTemplateRowsForTemplatePeriod(
+			ctx,
+			*templateID,
+			*calendarPeriodID,
+			childrenPerStaffRatio,
+		)
+	} else {
+		rows, err = rs.TimetableData.ListTemplateRows(ctx, templateID, childrenPerStaffRatio)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return mapTemplateRows(rows, childrenPerStaffRatio), nil
+	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
+	if err != nil {
+		return nil, err
+	}
+	return mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster), nil
 }
 
-func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateResponse {
+func mapTemplateRows(
+	rows []templateRow,
+	childrenPerStaffRatio int,
+	weekdayRoster []activities.TemplateWeekdayRosterRow,
+) []templateResponse {
+	assignmentsByTemplate := buildTemplateWeekdayAssignments(weekdayRoster)
+	protectedStudentsByTemplate := buildTemplateProtectedStudentAssignments(weekdayRoster)
 	templates := make([]templateResponse, 0)
 	byID := make(map[int64]int)
 	for _, row := range rows {
@@ -51,6 +77,12 @@ func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateRe
 			templates = append(templates, templateResponseFromRow(row, childrenPerStaffRatio))
 			idx = len(templates) - 1
 			byID[row.TemplateID] = idx
+			if assignments, found := assignmentsByTemplate[row.TemplateID]; found {
+				templates[idx].WeekdayAssignments = assignments
+			}
+			if assignments, found := protectedStudentsByTemplate[row.TemplateID]; found {
+				templates[idx].ProtectedStudentAssignments = assignments
+			}
 		}
 		templates[idx].Schedules = append(templates[idx].Schedules, templateScheduleResponseFromRow(row))
 	}
@@ -65,36 +97,38 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		sourceGradeLevels = nil
 	}
 	return templateResponse{
-		ID:                    row.TemplateID,
-		Name:                  row.Name,
-		Type:                  row.Type,
-		CategoryID:            row.CategoryID,
-		CategoryName:          row.CategoryName,
-		RoomID:                nullableTemplateInt64(row.RoomID.Valid, row.RoomID.Int64),
-		RoomName:              row.RoomName.String,
-		EducationGroupID:      educationGroupIDFromRow(row),
-		EducationGroupName:    row.EducationGroupName.String,
-		IsOpen:                row.IsOpen,
-		MaxParticipants:       row.MaxParticipants,
-		CalendarPeriodID:      nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
-		TargetGroupType:       row.TargetGroupType,
-		TargetGradeLevel:      nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
-		TargetSchoolClass:     nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
-		SourceCareOfferingID:  nullableTemplateInt64(row.SourceCareOfferingID.Valid, row.SourceCareOfferingID.Int64),
-		SourceGradeLevels:     sourceGradeLevels,
-		ListKind:              nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
-		Notes:                 nullableTemplateString(row.Notes.Valid, row.Notes.String),
-		ShiftTypeName:         row.ShiftTypeName,
-		ShiftTypeColor:        row.ShiftTypeColor,
-		EnrollmentCount:       row.EnrollmentCount,
-		SupervisorCount:       row.SupervisorCount,
-		RequiredStaffCount:    templateRequiredStaffCount(row, childrenPerStaffRatio),
-		AssignedStaffCount:    row.CapacitySupervisorCount,
-		RequiredStaffOverride: templateRequiredStaffOverride(row.RequiredStaff),
-		StudentIDs:            row.StudentIDs,
-		StaffIDs:              row.StaffIDs,
-		PrimaryStaffID:        nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
-		Schedules:             []templateScheduleResponse{},
+		ID:                          row.TemplateID,
+		Name:                        row.Name,
+		Type:                        row.Type,
+		CategoryID:                  row.CategoryID,
+		CategoryName:                row.CategoryName,
+		RoomID:                      nullableTemplateInt64(row.RoomID.Valid, row.RoomID.Int64),
+		RoomName:                    row.RoomName.String,
+		EducationGroupID:            educationGroupIDFromRow(row),
+		EducationGroupName:          row.EducationGroupName.String,
+		IsOpen:                      row.IsOpen,
+		MaxParticipants:             row.MaxParticipants,
+		CalendarPeriodID:            nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
+		TargetGroupType:             row.TargetGroupType,
+		TargetGradeLevel:            nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
+		TargetSchoolClass:           nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		SourceCareOfferingID:        nullableTemplateInt64(row.SourceCareOfferingID.Valid, row.SourceCareOfferingID.Int64),
+		SourceGradeLevels:           sourceGradeLevels,
+		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
+		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
+		ShiftTypeName:               row.ShiftTypeName,
+		ShiftTypeColor:              row.ShiftTypeColor,
+		EnrollmentCount:             row.EnrollmentCount,
+		SupervisorCount:             row.SupervisorCount,
+		RequiredStaffCount:          templateRequiredStaffCount(row, childrenPerStaffRatio),
+		AssignedStaffCount:          row.CapacitySupervisorCount,
+		RequiredStaffOverride:       templateRequiredStaffOverride(row.RequiredStaff),
+		StudentIDs:                  row.StudentIDs,
+		StaffIDs:                    row.StaffIDs,
+		PrimaryStaffID:              nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
+		Schedules:                   []templateScheduleResponse{},
+		WeekdayAssignments:          []templateWeekdayAssignmentResponse{},
+		ProtectedStudentAssignments: []templateProtectedStudentAssignmentResponse{},
 	}
 }
 
@@ -213,6 +247,15 @@ type templateResponse struct {
 	StaffIDs              []int64                    `json:"staff_ids"`
 	PrimaryStaffID        *int64                     `json:"primary_staff_id,omitempty"`
 	Schedules             []templateScheduleResponse `json:"schedules"`
+	// WeekdayAssignments lists the per-weekday roster deviations (#2129).
+	// Empty means the series uses one roster on every weekday; when it is
+	// populated it covers every weekday the series runs, so a client can
+	// render each day's staff and children without further merging.
+	WeekdayAssignments []templateWeekdayAssignmentResponse `json:"weekday_assignments"`
+	// ProtectedStudentAssignments is read-only provenance metadata. It keeps
+	// enrollment-owned selected_weekdays intact when the editor switches from a
+	// shared roster to explicit weekday lists.
+	ProtectedStudentAssignments []templateProtectedStudentAssignmentResponse `json:"protected_student_assignments"`
 }
 
 type listTemplatesResponse struct {
@@ -235,14 +278,9 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var periodID *int64
-	if raw := r.URL.Query().Get("period_id"); raw != "" {
-		id, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || id <= 0 {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id must be a positive integer")))
-			return
-		}
-		periodID = &id
+	periodID, ok := templatePeriodIDFromRequest(w, r)
+	if !ok {
+		return
 	}
 
 	// WP-B6: the people subqueries (enrollment_count / supervisor_count) are
@@ -258,6 +296,40 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
 	}
+	var weekdayRoster []activities.TemplateWeekdayRosterRow
+	if periodID != nil {
+		weekdayRoster, err = rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil, periodID)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
+			return
+		}
+	}
 
-	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: mapTemplateRows(rows, childrenPerStaffRatio)}, "Templates retrieved")
+	templates := mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster)
+	if periodID == nil {
+		// Period-free reads support the enrollment catalog, which only needs
+		// template metadata. A nil slice serializes as null and makes clear that
+		// weekday rosters were not loaded; [] would falsely claim that the
+		// template uses only its shared roster and could be saved lossily.
+		for i := range templates {
+			templates[i].WeekdayAssignments = nil
+			templates[i].ProtectedStudentAssignments = nil
+		}
+	}
+	common.Respond(w, r, http.StatusOK, listTemplatesResponse{
+		Templates: templates,
+	}, "Templates retrieved")
+}
+
+func templatePeriodIDFromRequest(w http.ResponseWriter, r *http.Request) (*int64, bool) {
+	raw := r.URL.Query().Get("period_id")
+	if raw == "" {
+		return nil, true
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id must be a positive integer")))
+		return nil, false
+	}
+	return &id, true
 }

@@ -49,6 +49,10 @@ func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 		ColumnExpr(`"supervisor".valid_from AS "supervisor__valid_from"`).
 		ColumnExpr(`"supervisor".valid_until AS "supervisor__valid_until"`).
 		ColumnExpr(`"supervisor".calendar_period_id AS "supervisor__calendar_period_id"`).
+		// Weekday scope (#2129) — same reason as the validity window above:
+		// omitting it here would widen a Monday-only assignment to the whole
+		// series on the next full-row Update.
+		ColumnExpr(`"supervisor".weekday AS "supervisor__weekday"`).
 		// Staff columns
 		ColumnExpr(`"staff".id AS "staff__id"`).
 		ColumnExpr(`"staff".created_at AS "staff__created_at"`).

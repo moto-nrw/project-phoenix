@@ -34,6 +34,12 @@ type StudentEnrollment struct {
 	EnrollmentRequestChildID *int64  `bun:"enrollment_request_child_id" json:"enrollment_request_child_id,omitempty"`
 	SelectedWeekdays         []int   `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
 	AttendanceStatus         *string `bun:"attendance_status" json:"attendance_status,omitempty"`
+	// Weekday scopes this enrollment to a single ISO weekday (1=Mon … 7=Sun)
+	// of the recurring template (issue #2129). NULL = applies on every weekday
+	// the series runs. Distinct from SelectedWeekdays, which is owned by the
+	// enrollment/care-offering decision path and marks a row the template
+	// editor must not touch; Weekday is editor-owned and replaceable.
+	Weekday *int `bun:"weekday" json:"weekday,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
@@ -74,6 +80,10 @@ func (se *StudentEnrollment) Validate() error {
 			return errors.New("selected weekdays must not contain duplicates")
 		}
 		seenWeekdays[weekday] = true
+	}
+
+	if se.Weekday != nil && !IsValidWeekday(*se.Weekday) {
+		return errors.New("weekday must be between 1 and 7")
 	}
 
 	return nil

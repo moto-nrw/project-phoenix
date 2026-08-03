@@ -39,6 +39,8 @@ import {
 } from "~/lib/timetable-helpers";
 import { useDebounce } from "~/lib/use-debounce";
 import {
+  changePerWeekdayRosterMode,
+  changeRosterWeekdays,
   emptyForm,
   fetchAllStudentOptions,
   formFromInstance,
@@ -48,11 +50,19 @@ import {
   initialStudentIDs,
   isoWeekday,
   parseRequiredStaffOverride,
+  rosterForWeekday,
+  rosterSeedForWeekday,
   schoolClassLabel,
+  seedWeekdayRosters,
   sortPeople,
   targetCohortActionLabel,
 } from "./form-model";
-import type { EventFormState, PersonOption, RepeatMode } from "./form-model";
+import type {
+  EventFormState,
+  PersonOption,
+  RepeatMode,
+  WeekdayRosterState,
+} from "./form-model";
 import type {
   ConflictWarningItem,
   CreateInstanceBody,
@@ -65,6 +75,7 @@ import type {
   TargetGroupType,
   TimetableTemplate,
   UpdateTemplateBody,
+  WeekdayAssignmentBody,
 } from "~/lib/timetable-types";
 
 export interface RoomOption {
@@ -86,6 +97,12 @@ const STAFF_LOAD_ERROR =
 const COVERAGE_CHECK_ERROR =
   "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.";
 const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
+
+function sameIDSelection(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightIDs = new Set(right);
+  return left.every((id) => rightIDs.has(id));
+}
 
 function checkShiftCoverageWithSignal(
   probe: ShiftCoverageCheckParams,
@@ -301,6 +318,10 @@ export function useEventForm({
   // template override it may inherit. Remember user intent separately so an
   // unrelated all/following edit can preserve the freshly fetched template.
   const requiredStaffTouched = useRef(false);
+  // Loading a materialized occurrence's child snapshot must not turn that
+  // snapshot into a series edit. Track an actual picker change separately so
+  // all/following writes preserve the fetched template roster until then.
+  const studentRosterTouched = useRef(false);
   // An occurrence may carry substitute rows that do not belong to the series
   // roster. Preserve the fetched template roster for all/following edits until
   // the user explicitly changes Personal; otherwise a title-only split would
@@ -445,6 +466,7 @@ export function useEventForm({
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
+    studentRosterTouched.current = false;
     staffRosterTouched.current = false;
     listKindTouched.current = false;
     manualWeekPattern.current = null;
@@ -592,37 +614,48 @@ export function useEventForm({
   // separate reads. Exact shift gaps have the stricter time-tracking
   // permission boundary, and a failed coverage read must not erase valid
   // planning conflicts or disable Speichern.
+  // The conflict probe asks about ONE date, so it must use the people who are
+  // actually there on that date's weekday (#2129) — otherwise a series that
+  // staffs Tuesday differently reports Monday's staff as double-booked.
+  const probeRoster = form.perWeekdayRoster
+    ? rosterForWeekday(form, isoWeekday(form.date))
+    : { staffIds: staffIDsForSave, studentIds: studentIDsForSave };
   const probeKey = JSON.stringify({
     date: form.date,
     startTime: form.startTime,
     endTime: form.endTime,
     roomId: form.roomId,
-    staffIds: staffIDsForSave,
-    studentIds: studentIDsForSave,
+    staffIds: probeRoster.staffIds,
+    studentIds: probeRoster.studentIds,
   });
   const debouncedProbeKey = useDebounce(probeKey, 500);
   // The convert flow edits an existing instance too — its own slot must not
   // self-conflict, exactly like the regular instance edit.
   const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
 
-  const coverageProbe = useMemo(() => {
-    if (!form.startTime || !form.endTime || staffIDsForSave.length === 0) {
-      return null;
-    }
+  // One probe per distinct staff list (#2129). A series that staffs Monday
+  // with Anna and Tuesday with Bea must be checked with Monday's dates against
+  // Anna and Tuesday's against Bea — probing the union would report Bea as
+  // missing from every Monday shift she was never assigned to.
+  const coverageProbes = useMemo((): ShiftCoverageCheckParams[] => {
+    if (!form.startTime || !form.endTime) return [];
     if (!isSeriesFlow) {
-      return {
-        dates: form.date ? [form.date] : [],
-        startTime: form.startTime,
-        endTime: form.endTime,
-        staffIds: staffIDsForSave,
-        excludeInstanceId: initialInstance?.id,
-      };
+      if (staffIDsForSave.length === 0) return [];
+      return [
+        {
+          dates: form.date ? [form.date] : [],
+          startTime: form.startTime,
+          endTime: form.endTime,
+          staffIds: staffIDsForSave,
+          excludeInstanceId: initialInstance?.id,
+        },
+      ];
     }
 
     const period = calendarPeriods.find(
       (candidate) => candidate.id === form.calendarPeriodId,
     );
-    if (!period) return null;
+    if (!period) return [];
     const today = berlinTodayISO();
     // #2135: a series starts at its start date, not the period start. For a
     // new series that is the picked Datum; a stored series keeps the
@@ -634,37 +667,51 @@ export function useEventForm({
           initialSeries.schedules[0]?.validFrom ?? "",
         )
       : latestISODate(period.startDate, form.date || "");
-    const dates = weekdayDatesInRange(from, period.endDate, form.weekdays);
-    if (convertInstance && form.date && !dates.includes(form.date)) {
-      dates.push(form.date);
-      dates.sort((left, right) => left.localeCompare(right));
-    }
-    return {
-      dates,
+    const shared = {
       startTime: form.startTime,
       endTime: form.endTime,
-      staffIds: staffIDsForSave,
       excludeInstanceId: convertInstance?.id,
       concreteInstanceDate: convertInstance ? form.date : undefined,
       replanActivityGroupId: initialSeries?.id,
       calendarPeriodId: period.id,
       weekPattern: form.weekPattern,
     };
+
+    const usePerWeekday = form.perWeekdayRoster && form.weekdays.length >= 2;
+    const weekdayGroups = usePerWeekday
+      ? form.weekdays.map((weekday) => ({
+          weekdays: [weekday],
+          staffIds: rosterForWeekday(form, weekday).staffIds,
+        }))
+      : [{ weekdays: form.weekdays, staffIds: staffIDsForSave }];
+
+    const probes: ShiftCoverageCheckParams[] = [];
+    for (const group of weekdayGroups) {
+      if (group.staffIds.length === 0) continue;
+      const dates = weekdayDatesInRange(from, period.endDate, group.weekdays);
+      if (
+        convertInstance &&
+        form.date &&
+        (!usePerWeekday || group.weekdays.includes(isoWeekday(form.date))) &&
+        !dates.includes(form.date)
+      ) {
+        dates.push(form.date);
+        dates.sort((left, right) => left.localeCompare(right));
+      }
+      if (dates.length === 0) continue;
+      probes.push({ ...shared, dates, staffIds: group.staffIds });
+    }
+    return probes;
   }, [
     calendarPeriods,
     convertInstance,
-    form.calendarPeriodId,
-    form.date,
-    form.endTime,
-    form.weekPattern,
-    form.startTime,
-    form.weekdays,
+    form,
     initialInstance?.id,
     initialSeries,
     isSeriesFlow,
     staffIDsForSave,
   ]);
-  const coverageProbeKey = JSON.stringify(coverageProbe);
+  const coverageProbeKey = JSON.stringify(coverageProbes);
   const debouncedCoverageProbeKey = useDebounce(coverageProbeKey, 500);
 
   useEffect(() => {
@@ -729,8 +776,10 @@ export function useEventForm({
       coverageProbeSeq.current++;
       return;
     }
-    const probe = JSON.parse(debouncedCoverageProbeKey) as typeof coverageProbe;
-    if (!probe || probe.dates.length === 0) {
+    const probes = JSON.parse(
+      debouncedCoverageProbeKey,
+    ) as ShiftCoverageCheckParams[];
+    if (probes.length === 0) {
       setCoverageWarnings([]);
       setCoverageWarningCount(0);
       setCoverageCheckError(null);
@@ -744,12 +793,20 @@ export function useEventForm({
       COVERAGE_CHECK_TIMEOUT_MS,
     );
     setCoverageCheckError(null);
-    checkShiftCoverageWithSignal(probe, controller.signal)
-      .then((result) => {
+    Promise.all(
+      probes.map((probe) =>
+        checkShiftCoverageWithSignal(probe, controller.signal),
+      ),
+    )
+      .then((results) => {
         if (coverageProbeSeq.current !== seq) return;
-        setCoverageWarnings(result.coverageWarnings);
+        setCoverageWarnings(results.flatMap((r) => r.coverageWarnings));
         setCoverageWarningCount(
-          result.coverageWarningCount ?? result.coverageWarnings.length,
+          results.reduce(
+            (total, r) =>
+              total + (r.coverageWarningCount ?? r.coverageWarnings.length),
+            0,
+          ),
         );
         setCoverageCheckError(null);
       })
@@ -780,19 +837,33 @@ export function useEventForm({
   // fast-save race. Warnings and probe failures remain advisory: both are
   // surfaced as durable toasts and the write continues without confirmation.
   const checkCoverageBeforeSave = async (
-    probe: ShiftCoverageCheckParams | null,
+    probeOrProbes: ShiftCoverageCheckParams | ShiftCoverageCheckParams[] | null,
   ): Promise<void> => {
-    if (!canCheckShiftCoverage || !probe || probe.dates.length === 0) return;
+    const probes = (
+      Array.isArray(probeOrProbes) ? probeOrProbes : [probeOrProbes]
+    ).filter((probe): probe is ShiftCoverageCheckParams =>
+      Boolean(probe && probe.dates.length > 0),
+    );
+    if (!canCheckShiftCoverage || probes.length === 0) return;
     const controller = new AbortController();
     const timeoutID = window.setTimeout(
       () => controller.abort(),
       COVERAGE_CHECK_TIMEOUT_MS,
     );
     try {
-      const result = await checkShiftCoverageWithSignal(
-        probe,
-        controller.signal,
+      const results = await Promise.all(
+        probes.map((probe) =>
+          checkShiftCoverageWithSignal(probe, controller.signal),
+        ),
       );
+      const result = {
+        coverageWarnings: results.flatMap((item) => item.coverageWarnings),
+        coverageWarningCount: results.reduce(
+          (total, item) =>
+            total + (item.coverageWarningCount ?? item.coverageWarnings.length),
+          0,
+        ),
+      };
       const warningCount =
         result.coverageWarningCount ?? result.coverageWarnings.length;
       setCoverageWarnings(result.coverageWarnings);
@@ -836,6 +907,7 @@ export function useEventForm({
     key: K,
     value: EventFormState[K],
   ) => {
+    if (key === "studentIds") studentRosterTouched.current = true;
     setForm((prev) => ({ ...prev, [key]: value }));
     setValidationError(null);
     clearFieldError(key);
@@ -911,10 +983,107 @@ export function useEventForm({
       const next = has
         ? prev.weekdays.filter((day) => day !== iso)
         : [...prev.weekdays, iso].sort((a, b) => a - b);
-      return { ...prev, weekdays: next };
+      return changeRosterWeekdays(prev, next, iso);
     });
     setValidationError(null);
     clearFieldError("weekdays");
+  };
+
+  // --- Per-weekday rosters (#2129) -----------------------------------------
+
+  const [activeRosterWeekday, setActiveRosterWeekday] = useState<number>(
+    () => form.weekdays[0] ?? 1,
+  );
+
+  // Keep the selected weekday tab on a weekday the series actually runs on:
+  // dropping Tuesday from the recurrence must not leave the roster editor
+  // pointing at it.
+  useEffect(() => {
+    if (form.weekdays.length === 0) return;
+    if (!form.weekdays.includes(activeRosterWeekday)) {
+      setActiveRosterWeekday(form.weekdays[0]!);
+    }
+  }, [form.weekdays, activeRosterWeekday]);
+
+  const setPerWeekdayRoster = (enabled: boolean) => {
+    staffRosterTouched.current = true;
+    studentRosterTouched.current = true;
+    setForm((prev) =>
+      changePerWeekdayRosterMode(prev, enabled, activeRosterWeekday),
+    );
+    setValidationError(null);
+  };
+
+  const setWeekdayRoster = (weekday: number, roster: WeekdayRosterState) => {
+    const previous = rosterForWeekday(form, weekday);
+    if (
+      !sameIDSelection(previous.staffIds, roster.staffIds) ||
+      previous.primaryStaffId !== roster.primaryStaffId
+    ) {
+      staffRosterTouched.current = true;
+    }
+    if (!sameIDSelection(previous.studentIds, roster.studentIds)) {
+      studentRosterTouched.current = true;
+    }
+    setForm((prev) => ({
+      ...prev,
+      weekdayRosters: { ...prev.weekdayRosters, [weekday]: roster },
+    }));
+    setValidationError(null);
+  };
+
+  const applyActiveWeekdayRosterToAll = () => {
+    staffRosterTouched.current = true;
+    studentRosterTouched.current = true;
+    setForm((prev) => {
+      const source = rosterForWeekday(prev, activeRosterWeekday);
+      const next: Record<number, WeekdayRosterState> = {};
+      for (const weekday of prev.weekdays) {
+        next[weekday] =
+          weekday === activeRosterWeekday
+            ? {
+                staffIds: [...source.staffIds],
+                primaryStaffId: source.primaryStaffId,
+                studentIds: [...source.studentIds],
+              }
+            : rosterSeedForWeekday(prev, source, weekday);
+      }
+      return { ...prev, weekdayRosters: next };
+    });
+    setValidationError(null);
+  };
+
+  /**
+   * The `weekday_assignments` payload, or undefined when the series shares one
+   * roster. Sending it for every weekday (not only the deviating ones) keeps
+   * the wire shape self-describing: a reader does not have to merge it with
+   * the shared lists to know who is there on a given day.
+   */
+  const weekdayAssignmentsBody = (): WeekdayAssignmentBody[] | undefined => {
+    // An offering-sourced roster is server-managed; the backend rejects
+    // weekday_assignments next to a source (#2137 x #2129). The editor hides
+    // the section, but a stale perWeekdayRoster flag from before the source
+    // was picked must not leak into the payload.
+    if (form.targetGroupType === "angebot" && form.sourceCareOfferingId) {
+      return undefined;
+    }
+    if (!form.perWeekdayRoster || form.weekdays.length < 2) return undefined;
+    return [...form.weekdays]
+      .sort((a, b) => a - b)
+      .map((weekday) => {
+        const roster = rosterForWeekday(form, weekday);
+        const primary =
+          roster.primaryStaffId &&
+          roster.staffIds.includes(roster.primaryStaffId)
+            ? Number(roster.primaryStaffId)
+            : undefined;
+        return {
+          weekday,
+          staff_ids: roster.staffIds.map(Number),
+          student_ids: roster.studentIds.map(Number),
+          primary_staff_id: primary,
+        };
+      });
   };
 
   const changeTargetGroupType = (nextType: TargetGroupType) => {
@@ -1074,14 +1243,21 @@ export function useEventForm({
         break;
       case "woechentlich-am":
         updateRepeat("weekly");
-        update(
-          "weekdays",
-          dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
+        setForm((prev) =>
+          changeRosterWeekdays(
+            prev,
+            dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
+            dateWeekday,
+          ),
         );
+        clearFieldError("weekdays");
         break;
       case "jeden-wochentag":
         updateRepeat("weekly");
-        update("weekdays", [...WEEKDAYS]);
+        setForm((prev) =>
+          changeRosterWeekdays(prev, [...WEEKDAYS], dateWeekday),
+        );
+        clearFieldError("weekdays");
         break;
       case "benutzerdefiniert":
         setExpanded(true);
@@ -1152,10 +1328,66 @@ export function useEventForm({
     primary_staff_id: primaryStaffIDForSave
       ? Number(primaryStaffIDForSave)
       : undefined,
+    weekday_assignments: weekdayAssignmentsBody(),
   });
 
   const findPeriod = (id?: string): CalendarPeriod | undefined =>
     id ? calendarPeriods.find((period) => period.id === id) : undefined;
+
+  /**
+   * Weekday assignments to send from the occurrence-scope editor (#2129).
+   *
+   * That editor shows ONE roster because it was opened on one occurrence, so
+   * it cannot describe the other weekdays. Returning the template's stored
+   * assignments preserves them; when the user actually edited the roster, only
+   * the edited occurrence's own weekday is replaced. undefined for a series
+   * that shares one roster, which keeps the pre-#2129 behaviour untouched.
+   */
+  const preservedWeekdayAssignments = (
+    template: TimetableTemplate,
+    staffIDs: string[],
+    studentIDs: string[],
+    primaryStaffId: string | undefined,
+  ): WeekdayAssignmentBody[] | undefined => {
+    if (template.weekdayAssignments.length === 0) return undefined;
+    const editedWeekday = initialInstance
+      ? isoWeekday(initialInstance.date)
+      : undefined;
+    const staffWasEdited = staffRosterTouched.current;
+    const studentsWereEdited = studentRosterTouched.current;
+    return template.weekdayAssignments.map((assignment) => {
+      if (
+        (!staffWasEdited && !studentsWereEdited) ||
+        assignment.weekday !== editedWeekday
+      ) {
+        return {
+          weekday: assignment.weekday,
+          staff_ids: assignment.staffIds.map(Number),
+          student_ids: assignment.studentIds.map(Number),
+          primary_staff_id: assignment.primaryStaffId
+            ? Number(assignment.primaryStaffId)
+            : undefined,
+        };
+      }
+      return {
+        weekday: assignment.weekday,
+        staff_ids: (staffWasEdited ? staffIDs : assignment.staffIds).map(
+          Number,
+        ),
+        student_ids: (studentsWereEdited
+          ? studentIDs
+          : assignment.studentIds
+        ).map(Number),
+        primary_staff_id: staffWasEdited
+          ? primaryStaffId && staffIDs.includes(primaryStaffId)
+            ? Number(primaryStaffId)
+            : undefined
+          : assignment.primaryStaffId
+            ? Number(assignment.primaryStaffId)
+            : undefined,
+      };
+    });
+  };
 
   /**
    * Maps the fetched template plus the fields the instance-edit form
@@ -1175,9 +1407,10 @@ export function useEventForm({
     // users:read is unavailable, the occurrence snapshot is authoritative only
     // for the single-instance scope; an all/following write targets the fetched
     // template and must preserve that template's own roster instead.
-    const templateStudentIDs = studentRosterEditable
-      ? form.studentIds
-      : template.studentIds;
+    const templateStudentIDs =
+      studentRosterEditable && studentRosterTouched.current
+        ? form.studentIds
+        : template.studentIds;
     const templateStaffIDs =
       staffRosterEditable && staffRosterTouched.current
         ? form.staffIds
@@ -1251,6 +1484,16 @@ export function useEventForm({
         primaryStaffId && templateStaffIDs.includes(primaryStaffId)
           ? Number(primaryStaffId)
           : undefined,
+      // #2129: an occurrence-scope edit must not silently flatten a series
+      // that staffs each weekday differently. Carry the template's weekday
+      // assignments through, applying an edited roster to the weekday of the
+      // occurrence the user opened — the only weekday this form describes.
+      weekday_assignments: preservedWeekdayAssignments(
+        template,
+        templateStaffIDs,
+        templateStudentIDs,
+        primaryStaffId,
+      ),
     };
   };
 
@@ -1411,7 +1654,7 @@ export function useEventForm({
 
     setSubmitting(true);
     try {
-      await checkCoverageBeforeSave(coverageProbe);
+      await checkCoverageBeforeSave(coverageProbes);
       if (!isSeriesFlow) {
         const body = instanceBody(
           parsed.roomId,
@@ -1546,24 +1789,22 @@ export function useEventForm({
    * rebuilds future planned instances. A changed Datum only applies to
    * "single" — series-wide scopes ignore it.
    */
-  const seriesCoverageProbe = (
+  const seriesCoverageProbes = (
     template: TimetableTemplate,
     body: UpdateTemplateBody,
     fromISO: string,
     replanActivityGroupId?: string,
-  ) => {
+  ): ShiftCoverageCheckParams[] => {
     const calendarPeriodId =
       resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const period = findPeriod(calendarPeriodId);
-    const staffIds = (body.staff_ids ?? []).map(String);
     if (
       !period ||
       body.weekdays.length === 0 ||
-      staffIds.length === 0 ||
       !body.start_time ||
       !body.end_time
     ) {
-      return null;
+      return [];
     }
     // #2135: never probe before the segment's own series start (validFrom).
     const from = latestISODate(
@@ -1571,7 +1812,6 @@ export function useEventForm({
       fromISO,
       template.schedules[0]?.validFrom ?? "",
     );
-    let dates = weekdayDatesInRange(from, period.endDate, body.weekdays);
     // Without replanActivityGroupId the backend cannot apply the segment's
     // validity envelope, so the probe caps itself at the schedules'
     // validUntil (exclusive boundary): a split successor inherits it and
@@ -1588,19 +1828,45 @@ export function useEventForm({
         latestValidUntil = schedule.validUntil;
       }
     }
-    if (latestValidUntil) {
-      const boundary = latestValidUntil;
-      dates = dates.filter((date) => date < boundary);
+    const sharedStaffIDs = (body.staff_ids ?? []).map(String);
+    const assignmentsByWeekday = new Map(
+      (body.weekday_assignments ?? []).map((assignment) => [
+        assignment.weekday,
+        assignment,
+      ]),
+    );
+    const weekdayGroups =
+      assignmentsByWeekday.size > 0
+        ? body.weekdays.map((weekday) => ({
+            weekdays: [weekday],
+            staffIds: (
+              assignmentsByWeekday.get(weekday)?.staff_ids ??
+              body.staff_ids ??
+              []
+            ).map(String),
+          }))
+        : [{ weekdays: body.weekdays, staffIds: sharedStaffIDs }];
+
+    const probes: ShiftCoverageCheckParams[] = [];
+    for (const group of weekdayGroups) {
+      if (group.staffIds.length === 0) continue;
+      let dates = weekdayDatesInRange(from, period.endDate, group.weekdays);
+      if (latestValidUntil) {
+        const boundary = latestValidUntil;
+        dates = dates.filter((date) => date < boundary);
+      }
+      if (dates.length === 0) continue;
+      probes.push({
+        dates,
+        startTime: body.start_time,
+        endTime: body.end_time,
+        staffIds: group.staffIds,
+        replanActivityGroupId,
+        calendarPeriodId: period.id,
+        weekPattern: body.week_pattern ?? 0,
+      });
     }
-    return {
-      dates,
-      startTime: body.start_time,
-      endTime: body.end_time,
-      staffIds,
-      replanActivityGroupId,
-      calendarPeriodId: period.id,
-      weekPattern: body.week_pattern ?? 0,
-    };
+    return probes;
   };
 
   const findScopeClosingDayConflict = (
@@ -1659,13 +1925,13 @@ export function useEventForm({
   ) => {
     if (!initialInstance) return;
     const body = templateBodyFromForm(template, roomId);
-    const scopeProbe = seriesCoverageProbe(
+    const scopeProbes = seriesCoverageProbes(
       template,
       body,
       typedScope === "following" ? initialInstance.date : berlinTodayISO(),
       typedScope === "all" ? groupId : undefined,
     );
-    await checkCoverageBeforeSave(scopeProbe);
+    await checkCoverageBeforeSave(scopeProbes);
     if (typedScope === "following") {
       const effectiveDate = initialInstance.date;
       const chunks = chunkDateRange(
@@ -1785,7 +2051,7 @@ export function useEventForm({
     if (scope === "single") {
       setSubmitting(true);
       try {
-        await checkCoverageBeforeSave(coverageProbe);
+        await checkCoverageBeforeSave(coverageProbes);
         const saved = await timetableService.update(
           initialInstance.id,
           instanceBody(pending.roomId, groupId),
@@ -1805,7 +2071,10 @@ export function useEventForm({
     const typedScope = scope === "following" ? "following" : "all";
     setSubmitting(true);
     try {
-      const template = await timetableService.getTemplate(groupId);
+      const template = await timetableService.getTemplate(
+        groupId,
+        form.calendarPeriodId,
+      );
       const templateCalendarPeriodId =
         resolveTemplateCalendarPeriodId(template);
       const periodEnd =
@@ -2024,9 +2293,16 @@ export function useEventForm({
     students,
   ]);
   const missingTargetCohortCount = useMemo(() => {
+    if (form.perWeekdayRoster && form.weekdays.length >= 2) {
+      return targetCohort.memberIds.filter((id) =>
+        form.weekdays.some(
+          (weekday) => !rosterForWeekday(form, weekday).studentIds.includes(id),
+        ),
+      ).length;
+    }
     const selected = new Set(form.studentIds);
     return targetCohort.memberIds.filter((id) => !selected.has(id)).length;
-  }, [form.studentIds, targetCohort.memberIds]);
+  }, [form, targetCohort.memberIds]);
   const targetCohortButtonLabel = targetCohort.label
     ? targetCohortActionLabel(
         targetCohort.label,
@@ -2037,12 +2313,26 @@ export function useEventForm({
 
   const addTargetCohort = () => {
     if (targetCohort.memberIds.length === 0) return;
-    setForm((current) => ({
-      ...current,
-      studentIds: Array.from(
+    studentRosterTouched.current = true;
+    setForm((current) => {
+      const studentIds = Array.from(
         new Set([...current.studentIds, ...targetCohort.memberIds]),
-      ),
-    }));
+      );
+      if (!current.perWeekdayRoster || current.weekdays.length < 2) {
+        return { ...current, studentIds };
+      }
+      const weekdayRosters = seedWeekdayRosters(current, current.weekdays);
+      for (const weekday of current.weekdays) {
+        const roster = weekdayRosters[weekday]!;
+        weekdayRosters[weekday] = {
+          ...roster,
+          studentIds: Array.from(
+            new Set([...roster.studentIds, ...targetCohort.memberIds]),
+          ),
+        };
+      }
+      return { ...current, studentIds, weekdayRosters };
+    });
   };
 
   // -------------------------------------------------------------------
@@ -2341,6 +2631,11 @@ export function useEventForm({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    activeRosterWeekday,
+    setActiveRosterWeekday,
+    setPerWeekdayRoster,
+    setWeekdayRoster,
+    applyActiveWeekdayRosterToAll,
     listKindTouched,
     manualWeekPattern,
   };

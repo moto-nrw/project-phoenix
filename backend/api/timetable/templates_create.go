@@ -87,6 +87,10 @@ type createTemplateRequest struct {
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID  *int64  `json:"primary_staff_id,omitempty"`
+	// WeekdayAssignments overrides the shared roster above for individual
+	// weekdays (#2129). Omitted/empty = the same staff and children on every
+	// weekday of the series.
+	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -117,6 +121,9 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		return errors.New("at least one weekday is required")
 	}
 	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
+		return err
+	}
+	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
 	target := &activitiesModel.Group{
@@ -330,6 +337,7 @@ func buildCreateTemplateInput(
 		StudentIDs:           req.StudentIDs,
 		StaffIDs:             req.StaffIDs,
 		PrimaryStaffID:       req.PrimaryStaffID,
+		WeekdayAssignments:   toServiceWeekdayAssignments(req.WeekdayAssignments),
 		CreatedBy:            createdByPtr,
 		RosterValidFrom:      rosterValidFrom,
 		ScheduleValidFrom:    parsed.startDate,
