@@ -184,6 +184,10 @@ func (rs *Resource) parseOpeningBalanceRequest(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("stichtag muss vor dem heutigen Tag liegen")))
 		return nil, false
 	}
+	if effectiveDate.Year != timezone.TodayDate().Year {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("stichtag muss im aktuellen Urlaubsjahr liegen")))
+		return nil, false
+	}
 	note := strings.TrimSpace(r.FormValue("note"))
 	if note == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("begründung ist erforderlich")))

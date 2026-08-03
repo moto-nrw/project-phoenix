@@ -568,6 +568,7 @@ export default function OpeningBalanceImportPage() {
             id="opening-balance-effective-date"
             label="Stichtag"
             value={effectiveDate}
+            min={`${berlinToday.slice(0, 4)}-01-01`}
             max={latestEffectiveDate}
             onChange={(next) => handleParamChange(() => setEffectiveDate(next))}
             placeholder="Datum wählen"
