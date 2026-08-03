@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	activityCategoryManagePermissionVersion     = "1.15.254"
+	activityCategoryManagePermissionVersion     = "1.15.258"
 	activityCategoryManagePermissionDescription = "Add activities:manage_categories permission for school-admin category Stammdaten (issue #2131)"
 )
 
@@ -38,7 +38,7 @@ func init() {
 // them. Category Stammdaten are school-wide configuration and must stay with
 // the OGS-Leitung, hence a dedicated admin-only permission.
 func addActivityCategoryManagePermission(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.254: Adding activities:manage_categories permission...")
+	fmt.Println("Migration 1.15.258: Adding activities:manage_categories permission...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -71,12 +71,12 @@ func addActivityCategoryManagePermission(ctx context.Context, db *bun.DB) error 
 		return fmt.Errorf("error granting activities:manage_categories to admin: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.254: Successfully granted activities:manage_categories to admin role")
+	fmt.Println("Migration 1.15.258: Successfully granted activities:manage_categories to admin role")
 	return tx.Commit()
 }
 
 func removeActivityCategoryManagePermission(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.254: Removing activities:manage_categories...")
+	fmt.Println("Rolling back migration 1.15.258: Removing activities:manage_categories...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -103,6 +103,6 @@ func removeActivityCategoryManagePermission(ctx context.Context, db *bun.DB) err
 		return fmt.Errorf("error removing permission: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.254: Successfully rolled back")
+	fmt.Println("Migration 1.15.258: Successfully rolled back")
 	return tx.Commit()
 }
