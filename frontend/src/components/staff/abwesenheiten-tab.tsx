@@ -150,7 +150,7 @@ export function AbwesenheitenTab({
   readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
-  const year = useMemo(() => new Date().getFullYear(), []);
+  const year = Number.parseInt(berlinTodayISO().slice(0, 4), 10);
   const [quota, setQuota] = useState<StaffVacationQuotaSummary | null>(null);
   const [absences, setAbsences] = useState<StaffAbsenceRow[]>([]);
   const [loading, setLoading] = useState(true);

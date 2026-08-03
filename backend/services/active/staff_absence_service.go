@@ -22,6 +22,9 @@ import (
 // only a time-tracking manager may create, change, or delete.
 var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
 
+// ErrVacationQuotaInvalid marks invalid quota input supplied by a caller.
+var ErrVacationQuotaInvalid = errors.New("invalid vacation quota")
+
 // ErrCompTimeExceedsBalance prevents a comp_time absence from deducting more
 // daily-target minutes than the Stundenkonto has accrued before the absence
 // starts — the same overdraft guard the balance adjustments enforce (#1420).
@@ -1487,6 +1490,9 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 	quota.CreatedAt = now
 	quota.UpdatedAt = now
 	quota.SetTenantID(tenant.FromContext(ctx))
+	if err := quota.Validate(); err != nil {
+		return fmt.Errorf("%w: %s", ErrVacationQuotaInvalid, err.Error())
+	}
 	if err := s.quotaRepo.Upsert(ctx, quota); err != nil {
 		return err
 	}

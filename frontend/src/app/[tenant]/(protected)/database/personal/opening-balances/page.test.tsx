@@ -223,6 +223,28 @@ describe("OpeningBalanceImportPage", () => {
     expect(screen.getByText("2 Übernahmen buchen")).toBeInTheDocument();
   });
 
+  it("clears the previous preview while a newly selected file is being previewed", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      previewResponse(),
+    );
+    render(<OpeningBalanceImportPage />);
+    fillParams();
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("2 Übernahmen buchen")).toBeInTheDocument();
+    });
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    expect(
+      screen.queryByRole("button", { name: "2 Übernahmen buchen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("verwirft die Vorschau, wenn der Stichtag nachträglich geändert wird", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       previewResponse(),

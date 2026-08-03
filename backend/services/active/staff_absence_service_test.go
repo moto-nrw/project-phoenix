@@ -1519,6 +1519,22 @@ func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
 	assert.Equal(t, 28.0, summary.RemainingDays)
 }
 
+func TestAbsUpsertVacationQuota_RejectsInvalidPrecision(t *testing.T) {
+	quotaRepo := &absVacationQuotaRepoMock{}
+	upsertCalled := false
+	quotaRepo.upsertFunc = func(context.Context, *activeModels.StaffVacationQuota) error {
+		upsertCalled = true
+		return nil
+	}
+	svc := &staffAbsenceService{quotaRepo: quotaRepo}
+
+	err := svc.UpsertVacationQuota(context.Background(), 42, 2026, 30.25, 0)
+
+	require.ErrorIs(t, err, ErrVacationQuotaInvalid)
+	assert.Contains(t, err.Error(), "at most one decimal place")
+	assert.False(t, upsertCalled)
+}
+
 // Generic query helper stubs (interface additions for the issue #585
 // cleanup refactor) — unused by these tests.
 func (m *absStaffAbsenceRepoMock) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {

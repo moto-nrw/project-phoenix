@@ -258,10 +258,14 @@ func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if body.Year == 0 {
-		body.Year = time.Now().Year()
+		body.Year = timezone.TodayDate().Year
 	}
 	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		if errors.Is(err, activeSvc.ErrVacationQuotaInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, body.Year)

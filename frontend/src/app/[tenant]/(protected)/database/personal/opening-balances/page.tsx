@@ -360,8 +360,8 @@ export default function OpeningBalanceImportPage() {
     (file: File) => {
       previewRequestVersion.current++;
       setUploadedFile(file);
+      resetPreview();
       if (!paramsComplete) {
-        resetPreview();
         setError(
           "Bitte zuerst Stichtag und Begründung angeben, dann wird die Vorschau erstellt.",
         );
