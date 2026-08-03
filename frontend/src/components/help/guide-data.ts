@@ -732,7 +732,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Nichts zu sehen?",
-          body: "Erinnerungen sind im Auslieferungszustand komplett aus. Welche Arten erscheinen (und mit welcher Vorlaufzeit), schaltet ein Admin unter `Einstellungen` -> `Erinnerungen` ein. Solange keine Art aktiv ist oder gerade nichts ansteht, bleibt die Seite leer. Im selben Reiter steht auch die `Terminerinnerung für Eltern`: die betrifft nicht die Glocke, sondern die E-Mail, die Eltern vor einem Termin bekommen.",
+          body: "Erinnerungen sind im Auslieferungszustand komplett aus. Dann zeigt die Seite einen großen Hinweis auf die Aktivierung unter `Einstellungen` -> `Erinnerungen`. Sind Erinnerungstypen aktiviert, aber gerade keine Einträge offen, bestätigt stattdessen ein kompakter grüner Hinweis den aktiven Zustand. Im selben Reiter steht auch die `Terminerinnerung für Eltern`: die betrifft nicht die Glocke, sondern die E-Mail, die Eltern vor einem Termin bekommen.",
           tone: "blue",
         },
         screenshot:
@@ -1674,6 +1674,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Zuerst im Profil unter `Benachrichtigungen` auswählen, worüber informiert werden soll (siehe Schritt davor).",
           "Im selben Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
+          "Sobald Push aktiv ist, mit `Testbenachrichtigung senden` prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
           "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
         ],
         callout: {
@@ -1681,7 +1682,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Auf iPhone und iPad funktioniert das nur in der zum Home-Bildschirm hinzugefügten App (siehe die Schritte oben). Im normalen Safari-Tab bietet Apple keine Push-Benachrichtigungen an. Zusätzlich muss die Schule die Benachrichtigungen in den Einstellungen eingeschaltet haben.",
         },
         screenshot:
-          "Profilseite mit dem Abschnitt Push-Benachrichtigungen und der Schaltfläche Aktivieren.",
+          "Profilseite mit dem aktiven Abschnitt Push-Benachrichtigungen und der Schaltfläche Testbenachrichtigung senden.",
       },
     ],
   },
