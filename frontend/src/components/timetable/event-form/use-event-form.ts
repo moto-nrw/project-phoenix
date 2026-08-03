@@ -1279,14 +1279,13 @@ export function useEventForm({
     followUpOk: boolean;
   }> => {
     const period = findPeriod(form.calendarPeriodId);
-    // #2135: the picked Datum is the series start — the backend stamps it as
-    // the schedules' valid_from, so materializing earlier dates would only
-    // produce skips. Chunk from the start date instead of the period start.
-    const seriesStart = period
-      ? latestISODate(period.startDate, form.date || "")
-      : form.date;
+    // #2135: the picked Datum is stamped as the schedules' valid_from, which
+    // makes the materializer skip this series before its start on its own.
+    // The windows still span the whole period because materialization is
+    // tenant-wide — narrowing them would stop backfilling other templates
+    // that begin earlier in the period.
     const chunks = period
-      ? chunkDateRange(seriesStart, period.endDate, MATERIALIZE_CHUNK_DAYS)
+      ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
       : [];
     const [firstChunk, ...restChunks] = chunks;
     if (!firstChunk) {
@@ -1336,14 +1335,12 @@ export function useEventForm({
    */
   const materializePeriodAfterConvert = async (): Promise<boolean> => {
     const period = findPeriod(form.calendarPeriodId);
-    // #2135: the converted instance's date is the series start; earlier
-    // dates are skipped by the schedules' valid_from anyway.
+    // #2135: the converted instance's date is the series start; the
+    // schedules' valid_from skips earlier dates for this series, while the
+    // tenant-wide window keeps backfilling other templates from the period
+    // start.
     const chunks = period
-      ? chunkDateRange(
-          latestISODate(period.startDate, form.date || ""),
-          period.endDate,
-          MATERIALIZE_CHUNK_DAYS,
-        )
+      ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
       : [];
     try {
       if (chunks.length === 0) {

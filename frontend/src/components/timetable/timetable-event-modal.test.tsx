@@ -1230,10 +1230,11 @@ describe("TimetableEventModal", () => {
     await clickSave();
 
     // #2135: the picked Datum (2026-05-04) is the series start — it travels
-    // as start_date and the materialization windows begin there, not at the
-    // period start (2026-05-01). The create call carries the first 56-day
-    // window; the remaining four windows follow as separate materialize
-    // calls up to the period end (2026-12-31).
+    // as start_date and becomes the schedules' valid_from. The
+    // materialization windows still cover the whole period
+    // (2026-05-01 … 2026-12-31) because they run tenant-wide and must keep
+    // backfilling earlier-starting templates; the create call carries the
+    // first 56-day window, the remaining four follow as materialize calls.
     await waitFor(() =>
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1243,8 +1244,8 @@ describe("TimetableEventModal", () => {
           category_id: 2,
           calendar_period_id: 5,
           start_date: "2026-05-04",
-          materialize_from: "2026-05-04",
-          materialize_to: "2026-06-28",
+          materialize_from: "2026-05-01",
+          materialize_to: "2026-06-25",
           primary_staff_id: 11,
         }),
       ),
@@ -1252,11 +1253,11 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalledTimes(4));
     expect(mockMaterialize).toHaveBeenNthCalledWith(
       1,
-      "2026-06-29",
-      "2026-08-23",
+      "2026-06-26",
+      "2026-08-20",
     );
     expect(mockMaterialize).toHaveBeenLastCalledWith(
-      "2026-12-14",
+      "2026-12-11",
       "2026-12-31",
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
@@ -1338,13 +1339,14 @@ describe("TimetableEventModal", () => {
     await clickSave();
 
     // defaultDate 2026-05-04 is a Monday; the first Monday inside the
-    // future period is 2027-08-02.
+    // future period is 2027-08-02. Materialization still spans the whole
+    // period (tenant-wide backfill), starting at 2027-08-01.
     await waitFor(() =>
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
           calendar_period_id: 9,
           start_date: "2027-08-02",
-          materialize_from: "2027-08-02",
+          materialize_from: "2027-08-01",
         }),
       ),
     );
@@ -1415,7 +1417,7 @@ describe("TimetableEventModal", () => {
           calendar_period_id: 9,
           week_pattern: 1,
           start_date: "2027-08-09",
-          materialize_from: "2027-08-09",
+          materialize_from: "2027-08-01",
         }),
       ),
     );
@@ -1819,13 +1821,14 @@ describe("TimetableEventModal", () => {
       "42",
       expect.objectContaining({ activity_group_id: 8 }),
     );
-    // Conversion materializes from the series start through the period end
-    // in 56-day chunks.
+    // Conversion materializes the whole period in 56-day chunks — the
+    // series' own valid_from skips its dates before the start, while the
+    // tenant-wide run keeps backfilling earlier-starting templates.
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalledTimes(5));
     expect(mockMaterialize).toHaveBeenNthCalledWith(
       1,
-      "2026-05-04",
-      "2026-06-28",
+      "2026-05-01",
+      "2026-06-25",
     );
     expect(onConvertSaved).toHaveBeenCalledWith({
       kind: "series",
@@ -1987,10 +1990,11 @@ describe("TimetableEventModal", () => {
           weekdays: [1, 2, 3, 4, 5],
           week_pattern: 0,
           calendar_period_id: 5,
-          // #2135: the picked Datum is the series start.
+          // #2135: the picked Datum is the series start; the materialize
+          // window still spans the period for tenant-wide backfill.
           start_date: "2026-05-04",
-          materialize_from: "2026-05-04",
-          materialize_to: "2026-06-28",
+          materialize_from: "2026-05-01",
+          materialize_to: "2026-06-25",
         }),
       ),
     );
