@@ -138,7 +138,11 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
-	templates, err := rs.loadTemplates(r.Context(), &id)
+	periodID, ok := templatePeriodIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	templates, err := rs.loadTemplates(r.Context(), &id, periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
@@ -169,7 +173,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	templates, err := rs.loadTemplates(ctx, &id)
+	templates, err := rs.loadTemplates(ctx, &id, parsed.req.CalendarPeriodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
@@ -208,7 +212,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderUpdateTemplateError(w, r, updateErr)
 		return
 	}
-	templates, err = rs.loadTemplates(ctx, &id)
+	templates, err = rs.loadTemplates(ctx, &id, parsed.req.CalendarPeriodID)
 	if err != nil || len(templates) == 0 {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload template failed", err))
 		return

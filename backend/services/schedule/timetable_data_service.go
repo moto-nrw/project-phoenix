@@ -323,13 +323,14 @@ func (s *TimetableDataService) ListTemplateRows(
 
 // ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
 // the templates the caller may see (issue #2129), optionally narrowed to one
-// template. It is a thin read: the grouping into per-weekday assignments is a
-// presentation concern and stays in the API layer.
+// template and calendar period. It is a thin read: the grouping into
+// per-weekday assignments is a presentation concern and stays in the API
+// layer.
 func (s *TimetableDataService) ListTemplateWeekdayRoster(
 	ctx context.Context,
-	templateID *int64,
+	templateID, calendarPeriodID *int64,
 ) ([]activitiesModel.TemplateWeekdayRosterRow, error) {
-	return s.deps.ActivityGroupRepo.ListTemplateWeekdayRoster(ctx, templateID)
+	return s.deps.ActivityGroupRepo.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
 }
 
 func (s *TimetableDataService) ListTemplateRowsForPeriod(

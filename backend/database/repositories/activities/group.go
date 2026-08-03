@@ -572,7 +572,10 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 // The `valid_until IS NULL` filter mirrors the flat aggregates in
 // templateListSelect: the editor reads the currently open roster, not the
 // historical retired rows.
-func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templateID *int64) ([]activities.TemplateWeekdayRosterRow, error) {
+func (r *GroupRepository) ListTemplateWeekdayRoster(
+	ctx context.Context,
+	templateID, calendarPeriodID *int64,
+) ([]activities.TemplateWeekdayRosterRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateWeekdayRosterRow, 0)
 	query := `
@@ -582,6 +585,13 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			WHERE supervisor.tenant_id = ?
 			  AND supervisor.valid_until IS NULL
 			  AND supervisor.weekday IS NOT NULL
+	`
+	args := []any{tenantID}
+	if calendarPeriodID != nil {
+		query += ` AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	}
+	query += `
 			GROUP BY supervisor.group_id
 			UNION
 			SELECT enrollment.activity_group_id AS template_id
@@ -589,6 +599,13 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			WHERE enrollment.tenant_id = ?
 			  AND enrollment.valid_until IS NULL
 			  AND enrollment.weekday IS NOT NULL
+	`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	}
+	query += `
 			GROUP BY enrollment.activity_group_id
 		), template_weekdays AS (
 			SELECT scoped.template_id, schedule.weekday
@@ -602,7 +619,17 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			  AND g.is_template = TRUE
 			  AND g.archived_at IS NULL
 			  AND schedule.valid_until IS NULL`
-	args := []any{tenantID, tenantID, tenantID}
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (
+				schedule.calendar_period_id = ?
+				OR (
+					schedule.calendar_period_id IS NULL
+					AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
+				)
+			)`
+		args = append(args, *calendarPeriodID, *calendarPeriodID)
+	}
 	if templateID != nil {
 		query += ` AND g.id = ?`
 		args = append(args, *templateID)
@@ -629,7 +656,13 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			ON template_day.template_id = supervisor.group_id
 			AND template_day.weekday = supervisor.weekday
 		WHERE supervisor.tenant_id = ?
-		  AND supervisor.valid_until IS NULL
+		  AND supervisor.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	}
+	query += `
 		GROUP BY supervisor.group_id, supervisor.weekday, supervisor.staff_id
 		UNION ALL
 		SELECT
@@ -643,7 +676,13 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			ON template_day.template_id = enrollment.activity_group_id
 			AND template_day.weekday = enrollment.weekday
 		WHERE enrollment.tenant_id = ?
-		  AND enrollment.valid_until IS NULL
+		  AND enrollment.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	}
+	query += `
 		GROUP BY enrollment.activity_group_id, enrollment.weekday, enrollment.student_id
 		UNION ALL
 		SELECT
@@ -657,7 +696,13 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 			ON template_day.template_id = enrollment.activity_group_id
 		WHERE enrollment.tenant_id = ?
 		  AND enrollment.valid_until IS NULL
-		  AND enrollment.weekday IS NULL
+		  AND enrollment.weekday IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	}
+	query += `
 		  AND (
 			enrollment.enrollment_request_child_id IS NOT NULL
 			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
@@ -669,7 +714,6 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templat
 		  )
 		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
 		ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
-	args = append(args, tenantID, tenantID, tenantID)
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}

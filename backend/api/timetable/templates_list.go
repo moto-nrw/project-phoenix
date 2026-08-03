@@ -33,13 +33,16 @@ type templateScheduleResponse struct {
 	ValidUntil string `json:"valid_until,omitempty"`
 }
 
-func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]templateResponse, error) {
+func (rs *Resource) loadTemplates(
+	ctx context.Context,
+	templateID, calendarPeriodID *int64,
+) ([]templateResponse, error) {
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(ctx)
 	rows, err := rs.TimetableData.ListTemplateRows(ctx, templateID, childrenPerStaffRatio)
 	if err != nil {
 		return nil, err
 	}
-	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(ctx, templateID)
+	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
 	if err != nil {
 		return nil, err
 	}
@@ -240,14 +243,9 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var periodID *int64
-	if raw := r.URL.Query().Get("period_id"); raw != "" {
-		id, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || id <= 0 {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id must be a positive integer")))
-			return
-		}
-		periodID = &id
+	periodID, ok := templatePeriodIDFromRequest(w, r)
+	if !ok {
+		return
 	}
 
 	// WP-B6: the people subqueries (enrollment_count / supervisor_count) are
@@ -263,7 +261,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
 	}
-	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil)
+	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil, periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
@@ -272,4 +270,17 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, listTemplatesResponse{
 		Templates: mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster),
 	}, "Templates retrieved")
+}
+
+func templatePeriodIDFromRequest(w http.ResponseWriter, r *http.Request) (*int64, bool) {
+	raw := r.URL.Query().Get("period_id")
+	if raw == "" {
+		return nil, true
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id must be a positive integer")))
+		return nil, false
+	}
+	return &id, true
 }

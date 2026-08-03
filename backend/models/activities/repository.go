@@ -79,11 +79,12 @@ type GroupRepository interface {
 
 	// ListTemplateWeekdayRoster returns the weekday-scoped roster rows of the
 	// active (open) roster of every non-archived template, optionally narrowed
-	// to one template (issue #2129). It includes empty markers for scheduled
-	// weekdays and expands protected series-wide enrollments onto the weekdays
-	// where they materialize. Ordinary series-wide roster rows remain represented
-	// by TemplateListRow.
-	ListTemplateWeekdayRoster(ctx context.Context, templateID *int64) ([]TemplateWeekdayRosterRow, error)
+	// to one template and calendar period (issue #2129). The period filter also
+	// includes series-wide rows whose calendar_period_id is NULL. It includes
+	// empty markers for scheduled weekdays and expands protected series-wide
+	// enrollments onto the weekdays where they materialize. Ordinary series-wide
+	// roster rows remain represented by TemplateListRow.
+	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]TemplateWeekdayRosterRow, error)
 
 	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual
 	// recurrence date in periodID. It applies the same schedule, A/B-week,

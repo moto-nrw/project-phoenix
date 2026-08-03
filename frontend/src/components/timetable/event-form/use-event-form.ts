@@ -1954,7 +1954,10 @@ export function useEventForm({
     const typedScope = scope === "following" ? "following" : "all";
     setSubmitting(true);
     try {
-      const template = await timetableService.getTemplate(groupId);
+      const template = await timetableService.getTemplate(
+        groupId,
+        form.calendarPeriodId,
+      );
       const templateCalendarPeriodId =
         resolveTemplateCalendarPeriodId(template);
       const periodEnd =

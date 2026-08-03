@@ -404,7 +404,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	}
 	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
 
-	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID)
+	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 
 	type rosterKey struct {
@@ -425,6 +425,106 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 		"selected_weekdays still limits the protected child")
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
+}
+
+func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:             fmt.Sprintf("Period-Roster-%d", time.Now().UnixNano()),
+		Type:             activitiesModels.GroupTypeCare,
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		StartTime:        clockTime(14, 0),
+		EndTime:          clockTime(15, 0),
+		RoomID:           s.roomID,
+		CategoryID:       s.categoryID,
+		MaxParticipants:  20,
+		CalendarPeriodID: &s.periodID,
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    4,
+		WeekdayAssignments: []scheduleSvc.WeekdayRosterAssignment{{
+			Weekday:    activitiesModels.WeekdayMonday,
+			StaffIDs:   []int64{s.staffA},
+			StudentIDs: []int64{s.studentA},
+		}},
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	periodB := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("Roster-B-%d", time.Now().UnixNano()),
+		PeriodType:      scheduleModels.PeriodTypeCustom,
+		StartDate:       timezone.NewDate(2026, 1, 1),
+		EndDate:         timezone.NewDate(2026, 12, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, periodB))
+	s.cleanup = append(s.cleanup, func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodB.ID)
+	})
+
+	// An unpinned template can be used in either period. Its open rosters are
+	// still period-specific and must not be merged by the editor read.
+	_, err = s.db.NewUpdate().Table("activities.groups").
+		Set("calendar_period_id = NULL").
+		Where("tenant_id = ?", s.tenantID).
+		Where("id = ?", result.TemplateID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().Table("activities.schedules").
+		Set("calendar_period_id = NULL").
+		Where("tenant_id = ?", s.tenantID).
+		Where("activity_group_id = ?", result.TemplateID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	weekday := activitiesModels.WeekdayMonday
+	repos := repositories.NewFactory(s.db)
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+		StaffID:          s.staffB,
+		GroupID:          result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		CalendarPeriodID: &periodB.ID,
+		Weekday:          &weekday,
+	}))
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
+		StudentID:        s.studentB,
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		CalendarPeriodID: &periodB.ID,
+		Weekday:          &weekday,
+	}))
+
+	periodARows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
+	require.NoError(t, err)
+	periodBRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &periodB.ID)
+	require.NoError(t, err)
+
+	assertWeekdayRosterPeople(t, periodARows, []int64{s.staffA}, []int64{s.studentA})
+	assertWeekdayRosterPeople(t, periodBRows, []int64{s.staffB}, []int64{s.studentB})
+}
+
+func assertWeekdayRosterPeople(
+	t *testing.T,
+	rows []activitiesModels.TemplateWeekdayRosterRow,
+	wantStaff, wantStudents []int64,
+) {
+	t.Helper()
+	staff := make([]int64, 0)
+	students := make([]int64, 0)
+	for _, row := range rows {
+		switch row.Kind {
+		case activitiesModels.TemplateWeekdayRosterKindStaff:
+			staff = append(staff, row.PersonID)
+		case activitiesModels.TemplateWeekdayRosterKindStudent:
+			students = append(students, row.PersonID)
+		}
+	}
+	assert.ElementsMatch(t, wantStaff, staff)
+	assert.ElementsMatch(t, wantStudents, students)
 }
 
 // -----------------------------------------------------------------------------

@@ -111,8 +111,8 @@ func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
 	// The "one primary supervisor per group" trigger predates per-weekday
 	// staffing: it clears is_primary on EVERY other row of the group, so a
 	// Tuesday "Zuständige Person" would silently unset the Monday one. Scope
-	// it to the weekday, NULL-safely — with every row on the legacy NULL
-	// scope the behaviour is byte-for-byte what it was before.
+	// it to the calendar period and weekday, NULL-safely — with every row on
+	// the legacy NULL scope the behaviour is byte-for-byte what it was before.
 	if _, err := db.NewRaw(`
 		CREATE OR REPLACE FUNCTION activities.ensure_single_primary_supervisor()
 		RETURNS TRIGGER AS $$
@@ -122,13 +122,14 @@ func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
 				SET is_primary = FALSE
 				WHERE group_id = NEW.group_id
 					AND id <> NEW.id
+					AND calendar_period_id IS NOT DISTINCT FROM NEW.calendar_period_id
 					AND weekday IS NOT DISTINCT FROM NEW.weekday;
 			END IF;
 			RETURN NEW;
 		END;
 		$$ LANGUAGE plpgsql;
 	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed scoping the primary supervisor trigger to a weekday: %w", err)
+		return fmt.Errorf("failed scoping the primary supervisor trigger to calendar period and weekday: %w", err)
 	}
 
 	return nil
