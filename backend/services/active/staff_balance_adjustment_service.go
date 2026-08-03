@@ -330,8 +330,14 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if dependent {
 		return fmt.Errorf("%w: adjustment id %d", ErrAdjustmentHasDependentReset, adjustmentID)
 	}
-	if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
-		return err
+	// An opening balance is a migration rebaseline and may legitimately be
+	// replaced by a negative opening. Its documented correction workflow is
+	// delete + re-create, so do not reject the transient deletion solely
+	// because later consumption would make the account negative.
+	if adjustment.Type != activeModels.BalanceAdjustmentTypeOpening {
+		if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
+			return err
+		}
 	}
 	// Tombstone first, delete second, same transaction: a deleted booking
 	// must stay visible in the audit log (#1417).
