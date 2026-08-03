@@ -7,9 +7,33 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// validateAssignableCategory rejects missing, cross-tenant, and archived
+// categories before a timetable write creates a new reference. The repository
+// read is tenant-scoped, so all three cases share the same client-facing error.
+func validateAssignableCategory(
+	ctx context.Context,
+	repo activitiesModel.CategoryRepository,
+	categoryID int64,
+	op string,
+) error {
+	category, err := repo.FindByID(ctx, categoryID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return &ScheduleError{Op: op, Err: ErrCategoryNotAssignable}
+		}
+		return &ScheduleError{Op: op, Err: err}
+	}
+	if category == nil || category.IsArchived() {
+		return &ScheduleError{Op: op, Err: ErrCategoryNotAssignable}
+	}
+	return nil
+}
 
 // TemplateEducationGroupError marks an education_group_id precheck failure so
 // handlers can surface it as a 400 while preserving the precise message. It is

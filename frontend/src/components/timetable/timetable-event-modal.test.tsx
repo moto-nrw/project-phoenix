@@ -277,6 +277,7 @@ function renderModal(
       calendarPeriods={periods}
       defaultCalendarPeriodId="5"
       canCheckShiftCoverage
+      canManageCategories
       {...props}
     />
   );
@@ -3617,6 +3618,7 @@ describe("TimetableEventModal", () => {
       calendarPeriods: periods,
       defaultCalendarPeriodId: "5",
       canCheckShiftCoverage: true,
+      canManageCategories: true,
     } as const;
     const { rerender } = render(<TimetableEventModal {...baseProps} />);
 

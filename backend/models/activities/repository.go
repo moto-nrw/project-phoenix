@@ -20,6 +20,11 @@ type CategoryRepository interface {
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
 
+	// UpdateIfActive writes a category only while archived_at is still NULL.
+	// The condition and update run in one statement so a stale editor cannot
+	// reactivate a category that was archived after it loaded the row.
+	UpdateIfActive(ctx context.Context, category *Category) (updated bool, err error)
+
 	// SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one
 	// shift type (#1837 follow-up): it sets shift_type_id = shiftTypeID for the
 	// given category IDs and clears it on any category that currently points at

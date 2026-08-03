@@ -174,6 +174,9 @@ func (s *internalCategoryRepoStub) FindByID(context.Context, interface{}) (*acti
 func (s *internalCategoryRepoStub) Update(context.Context, *activityModels.Category) error {
 	return nil
 }
+func (s *internalCategoryRepoStub) UpdateIfActive(context.Context, *activityModels.Category) (bool, error) {
+	return true, nil
+}
 func (s *internalCategoryRepoStub) Delete(context.Context, interface{}) error { return nil }
 func (s *internalCategoryRepoStub) List(context.Context, *modelBase.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil

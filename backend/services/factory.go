@@ -940,6 +940,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// materialization service.
 	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
 		GroupRepo:                  repos.ActivityGroup,
+		CategoryRepo:               repos.ActivityCategory,
 		ScheduleRepo:               repos.ActivitySchedule,
 		EnrollmentRepo:             repos.StudentEnrollment,
 		SupervisorRepo:             repos.ActivitySupervisor,

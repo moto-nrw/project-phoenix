@@ -178,6 +178,7 @@ type TemplateEndResult struct {
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
 	GroupRepo       activitiesModel.GroupRepository
+	CategoryRepo    activitiesModel.CategoryRepository
 	ScheduleRepo    activitiesModel.ScheduleRepository
 	EnrollmentRepo  activitiesModel.StudentEnrollmentRepository
 	SupervisorRepo  activitiesModel.SupervisorPlannedRepository
@@ -220,7 +221,7 @@ type splitDeviationPreserver interface {
 // required dependency is nil — the split has no sensible degraded mode, so
 // the factory must wire it completely at startup.
 func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitService {
-	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
+	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.InstanceService == nil ||
 		deps.ValidateCareOfferingSeries == nil || deps.DB == nil {
@@ -293,6 +294,9 @@ func (s *TemplateSplitService) splitInTransaction(
 	}
 	if err := s.lockTenantRecurrence(ctx); err != nil {
 		return nil, &ScheduleError{Op: "split template: lock recurrence", Err: err}
+	}
+	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
+		return nil, err
 	}
 
 	old, sourceValidUntil, activeEnrollments, activeSupervisors, err := s.prepareSplitSource(ctx, &in)

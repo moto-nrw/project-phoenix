@@ -57,11 +57,15 @@ func (s *Service) UpdateCategory(ctx context.Context, id int64, input CategoryIn
 		return nil, &ActivityError{Op: opUpdateCategory, Err: err}
 	}
 
-	if err := s.categoryRepo.Update(ctx, category); err != nil {
+	updated, err := s.categoryRepo.UpdateIfActive(ctx, category)
+	if err != nil {
 		if base.IsUniqueViolation(err) {
 			return nil, &ActivityError{Op: opUpdateCategory, Err: ErrCategoryNameExists}
 		}
 		return nil, &ActivityError{Op: opUpdateCategory, Err: err}
+	}
+	if !updated {
+		return nil, &ActivityError{Op: opUpdateCategory, Err: ErrCategoryArchived}
 	}
 
 	return category, nil

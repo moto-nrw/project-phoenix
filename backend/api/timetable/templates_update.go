@@ -286,6 +286,8 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
 	case renderTemplateCareOfferingConflict(w, r, err):

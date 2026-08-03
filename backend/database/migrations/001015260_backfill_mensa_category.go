@@ -69,24 +69,12 @@ func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// backfillMensaCategoryDown removes 'Mensa' categories that nothing references.
-// The insert leaves no marker distinguishing a backfilled row from a
-// pre-existing one, so a school that already had an unused 'Mensa' loses it on
-// rollback — the same tradeoff the 1.6.4 seed rollback makes. Rows referenced
-// by an activity group or timetable template are always kept; deleting them
-// would violate the FK and destroy real planning data.
-func backfillMensaCategoryDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.260: Removing unused 'Mensa' categories...")
-
-	if _, err := db.NewRaw(`
-		DELETE FROM activities.categories c
-		WHERE LOWER(c.name) = LOWER(?)
-		  AND NOT EXISTS (
-			SELECT 1 FROM activities.groups g WHERE g.category_id = c.id
-		  );
-	`, mensaCategoryName).Exec(ctx); err != nil {
-		return fmt.Errorf("failed removing Mensa categories: %w", err)
-	}
-
+// backfillMensaCategoryDown deliberately keeps the data. The up migration has
+// no durable marker that distinguishes a row it inserted from a tenant's
+// pre-existing configuration, so deleting by name would destroy customer data.
+// Leaving an extra default category after a binary rollback is harmless and is
+// the only lossless option.
+func backfillMensaCategoryDown(_ context.Context, _ *bun.DB) error {
+	fmt.Println("Rolling back migration 1.15.260: Keeping 'Mensa' categories to preserve tenant data...")
 	return nil
 }

@@ -175,6 +175,9 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 		}
 		return &ActivityError{Op: "validate category", Err: err}
 	}
+	if category.IsArchived() {
+		return &ActivityError{Op: "validate category", Err: ErrCategoryArchived}
+	}
 
 	group.Category = category
 	return nil
@@ -278,6 +281,11 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	}
 	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
 		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
+	}
+	if group.CategoryID != existingGroup.CategoryID {
+		if err := s.validateAndSetCategory(ctx, group); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {

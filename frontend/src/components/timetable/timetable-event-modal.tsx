@@ -113,6 +113,7 @@ interface TimetableEventModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  canManageCategories: boolean;
   /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
    * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
@@ -143,16 +144,11 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  canManageCategories,
   closingDayRanges,
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
-  // No permission gate on the Kategorie-verwalten affordances: the Kategorie
-  // field only renders in the Regeltermin flow, which already requires
-  // schedules:manage — the same admin-only tier as
-  // activities:manage_categories. A second check here would be dead code, and
-  // if the two ever diverge the backend still refuses and the dialog shows the
-  // error (fail safe, not fail open).
   const [categoryDialog, setCategoryDialog] = useState<
     "list" | "create" | null
   >(null);
@@ -491,6 +487,7 @@ export function TimetableEventModal({
                 isSeriesFlow={isSeriesFlow}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
+                canManageCategories={canManageCategories}
                 onManageCategories={setCategoryDialog}
               />
             )}
@@ -849,7 +846,7 @@ export function TimetableEventModal({
 
         {/* Kategorien verwalten (#2131): mounted only while open so its fetch
             and dialog context stay out of every test that never opens it. */}
-        {categoryDialog && (
+        {canManageCategories && categoryDialog && (
           <CategoryManageModal
             isOpen
             initialView={categoryDialog}

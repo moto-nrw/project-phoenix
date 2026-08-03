@@ -158,7 +158,10 @@ func (m *mockCategoryRepo) FindByID(context.Context, interface{}) (*activityMode
 	return nil, nil
 }
 func (m *mockCategoryRepo) Update(context.Context, *activityModels.Category) error { return nil }
-func (m *mockCategoryRepo) Delete(context.Context, interface{}) error              { return nil }
+func (m *mockCategoryRepo) UpdateIfActive(context.Context, *activityModels.Category) (bool, error) {
+	return true, nil
+}
+func (m *mockCategoryRepo) Delete(context.Context, interface{}) error { return nil }
 func (m *mockCategoryRepo) List(context.Context, *base.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil
 }

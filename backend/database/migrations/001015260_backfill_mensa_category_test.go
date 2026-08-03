@@ -70,3 +70,15 @@ func TestBackfillMensaCategory(t *testing.T) {
 	assert.Equal(t, 1, countCategoriesNamed(t, db, withoutMensa, "Mensa"))
 	assert.Equal(t, 1, countCategoriesNamed(t, db, withMensa, "Mensa"))
 }
+
+func TestBackfillMensaCategoryDownPreservesPreexistingCategory(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	const tenantID int64 = 21313
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	insertMensaTestCategory(t, db, tenantID, "Mensa")
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	require.NoError(t, backfillMensaCategoryDown(ctx, db))
+	assert.Equal(t, 1, countCategoriesNamed(t, db, tenantID, "Mensa"))
+}

@@ -46,6 +46,7 @@ func attachSplitServiceWithValidator(
 ) {
 	s.res.TemplateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
 		GroupRepo:                  activitiesRepo.NewGroupRepository(s.db),
+		CategoryRepo:               activitiesRepo.NewCategoryRepository(s.db),
 		ScheduleRepo:               activitiesRepo.NewScheduleRepository(s.db),
 		EnrollmentRepo:             activitiesRepo.NewStudentEnrollmentRepository(s.db),
 		SupervisorRepo:             activitiesRepo.NewSupervisorPlannedRepository(s.db),

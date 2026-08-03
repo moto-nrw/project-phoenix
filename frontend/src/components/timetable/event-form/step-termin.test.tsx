@@ -33,6 +33,7 @@ function renderStep(
       isSeriesFlow
       quickPreset=""
       listKindTouched={createRef<boolean>() as React.RefObject<boolean>}
+      canManageCategories
       onManageCategories={onManageCategories}
       {...overrides}
     />,
@@ -74,6 +75,18 @@ describe("StepTermin — Kategorie (#2131)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verwalten" }));
 
     expect(onManageCategories).toHaveBeenCalledWith("list");
+  });
+
+  it("hides management controls without the category permission", () => {
+    renderStep({ canManageCategories: false });
+
+    expect(
+      screen.queryByRole("button", { name: "Verwalten" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox", { name: "Kategorie" }));
+    expect(
+      screen.queryByRole("option", { name: "+ Neue Kategorie anlegen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps rendering the field error", () => {

@@ -190,6 +190,10 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
+  const canManageCategories = hasPermission(
+    session,
+    "activities:manage_categories",
+  );
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
@@ -1258,6 +1262,7 @@ function TimetablesContent() {
 
       <TimetableEventModal
         canCheckShiftCoverage={canCheckShiftCoverage}
+        canManageCategories={canManageCategories}
         isOpen={eventModalOpen}
         onClose={() => {
           setEventModalOpen(false);

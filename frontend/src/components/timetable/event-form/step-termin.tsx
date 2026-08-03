@@ -56,6 +56,8 @@ export interface StepTerminProps {
   // series edit writes the new value instead of echoing the fetched template
   // (#1565 review).
   listKindTouched: React.RefObject<boolean>;
+  /** Whether category catalog controls may be shown to this user. */
+  canManageCategories: boolean;
   /** Opens the Kategorien-verwalten dialog, either on the list or straight in the create form. */
   onManageCategories: (mode: "list" | "create") => void;
 }
@@ -84,6 +86,7 @@ export function StepTermin({
   isSeriesFlow,
   quickPreset,
   listKindTouched,
+  canManageCategories,
   onManageCategories,
 }: Readonly<StepTerminProps>) {
   return (
@@ -145,13 +148,15 @@ export function StepTermin({
             required
             error={fieldErrors.categoryId}
             action={
-              <button
-                type="button"
-                onClick={() => onManageCategories("list")}
-                className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
-              >
-                Verwalten
-              </button>
+              canManageCategories ? (
+                <button
+                  type="button"
+                  onClick={() => onManageCategories("list")}
+                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                >
+                  Verwalten
+                </button>
+              ) : undefined
             }
           >
             <CustomSelect
@@ -172,12 +177,16 @@ export function StepTermin({
                   value: category.id,
                   label: category.name,
                 })),
-                // Last entry, so the missing category can be created without
-                // leaving the Termin (#2131 — the reported Essenszeiten case).
-                {
-                  value: CREATE_CATEGORY_OPTION,
-                  label: "+ Neue Kategorie anlegen",
-                },
+                ...(canManageCategories
+                  ? [
+                      // Last entry, so the missing category can be created without
+                      // leaving the Termin (#2131 — the reported Essenszeiten case).
+                      {
+                        value: CREATE_CATEGORY_OPTION,
+                        label: "+ Neue Kategorie anlegen",
+                      },
+                    ]
+                  : []),
               ]}
               onChange={(next) => {
                 if (next === CREATE_CATEGORY_OPTION) {

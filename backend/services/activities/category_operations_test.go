@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -103,6 +104,27 @@ func TestServiceUpdateCategory(t *testing.T) {
 		_, err := service.UpdateCategory(ctx, 999999999, activities.CategoryInput{Name: "Egal"})
 		require.Error(t, err)
 		require.ErrorIs(t, err, activities.ErrCategoryNotFound)
+	})
+
+	t.Run("a stale full-row update cannot reactivate an archived category", func(t *testing.T) {
+		category := testpkg.CreateTestActivityCategory(t, db, "ConcurrentArchive")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+
+		repo := repositories.NewFactory(db).ActivityCategory
+		stale, err := repo.FindByID(ctx, category.ID)
+		require.NoError(t, err)
+		_, err = service.ArchiveCategory(ctx, category.ID)
+		require.NoError(t, err)
+
+		stale.Name = fmt.Sprintf("StaleRename-%d", time.Now().UnixNano())
+		updated, err := repo.UpdateIfActive(ctx, stale)
+		require.NoError(t, err)
+		assert.False(t, updated)
+
+		reloaded, err := repo.FindByID(ctx, category.ID)
+		require.NoError(t, err)
+		assert.True(t, reloaded.IsArchived())
+		assert.NotEqual(t, stale.Name, reloaded.Name)
 	})
 }
 

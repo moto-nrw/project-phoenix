@@ -40,7 +40,8 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(category).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
-		Where("LOWER(name) = LOWER(?)", name)
+		Where("LOWER(name) = LOWER(?)", name).
+		Where("archived_at IS NULL")
 
 	query = base.WithTenantFilter(ctx, query, "category")
 
@@ -54,6 +55,38 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 	}
 
 	return category, nil
+}
+
+// UpdateIfActive conditionally updates a category while it is still active.
+// This domain write cannot use the generic Update helper because the
+// archived_at predicate must be part of the same statement as the full-row
+// update; a separate read would leave a check-then-write race.
+func (r *CategoryRepository) UpdateIfActive(ctx context.Context, category *activities.Category) (bool, error) {
+	if category == nil {
+		return false, fmt.Errorf("category cannot be nil")
+	}
+	if err := category.Validate(); err != nil {
+		return false, err
+	}
+
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(category).
+		Where("id = ?", category.ID).
+		Where("archived_at IS NULL").
+		ModelTableExpr(tableActivitiesCategories)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "update active category", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "update active category", Err: err}
+	}
+	return rows == 1, nil
 }
 
 // ListAll returns all categories

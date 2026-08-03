@@ -84,6 +84,20 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 		_, err := repo.FindByName(ctx, "NonExistentCategory12345")
 		require.Error(t, err)
 	})
+
+	t.Run("ignores archived categories", func(t *testing.T) {
+		category := testpkg.CreateTestActivityCategory(t, db, "FindByNameArchived")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+
+		now := time.Now()
+		category.ArchivedAt = &now
+		updated, err := repo.UpdateColumns(ctx, category, "archived_at")
+		require.NoError(t, err)
+		require.Positive(t, updated)
+
+		_, err = repo.FindByName(ctx, category.Name)
+		require.Error(t, err)
+	})
 }
 
 func TestCategoryRepository_Update(t *testing.T) {
