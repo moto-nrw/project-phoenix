@@ -22,23 +22,49 @@ func ValidateTemplateTargetGradeLimit(
 	targetGroupType string,
 	targetGradeLevel *int16,
 ) error {
+	target := &activitiesModel.GroupTarget{
+		TargetGroupType:  targetGroupType,
+		TargetGradeLevel: targetGradeLevel,
+	}
+	return ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, nil, []*activitiesModel.GroupTarget{target})
+}
+
+// ValidateTemplateTargetsGradeLimit permits every unchanged legacy grade,
+// including secondary targets that are not represented by the group mirror.
+func ValidateTemplateTargetsGradeLimit(
+	gradeLevelMax int,
+	existing *activitiesModel.Group,
+	existingTargets []*activitiesModel.GroupTarget,
+	requestedTargets []*activitiesModel.GroupTarget,
+) error {
 	if err := validateTemplateGradeLevelMax(gradeLevelMax); err != nil {
 		return err
 	}
-	if targetGroupType != activitiesModel.TargetGroupTypeJahrgang || targetGradeLevel == nil ||
-		int(*targetGradeLevel) <= gradeLevelMax {
-		return nil
+	existingGrades := make(map[int16]struct{}, len(existingTargets)+1)
+	if existing != nil && existing.TargetGroupType == activitiesModel.TargetGroupTypeJahrgang && existing.TargetGradeLevel != nil {
+		existingGrades[*existing.TargetGradeLevel] = struct{}{}
 	}
-	if existing != nil && existing.TargetGroupType == activitiesModel.TargetGroupTypeJahrgang &&
-		existing.TargetGradeLevel != nil && *existing.TargetGradeLevel == *targetGradeLevel {
-		return nil
+	for _, target := range existingTargets {
+		if target != nil && target.TargetGroupType == activitiesModel.TargetGroupTypeJahrgang && target.TargetGradeLevel != nil {
+			existingGrades[*target.TargetGradeLevel] = struct{}{}
+		}
 	}
-	return fmt.Errorf(
-		"%w: target_grade_level %d exceeds tenant maximum %d",
-		ErrTemplateTargetGradeExceedsLimit,
-		*targetGradeLevel,
-		gradeLevelMax,
-	)
+	for _, target := range requestedTargets {
+		if target == nil || target.TargetGroupType != activitiesModel.TargetGroupTypeJahrgang || target.TargetGradeLevel == nil ||
+			int(*target.TargetGradeLevel) <= gradeLevelMax {
+			continue
+		}
+		if _, unchanged := existingGrades[*target.TargetGradeLevel]; unchanged {
+			continue
+		}
+		return fmt.Errorf(
+			"%w: target_grade_level %d exceeds tenant maximum %d",
+			ErrTemplateTargetGradeExceedsLimit,
+			*target.TargetGradeLevel,
+			gradeLevelMax,
+		)
+	}
+	return nil
 }
 
 func validateTemplateGradeLevelMax(value int) error {

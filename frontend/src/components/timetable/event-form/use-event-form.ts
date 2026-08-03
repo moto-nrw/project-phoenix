@@ -373,34 +373,36 @@ export function useEventForm({
       const value = String(index + 1);
       return { value, label: `Jahrgang ${value}`, disabled: false };
     });
-    if (
-      form.targetGradeLevel !== "" &&
-      !options.some((option) => option.value === form.targetGradeLevel)
-    ) {
-      const gradeLevel = Number(form.targetGradeLevel);
+    for (const selected of form.targetGradeLevels) {
+      if (options.some((option) => option.value === selected)) continue;
+      const gradeLevel = Number(selected);
       const supported =
         Number.isInteger(gradeLevel) &&
         gradeLevel >= 1 &&
         gradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
       options.push({
-        value: form.targetGradeLevel,
-        label: `Jahrgang ${form.targetGradeLevel} (${supported ? "bestehend" : "ungültig"})`,
+        value: selected,
+        label: `Jahrgang ${selected} (${supported ? "bestehend" : "ungültig"})`,
         disabled: true,
       });
     }
     return options;
-  }, [form.targetGradeLevel, gradeLevelMax]);
-  const preservesExistingTargetGrade =
-    initialSeries?.targetGradeLevel !== undefined &&
-    initialSeries.targetGradeLevel !== null &&
-    form.targetGradeLevel === String(initialSeries.targetGradeLevel) &&
-    Number.isInteger(initialSeries.targetGradeLevel) &&
-    initialSeries.targetGradeLevel >= 1 &&
-    initialSeries.targetGradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+  }, [form.targetGradeLevels, gradeLevelMax]);
+  const initialGradeTargets = new Set(
+    (initialSeries?.targets ?? []).flatMap((target) =>
+      target.gradeLevel === undefined ? [] : [String(target.gradeLevel)],
+    ),
+  );
+  if (initialSeries?.targetGradeLevel !== undefined) {
+    initialGradeTargets.add(String(initialSeries.targetGradeLevel));
+  }
+  const preservesExistingTargetGrade = form.targetGradeLevels.every(
+    (grade) =>
+      Number(grade) <= (gradeLevelMax ?? 0) || initialGradeTargets.has(grade),
+  );
   const preservesGradeAboveTenantCap =
-    preservesExistingTargetGrade &&
     gradeLevelMax !== undefined &&
-    Number(form.targetGradeLevel) > gradeLevelMax;
+    form.targetGradeLevels.some((grade) => Number(grade) > gradeLevelMax);
   const studentRosterEditable = !loadingStudents && studentLoadError === null;
   const studentIDsForSave = studentRosterEditable
     ? form.studentIds
@@ -922,7 +924,11 @@ export function useEventForm({
       targetGroupType: nextType,
       targetGradeLevel: nextType === "jahrgang" ? current.targetGradeLevel : "",
       targetSchoolClass: nextType === "klasse" ? current.targetSchoolClass : "",
-      educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
+      targetGradeLevels:
+        nextType === "jahrgang" ? current.targetGradeLevels : [],
+      targetSchoolClasses:
+        nextType === "klasse" ? current.targetSchoolClasses : [],
+      educationGroupIds: nextType === "gruppe" ? current.educationGroupIds : [],
     }));
     setValidationError(null);
     setFieldErrors((current) => {
@@ -995,26 +1001,32 @@ export function useEventForm({
           'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
       }
       if (form.targetGroupType === "jahrgang") {
-        const gradeLevel = Number(form.targetGradeLevel);
-        if (form.targetGradeLevel === "") {
+        const invalidGrade = form.targetGradeLevels.some((value) => {
+          const gradeLevel = Number(value);
+          return (
+            !Number.isInteger(gradeLevel) ||
+            gradeLevel < 1 ||
+            gradeLevel > MAX_SUPPORTED_TARGET_GRADE_LEVEL ||
+            gradeLevelMax === undefined ||
+            (gradeLevel > gradeLevelMax && !preservesExistingTargetGrade)
+          );
+        });
+        if (form.targetGradeLevels.length === 0) {
           errors.targetGradeLevel = "Bitte einen Jahrgang auswählen.";
-        } else if (
-          !Number.isInteger(gradeLevel) ||
-          gradeLevel < 1 ||
-          gradeLevel > MAX_SUPPORTED_TARGET_GRADE_LEVEL ||
-          gradeLevelMax === undefined ||
-          (gradeLevel > gradeLevelMax && !preservesExistingTargetGrade)
-        ) {
+        } else if (invalidGrade) {
           errors.targetGradeLevel = "Bitte einen gültigen Jahrgang auswählen.";
         }
       }
       if (
         form.targetGroupType === "klasse" &&
-        form.targetSchoolClass.trim() === ""
+        form.targetSchoolClasses.length === 0
       ) {
         errors.targetSchoolClass = "Bitte eine Klasse auswählen.";
       }
-      if (form.targetGroupType === "gruppe" && form.educationGroupId === "") {
+      if (
+        form.targetGroupType === "gruppe" &&
+        form.educationGroupIds.length === 0
+      ) {
         errors.educationGroupId = "Bitte eine Gruppe auswählen.";
       }
     }
@@ -1112,18 +1124,38 @@ export function useEventForm({
     room_id: roomId,
     category_id: categoryId,
     notes: form.seriesNotes.trim() || undefined,
-    education_group_id: form.educationGroupId
-      ? Number(form.educationGroupId)
-      : undefined,
+    education_group_id:
+      form.targetGroupType === "gruppe" && form.educationGroupIds.length > 0
+        ? Number(form.educationGroupIds[0])
+        : form.educationGroupId
+          ? Number(form.educationGroupId)
+          : undefined,
     target_group_type: form.targetGroupType,
     target_grade_level:
-      form.targetGroupType === "jahrgang" && form.targetGradeLevel
-        ? Number(form.targetGradeLevel)
+      form.targetGroupType === "jahrgang" && form.targetGradeLevels.length > 0
+        ? Number(form.targetGradeLevels[0])
         : undefined,
     target_school_class:
-      form.targetGroupType === "klasse" && form.targetSchoolClass
-        ? form.targetSchoolClass.trim()
+      form.targetGroupType === "klasse" && form.targetSchoolClasses.length > 0
+        ? form.targetSchoolClasses[0]?.trim()
         : undefined,
+    targets:
+      form.targetGroupType === "jahrgang"
+        ? form.targetGradeLevels.map((value) => ({
+            type: "jahrgang" as const,
+            grade_level: Number(value),
+          }))
+        : form.targetGroupType === "klasse"
+          ? form.targetSchoolClasses.map((value) => ({
+              type: "klasse" as const,
+              school_class: value.trim(),
+            }))
+          : form.targetGroupType === "gruppe"
+            ? form.educationGroupIds.map((value) => ({
+                type: "gruppe" as const,
+                education_group_id: Number(value),
+              }))
+            : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
     required_staff: parseRequiredStaffOverride(form.requiredStaff),
@@ -1200,6 +1232,14 @@ export function useEventForm({
       target_group_type: template.targetGroupType,
       target_grade_level: template.targetGradeLevel,
       target_school_class: template.targetSchoolClass,
+      targets: template.targets?.map((target) => ({
+        type: target.type,
+        grade_level: target.gradeLevel,
+        school_class: target.schoolClass,
+        education_group_id: target.educationGroupId
+          ? Number(target.educationGroupId)
+          : undefined,
+      })),
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
       // An occurrence form starts from the occurrence's own pin, which is
@@ -1942,51 +1982,68 @@ export function useEventForm({
         .map((student) => student.schoolClass?.trim())
         .filter((item): item is string => Boolean(item)),
     );
-    const currentClass = form.targetSchoolClass.trim();
-    if (currentClass !== "") options.add(currentClass);
+    for (const currentClass of form.targetSchoolClasses) {
+      if (currentClass.trim() !== "") options.add(currentClass.trim());
+    }
     return [...options].sort((a, b) => a.localeCompare(b, "de"));
-  }, [form.targetSchoolClass, students]);
-  const targetClassDescriptionIDs = [
-    fieldErrors.targetSchoolClass ? "event_target_school_class_error" : null,
-    loadingStudents || studentLoadError
-      ? "event_target_school_class_availability"
-      : null,
-  ]
-    .filter((id): id is string => id !== null)
-    .join(" ");
+  }, [form.targetSchoolClasses, students]);
 
   const targetCohort = useMemo(() => {
     let label: string | null = null;
     let members: PersonOption[] = [];
-    if (form.targetGroupType === "jahrgang" && form.targetGradeLevel) {
-      label = `Jahrgang ${form.targetGradeLevel}`;
-      members = students.filter(
-        (student) =>
-          getSchoolYear(student.schoolClass?.trim() ?? "") ===
-          form.targetGradeLevel,
+    if (
+      form.targetGroupType === "jahrgang" &&
+      form.targetGradeLevels.length > 0
+    ) {
+      const selected = new Set(form.targetGradeLevels);
+      label =
+        selected.size === 1
+          ? `Jahrgang ${form.targetGradeLevels[0]}`
+          : `${selected.size} Jahrgänge`;
+      members = students.filter((student) => {
+        const gradeLevel = getSchoolYear(student.schoolClass?.trim() ?? "");
+        return gradeLevel !== null && selected.has(gradeLevel);
+      });
+    } else if (
+      form.targetGroupType === "klasse" &&
+      form.targetSchoolClasses.length > 0
+    ) {
+      const selected = new Set(
+        form.targetSchoolClasses.map((value) =>
+          value.trim().toLocaleLowerCase("de"),
+        ),
       );
-    } else if (form.targetGroupType === "klasse" && form.targetSchoolClass) {
-      label = schoolClassLabel(form.targetSchoolClass);
-      members = students.filter(
-        (student) => student.schoolClass?.trim() === form.targetSchoolClass,
+      label =
+        selected.size === 1
+          ? schoolClassLabel(form.targetSchoolClasses[0] ?? "")
+          : `${selected.size} Klassen`;
+      members = students.filter((student) =>
+        selected.has(
+          (student.schoolClass?.trim() ?? "").toLocaleLowerCase("de"),
+        ),
       );
-    } else if (form.targetGroupType === "gruppe" && form.educationGroupId) {
-      const groupName = groups.find(
-        (group) => group.id === form.educationGroupId,
-      )?.name;
-      if (groupName) {
-        label = `Gruppe ${groupName}`;
-        members = students.filter(
-          (student) => student.groupId === form.educationGroupId,
-        );
-      }
+    } else if (
+      form.targetGroupType === "gruppe" &&
+      form.educationGroupIds.length > 0
+    ) {
+      const selected = new Set(form.educationGroupIds);
+      const singleGroup = groups.find(
+        (group) => group.id === form.educationGroupIds[0],
+      );
+      label =
+        selected.size === 1 && singleGroup
+          ? `Gruppe ${singleGroup.name}`
+          : `${selected.size} Gruppen`;
+      members = students.filter((student) =>
+        selected.has(student.groupId ?? ""),
+      );
     }
     return { label, memberIds: members.map((student) => student.id) };
   }, [
-    form.educationGroupId,
-    form.targetGradeLevel,
+    form.educationGroupIds,
+    form.targetGradeLevels,
     form.targetGroupType,
-    form.targetSchoolClass,
+    form.targetSchoolClasses,
     groups,
     students,
   ]);
@@ -2001,7 +2058,6 @@ export function useEventForm({
         missingTargetCohortCount,
       )
     : "";
-
   const addTargetCohort = () => {
     if (targetCohort.memberIds.length === 0) return;
     setForm((current) => ({
@@ -2011,7 +2067,6 @@ export function useEventForm({
       ),
     }));
   };
-
   const retryStudentLoad = async () => {
     const studentSeq = ++studentLoadSeq.current;
     const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
@@ -2166,7 +2221,6 @@ export function useEventForm({
     abWeekHint,
     studentBulkOptions,
     targetClassOptions,
-    targetClassDescriptionIDs,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,

@@ -261,7 +261,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    const offeringMenu = screen.getByRole("menu", {
+    const offeringMenu = screen.getByRole("dialog", {
       name: /Berücksichtigte Angebote/,
     });
     expect(

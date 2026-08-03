@@ -541,6 +541,45 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	assert.Equal(t, "3a", *updated.TargetSchoolClass)
 }
 
+func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-%d", time.Now().UnixNano()))
+	body["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	body["target_school_class"] = "1a"
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "1a"},
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "2a"},
+	}
+
+	createdResponse := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, createdResponse.Code, "body=%s", createdResponse.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdResponse)
+
+	getResponse := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	require.Equal(t, http.StatusOK, getResponse.Code, "body=%s", getResponse.Body.String())
+	template := decodeTemplateData[templateResponse](t, getResponse)
+	require.Len(t, template.Targets, 2)
+	assert.Equal(t, "1a", *template.Targets[0].SchoolClass)
+	assert.Equal(t, "2a", *template.Targets[1].SchoolClass)
+
+	updateBody := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-Updated-%d", time.Now().UnixNano()))
+	updateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	updateBody["target_school_class"] = "2a"
+	updateBody["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "2a"},
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "3a"},
+	}
+	updatedResponse := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updatedResponse.Code, "body=%s", updatedResponse.Body.String())
+	updated := decodeTemplateData[templateResponse](t, updatedResponse)
+	require.Len(t, updated.Targets, 2)
+	assert.Equal(t, "2a", *updated.Targets[0].SchoolClass)
+	assert.Equal(t, "3a", *updated.Targets[1].SchoolClass)
+}
+
 func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
@@ -1141,6 +1180,34 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
 	router := templateRouter(s.ctx, s.res)
+
+	t.Run("deduplicates explicit and dynamic class membership", func(t *testing.T) {
+		period := createTemplateTestPeriodRange(
+			t,
+			s.db,
+			"TplOccurrenceDynamicOverlap",
+			timezone.NewDate(2025, 9, 1),
+			timezone.NewDate(2025, 9, 7),
+			1,
+			nil,
+		)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Dynamic-Overlap", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		class := " 3A "
+		targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+		require.True(t, ok)
+		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, templateID, []*activitiesModel.GroupTarget{
+			{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &class},
+		}))
+		start := timezone.NewDate(2025, 9, 1)
+		end := timezone.NewDate(2025, 9, 8)
+		createCapacityEnrollment(t, s, templateID, s.studentA, start, &end, &period.ID, nil)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 2, got.RequiredStaffCount,
+			"the explicit student must be counted once while both 3a students match case-insensitively")
+	})
 
 	t.Run("does not combine weekday cohorts or validity windows", func(t *testing.T) {
 		period := createTemplateTestPeriodRange(

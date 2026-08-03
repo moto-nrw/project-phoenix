@@ -103,4 +103,48 @@ describe("MultiCheckboxSelect (searchable)", () => {
     expect(screen.queryByPlaceholderText("Suchen...")).not.toBeInTheDocument();
     expect(screen.queryByText("Alle auswählen")).not.toBeInTheDocument();
   });
+
+  it("clips the scroll area inside the rounded menu surface", () => {
+    render(
+      <MultiCheckboxSelect
+        ariaLabel="Auswahl"
+        value={[]}
+        options={OPTIONS}
+        onChange={() => undefined}
+        searchable
+      />,
+    );
+    openMenu();
+
+    const menu = screen.getByRole("dialog", { name: "Auswahl" });
+    expect(menu).toHaveClass("overflow-hidden", "rounded-xl", "py-2");
+    expect(menu.firstElementChild).toHaveClass(
+      "max-h-[17rem]",
+      "overflow-y-auto",
+      "overscroll-contain",
+    );
+  });
+
+  it("keeps native checkbox semantics and closes on Escape", () => {
+    render(
+      <MultiCheckboxSelect
+        ariaLabel="Auswahl"
+        value={["1"]}
+        options={OPTIONS}
+        onChange={() => undefined}
+        searchable
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: "Auswahl" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Auswahl" })).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: "Bärengruppe" })).toBeChecked();
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Auswahl" }), {
+      key: "Escape",
+    });
+
+    expect(screen.queryByRole("dialog", { name: "Auswahl" })).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
 });

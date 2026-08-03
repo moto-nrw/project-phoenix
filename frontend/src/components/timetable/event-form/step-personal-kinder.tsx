@@ -4,6 +4,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
 import type { EventFormState, PersonOption } from "./form-model";
@@ -57,7 +58,6 @@ export interface StepPersonalKinderProps {
     memberIds: string[];
   }>;
   targetClassOptions: string[];
-  targetClassDescriptionIDs: string;
   targetCohort: { label: string | null; memberIds: string[] };
   missingTargetCohortCount: number;
   targetCohortButtonLabel: string;
@@ -98,7 +98,6 @@ export function StepPersonalKinder({
   preservesGradeAboveTenantCap,
   studentBulkOptions,
   targetClassOptions,
-  targetClassDescriptionIDs,
   targetCohort,
   missingTargetCohortCount,
   targetCohortButtonLabel,
@@ -239,30 +238,19 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetGradeLevel}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_grade_level"
                   ariaLabel="Jahrgang"
-                  ariaDescribedBy={
-                    fieldErrors.targetGradeLevel
-                      ? "event_target_grade_level_error"
-                      : undefined
-                  }
-                  value={form.targetGradeLevel}
-                  options={[
-                    { value: "", label: "Jahrgang wählen …" },
-                    ...targetGradeOptions,
-                  ]}
-                  onChange={(next) => update("targetGradeLevel", next)}
-                  required
-                  invalid={Boolean(fieldErrors.targetGradeLevel)}
-                  placeholder="Jahrgang wählen …"
+                  value={form.targetGradeLevels}
+                  options={targetGradeOptions}
+                  onChange={(next) => update("targetGradeLevels", next)}
+                  emptyLabel="Jahrgänge wählen ..."
                 />
               </Field>
               {preservesGradeAboveTenantCap ? (
                 <p className="mt-1 text-xs text-gray-500" role="status">
-                  Jahrgang {form.targetGradeLevel} liegt über der aktuell
-                  konfigurierten Höchststufe {gradeLevelMax}. Die bestehende
-                  Zielgruppe bleibt beim Speichern erhalten.
+                  Eine bestehende Auswahl liegt über der aktuell konfigurierten
+                  Höchststufe {gradeLevelMax} und bleibt erhalten.
                 </p>
               ) : null}
             </div>
@@ -276,23 +264,18 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetSchoolClass}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_school_class"
                   ariaLabel="Klasse"
-                  ariaDescribedBy={targetClassDescriptionIDs || undefined}
-                  value={form.targetSchoolClass}
-                  options={[
-                    { value: "", label: "Klasse wählen …" },
-                    ...targetClassOptions.map((schoolClass) => ({
-                      value: schoolClass,
-                      label: schoolClass,
-                    })),
-                  ]}
-                  onChange={(next) => update("targetSchoolClass", next)}
+                  value={form.targetSchoolClasses}
+                  options={targetClassOptions.map((schoolClass) => ({
+                    value: schoolClass,
+                    label: schoolClass,
+                  }))}
+                  onChange={(next) => update("targetSchoolClasses", next)}
                   disabled={loadingStudents || studentLoadError !== null}
-                  required
-                  invalid={Boolean(fieldErrors.targetSchoolClass)}
-                  placeholder="Klasse wählen …"
+                  emptyLabel="Klassen wählen ..."
+                  searchable
                 />
               </Field>
               {loadingStudents || studentLoadError ? (
@@ -317,27 +300,18 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.educationGroupId}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_gruppe"
                   ariaLabel="Gruppe"
-                  ariaDescribedBy={
-                    fieldErrors.educationGroupId
-                      ? "event_target_gruppe_error"
-                      : undefined
-                  }
-                  value={form.educationGroupId}
-                  options={[
-                    { value: "", label: "Gruppe wählen …" },
-                    ...groups.map((group) => ({
-                      value: group.id,
-                      label: group.name,
-                    })),
-                  ]}
-                  onChange={(next) => update("educationGroupId", next)}
+                  value={form.educationGroupIds}
+                  options={groups.map((group) => ({
+                    value: group.id,
+                    label: group.name,
+                  }))}
+                  onChange={(next) => update("educationGroupIds", next)}
                   disabled={loadingRefs}
-                  required
-                  invalid={Boolean(fieldErrors.educationGroupId)}
-                  placeholder="Gruppe wählen …"
+                  emptyLabel="Gruppen wählen ..."
+                  searchable
                 />
               </Field>
             </div>
@@ -351,27 +325,31 @@ export function StepPersonalKinder({
             </p>
           )}
 
-          {targetCohort.label && !loadingStudents && !studentLoadError && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
-              <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
-                Die Zielgruppe beschreibt den Regeltermin. Übernimm die
-                passenden Kinder mit einem Klick; die Auswahl bleibt danach
-                anpassbar.
+          {form.targetGroupType !== "none" &&
+            form.targetGroupType !== "angebot" && (
+              <p className="mt-2 text-xs leading-5 text-gray-600">
+                Die Kinderliste wird bei der Planung aus allen ausgewählten
+                Zielgruppen gebildet. Überschneidungen werden automatisch
+                entfernt, spätere Gruppenwechsel werden bei einer Neuplanung
+                berücksichtigt. Mit der Schaltfläche darunter kannst du die
+                aktuell passenden Kinder zusätzlich fest auswählen.
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                onClick={addTargetCohort}
-                disabled={
-                  targetCohort.memberIds.length === 0 ||
-                  missingTargetCohortCount === 0
-                }
-              >
-                {targetCohortButtonLabel}
-              </Button>
-            </div>
-          )}
+            )}
+          {targetCohort.label && !loadingStudents && !studentLoadError ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              className="mt-2 self-start"
+              onClick={addTargetCohort}
+              disabled={
+                targetCohort.memberIds.length === 0 ||
+                missingTargetCohortCount === 0
+              }
+            >
+              {targetCohortButtonLabel}
+            </Button>
+          ) : null}
         </div>
       )}
 

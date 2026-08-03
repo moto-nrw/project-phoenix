@@ -312,6 +312,9 @@ func (s *TimetableDataService) ListTemplateRows(
 		return nil, err
 	}
 	setDisplayRosterCapacity(rows)
+	if err := s.attachTemplateTargets(ctx, rows); err != nil {
+		return nil, err
+	}
 	// Detail has no period query parameter, so evaluate every active period.
 	// The repository still applies materialization's deterministic period
 	// selection for globally-unpinned templates on overlapping dates.
@@ -331,6 +334,9 @@ func (s *TimetableDataService) ListTemplateRowsForPeriod(
 		return nil, err
 	}
 	setDisplayRosterCapacity(rows)
+	if err := s.attachTemplateTargets(ctx, rows); err != nil {
+		return nil, err
+	}
 	if err := s.attachWorstTemplateCapacity(
 		ctx,
 		rows,
@@ -341,6 +347,21 @@ func (s *TimetableDataService) ListTemplateRowsForPeriod(
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows []activitiesModel.TemplateListRow) error {
+	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok {
+		return nil
+	}
+	targetsByGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, distinctTemplateIDs(rows))
+	if err != nil {
+		return err
+	}
+	for i := range rows {
+		rows[i].Targets = targetsByGroup[rows[i].TemplateID]
+	}
+	return nil
 }
 
 func setDisplayRosterCapacity(rows []activitiesModel.TemplateListRow) {

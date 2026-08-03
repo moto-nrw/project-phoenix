@@ -30,9 +30,10 @@ type updateTemplateRequest struct {
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
 	// Zielgruppe fields — see createTemplateRequest for the full contract.
-	TargetGroupType   string  `json:"target_group_type,omitempty"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	Targets           []templateTargetRequest `json:"targets,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -75,10 +76,15 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		EducationGroupID:  req.EducationGroupID,
 	}
 	if err := target.ValidateTargetGroup(); err != nil {
-		return err
+		if len(req.Targets) == 0 {
+			return err
+		}
 	}
 	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
+	if err := validateTargetRequests(req.TargetGroupType, req.Targets); err != nil {
+		return err
+	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -274,6 +280,7 @@ func buildUpdateTemplateInput(
 		StudentIDs:       req.StudentIDs,
 		StaffIDs:         req.StaffIDs,
 		PrimaryStaffID:   req.PrimaryStaffID,
+		Targets:          targetModels(req.Targets),
 		GradeLevelMax:    gradeLevelMax,
 	}
 }

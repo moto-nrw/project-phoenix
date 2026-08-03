@@ -51,6 +51,7 @@ type TemplateUpdateInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
+	Targets          []*activitiesModel.GroupTarget
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -75,17 +76,20 @@ func (s *TimetableDataService) UpdateTemplate(ctx context.Context, in TemplateUp
 }
 
 func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
-	target := &activitiesModel.Group{
-		TargetGroupType:   in.Fields.TargetGroupType,
-		TargetGradeLevel:  in.Fields.TargetGradeLevel,
-		TargetSchoolClass: in.Fields.TargetSchoolClass,
-		EducationGroupID:  in.Fields.EducationGroupID,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
+	targets, err := normalizeDynamicTargets(in.Fields.TargetGroupType, in.Fields.TargetGradeLevel, in.Fields.TargetSchoolClass, in.Fields.EducationGroupID, in.Targets)
+	if err != nil {
 		return err
 	}
-	in.Fields.TargetGroupType = target.TargetGroupType
-	in.Fields.TargetSchoolClass = target.TargetSchoolClass
+	in.Targets = targets
+	in.Fields.TargetGradeLevel = nil
+	in.Fields.TargetSchoolClass = nil
+	if len(targets) > 0 {
+		in.Fields.TargetGradeLevel = targets[0].TargetGradeLevel
+		in.Fields.TargetSchoolClass = targets[0].TargetSchoolClass
+		if in.Fields.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.Fields.EducationGroupID = targets[0].EducationGroupID
+		}
+	}
 	return nil
 }
 
@@ -127,12 +131,11 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 			return err
 		}
 	}
-	if err := ValidateTemplateTargetGradeLimit(
-		in.GradeLevelMax,
-		existing,
-		in.Fields.TargetGroupType,
-		in.Fields.TargetGradeLevel,
-	); err != nil {
+	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
+	if err != nil {
+		return &ScheduleError{Op: "update template: load targets", Err: err}
+	}
+	if err := validateDynamicTargets(ctx, s, in.GradeLevelMax, existing, existingTargets, in.Targets); err != nil {
 		return &ScheduleError{Op: "update template: validate target grade", Err: err}
 	}
 	validFrom, validUntil, err := s.loadEditableTemplateEnvelope(ctx, in.TemplateID)
@@ -152,6 +155,16 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	previousListKind := existing.ListKind
 	if err := s.updateTemplateFields(ctx, in); err != nil {
 		return err
+	}
+	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok {
+		if len(in.Targets) > 0 {
+			return &ScheduleError{Op: "update template: replace targets", Err: errors.New("target repository is not configured")}
+		}
+	} else {
+		if err := targetRepo.ReplaceTargets(ctx, in.TemplateID, in.Targets); err != nil {
+			return &ScheduleError{Op: "update template: replace targets", Err: err}
+		}
 	}
 	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
 		return err
@@ -177,6 +190,18 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 		)
 	}
 	return nil
+}
+
+func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupRepository, groupID int64) ([]*activitiesModel.GroupTarget, error) {
+	targetRepo, ok := repo.(activitiesModel.GroupTargetRepository)
+	if !ok {
+		return nil, nil
+	}
+	byGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, []int64{groupID})
+	if err != nil {
+		return nil, err
+	}
+	return byGroup[groupID], nil
 }
 
 func validateLegacyTemplateWeekdays(existing []*activitiesModel.Schedule, requested []int) error {

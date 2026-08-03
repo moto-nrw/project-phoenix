@@ -57,6 +57,23 @@ function summarizeTimeRange(template: TimetableTemplate): string | null {
   return allSame ? base : `${base} +`;
 }
 
+function summarizeTargets(template: TimetableTemplate): string | null {
+  const targets = template.targets ?? [];
+  if (targets.length === 0) return null;
+  const labels = targets.map((target) => {
+    if (target.type === "jahrgang") return `Jahrgang ${target.gradeLevel}`;
+    if (target.type === "klasse") {
+      const schoolClass = target.schoolClass?.trim();
+      if (!schoolClass) return "Klasse";
+      return /^klasse(?:\s|$)/i.test(schoolClass)
+        ? schoolClass
+        : `Klasse ${schoolClass}`;
+    }
+    return target.educationGroupName ?? "Gruppe";
+  });
+  return labels.join(", ");
+}
+
 export function TemplateCard({
   template,
   onEdit,
@@ -66,6 +83,7 @@ export function TemplateCard({
   const color = getActivityColor(template.type);
   const activeWeekdays = new Set(template.schedules.map((s) => s.weekday));
   const timeRange = summarizeTimeRange(template);
+  const targetSummary = summarizeTargets(template);
 
   return (
     <article
@@ -134,6 +152,14 @@ export function TemplateCard({
               {timeRange ?? "Keine Zeiten hinterlegt"}
             </span>
           </div>
+          {targetSummary ? (
+            <div className="flex items-start gap-2">
+              <Users className="mt-0.5 h-3.5 w-3.5 text-gray-400" aria-hidden />
+              <span className="line-clamp-2" title={targetSummary}>
+                {targetSummary}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <DoorOpen className="h-3.5 w-3.5 text-gray-400" aria-hidden />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>

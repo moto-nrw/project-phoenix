@@ -62,6 +62,9 @@ export interface EventFormState {
   targetGroupType: TargetGroupType;
   targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
   targetSchoolClass: string; // "", only meaningful for "klasse"
+  targetGradeLevels: string[];
+  targetSchoolClasses: string[];
+  educationGroupIds: string[];
 }
 
 export interface PersonOption {
@@ -110,6 +113,9 @@ export function emptyForm(
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
+    targetGradeLevels: [],
+    targetSchoolClasses: [],
+    educationGroupIds: [],
   };
 }
 
@@ -148,6 +154,9 @@ export function formFromInstance(
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
+    targetGradeLevels: [],
+    targetSchoolClasses: [],
+    educationGroupIds: [],
   };
 }
 
@@ -156,6 +165,7 @@ export function formFromSeries(
   defaultDate: string,
   defaultCalendarPeriodId?: string | null,
 ): EventFormState {
+  const targets = series.targets ?? [];
   const firstSchedule = series.schedules[0];
   const weekdays = series.schedules.map((schedule) => schedule.weekday);
   const weekPattern =
@@ -174,7 +184,10 @@ export function formFromSeries(
     type: series.type,
     categoryId: series.categoryId,
     listKind: series.listKind ?? "",
-    educationGroupId: series.educationGroupId ?? "",
+    educationGroupId:
+      series.targetGroupType === "gruppe"
+        ? ""
+        : (series.educationGroupId ?? ""),
     notes: "",
     seriesNotes: series.notes ?? "",
     repeat,
@@ -195,6 +208,30 @@ export function formFromSeries(
         ? String(series.targetGradeLevel)
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
+    targetGradeLevels:
+      targets.length > 0
+        ? targets.flatMap((target) =>
+            target.gradeLevel === undefined ? [] : [String(target.gradeLevel)],
+          )
+        : series.targetGradeLevel === undefined
+          ? []
+          : [String(series.targetGradeLevel)],
+    targetSchoolClasses:
+      targets.length > 0
+        ? targets.flatMap((target) =>
+            target.schoolClass ? [target.schoolClass] : [],
+          )
+        : series.targetSchoolClass
+          ? [series.targetSchoolClass.trim()]
+          : [],
+    educationGroupIds:
+      targets.length > 0
+        ? targets.flatMap((target) =>
+            target.educationGroupId ? [target.educationGroupId] : [],
+          )
+        : series.targetGroupType === "gruppe" && series.educationGroupId
+          ? [series.educationGroupId]
+          : [],
   };
 }
 
@@ -237,9 +274,7 @@ export function targetCohortActionLabel(
   missingMemberCount: number,
 ): string {
   if (memberCount === 0) return `Keine Kinder aus ${label} gefunden`;
-  if (missingMemberCount === 0) {
-    return `Alle Kinder aus ${label} übernommen`;
-  }
+  if (missingMemberCount === 0) return `Alle Kinder aus ${label} übernommen`;
   const childLabel = memberCount === 1 ? "Kind" : "Kinder";
   return `Alle ${memberCount} ${childLabel} aus ${label} übernehmen`;
 }

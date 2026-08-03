@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -315,6 +316,51 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 		Count(s.ctx)
 	require.NoError(t, err)
 	assert.Zero(t, count, "graduated student must not be copied into instance_students")
+}
+
+func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testing.T) {
+	firstMonday := timezone.NewDate(2026, time.April, 20)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
+	defer s.runCleanup(t)
+
+	laterStudent := testpkg.CreateTestStudentForTenant(
+		t, s.db, s.tenantID, "Dora", fmt.Sprintf("Later-%d", time.Now().UnixNano()), "5a",
+	)
+	s.extraCleanups = append(s.extraCleanups, func() {
+		testpkg.CleanupTableRecords(t, s.db, "users.students", laterStudent.ID)
+	})
+
+	class3a := "3a"
+	class4a := "4a"
+	targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModels.GroupTargetRepository)
+	require.True(t, ok)
+	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
+		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
+		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class4a},
+	}))
+
+	first, err := s.svc.MaterializeForTenant(s.ctx, firstMonday, firstMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 3, first.InstanceStudentsCreated, "explicit and dynamic memberships form a deduplicated union")
+	firstInstances := listInstancesForDate(t, s.db, s.template.ID, firstMonday)
+	require.Len(t, firstInstances, 1)
+	s.registerCleanup("schedule.activity_instances", firstInstances[0].ID)
+
+	_, err = s.db.NewUpdate().
+		Table("users.students").
+		Set("school_class = ?", class4a).
+		Where("tenant_id = ?", s.tenantID).
+		Where("id = ?", laterStudent.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	secondMonday := firstMonday.AddDays(7)
+	second, err := s.svc.MaterializeForTenant(s.ctx, secondMonday, secondMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 4, second.InstanceStudentsCreated, "future materialization uses the changed class membership")
+	secondInstances := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
+	require.Len(t, secondInstances, 1)
+	s.registerCleanup("schedule.activity_instances", secondInstances[0].ID)
 }
 
 func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {

@@ -894,6 +894,20 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       targetGroupType: template.target_group_type,
       targetGradeLevel: template.target_grade_level,
       targetSchoolClass: template.target_school_class,
+      ...(template.targets
+        ? {
+            targets: template.targets.map((target) => ({
+              type: target.type,
+              gradeLevel: target.grade_level,
+              schoolClass: target.school_class,
+              educationGroupId:
+                target.education_group_id === undefined
+                  ? undefined
+                  : String(target.education_group_id),
+              educationGroupName: target.education_group_name,
+            })),
+          }
+        : {}),
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,

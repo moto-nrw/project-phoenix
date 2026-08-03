@@ -308,9 +308,8 @@ function currentStep(): number {
  * values always win, and only when we actually have to pass step 1.
  */
 /**
- * Pick an option from a CustomSelect. The trigger is a role="combobox" button;
- * its menu (and the role="option" entries) only exist in the DOM while open, so
- * we click the trigger first, then the option by its visible label.
+ * Pick an option from a single or multiple select. Multiple selects expose
+ * native checkboxes so their checked state remains accessible.
  */
 async function chooseFromSelect(
   trigger: HTMLElement,
@@ -318,7 +317,14 @@ async function chooseFromSelect(
 ) {
   await waitFor(() => expect(trigger).not.toBeDisabled());
   fireEvent.click(trigger);
-  fireEvent.click(await screen.findByRole("option", { name: optionLabel }));
+  const option = await waitFor(() => {
+    const control =
+      screen.queryByRole("option", { name: optionLabel }) ??
+      screen.queryByRole("checkbox", { name: optionLabel });
+    if (!control) throw new Error("select option is not visible");
+    return control;
+  });
+  fireEvent.click(option);
 }
 
 async function fillStep1Requirements() {
@@ -1428,7 +1434,7 @@ describe("TimetableEventModal", () => {
     ).toBeNull();
   });
 
-  it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
+  it("submits multiple selected Jahrgang targets", async () => {
     renderModal({ showPeriodField: true });
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
@@ -1455,10 +1461,11 @@ describe("TimetableEventModal", () => {
     });
     fireEvent.click(screen.getByLabelText(/^Jahrgang\*/));
     expect(
-      screen.getByRole("option", { name: "Jahrgang 13" }),
+      screen.getByRole("checkbox", { name: "Jahrgang 13" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Jahrgang 14" })).toBeNull();
-    fireEvent.click(screen.getByRole("option", { name: "Jahrgang 13" }));
+    expect(screen.queryByRole("checkbox", { name: "Jahrgang 14" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 12" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 13" }));
 
     await clickSave();
 
@@ -1466,7 +1473,11 @@ describe("TimetableEventModal", () => {
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 13,
+          target_grade_level: 12,
+          targets: [
+            { type: "jahrgang", grade_level: 12 },
+            { type: "jahrgang", grade_level: 13 },
+          ],
         }),
       ),
     );
@@ -1493,7 +1504,7 @@ describe("TimetableEventModal", () => {
     expect(gradeSelect).toHaveTextContent("Jahrgang 13 (bestehend)");
     fireEvent.click(gradeSelect);
     expect(
-      screen.getByRole("option", { name: "Jahrgang 13 (bestehend)" }),
+      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
     ).toBeDisabled();
     expect(
       screen.getByText(/über der aktuell konfigurierten Höchststufe 4/),

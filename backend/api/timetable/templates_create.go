@@ -61,9 +61,10 @@ type createTemplateRequest struct {
 	// "angebot" | "none"/omitted). "gruppe" reuses EducationGroupID above
 	// rather than a separate field. Cross-field validity is checked via
 	// activitiesModel.Group.ValidateTargetGroup() in Bind() below.
-	TargetGroupType   string  `json:"target_group_type,omitempty"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	Targets           []templateTargetRequest `json:"targets,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565):
 	// one of activitiesModel.ListKind* ("edge_hours" | "learning_time" |
 	// "activity" | "mensa") or omitted/empty for none.
@@ -81,6 +82,44 @@ type createTemplateRequest struct {
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID  *int64  `json:"primary_staff_id,omitempty"`
+}
+
+type templateTargetRequest struct {
+	Type             string  `json:"type"`
+	GradeLevel       *int16  `json:"grade_level,omitempty"`
+	SchoolClass      *string `json:"school_class,omitempty"`
+	EducationGroupID *int64  `json:"education_group_id,omitempty"`
+}
+
+func (target templateTargetRequest) model() *activitiesModel.GroupTarget {
+	return &activitiesModel.GroupTarget{
+		TargetGroupType: target.Type, TargetGradeLevel: target.GradeLevel,
+		TargetSchoolClass: target.SchoolClass, EducationGroupID: target.EducationGroupID,
+	}
+}
+
+func targetModels(targets []templateTargetRequest) []*activitiesModel.GroupTarget {
+	result := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	for _, target := range targets {
+		result = append(result, target.model())
+	}
+	return result
+}
+
+func validateTargetRequests(targetType string, targets []templateTargetRequest) error {
+	for _, request := range targets {
+		target := request.model()
+		if target.TargetGroupType == "" {
+			target.TargetGroupType = targetType
+		}
+		if target.TargetGroupType != targetType {
+			return errors.New("all targets must match target_group_type")
+		}
+		if err := target.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -120,10 +159,15 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		EducationGroupID:  req.EducationGroupID,
 	}
 	if err := target.ValidateTargetGroup(); err != nil {
-		return err
+		if len(req.Targets) == 0 {
+			return err
+		}
 	}
 	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
+	if err := validateTargetRequests(req.TargetGroupType, req.Targets); err != nil {
+		return err
+	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -314,6 +358,7 @@ func buildCreateTemplateInput(
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
+		Targets:           targetModels(req.Targets),
 		ListKind:          req.ListKind,
 		Notes:             normalizeNotes(req.Notes),
 		StudentIDs:        req.StudentIDs,
