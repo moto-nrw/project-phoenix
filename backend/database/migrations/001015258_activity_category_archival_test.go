@@ -2,6 +2,8 @@ package migrations
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +12,64 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalUpgrade")
+	originalCategoryID := group.CategoryID
+	restored := false
+	var firstID, secondID int64
+
+	require.NoError(t, activityCategoryArchivalDown(ctx, db))
+	defer func() {
+		if !restored {
+			require.NoError(t, activityCategoryArchivalUp(ctx, db))
+		}
+		testpkg.CleanupActivityFixtures(t, db, group.ID, *group.CreatedBy, originalCategoryID, firstID, secondID)
+	}()
+
+	baseName := fmt.Sprintf("UpgradeCase-%d", time.Now().UnixNano())
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO activities.categories (tenant_id, name)
+		VALUES (?, ?)
+		RETURNING id
+	`, group.TenantID, baseName).Scan(ctx, &firstID))
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO activities.categories (tenant_id, name)
+		VALUES (?, ?)
+		RETURNING id
+	`, group.TenantID, strings.ToLower(baseName)).Scan(ctx, &secondID))
+	_, err := db.NewRaw(`
+		UPDATE activities.groups
+		SET category_id = ?
+		WHERE id = ?
+	`, secondID, group.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, activityCategoryArchivalUp(ctx, db))
+	restored = true
+
+	var firstName, secondName string
+	require.NoError(t, db.NewRaw(
+		"SELECT name FROM activities.categories WHERE id = ?",
+		firstID,
+	).Scan(ctx, &firstName))
+	require.NoError(t, db.NewRaw(
+		"SELECT name FROM activities.categories WHERE id = ?",
+		secondID,
+	).Scan(ctx, &secondName))
+	assert.Equal(t, baseName, firstName)
+	assert.Contains(t, secondName, "Duplikat")
+	assert.NotEqual(t, strings.ToLower(firstName), strings.ToLower(secondName))
+
+	var referencedCategoryID int64
+	require.NoError(t, db.NewRaw(
+		"SELECT category_id FROM activities.groups WHERE id = ?",
+		group.ID,
+	).Scan(ctx, &referencedCategoryID))
+	assert.Equal(t, secondID, referencedCategoryID)
+}
 
 func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

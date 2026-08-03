@@ -47,12 +47,11 @@ func (c *Category) IsArchived() bool {
 
 // Validate ensures category data is valid
 func (c *Category) Validate() error {
+	// Normalize first so whitespace-only input cannot pass the required check.
+	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" {
 		return errors.New("category name is required")
 	}
-
-	// Trim spaces from name
-	c.Name = strings.TrimSpace(c.Name)
 
 	// Validate color if provided
 	if c.Color != "" {

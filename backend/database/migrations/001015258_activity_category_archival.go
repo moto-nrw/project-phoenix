@@ -31,17 +31,50 @@ func activityCategoryArchivalUp(ctx context.Context, db *bun.DB) error {
 			`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed adding archived_at column to activities.categories: %w", err)
 	}
+	if _, err := db.NewRaw(`
+				DROP INDEX IF EXISTS activities.idx_categories_tenant_name;
+			`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed dropping idx_categories_tenant_name: %w", err)
+	}
+
+	// The old exact-case index allowed active names such as "Sport" and
+	// "sport" in one tenant. Preserve every row and reference while making the
+	// upgrade compatible with the new case-insensitive index: the lowest ID
+	// keeps its name, later duplicates receive a deterministic suffix. Repeat
+	// until unique in case a generated suffix already exists as a real name.
+	if _, err := db.NewRaw(`
+				DO $migration$
+				BEGIN
+					WHILE EXISTS (
+						SELECT 1
+						FROM activities.categories
+						WHERE archived_at IS NULL
+						GROUP BY tenant_id, LOWER(name)
+						HAVING COUNT(*) > 1
+					) LOOP
+						UPDATE activities.categories AS c
+						SET name = c.name || ' (Duplikat #' || c.id || ')'
+						WHERE c.archived_at IS NULL
+						  AND EXISTS (
+							SELECT 1
+							FROM activities.categories AS duplicate
+							WHERE duplicate.tenant_id = c.tenant_id
+							  AND duplicate.archived_at IS NULL
+							  AND LOWER(duplicate.name) = LOWER(c.name)
+							  AND duplicate.id < c.id
+						  );
+					END LOOP;
+				END
+				$migration$;
+			`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed disambiguating case-insensitive category names: %w", err)
+	}
 
 	// Scope uniqueness to active rows so a school can archive
 	// "Kochen" and later create a fresh category under the same
 	// name, including case variants. Restoring an archived row whose name is
 	// taken by an active one still fails on this index — that is the intended
 	// guard, surfaced to the user as a name conflict.
-	if _, err := db.NewRaw(`
-				DROP INDEX IF EXISTS activities.idx_categories_tenant_name;
-			`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed dropping idx_categories_tenant_name: %w", err)
-	}
 	if _, err := db.NewRaw(`
 				CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_tenant_name_active
 				ON activities.categories(tenant_id, LOWER(name))

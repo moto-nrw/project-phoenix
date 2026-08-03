@@ -111,6 +111,23 @@ const logger = createLogger({ component: "TimetableEventModal" });
 export const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
 /**
+ * Keeps a category selection only while the refreshed picker still offers it.
+ * A newly created category is authoritative even if the following refetch is
+ * stale; an archived category is cleared so saving cannot submit its old ID.
+ */
+export function reconcileCategoryId(
+  currentId: string,
+  categories: readonly Pick<ActivityCategory, "id">[],
+  createdId?: string,
+): string {
+  if (createdId) return createdId;
+  if (currentId && !categories.some((category) => category.id === currentId)) {
+    return "";
+  }
+  return currentId;
+}
+
+/**
  * Backend cap for a single materialization window
  * (MaxMaterializationWindowDays in services/schedule/materialization_service.go).
  * Whole-period runs are split into windows of this size.
@@ -1989,9 +2006,18 @@ export function useEventForm({
     }
     try {
       const data = await fetchPlannerActivityCategories();
-      setCategories(
-        [...data].sort((a, b) => a.name.localeCompare(b.name, "de")),
+      const sorted = [...data].sort((a, b) =>
+        a.name.localeCompare(b.name, "de"),
       );
+      setCategories(sorted);
+      setForm((prev) => {
+        const categoryId = reconcileCategoryId(
+          prev.categoryId,
+          sorted,
+          selectId,
+        );
+        return categoryId === prev.categoryId ? prev : { ...prev, categoryId };
+      });
     } catch (err: unknown) {
       logger.error("categories_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
