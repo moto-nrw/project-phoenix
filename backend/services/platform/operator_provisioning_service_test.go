@@ -173,8 +173,8 @@ func (m *mockCategoryRepo) SetShiftTypeForCategories(context.Context, int64, []i
 	return nil
 }
 
-func (m *mockCategoryRepo) SetArchived(context.Context, int64, *time.Time) error {
-	return nil
+func (m *mockCategoryRepo) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
+	return 1, nil
 }
 
 func (m *mockRoleRepo) Create(context.Context, *authModels.Role) error { return nil }

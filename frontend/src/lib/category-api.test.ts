@@ -32,24 +32,19 @@ describe("categoryService requests", () => {
     vi.clearAllMocks();
   });
 
-  it("lists the pickable categories by default", async () => {
+  it("always asks for archived rows and usage counts", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json({ data: [category] }, { status: 200 }),
     );
 
-    await expect(categoryService.getCategories()).resolves.toEqual([category]);
-    expect(mockSessionFetch).toHaveBeenCalledWith("/api/activities/categories");
-  });
-
-  it("opts into archived categories when asked", async () => {
-    mockSessionFetch.mockResolvedValueOnce(
-      Response.json({ data: [category] }, { status: 200 }),
-    );
-
-    await categoryService.getCategories(true);
-
+    await expect(categoryService.getManagedCategories()).resolves.toEqual([
+      category,
+    ]);
+    // Archived rows are what the restore action needs; the usage counts drive
+    // the "wird verwendet" hint. The pickers use the plain list instead, which
+    // skips the extra aggregate server-side.
     expect(mockSessionFetch).toHaveBeenCalledWith(
-      "/api/activities/categories?include_archived=true",
+      "/api/activities/categories?include_archived=true&with_usage=true",
     );
   });
 
@@ -58,7 +53,7 @@ describe("categoryService requests", () => {
       Response.json({ data: null }, { status: 200 }),
     );
 
-    await expect(categoryService.getCategories()).resolves.toEqual([]);
+    await expect(categoryService.getManagedCategories()).resolves.toEqual([]);
   });
 
   it("creates a category", async () => {
@@ -146,7 +141,7 @@ describe("categoryService error handling", () => {
       new Response("upstream exploded", { status: 500 }),
     );
 
-    await expect(categoryService.getCategories()).rejects.toMatchObject({
+    await expect(categoryService.getManagedCategories()).rejects.toMatchObject({
       status: 500,
       detail: "upstream exploded",
     });
@@ -195,7 +190,7 @@ describe("categoryService error handling", () => {
       Response.json({ error: "nope" }, { status: 400 }),
     );
 
-    await expect(categoryService.getCategories()).rejects.toBeInstanceOf(
+    await expect(categoryService.getManagedCategories()).rejects.toBeInstanceOf(
       CategoryApiError,
     );
   });

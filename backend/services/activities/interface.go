@@ -21,9 +21,11 @@ type ActivityService interface {
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
 	ListCategories(ctx context.Context) ([]*activities.Category, error)
-	// ListCategoriesWithUsage returns every category plus how many activity
-	// groups reference it, for the Stammdaten management screen (#2131).
-	ListCategoriesWithUsage(ctx context.Context) ([]CategoryUsage, error)
+	// CategoryUsageCounts reports how many activity groups reference each
+	// category, keyed by category id, for the Stammdaten management screen
+	// (#2131). Separate from listing: the aggregate is an extra scan only
+	// that screen needs.
+	CategoryUsageCounts(ctx context.Context) (map[int64]int, error)
 	// UpdateCategory renames a non-system, non-archived category.
 	UpdateCategory(ctx context.Context, id int64, input CategoryInput) (*activities.Category, error)
 	// ArchiveCategory retires a category without deleting it, so existing

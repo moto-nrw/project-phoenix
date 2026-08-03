@@ -189,8 +189,8 @@ func (s *internalCategoryRepoStub) SetShiftTypeForCategories(context.Context, in
 	return nil
 }
 
-func (s *internalCategoryRepoStub) SetArchived(context.Context, int64, *time.Time) error {
-	return nil
+func (s *internalCategoryRepoStub) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
+	return 1, nil
 }
 
 type internalAuditLogRepoStub struct {

@@ -9,8 +9,12 @@ import { buildQueryString } from "~/lib/route-wrapper-utils.server";
 import type {
   ActivityCategory,
   BackendActivityCategory,
+  CategoryWriteRequest,
 } from "~/lib/activity-helpers";
-import { mapActivityCategoryResponse } from "~/lib/activity-helpers";
+import {
+  mapActivityCategoryResponse,
+  toCategoryWriteBody,
+} from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/categories
@@ -39,13 +43,6 @@ export const GET = createGetHandler(
   },
 );
 
-/** Body accepted by POST — mirrors the backend CategoryRequest (#2131). */
-interface CategoryWriteRequest {
-  name: string;
-  description?: string;
-  color?: string;
-}
-
 /**
  * Handler for POST /api/activities/categories
  * Creates a school-owned activity category. Requires
@@ -56,11 +53,7 @@ export const POST = createPostHandler<ActivityCategory, CategoryWriteRequest>(
     const response = await apiPost<{ data: BackendActivityCategory }>(
       "/api/activities/categories",
       token,
-      {
-        name: body.name,
-        description: body.description,
-        color: body.color,
-      },
+      toCategoryWriteBody(body),
     );
     // Mapped like GET so the whole /api/activities/categories surface speaks
     // the frontend ActivityCategory shape, not raw snake_case.

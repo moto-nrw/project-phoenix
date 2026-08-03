@@ -63,25 +63,37 @@ func (req *CategoryRequest) toInput() activitiesSvc.CategoryInput {
 
 // listCategories handles listing the tenant's activity categories.
 //
-// Two filters, both opt-in so existing consumers (planner dropdowns, activity
-// forms) keep seeing exactly the pickable set:
+// Three filters, all opt-in so existing consumers (planner dropdowns, activity
+// forms) keep seeing exactly the pickable set at the price of one query:
 //   - include_system=true keeps the auto-provisioned Schulhof/WC categories
 //     (issue #923; the IoT provisioning flows need them, staff pickers do not)
 //   - include_archived=true keeps retired ones, for the Stammdaten screen that
 //     offers restoring them (#2131)
+//   - with_usage=true reports usage_count, which costs an extra tenant-wide
+//     aggregate over activities.groups. Only the Stammdaten screen renders it;
+//     the pickers would pay for a field they never read.
 func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
-	usages, err := rs.ActivityService.ListCategoriesWithUsage(r.Context())
+	query := r.URL.Query()
+	includeSystem := query.Get("include_system") == "true"
+	includeArchived := query.Get("include_archived") == "true"
+	withUsage := query.Get("with_usage") == "true"
+
+	categories, err := rs.ActivityService.ListCategories(r.Context())
 	if err != nil {
 		common.RenderError(w, r, categoryErrorRenderer(err))
 		return
 	}
 
-	includeSystem := r.URL.Query().Get("include_system") == "true"
-	includeArchived := r.URL.Query().Get("include_archived") == "true"
+	var usage map[int64]int
+	if withUsage {
+		if usage, err = rs.ActivityService.CategoryUsageCounts(r.Context()); err != nil {
+			common.RenderError(w, r, categoryErrorRenderer(err))
+			return
+		}
+	}
 
-	responses := make([]CategoryResponse, 0, len(usages))
-	for _, usage := range usages {
-		category := usage.Category
+	responses := make([]CategoryResponse, 0, len(categories))
+	for _, category := range categories {
 		if category.IsSystem && !includeSystem {
 			continue
 		}
@@ -89,8 +101,10 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		response := newCategoryResponse(category)
-		count := usage.UsageCount
-		response.UsageCount = &count
+		if withUsage {
+			count := usage[category.ID]
+			response.UsageCount = &count
+		}
 		responses = append(responses, response)
 	}
 

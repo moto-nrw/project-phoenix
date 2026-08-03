@@ -28,11 +28,13 @@ type CategoryRepository interface {
 	// the generic Repository[T].
 	SetShiftTypeForCategories(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
 
-	// SetArchived stamps or clears activities.categories.archived_at for one
-	// tenant-scoped category (#2131). A single-column write rather than a full
-	// entity Update so an archive/restore never clobbers a concurrent rename,
-	// and so a restore surfaces the partial unique index violation on its own.
-	SetArchived(ctx context.Context, id int64, archivedAt *time.Time) error
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary key
+	// and returns the number of rows affected. Archive/restore writes just
+	// archived_at through it (#2131), so a concurrent rename is never
+	// clobbered and a restore still surfaces the partial unique index
+	// violation on its own.
+	UpdateColumns(ctx context.Context, category *Category, columns ...string) (int64, error)
 }
 
 // GroupRepository defines operations for managing activity groups

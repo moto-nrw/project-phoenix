@@ -178,7 +178,8 @@ func TestListCategories_ReportsUsageCount(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories", nil)
+	// usage_count is opt-in: the pickers must not pay for the extra aggregate.
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories?with_usage=true", nil)
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
 	require.Equal(t, http.StatusOK, rr.Code)
 

@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { Textarea } from "~/components/ui/textarea";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { categoryService, CategoryApiError } from "~/lib/category-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -45,6 +46,53 @@ function describeError(err: unknown, fallback: string): string {
   return fallback;
 }
 
+function usageLabel(category: ActivityCategory): string {
+  const count = category.usageCount ?? 0;
+  if (count === 0) return "Noch nicht verwendet";
+  if (count === 1) return "In 1 Termin/Aktivität verwendet";
+  return `In ${count} Terminen/Aktivitäten verwendet`;
+}
+
+const categoryListClass =
+  "divide-y divide-gray-100 rounded-2xl border border-gray-200";
+
+/**
+ * One row of the category list: colour dot, name, usage hint, and whatever
+ * actions the section offers. Archived rows drop the dot and mute the name.
+ */
+function CategoryRow({
+  category,
+  archived = false,
+  children,
+}: {
+  readonly category: ActivityCategory;
+  readonly archived?: boolean;
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <li className="flex items-center gap-3 px-3 py-2.5">
+      {!archived && (
+        <span
+          className="h-4 w-4 shrink-0 rounded-full border border-black/10"
+          style={{
+            backgroundColor: category.color ?? LOCATION_COLORS.UNKNOWN,
+          }}
+          aria-hidden="true"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <span
+          className={`block truncate font-medium ${archived ? "text-gray-500" : "text-gray-900"}`}
+        >
+          {category.name}
+        </span>
+        <p className="truncate text-xs text-gray-500">{usageLabel(category)}</p>
+      </div>
+      {children}
+    </li>
+  );
+}
+
 /**
  * Manage the school's Timetable-Kategorien (#2131) without leaving the Termin
  * form: list, create, rename, archive, restore. Same shape as
@@ -80,7 +128,7 @@ export function CategoryManageModal({
     setLoading(true);
     setLoadError(false);
     try {
-      setCategories(await categoryService.getCategories(true));
+      setCategories(await categoryService.getManagedCategories());
     } catch (err: unknown) {
       logger.error("categories_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -91,17 +139,23 @@ export function CategoryManageModal({
     }
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setError(null);
+  /** Clears the form back to "new category" defaults. */
+  const resetForm = () => {
     setEditing(null);
     setName("");
     setDescription("");
     setColor(DEFAULT_NEW_COLOR);
+    setError(null);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    resetForm();
     setView(initialView === "create" ? "form" : "list");
     void reload();
-    // reload is stable enough for this dialog: it closes and remounts its
-    // state on every open, which is exactly when we want a fresh fetch.
+    // reload/resetForm only touch setters and are stable enough for this
+    // dialog: it resets its state on every open, which is exactly when we
+    // want a fresh fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialView]);
 
@@ -109,11 +163,7 @@ export function CategoryManageModal({
   const archived = categories.filter((category) => category.archivedAt);
 
   const openCreate = () => {
-    setEditing(null);
-    setName("");
-    setDescription("");
-    setColor(DEFAULT_NEW_COLOR);
-    setError(null);
+    resetForm();
     setView("form");
   };
 
@@ -126,87 +176,91 @@ export function CategoryManageModal({
     setView("form");
   };
 
+  /**
+   * Runs one write against the category API with the shared busy/error
+   * contract: block the buttons, clear the previous error, log and surface a
+   * German message on failure.
+   */
+  const runWrite = async (
+    event: string,
+    fallback: string,
+    categoryId: string | undefined,
+    write: () => Promise<void>,
+  ) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await write();
+    } catch (err: unknown) {
+      logger.error(event, {
+        category_id: categoryId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(describeError(err, fallback));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Name ist erforderlich");
       return;
     }
+    const payload = {
+      name: trimmed,
+      description: description.trim(),
+      color: color ?? "",
+    };
 
-    setBusy(true);
-    setError(null);
-    try {
-      const payload = {
-        name: trimmed,
-        description: description.trim(),
-        color: color ?? "",
-      };
-      if (editing) {
-        await categoryService.updateCategory(editing.id, payload);
-        await reload();
-        onChanged();
-      } else {
-        const created = await categoryService.createCategory(payload);
-        await reload();
-        onChanged(created);
-      }
-      setView("list");
-    } catch (err: unknown) {
-      logger.error("category_save_failed", {
-        category_id: editing?.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(describeError(err, "Kategorie konnte nicht gespeichert werden"));
-    } finally {
-      setBusy(false);
-    }
+    await runWrite(
+      "category_save_failed",
+      "Kategorie konnte nicht gespeichert werden",
+      editing?.id,
+      async () => {
+        if (editing) {
+          await categoryService.updateCategory(editing.id, payload);
+          await reload();
+          onChanged();
+          setView("list");
+          return;
+        }
+        // No reload and no view switch: the caller closes the dialog as soon
+        // as a category was created (it gets selected in the Termin), so both
+        // would be thrown away along with the fetch they cost.
+        onChanged(await categoryService.createCategory(payload));
+      },
+    );
   };
 
-  const handleArchive = async () => {
-    if (!archiveTarget) return;
-    setBusy(true);
-    try {
-      await categoryService.archiveCategory(archiveTarget.id);
-      setArchiveTarget(null);
-      await reload();
-      onChanged();
-    } catch (err: unknown) {
-      logger.error("category_archive_failed", {
-        category_id: archiveTarget.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(describeError(err, "Kategorie konnte nicht archiviert werden"));
-      setArchiveTarget(null);
-    } finally {
-      setBusy(false);
-    }
+  const handleArchive = async (category: ActivityCategory) => {
+    await runWrite(
+      "category_archive_failed",
+      "Kategorie konnte nicht archiviert werden",
+      category.id,
+      async () => {
+        await categoryService.archiveCategory(category.id);
+        await reload();
+        onChanged();
+      },
+    );
+    // After, not before: the confirmation keeps showing its spinner
+    // (isConfirmLoading={busy}) while the archive is in flight.
+    setArchiveTarget(null);
   };
 
   const handleRestore = async (category: ActivityCategory) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await categoryService.restoreCategory(category.id);
-      await reload();
-      onChanged();
-    } catch (err: unknown) {
-      logger.error("category_restore_failed", {
-        category_id: category.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(
-        describeError(err, "Kategorie konnte nicht wiederhergestellt werden"),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const usageLabel = (category: ActivityCategory): string => {
-    const count = category.usageCount ?? 0;
-    if (count === 0) return "Noch nicht verwendet";
-    if (count === 1) return "In 1 Termin/Aktivität verwendet";
-    return `In ${count} Terminen/Aktivitäten verwendet`;
+    await runWrite(
+      "category_restore_failed",
+      "Kategorie konnte nicht wiederhergestellt werden",
+      category.id,
+      async () => {
+        await categoryService.restoreCategory(category.id);
+        await reload();
+        onChanged();
+      },
+    );
   };
 
   const listFooter = (
@@ -279,28 +333,9 @@ export function CategoryManageModal({
                     Noch keine Kategorien angelegt.
                   </div>
                 ) : (
-                  <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-200">
+                  <ul className={categoryListClass}>
                     {active.map((category) => (
-                      <li
-                        key={category.id}
-                        className="flex items-center gap-3 px-3 py-2.5"
-                      >
-                        <span
-                          className="h-4 w-4 shrink-0 rounded-full border border-black/10"
-                          style={{
-                            backgroundColor:
-                              category.color ?? LOCATION_COLORS.UNKNOWN,
-                          }}
-                          aria-hidden="true"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <span className="block truncate font-medium text-gray-900">
-                            {category.name}
-                          </span>
-                          <p className="truncate text-xs text-gray-500">
-                            {usageLabel(category)}
-                          </p>
-                        </div>
+                      <CategoryRow key={category.id} category={category}>
                         <Button
                           type="button"
                           variant="ghost"
@@ -318,7 +353,7 @@ export function CategoryManageModal({
                         >
                           Archivieren
                         </Button>
-                      </li>
+                      </CategoryRow>
                     ))}
                   </ul>
                 )}
@@ -328,20 +363,13 @@ export function CategoryManageModal({
                     <p className="mb-2 text-xs font-semibold text-gray-500 uppercase">
                       Archiviert
                     </p>
-                    <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-200">
+                    <ul className={categoryListClass}>
                       {archived.map((category) => (
-                        <li
+                        <CategoryRow
                           key={category.id}
-                          className="flex items-center gap-3 px-3 py-2.5"
+                          category={category}
+                          archived
                         >
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate font-medium text-gray-500">
-                              {category.name}
-                            </span>
-                            <p className="truncate text-xs text-gray-500">
-                              {usageLabel(category)}
-                            </p>
-                          </div>
                           <Button
                             type="button"
                             variant="ghost"
@@ -352,7 +380,7 @@ export function CategoryManageModal({
                             <ArchiveRestore className="mr-1.5 h-4 w-4" />
                             Wiederherstellen
                           </Button>
-                        </li>
+                        </CategoryRow>
                       ))}
                     </ul>
                   </div>
@@ -394,19 +422,14 @@ export function CategoryManageModal({
               helpText="Die Farbe kennzeichnet die Kategorie im Betreuungsplan."
             />
 
-            <label htmlFor="category-description" className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Beschreibung (optional)
-              </span>
-              <textarea
-                id="category-description"
-                value={description}
-                maxLength={DESCRIPTION_MAX_LENGTH}
-                rows={2}
-                onChange={(e) => setDescription(e.target.value)}
-                className="block w-full resize-none rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-              />
-            </label>
+            <Textarea
+              name="category-description"
+              label="Beschreibung (optional)"
+              value={description}
+              maxLength={DESCRIPTION_MAX_LENGTH}
+              rows={2}
+              onChange={(e) => setDescription(e.target.value)}
+            />
 
             {error && <Alert type="error" message={error} />}
           </div>
@@ -421,7 +444,7 @@ export function CategoryManageModal({
         confirmText="Archivieren"
         cancelText="Abbrechen"
         isConfirmLoading={busy}
-        onConfirm={() => void handleArchive()}
+        onConfirm={() => archiveTarget && void handleArchive(archiveTarget)}
         onClose={() => setArchiveTarget(null)}
       >
         <p className="text-sm text-gray-700">

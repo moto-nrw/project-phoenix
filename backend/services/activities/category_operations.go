@@ -15,15 +15,6 @@ const (
 	opRestoreCategory = "restore category"
 )
 
-// CategoryUsage pairs a category with the number of activity groups
-// (Aktivitäten and Termin-Vorlagen alike) that reference it. The count drives
-// the archive warning in the Stammdaten UI — a category in use must never be
-// deleted, only archived.
-type CategoryUsage struct {
-	Category   *activities.Category
-	UsageCount int
-}
-
 // CategoryInput carries the editable fields of a category. Description and
 // Color are optional; an empty Color clears it back to the display default.
 type CategoryInput struct {
@@ -32,30 +23,18 @@ type CategoryInput struct {
 	Color       string
 }
 
-// ListCategoriesWithUsage returns every category of the current tenant
-// together with how many activity groups reference it. Archived categories are
-// included — the management UI shows them in an "Archiviert" section so they
-// can be restored.
-func (s *Service) ListCategoriesWithUsage(ctx context.Context) ([]CategoryUsage, error) {
-	categories, err := s.categoryRepo.ListAll(ctx)
-	if err != nil {
-		return nil, &ActivityError{Op: "list categories with usage", Err: err}
-	}
-
+// CategoryUsageCounts reports how many activity groups (Aktivitäten and
+// Termin-Vorlagen alike) reference each category of the current tenant, keyed
+// by category id; unused categories are absent from the map. It drives the
+// archive warning in the Stammdaten UI — a category in use must never be
+// deleted, only archived. Kept separate from listing because the aggregate is
+// an extra tenant-wide scan that only that one screen needs (#2131).
+func (s *Service) CategoryUsageCounts(ctx context.Context) (map[int64]int, error) {
 	counts, err := s.groupRepo.CountByCategory(ctx)
 	if err != nil {
-		return nil, &ActivityError{Op: "list categories with usage", Err: err}
+		return nil, &ActivityError{Op: "category usage counts", Err: err}
 	}
-
-	result := make([]CategoryUsage, 0, len(categories))
-	for _, category := range categories {
-		result = append(result, CategoryUsage{
-			Category:   category,
-			UsageCount: counts[category.ID],
-		})
-	}
-
-	return result, nil
+	return counts, nil
 }
 
 // UpdateCategory renames a category and updates its description/color.
@@ -102,10 +81,11 @@ func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Ca
 	}
 
 	now := time.Now()
-	if err := s.categoryRepo.SetArchived(ctx, category.ID, &now); err != nil {
-		return nil, &ActivityError{Op: opArchiveCategory, Err: err}
-	}
 	category.ArchivedAt = &now
+	if err := s.setCategoryArchivedAt(ctx, category, opArchiveCategory); err != nil {
+		category.ArchivedAt = nil
+		return nil, err
+	}
 
 	return category, nil
 }
@@ -123,15 +103,33 @@ func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Ca
 		return category, nil
 	}
 
-	if err := s.categoryRepo.SetArchived(ctx, category.ID, nil); err != nil {
-		if base.IsUniqueViolation(err) {
-			return nil, &ActivityError{Op: opRestoreCategory, Err: ErrCategoryNameExists}
-		}
-		return nil, &ActivityError{Op: opRestoreCategory, Err: err}
-	}
+	archivedAt := category.ArchivedAt
 	category.ArchivedAt = nil
+	if err := s.setCategoryArchivedAt(ctx, category, opRestoreCategory); err != nil {
+		category.ArchivedAt = archivedAt
+		return nil, err
+	}
 
 	return category, nil
+}
+
+// setCategoryArchivedAt persists just the archived_at column of category.
+// Deliberately a partial write rather than a full entity Update: an
+// archive/restore must not clobber a concurrent rename, and a restore has to
+// surface the partial unique index violation on (tenant_id, name) as a name
+// conflict rather than a generic failure.
+func (s *Service) setCategoryArchivedAt(ctx context.Context, category *activities.Category, op string) error {
+	updated, err := s.categoryRepo.UpdateColumns(ctx, category, "archived_at")
+	if err != nil {
+		if base.IsUniqueViolation(err) {
+			return &ActivityError{Op: op, Err: ErrCategoryNameExists}
+		}
+		return &ActivityError{Op: op, Err: err}
+	}
+	if updated == 0 {
+		return &ActivityError{Op: op, Err: ErrCategoryNotFound}
+	}
+	return nil
 }
 
 // loadEditableCategory fetches a tenant-scoped category and rejects the

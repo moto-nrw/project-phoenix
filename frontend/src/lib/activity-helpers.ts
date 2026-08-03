@@ -419,6 +419,30 @@ export function mapActivityCategoryResponse(
   };
 }
 
+/**
+ * Body the category proxy routes accept — mirrors the backend CategoryRequest
+ * (#2131). is_system/archived_at are server-managed and deliberately absent.
+ */
+export interface CategoryWriteRequest {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+/**
+ * Narrows an incoming proxy body to the fields the backend accepts, so POST
+ * and PUT can never drift apart or forward a server-managed field.
+ */
+export function toCategoryWriteBody(
+  body: CategoryWriteRequest,
+): CategoryWriteRequest {
+  return {
+    name: body.name,
+    description: body.description,
+    color: body.color,
+  };
+}
+
 export function mapActivityScheduleResponse(
   backendSchedule: BackendActivitySchedule,
 ): ActivitySchedule {

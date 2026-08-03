@@ -6,18 +6,15 @@ import {
   createDeleteHandler,
 } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import { mapActivityCategoryResponse } from "~/lib/activity-helpers";
+import {
+  mapActivityCategoryResponse,
+  toCategoryWriteBody,
+} from "~/lib/activity-helpers";
 import type {
   ActivityCategory,
   BackendActivityCategory,
+  CategoryWriteRequest,
 } from "~/lib/activity-helpers";
-
-/** Body accepted by PUT — mirrors the backend CategoryRequest (#2131). */
-interface CategoryWriteRequest {
-  name: string;
-  description?: string;
-  color?: string;
-}
 
 /**
  * Handler for PUT /api/activities/categories/[id]
@@ -33,11 +30,7 @@ export const PUT = createPutHandler<ActivityCategory, CategoryWriteRequest>(
     const response = await apiPut<{ data: BackendActivityCategory }>(
       `/api/activities/categories/${requirePathSegmentParam(params)}`,
       token,
-      {
-        name: body.name,
-        description: body.description,
-        color: body.color,
-      },
+      toCategoryWriteBody(body),
     );
     return mapActivityCategoryResponse(response.data);
   },

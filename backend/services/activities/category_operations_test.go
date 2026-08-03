@@ -201,7 +201,7 @@ func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
 	require.ErrorIs(t, err, activities.ErrSystemCategoryProtected)
 }
 
-func TestServiceListCategoriesWithUsage(t *testing.T) {
+func TestServiceCategoryUsageCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -214,16 +214,11 @@ func TestServiceListCategoriesWithUsage(t *testing.T) {
 	unused := testpkg.CreateTestActivityCategory(t, db, "UsageZero")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, unused.ID, 0)
 
-	usages, err := service.ListCategoriesWithUsage(ctx)
+	counts, err := service.CategoryUsageCounts(ctx)
 	require.NoError(t, err)
 
-	byID := make(map[int64]int, len(usages))
-	for _, usage := range usages {
-		byID[usage.Category.ID] = usage.UsageCount
-	}
-
-	assert.Equal(t, 1, byID[group.CategoryID], "category backing one activity should report one usage")
-	assert.Equal(t, 0, byID[unused.ID], "unused category should report zero usages")
+	assert.Equal(t, 1, counts[group.CategoryID], "category backing one activity should report one usage")
+	assert.Equal(t, 0, counts[unused.ID], "unused category should report zero usages")
 }
 
 func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
@@ -256,9 +251,9 @@ func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, activities.ErrCategoryNotFound)
 
-	usages, err := service.ListCategoriesWithUsage(ctx)
+	categories, err := service.ListCategories(ctx)
 	require.NoError(t, err)
-	for _, usage := range usages {
-		assert.NotEqual(t, foreign.ID, usage.Category.ID, "tenant 1 must not see another school's category")
+	for _, category := range categories {
+		assert.NotEqual(t, foreign.ID, category.ID, "tenant 1 must not see another school's category")
 	}
 }

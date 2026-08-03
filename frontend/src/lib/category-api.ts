@@ -58,13 +58,14 @@ async function readOne(
 
 class CategoryService {
   /**
-   * Lists the tenant's categories. `includeArchived` is what the manage modal
-   * uses — without it the response is exactly the pickable set the Termin
-   * dropdown wants.
+   * Lists the categories for the manage screen: archived ones included so they
+   * can be restored, and usage counts opted into. The pickers deliberately do
+   * NOT use this — a plain list skips the extra usage aggregate server-side.
    */
-  async getCategories(includeArchived = false): Promise<ActivityCategory[]> {
-    const query = includeArchived ? "?include_archived=true" : "";
-    const response = await sessionFetch(`/api/activities/categories${query}`);
+  async getManagedCategories(): Promise<ActivityCategory[]> {
+    const response = await sessionFetch(
+      "/api/activities/categories?include_archived=true&with_usage=true",
+    );
     if (!response.ok) {
       throw await readError(
         response,

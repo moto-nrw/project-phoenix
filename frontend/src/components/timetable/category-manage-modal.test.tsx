@@ -5,13 +5,13 @@ import { CategoryManageModal } from "./category-manage-modal";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 
 const {
-  mockGetCategories,
+  mockGetManagedCategories,
   mockCreateCategory,
   mockUpdateCategory,
   mockArchiveCategory,
   mockRestoreCategory,
 } = vi.hoisted(() => ({
-  mockGetCategories: vi.fn(),
+  mockGetManagedCategories: vi.fn(),
   mockCreateCategory: vi.fn(),
   mockUpdateCategory: vi.fn(),
   mockArchiveCategory: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("~/lib/category-api", () => ({
     detail = "";
   },
   categoryService: {
-    getCategories: mockGetCategories,
+    getManagedCategories: mockGetManagedCategories,
     createCategory: mockCreateCategory,
     updateCategory: mockUpdateCategory,
     archiveCategory: mockArchiveCategory,
@@ -54,7 +54,7 @@ const archived = makeCategory({
 describe("CategoryManageModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetCategories.mockResolvedValue([active, archived]);
+    mockGetManagedCategories.mockResolvedValue([active, archived]);
   });
 
   it("lists active and archived categories with usage", async () => {
@@ -68,8 +68,9 @@ describe("CategoryManageModal", () => {
     expect(
       screen.getByText("In 2 Terminen/Aktivitäten verwendet"),
     ).toBeInTheDocument();
-    // Archived rows are fetched explicitly — otherwise nothing could restore them.
-    expect(mockGetCategories).toHaveBeenCalledWith(true);
+    // The manage-screen client is what opts into archived rows and usage
+    // counts; without it nothing could restore an archived category.
+    expect(mockGetManagedCategories).toHaveBeenCalled();
   });
 
   it("opens straight in the create form when asked", async () => {
@@ -207,7 +208,7 @@ describe("CategoryManageModal", () => {
   });
 
   it("shows a load error instead of an empty list", async () => {
-    mockGetCategories.mockRejectedValue(new Error("boom"));
+    mockGetManagedCategories.mockRejectedValue(new Error("boom"));
     render(
       <CategoryManageModal isOpen onClose={vi.fn()} onChanged={vi.fn()} />,
     );
