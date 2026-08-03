@@ -422,7 +422,7 @@ export interface TimetableTemplate {
 }
 
 /** One weekday's staff and child roster of a Regeltermin (#2129). */
-export interface TemplateWeekdayAssignment {
+interface TemplateWeekdayAssignment {
   weekday: number; // ISO 8601: 1 = Mo … 7 = So
   staffIds: string[];
   studentIds: string[];
@@ -476,7 +476,7 @@ export interface BackendTimetableTemplate {
   weekday_assignments?: BackendTemplateWeekdayAssignment[];
 }
 
-export interface BackendTemplateWeekdayAssignment {
+interface BackendTemplateWeekdayAssignment {
   weekday: number;
   staff_ids?: number[];
   student_ids?: number[];
