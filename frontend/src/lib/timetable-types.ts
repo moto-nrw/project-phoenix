@@ -13,18 +13,29 @@ export type ActivityType = "care" | "activity" | "external";
 export type TimetableListKind =
   "edge_hours" | "learning_time" | "activity" | "mensa";
 
-type ConflictKind = "room" | "staff" | "student";
+type ConflictKind = "staff" | "student";
 
 /**
- * Soft warning surfaced by the backend when an instance has overlapping
- * rooms, double-booked staff, or double-booked students. Conflicts never
- * block an action; they are advisory and can always be overridden.
+ * Soft warning surfaced by the backend for a person double-booking (#2139):
+ * a child in two overlapping blocks, or staff planned in overlapping blocks
+ * that are not certainly in the same room. Conflicts never block an action;
+ * they are advisory and can always be overridden.
+ *
+ * The optional fields are set by the calendar's window-wide detection; the
+ * transient start-time warnings omit them. `fingerprint` is the conflict's
+ * stable identity — the per-user acknowledgement ("Konflikt ausblenden")
+ * keys on it.
  */
-interface ConflictWarning {
+export interface ConflictWarning {
   kind: ConflictKind;
   resourceId: string;
   message: string;
   canOverride: boolean;
+  fingerprint?: string;
+  conflictingInstanceId?: string;
+  conflictingTitle?: string;
+  overlapStart?: string;
+  overlapEnd?: string;
 }
 
 /**
@@ -234,6 +245,11 @@ export interface BackendEnrichedInstance {
     resource_id: number;
     message: string;
     can_override: boolean;
+    fingerprint?: string;
+    conflicting_instance_id?: number;
+    conflicting_title?: string;
+    overlap_start?: string;
+    overlap_end?: string;
   }>;
 }
 

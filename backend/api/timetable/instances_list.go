@@ -197,14 +197,31 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := make([]enrichedInstance, 0, len(instances))
+	conflictInputs := make([]scheduleSvc.WindowConflictInput, 0, len(instances))
 	for _, inst := range instances {
-		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio, careDays)
+		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio, careDays)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
 			return
 		}
 		enriched = append(enriched, item)
+		conflictInputs = append(conflictInputs, scheduleSvc.WindowConflictInput{
+			Instance: inst,
+			Staff:    staffRows,
+			Students: studentRows,
+		})
+	}
+
+	// Window-wide person double-bookings (#2139): the banner's "diese Woche" /
+	// "diesen Monat" claim holds because detection covers exactly the
+	// requested window, not just today. The rows were already loaded for
+	// enrichment, so this adds no queries.
+	conflictsByInstance := scheduleSvc.DetectWindowConflicts(conflictInputs)
+	for i := range enriched {
+		if warnings, ok := conflictsByInstance[enriched[i].ID]; ok {
+			enriched[i].ConflictWarnings = warnings
+		}
 	}
 
 	resp := weeklyInstancesResponse{
@@ -386,6 +403,9 @@ func summarizeInstanceStudents(
 	return out
 }
 
+// enrichInstance additionally returns the raw staff and student rows it
+// loaded so the caller can feed them into the window-wide conflict detection
+// (#2139) without a second round of queries.
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
@@ -393,9 +413,9 @@ func (rs *Resource) enrichInstance(
 	metaCache map[int64]templateMeta,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
-) (enrichedInstance, error) {
+) (enrichedInstance, []*scheduleModel.InstanceStaff, []*scheduleModel.InstanceStudent, error) {
 	if inst == nil {
-		return enrichedInstance{}, errors.New("nil instance")
+		return enrichedInstance{}, nil, nil, errors.New("nil instance")
 	}
 
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
@@ -403,7 +423,7 @@ func (rs *Resource) enrichInstance(
 
 	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
 	if err != nil {
-		return enrichedInstance{}, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
+		return enrichedInstance{}, nil, nil, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
 	}
 	staff := make([]instanceStaffSummary, 0, len(staffRows))
 	absentCount := 0
@@ -422,14 +442,14 @@ func (rs *Resource) enrichInstance(
 
 	studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, inst.ID)
 	if err != nil {
-		return enrichedInstance{}, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
+		return enrichedInstance{}, nil, nil, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
 	attendance := summarizeInstanceStudents(inst, studentRows, careDays)
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
 
-	return enrichedInstance{
+	item := enrichedInstance{
 		ID:                    inst.ID,
 		Date:                  inst.Date.Format(dateLayout),
 		StartTime:             inst.StartTime.Format("15:04"),
@@ -460,24 +480,61 @@ func (rs *Resource) enrichInstance(
 		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:    assignedStaff,
 		RequiredStaffOverride: inst.RequiredStaff,
-		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
-	}, nil
+		ConflictWarnings:      []scheduleSvc.InstanceConflictWarning{},
+	}
+	return item, staffRows, studentRows, nil
 }
 
-func (rs *Resource) instanceConflictWarnings(
+// dayConflictWarningsFor computes the #2139 window conflicts for ONE instance
+// against every other planned/active instance of its day. Used by the
+// create/update paths that re-enrich a single row; the list path batches the
+// same detection over its whole window instead. Degrades to an empty slice on
+// load errors — conflicts are advisory and must never fail a committed write.
+func (rs *Resource) dayConflictWarningsFor(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 ) []scheduleSvc.InstanceConflictWarning {
-	if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
-		return []scheduleSvc.InstanceConflictWarning{}
+	empty := []scheduleSvc.InstanceConflictWarning{}
+	if inst == nil || rs.TimetableData == nil {
+		return empty
 	}
-	if inst.Date != timezone.TodayDate() {
-		return []scheduleSvc.InstanceConflictWarning{}
+	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, inst.Date, inst.Date)
+	if err != nil {
+		rs.getLogger().Warn("day conflict detection: load day instances failed",
+			slog.Int64("instance_id", inst.ID),
+			slog.String("date", inst.Date.String()),
+			slog.String("error", err.Error()),
+		)
+		return empty
 	}
-	if rs.TimetableData == nil {
-		return []scheduleSvc.InstanceConflictWarning{}
+	inputs := make([]scheduleSvc.WindowConflictInput, 0, len(dayInstances))
+	for _, dayInst := range dayInstances {
+		staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, dayInst.ID)
+		if err != nil {
+			rs.getLogger().Warn("day conflict detection: load instance_staff failed",
+				slog.Int64("instance_id", dayInst.ID),
+				slog.String("error", err.Error()),
+			)
+			return empty
+		}
+		studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, dayInst.ID)
+		if err != nil {
+			rs.getLogger().Warn("day conflict detection: load instance_students failed",
+				slog.Int64("instance_id", dayInst.ID),
+				slog.String("error", err.Error()),
+			)
+			return empty
+		}
+		inputs = append(inputs, scheduleSvc.WindowConflictInput{
+			Instance: dayInst,
+			Staff:    staffRows,
+			Students: studentRows,
+		})
 	}
-	return rs.TimetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
+	if warnings, ok := scheduleSvc.DetectWindowConflicts(inputs)[inst.ID]; ok {
+		return warnings
+	}
+	return empty
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request

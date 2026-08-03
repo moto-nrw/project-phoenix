@@ -326,6 +326,52 @@ class TimetableService {
   }
 
   /**
+   * GET /api/timetable/conflict-acks — fingerprints of the conflicts the
+   * current user has hidden in this school (#2139).
+   */
+  async getConflictAcks(): Promise<string[]> {
+    const response = await fetch(`/api/timetable/conflict-acks`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    const raw = await unwrap<{ fingerprints: string[] | null }>(response);
+    return raw.fingerprints ?? [];
+  }
+
+  /**
+   * PUT /api/timetable/conflict-acks/{fingerprint} — hide one reviewed
+   * conflict for the current user. Idempotent.
+   */
+  async acknowledgeConflict(fingerprint: string): Promise<void> {
+    const response = await fetch(
+      `/api/timetable/conflict-acks/${encodeURIComponent(fingerprint)}`,
+      {
+        method: "PUT",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /**
+   * DELETE /api/timetable/conflict-acks/{fingerprint} — show a previously
+   * hidden conflict again. Idempotent.
+   */
+  async unacknowledgeConflict(fingerprint: string): Promise<void> {
+    const response = await fetch(
+      `/api/timetable/conflict-acks/${encodeURIComponent(fingerprint)}`,
+      {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /**
    * POST /api/timetable/shift-coverage — batched, read-only comparison of
    * concrete candidate dates with the assigned staff members' shifts.
    */
@@ -421,7 +467,7 @@ class TimetableService {
   /**
    * POST /api/timetable/instances/{id}/start.
    * Transitions a planned instance to active and creates the active.group
-   * bridge. Returns soft warnings (room/staff/student conflicts) so the
+   * bridge. Returns soft warnings (staff/student double-bookings) so the
    * caller can surface them.
    */
   async start(instanceId: string): Promise<StartInstanceResult> {

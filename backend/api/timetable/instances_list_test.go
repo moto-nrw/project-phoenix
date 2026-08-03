@@ -416,44 +416,35 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 		"the child was booked, so their absence is real")
 }
 
-func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
+func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
-	fromDate := timezone.TodayDate()
-	from := fromDate.String()
-	toDate := fromDate.AddDays(7)
-	to := toDate.String()
+	// Window detection (#2139): two overlapping instances sharing a child
+	// carry MIRRORED student warnings with one shared fingerprint; a third,
+	// merely adjacent instance in the same room stays warning-free (shared
+	// rooms and pure adjacency are sanctioned).
+	from, fromDate := listFutureDate(7)
+	to, _ := listFutureDate(8)
 
 	suffix := time.Now().UnixNano()
-	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Conflict-Category-%d", suffix))
-	staff := testpkg.CreateTestStaff(t, s.db, "Conflict", fmt.Sprintf("Creator-%d", suffix))
-	group := &activitiesModels.Group{
-		Name:            fmt.Sprintf("Conflict-Group-%d", suffix),
-		MaxParticipants: 20,
-		IsOpen:          true,
-		CategoryID:      category.ID,
-		CreatedBy:       &staff.ID,
-	}
-	group.SetTenantID(1)
-	_, err := s.db.NewInsert().
-		Model(group).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Exec(s.ctx)
-	require.NoError(t, err)
-
-	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
-	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
-		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Room-Conflict-List-Test",
+	student := testpkg.CreateTestStudent(t, s.db, "Conflict-Kid", fmt.Sprintf("List-%d", suffix), "2b")
+	instA := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Window-Conflict-A",
 	})
+	instB := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:30", EndHHMM: "15:30", Title: "Window-Conflict-B",
+	})
+	instAdjacent := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "15:30", EndHHMM: "16:30", Title: "Window-Adjacent",
+	})
+	rowA := testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, student.ID, "")
+	rowB := testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, student.ID, "")
 
 	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
+		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", rowA.ID, rowB.ID)
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instA.ID, instB.ID, instAdjacent.ID)
+		testpkg.CleanupActivityFixtures(t, s.db, student.ID, 0, 0, 0, 0)
 	})
 
 	router := listRouter(s.ctx, s.res)
@@ -461,12 +452,29 @@ func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
 	got := decodeList(t, w)
-	require.Len(t, got.Instances, 1)
-	warnings := got.Instances[0].ConflictWarnings
-	require.Len(t, warnings, 1)
-	assert.Equal(t, "room", warnings[0].Kind)
-	assert.Equal(t, s.roomID, warnings[0].ResourceID)
-	assert.True(t, warnings[0].CanOverride)
+	require.Len(t, got.Instances, 3)
+	byTitle := map[string]enrichedInstance{}
+	for _, item := range got.Instances {
+		byTitle[item.Title] = item
+	}
+
+	warningsA := byTitle["Window-Conflict-A"].ConflictWarnings
+	warningsB := byTitle["Window-Conflict-B"].ConflictWarnings
+	require.Len(t, warningsA, 1)
+	require.Len(t, warningsB, 1)
+	assert.Equal(t, scheduleSvc.ConflictKindStudent, warningsA[0].Kind)
+	assert.Equal(t, student.ID, warningsA[0].ResourceID)
+	assert.True(t, warningsA[0].CanOverride)
+	assert.Equal(t, instB.ID, warningsA[0].ConflictingInstanceID)
+	assert.Equal(t, instA.ID, warningsB[0].ConflictingInstanceID)
+	assert.NotEmpty(t, warningsA[0].Fingerprint)
+	assert.Equal(t, warningsA[0].Fingerprint, warningsB[0].Fingerprint,
+		"mirrored warnings must share one fingerprint")
+	assert.Equal(t, "14:30", warningsA[0].OverlapStart)
+	assert.Equal(t, "15:00", warningsA[0].OverlapEnd)
+
+	assert.Empty(t, byTitle["Window-Adjacent"].ConflictWarnings,
+		"adjacency and a shared room alone must not warn")
 }
 
 func TestListInstances_DateValidation(t *testing.T) {

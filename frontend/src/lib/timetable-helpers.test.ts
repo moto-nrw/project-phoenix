@@ -435,7 +435,7 @@ describe("backend mappers", () => {
           assigned_staff_count: 1,
           conflict_warnings: [
             {
-              kind: "room",
+              kind: "staff",
               resource_id: 3,
               message: "Doppelt",
               can_override: true,

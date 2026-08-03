@@ -6,7 +6,8 @@
 //   - Complete happy-path: bridge ended, CompletedAt stamped.
 //   - Cancel from planned: status flip only, no active.group side effects.
 //   - Cancel from active: bridge ended (visits + supervisors close).
-//   - Conflict detection: room, staff, student sub-checks each produce a warning.
+//   - Conflict detection (#2139): staff (different room) and student
+//     sub-checks produce warnings; shared rooms are sanctioned.
 //   - Re-plan-week: deletes only planned non-spontaneous; all other kinds survive.
 //
 // All fixtures via testpkg.CreateTest* + CleanupTableRecords — no hardcoded IDs.
@@ -627,11 +628,12 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 
 // --- Conflict detection -----------------------------------------------------
 
-func TestInstance_Start_ConflictWarning_Room(t *testing.T) {
+func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 	s := buildLifecycle(t)
 
-	// Pre-seed a live active.group in the same room. We do this through the
-	// repo so it mirrors production state exactly (tenant scoped, open-ended).
+	// Pre-seed a live active.group in the same room. Since #2139 a shared
+	// room is sanctioned (parallel groups may use one room), so starting in
+	// an occupied room must produce NO warning at all.
 	now := time.Now()
 	preGroup := &activeModels.Group{
 		StartTime: now, LastActivity: now, TimeoutMinutes: 30,
@@ -650,14 +652,35 @@ func TestInstance_Start_ConflictWarning_Room(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
 	})
 
-	hasRoomWarning := false
-	for _, w := range result.Warnings {
-		if w.Kind == scheduleSvc.ConflictKindRoom && w.ResourceID == s.roomID && w.CanOverride {
-			hasRoomWarning = true
-		}
-	}
-	assert.True(t, hasRoomWarning, "start in an occupied room must produce a room warning; got %+v", result.Warnings)
+	assert.Empty(t, result.Warnings, "a pure room overlap must not warn (#2139); got %+v", result.Warnings)
 	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status, "warnings never block the transition")
+}
+
+func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
+	s := buildLifecycle(t)
+
+	// Our staff member already supervises a live group in the SAME room the
+	// instance starts in — sanctioned parallel supervision (#2139).
+	now := time.Now()
+	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
+
+	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
+	sup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
+
+	ai := seedInstance(t, s, true, false)
+	result, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
+
+	for _, w := range result.Warnings {
+		assert.NotEqual(t, scheduleSvc.ConflictKindStaff, w.Kind,
+			"same-room supervision must not warn (#2139); got %+v", result.Warnings)
+	}
 }
 
 func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
