@@ -28,6 +28,7 @@ import {
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
+import { CategoryManageModal } from "./category-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -146,6 +147,15 @@ export function TimetableEventModal({
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
+  // No permission gate on the Kategorie-verwalten affordances: the Kategorie
+  // field only renders in the Regeltermin flow, which already requires
+  // schedules:manage — the same admin-only tier as
+  // activities:manage_categories. A second check here would be dead code, and
+  // if the two ever diverge the backend still refuses and the dialog shows the
+  // error (fail safe, not fail open).
+  const [categoryDialog, setCategoryDialog] = useState<
+    "list" | "create" | null
+  >(null);
   const {
     form,
     update,
@@ -156,6 +166,7 @@ export function TimetableEventModal({
     validationError,
     rooms,
     categories,
+    refreshCategories,
     groups,
     students,
     staff,
@@ -480,6 +491,7 @@ export function TimetableEventModal({
                 isSeriesFlow={isSeriesFlow}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
+                onManageCategories={setCategoryDialog}
               />
             )}
 
@@ -834,6 +846,20 @@ export function TimetableEventModal({
             </div>
           )}
         </ConfirmationModal>
+
+        {/* Kategorien verwalten (#2131): mounted only while open so its fetch
+            and dialog context stay out of every test that never opens it. */}
+        {categoryDialog && (
+          <CategoryManageModal
+            isOpen
+            initialView={categoryDialog}
+            onClose={() => setCategoryDialog(null)}
+            onChanged={(created) => {
+              void refreshCategories(created?.id);
+              if (created) setCategoryDialog(null);
+            }}
+          />
+        )}
       </SlideOverContent>
     </SlideOver>
   );

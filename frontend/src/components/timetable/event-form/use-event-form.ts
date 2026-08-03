@@ -1978,6 +1978,27 @@ export function useEventForm({
         ? "Termin wiederholen"
         : "Termin";
 
+  /**
+   * Re-reads the category list after the Kategorie-verwalten dialog wrote
+   * something (#2131). When a category was just created, it is selected right
+   * away — the user opened the dialog because the one they needed was missing.
+   */
+  const refreshCategories = useCallback(async (selectId?: string) => {
+    try {
+      const data = await fetchPlannerActivityCategories();
+      setCategories(
+        [...data].sort((a, b) => a.name.localeCompare(b.name, "de")),
+      );
+      if (selectId) {
+        setForm((prev) => ({ ...prev, categoryId: selectId }));
+      }
+    } catch (err: unknown) {
+      logger.error("categories_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   return {
     form,
     update,
@@ -1988,6 +2009,7 @@ export function useEventForm({
     validationError,
     rooms,
     categories,
+    refreshCategories,
     groups,
     students,
     staff,

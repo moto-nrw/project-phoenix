@@ -769,13 +769,13 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Kategorien",
         icon: Tags,
         summary:
-          "Kategorien sind die Auswahlliste, aus der jeder Termin und jede Aktivität eine Kategorie erhält. Fehlt eine passende, zum Beispiel für die Essenszeiten, legst du sie hier selbst an.",
+          "Jeder Regeltermin braucht eine Kategorie. Fehlt die passende, zum Beispiel für die Essenszeiten, legst du sie direkt im Termin-Formular an, ohne den Termin zu verlassen.",
         steps: [
-          "`Datenverwaltung` öffnen und `Kategorien` wählen.",
-          "Über die Schaltfläche zum Anlegen eine neue Kategorie erstellen, Name eintragen und optional Beschreibung und Farbe wählen.",
-          "Eine bestehende Kategorie in der Liste anklicken, um Name, Beschreibung oder Farbe zu ändern.",
-          "Nicht mehr benötigte Kategorien über `Archivieren` aus der Auswahl nehmen.",
-          "Archivierte Kategorien stehen unter `Archiviert` und lassen sich mit `Wiederherstellen` zurückholen.",
+          "Im `Betreuungsplan` einen Regeltermin anlegen.",
+          "Beim Pflichtfeld `Kategorie` die Auswahl öffnen und ganz unten `+ Neue Kategorie anlegen` wählen.",
+          "Name eintragen, optional Farbe und Beschreibung, dann `Anlegen und auswählen`. Die neue Kategorie ist sofort im Termin gesetzt.",
+          "Bestehende Kategorien ändern: neben `Kategorie` auf `Verwalten` klicken, dann das Stiftsymbol der gewünschten Zeile.",
+          "Nicht mehr benötigte Kategorien im selben Dialog über `Archivieren` aus der Auswahl nehmen; unter `Archiviert` holt `Wiederherstellen` sie zurück.",
         ],
         callout: {
           title: "Archivieren löscht nichts",
@@ -783,7 +783,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kategorienliste in der Datenverwaltung mit aktiven und archivierten Kategorien.",
+          "Kategorie-Auswahl im Termin-Formular mit dem Eintrag Neue Kategorie anlegen.",
       },
       {
         id: "raeume",

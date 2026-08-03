@@ -6,7 +6,10 @@ import {
   createPostHandler,
 } from "~/lib/route-wrapper.server";
 import { buildQueryString } from "~/lib/route-wrapper-utils.server";
-import type { BackendActivityCategory } from "~/lib/activity-helpers";
+import type {
+  ActivityCategory,
+  BackendActivityCategory,
+} from "~/lib/activity-helpers";
 import { mapActivityCategoryResponse } from "~/lib/activity-helpers";
 
 /**
@@ -48,18 +51,19 @@ interface CategoryWriteRequest {
  * Creates a school-owned activity category. Requires
  * `activities:manage_categories` on the backend.
  */
-export const POST = createPostHandler<
-  BackendActivityCategory,
-  CategoryWriteRequest
->(async (_request: NextRequest, body: CategoryWriteRequest, token: string) => {
-  const response = await apiPost<{ data: BackendActivityCategory }>(
-    "/api/activities/categories",
-    token,
-    {
-      name: body.name,
-      description: body.description,
-      color: body.color,
-    },
-  );
-  return response.data;
-});
+export const POST = createPostHandler<ActivityCategory, CategoryWriteRequest>(
+  async (_request: NextRequest, body: CategoryWriteRequest, token: string) => {
+    const response = await apiPost<{ data: BackendActivityCategory }>(
+      "/api/activities/categories",
+      token,
+      {
+        name: body.name,
+        description: body.description,
+        color: body.color,
+      },
+    );
+    // Mapped like GET so the whole /api/activities/categories surface speaks
+    // the frontend ActivityCategory shape, not raw snake_case.
+    return mapActivityCategoryResponse(response.data);
+  },
+);

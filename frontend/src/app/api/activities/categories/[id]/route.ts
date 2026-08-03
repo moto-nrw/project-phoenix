@@ -6,7 +6,11 @@ import {
   createDeleteHandler,
 } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import type { BackendActivityCategory } from "~/lib/activity-helpers";
+import { mapActivityCategoryResponse } from "~/lib/activity-helpers";
+import type {
+  ActivityCategory,
+  BackendActivityCategory,
+} from "~/lib/activity-helpers";
 
 /** Body accepted by PUT — mirrors the backend CategoryRequest (#2131). */
 interface CategoryWriteRequest {
@@ -19,10 +23,7 @@ interface CategoryWriteRequest {
  * Handler for PUT /api/activities/categories/[id]
  * Renames a category and updates its description/colour.
  */
-export const PUT = createPutHandler<
-  BackendActivityCategory,
-  CategoryWriteRequest
->(
+export const PUT = createPutHandler<ActivityCategory, CategoryWriteRequest>(
   async (
     _request: NextRequest,
     body: CategoryWriteRequest,
@@ -38,7 +39,7 @@ export const PUT = createPutHandler<
         color: body.color,
       },
     );
-    return response.data;
+    return mapActivityCategoryResponse(response.data);
   },
 );
 

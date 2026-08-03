@@ -20,7 +20,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/dashboard",
   "/database",
   "/database/activities",
-  "/database/categories",
   "/database/devices",
   "/database/exports",
   "/database/grade-transitions",

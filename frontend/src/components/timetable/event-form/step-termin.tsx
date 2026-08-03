@@ -56,7 +56,15 @@ export interface StepTerminProps {
   // series edit writes the new value instead of echoing the fetched template
   // (#1565 review).
   listKindTouched: React.RefObject<boolean>;
+  /** Opens the Kategorien-verwalten dialog, either on the list or straight in the create form. */
+  onManageCategories: (mode: "list" | "create") => void;
 }
+
+/**
+ * Sentinel option value for "+ Neue Kategorie anlegen". Picked so it can never
+ * collide with a real category id (those are numeric strings).
+ */
+export const CREATE_CATEGORY_OPTION = "__create_category__";
 
 /**
  * Wizard step 1 "Termin": the fields that make an event savable on their own —
@@ -76,6 +84,7 @@ export function StepTermin({
   isSeriesFlow,
   quickPreset,
   listKindTouched,
+  onManageCategories,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -130,12 +139,22 @@ export function StepTermin({
             </div>
           </div>
 
-          <Field
-            label="Kategorie"
-            htmlFor="event_category"
-            required
-            error={fieldErrors.categoryId}
-          >
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <label
+                htmlFor="event_category"
+                className="text-xs font-semibold text-gray-700"
+              >
+                Kategorie<span className={timetableRequiredMark}>*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => onManageCategories("list")}
+                className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+              >
+                Verwalten
+              </button>
+            </div>
             <CustomSelect
               id="event_category"
               ariaLabel="Kategorie"
@@ -154,8 +173,20 @@ export function StepTermin({
                   value: category.id,
                   label: category.name,
                 })),
+                // Last entry, so the missing category can be created without
+                // leaving the Termin (#2131 — the reported Essenszeiten case).
+                {
+                  value: CREATE_CATEGORY_OPTION,
+                  label: "+ Neue Kategorie anlegen",
+                },
               ]}
-              onChange={(next) => update("categoryId", next)}
+              onChange={(next) => {
+                if (next === CREATE_CATEGORY_OPTION) {
+                  onManageCategories("create");
+                  return;
+                }
+                update("categoryId", next);
+              }}
               required
               disabled={loadingRefs}
               invalid={Boolean(fieldErrors.categoryId)}
@@ -163,7 +194,16 @@ export function StepTermin({
                 loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"
               }
             />
-          </Field>
+            {fieldErrors.categoryId && (
+              <p
+                id="event_category_error"
+                role="alert"
+                className="mt-1 text-xs text-[#FF3130]"
+              >
+                {fieldErrors.categoryId}
+              </p>
+            )}
+          </div>
         </>
       )}
 

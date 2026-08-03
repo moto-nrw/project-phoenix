@@ -419,21 +419,6 @@ export function mapActivityCategoryResponse(
   };
 }
 
-/**
- * prepareCategoryForBackend narrows a category form payload to the three
- * fields the backend accepts. is_system and archived_at are managed
- * server-side and must never be sent (#2131).
- */
-export function prepareCategoryForBackend(
-  category: Partial<ActivityCategory>,
-): Record<string, unknown> {
-  return {
-    name: category.name?.trim() ?? "",
-    description: category.description?.trim() ?? "",
-    color: category.color?.trim() ?? "",
-  };
-}
-
 export function mapActivityScheduleResponse(
   backendSchedule: BackendActivitySchedule,
 ): ActivitySchedule {
