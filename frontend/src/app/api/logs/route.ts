@@ -9,6 +9,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
+import { redactSensitiveLogData } from "~/lib/log-redaction";
 
 const logger = createLogger({ component: "LogAPI" });
 
@@ -44,7 +45,7 @@ async function POSTHandler(request: NextRequest) {
 
     // Validate payload structure
     if (!body.entries || !Array.isArray(body.entries)) {
-      logger.warn("invalid log payload received", {
+      logger.warn("invalid_log_payload_received", {
         has_entries: !!body.entries,
         is_array: Array.isArray(body.entries),
       });
@@ -59,19 +60,19 @@ async function POSTHandler(request: NextRequest) {
     for (const entry of body.entries) {
       if (typeof entry === "object" && entry !== null) {
         // Add API metadata and session context
-        const enrichedEntry = {
+        const enrichedEntry = redactSensitiveLogData({
           ...entry,
           via_api: true,
           user_id: session.user.id,
           api_timestamp: new Date().toISOString(),
-        };
+        });
 
         // Write JSON to stdout (same as server logger)
         console.log(JSON.stringify(enrichedEntry));
       }
     }
 
-    logger.debug("client logs received", {
+    logger.debug("client_logs_received", {
       count: body.entries.length,
       batch_timestamp: body.timestamp,
     });
@@ -81,7 +82,7 @@ async function POSTHandler(request: NextRequest) {
       processed: body.entries.length,
     });
   } catch (error) {
-    logger.error("failed to process client logs", {
+    logger.error("client_logs_processing_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
 

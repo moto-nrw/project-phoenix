@@ -12,6 +12,11 @@
  * ```
  */
 
+import {
+  redactSensitiveLogData,
+  redactSensitiveLogString,
+} from "~/lib/log-redaction";
+
 /**
  * Log severity levels (matches backend slog)
  */
@@ -190,7 +195,7 @@ class ServerLogger implements Logger {
     if (!this.config.enabled) return;
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
-    const entry: LogEntry = {
+    const entry = redactSensitiveLogData({
       timestamp: new Date().toISOString(),
       level,
       msg,
@@ -199,7 +204,7 @@ class ServerLogger implements Logger {
       context: "server",
       ...this.config.defaultContext,
       ...context,
-    };
+    }) as LogEntry;
 
     // Write JSON to stdout (Promtail captures this)
     console.log(JSON.stringify(entry));
@@ -255,7 +260,7 @@ class ClientLogger implements Logger {
     if (!this.config.enabled) return;
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
-    const entry: LogEntry = {
+    const entry = redactSensitiveLogData({
       timestamp: new Date().toISOString(),
       level,
       msg,
@@ -264,7 +269,7 @@ class ClientLogger implements Logger {
       context: "client",
       ...this.config.defaultContext,
       ...context,
-    };
+    }) as LogEntry;
 
     // Enrich with client-side context
     this.enrichClientContext(entry);
@@ -274,7 +279,7 @@ class ClientLogger implements Logger {
 
     // Also write to console in development
     if (getEnvironment() === "development") {
-      this.consoleOutput(level, msg, entry);
+      this.consoleOutput(level, entry.msg, entry);
     }
 
     // Flush if batch is full
@@ -289,7 +294,7 @@ class ClientLogger implements Logger {
   private enrichClientContext(entry: LogEntry): void {
     // Add current route
     if (typeof window !== "undefined") {
-      entry.route = window.location.pathname;
+      entry.route = redactSensitiveLogString(window.location.pathname);
     }
 
     // Note: User context (user_id) would require async session access
