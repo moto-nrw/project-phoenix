@@ -46,14 +46,29 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("parent catalogue is separate", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalParent)
-		require.Len(t, defs, 1)
-		assert.Equal(t, notifications.TypeParentAnnouncement, defs[0].Key)
+		require.Len(t, defs, 5)
+
+		keys := make([]string, len(defs))
+		for i, def := range defs {
+			keys[i] = def.Key
+		}
+		assert.Equal(t, []string{
+			notifications.TypeParentRequestDecided,
+			notifications.TypeParentAnnouncement,
+			notifications.TypeParentMessage,
+			notifications.TypeParentAppointment,
+			notifications.TypeParentAppointmentReminder,
+		}, keys, "order is fixed by group then SortOrder, not by registration order")
 
 		// A staff type must never surface in the parent portal and vice versa:
 		// the catalogue is what the preference page renders, so a leak here
 		// would offer someone consent to a notification they cannot receive.
+		parentKeys := make(map[string]struct{}, len(defs))
+		for _, def := range defs {
+			parentKeys[def.Key] = struct{}{}
+		}
 		for _, def := range notifications.TypesForPortal(notifications.PortalStaff) {
-			assert.NotEqual(t, notifications.TypeParentAnnouncement, def.Key)
+			assert.NotContains(t, parentKeys, def.Key)
 		}
 	})
 
@@ -68,11 +83,14 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("tenant gates point at registered settings", func(t *testing.T) {
 		gated := map[string]string{
-			notifications.TypePickupUpcoming:         configModel.KeyRemindersPickupUpcomingEnabled,
-			notifications.TypePickupOverdue:          configModel.KeyRemindersPickupOverdueEnabled,
-			notifications.TypeActivityStart:          configModel.KeyRemindersActivityStartEnabled,
-			notifications.TypeActivityOverdue:        configModel.KeyRemindersActivityOverdueEnabled,
-			notifications.TypeStudentAbsenceReported: configModel.KeyNotificationsAbsenceReportedEnabled,
+			notifications.TypePickupUpcoming:            configModel.KeyRemindersPickupUpcomingEnabled,
+			notifications.TypePickupOverdue:             configModel.KeyRemindersPickupOverdueEnabled,
+			notifications.TypeActivityStart:             configModel.KeyRemindersActivityStartEnabled,
+			notifications.TypeActivityOverdue:           configModel.KeyRemindersActivityOverdueEnabled,
+			notifications.TypeStudentAbsenceReported:    configModel.KeyNotificationsAbsenceReportedEnabled,
+			notifications.TypeParentMessage:             configModel.KeyParentNotesEnabled,
+			notifications.TypeParentRequestDecided:      configModel.KeyParentNotesEnabled,
+			notifications.TypeParentAppointmentReminder: configModel.KeyCalendarAppointmentReminderEnabled,
 		}
 		for key, expected := range gated {
 			def, ok := notifications.GetType(key)

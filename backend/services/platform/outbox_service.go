@@ -29,6 +29,15 @@ type Renderer interface {
 	Render(ctx context.Context, row *platformModels.EmailOutbox) (*email.Message, error)
 }
 
+// ErrRenderCancelled is the one render outcome that is neither a success nor a
+// failure: the row must not be sent, and retrying cannot change that. A renderer
+// returns it (wrapped, with a reason) when the fact that authorized the mail no
+// longer holds at the moment of sending — a guardian whose access to the child
+// an appointment concerns was revoked while the mail waited in the outbox. The
+// worker retires such a row immediately instead of burning the retry budget on
+// something it must never deliver.
+var ErrRenderCancelled = errors.New("render cancelled")
+
 // RendererFunc adapts a plain function to the Renderer interface for
 // brevity at registration sites.
 type RendererFunc func(ctx context.Context, row *platformModels.EmailOutbox) (*email.Message, error)

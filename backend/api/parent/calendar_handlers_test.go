@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -37,6 +38,13 @@ type fakeParentCalendarService struct {
 	feedErr          error
 	gotFeedAccount   int64
 	gotRotateAccount int64
+}
+
+// EnqueueDueAppointmentReminders exists only to satisfy the service interface:
+// the guardian reminder scan (#1671) is driven by the scheduler, never by an
+// HTTP handler, so no test in this file calls it.
+func (f *fakeParentCalendarService) EnqueueDueAppointmentReminders(context.Context, time.Time, time.Time) (int, error) {
+	return 0, nil
 }
 
 func (f *fakeParentCalendarService) ListMyStaffEvents(context.Context, timezone.Date, timezone.Date) ([]calendarSvc.Event, error) {

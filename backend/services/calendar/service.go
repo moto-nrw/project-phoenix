@@ -2,8 +2,10 @@ package calendar
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -67,6 +70,9 @@ type Service interface {
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
+	// EnqueueDueAppointmentReminders queues the guardian reminder for every
+	// occurrence starting in [from, to). Driven by the scheduler, per tenant.
+	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
 }
 
 type Config struct {
@@ -104,6 +110,20 @@ type Config struct {
 	Settings    LogoResolver
 	AccountRepo FeedAccountRepo
 	ParentsURL  string
+
+	// Notifier and Preferences drive the guardian push/in-app notification that
+	// accompanies the appointment e-mails (#1671). Both optional and both
+	// required together: without consent there is nobody to address, so a nil
+	// Preferences disables the push rather than broadcasting past consent.
+	Notifier notifications.Service
+	// ReminderNotifier waits for Web Push acceptance so the scheduler can retry
+	// a transient failure without permanently claiming the reminder delivery.
+	ReminderNotifier notifications.SynchronousService
+	Preferences      notifications.PreferenceService
+
+	// Logger is nil-safe (see service.logger()); notification dispatch is
+	// fire-and-forget and reports its failures here instead of to the caller.
+	Logger *slog.Logger
 }
 
 type service struct {
@@ -183,6 +203,7 @@ type UpdateAppointmentRequest struct {
 	OverviewVisibility string             `json:"overview_visibility"`
 	Recurrence         *RecurrenceRequest `json:"recurrence,omitempty"`
 	SendEmail          bool               `json:"send_email"`
+	SendEmailSet       bool               `json:"-"`
 }
 
 type AppointmentOverview struct {
@@ -428,6 +449,7 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentPublished); err != nil {
 			return nil, err
 		}
+		s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentPublished)
 	}
 
 	return &AppointmentDetail{
@@ -506,6 +528,13 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return nil, err
 	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
 	// A cancelled appointment is terminal: there is no reactivation flow, so
 	// editing it (which would also fire a "Termin geändert" notice while the
 	// appointment stays cancelled) is rejected outright.
@@ -528,6 +557,9 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	appointment.EndTime = timezone.WallClock(req.EndTime)
 	appointment.AllDay = req.AllDay
 	appointment.OverviewVisibility = req.OverviewVisibility
+	if req.SendEmailSet || req.SendEmail {
+		appointment.NotifyGuardians = req.SendEmail
+	}
 	if err := appointment.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
@@ -574,16 +606,17 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 		return nil, err
 	}
 
-	// Kill any not-yet-sent notice queued by a prior create/update so the worker
-	// can't deliver stale title/date/location (or a create notice the edit turned
-	// off), then optionally enqueue a fresh update notice — mirrors cancel/delete.
+	// Kill every not-yet-sent appointment e-mail so the worker cannot deliver a
+	// stale title/date/location or a reminder after guardian delivery was turned
+	// off. The update notice below replaces the lifecycle communication.
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment updated"); err != nil {
 		return nil, err
 	}
-	if req.SendEmail {
+	if appointment.NotifyGuardians {
 		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
 		}
+		s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentUpdated)
 	}
 
 	return s.appointmentDetail(ctx, appointment)
@@ -591,6 +624,13 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 
 func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error) {
 	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -630,6 +670,7 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 			if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
 				return nil, err
 			}
+			s.notifyGuardianDevices(ctx, appointment, platformModels.EmailKindAppointmentCancelled)
 		}
 	}
 	return s.appointmentDetail(ctx, appointment)
@@ -637,6 +678,13 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 
 func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int64) error {
 	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
 	if err != nil {
 		return err
 	}
@@ -689,6 +737,13 @@ func (s *service) appointmentHasGuardianRecipients(ctx context.Context, appointm
 
 func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
 	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	appointment, err = s.cfg.AppointmentRepo.FindByIDForUpdate(ctx, appointment.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
 	if err != nil {
 		return err
 	}

@@ -384,6 +384,16 @@ type StudentGuardianRepository interface {
 	// deactivated guardian's lingering relationship rows report false.
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 
+	// FilterAccountsWithStudentAccess is the batched sibling of
+	// AccountHasStudentPermission: it returns the subset of guardianAccountIDs
+	// whose relationship to at least ONE of studentIDs still carries the named
+	// parent_portal.* permission, backed by an ACTIVE account_tenants mapping.
+	// It exists for delivery paths holding a recipient list that was resolved in
+	// an earlier transaction — a notification about a child must be re-checked
+	// where it is SENT, because access can be revoked in between (#1671). The
+	// result keeps the caller's order and can only narrow the input.
+	FilterAccountsWithStudentAccess(ctx context.Context, guardianAccountIDs, studentIDs []int64, tenantID int64, permission string) ([]int64, error)
+
 	// GuardianEmailHasStudentPermission is the accountless sibling of
 	// AccountHasStudentPermission: the same per-child probe keyed on the
 	// guardian's EMAIL, for flows whose submitter has no portal account — a late

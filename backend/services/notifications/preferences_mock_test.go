@@ -326,6 +326,22 @@ func TestFilterOptedIn(t *testing.T) {
 		assert.Empty(t, got)
 	})
 
+	t.Run("a disabled parent-messaging gate reaches nobody", func(t *testing.T) {
+		settings := &configtest.Mock{
+			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+				return key != configModel.KeyParentNotesEnabled, nil
+			},
+		}
+		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
+			notifications.TypeParentRequestDecided: candidates,
+		}}
+		svc := notifications.NewPreferenceService(repo, settings, nil, nil)
+
+		got, err := svc.FilterOptedIn(context.Background(), notifications.TypeParentRequestDecided, candidates)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
 	t.Run("a failing gate read surfaces", func(t *testing.T) {
 		settings := &configtest.Mock{
 			ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return false, errors.New("boom") },

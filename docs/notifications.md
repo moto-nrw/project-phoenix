@@ -50,6 +50,10 @@ receiving the mail it received before consent existed. Tying e-mail to
 `FilterOptedIn` would have made the reach of a backfill decide whether a
 long-standing channel works at all.
 
+What e-mail does share with push is the child-access question. A queued mail
+about a child is re-checked when it is sent, not only when it is queued — see
+"Queued mail is re-checked when it is sent" below.
+
 ## Triggering a notification (backend)
 
 ```go
@@ -166,6 +170,12 @@ mechanical: **no row means off**.
 | Web Push | active (#2003) | `webpush-go` (VAPID) → browser push service → service worker notification |
 | E-Mail | future | wrap `email.Mailer` + audience→address resolution as a `Channel` |
 
+E-mail is still not a `Channel`: the features that mail (announcements,
+appointments, appointment reminders) enqueue their own outbox rows next to the
+`Notify` call. That is why the appointment reminder producer writes to the
+outbox AND dispatches a push rather than dispatching once — see the gates
+section above for why the two paths also apply different consent rules.
+
 The existing SSE cache-invalidation events are untouched: the `notification`
 event type is additive. SSE remains the open-app channel; Web Push covers
 closed/locked devices.
@@ -192,6 +202,39 @@ closed/locked devices.
   deliberately excluded from Web Push until they have an active guardian
   mapping for that school. Their announcement remains available in the parent
   feed and through the announcement's optional e-mail delivery.
+- **Child-scoped audiences**: a guardian event that is ABOUT children sets
+  `Audience.StudentIDs` — one child for a parent message or a request decision,
+  the children an appointment was addressed to for the calendar producers. That
+  is an authorization instruction, not payload — the delivery path then requires
+  `parent_portal.access` for at least one of them on the recipient's
+  `users.students_guardians` row. Producers decide their audience in the
+  transaction that produced the event, but delivery runs later, in a
+  transaction of its own; a school can revoke access to a child in between,
+  and a push is rendered on a lock screen. The check can only narrow the
+  audience the producer chose, never widen it: every listed child is one the
+  producer already resolved the audience from, so "at least one" cannot admit
+  an account the producer excluded. Only events about no child at all
+  (announcements) leave the field empty and keep their producer's gate; a
+  non-guardian scope with student ids is rejected as malformed, so a producer
+  cannot believe it narrowed something it did not.
+
+  A producer addressing many accounts at once splits them by the children they
+  were let through by rather than sending one event with the union
+  (`calendar.guardianStudentGroups`). "At least one" is only as narrow as the
+  set it is asked against: with a union, an account that lost access to the
+  child it was invited for would still pass through a child of a **different**
+  recipient it happens to be a guardian of — and receive a push for an
+  appointment the parents portal then refuses to show it.
+
+  **Both guardian-facing channels ask it**, not only Web Push. The Web Push
+  channel folds the predicate into its device lookup
+  (`PushSubscriptionRepository.FindForGuardians`); the SSE channel resolves the
+  permitted recipients first
+  (`StudentGuardianRepository.FilterAccountsWithStudentAccess`) and fans out only
+  to those. An in-app event carries the same title, body and deep link a push
+  does, so an already-open parent session must not be woken with something a push
+  would have been withheld from. A SSE channel wired without that lookup drops
+  student-scoped guardian events rather than deliver them unchecked.
 - **Payload** is `{title, body, deepLink, type, priority}` — never `Data`
   (GDPR contract above). Priority maps to TTL/urgency: high = 1h/high,
   normal/low = 24h/normal/low.
@@ -273,6 +316,144 @@ A published announcement notifies its guardian audience as
 `parent_announcement`, narrowed by consent. A nil preference service keeps the
 pre-consent behaviour (it is always wired in the factory); a wired one has the
 final say.
+
+### Parent-facing producers (#1671)
+
+Three more producers address guardians. All of them narrow their audience with
+`FilterOptedIn` and none of them names a child — the deep link into the
+authenticated parents app is where the subject is shown. Parent deep links carry
+no `/parents` prefix: on the parents host that prefix is added by the proxy, and
+the service worker opens the link against the browser origin.
+
+| Producer | Type | Fires when | Deep link |
+|---|---|---|---|
+| `services/messaging` (`notifyGuardianDevice`) | `parent_message` | staff send a message in a child's thread | `/messages` |
+| `services/calendar` (`notifyGuardianDevices`) | `parent_appointment` | an appointment is published, changed or cancelled | `/calendar` |
+| `services/calendar` (reminder scan) | `parent_appointment_reminder` | shortly before an appointment | `/calendar` |
+| `services/parentmessaging` (`notifyRequestDecision`) | `parent_request_decided` | staff decide a care-schedule, master-data or excused-absence request | `/children/{id}` |
+
+Two of these deliberately ride on an existing opt-in rather than introducing a
+new one:
+
+- **Appointments** only notify when the appointment carries the organizer's
+  per-appointment "Eltern benachrichtigen" flag (`appointments.notify_guardians`)
+  — the same flag that governs the e-mails. An organizer who chose not to notify
+  does not get to notify anyway through a second channel.
+- **Request decisions** hook into the pill emitter, where all three request
+  flows already converge, and fire under exactly the condition that fires the
+  guardian's SSE wake. So pill, wake and push always agree on who was reached: a
+  guardian whose access was revoked gets none of the three, and a school with
+  parent messaging switched off gets none either (the pill is that school's
+  in-app channel too, and pushing about something the app does not show would be
+  a dead end). The push runs in a transaction of its own and therefore re-reads
+  the child access there instead of inheriting the pill transaction's verdict —
+  a payload rendered on a lock screen answers that question against the row the
+  sending transaction sees. The recheck can only narrow the push against the
+  pill, never widen it.
+
+Both child-related producers — the message push and the decision push — send
+their audience with `Audience.StudentIDs` set, so the child access is answered
+once more where the sending happens, in both the device lookup and the in-app
+fan-out (see "Child-scoped audiences" above).
+The staff message path checks it in the request transaction that stores the
+message and again in the delivery transaction; between the two a school can
+revoke a guardian's access, and only the second answer decides what leaves the
+backend.
+
+The two appointment producers do the same with the children the appointment was
+addressed to. Their audience already comes from `parent_portal.access` on the
+appointment's recipient rows; carrying those children into the event means the
+delivery path asks again, so an access revoked between resolving recipients and
+sending drops both the push and the in-app wake instead of putting the event on
+a lock screen or into an open session. Their e-mails carry the same scope into
+the outbox and are re-checked when the worker sends them.
+
+### Appointment reminders (scheduler task `appointment-reminders`)
+
+`services/scheduler/appointment_reminders.go` — every 5 minutes, per tenant:
+
+1. **Gate** — `calendar.appointment_reminder_enabled` (default **on**) and
+   `calendar.appointment_reminder_lead_hours` (default 24, bounded 1–168).
+   The default is on because the reminder only ever reaches an appointment whose
+   organizer already opted into guardian mail; it is a second notice on an
+   existing channel, not a new one.
+2. **Window** — the tick keeps the upper bound of the last scanned window, so
+   consecutive windows are adjacent and a late or missed tick stretches the
+   window instead of skipping the occurrences in between. After downtime it is
+   clamped to one hour: a reminder whose moment is long gone is noise. Both
+   bounds are shifted by the lead time, so the window stays exactly one tick
+   long.
+3. **Compute** — `calendar.EnqueueDueAppointmentReminders(from, to)` expands
+   occurrences with the same code the calendar and the ICS export use (never a
+   second copy of that arithmetic), applies single-occurrence overrides, skips
+   cancelled occurrences, and keeps the ones whose start instant lies in the
+   half-open window. An all-day appointment is anchored at 08:00 local rather
+   than midnight.
+4. **Deliver** — one outbox row per reachable guardian
+   (`appointment_reminder`, the renderer that already existed for it) plus the
+   `parent_appointment_reminder` push. The two are independent: an installation
+   without an e-mail outbox still sends the push, and a guardian without an
+   e-mail address is still reachable on their device.
+
+The reminder is the one producer that dispatches through
+`NotifySynchronously`, because its claim may only be kept once the push service
+has answered. Only Web Push is waited for; the in-app channel delivers
+fire-and-forget from the same call, exactly as under `Notify`. A parent with the
+portal open therefore sees the reminder even when no device is registered, and a
+failing SSE hub never costs a delivered push its claim.
+
+The push half is guarded by a durable claim per (appointment, revision,
+occurrence, guardian) instead of an outbox key. A claim records that a push went
+out, not that one was attempted: whenever nothing was delivered — no registered
+device, no VAPID keys, notifications switched off, closed delivery window, or a
+failed dispatch — the claim is released again. Only a delivered push keeps its
+claim, which is what makes an overlapping scan silent.
+
+Which of those five comes back is decided by the scan window, not by the claim.
+A **failed dispatch** fails the tenant's pass, so its upper bound is never
+recorded and the next tick offers the same window again — that is where the
+released claim earns its keep, together with a lead-time increase, which shifts
+occurrences back into an already scanned window. The other four are states
+rather than failures: the tick stays quiet, the boundary advances, and that
+occurrence's push is dropped while its e-mail still goes out. Quiet hours in
+particular behave here exactly as they do for every other producer — the router
+drops an event it may not deliver now instead of queueing it, so at the default
+24-hour lead an evening appointment reaches parents by mail only. Schools with
+many evening appointments raise `notifications.active_window_end`.
+
+Duplicate delivery is impossible by construction: each row carries an
+idempotency key of (appointment, occurrence, guardian) and the outbox insert is
+`ON CONFLICT DO NOTHING`, so a re-run, an overlapping window or a second
+scheduler process cannot produce a second mail.
+
+An **edit between queueing and dispatch** bumps the revision and therefore
+invalidates the claim the pending push holds. The claim is not simply dropped
+with it: the scan boundary has already moved past that occurrence and no later
+tick offers it again, so preparation releases the old claim and re-takes one
+under the new revision, provided the occurrence still exists, is not cancelled,
+and still starts inside the window it was scanned in. An occurrence the edit
+moved out of that window is left alone — its released claim lets the tick that
+reaches its new moment deliver it. The e-mail half keeps its documented gap: the
+pending reminder mail is cancelled with the other pending mails of the edited
+appointment and not re-queued, so the parent gets the "Termin geändert" mail and
+the reminder push.
+
+### Queued mail is re-checked when it is sent
+
+An appointment mail carries the account it addresses and the children of that
+appointment the account was let through by (`guardian_account_id`,
+`student_ids`). The renderer asks `FilterAccountsWithStudentAccess` again inside
+the row's tenant transaction immediately before building the message, and
+returns `platform.ErrRenderCancelled` when the answer changed — the worker then
+retires the row instead of spending its retry budget on something it may never
+deliver.
+
+This matters most for the reminder, which waits in the outbox for the whole lead
+time (24 hours by default) while naming a title, a time and a place. Cancelling
+queued rows from each revocation path instead would have to catch every one of
+them to be worth anything; asking at delivery is the same recheck the push
+channels do. Rows without the scope — queued before this existed, or addressed
+to a recipient with no portal account — render unchanged.
 
 ## Verifying a tenant's setup
 
