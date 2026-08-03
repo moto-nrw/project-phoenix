@@ -865,6 +865,12 @@ export interface CreateTemplateBody {
    * offering's approved enrollments. */
   source_care_offering_id?: number;
   source_grade_levels?: number[];
+  /**
+   * Series start (#2135): schedules get it as valid_from, so no instances
+   * materialize before it and the roster becomes valid from it. Must lie
+   * within the calendar period. Omitted = series starts with the period.
+   */
+  start_date?: string;
   materialize_from?: string;
   materialize_to?: string;
   student_ids?: number[];
@@ -874,7 +880,7 @@ export interface CreateTemplateBody {
 
 export type UpdateTemplateBody = Omit<
   CreateTemplateBody,
-  "materialize_from" | "materialize_to" | "list_kind"
+  "materialize_from" | "materialize_to" | "list_kind" | "start_date"
 > & {
   /**
    * Listenart classification. A value sets it; explicit `null` clears it. On the

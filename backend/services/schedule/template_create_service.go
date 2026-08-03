@@ -51,6 +51,10 @@ type CreateTemplateInput struct {
 	PrimaryStaffID  *int64
 	CreatedBy       *int64
 	RosterValidFrom timezone.Date
+	// ScheduleValidFrom is the optional series start (#2135): every schedule
+	// row gets it as valid_from, so the materializer skips earlier dates
+	// (scheduleNotStartedOn). nil = the series starts with the planning period.
+	ScheduleValidFrom *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
@@ -221,6 +225,7 @@ func (s *TimetableDataService) createTemplateLocked(
 			ActivityGroupID:  group.ID,
 			WeekPattern:      in.WeekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
+			ValidFrom:        cloneOptionalDate(in.ScheduleValidFrom),
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, sched); err != nil {
