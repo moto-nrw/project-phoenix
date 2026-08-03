@@ -68,6 +68,10 @@ export function UploadSection({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) onFileSelect(file);
+          // Clear the input so re-selecting the SAME filename fires change
+          // again — the common "Datei korrigieren und erneut hochladen" case
+          // would otherwise silently do nothing.
+          e.target.value = "";
         }}
         className="sr-only"
         aria-label="Datei auswählen"

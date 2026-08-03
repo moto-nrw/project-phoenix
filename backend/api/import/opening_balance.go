@@ -128,14 +128,26 @@ func writeOpeningBalanceHinweiseSheet(f *excelize.File) {
 }
 
 // openingBalanceRequestContext bundles the per-request import parameters
-// parsed from the upload form.
+// parsed from the upload form. The acting staff member is resolved separately
+// (resolveOpeningBalanceDecider) because that lookup is tenant-scoped and the
+// real-import handler owns its transaction.
 type openingBalanceRequestContext struct {
 	Rows          []importModels.OpeningBalanceImportRow
 	Filename      string
 	EffectiveDate timezone.Date
 	Note          string
-	DecidedBy     int64
 	AccountID     int64
+}
+
+// resolveOpeningBalanceDecider maps the authenticated account to its staff
+// row. The query is tenant-scoped, so it MUST run inside a tenant transaction
+// — outside one the RLS role is missing and the lookup fails.
+func (rs *Resource) resolveOpeningBalanceDecider(ctx context.Context, accountID int64) (int64, error) {
+	staffID, err := rs.personService.ResolveStaffIDByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("kein Mitarbeiterprofil für dieses Konto: %w", err)
+	}
+	return staffID, nil
 }
 
 // parseOpeningBalanceRequest validates the upload, parses the file, and reads
@@ -179,18 +191,12 @@ func (rs *Resource) parseOpeningBalanceRequest(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return nil, false
 	}
-	decidedBy, err := rs.personService.ResolveStaffIDByAccountID(r.Context(), accountID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(fmt.Errorf("kein Mitarbeiterprofil für dieses Konto")))
-		return nil, false
-	}
 
 	return &openingBalanceRequestContext{
 		Rows:          rows,
 		Filename:      header.Filename,
 		EffectiveDate: effectiveDate,
 		Note:          note,
-		DecidedBy:     decidedBy,
 		AccountID:     accountID,
 	}, true
 }
@@ -206,7 +212,15 @@ func (rs *Resource) PreviewOpeningBalanceImport(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	svc := rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, reqCtx.DecidedBy)
+	// The preview route carries the tenant-tx middleware, so the tenant-scoped
+	// staff lookup can run directly here.
+	decidedBy, err := rs.resolveOpeningBalanceDecider(r.Context(), reqCtx.AccountID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	svc := rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, decidedBy)
 	result, err := svc.Import(r.Context(), importModels.ImportRequest[importModels.OpeningBalanceImportRow]{
 		Rows:            reqCtx.Rows,
 		Mode:            importModels.ImportModeCreate,
@@ -238,10 +252,23 @@ func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	svc := rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, reqCtx.DecidedBy)
 	tenantID := tenant.FromContext(r.Context())
-	var result *importModels.ImportResult[importModels.OpeningBalanceImportRow]
+	var (
+		result       *importModels.ImportResult[importModels.OpeningBalanceImportRow]
+		svc          *importService.ImportService[importModels.OpeningBalanceImportRow]
+		deciderError error
+	)
+	// This route deliberately carries no tenant-tx middleware (it owns its
+	// transaction), so the tenant-scoped staff lookup has to happen INSIDE the
+	// transaction — outside it the RLS role is missing and the lookup fails.
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		decidedBy, err := rs.resolveOpeningBalanceDecider(ctx, reqCtx.AccountID)
+		if err != nil {
+			deciderError = err
+			return err
+		}
+		svc = rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, decidedBy)
+
 		var txErr error
 		result, txErr = svc.Import(ctx, importModels.ImportRequest[importModels.OpeningBalanceImportRow]{
 			Rows:            reqCtx.Rows,
@@ -253,6 +280,10 @@ func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request
 		})
 		return txErr
 	}); err != nil {
+		if deciderError != nil {
+			common.RenderError(w, r, common.ErrorUnauthorized(deciderError))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
 	}
