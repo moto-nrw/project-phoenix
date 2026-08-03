@@ -35,7 +35,7 @@ var (
 )
 
 // vacationOpeningUniqueConstraintName guards one opening per staff and year
-// (migration 1.15.257).
+// (migration 1.15.261).
 const vacationOpeningUniqueConstraintName = "uq_svo_staff_year"
 
 // SetVacationOpeningRequest carries the vacation takeover (#2132). The admin
@@ -89,6 +89,14 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	// cutoff, and the bulk import applies ONE Stichtag to both sides.
 	if !req.EffectiveDate.Before(timezone.TodayDate()) {
 		return nil, fmt.Errorf("%w: effective_date must be before today", ErrVacationOpeningInvalid)
+	}
+	// The takeover rebaselines the vacation account of the Stichtag's year, and
+	// only the running year still has a live account to rebaseline. A Stichtag
+	// in a closed year would silently rewrite a historical account whose days
+	// are already spent. The import handler bounds its Stichtag the same way;
+	// the check belongs here too so the per-staff route cannot bypass it.
+	if req.EffectiveDate.Year != timezone.TodayDate().Year {
+		return nil, fmt.Errorf("%w: effective_date must be in the current vacation year", ErrVacationOpeningInvalid)
 	}
 	// Vacation absences use the same per-staff advisory lock. Holding it from
 	// the pre-cutoff check through the insert makes the double-count guard

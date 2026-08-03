@@ -91,22 +91,35 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		staff:    staff,
 		admin:    admin,
 		svc:      svc,
-		cutoff:   openingCutoffDate(),
+		cutoff:   openingCutoffDate(t),
 	}
 }
 
 // openingCutoffDate returns a Stichtag in the past that still leaves room for
 // vacation absences EARLIER in the same calendar year. Yesterday satisfies
-// both for all but the first days of January; there the fixture falls back to
-// the previous year, which is equally valid — the service derives the opening
-// year from the Stichtag, not from today.
-func openingCutoffDate() timezone.Date {
+// both for all but the first days of January. There is deliberately no
+// previous-year fallback: the service only books takeovers into the running
+// vacation year, so in early January no usable Stichtag exists and the fixture
+// skips instead of exercising a case the service rejects by design.
+func openingCutoffDate(t *testing.T) timezone.Date {
+	t.Helper()
 	today := timezone.TodayDate()
 	cutoff := today.AddDays(-1)
 	if cutoff.Year != today.Year || timezone.NewDate(today.Year, time.January, 1).DaysUntil(cutoff) < 5 {
-		return timezone.NewDate(today.Year-1, time.July, 1)
+		t.Skip("no closed Stichtag with room for earlier absences in the current vacation year yet")
 	}
 	return cutoff
+}
+
+// previousWorkingDay walks back to the nearest Monday-Friday day. Vacation
+// quota only counts working days, so an absence fixture that must consume
+// quota may not land on a weekend — otherwise the guard under test never
+// trips and the case passes vacuously on some weekdays.
+func previousWorkingDay(d timezone.Date) timezone.Date {
+	for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+		d = d.AddDays(-1)
+	}
+	return d
 }
 
 // addVacationAbsence writes an absence row directly, mirroring the overview
@@ -213,7 +226,9 @@ func TestSetVacationOpening_RejectsSecondOpeningForSameYear(t *testing.T) {
 func TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff(t *testing.T) {
 	f := newVacationOpeningFixture(t)
 
-	before := f.cutoff.AddDays(-1)
+	// Must be a working day: a Saturday absence spends no quota and the guard
+	// would not trip, letting the case pass vacuously on some weekdays.
+	before := previousWorkingDay(f.cutoff.AddDays(-1))
 	f.addVacationAbsence(t, activeModels.AbsenceStatusApproved, before, before)
 
 	_, err := f.set(12)
@@ -286,6 +301,27 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 	}
 
 	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, timezone.TodayDate().Year)
+	require.NoError(t, err)
+	assert.Nil(t, stored)
+}
+
+// TestSetVacationOpening_RejectsPastVacationYear: a Stichtag in a closed year
+// would rebaseline a historical vacation account. The import handler bounds
+// this already; the service must bound it too so the per-staff route cannot
+// bypass the restriction.
+func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
+	f := newVacationOpeningFixture(t)
+
+	lastYear := timezone.NewDate(timezone.TodayDate().Year-1, time.June, 10)
+	_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
+		EffectiveDate: lastYear,
+		RemainingDays: 12,
+		Note:          "Übernahme aus Altsystem",
+	})
+	require.ErrorIs(t, err, active.ErrVacationOpeningInvalid)
+	assert.Contains(t, err.Error(), "effective_date must be in the current vacation year")
+
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, lastYear.Year)
 	require.NoError(t, err)
 	assert.Nil(t, stored)
 }

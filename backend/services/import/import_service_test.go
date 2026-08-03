@@ -117,12 +117,16 @@ func TestImportService_RecordAuditInTransaction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := service.RecordAuditInTransaction(ctx, "opening_balance", "opening.csv", result, 42, false, 7)
+	// Sentinel values for the in-memory repository stub — no DB rows involved.
+	const wantTenantID int64 = 7
+	const accountID int64 = 42
+
+	err := service.RecordAuditInTransaction(ctx, "opening_balance", "opening.csv", result, accountID, false, wantTenantID)
 
 	require.NoError(t, err)
 	require.NotNil(t, repo.created)
 	assert.Same(t, ctx, repo.ctx)
-	assert.Equal(t, int64(7), repo.created.TenantID)
+	assert.Equal(t, wantTenantID, repo.created.TenantID)
 	assert.Equal(t, "opening_balance", repo.created.EntityType)
 	assert.Equal(t, "opening.csv", repo.created.Filename)
 	assert.Equal(t, 3, repo.created.CreatedCount)

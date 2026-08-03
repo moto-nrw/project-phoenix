@@ -57,7 +57,7 @@ const (
 	resetUniqueConstraintName = "uq_sba_reset_per_day"
 
 	// openingUniqueConstraintName is the partial unique index guarding one
-	// opening balance per staff member (migration 1.15.257).
+	// opening balance per staff member (migration 1.15.261).
 	openingUniqueConstraintName = "uq_sba_opening_per_staff"
 
 	// These bounds mirror the privileged admin UI. They are business limits,

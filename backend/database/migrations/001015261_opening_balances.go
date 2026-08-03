@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	openingBalancesVersion     = "1.15.257"
+	openingBalancesVersion     = "1.15.261"
 	openingBalancesDescription = "Opening balances for Stundenkonto and vacation at go-live (#2132)"
 )
 
@@ -51,7 +51,7 @@ func init() {
 //     entered_remaining_days documents what the admin actually typed
 //     (Resturlaub zum Stichtag) from which taken_before was derived.
 func openingBalancesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.257: Opening balances for Stundenkonto and vacation...")
+	fmt.Println("Migration 1.15.261: Opening balances for Stundenkonto and vacation...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -130,7 +130,7 @@ func openingBalancesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func openingBalancesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.257: Removing opening balance structures...")
+	fmt.Println("Rolling back migration 1.15.261: Removing opening balance structures...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

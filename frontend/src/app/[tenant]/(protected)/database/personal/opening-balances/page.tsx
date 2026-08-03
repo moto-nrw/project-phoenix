@@ -374,17 +374,13 @@ export default function OpeningBalanceImportPage() {
 
   // Stichtag und Begründung gehen in jede Buchung ein — eine Vorschau, die
   // mit anderen Werten gerechnet wurde, darf nicht bestätigt werden.
-  const handleParamChange = useCallback(
-    (apply: () => void) => {
-      previewRequestVersion.current++;
-      apply();
-      setPreviewRows([]);
-      setPreviewResult(null);
-      setImportResult(null);
-      setPreviewStale(uploadedFile !== null);
-    },
-    [uploadedFile],
-  );
+  const invalidatePreview = useCallback(() => {
+    previewRequestVersion.current++;
+    setPreviewRows([]);
+    setPreviewResult(null);
+    setImportResult(null);
+    setPreviewStale(uploadedFile !== null);
+  }, [uploadedFile]);
 
   const handleImport = useCallback(async () => {
     if (!uploadedFile) return;
@@ -573,7 +569,10 @@ export default function OpeningBalanceImportPage() {
             value={effectiveDate}
             min={`${berlinToday.slice(0, 4)}-01-01`}
             max={latestEffectiveDate}
-            onChange={(next) => handleParamChange(() => setEffectiveDate(next))}
+            onChange={(next) => {
+              setEffectiveDate(next);
+              invalidatePreview();
+            }}
             placeholder="Datum wählen"
           />
           <Input
@@ -583,7 +582,10 @@ export default function OpeningBalanceImportPage() {
             value={note}
             maxLength={200}
             placeholder={`Übernahme aus Altsystem zum ${formatDate(latestEffectiveDate)}`}
-            onChange={(e) => handleParamChange(() => setNote(e.target.value))}
+            onChange={(e) => {
+              setNote(e.target.value);
+              invalidatePreview();
+            }}
           />
         </div>
       </section>
