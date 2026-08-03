@@ -236,9 +236,9 @@ export function PushNotificationSection({
           {portal === "tenant" && (
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="mt-4"
+              variant="ghost"
+              size="compact"
+              className="-ms-2.5 mt-2"
               isLoading={testing}
               loadingText="Wird gesendet…"
               disabled={busy}

@@ -158,11 +158,11 @@ describe("PushNotificationSection", () => {
     });
 
     const { rerender } = render(<PushNotificationSection portal="tenant" />);
-    expect(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
-    ).toBeInTheDocument();
+    const testButton = await screen.findByRole("button", {
+      name: "Testbenachrichtigung senden",
+    });
+    expect(testButton).toHaveClass("h-8", "text-xs", "bg-transparent");
+    expect(testButton).not.toHaveClass("ring-1", "shadow-md");
 
     rerender(<PushNotificationSection portal="parent" />);
     await waitFor(() =>
