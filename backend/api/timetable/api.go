@@ -109,11 +109,12 @@ type Dependencies struct {
 	SettingsService        configSvc.SettingsService
 	SlotListsService       slotlists.Service
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
-	PlanExportService planexport.Service
-	Broadcaster       realtime.Broadcaster
-	Logger            *slog.Logger
-	DB                *bun.DB
-	Now               func() time.Time
+	PlanExportService    planexport.Service
+	PlanningTrackService scheduleSvc.PlanningTrackService
+	Broadcaster          realtime.Broadcaster
+	Logger               *slog.Logger
+	DB                   *bun.DB
+	Now                  func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -332,6 +333,15 @@ func (rs *Resource) Router() chi.Router {
 			Post("/templates/{id}/end", rs.endTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Delete("/templates/{id}", rs.archiveTemplate)
+
+		r.Route("/planning-tracks", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPlanningTracks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Post("/", rs.createPlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Put("/order", rs.reorderPlanningTracks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Put("/{id}", rs.updatePlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Delete("/{id}", rs.archivePlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Post("/{id}/restore", rs.restorePlanningTrack)
+		})
 	})
 
 	return r

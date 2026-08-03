@@ -44,6 +44,7 @@ type TimetableDataDependencies struct {
 	VisitRepo              activeModel.VisitRepository
 	RoomRepo               facilitiesModel.RoomRepository
 	ActivityCategoryRepo   activitiesModel.CategoryRepository
+	PlanningTrackRepo      scheduleModel.PlanningTrackRepository
 	ActivityGroupRepo      activitiesModel.GroupRepository
 	ActivitySupervisorRepo activitiesModel.SupervisorPlannedRepository
 	StudentEnrollmentRepo  activitiesModel.StudentEnrollmentRepository

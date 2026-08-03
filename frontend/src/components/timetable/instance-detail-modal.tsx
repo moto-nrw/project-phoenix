@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   CircleX,
   DoorOpen,
+  Palette,
   Pencil,
   Repeat,
   RotateCcw,
@@ -819,6 +820,9 @@ export function InstanceDetailModal({
             </Row>
             <Row icon={<DoorOpen className="h-4 w-4" />} label="Raum">
               {instance.roomName || `Raum #${instance.roomId}`}
+            </Row>
+            <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
+              {instance.planningTrackName ?? "Keine Planungsspur"}
             </Row>
             <Row
               icon={<UserCheck className="h-4 w-4" />}

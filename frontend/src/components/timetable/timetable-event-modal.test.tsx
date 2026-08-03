@@ -35,6 +35,7 @@ const {
   mockCheckShiftCoverage,
   mockFetchStudents,
   mockGetAllStaff,
+  mockListPlanningTracks,
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -52,6 +53,7 @@ const {
   mockCheckShiftCoverage: vi.fn(),
   mockFetchStudents: vi.fn(),
   mockGetAllStaff: vi.fn(),
+  mockListPlanningTracks: vi.fn(),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -73,6 +75,12 @@ vi.mock("~/lib/student-api", () => ({
 vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: mockGetAllStaff,
+  },
+}));
+
+vi.mock("~/lib/planning-track-api", () => ({
+  planningTrackService: {
+    list: mockListPlanningTracks,
   },
 }));
 
@@ -412,6 +420,14 @@ describe("TimetableEventModal", () => {
       warnings: [],
     });
     mockCheckShiftCoverage.mockResolvedValue({ coverageWarnings: [] });
+    mockListPlanningTracks.mockResolvedValue([
+      {
+        id: "8",
+        name: "Mittag",
+        color: "#F78C10",
+        sortOrder: 1,
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -1216,6 +1232,7 @@ describe("TimetableEventModal", () => {
     await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await chooseFromSelect(screen.getByLabelText("Planungsspur"), "Mittag");
     await goToStep(2);
     await chooseFromSelect(
       screen.getByLabelText("Planungszeitraum*"),
@@ -1242,6 +1259,7 @@ describe("TimetableEventModal", () => {
           type: "activity",
           room_id: 3,
           category_id: 2,
+          planning_track_id: 8,
           calendar_period_id: 5,
           start_date: "2026-05-04",
           materialize_from: "2026-05-01",
@@ -1264,6 +1282,31 @@ describe("TimetableEventModal", () => {
       "Regeltermin angelegt: 6 Termine eingetragen",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  it("keeps an archived planning track visible on its existing series", async () => {
+    mockListPlanningTracks.mockResolvedValue([
+      {
+        id: "8",
+        name: "Alt",
+        color: "#F78C10",
+        sortOrder: 1,
+        archivedAt: "2026-08-03T12:00:00Z",
+      },
+    ]);
+    renderModal({
+      initialSeries: {
+        ...template,
+        planningTrackId: "8",
+        planningTrackName: "Alt",
+        planningTrackColor: "#F78C10",
+        planningTrackSortOrder: 1,
+      },
+    });
+
+    const trigger = await screen.findByLabelText("Planungsspur");
+    await chooseFromSelect(trigger, "Alt (archiviert)");
+    expect(trigger).toHaveTextContent("Alt (archiviert)");
   });
 
   // #2135: the picked Datum becomes the series start, so it must lie inside

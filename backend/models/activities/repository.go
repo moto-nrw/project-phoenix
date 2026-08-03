@@ -258,6 +258,7 @@ type TemplateFieldsUpdate struct {
 	Name             string
 	Type             string
 	CategoryID       int64
+	PlanningTrackID  *int64
 	RoomID           int64
 	EducationGroupID *int64
 	MaxParticipants  int
@@ -285,6 +286,10 @@ type TemplateListRow struct {
 	Type               string         `bun:"type"`
 	CategoryID         int64          `bun:"category_id"`
 	CategoryName       string         `bun:"category_name"`
+	PlanningTrackID    sql.NullInt64  `bun:"planning_track_id"`
+	PlanningTrackName  string         `bun:"planning_track_name"`
+	PlanningTrackColor string         `bun:"planning_track_color"`
+	PlanningTrackOrder sql.NullInt64  `bun:"planning_track_sort_order"`
 	RoomID             sql.NullInt64  `bun:"room_id"`
 	RoomName           sql.NullString `bun:"room_name"`
 	EducationGroupID   sql.NullInt64  `bun:"education_group_id"`

@@ -471,6 +471,10 @@ const templateListSelect = `
 			g.type,
 			g.category_id,
 			COALESCE(c.name, '') AS category_name,
+			g.planning_track_id,
+			COALESCE(pt.name, '') AS planning_track_name,
+			COALESCE(pt.color, '') AS planning_track_color,
+			pt.sort_order AS planning_track_sort_order,
 				g.planned_room_id AS room_id,
 				COALESCE(r.name, '') AS room_name,
 				g.education_group_id,
@@ -506,6 +510,8 @@ const templateListSelect = `
 			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
 		LEFT JOIN activities.categories AS c
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
+		LEFT JOIN schedule.planning_tracks AS pt
+			ON pt.id = g.planning_track_id AND pt.tenant_id = g.tenant_id
 			LEFT JOIN schedule.shift_types AS st
 				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
 			LEFT JOIN facilities.rooms AS r
@@ -814,6 +820,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("name = ?", fields.Name).
 		Set("type = ?", fields.Type).
 		Set("category_id = ?", fields.CategoryID).
+		Set("planning_track_id = ?", fields.PlanningTrackID).
 		Set("planned_room_id = ?", fields.RoomID).
 		Set("education_group_id = ?", fields.EducationGroupID).
 		Set("max_participants = ?", fields.MaxParticipants).

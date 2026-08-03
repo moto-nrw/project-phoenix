@@ -103,6 +103,7 @@ type TemplateSplitInput struct {
 	EndTime         time.Time
 	RoomID          int64
 	CategoryID      int64
+	PlanningTrackID *int64
 	MaxParticipants *int
 	// RequiredStaff is the manual Personalbedarf override (#1839) for the
 	// successor Group, already normalized (nil = clear/derive). It is only
@@ -177,14 +178,15 @@ type TemplateEndResult struct {
 // TemplateSplitDependencies aggregates wiring. All fields are required;
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
-	GroupRepo       activitiesModel.GroupRepository
-	CategoryRepo    activitiesModel.CategoryRepository
-	ScheduleRepo    activitiesModel.ScheduleRepository
-	EnrollmentRepo  activitiesModel.StudentEnrollmentRepository
-	SupervisorRepo  activitiesModel.SupervisorPlannedRepository
-	InstanceRepo    scheduleModel.ActivityInstanceRepository
-	TimeframeRepo   scheduleModel.TimeframeRepository
-	Materialization MaterializationService
+	GroupRepo         activitiesModel.GroupRepository
+	CategoryRepo      activitiesModel.CategoryRepository
+	PlanningTrackRepo scheduleModel.PlanningTrackRepository
+	ScheduleRepo      activitiesModel.ScheduleRepository
+	EnrollmentRepo    activitiesModel.StudentEnrollmentRepository
+	SupervisorRepo    activitiesModel.SupervisorPlannedRepository
+	InstanceRepo      scheduleModel.ActivityInstanceRepository
+	TimeframeRepo     scheduleModel.TimeframeRepository
+	Materialization   MaterializationService
 	// InstanceService supplies the existing deviation snapshot/reapply machinery.
 	// The constructor narrows it to the package-private capability used by Split.
 	InstanceService InstanceService
@@ -301,6 +303,9 @@ func (s *TemplateSplitService) splitInTransaction(
 
 	old, sourceValidUntil, activeEnrollments, activeSupervisors, err := s.prepareSplitSource(ctx, &in)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, old.PlanningTrackID); err != nil {
 		return nil, err
 	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(
@@ -960,6 +965,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		RequiredStaff:     requiredStaff,
 		IsOpen:            old.IsOpen,
 		CategoryID:        in.CategoryID,
+		PlanningTrackID:   in.PlanningTrackID,
 		PlannedRoomID:     &roomID,
 		CreatedBy:         old.CreatedBy,
 		Type:              in.Type,

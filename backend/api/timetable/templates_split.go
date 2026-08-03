@@ -249,6 +249,7 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		EndTime:         endTime,
 		RoomID:          req.RoomID,
 		CategoryID:      req.CategoryID,
+		PlanningTrackID: req.PlanningTrackID,
 		MaxParticipants: req.MaxParticipants,
 		// Three-state: only when required_staff is present in the body do we
 		// touch the successor's override — a null clears it (derive), an
@@ -299,6 +300,8 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
+	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

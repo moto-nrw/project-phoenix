@@ -101,6 +101,7 @@ type Factory struct {
 	StaffAssignments         schedule.StaffAssignmentService
 	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
 	ShiftTypes               schedule.ShiftTypeService
+	PlanningTracks           schedule.PlanningTrackService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -795,6 +796,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ShiftType,
 		logger.With("service", "shift_type"),
 	)
+	planningTrackService := schedule.NewPlanningTrackService(repos.PlanningTrack, db)
 
 	// Initialize staff shift service (Dienstplan, #1376 core slice)
 	staffShiftService := schedule.NewStaffShiftService(
@@ -954,6 +956,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
 		GroupRepo:                  repos.ActivityGroup,
 		CategoryRepo:               repos.ActivityCategory,
+		PlanningTrackRepo:          repos.PlanningTrack,
 		ScheduleRepo:               repos.ActivitySchedule,
 		EnrollmentRepo:             repos.StudentEnrollment,
 		SupervisorRepo:             repos.ActivitySupervisor,
@@ -2016,6 +2019,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffAssignments:         staffAssignmentService,
 		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
+		PlanningTracks:           planningTrackService,
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
@@ -2099,6 +2103,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			VisitRepo:                  repos.ActiveVisit,
 			RoomRepo:                   repos.Room,
 			ActivityCategoryRepo:       repos.ActivityCategory,
+			PlanningTrackRepo:          repos.PlanningTrack,
 			ActivityGroupRepo:          repos.ActivityGroup,
 			ActivitySupervisorRepo:     repos.ActivitySupervisor,
 			StudentEnrollmentRepo:      repos.StudentEnrollment,

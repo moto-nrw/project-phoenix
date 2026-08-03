@@ -29,6 +29,7 @@ type CreateTemplateInput struct {
 	EndTime           time.Time
 	RoomID            int64
 	CategoryID        int64
+	PlanningTrackID   *int64
 	MaxParticipants   int
 	RequiredStaff     *int
 	WeekPattern       int
@@ -153,6 +154,9 @@ func (s *TimetableDataService) createTemplateLocked(
 	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
 		return err
 	}
+	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, nil); err != nil {
+		return err
+	}
 
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
@@ -166,6 +170,7 @@ func (s *TimetableDataService) createTemplateLocked(
 		RequiredStaff:     in.RequiredStaff,
 		IsOpen:            true,
 		CategoryID:        in.CategoryID,
+		PlanningTrackID:   in.PlanningTrackID,
 		PlannedRoomID:     &roomID,
 		Type:              in.Type,
 		EducationGroupID:  in.EducationGroupID,

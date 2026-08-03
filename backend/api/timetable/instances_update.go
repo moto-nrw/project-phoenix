@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -115,7 +116,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
 		return
 	}
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
+	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return

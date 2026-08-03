@@ -62,6 +62,7 @@ DELETE /api/time-tracking/absences/{id}
 DELETE /api/timetable/closing-days/{id}
 DELETE /api/timetable/instances/{id}
 DELETE /api/timetable/periods/{id}
+DELETE /api/timetable/planning-tracks/{id}
 DELETE /api/timetable/templates/{id}
 DELETE /api/users/{id}
 DELETE /api/work-time-models/{id}
@@ -385,6 +386,7 @@ GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
 GET /api/timetable/periods/
 GET /api/timetable/periods/{id}
+GET /api/timetable/planning-tracks/
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
 GET /api/timetable/templates
@@ -694,6 +696,8 @@ POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start
 POST /api/timetable/periods/
 POST /api/timetable/periods/bootstrap
+POST /api/timetable/planning-tracks/
+POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
@@ -853,6 +857,8 @@ PUT /api/time-tracking/{id}
 PUT /api/timetable/closing-days/{id}
 PUT /api/timetable/instances/{id}
 PUT /api/timetable/periods/{id}
+PUT /api/timetable/planning-tracks/order
+PUT /api/timetable/planning-tracks/{id}
 PUT /api/timetable/templates/{id}
 PUT /api/users/{id}
 PUT /api/work-time-models/{id}

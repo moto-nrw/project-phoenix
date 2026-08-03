@@ -6,6 +6,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import type { PlanningTrack } from "~/lib/planning-track-api";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import {
   timetableRequiredMark,
@@ -48,6 +49,7 @@ export interface StepTerminProps {
   fieldErrors: Record<string, string>;
   rooms: RoomOption[];
   categories: ActivityCategory[];
+  planningTracks?: PlanningTrack[];
   loadingRefs: boolean;
   expanded: boolean;
   isSeriesFlow: boolean;
@@ -65,6 +67,8 @@ export interface StepTerminProps {
   canManageCategories: boolean;
   /** Opens the Kategorien-verwalten dialog, either on the list or straight in the create form. */
   onManageCategories: (mode: "list" | "create") => void;
+  canManagePlanningTracks?: boolean;
+  onManagePlanningTracks?: (mode: "list" | "create") => void;
 }
 
 /**
@@ -72,6 +76,8 @@ export interface StepTerminProps {
  * collide with a real category id (those are numeric strings).
  */
 export const CREATE_CATEGORY_OPTION = "__create_category__";
+const EMPTY_PLANNING_TRACKS: PlanningTrack[] = [];
+const NOOP_MANAGE_PLANNING_TRACKS = () => undefined;
 
 /**
  * Wizard step 1 "Termin": the fields that make an event savable on their own —
@@ -86,6 +92,7 @@ export function StepTermin({
   fieldErrors,
   rooms,
   categories,
+  planningTracks = EMPTY_PLANNING_TRACKS,
   loadingRefs,
   expanded,
   isSeriesFlow,
@@ -94,6 +101,8 @@ export function StepTermin({
   listKindTouched,
   canManageCategories,
   onManageCategories,
+  canManagePlanningTracks = false,
+  onManagePlanningTracks = NOOP_MANAGE_PLANNING_TRACKS,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -208,6 +217,47 @@ export function StepTermin({
                 loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"
               }
             />
+          </Field>
+
+          <Field
+            label="Planungsspur"
+            htmlFor="event_planning_track"
+            action={
+              canManagePlanningTracks ? (
+                <button
+                  type="button"
+                  onClick={() => onManagePlanningTracks("list")}
+                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                >
+                  Verwalten
+                </button>
+              ) : undefined
+            }
+          >
+            <CustomSelect
+              id="event_planning_track"
+              ariaLabel="Planungsspur"
+              value={form.planningTrackId}
+              options={[
+                { value: "", label: "Keine Planungsspur" },
+                ...planningTracks
+                  .filter(
+                    (track) =>
+                      !track.archivedAt || track.id === form.planningTrackId,
+                  )
+                  .map((track) => ({
+                    value: track.id,
+                    label: track.archivedAt
+                      ? `${track.name} (archiviert)`
+                      : track.name,
+                  })),
+              ]}
+              onChange={(next) => update("planningTrackId", next)}
+              disabled={loadingRefs}
+            />
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Optional. Farbe und Reihenfolge gelten im Betreuungsplan.
+            </p>
           </Field>
         </>
       )}
