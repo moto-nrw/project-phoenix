@@ -187,6 +187,12 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 	if staffID <= 0 || deletedBy <= 0 {
 		return fmt.Errorf("%w: staff id and deleting staff id are required", ErrVacationOpeningInvalid)
 	}
+	// Serialize the load, tombstone, and delete with SetVacationOpening and
+	// other absence writes. Without this lock, concurrent deletes can both
+	// snapshot the opening and write duplicate tombstones before one removes it.
+	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff absence writes: %w", err)
+	}
 	opening, err := s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
 	if err != nil {
 		return fmt.Errorf("failed to load vacation opening: %w", err)
