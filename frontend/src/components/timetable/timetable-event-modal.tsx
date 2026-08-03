@@ -156,6 +156,7 @@ export function TimetableEventModal({
     form,
     update,
     updateRepeat,
+    selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,
@@ -281,8 +282,12 @@ export function TimetableEventModal({
     );
     if (!period) return null;
     const today = berlinTodayISO();
-    const from =
-      initialSeries && today > period.startDate ? today : period.startDate;
+    // Serien-Edits schauen ab heute nach vorn. Neue und umgewandelte Serien
+    // beginnen am gewählten Datum (#2135): frühere Slots werden nie
+    // materialisiert und dürfen die Rückfrage nicht auslösen.
+    // materializedRecurrenceDates klemmt beide Untergrenzen auf den
+    // Periodenstart.
+    const from = initialSeries ? today : form.date;
     const validity = initialSeries?.schedules[0];
     const dates = materializedRecurrenceDates({
       period,
@@ -490,6 +495,7 @@ export function TimetableEventModal({
                 loadingRefs={loadingRefs}
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
+                isEditingSeries={isEditingSeries}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}
@@ -502,6 +508,7 @@ export function TimetableEventModal({
                 form={form}
                 update={update}
                 updateRepeat={updateRepeat}
+                selectCalendarPeriod={selectCalendarPeriod}
                 toggleWeekday={toggleWeekday}
                 fieldErrors={fieldErrors}
                 calendarPeriods={calendarPeriods}

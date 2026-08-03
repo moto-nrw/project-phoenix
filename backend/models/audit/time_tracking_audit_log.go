@@ -18,6 +18,7 @@ const (
 	AuditLogSourceMonthReopen     = "month_reopen"
 	AuditLogSourceDeletion        = "deletion"
 	AuditLogSourcePersonnelNumber = "personnel_number"
+	AuditLogSourceVacationOpening = "vacation_opening"
 )
 
 // ValidAuditLogSources lists every accepted `sources` filter value.
@@ -29,6 +30,7 @@ var ValidAuditLogSources = []string{
 	AuditLogSourceMonthReopen,
 	AuditLogSourceDeletion,
 	AuditLogSourcePersonnelNumber,
+	AuditLogSourceVacationOpening,
 }
 
 // TimeTrackingAuditLogEntry is one event in the merged feed: the common

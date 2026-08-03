@@ -32,6 +32,7 @@ import { timetableService } from "~/lib/timetable-api";
 import {
   chunkDateRange,
   getGermanWeekdayLong,
+  latestISODate,
   materializedRecurrenceDates,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
@@ -652,8 +653,16 @@ export function useEventForm({
     );
     if (!period) return [];
     const today = berlinTodayISO();
-    const from =
-      initialSeries && today > period.startDate ? today : period.startDate;
+    // #2135: a series starts at its start date, not the period start. For a
+    // new series that is the picked Datum; a stored series keeps the
+    // schedules' validFrom. Never probe dates the materializer skips.
+    const from = initialSeries
+      ? latestISODate(
+          period.startDate,
+          today,
+          initialSeries.schedules[0]?.validFrom ?? "",
+        )
+      : latestISODate(period.startDate, form.date || "");
     const shared = {
       startTime: form.startTime,
       endTime: form.endTime,
@@ -679,7 +688,7 @@ export function useEventForm({
       if (
         convertInstance &&
         form.date &&
-        !usePerWeekday &&
+        (!usePerWeekday || group.weekdays.includes(isoWeekday(form.date))) &&
         !dates.includes(form.date)
       ) {
         dates.push(form.date);
@@ -930,6 +939,40 @@ export function useEventForm({
     clearFieldError("weekPattern");
   };
 
+  /**
+   * Period selection for the series wizard. #2135 made the picked Datum the
+   * series start, but schools pre-plan the next school year while the
+   * wizard's Datum still defaults to today — hard-blocking on the wizard's
+   * own default would be hostile. So when the chosen period does not contain
+   * the current Datum, move it to the first materializing occurrence inside
+   * the period (WYSIWYG: the field keeps showing the real series start). A Datum
+   * the user afterwards moves out of the period still fails validation.
+   * Series edits keep their stored start; the convert seed date is the
+   * instance's own date and must never be moved implicitly.
+   */
+  const selectCalendarPeriod = (nextId: string) => {
+    update("calendarPeriodId", nextId);
+    if (isEditingSeries || convertInstance) return;
+    const period = calendarPeriods.find((candidate) => candidate.id === nextId);
+    if (
+      !period ||
+      !form.date ||
+      (form.date >= period.startDate && form.date <= period.endDate)
+    ) {
+      return;
+    }
+    // The A/B predicate must apply too: with "Alle 2 Wochen" the first
+    // selected weekday can sit in the other week slot, and a start_date the
+    // materializer skips would start the series a week after the shown date.
+    const firstOccurrence = materializedRecurrenceDates({
+      period,
+      fromISO: period.startDate,
+      weekdays: form.weekdays,
+      weekPattern: form.weekPattern,
+    })[0];
+    update("date", firstOccurrence ?? period.startDate);
+  };
+
   const toggleWeekday = (iso: number) => {
     setForm((prev) => {
       const has = prev.weekdays.includes(iso);
@@ -1111,6 +1154,19 @@ export function useEventForm({
       const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
       if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
         errors.calendarPeriodId = "Bitte einen Planungszeitraum auswählen.";
+      }
+      // #2135: the picked Datum is the series start for new series; it must
+      // lie inside the selected period. Series edits keep their stored start.
+      if (!isEditingSeries && form.date !== "") {
+        const period = calendarPeriods.find(
+          (candidate) => candidate.id === form.calendarPeriodId,
+        );
+        if (
+          period &&
+          (form.date < period.startDate || form.date > period.endDate)
+        ) {
+          errors.date = "Das Datum muss im gewählten Planungszeitraum liegen.";
+        }
       }
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
@@ -1479,6 +1535,11 @@ export function useEventForm({
     followUpOk: boolean;
   }> => {
     const period = findPeriod(form.calendarPeriodId);
+    // #2135: the picked Datum is stamped as the schedules' valid_from, which
+    // makes the materializer skip this series before its start on its own.
+    // The windows still span the whole period because materialization is
+    // tenant-wide — narrowing them would stop backfilling other templates
+    // that begin earlier in the period.
     const chunks = period
       ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
       : [];
@@ -1486,6 +1547,7 @@ export function useEventForm({
     if (!firstChunk) {
       const created = await timetableService.createTemplate({
         ...body,
+        start_date: form.date || undefined,
         materialize_from: weekFrom,
         materialize_to: weekTo,
       });
@@ -1497,6 +1559,7 @@ export function useEventForm({
     }
     const created = await timetableService.createTemplate({
       ...body,
+      start_date: form.date || undefined,
       materialize_from: firstChunk.from,
       materialize_to: firstChunk.to,
     });
@@ -1528,6 +1591,10 @@ export function useEventForm({
    */
   const materializePeriodAfterConvert = async (): Promise<boolean> => {
     const period = findPeriod(form.calendarPeriodId);
+    // #2135: the converted instance's date is the series start; the
+    // schedules' valid_from skips earlier dates for this series, while the
+    // tenant-wide window keeps backfilling other templates from the period
+    // start.
     const chunks = period
       ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
       : [];
@@ -1642,9 +1709,11 @@ export function useEventForm({
       }
 
       if (convertInstance) {
-        const created = await timetableService.createTemplate(
-          seriesBody(parsed.roomId, parsed.categoryId),
-        );
+        const created = await timetableService.createTemplate({
+          ...seriesBody(parsed.roomId, parsed.categoryId),
+          // #2135: the repeated instance's date is the series start.
+          start_date: form.date || undefined,
+        });
         await timetableService.update(convertInstance.id, {
           ...instanceBody(parsed.roomId, created.templateId),
           // The value entered during conversion belongs to the new series.
@@ -1719,7 +1788,12 @@ export function useEventForm({
     ) {
       return null;
     }
-    const from = fromISO > period.startDate ? fromISO : period.startDate;
+    // #2135: never probe before the segment's own series start (validFrom).
+    const from = latestISODate(
+      period.startDate,
+      fromISO,
+      template.schedules[0]?.validFrom ?? "",
+    );
     let dates = weekdayDatesInRange(from, period.endDate, body.weekdays);
     // Without replanActivityGroupId the backend cannot apply the segment's
     // validity envelope, so the probe caps itself at the schedules'
@@ -2316,6 +2390,7 @@ export function useEventForm({
     form,
     update,
     updateRepeat,
+    selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,

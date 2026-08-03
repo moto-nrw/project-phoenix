@@ -56,7 +56,7 @@ type TimeExportRequest struct {
 // MonthExportRow is one staff member's month as the payroll file shows it.
 // Every minute value is copied from the MonthSummary of the very same code
 // path the Monatskarte uses — no arithmetic happens on the way here except
-// splitting the adjustment sum by type (payout / comp_time / reset are the
+// splitting the adjustment sum by type (payout / comp_time / reset / opening are the
 // categories that later become Lohnarten).
 type MonthExportRow struct {
 	StaffID        int64
@@ -83,6 +83,7 @@ type MonthExportRow struct {
 	PayoutMinutes   int
 	CompTimeMinutes int
 	ResetMinutes    int
+	OpeningMinutes  int
 
 	BalanceMinutes int
 	// ClosingBalanceMinutes is the AUTHORITATIVE month-end carry: the frozen

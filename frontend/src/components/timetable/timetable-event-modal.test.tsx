@@ -626,6 +626,46 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
   });
 
+  // #2135: a new series starts at the picked Datum. Occurrences before it can
+  // never be materialized, so a closing day before the start must not trigger
+  // the question.
+  it("ignores closing days before the series start date", async () => {
+    renderModal({
+      variant: "quick",
+      defaultDate: "2026-05-11",
+      closingDayRanges: [
+        {
+          startDate: "2026-05-04",
+          endDate: "2026-05-04",
+          reason: "Konzeptionstag",
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Montagsangebot" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: "2026-05-11" }),
+      ),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("filters and bulk-selects visible student rows", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [
@@ -1292,9 +1332,12 @@ describe("TimetableEventModal", () => {
     );
     await clickSave();
 
-    // The create call carries the first 56-day window of the period
-    // (2026-05-01 … 2026-12-31); the remaining four windows follow as
-    // separate materialize calls.
+    // #2135: the picked Datum (2026-05-04) is the series start — it travels
+    // as start_date and becomes the schedules' valid_from. The
+    // materialization windows still cover the whole period
+    // (2026-05-01 … 2026-12-31) because they run tenant-wide and must keep
+    // backfilling earlier-starting templates; the create call carries the
+    // first 56-day window, the remaining four follow as materialize calls.
     await waitFor(() =>
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1303,6 +1346,7 @@ describe("TimetableEventModal", () => {
           room_id: 3,
           category_id: 2,
           calendar_period_id: 5,
+          start_date: "2026-05-04",
           materialize_from: "2026-05-01",
           materialize_to: "2026-06-25",
           primary_staff_id: 11,
@@ -1323,6 +1367,168 @@ describe("TimetableEventModal", () => {
       "Regeltermin angelegt: 6 Termine eingetragen",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  // #2135: the picked Datum becomes the series start, so it must lie inside
+  // the selected planning period.
+  it("rejects a series start date outside the selected period", async () => {
+    renderModal({ showPeriodField: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2026/2027",
+    );
+    await goToStep(1);
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-02-01" },
+    });
+    // Datum is a step-0 field, so "Weiter" already blocks on the violation.
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+  });
+
+  // #2135 follow-up: schools pre-plan the next school year while the wizard's
+  // Datum still defaults to today. Selecting a period that does not contain
+  // the Datum moves it to the first selected weekday inside the period
+  // instead of hard-blocking on the wizard's own default.
+  it("moves the Datum into a future period on period selection", async () => {
+    const futurePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Schuljahr 2027/2028",
+      startDate: "2027-08-01",
+      endDate: "2028-07-31",
+      weekCycleAnchor: "2027-08-02",
+    };
+    const { onSaved } = renderModal({
+      showPeriodField: true,
+      calendarPeriods: [...periods, futurePeriod],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2027/2028",
+    );
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await clickSave();
+
+    // defaultDate 2026-05-04 is a Monday; the first Monday inside the
+    // future period is 2027-08-02. Materialization still spans the whole
+    // period (tenant-wide backfill), starting at 2027-08-01.
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendar_period_id: 9,
+          start_date: "2027-08-02",
+          materialize_from: "2027-08-01",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" }),
+    );
+  });
+
+  // The A/B predicate applies to the moved Datum too: with "Alle 2 Wochen"
+  // the first selected weekday inside the future period can sit in the other
+  // week slot, which the materializer would skip; the series would then start
+  // a week after the displayed date.
+  it("moves the Datum onto the matching A/B week when biweekly is selected", async () => {
+    const abPeriod: CalendarPeriod = {
+      ...periods[0]!,
+      weekCycleLength: 2,
+    };
+    const futurePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Schuljahr 2027/2028",
+      startDate: "2027-08-01",
+      endDate: "2028-07-31",
+      weekCycleLength: 2,
+      // Anchor 2027-08-09: the period's first Monday (2027-08-02) falls into
+      // Woche B, the series' Woche A first materializes on 2027-08-09.
+      weekCycleAnchor: "2027-08-09",
+    };
+    renderModal({
+      showPeriodField: true,
+      calendarPeriods: [abPeriod, futurePeriod],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    // defaultDate 2026-05-04 is Woche A of the current period.
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2027/2028",
+    );
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendar_period_id: 9,
+          week_pattern: 1,
+          start_date: "2027-08-09",
+          materialize_from: "2027-08-01",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeNull();
   });
 
   it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
@@ -1804,12 +2010,19 @@ describe("TimetableEventModal", () => {
 
     await screen.findByText("Termin wiederholen");
     await clickSave();
-    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+    // #2135: the repeated instance's date (2026-05-04) is the series start.
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: "2026-05-04" }),
+      ),
+    );
     expect(mockUpdate).toHaveBeenCalledWith(
       "42",
       expect.objectContaining({ activity_group_id: 8 }),
     );
-    // Conversion materializes the whole period in 56-day chunks.
+    // Conversion materializes the whole period in 56-day chunks — the
+    // series' own valid_from skips its dates before the start, while the
+    // tenant-wide run keeps backfilling earlier-starting templates.
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalledTimes(5));
     expect(mockMaterialize).toHaveBeenNthCalledWith(
       1,
@@ -1976,6 +2189,9 @@ describe("TimetableEventModal", () => {
           weekdays: [1, 2, 3, 4, 5],
           week_pattern: 0,
           calendar_period_id: 5,
+          // #2135: the picked Datum is the series start; the materialize
+          // window still spans the period for tenant-wide backfill.
+          start_date: "2026-05-04",
           materialize_from: "2026-05-01",
           materialize_to: "2026-06-25",
         }),

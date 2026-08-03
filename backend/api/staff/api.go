@@ -172,6 +172,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/adjustments", rs.createBalanceAdjustment)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/time-tracking/adjustments/{adjustmentId}", rs.deleteBalanceAdjustment)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/reset", rs.resetStaffBalance)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/opening", rs.createOpeningBalance)
+
+		// Vacation takeover at the moto introduction (#2132)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/vacation/opening", rs.setVacationOpening)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/vacation/opening", rs.deleteVacationOpening)
 
 		// Monatsabschluss (#1417): freezing the carry chain is school-wide,
 		// reopening is per staff member. Static segments before /{id} are

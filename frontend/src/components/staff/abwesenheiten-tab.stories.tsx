@@ -11,9 +11,28 @@ const quota: StaffVacationQuotaSummary = {
   year: new Date().getFullYear(),
   entitled_days: 30,
   carryover_days: 2,
+  taken_before_days: 0,
   taken_days: 8,
   reserved_days: 3,
   remaining_days: 21,
+};
+
+// Urlaubs-Übernahme zum Go-live-Stichtag (#2132).
+const quotaWithOpening: StaffVacationQuotaSummary = {
+  ...quota,
+  taken_before_days: 6,
+  remaining_days: 15,
+  opening: {
+    id: "7",
+    staff_id: "1",
+    year: quota.year,
+    effective_date: `${quota.year}-02-28`,
+    taken_before_days: 6,
+    entered_remaining_days: 26,
+    note: "Übernahme aus Urlaubsliste, Stand 28.02.",
+    decided_by: "4",
+    decided_at: `${quota.year}-03-01T08:00:00Z`,
+  },
 };
 
 const pendingAbsence: StaffAbsenceRow = {
@@ -101,6 +120,16 @@ export const ReadOnly: Story = {
   },
   beforeEach: () =>
     withMockedAbsences([pendingAbsence, upcomingAbsence, historyAbsence]),
+};
+
+export const WithVacationOpening: Story = {
+  args: {
+    staffId: "1",
+    canEdit: true,
+    canManageSickReports: true,
+  },
+  beforeEach: () =>
+    withMockedAbsences([upcomingAbsence, historyAbsence], quotaWithOpening),
 };
 
 export const Empty: Story = {

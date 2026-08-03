@@ -13,6 +13,7 @@ import {
   type Grouper,
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
@@ -346,6 +347,18 @@ function TeachersPageContent() {
                   </Link>
                 </>
               ) : null}
+              {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
+                  Begründung, deshalb im Menü statt als weiterer Button. */}
+              <OverflowMenu
+                ariaLabel="Weitere Import-Aktionen"
+                items={[
+                  {
+                    label: "Eröffnungssalden importieren",
+                    href: "/database/personal/opening-balances",
+                    onClick: () => undefined,
+                  },
+                ]}
+              />
               {canManageUsers ? (
                 <DatabaseCreateAction
                   label="Personal"

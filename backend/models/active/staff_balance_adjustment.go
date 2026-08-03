@@ -16,10 +16,14 @@ import (
 //     (the day-based variant is the comp_time ABSENCE type, which reduces
 //     the balance via its uncredited Soll — never both for the same grant)
 //   - reset:     school-year reset; delta = carryover − closing balance
+//   - opening:   go-live opening balance (#2132); delta = target − closing
+//     balance as of the Stichtag. The only type whose resulting balance may
+//     be negative — migrated accounts start where the old system left them.
 const (
 	BalanceAdjustmentTypePayout   = "payout"
 	BalanceAdjustmentTypeCompTime = "comp_time"
 	BalanceAdjustmentTypeReset    = "reset"
+	BalanceAdjustmentTypeOpening  = "opening"
 )
 
 // ValidBalanceAdjustmentTypes lists all valid balance adjustment types.
@@ -27,6 +31,7 @@ var ValidBalanceAdjustmentTypes = []string{
 	BalanceAdjustmentTypePayout,
 	BalanceAdjustmentTypeCompTime,
 	BalanceAdjustmentTypeReset,
+	BalanceAdjustmentTypeOpening,
 }
 
 // StaffBalanceAdjustment is one Stundenkonto correction transaction (#1420).

@@ -70,7 +70,12 @@ type createTemplateRequest struct {
 	ListKind *string `json:"list_kind,omitempty"`
 	// Notes is the optional durable Wochennotiz for the template; it shows on
 	// every materialized instance and survives Re-Plan/Split.
-	Notes           *string `json:"notes,omitempty"`
+	Notes *string `json:"notes,omitempty"`
+	// StartDate is the optional series start (YYYY-MM-DD, #2135): no instances
+	// are materialized before it and the initial roster becomes valid from it.
+	// Must lie within the calendar period when one is pinned. Omitted = the
+	// series starts with the planning period (legacy behavior).
+	StartDate       *string `json:"start_date,omitempty"`
 	MaterializeFrom *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo   *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
@@ -191,6 +196,9 @@ type parsedCreateTemplate struct {
 	endTime         time.Time
 	weekPattern     int
 	maxParticipants int
+	// startDate is the parsed optional series start; nil = start with the
+	// planning period.
+	startDate *timezone.Date
 }
 
 // parseCreateTemplateRequest binds and format-validates the request. Format
@@ -210,12 +218,23 @@ func parseCreateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 	if !ok {
 		return nil, false
 	}
+	var startDate *timezone.Date
+	if req.StartDate != nil {
+		parsed, err := berlinDate(*req.StartDate)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(
+				errors.New("invalid start_date format, expected YYYY-MM-DD")))
+			return nil, false
+		}
+		startDate = &parsed
+	}
 	return &parsedCreateTemplate{
 		req:             req,
 		startTime:       timing.startTime,
 		endTime:         timing.endTime,
 		weekPattern:     timing.weekPattern,
 		maxParticipants: timing.maxParticipants,
+		startDate:       startDate,
 	}, true
 }
 
@@ -240,7 +259,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID)
+	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, parsed.startDate)
 	if !ok {
 		return
 	}
@@ -310,6 +329,7 @@ func buildCreateTemplateInput(
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		CreatedBy:          createdByPtr,
 		RosterValidFrom:    rosterValidFrom,
+		ScheduleValidFrom:  parsed.startDate,
 		GradeLevelMax:      gradeLevelMax,
 	}
 }

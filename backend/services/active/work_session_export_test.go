@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -463,7 +464,12 @@ func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
 	assert.Equal(t, "'=1+1", records[1][0])
 	assert.Equal(t, "'+SUM(A1:A2)", records[1][1])
 	assert.Equal(t, "'@legacy", records[1][2])
-	assert.Equal(t, "-1,50", records[1][18], "trusted negative durations must remain numeric CSV values")
+	// Located by header, not by a fixed index: the column set grows (#2132
+	// inserted "Eröffnungssaldo" ahead of it) and a hardcoded offset turns a
+	// column addition into an unrelated sanitizer failure.
+	balanceColumn := slices.Index(records[0], "Saldo Monat")
+	require.GreaterOrEqual(t, balanceColumn, 0, "month export must carry a Saldo Monat column")
+	assert.Equal(t, "-1,50", records[1][balanceColumn], "trusted negative durations must remain numeric CSV values")
 
 	dayData, err := writeDayCSV([]dayExportBlockRow{{
 		LastName:  "-danger",

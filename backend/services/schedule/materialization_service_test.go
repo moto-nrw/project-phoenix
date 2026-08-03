@@ -1106,3 +1106,22 @@ func TestScheduleEndedOn(t *testing.T) {
 	assert.False(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date.AddDays(-1)),
 		"dates before valid_until still materialize")
 }
+
+// -----------------------------------------------------------------------------
+// TestScheduleNotStartedOn — #2135: schedules with a series start (valid_from,
+// inclusive) produce no instances before that date.
+// -----------------------------------------------------------------------------
+
+func TestScheduleNotStartedOn(t *testing.T) {
+	date := timezone.NewDate(2026, time.August, 13)
+	from := timezone.NewDate(2026, time.August, 13)
+
+	assert.False(t, scheduleNotStartedOn(nil, date), "nil schedule never matches")
+	assert.False(t, scheduleNotStartedOn(&activities.Schedule{}, date), "nil valid_from = open start")
+	assert.False(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date),
+		"valid_from is inclusive: the schedule materializes ON that date")
+	assert.False(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date.AddDays(1)),
+		"dates after valid_from materialize")
+	assert.True(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date.AddDays(-1)),
+		"dates before valid_from must not materialize")
+}

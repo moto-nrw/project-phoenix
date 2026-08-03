@@ -31,6 +31,7 @@ function renderStep(
       loadingRefs={false}
       expanded
       isSeriesFlow
+      isEditingSeries={false}
       quickPreset=""
       listKindTouched={createRef<boolean>() as React.RefObject<boolean>}
       canManageCategories

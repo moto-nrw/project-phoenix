@@ -708,6 +708,11 @@ function StaffPageContent() {
           monthIsOver={!isCurrentOrFutureMonth}
           onCloseMonth={() => setShowCloseModal(true)}
           onExport={() => setShowExportModal(true)}
+          onOpeningBalances={
+            userIsAdmin
+              ? () => router.push("/database/personal/opening-balances")
+              : undefined
+          }
           isLoading={accountsLoading && !accounts}
           error={
             accountsError ? "Zeitkonten konnten nicht geladen werden." : null

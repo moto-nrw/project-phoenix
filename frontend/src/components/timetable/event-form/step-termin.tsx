@@ -51,6 +51,11 @@ export interface StepTerminProps {
   loadingRefs: boolean;
   expanded: boolean;
   isSeriesFlow: boolean;
+  /**
+   * True when a stored Regeltermin is edited. The Datum then does not move
+   * the series start (#2135) — the hint under the field says so.
+   */
+  isEditingSeries: boolean;
   quickPreset: string;
   // Flipped true the moment the user changes Listenart, so an all/following
   // series edit writes the new value instead of echoing the fetched template
@@ -84,6 +89,7 @@ export function StepTermin({
   loadingRefs,
   expanded,
   isSeriesFlow,
+  isEditingSeries,
   quickPreset,
   listKindTouched,
   canManageCategories,
@@ -292,6 +298,17 @@ export function StepTermin({
               }
             }}
           />
+          {isSeriesFlow && !isEditingSeries && (
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Die Serie beginnt an diesem Datum. Frühere Termine werden nicht
+              angelegt.
+            </p>
+          )}
+          {isEditingSeries && (
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Der Serienbeginn bleibt unverändert.
+            </p>
+          )}
         </Field>
         <Field label="Start" htmlFor="event_start" required>
           <Input

@@ -38,5 +38,8 @@ func (q *StaffVacationQuota) Validate() error {
 	if q.CarryoverDays < minQuotaDays || q.CarryoverDays > maxQuotaDays {
 		return errors.New("carryover_days out of range")
 	}
+	if !hasOneDecimalPlace(q.EntitledDays) || !hasOneDecimalPlace(q.CarryoverDays) {
+		return errors.New("vacation quota days must have at most one decimal place")
+	}
 	return nil
 }

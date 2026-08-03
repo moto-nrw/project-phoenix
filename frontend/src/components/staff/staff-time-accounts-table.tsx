@@ -91,6 +91,9 @@ interface Props {
   /** Öffnet den Cross-MA-Export-Dialog (#1417 2b). Optional, damit rein
    *  lesende Einbettungen keinen toten Button zeigen. */
   readonly onExport?: () => void;
+  /** Führt zum Eröffnungssalden-Import (#2132). Optional, weil der Import in
+   *  der Datenverwaltung liegt und damit nur Admins offensteht. */
+  readonly onOpeningBalances?: () => void;
   readonly isLoading: boolean;
   readonly error: string | null;
   readonly onRowClick: (row: TimeAccountRow) => void;
@@ -117,6 +120,7 @@ export function StaffTimeAccountsTable({
   monthIsOver,
   onCloseMonth,
   onExport,
+  onOpeningBalances,
   isLoading,
   error,
   onRowClick,
@@ -290,6 +294,17 @@ export function StaffTimeAccountsTable({
             >
               <Download className="mr-1 h-3 w-3" />
               Exportieren
+            </Button>
+          )}
+          {onOpeningBalances && (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              onClick={onOpeningBalances}
+              title="Stundenkonto- und Urlaubsstände aus dem Altsystem übernehmen"
+            >
+              Eröffnungssalden importieren
             </Button>
           )}
           {monthClose !== null && !monthClose.closed && (
