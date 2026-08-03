@@ -142,6 +142,10 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if periodID == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id is required when loading a template for editing")))
+		return
+	}
 	templates, err := rs.loadTemplates(r.Context(), &id, periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))

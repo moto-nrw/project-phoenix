@@ -202,6 +202,58 @@ func TestCreateTemplate_WithoutWeekdayAssignments_KeepsOneSharedRoster(t *testin
 	}
 }
 
+func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	tuesday := monday.AddDays(1)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:            fmt.Sprintf("Primary-Scope-%d", time.Now().UnixNano()),
+		Type:            activitiesModels.GroupTypeCare,
+		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		StartTime:       clockTime(14, 0),
+		EndTime:         clockTime(15, 0),
+		RoomID:          s.roomID,
+		CategoryID:      s.categoryID,
+		MaxParticipants: 20,
+		RosterValidFrom: monday.AddDays(-30),
+		GradeLevelMax:   4,
+		StaffIDs:        []int64{s.staffA},
+		PrimaryStaffID:  &s.staffA,
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	weekday := activitiesModels.WeekdayMonday
+	require.NoError(t, repositories.NewFactory(s.db).ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+		StaffID:          s.staffB,
+		GroupID:          result.TemplateID,
+		IsPrimary:        true,
+		ValidFrom:        monday.AddDays(-30),
+		CalendarPeriodID: &s.periodID,
+		Weekday:          &weekday,
+	}))
+
+	openRows := s.openSupervisorRows(t, result.TemplateID)
+	require.Len(t, openRows, 2)
+	assert.True(t, openRows[0].IsPrimary)
+	assert.True(t, openRows[1].IsPrimary, "the exact-scope trigger must preserve both fallback scopes")
+
+	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+
+	mondayInstance := s.singleInstance(t, result.TemplateID, monday)
+	tuesdayInstance := s.singleInstance(t, result.TemplateID, tuesday)
+	assert.ElementsMatch(t, []int64{s.staffA, s.staffB}, s.instanceStaffIDs(t, mondayInstance))
+	assert.False(t, s.instanceHasPrimary(t, mondayInstance, s.staffA))
+	assert.True(t, s.instanceHasPrimary(t, mondayInstance, s.staffB),
+		"the scoped Monday primary must win over the shared fallback")
+	assert.Equal(t, []int64{s.staffA}, s.instanceStaffIDs(t, tuesdayInstance))
+	assert.True(t, s.instanceHasPrimary(t, tuesdayInstance, s.staffA),
+		"the shared primary must remain responsible outside the override")
+}
+
 // Editing the series replaces the per-weekday roster wholesale, including
 // dropping back to a single shared roster when the planner turns the
 // per-weekday mode off again.

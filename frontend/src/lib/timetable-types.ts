@@ -473,7 +473,7 @@ export interface BackendTimetableTemplate {
   staff_ids?: number[];
   primary_staff_id?: number;
   schedules: BackendTemplateSchedule[];
-  weekday_assignments?: BackendTemplateWeekdayAssignment[];
+  weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
 }
 
 interface BackendTemplateWeekdayAssignment {

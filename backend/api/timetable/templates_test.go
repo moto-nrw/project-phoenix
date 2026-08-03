@@ -321,6 +321,8 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 
 	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
 	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+	assert.Contains(t, listW.Body.String(), `"weekday_assignments":null`,
+		"a period-free catalog read must not claim an editable shared roster")
 	list := decodeTemplateData[listTemplatesResponse](t, listW)
 	var tpl templateResponse
 	for _, candidate := range list.Templates {
@@ -345,8 +347,16 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	assert.Equal(t, "12:00", tpl.Schedules[0].StartTime)
 	assert.Equal(t, "12:50", tpl.Schedules[0].EndTime)
 	assert.Equal(t, 1, tpl.Schedules[0].WeekPattern)
+	assert.Nil(t, tpl.WeekdayAssignments,
+		"a period-free catalog read must mark weekday rosters as not loaded")
 
-	getW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	missingPeriodW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	require.Equal(t, http.StatusBadRequest, missingPeriodW.Code, "body=%s", missingPeriodW.Body.String())
+
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Editable-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 	got := decodeTemplateData[templateResponse](t, getW)
 	assert.Equal(t, created.TemplateID, got.ID)
@@ -520,7 +530,10 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	created := decodeTemplateData[createTemplateResponse](t, w)
 
-	getW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Zielgruppe-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 	got := decodeTemplateData[templateResponse](t, getW)
 	assert.Equal(t, activitiesModel.TargetGroupTypeJahrgang, got.TargetGroupType)
@@ -700,7 +713,13 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 		})
 	}
 
-	getMissing := doTemplateJSON(t, router, http.MethodGet, "/templates/500", nil)
+	missingPeriod := doTemplateJSON(t, router, http.MethodGet, "/templates/500", nil)
+	assert.Equal(t, http.StatusBadRequest, missingPeriod.Code)
+
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Missing-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+	getMissing := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/500?period_id=%d", period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, getMissing.Code)
 
 	r := chi.NewRouter()
@@ -1086,7 +1105,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		assert.Equal(t, 2, tplGlobal.AssignedStaffCount,
 			"bounded period P staff counts on its actual dates; period Q staff stays excluded")
 		globalDetailW := doTemplateJSON(t, router, http.MethodGet,
-			fmt.Sprintf("/templates/%d", createdGlobal.TemplateID), nil)
+			fmt.Sprintf("/templates/%d?period_id=%d", createdGlobal.TemplateID, periodP.ID), nil)
 		require.Equal(t, http.StatusOK, globalDetailW.Code, "body=%s", globalDetailW.Body.String())
 		globalDetail := decodeTemplateData[templateResponse](t, globalDetailW)
 		assert.Equal(t, 3, globalDetail.RequiredStaffCount,
@@ -1101,7 +1120,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			"bounded enrollment overlapping P must still drive capacity")
 
 		getW := doTemplateJSON(t, router, http.MethodGet,
-			fmt.Sprintf("/templates/%d", createdBounded.TemplateID), nil)
+			fmt.Sprintf("/templates/%d?period_id=%d", createdBounded.TemplateID, periodP.ID), nil)
 		require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 		boundedDetail := decodeTemplateData[templateResponse](t, getW)
 		assert.Equal(t, 1, boundedDetail.RequiredStaffCount,
@@ -1177,7 +1196,8 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			"the unfiltered list must use actual occurrences instead of the display-roster union")
 		assert.Equal(t, 1, unfiltered.AssignedStaffCount)
 
-		detailW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", templateID), nil)
+		detailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d?period_id=%d", templateID, period.ID), nil)
 		require.Equal(t, http.StatusOK, detailW.Code, "body=%s", detailW.Body.String())
 		detail := decodeTemplateData[templateResponse](t, detailW)
 		assert.Equal(t, 1, detail.RequiredStaffCount,

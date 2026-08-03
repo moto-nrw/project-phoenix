@@ -111,8 +111,12 @@ func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
 	// The "one primary supervisor per group" trigger predates per-weekday
 	// staffing: it clears is_primary on EVERY other row of the group, so a
 	// Tuesday "Zuständige Person" would silently unset the Monday one. Scope
-	// it to the calendar period and weekday, NULL-safely — with every row on
-	// the legacy NULL scope the behaviour is byte-for-byte what it was before.
+	// it to the exact calendar period and weekday, NULL-safely — with every row
+	// on the legacy NULL scope the behaviour is byte-for-byte what it was
+	// before. NULL scopes overlap concrete scopes at materialization time, but
+	// cannot be cleared here: disabling a shared primary for a Monday override
+	// would also remove it from Tuesday. The materializer resolves those
+	// overlaps by preferring the most specific applicable primary row.
 	if _, err := db.NewRaw(`
 		CREATE OR REPLACE FUNCTION activities.ensure_single_primary_supervisor()
 		RETURNS TRIGGER AS $$

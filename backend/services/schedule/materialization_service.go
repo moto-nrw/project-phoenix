@@ -640,6 +640,8 @@ func (s *materializationService) copySupervisors(
 	periodID int64,
 	result *MaterializationResult,
 ) error {
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID)
+
 	// `unique_instance_staff (instance_id, staff_id)` rejects the same staff
 	// on the same instance twice. Same staff on *different* instances at the
 	// same time is a separate concept — surfaced by the conflict_warnings
@@ -662,7 +664,7 @@ func (s *materializationService) copySupervisors(
 		row := &schedule.InstanceStaff{
 			InstanceID:   instanceID,
 			StaffID:      sup.StaffID,
-			IsPrimary:    sup.IsPrimary,
+			IsPrimary:    hasPrimary && sup.StaffID == primaryStaffID,
 			IsSubstitute: false,
 			IsAbsent:     false,
 		}
@@ -821,6 +823,43 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 		return false
 	}
 	return rosterWeekdayApplies(sp.Weekday, date)
+}
+
+// effectivePrimarySupervisor resolves overlapping legacy and scoped primary
+// rows for one concrete occurrence. A NULL period or weekday is a fallback,
+// while an exact period/weekday is more specific and therefore wins. Period
+// specificity precedes weekday specificity because materialization first
+// selects the occurrence's calendar period and then its weekday.
+//
+// The trigger can only enforce uniqueness inside an exact scope: clearing an
+// unscoped legacy row when a Monday override is inserted would also remove the
+// legacy primary from Tuesday. Resolve that overlap here instead, where both
+// the occurrence period and date are known.
+func effectivePrimarySupervisor(
+	supervisors []*activities.SupervisorPlanned,
+	date timezone.Date,
+	periodID int64,
+) (int64, bool) {
+	selectedRank := -1
+	var selectedStaffID, selectedRowID int64
+	for _, supervisor := range supervisors {
+		if !isSupervisorValidOn(supervisor, date, periodID) || !supervisor.IsPrimary {
+			continue
+		}
+		rank := 0
+		if supervisor.CalendarPeriodID != nil {
+			rank += 2
+		}
+		if supervisor.Weekday != nil {
+			rank++
+		}
+		if rank > selectedRank || (rank == selectedRank && supervisor.ID > selectedRowID) {
+			selectedRank = rank
+			selectedStaffID = supervisor.StaffID
+			selectedRowID = supervisor.ID
+		}
+	}
+	return selectedStaffID, selectedRank >= 0
 }
 
 // rosterWeekdayApplies answers whether a weekday-scoped roster row (#2129)

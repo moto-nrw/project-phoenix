@@ -258,6 +258,32 @@ func TestIsSupervisorValidOn(t *testing.T) {
 	assert.False(t, isSupervisorValidOn(nil, targetDay, p100), "nil must be invalid")
 }
 
+func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	tuesday := monday.AddDays(1)
+	periodID := int64(100)
+	mondayWeekday := activities.WeekdayMonday
+
+	supervisors := []*activities.SupervisorPlanned{
+		{Model: modelBase.Model{ID: 1}, StaffID: 10, IsPrimary: true},
+		{
+			Model:            modelBase.Model{ID: 2},
+			StaffID:          20,
+			IsPrimary:        true,
+			CalendarPeriodID: &periodID,
+			Weekday:          &mondayWeekday,
+		},
+	}
+
+	mondayPrimary, ok := effectivePrimarySupervisor(supervisors, monday, periodID)
+	require.True(t, ok)
+	assert.Equal(t, int64(20), mondayPrimary, "the exact period and weekday override must win")
+
+	tuesdayPrimary, ok := effectivePrimarySupervisor(supervisors, tuesday, periodID)
+	require.True(t, ok)
+	assert.Equal(t, int64(10), tuesdayPrimary, "the shared legacy primary remains the fallback")
+}
+
 // -----------------------------------------------------------------------------
 // TestApplyException — cancellation skip + partial modify overrides.
 // -----------------------------------------------------------------------------

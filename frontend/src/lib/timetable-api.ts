@@ -220,15 +220,15 @@ class TimetableService {
 
   /**
    * GET /api/timetable/templates/{id} — single template with schedules,
-   * enrollment and staff assignments. The optional period keeps scoped
+   * enrollment and staff assignments. The required period keeps scoped
    * rosters isolated in the same way as the list endpoint.
    */
   async getTemplate(
     templateId: string,
-    periodId?: string | null,
+    periodId: string,
   ): Promise<TimetableTemplate> {
     const params = new URLSearchParams();
-    if (periodId) params.set("period_id", periodId);
+    params.set("period_id", periodId);
     const response = await fetch(
       `/api/timetable/templates/${templateId}${params.toString() ? `?${params}` : ""}`,
       {

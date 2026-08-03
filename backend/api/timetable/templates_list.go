@@ -267,8 +267,18 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	templates := mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster)
+	if periodID == nil {
+		// Period-free reads support the enrollment catalog, which only needs
+		// template metadata. A nil slice serializes as null and makes clear that
+		// weekday rosters were not loaded; [] would falsely claim that the
+		// template uses only its shared roster and could be saved lossily.
+		for i := range templates {
+			templates[i].WeekdayAssignments = nil
+		}
+	}
 	common.Respond(w, r, http.StatusOK, listTemplatesResponse{
-		Templates: mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster),
+		Templates: templates,
 	}, "Templates retrieved")
 }
 
