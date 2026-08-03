@@ -85,16 +85,18 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
-        <span
-          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
-          style={{
-            backgroundColor: locationStatus.customBgColor,
-            boxShadow: locationStatus.customShadow,
-          }}
-        >
-          <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
-          {locationStatus.label}
-        </span>
+        {!staff.isFinancialProfile ? (
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
+            style={{
+              backgroundColor: locationStatus.customBgColor,
+              boxShadow: locationStatus.customShadow,
+            }}
+          >
+            <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
+            {locationStatus.label}
+          </span>
+        ) : null}
         {menu}
       </div>
     </div>
@@ -125,21 +127,35 @@ export default function StaffDetailContent() {
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canManageAbsences =
+    canEdit ||
+    canManageTimeTracking ||
+    hasPermission(session, "vacation:approve");
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
+  const canEditStammdaten = hasPermission(session, "users:update");
+  // Deliberately NOT users:read: the sections carry HR-file data (birthday,
+  // private address, contract terms), and users:read is held by everyone who
+  // may see the staff list at all — mirrors the backend route gate.
+  const canViewStammdatenSections =
+    canEdit || canManageTimeTracking || canEditStammdaten;
+  const canViewFinancial = hasPermission(session, "staff:financial");
+  const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
 
   const {
     data: staff,
     isLoading,
     error,
   } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
-    staffService.getStaffById(staffId),
+    canViewFinancial && !canViewStammdatenSections
+      ? staffService.getFinancialProfile(staffId)
+      : staffService.getStaffById(staffId),
   );
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
   const { data: pendingForStaff } = useSWRAuth<number>(
-    `staff-pending-absences-${staffId}`,
+    canManageAbsences ? `staff-pending-absences-${staffId}` : null,
     async () => {
       const year = new Date().getFullYear();
       const rows = await staffAbsenceService.getAbsences(
@@ -171,7 +187,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewTimeTracking) {
+  if (!canViewTimeTracking && !canViewStammdaten) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -208,7 +224,13 @@ export default function StaffDetailContent() {
 
       {/* Tabs */}
       <Tabs
-        defaultValue={canViewTimeTracking ? "uebersicht" : "abwesenheiten"}
+        defaultValue={
+          canViewTimeTracking
+            ? "uebersicht"
+            : canViewStammdaten
+              ? "stammdaten"
+              : "abwesenheiten"
+        }
         className="w-full"
       >
         <TabsList
@@ -226,17 +248,19 @@ export default function StaffDetailContent() {
               Arbeitszeitmodell
             </TabsTrigger>
           ) : null}
-          <TabsTrigger value="abwesenheiten">
-            <span className="inline-flex items-center gap-1.5">
-              Abwesenheiten
-              {pendingCount > 0 && (
-                <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
-            </span>
-          </TabsTrigger>
-          {canManageTimeTracking ? (
+          {canManageAbsences ? (
+            <TabsTrigger value="abwesenheiten">
+              <span className="inline-flex items-center gap-1.5">
+                Abwesenheiten
+                {pendingCount > 0 && (
+                  <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+              </span>
+            </TabsTrigger>
+          ) : null}
+          {canViewStammdaten ? (
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
           ) : null}
           {canEdit ? (
@@ -264,21 +288,26 @@ export default function StaffDetailContent() {
           </TabsPrimitive.Content>
         ) : null}
 
-        <TabsPrimitive.Content value="abwesenheiten">
-          <AbwesenheitenTab
-            staffId={staffId}
-            canEdit={canEdit}
-            canManageSickReports={canManageTimeTracking}
-            staff={staff}
-          />
-        </TabsPrimitive.Content>
+        {canManageAbsences ? (
+          <TabsPrimitive.Content value="abwesenheiten">
+            <AbwesenheitenTab
+              staffId={staffId}
+              canEdit={canEdit}
+              canManageSickReports={canManageTimeTracking}
+              staff={staff}
+            />
+          </TabsPrimitive.Content>
+        ) : null}
 
-        {canManageTimeTracking ? (
+        {canViewStammdaten ? (
           <TabsPrimitive.Content value="stammdaten">
             <StammdatenTab
               staffId={staffId}
               canManagePayroll={canManageTimeTracking}
               canManagePayrollSettings={canManagePayrollSettings}
+              canViewSections={canViewStammdatenSections}
+              canEditSections={canEditStammdaten}
+              canViewFinancial={canViewFinancial}
             />
           </TabsPrimitive.Content>
         ) : null}

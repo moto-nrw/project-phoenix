@@ -293,7 +293,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		rs.handleStaffScan(w, r, deviceCtx, person)
 		return
 	}
-	rs.getLogger().InfoContext(ctx, "found student",
+	// Debug, not Info: the school class is an attribute of the child and has no
+	// operational value in retained logs (#2062). Both completion logs carry
+	// student_id.
+	rs.getLogger().DebugContext(ctx, "found student",
 		slog.Int64("student_id", student.ID),
 		slog.String("class", student.SchoolClass),
 	)
@@ -391,10 +394,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 	// Step 13: Build and send response
 	response := buildCheckinResponse(student, result, now)
+	// result.GreetingMsg embeds the child's first name ("Hallo Max!") — kiosk
+	// response only, never a retained log line (#2062).
 	rs.getLogger().InfoContext(ctx, "checkin complete",
 		slog.String("action", result.Action),
 		slog.Int64("student_id", student.ID),
-		slog.String("message", result.GreetingMsg),
 		slog.Any("visit_id", result.VisitID),
 		slog.String("room", result.RoomName),
 	)

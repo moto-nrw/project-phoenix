@@ -53,6 +53,16 @@ type SSEEventType =
   // activity_update), so timetable + own-assignment caches refetch on this
   // instead. See backend/realtime/events.go EventStaffingDeviationChanged.
   | "staffing_deviation_changed"
+  // Tenant-wide signal that WHICH groups a staff member may open in "Meine
+  // Gruppe" changed: a Vertretung created/edited/deleted, a Gruppenübergabe
+  // handed over or taken back, a group's leaders reassigned, or a group
+  // deleted. That set is the union of education.group_teacher and
+  // education.group_substitution, so the event is named for the invariant
+  // rather than for either table. The affected colleague's client makes no
+  // request of its own and no other event covers this. Carries no staff
+  // identity; clients refetch their own access-filtered views. See
+  // backend/realtime/events.go EventGroupAccessChanged.
+  | "group_access_changed"
   // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
   // for the staff inbox / child thread / parent thread to refetch and update
   // the unread badge. See backend/realtime/events.go EventParentMessage.
@@ -77,7 +87,12 @@ type SSEEventType =
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
 
 interface SSEEventData {
-  // Student-related fields (for check-in/check-out events)
+  // Student-related fields (for check-in/check-out events). Only ever present
+  // on GROUP-scoped events and on a guardian's own parent_child_updated —
+  // never on a tenant-wide invalidation, which reaches every staff client of
+  // the school regardless of gdpr.student_data_scope (#2085). Notably
+  // active_supervision_changed and dashboard_counts_changed carry room /
+  // group scope only.
   student_id?: string;
   student_name?: string;
   school_class?: string;

@@ -49,6 +49,7 @@ func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
 		704,
 		retryTime,
 		timezone.DateFromTime(existingCheckIn),
+		checkinTypeToggle,
 	)
 
 	require.NoError(t, err)

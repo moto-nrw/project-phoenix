@@ -19,6 +19,7 @@ export const resourceLabels: Record<string, string> = {
   time_tracking: "Zeiterfassung",
   grade_transitions: "Klassenwechsel",
   calendar: "Kalender",
+  staff: "Mitarbeitende",
 };
 
 export const actionLabels: Record<string, string> = {
@@ -32,6 +33,7 @@ export const actionLabels: Record<string, string> = {
   enroll: "Einschreiben",
   own: "Eigene",
   apply: "Anwenden",
+  financial: "Bank- & Steuerdaten",
   "*": "Alle",
 };
 
@@ -144,6 +146,10 @@ const permissionDescriptions: Record<string, string> = {
 
   // Time Tracking
   "time_tracking:own": "Eigene Arbeitszeiten erfassen",
+
+  // Staff Stammdaten
+  "staff:financial":
+    "Bank- und Steuerdaten von Mitarbeitenden ansehen und bearbeiten (IBAN, Steuer-ID, SV-Nummer)",
 
   // Calendar
   "calendar:own": "Eigenen Kalender nutzen und Einladungen beantworten",

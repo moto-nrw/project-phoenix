@@ -250,6 +250,8 @@ GET /api/notifications/preferences/
 GET /api/notifications/push/public-key
 GET /api/parent-announcements/
 GET /api/parent-announcements/{announcementId}
+GET /api/parent-announcements/{announcementId}/poll-children
+GET /api/parent-announcements/{announcementId}/poll-results
 GET /api/parent-announcements/{announcementId}/recipients
 GET /api/parent-announcements/{announcementId}/stats
 GET /api/platform/announcements/unread
@@ -290,6 +292,7 @@ GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
 GET /api/staff/dashboard-summary
+GET /api/staff/financial-profile/{id}
 GET /api/staff/pin
 GET /api/staff/time-tracking/audit-log
 GET /api/staff/time-tracking/export
@@ -302,6 +305,8 @@ GET /api/staff/{id}/avatar
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
+GET /api/staff/{id}/stammdaten
+GET /api/staff/{id}/stammdaten/bank-steuer
 GET /api/staff/{id}/substitutions
 GET /api/staff/{id}/time-tracking/adjustments
 GET /api/staff/{id}/time-tracking/export
@@ -592,6 +597,7 @@ POST /api/notifications/push/subscriptions
 POST /api/notifications/test
 POST /api/parent-announcements/
 POST /api/parent-announcements/{announcementId}/publish
+POST /api/parent-announcements/{announcementId}/remind
 POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
@@ -616,6 +622,7 @@ POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 POST /api/staff/{id}/time-tracking/adjustments
 POST /api/staff/{id}/time-tracking/month-close/reopen
 POST /api/staff/{id}/time-tracking/reset
@@ -766,6 +773,7 @@ POST /parent/me/feedback/{postId}/vote
 POST /parent/me/messages/children/{studentId}
 POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
+POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
@@ -807,6 +815,11 @@ PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule
+PUT /api/staff/{id}/stammdaten/arbeitsvertrag
+PUT /api/staff/{id}/stammdaten/bank-steuer
+PUT /api/staff/{id}/stammdaten/kontakt
+PUT /api/staff/{id}/stammdaten/person
+PUT /api/staff/{id}/stammdaten/qualifikationen
 PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
 PUT /api/staff/{id}/vacation/quota
 PUT /api/students/{id}

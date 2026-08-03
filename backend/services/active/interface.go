@@ -137,7 +137,6 @@ type Service interface {
 	// resolving the active session supervisor used as the checkout principal.
 	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
-	BroadcastDailyCheckout(ctx context.Context, studentID int64)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
 	// an IoT device: it validates the student has today's attendance record and,
 	// when destination is "zuhause" and the student is still checked in, checks

@@ -1903,6 +1903,118 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    it("leads the students SWR cache key with the group scope (#2097)", async () => {
+      // The SSE flush reads the page's group filter back out of this key to
+      // decide whether a check-in in some other group concerns this view, so
+      // the scope segment must sit before the free-text term (which may itself
+      // contain dashes). See lib/swr/search-students-key.
+      mockSearchParams.set("group_id", "7");
+      const swrModule = await import("~/lib/swr");
+      const studentKeys: string[] = [];
+
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        if (typeof key === "string" && key.startsWith("search-students-")) {
+          studentKeys.push(key);
+        }
+
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          studentKeys.some((key) => key.startsWith("search-students-g7-")),
+        ).toBe(true);
+      });
+    });
+
+    it.each([
+      { rawGroupId: "007", expectedGroupId: "7", expectedScope: "g7" },
+      { rawGroupId: "0", expectedGroupId: "", expectedScope: "gall" },
+      {
+        rawGroupId: "not-a-group",
+        expectedGroupId: "",
+        expectedScope: "gall",
+      },
+    ])(
+      "normalizes URL group_id '$rawGroupId' to the backend-effective SSE scope",
+      async ({ rawGroupId, expectedGroupId, expectedScope }) => {
+        mockSearchParams.set("group_id", rawGroupId);
+        const { studentService } = await import("~/lib/api");
+        const swrModule = await import("~/lib/swr");
+        const studentKeys: string[] = [];
+        const fetcher = captureStudentsFetcher(swrModule);
+
+        vi.mocked(swrModule.useSWRAuth).mockImplementation(
+          (key, swrFetcher) => {
+            if (typeof key === "string" && key.startsWith("search-students-")) {
+              studentKeys.push(key);
+              if (swrFetcher) {
+                fetcher.current = swrFetcher as () => Promise<unknown>;
+              }
+            }
+            if (key === "search-rooms-list") {
+              return {
+                data: [],
+                isLoading: false,
+                error: null,
+              } as ReturnType<typeof swrModule.useSWRAuth>;
+            }
+            return {
+              data: { students: mockStudents },
+              isLoading: false,
+              error: null,
+            } as ReturnType<typeof swrModule.useSWRAuth>;
+          },
+        );
+
+        render(<StudentSearchPage />);
+
+        await waitFor(() => {
+          expect(
+            studentKeys.some((key) =>
+              key.startsWith(`search-students-${expectedScope}-`),
+            ),
+          ).toBe(true);
+        });
+        await fetcher.current!();
+        expect(studentService.getStudents).toHaveBeenCalledWith(
+          expect.objectContaining({ groupId: expectedGroupId }),
+        );
+      },
+    );
+
+    it("requests the slim list projection (#2097)", async () => {
+      // The page renders no address, health info, supervisor note, guardian
+      // contact or departure map — shipping them costs ~78% of the payload on
+      // a list that fetches up to 1000 rows in one trip.
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      await fetcher.current!();
+
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ view: "slim" }),
+      );
+    });
+
     it("delegates Buskind filtering to a single backend request (#1492)", async () => {
       // Previously the page fetched every page client-side and filtered locally.
       // The backend now filters + paginates server-side, so the fetcher makes a

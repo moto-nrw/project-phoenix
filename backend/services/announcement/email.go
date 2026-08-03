@@ -23,6 +23,14 @@ const (
 	// the school logo and the moto logo instead of the plain fallbacks.
 	emailPayloadLogoURL     = "logo_url"
 	emailPayloadMotoLogoURL = "moto_logo_url"
+	// emailPayloadKicker / emailPayloadIntro let a poll (Umfrage) and its reminder
+	// reuse this renderer and template while saying what they are. Both are
+	// optional: a row without them renders exactly like the pre-poll mail, so
+	// outbox rows queued before this change still deliver correctly.
+	emailPayloadKicker = "brand_kicker"
+	emailPayloadIntro  = "intro"
+
+	defaultEmailKicker = "Elternmitteilung"
 )
 
 // EmailConfig is the static config for the announcement e-mail renderer.
@@ -47,6 +55,12 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 		logoURL, _ := row.Payload[emailPayloadLogoURL].(string)
 		motoLogoURL, _ := row.Payload[emailPayloadMotoLogoURL].(string)
 
+		kicker, _ := row.Payload[emailPayloadKicker].(string)
+		if kicker == "" {
+			kicker = defaultEmailKicker
+		}
+		intro, _ := row.Payload[emailPayloadIntro].(string)
+
 		subject := title
 		if schoolName != "" {
 			subject = fmt.Sprintf("%s: %s", schoolName, title)
@@ -59,7 +73,8 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 			Template: "announcement-published.html",
 			Content: map[string]any{
 				"Title":             title,
-				"BrandKicker":       "Elternmitteilung",
+				"Intro":             intro,
+				"BrandKicker":       kicker,
 				"SchoolName":        schoolName,
 				"GuardianFirstName": first,
 				"GuardianLastName":  last,

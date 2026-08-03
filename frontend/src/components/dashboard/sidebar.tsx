@@ -310,6 +310,33 @@ const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
   },
 ];
 
+/**
+ * Sidebar nav icon. The nav renders icons as raw `<path d>` strings from
+ * `navigationIcons`, so this wraps the identical 8-line `<svg>` every item used
+ * to repeat inline.
+ */
+function NavIcon({
+  d,
+  muted = false,
+}: Readonly<{ d: string; muted?: boolean }>) {
+  return (
+    <svg
+      className={`mr-3 h-5 w-5 shrink-0 ${muted ? "text-gray-300" : "text-gray-400 group-hover:text-gray-500"}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d={d}
+      />
+    </svg>
+  );
+}
+
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -1018,129 +1045,73 @@ function SidebarContent({ className = "" }: SidebarProps) {
   }
 
   if (mode === "parent") {
+    // One item list instead of eight near-identical hand-written <Link> blocks
+    // with inline <svg><path d={...}> — every item differed only in href, icon
+    // and badge, so a change to the row markup had to be made eight times.
+    const parentNavItems: readonly {
+      href: string;
+      label: string;
+      icon: string;
+      badge?: number;
+      visible?: boolean;
+    }[] = [
+      {
+        href: "/parents",
+        label: tParentNav("start"),
+        icon: navigationIcons.home,
+      },
+      {
+        href: "/parents/children",
+        label: tParentNav("children"),
+        icon: navigationIcons.group,
+      },
+      {
+        href: "/parents/messages",
+        label: tParentNav("messages"),
+        icon: navigationIcons.chat,
+        badge: parentMessagesUnread,
+      },
+      {
+        href: "/parents/calendar",
+        label: tParentNav("calendar"),
+        icon: navigationIcons.calendar,
+      },
+      {
+        href: "/parents/news",
+        label: tParentNav("news"),
+        icon: navigationIcons.newspaper,
+        badge: parentNewsUnread,
+        visible: parentPortalNewsEnabled,
+      },
+      {
+        href: "/parents/meal-plan",
+        label: tParentNav("mealPlan"),
+        icon: navigationIcons.utensils,
+        visible: parentMealPlanEnabled,
+      },
+    ];
+
     return (
       <aside
         className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
           <nav className="flex-1 p-3 lg:p-4 xl:p-3">
-            <Link href="/parents" className={getLinkClasses("/parents")}>
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                />
-              </svg>
-              <span>{tParentNav("start")}</span>
-            </Link>
-            <Link
-              href="/parents/children"
-              className={getLinkClasses("/parents/children")}
-            >
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={navigationIcons.group}
-                />
-              </svg>
-              <span>{tParentNav("children")}</span>
-            </Link>
-            <Link
-              href="/parents/messages"
-              className={getLinkClasses("/parents/messages")}
-            >
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={navigationIcons.chat}
-                />
-              </svg>
-              <span>{tParentNav("messages")}</span>
-              <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
-            </Link>
-            <Link
-              href="/parents/calendar"
-              className={getLinkClasses("/parents/calendar")}
-            >
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={navigationIcons.calendar}
-                />
-              </svg>
-              <span>{tParentNav("calendar")}</span>
-            </Link>
-            {parentPortalNewsEnabled && (
-              <Link
-                href="/parents/news"
-                className={getLinkClasses("/parents/news")}
-              >
-                <svg
-                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+            {parentNavItems
+              .filter((item) => item.visible !== false)
+              .map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={getLinkClasses(item.href)}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={navigationIcons.newspaper}
-                  />
-                </svg>
-                <span>{tParentNav("news")}</span>
-                <UnreadBadge count={parentNewsUnread} className="ml-auto" />
-              </Link>
-            )}
-            {parentMealPlanEnabled && (
-              <Link
-                href="/parents/meal-plan"
-                className={getLinkClasses("/parents/meal-plan")}
-              >
-                <svg
-                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={navigationIcons.utensils}
-                  />
-                </svg>
-                <span>{tParentNav("mealPlan")}</span>
-              </Link>
-            )}
+                  <NavIcon d={item.icon} />
+                  <span>{item.label}</span>
+                  {item.badge !== undefined && (
+                    <UnreadBadge count={item.badge} className="ml-auto" />
+                  )}
+                </Link>
+              ))}
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
                 {tParentNav("comingSoon")}
@@ -1152,20 +1123,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     className={getLinkClasses(item.href, true)}
                     aria-disabled="true"
                   >
-                    <svg
-                      className="mr-3 h-5 w-5 shrink-0 text-gray-300"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d={item.icon}
-                      />
-                    </svg>
+                    <NavIcon d={item.icon} muted />
                     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate">{item.label}</span>
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
@@ -1186,19 +1144,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               href="/parents/feedback"
               className={getLinkClasses("/parents/feedback")}
             >
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={navigationIcons.feedback}
-                />
-              </svg>
+              <NavIcon d={navigationIcons.feedback} />
               <span>{tParentNav("feedback")}</span>
               <UnreadBadge count={parentFeedbackUnread} className="ml-auto" />
             </Link>

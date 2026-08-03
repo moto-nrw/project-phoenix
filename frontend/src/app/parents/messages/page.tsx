@@ -6,8 +6,14 @@ import { useTranslations } from "next-intl";
 import { ArrowRight, MessageSquare } from "lucide-react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
-import { Alert } from "~/components/ui/alert";
-import { Skeleton } from "~/components/ui/skeleton";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import {
+  ParentLoadError,
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+} from "~/components/parent/parent-page";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
@@ -192,12 +198,7 @@ export default function ParentMessagesPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-7xl">
-        <Alert
-          type="error"
-          message="Die Nachrichten konnten nicht geladen werden."
-        />
-      </div>
+      <ParentLoadError message="Die Nachrichten konnten nicht geladen werden." />
     );
   }
 
@@ -209,49 +210,37 @@ export default function ParentMessagesPage() {
 
   if (children.length === 0) {
     return (
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <Hero />
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <ParentPage>
+        <MessagesHeader />
+        <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
           <EmptyMessages />
-        </section>
-      </div>
+        </div>
+      </ParentPage>
     );
   }
 
   // Several children: pick which child's conversation with the OGS to open.
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <Hero />
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">
-          Für welches Kind?
-        </h2>
+    <ParentPage>
+      <MessagesHeader />
+      <SectionCard icon={MessageSquare} title="Für welches Kind?">
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => (
             <ChildRow key={row.studentId} row={row} />
           ))}
         </ul>
-      </section>
-    </div>
+      </SectionCard>
+    </ParentPage>
   );
 }
 
-function Hero() {
+function MessagesHeader() {
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <div className="p-5 sm:p-6 lg:p-8">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-          Austausch mit der OGS
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold text-gray-900 sm:text-4xl">
-          Nachrichten
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 sm:text-base">
-          Schreiben Sie der OGS und lesen Sie die Antworten des Teams. Pro Kind
-          gibt es eine Unterhaltung.
-        </p>
-      </div>
-    </section>
+    <ParentPageHeader
+      kicker="Austausch mit der OGS"
+      title="Nachrichten"
+      description="Schreiben Sie der OGS und lesen Sie die Antworten des Teams. Pro Kind gibt es eine Unterhaltung."
+    />
   );
 }
 
@@ -322,24 +311,15 @@ function ChildRow({ row }: Readonly<{ row: ChildConversation }>) {
 
 function EmptyMessages() {
   return (
-    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-        <MessageSquare className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <h2 className="mt-3 text-sm font-semibold text-gray-900">
-        Für Ihr Konto ist noch kein Kind hinterlegt
-      </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">
-        Sobald ein Kind verknüpft ist, können Sie hier mit der OGS schreiben.
-      </p>
-    </div>
+    <EmptyState
+      icon={<MessageSquare className="h-8 w-8" aria-hidden="true" />}
+      title="Für Ihr Konto ist noch kein Kind hinterlegt"
+      description="Sobald ein Kind verknüpft ist, können Sie hier mit der OGS schreiben."
+      className="py-8"
+    />
   );
 }
 
 function ParentMessagesSkeleton() {
-  return (
-    <div className="mx-auto w-full max-w-7xl">
-      <Skeleton className="h-[calc(100dvh-13rem)] min-h-[20rem] rounded-2xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]" />
-    </div>
-  );
+  return <ParentPageSkeleton rows={1} />;
 }

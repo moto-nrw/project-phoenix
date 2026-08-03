@@ -19,6 +19,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -52,7 +53,8 @@ type StaffOffboardingServiceDependencies struct {
 
 type staffOffboardingService struct {
 	StaffOffboardingServiceDependencies
-	txHandler *modelBase.TxHandler
+	txHandler   *modelBase.TxHandler
+	broadcaster realtime.Broadcaster
 }
 
 // NewStaffOffboardingService creates a tenant-scoped staff offboarding service.
@@ -65,6 +67,12 @@ func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffO
 
 func (s *staffOffboardingService) getLogger() *slog.Logger {
 	return cmp.Or(s.Logger, slog.Default())
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster without widening the
+// public StaffOffboardingService interface used by API mocks.
+func (s *staffOffboardingService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
 }
 
 // OffboardStaff removes a staff member from daily operations and revokes their
@@ -85,12 +93,22 @@ func (s *staffOffboardingService) getLogger() *slog.Logger {
 //
 // Deleting a non-existent staff member is a no-op (idempotent delete).
 func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy)
-	})
+	groupAccessChanged := false
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy, &groupAccessChanged)
+	}); err != nil {
+		return err
+	}
+	if groupAccessChanged {
+		// Direct service calls commit in RunInTx above, while HTTP calls reuse
+		// the surrounding WithTenantTx and register this on its hook holder.
+		// Both paths therefore publish only after their owning transaction.
+		realtime.QueueGroupAccessChanged(ctx, s.broadcaster, s.getLogger(), "staff_offboarding")
+	}
+	return nil
 }
 
-func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
+func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string, groupAccessChanged *bool) error {
 	staff, err := s.StaffRepo.FindByID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -112,6 +130,11 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 	cleanupCounts, err := s.cleanupAssignments(ctx, staffID, deletedByStaffID)
 	if err != nil {
 		return err
+	}
+	groupTeachersDeleted, _ := cleanupCounts["group_teacher"].(int64)
+	groupSubstitutionsDeleted, _ := cleanupCounts["group_substitutions"].(int64)
+	if groupTeachersDeleted > 0 || groupSubstitutionsDeleted > 0 {
+		*groupAccessChanged = true
 	}
 
 	// Clear the work-time-model FK before the soft delete: the row keeps its

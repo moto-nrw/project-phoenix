@@ -183,6 +183,18 @@ const (
 	CommunicationsAnnounce = ResourceCommunications + ":announce"
 )
 
+// Staff permissions (#1423). staff:financial gates the bank & tax section
+// of the Stammdaten tab (IBAN, Steuer-ID, SV-Nummer) — deliberately its own
+// permission instead of users:update: the directory maintainers are not the
+// Träger payroll office. NOTE: admins still match via the admin:* wildcard;
+// restricting school admins would need an exact-match check, which is a
+// product decision, not taken here.
+const (
+	ResourceStaff = "staff"
+
+	StaffFinancial = ResourceStaff + ":financial"
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"

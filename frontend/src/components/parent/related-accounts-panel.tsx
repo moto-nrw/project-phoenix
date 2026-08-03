@@ -1,26 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { UserPlus, X, Check } from "lucide-react";
+import { UserPlus, Users, X, Check } from "lucide-react";
 import {
   listRelatedAccounts,
   inviteRelatedAccount,
   removeRelatedAccount,
   type RelatedAccount,
 } from "~/lib/parent-api";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "RelatedAccountsPanel" });
 
-const STATUS_META: Record<
-  RelatedAccount["status"],
-  { label: string; dot: string }
-> = {
-  active: { label: "Konto aktiv", dot: LOCATION_COLORS.GROUP_ROOM },
-  pending: { label: "Einladung offen", dot: LOCATION_COLORS.SICK },
-  no_account: { label: "Kontakt ohne Konto", dot: LOCATION_COLORS.UNKNOWN },
+const STATUS_META: Record<RelatedAccount["status"], { label: string }> = {
+  active: { label: "Konto aktiv" },
+  pending: { label: "Einladung offen" },
+  no_account: { label: "Kontakt ohne Konto" },
 };
 
 function initials(first: string, last: string): string {
@@ -31,14 +30,12 @@ interface RelatedAccountsPanelProps {
   readonly studentId: string;
   readonly canInvite: boolean;
   readonly canRemove: boolean;
-  readonly mobile?: boolean;
 }
 
 export default function RelatedAccountsPanel({
   studentId,
   canInvite,
   canRemove,
-  mobile = false,
 }: RelatedAccountsPanelProps) {
   const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,83 +123,65 @@ export default function RelatedAccountsPanel({
   };
 
   return (
-    <section
-      className={
-        mobile
-          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-            Familie
-          </p>
-          <h2 className="text-lg font-semibold text-gray-900">
-            Verbundene Konten
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Wer Zugriff auf dieses Kind in der Eltern-App hat.
-          </p>
-        </div>
-        {canInvite && (
+    <SectionCard
+      icon={Users}
+      title="Verbundene Konten"
+      description="Wer Zugriff auf dieses Kind in der Eltern-App hat."
+      bodyClassName="mt-4 space-y-3"
+      actions={
+        canInvite ? (
           <Button
             type="button"
             variant="outline"
             size="md"
-            className="shrink-0 gap-2"
             onClick={() => {
               setInviteOpen((v) => !v);
               setMessage(null);
             }}
           >
-            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
             Einladen
           </Button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {message && (
-        <div
-          className={`mt-4 rounded-xl border p-3 text-sm ${
-            message.kind === "success"
-              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#5A8E1F]"
-              : "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]"
-          }`}
-        >
-          {message.text}
-        </div>
+        <Alert
+          type={message.kind === "success" ? "success" : "error"}
+          message={message.text}
+        />
       )}
 
       {inviteOpen && canInvite && (
-        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3 sm:flex-row">
-          <input
+        <div className="flex flex-col gap-2 rounded-xl bg-gray-50 p-3 sm:flex-row">
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="E-Mail-Adresse"
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+            aria-label="E-Mail-Adresse der einzuladenden Person"
+            className="flex-1"
           />
           <Button
             type="button"
             size="md"
-            className="gap-1"
+            className="shrink-0"
             onClick={() => void handleInvite()}
             disabled={busy || !email.trim()}
           >
-            <Check className="h-4 w-4" />
+            <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Senden
           </Button>
         </div>
       )}
 
-      <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-gray-50/70">
+      <div className="space-y-2">
         {isLoading ? (
-          <div className="p-4 text-sm text-gray-500">Wird geladen…</div>
+          <p className="text-sm text-gray-500">Wird geladen…</p>
         ) : accounts.length === 0 ? (
-          <div className="p-4 text-sm text-gray-500">
+          <p className="text-sm text-gray-500">
             Noch keine verbundenen Konten.
-          </div>
+          </p>
         ) : (
           accounts.map((acc) => {
             const meta = STATUS_META[acc.status];
@@ -211,9 +190,9 @@ export default function RelatedAccountsPanel({
             return (
               <div
                 key={acc.guardian_profile_id}
-                className="flex items-center gap-3 p-3"
+                className="flex items-center gap-3 rounded-xl bg-gray-50 p-3"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
                   {initials(acc.first_name, acc.last_name)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -225,14 +204,13 @@ export default function RelatedAccountsPanel({
                       </span>
                     )}
                   </p>
-                  <p className="flex items-center gap-1.5 text-xs text-gray-600">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: meta.dot }}
-                    />
+                  {/* Status as plain text, not a colored dot: three accounts
+                      each carrying a green/amber/gray dot read as an alert
+                      panel rather than a list of people. */}
+                  <p className="truncate text-xs text-gray-600">
                     {meta.label}
                     {acc.email && (
-                      <span className="text-gray-400">· {acc.email}</span>
+                      <span className="text-gray-400"> · {acc.email}</span>
                     )}
                   </p>
                 </div>
@@ -278,6 +256,6 @@ export default function RelatedAccountsPanel({
           })
         )}
       </div>
-    </section>
+    </SectionCard>
   );
 }
