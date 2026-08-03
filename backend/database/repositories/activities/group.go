@@ -720,6 +720,36 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 			FROM scheduled_template_weekdays AS scheduled
 			INNER JOIN per_weekday_templates AS scoped
 				ON scoped.template_id = scheduled.template_id
+		), effective_primary_staff AS (
+			SELECT
+				template_day.template_id,
+				template_day.weekday,
+				primary_staff.staff_id
+			FROM template_weekdays AS template_day
+			LEFT JOIN LATERAL (
+				SELECT candidate.staff_id
+				FROM activities.supervisors AS candidate
+				WHERE candidate.tenant_id = ?
+				  AND candidate.group_id = template_day.template_id
+				  AND candidate.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += `
+				  AND (candidate.calendar_period_id IS NULL OR candidate.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += `
+				  AND candidate.calendar_period_id IS NULL`
+	}
+	query += `
+				  AND (candidate.weekday IS NULL OR candidate.weekday = template_day.weekday)
+				  AND candidate.is_primary
+				ORDER BY
+					(candidate.calendar_period_id IS NOT NULL) DESC,
+					(candidate.weekday IS NOT NULL) DESC,
+					candidate.id DESC
+				LIMIT 1
+			) AS primary_staff ON TRUE
 		)
 		SELECT
 			template_day.template_id,
@@ -731,34 +761,17 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		UNION ALL
 		SELECT
 			supervisor.group_id AS template_id,
-			supervisor.weekday,
+			template_day.weekday,
 			'staff' AS kind,
 			supervisor.staff_id AS person_id,
-			BOOL_OR(supervisor.is_primary`
-	if calendarPeriodID != nil {
-		query += ` AND (
-				supervisor.calendar_period_id = ?
-				OR (
-					supervisor.calendar_period_id IS NULL
-					AND NOT EXISTS (
-						SELECT 1
-						FROM activities.supervisors AS exact_primary
-						WHERE exact_primary.tenant_id = supervisor.tenant_id
-						  AND exact_primary.group_id = supervisor.group_id
-						  AND exact_primary.weekday IS NOT DISTINCT FROM supervisor.weekday
-						  AND exact_primary.calendar_period_id = ?
-						  AND exact_primary.valid_until IS NULL
-						  AND exact_primary.is_primary
-					)
-				)
-			)`
-		args = append(args, *calendarPeriodID, *calendarPeriodID)
-	}
-	query += `) AS is_primary
+			COALESCE(BOOL_OR(supervisor.staff_id = effective_primary.staff_id), FALSE) AS is_primary
 		FROM activities.supervisors AS supervisor
 		INNER JOIN template_weekdays AS template_day
 			ON template_day.template_id = supervisor.group_id
-			AND template_day.weekday = supervisor.weekday
+			AND (supervisor.weekday IS NULL OR template_day.weekday = supervisor.weekday)
+		INNER JOIN effective_primary_staff AS effective_primary
+			ON effective_primary.template_id = template_day.template_id
+			AND effective_primary.weekday = template_day.weekday
 		WHERE supervisor.tenant_id = ?
 		  AND supervisor.valid_until IS NULL`
 	args = append(args, tenantID)
@@ -769,34 +782,7 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		query += ` AND supervisor.calendar_period_id IS NULL`
 	}
 	query += `
-		GROUP BY supervisor.group_id, supervisor.weekday, supervisor.staff_id
-		UNION ALL
-		SELECT
-			enrollment.activity_group_id AS template_id,
-			enrollment.weekday,
-			'student' AS kind,
-			enrollment.student_id AS person_id,
-			FALSE AS is_primary
-		FROM activities.student_enrollments AS enrollment
-		INNER JOIN template_weekdays AS template_day
-			ON template_day.template_id = enrollment.activity_group_id
-			AND template_day.weekday = enrollment.weekday
-		WHERE enrollment.tenant_id = ?
-		  AND enrollment.valid_until IS NULL`
-	args = append(args, tenantID)
-	if calendarPeriodID != nil {
-		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += ` AND enrollment.calendar_period_id IS NULL`
-	}
-	query += `
-		  AND (
-			enrollment.selected_weekdays IS NULL
-			OR jsonb_array_length(enrollment.selected_weekdays) = 0
-			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
-		  )
-		GROUP BY enrollment.activity_group_id, enrollment.weekday, enrollment.student_id
+		GROUP BY supervisor.group_id, template_day.weekday, supervisor.staff_id
 		UNION ALL
 		SELECT
 			enrollment.activity_group_id AS template_id,
@@ -807,9 +793,9 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		FROM activities.student_enrollments AS enrollment
 		INNER JOIN template_weekdays AS template_day
 			ON template_day.template_id = enrollment.activity_group_id
+			AND (enrollment.weekday IS NULL OR template_day.weekday = enrollment.weekday)
 		WHERE enrollment.tenant_id = ?
-		  AND enrollment.valid_until IS NULL
-		  AND enrollment.weekday IS NULL`
+		  AND enrollment.valid_until IS NULL`
 	args = append(args, tenantID)
 	if calendarPeriodID != nil {
 		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
@@ -818,10 +804,6 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		query += ` AND enrollment.calendar_period_id IS NULL`
 	}
 	query += `
-		  AND (
-			enrollment.enrollment_request_child_id IS NOT NULL
-			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
-		  )
 		  AND (
 			enrollment.selected_weekdays IS NULL
 			OR jsonb_array_length(enrollment.selected_weekdays) = 0

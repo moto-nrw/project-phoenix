@@ -86,9 +86,8 @@ type GroupRepository interface {
 	// to one template and calendar period (issue #2129). A concrete period also
 	// includes series-wide rows whose calendar_period_id is NULL; a nil period
 	// returns only unscoped rows and never merges several periods. It includes
-	// empty markers for scheduled weekdays and expands protected series-wide
-	// enrollments onto the weekdays where they materialize. Ordinary series-wide
-	// roster rows remain represented by TemplateListRow.
+	// empty markers for scheduled weekdays and expands every applicable
+	// series-wide roster row onto the weekdays where it materializes.
 	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]TemplateWeekdayRosterRow, error)
 
 	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual

@@ -265,16 +265,21 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 		&s.periodID,
 	)
 	require.NoError(t, err)
-	primaryByStaff := make(map[int64]bool)
+	primaryByWeekdayAndStaff := make(map[int]map[int64]bool)
 	for _, row := range rosterRows {
 		if row.Kind == activitiesModels.TemplateWeekdayRosterKindStaff {
-			primaryByStaff[row.PersonID] = row.IsPrimary
+			if primaryByWeekdayAndStaff[row.Weekday] == nil {
+				primaryByWeekdayAndStaff[row.Weekday] = make(map[int64]bool)
+			}
+			primaryByWeekdayAndStaff[row.Weekday][row.PersonID] = row.IsPrimary
 		}
 	}
-	assert.False(t, primaryByStaff[s.staffA],
+	assert.False(t, primaryByWeekdayAndStaff[activitiesModels.WeekdayMonday][s.staffA],
 		"the editor read must not expose the shared fallback as effective primary")
-	assert.True(t, primaryByStaff[s.staffB],
+	assert.True(t, primaryByWeekdayAndStaff[activitiesModels.WeekdayMonday][s.staffB],
 		"the editor read must preserve the period-specific effective primary")
+	assert.True(t, primaryByWeekdayAndStaff[activitiesModels.WeekdayTuesday][s.staffA],
+		"the shared primary must remain effective outside the scoped override")
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -669,6 +674,97 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 		"protected coverage must retain selected_weekdays")
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
+}
+
+func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	tuesday := monday.AddDays(1)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:             fmt.Sprintf("Read-Mixed-Roster-%d", time.Now().UnixNano()),
+		Type:             activitiesModels.GroupTypeCare,
+		Weekdays:         []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		StartTime:        clockTime(14, 0),
+		EndTime:          clockTime(15, 0),
+		RoomID:           s.roomID,
+		CategoryID:       s.categoryID,
+		MaxParticipants:  20,
+		CalendarPeriodID: &s.periodID,
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    4,
+		WeekdayAssignments: []scheduleSvc.WeekdayRosterAssignment{
+			{
+				Weekday:        activitiesModels.WeekdayMonday,
+				StaffIDs:       []int64{s.staffB},
+				PrimaryStaffID: &s.staffB,
+				StudentIDs:     []int64{s.studentB},
+			},
+			{Weekday: activitiesModels.WeekdayTuesday},
+		},
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	repos := repositories.NewFactory(s.db)
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+		StaffID:   s.staffA,
+		GroupID:   result.TemplateID,
+		IsPrimary: true,
+		ValidFrom: monday.AddDays(-30),
+	}))
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
+		StudentID:       s.studentA,
+		ActivityGroupID: result.TemplateID,
+		ValidFrom:       monday.AddDays(-30),
+	}))
+
+	rows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
+	require.NoError(t, err)
+	type dayRoster struct {
+		staff    []int64
+		students []int64
+		primary  int64
+	}
+	byWeekday := make(map[int]*dayRoster)
+	for _, row := range rows {
+		roster := byWeekday[row.Weekday]
+		if roster == nil {
+			roster = &dayRoster{}
+			byWeekday[row.Weekday] = roster
+		}
+		switch row.Kind {
+		case activitiesModels.TemplateWeekdayRosterKindStaff:
+			roster.staff = append(roster.staff, row.PersonID)
+			if row.IsPrimary {
+				roster.primary = row.PersonID
+			}
+		case activitiesModels.TemplateWeekdayRosterKindStudent:
+			roster.students = append(roster.students, row.PersonID)
+		}
+	}
+
+	require.Contains(t, byWeekday, activitiesModels.WeekdayMonday)
+	assert.ElementsMatch(t, []int64{s.staffA, s.staffB}, byWeekday[activitiesModels.WeekdayMonday].staff)
+	assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, byWeekday[activitiesModels.WeekdayMonday].students)
+	assert.Equal(t, s.staffB, byWeekday[activitiesModels.WeekdayMonday].primary,
+		"the weekday-scoped primary must override the shared fallback")
+	require.Contains(t, byWeekday, activitiesModels.WeekdayTuesday)
+	assert.Equal(t, []int64{s.staffA}, byWeekday[activitiesModels.WeekdayTuesday].staff)
+	assert.Equal(t, []int64{s.studentA}, byWeekday[activitiesModels.WeekdayTuesday].students)
+	assert.Equal(t, s.staffA, byWeekday[activitiesModels.WeekdayTuesday].primary)
+
+	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	mondayInstance := s.singleInstance(t, result.TemplateID, monday)
+	tuesdayInstance := s.singleInstance(t, result.TemplateID, tuesday)
+	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayMonday].staff, s.instanceStaffIDs(t, mondayInstance))
+	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayMonday].students, s.instanceStudentIDs(t, mondayInstance))
+	assert.True(t, s.instanceHasPrimary(t, mondayInstance, byWeekday[activitiesModels.WeekdayMonday].primary))
+	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayTuesday].staff, s.instanceStaffIDs(t, tuesdayInstance))
+	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayTuesday].students, s.instanceStudentIDs(t, tuesdayInstance))
+	assert.True(t, s.instanceHasPrimary(t, tuesdayInstance, byWeekday[activitiesModels.WeekdayTuesday].primary))
 }
 
 func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *testing.T) {

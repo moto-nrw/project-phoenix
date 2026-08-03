@@ -1,10 +1,15 @@
 package timetable
 
 import (
+	"context"
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,6 +92,44 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 		Weekday:    activities.WeekdayMonday,
 		StudentIDs: []int64{22},
 	}}, protectedByTemplate[templateID])
+}
+
+func TestListTemplates_WithoutPeriodSkipsWeekdayRosterRead(t *testing.T) {
+	repo := &catalogTemplateGroupRepo{}
+	resource := NewResource(Dependencies{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+			ActivityGroupRepo: repo,
+		}),
+	})
+	request := httptest.NewRequest(http.MethodGet, "/templates", nil)
+	request = request.WithContext(tenant.WithTenantID(request.Context(), 42))
+	response := httptest.NewRecorder()
+
+	resource.listTemplates(response, request)
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, 0, repo.weekdayRosterReads)
+}
+
+type catalogTemplateGroupRepo struct {
+	activities.GroupRepository
+	weekdayRosterReads int
+}
+
+func (r *catalogTemplateGroupRepo) ListTemplateRowsForPeriod(
+	context.Context,
+	*int64,
+) ([]activities.TemplateListRow, error) {
+	return []activities.TemplateListRow{}, nil
+}
+
+func (r *catalogTemplateGroupRepo) ListTemplateWeekdayRoster(
+	context.Context,
+	*int64,
+	*int64,
+) ([]activities.TemplateWeekdayRosterRow, error) {
+	r.weekdayRosterReads++
+	return nil, nil
 }
 
 func ptrInt64(value int64) *int64 {

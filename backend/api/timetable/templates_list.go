@@ -283,10 +283,13 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
 	}
-	weekdayRoster, err := rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil, periodID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
-		return
+	var weekdayRoster []activities.TemplateWeekdayRosterRow
+	if periodID != nil {
+		weekdayRoster, err = rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil, periodID)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
+			return
+		}
 	}
 
 	templates := mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster)
