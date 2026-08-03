@@ -859,6 +859,7 @@ describe("backend mappers", () => {
             student_ids: [21],
             staff_ids: [11],
             primary_staff_id: 11,
+            protected_student_assignments: [{ weekday: 1, student_ids: [21] }],
             schedules: [
               {
                 id: 9,
@@ -880,6 +881,7 @@ describe("backend mappers", () => {
       studentIds: ["21"],
       staffIds: ["11"],
       primaryStaffId: "11",
+      protectedStudentAssignments: [{ weekday: 1, studentIds: ["21"] }],
       schedules: [
         {
           id: "9",
@@ -953,6 +955,7 @@ describe("backend mappers", () => {
       educationGroupName: undefined,
       isOpen: false,
       maxParticipants: undefined,
+      listKind: undefined,
       notes: undefined,
       shiftTypeName: undefined,
       shiftTypeColor: undefined,
@@ -971,6 +974,7 @@ describe("backend mappers", () => {
       schedules: [],
       // #2129: a template with no per-weekday deviations maps to an empty list.
       weekdayAssignments: [],
+      protectedStudentAssignments: [],
     });
   });
 });

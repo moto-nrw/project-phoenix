@@ -932,6 +932,12 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
               : undefined,
         }),
       ),
+      protectedStudentAssignments: (
+        template.protected_student_assignments ?? []
+      ).map((assignment) => ({
+        weekday: assignment.weekday,
+        studentIds: (assignment.student_ids ?? []).map(String),
+      })),
     })),
   };
 }

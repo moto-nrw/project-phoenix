@@ -61,6 +61,7 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindEmpty},
 		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindStaff, PersonID: 11, IsPrimary: true},
 		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindStudent, PersonID: 21},
+		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindProtectedStudent, PersonID: 22},
 		{TemplateID: 7, Weekday: activities.WeekdayTuesday, Kind: activities.TemplateWeekdayRosterKindEmpty},
 	}
 
@@ -80,6 +81,12 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 			StudentIDs: []int64{},
 		},
 	}, byTemplate[templateID])
+
+	protectedByTemplate := buildTemplateProtectedStudentAssignments(rows)
+	assert.Equal(t, []templateProtectedStudentAssignmentResponse{{
+		Weekday:    activities.WeekdayMonday,
+		StudentIDs: []int64{22},
+	}}, protectedByTemplate[templateID])
 }
 
 func ptrInt64(value int64) *int64 {

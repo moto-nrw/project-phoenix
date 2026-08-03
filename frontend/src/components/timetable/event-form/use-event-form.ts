@@ -39,6 +39,7 @@ import {
 } from "~/lib/timetable-helpers";
 import { useDebounce } from "~/lib/use-debounce";
 import {
+  changePerWeekdayRosterMode,
   emptyForm,
   fetchAllStudentOptions,
   formFromInstance,
@@ -1022,28 +1023,14 @@ export function useEventForm({
   const setPerWeekdayRoster = (enabled: boolean) => {
     staffRosterTouched.current = true;
     studentRosterTouched.current = true;
-    setForm((prev) => {
-      if (enabled) {
-        return {
-          ...prev,
-          perWeekdayRoster: true,
-          weekdayRosters: seedWeekdayRosters(prev, prev.weekdays),
-        };
-      }
-      const source = rosterForWeekday(
+    setForm((prev) =>
+      changePerWeekdayRosterMode(
         prev,
-        prev.weekdays.includes(activeRosterWeekday)
-          ? activeRosterWeekday
-          : (prev.weekdays[0] ?? activeRosterWeekday),
-      );
-      return {
-        ...prev,
-        staffIds: [...source.staffIds],
-        primaryStaffId: source.primaryStaffId,
-        studentIds: [...source.studentIds],
-        perWeekdayRoster: false,
-      };
-    });
+        enabled,
+        activeRosterWeekday,
+        initialSeries?.protectedStudentAssignments ?? [],
+      ),
+    );
     setValidationError(null);
   };
 

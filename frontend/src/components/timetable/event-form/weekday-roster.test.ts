@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  changePerWeekdayRosterMode,
   emptyForm,
   formFromSeries,
   rosterForWeekday,
@@ -50,6 +51,49 @@ describe("per-weekday roster state (#2129)", () => {
         staffIds: ["10", "11"],
         primaryStaffId: "10",
         studentIds: ["100"],
+      });
+    }
+  });
+
+  it("keeps protected children only on their enrollment weekdays", () => {
+    const form = seriesForm({ studentIds: ["100", "200"] });
+
+    const changed = changePerWeekdayRosterMode(form, true, 1, [
+      { weekday: 1, studentIds: ["200"] },
+      { weekday: 2, studentIds: ["300"] },
+    ]);
+
+    expect(changed.weekdayRosters[1]?.studentIds).toEqual(["100", "200"]);
+    expect(changed.weekdayRosters[2]?.studentIds).toEqual(["100", "300"]);
+    expect(changed.weekdayRosters[3]?.studentIds).toEqual(["100"]);
+  });
+
+  it("does not restore stale weekday rosters after editing the shared list", () => {
+    const form = seriesForm({
+      perWeekdayRoster: true,
+      weekdayRosters: {
+        1: { staffIds: ["10"], primaryStaffId: "10", studentIds: ["100"] },
+        2: { staffIds: ["20"], primaryStaffId: "20", studentIds: ["200"] },
+        3: { staffIds: ["30"], primaryStaffId: "30", studentIds: ["300"] },
+      },
+    });
+
+    const shared = changePerWeekdayRosterMode(form, false, 1, []);
+    expect(shared.weekdayRosters).toEqual({});
+
+    const edited = {
+      ...shared,
+      staffIds: ["40"],
+      primaryStaffId: "40",
+      studentIds: ["400"],
+    };
+    const changed = changePerWeekdayRosterMode(edited, true, 1, []);
+
+    for (const weekday of changed.weekdays) {
+      expect(changed.weekdayRosters[weekday]).toEqual({
+        staffIds: ["40"],
+        primaryStaffId: "40",
+        studentIds: ["400"],
       });
     }
   });

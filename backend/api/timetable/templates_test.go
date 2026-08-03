@@ -936,6 +936,72 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	assert.Equal(t, periodA.StartDate.Format(dateLayout), newStudentFrom.Format(dateLayout))
 }
 
+func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	periodA := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-A")
+	periodB := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-B")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodA.ID, periodB.ID)
+	})
+
+	createBody := createTemplateBody(s, "Tpl-Move-Period")
+	createBody["calendar_period_id"] = periodA.ID
+	createdW := doTemplateJSON(t, router, http.MethodPost, "/templates", createBody)
+	require.Equal(t, http.StatusCreated, createdW.Code, "body=%s", createdW.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdW)
+
+	updateBody := createTemplateBody(s, "Tpl-Moved-Period")
+	updateBody["calendar_period_id"] = periodB.ID
+	updatedW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updatedW.Code, "body=%s", updatedW.Body.String())
+	updated := decodeTemplateData[templateResponse](t, updatedW)
+	require.NotEmpty(t, updated.Schedules)
+	for _, schedule := range updated.Schedules {
+		require.NotNil(t, schedule.CalendarPeriodID)
+		assert.Equal(t, periodB.ID, *schedule.CalendarPeriodID)
+	}
+}
+
+func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Protected-Read")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
+	})
+
+	body := createTemplateBody(s, "Tpl-Protected-Read")
+	body["calendar_period_id"] = period.ID
+	body["student_ids"] = []int64{}
+	createdW := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, createdW.Code, "body=%s", createdW.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdW)
+
+	protected := &activitiesModel.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  created.TemplateID,
+		ValidFrom:        period.StartDate,
+		CalendarPeriodID: &period.ID,
+		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
+	}
+	protected.SetTenantID(tenant.FromContext(s.ctx))
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, protected))
+
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
+	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
+	got := decodeTemplateData[templateResponse](t, getW)
+	assert.Equal(t, []templateProtectedStudentAssignmentResponse{{
+		Weekday:    activitiesModel.WeekdayMonday,
+		StudentIDs: []int64{s.studentA},
+	}}, got.ProtectedStudentAssignments)
+}
+
 // TestListTemplatesEnrollmentCountIsPeriodTolerant is the regression test for
 // the "0 Kinder" bug (WP-B6): template cards lost their headcount when the
 // list was filtered by a period other than the one the roster was written

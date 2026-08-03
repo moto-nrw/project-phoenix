@@ -569,10 +569,54 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}])
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
 		"the protected child must remain visible on the weekday where it materializes")
+	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
+		"the protected coverage must be exposed separately to the editor")
 	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
 		"selected_weekdays still limits the protected child")
+	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
+		"protected coverage must retain selected_weekdays")
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
 	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
+}
+
+func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	s := makeWeekdayRosterScenario(t, monday)
+	defer s.teardown(t)
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:            fmt.Sprintf("Read-Protected-Shared-%d", time.Now().UnixNano()),
+		Type:            activitiesModels.GroupTypeCare,
+		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		StartTime:       clockTime(14, 0),
+		EndTime:         clockTime(15, 0),
+		RoomID:          s.roomID,
+		CategoryID:      s.categoryID,
+		MaxParticipants: 20,
+		RosterValidFrom: monday.AddDays(-30),
+		GradeLevelMax:   4,
+		StudentIDs:      []int64{s.studentB},
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	protected := &activitiesModels.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+	}
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+
+	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	require.NoError(t, err)
+	protectedWeekdays := make([]int, 0)
+	for _, row := range rows {
+		if row.Kind == activitiesModels.TemplateWeekdayRosterKindProtectedStudent && row.PersonID == s.studentA {
+			protectedWeekdays = append(protectedWeekdays, row.Weekday)
+		}
+	}
+	assert.Equal(t, []int{activitiesModels.WeekdayMonday}, protectedWeekdays)
 }
 
 func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {

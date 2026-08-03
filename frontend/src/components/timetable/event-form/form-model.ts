@@ -4,6 +4,7 @@ import type {
   ActivityType,
   EnrichedInstance,
   TargetGroupType,
+  TemplateProtectedStudentAssignment,
   TimetableListKind,
   TimetableTemplate,
 } from "~/lib/timetable-types";
@@ -82,6 +83,68 @@ export function seedWeekdayRosters(
     };
   }
   return seeded;
+}
+
+/**
+ * Switches between the shared and per-weekday roster representations.
+ * Enabling always rebuilds every day from the current shared controls, so a
+ * previous per-weekday edit cannot reappear after a shared-mode change.
+ * Enrollment-owned children are then restored only on their covered days;
+ * their selected weekdays are not editable through this form.
+ */
+export function changePerWeekdayRosterMode(
+  form: EventFormState,
+  enabled: boolean,
+  activeWeekday: number,
+  protectedStudents: readonly TemplateProtectedStudentAssignment[],
+): EventFormState {
+  if (!enabled) {
+    const source = rosterForWeekday(
+      form,
+      form.weekdays.includes(activeWeekday)
+        ? activeWeekday
+        : (form.weekdays[0] ?? activeWeekday),
+    );
+    return {
+      ...form,
+      staffIds: [...source.staffIds],
+      primaryStaffId: source.primaryStaffId,
+      studentIds: [...source.studentIds],
+      perWeekdayRoster: false,
+      weekdayRosters: {},
+    };
+  }
+
+  const protectedIDs = new Set(
+    protectedStudents.flatMap((assignment) => assignment.studentIds),
+  );
+  const protectedByWeekday = new Map(
+    protectedStudents.map((assignment) => [
+      assignment.weekday,
+      assignment.studentIds,
+    ]),
+  );
+  const weekdayRosters: Record<number, WeekdayRosterState> = {};
+  for (const weekday of form.weekdays) {
+    const covered = protectedByWeekday.get(weekday) ?? [];
+    const coveredIDs = new Set(covered);
+    const studentIds = form.studentIds.filter(
+      (id) => !protectedIDs.has(id) || coveredIDs.has(id),
+    );
+    const included = new Set(studentIds);
+    for (const id of covered) {
+      if (!included.has(id)) {
+        studentIds.push(id);
+        included.add(id);
+      }
+    }
+    weekdayRosters[weekday] = {
+      staffIds: [...form.staffIds],
+      primaryStaffId: form.primaryStaffId,
+      studentIds,
+    };
+  }
+  return { ...form, perWeekdayRoster: true, weekdayRosters };
 }
 
 /**

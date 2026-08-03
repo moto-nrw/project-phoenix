@@ -688,11 +688,9 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 	}
 	query += `
 			GROUP BY enrollment.activity_group_id
-		), template_weekdays AS (
-			SELECT scoped.template_id, schedule.weekday
-			FROM per_weekday_templates AS scoped
-			INNER JOIN activities.groups AS g
-				ON g.id = scoped.template_id
+		), scheduled_template_weekdays AS (
+			SELECT g.id AS template_id, schedule.weekday
+			FROM activities.groups AS g
 			INNER JOIN activities.schedules AS schedule
 				ON schedule.activity_group_id = g.id
 				AND schedule.tenant_id = g.tenant_id
@@ -716,7 +714,12 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		args = append(args, *templateID)
 	}
 	query += `
-			GROUP BY scoped.template_id, schedule.weekday
+			GROUP BY g.id, schedule.weekday
+		), template_weekdays AS (
+			SELECT scheduled.template_id, scheduled.weekday
+			FROM scheduled_template_weekdays AS scheduled
+			INNER JOIN per_weekday_templates AS scoped
+				ON scoped.template_id = scheduled.template_id
 		)
 		SELECT
 			template_day.template_id,
@@ -814,6 +817,37 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 			enrollment.enrollment_request_child_id IS NOT NULL
 			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
 		  )
+		  AND (
+			enrollment.selected_weekdays IS NULL
+			OR jsonb_array_length(enrollment.selected_weekdays) = 0
+			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
+		  )
+		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
+		UNION ALL
+		SELECT
+			enrollment.activity_group_id AS template_id,
+			template_day.weekday,
+			'protected_student' AS kind,
+			enrollment.student_id AS person_id,
+			FALSE AS is_primary
+		FROM activities.student_enrollments AS enrollment
+		INNER JOIN scheduled_template_weekdays AS template_day
+			ON template_day.template_id = enrollment.activity_group_id
+		WHERE enrollment.tenant_id = ?
+		  AND enrollment.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += ` AND enrollment.calendar_period_id IS NULL`
+	}
+	query += `
+		  AND (
+			enrollment.enrollment_request_child_id IS NOT NULL
+			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
+		  )
+		  AND (enrollment.weekday IS NULL OR enrollment.weekday = template_day.weekday)
 		  AND (
 			enrollment.selected_weekdays IS NULL
 			OR jsonb_array_length(enrollment.selected_weekdays) = 0

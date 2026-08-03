@@ -419,6 +419,8 @@ export interface TimetableTemplate {
    * merging it with `staffIds` / `studentIds`.
    */
   weekdayAssignments: TemplateWeekdayAssignment[];
+  /** Read-only enrollment-owned child coverage, used when changing roster mode. */
+  protectedStudentAssignments?: TemplateProtectedStudentAssignment[];
 }
 
 /** One weekday's staff and child roster of a Regeltermin (#2129). */
@@ -427,6 +429,11 @@ interface TemplateWeekdayAssignment {
   staffIds: string[];
   studentIds: string[];
   primaryStaffId?: string;
+}
+
+export interface TemplateProtectedStudentAssignment {
+  weekday: number;
+  studentIds: string[];
 }
 
 export interface TemplatesResponse {
@@ -474,6 +481,8 @@ export interface BackendTimetableTemplate {
   primary_staff_id?: number;
   schedules: BackendTemplateSchedule[];
   weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
+  protected_student_assignments?:
+    BackendTemplateProtectedStudentAssignment[] | null;
 }
 
 interface BackendTemplateWeekdayAssignment {
@@ -481,6 +490,11 @@ interface BackendTemplateWeekdayAssignment {
   staff_ids?: number[];
   student_ids?: number[];
   primary_staff_id?: number;
+}
+
+interface BackendTemplateProtectedStudentAssignment {
+  weekday: number;
+  student_ids?: number[];
 }
 
 export interface BackendTemplatesResponse {

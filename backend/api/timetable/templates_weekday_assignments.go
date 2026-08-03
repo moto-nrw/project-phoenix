@@ -96,6 +96,14 @@ type templateWeekdayAssignmentResponse struct {
 	PrimaryStaffID *int64  `json:"primary_staff_id,omitempty"`
 }
 
+// templateProtectedStudentAssignmentResponse exposes the weekdays supplied by
+// enrollment-owned rows. The editor needs this read-only metadata when it
+// expands a shared child list into explicit weekday assignments.
+type templateProtectedStudentAssignmentResponse struct {
+	Weekday    int     `json:"weekday"`
+	StudentIDs []int64 `json:"student_ids"`
+}
+
 // buildTemplateWeekdayAssignments groups the flat, kind-tagged roster rows the
 // repository returns into one entry per weekday, keyed by template id.
 func buildTemplateWeekdayAssignments(
@@ -106,6 +114,9 @@ func buildTemplateWeekdayAssignments(
 	byTemplate := make(map[int64][]templateWeekdayAssignmentResponse)
 	index := make(map[int64]map[int]int)
 	for _, row := range rows {
+		if row.Kind == activitiesModel.TemplateWeekdayRosterKindProtectedStudent {
+			continue
+		}
 		perWeekday, ok := index[row.TemplateID]
 		if !ok {
 			perWeekday = make(map[int]int)
@@ -134,6 +145,37 @@ func buildTemplateWeekdayAssignments(
 		case activitiesModel.TemplateWeekdayRosterKindStudent:
 			entry.StudentIDs = append(entry.StudentIDs, row.PersonID)
 		}
+	}
+	return byTemplate
+}
+
+func buildTemplateProtectedStudentAssignments(
+	rows []activitiesModel.TemplateWeekdayRosterRow,
+) map[int64][]templateProtectedStudentAssignmentResponse {
+	byTemplate := make(map[int64][]templateProtectedStudentAssignmentResponse)
+	index := make(map[int64]map[int]int)
+	for _, row := range rows {
+		if row.Kind != activitiesModel.TemplateWeekdayRosterKindProtectedStudent {
+			continue
+		}
+		perWeekday, ok := index[row.TemplateID]
+		if !ok {
+			perWeekday = make(map[int]int)
+			index[row.TemplateID] = perWeekday
+		}
+		position, ok := perWeekday[row.Weekday]
+		if !ok {
+			byTemplate[row.TemplateID] = append(byTemplate[row.TemplateID], templateProtectedStudentAssignmentResponse{
+				Weekday:    row.Weekday,
+				StudentIDs: []int64{},
+			})
+			position = len(byTemplate[row.TemplateID]) - 1
+			perWeekday[row.Weekday] = position
+		}
+		byTemplate[row.TemplateID][position].StudentIDs = append(
+			byTemplate[row.TemplateID][position].StudentIDs,
+			row.PersonID,
+		)
 	}
 	return byTemplate
 }

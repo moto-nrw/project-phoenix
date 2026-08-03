@@ -177,7 +177,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	templates, err := rs.loadTemplates(ctx, &id, parsed.req.CalendarPeriodID)
+	// Load the existing recurrence independently of the requested target
+	// period. Its schedules still belong to the source period until the update
+	// succeeds, so a target-scoped read would incorrectly report 404 while
+	// moving a template between periods.
+	templates, err := rs.loadTemplates(ctx, &id, nil)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
