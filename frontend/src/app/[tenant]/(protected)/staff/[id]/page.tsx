@@ -117,7 +117,11 @@ export default function StaffDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const staffId = params.id as string;
-  const canEdit = isAdmin(session);
+  // Effective admin: the backend grants everything to `admin:*` / `*:*`
+  // holders regardless of the role name, so a custom role carrying the
+  // wildcard must see the same admin-gated UI as the literal admin role
+  // (mirrors the staff list).
+  const canEdit = isAdmin(session) || hasPermission(session, "admin:*");
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canManageAbsences =
     canEdit ||

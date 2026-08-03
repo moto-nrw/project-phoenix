@@ -193,6 +193,38 @@ describe("StaffDetailContent permissions", () => {
     );
   });
 
+  // The backend grants everything to admin:* / *:* holders regardless of the
+  // role name, so a custom role carrying the wildcard must see the same
+  // admin-gated UI as the literal admin role.
+  it.each(["admin:*", "*:*"])(
+    "treats a custom role holding %s as an admin",
+    (permission) => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["lohnbuero"],
+            permissions: [permission],
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      expect(
+        screen.getByRole("button", { name: "Arbeitszeitmodell" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("arbeitszeitmodell-tab")).toBeInTheDocument();
+      expect(screen.getByTestId("abwesenheiten-tab")).toBeInTheDocument();
+      expect(staffService.getStaffById).toHaveBeenCalledWith("42");
+      expect(replaceMock).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["users:update", "staff:financial"])(
     "shows Stammdaten to a role with %s",
     (permission) => {
