@@ -8,12 +8,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	testutil.SeedTestJWTConfig()
+}
 
 // captureService records the event the handler dispatched.
 type captureService struct {
@@ -118,6 +123,29 @@ func TestSendTestNotificationNilService(t *testing.T) {
 	rs.sendTestNotification(rec, newTestRequest(41))
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
+	db, _ := testutil.SetupAPITest(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	svc := &captureService{}
+	router := NewResource(svc, nil, nil, db).Router()
+	claims := testutil.TeacherTestClaims(73)
+	require.NotContains(t, claims.Permissions, "config:update")
+	req := testutil.NewAuthenticatedRequest(
+		t,
+		http.MethodPost,
+		"/test",
+		nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
+	)
+
+	rec := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.True(t, svc.called)
+	assert.Equal(t, []int64{73}, svc.gotEvent.Audience.StaffAccountIDs)
 }
 
 func TestSubscribePushClassifiesServiceErrors(t *testing.T) {

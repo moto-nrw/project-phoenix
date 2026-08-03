@@ -5,6 +5,7 @@ import { BellRing } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
+import { sendTestNotification } from "~/lib/notification-api";
 import {
   isPushConfigurationMissing,
   isPushSupported,
@@ -40,6 +41,7 @@ export function PushNotificationSection({
 }: PushNotificationSectionProps) {
   const [state, setState] = useState<PushState>("loading");
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -116,6 +118,29 @@ export function PushNotificationSection({
           : "Benachrichtigungen konnten nicht deaktiviert werden.",
       );
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setBusy(true);
+    setTesting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await sendTestNotification();
+      setMessage("Testbenachrichtigung wurde gesendet.");
+    } catch (err) {
+      logger.error("test_notification_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Testbenachrichtigung konnte nicht gesendet werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+      );
+    } finally {
+      setTesting(false);
       setBusy(false);
     }
   };
@@ -203,10 +228,26 @@ export function PushNotificationSection({
       )}
 
       {state === "subscribed" && (
-        <p className="text-sm text-gray-600">
-          Benachrichtigungen sind auf diesem Gerät aktiv. Erinnerungen kommen
-          auch bei geschlossener App an.
-        </p>
+        <div>
+          <p className="text-sm text-gray-600">
+            Benachrichtigungen sind auf diesem Gerät aktiv. Erinnerungen kommen
+            auch bei geschlossener App an.
+          </p>
+          {portal === "tenant" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              className="-ms-2.5 mt-2"
+              isLoading={testing}
+              loadingText="Wird gesendet…"
+              disabled={busy}
+              onClick={() => void sendTest()}
+            >
+              Testbenachrichtigung senden
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,5 @@
 "use client";
 
-import { redirect } from "next/navigation";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { useReminders } from "~/lib/hooks/use-reminders";
@@ -35,21 +33,7 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 }
 
 export default function RemindersPage() {
-  const tenantPath = useTenantAwarePath();
   const { reminders, count, error, isLoading, data } = useReminders();
-
-  // Feature gate for direct URL entry. The header bell is the only discoverable
-  // way here and it hides when the tenant has no reminder type enabled, so the
-  // only way to land on this page with the feature off is a bookmark or typed
-  // URL. Send those to the dashboard once we have a definitive answer.
-  //
-  // Key off the raw `data` (loaded and enabled === false), NOT the derived
-  // `enabled`: during the initial load / no-token window `enabled` is falsy too,
-  // and redirecting then would bounce users off a page whose feature is on.
-  const featureDisabled = data?.enabled === false;
-  if (featureDisabled) {
-    redirect(tenantPath("/dashboard"));
-  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
@@ -69,17 +53,24 @@ export default function RemindersPage() {
 
       {isLoading && !reminders.length ? (
         <Loading message="Erinnerungen werden geladen…" fullPage={false} />
-      ) : error && !data ? null : count === 0 ? ( // here would read like a successful empty result, which it is not. // whole story. Rendering the "Keine aktiven Erinnerungen" empty state // First load failed with nothing cached: the error alert above is the
-        <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
-          <p className="font-medium text-gray-900">
-            Keine aktiven Erinnerungen
-          </p>
-          <p className="mt-1 text-sm text-gray-500">
-            Sobald eine Abholung näher rückt oder eine Aktivität startet,
-            erscheint sie hier. Erinnerungstypen werden in den Einstellungen
-            unter „Erinnerungen" aktiviert.
-          </p>
-        </div>
+      ) : error && !data ? null : count === 0 ? (
+        data?.enabled === false ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+            <p className="font-medium text-gray-900">
+              Keine aktiven Erinnerungen
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Sobald eine Abholung näher rückt oder eine Aktivität startet,
+              erscheint sie hier. Erinnerungstypen werden in den Einstellungen
+              unter „Erinnerungen“ aktiviert.
+            </p>
+          </div>
+        ) : (
+          <Alert
+            type="success"
+            message="Erinnerungen aktiviert. Aktuell gibt es keine aktiven Erinnerungen."
+          />
+        )
       ) : (
         <div className="space-y-6">
           {REMINDER_SECTIONS.map((section) => {
