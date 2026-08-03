@@ -601,6 +601,46 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
   });
 
+  // #2135: a new series starts at the picked Datum. Occurrences before it can
+  // never be materialized, so a closing day before the start must not trigger
+  // the question.
+  it("ignores closing days before the series start date", async () => {
+    renderModal({
+      variant: "quick",
+      defaultDate: "2026-05-11",
+      closingDayRanges: [
+        {
+          startDate: "2026-05-04",
+          endDate: "2026-05-04",
+          reason: "Konzeptionstag",
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Montagsangebot" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: "2026-05-11" }),
+      ),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("filters and bulk-selects visible student rows", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [
@@ -1316,6 +1356,74 @@ describe("TimetableEventModal", () => {
     await waitFor(() =>
       expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" }),
     );
+  });
+
+  // The A/B predicate applies to the moved Datum too: with "Alle 2 Wochen"
+  // the first selected weekday inside the future period can sit in the other
+  // week slot, which the materializer would skip; the series would then start
+  // a week after the displayed date.
+  it("moves the Datum onto the matching A/B week when biweekly is selected", async () => {
+    const abPeriod: CalendarPeriod = {
+      ...periods[0]!,
+      weekCycleLength: 2,
+    };
+    const futurePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Schuljahr 2027/2028",
+      startDate: "2027-08-01",
+      endDate: "2028-07-31",
+      weekCycleLength: 2,
+      // Anchor 2027-08-09: the period's first Monday (2027-08-02) falls into
+      // Woche B, the series' Woche A first materializes on 2027-08-09.
+      weekCycleAnchor: "2027-08-09",
+    };
+    renderModal({
+      showPeriodField: true,
+      calendarPeriods: [abPeriod, futurePeriod],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    // defaultDate 2026-05-04 is Woche A of the current period.
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2027/2028",
+    );
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendar_period_id: 9,
+          week_pattern: 1,
+          start_date: "2027-08-09",
+          materialize_from: "2027-08-09",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeNull();
   });
 
   it("submits Zielgruppe Jahrgang with the selected grade level", async () => {

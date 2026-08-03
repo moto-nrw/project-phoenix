@@ -875,8 +875,8 @@ export function useEventForm({
    * series start, but schools pre-plan the next school year while the
    * wizard's Datum still defaults to today — hard-blocking on the wizard's
    * own default would be hostile. So when the chosen period does not contain
-   * the current Datum, move it to the first selected weekday inside the
-   * period (WYSIWYG: the field keeps showing the real series start). A Datum
+   * the current Datum, move it to the first materializing occurrence inside
+   * the period (WYSIWYG: the field keeps showing the real series start). A Datum
    * the user afterwards moves out of the period still fails validation.
    * Series edits keep their stored start; the convert seed date is the
    * instance's own date and must never be moved implicitly.
@@ -892,11 +892,15 @@ export function useEventForm({
     ) {
       return;
     }
-    const firstOccurrence = weekdayDatesInRange(
-      period.startDate,
-      period.endDate,
-      form.weekdays,
-    )[0];
+    // The A/B predicate must apply too: with "Alle 2 Wochen" the first
+    // selected weekday can sit in the other week slot, and a start_date the
+    // materializer skips would start the series a week after the shown date.
+    const firstOccurrence = materializedRecurrenceDates({
+      period,
+      fromISO: period.startDate,
+      weekdays: form.weekdays,
+      weekPattern: form.weekPattern,
+    })[0];
     update("date", firstOccurrence ?? period.startDate);
   };
 
