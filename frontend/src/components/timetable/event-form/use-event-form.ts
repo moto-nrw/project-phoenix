@@ -870,6 +870,36 @@ export function useEventForm({
     clearFieldError("weekPattern");
   };
 
+  /**
+   * Period selection for the series wizard. #2135 made the picked Datum the
+   * series start, but schools pre-plan the next school year while the
+   * wizard's Datum still defaults to today — hard-blocking on the wizard's
+   * own default would be hostile. So when the chosen period does not contain
+   * the current Datum, move it to the first selected weekday inside the
+   * period (WYSIWYG: the field keeps showing the real series start). A Datum
+   * the user afterwards moves out of the period still fails validation.
+   * Series edits keep their stored start; the convert seed date is the
+   * instance's own date and must never be moved implicitly.
+   */
+  const selectCalendarPeriod = (nextId: string) => {
+    update("calendarPeriodId", nextId);
+    if (isEditingSeries || convertInstance) return;
+    const period = calendarPeriods.find((candidate) => candidate.id === nextId);
+    if (
+      !period ||
+      !form.date ||
+      (form.date >= period.startDate && form.date <= period.endDate)
+    ) {
+      return;
+    }
+    const firstOccurrence = weekdayDatesInRange(
+      period.startDate,
+      period.endDate,
+      form.weekdays,
+    )[0];
+    update("date", firstOccurrence ?? period.startDate);
+  };
+
   const toggleWeekday = (iso: number) => {
     setForm((prev) => {
       const has = prev.weekdays.includes(iso);
@@ -2079,6 +2109,7 @@ export function useEventForm({
     form,
     update,
     updateRepeat,
+    selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,

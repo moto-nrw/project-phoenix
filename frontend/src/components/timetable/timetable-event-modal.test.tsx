@@ -1258,6 +1258,66 @@ describe("TimetableEventModal", () => {
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
+  // #2135 follow-up: schools pre-plan the next school year while the wizard's
+  // Datum still defaults to today. Selecting a period that does not contain
+  // the Datum moves it to the first selected weekday inside the period
+  // instead of hard-blocking on the wizard's own default.
+  it("moves the Datum into a future period on period selection", async () => {
+    const futurePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Schuljahr 2027/2028",
+      startDate: "2027-08-01",
+      endDate: "2028-07-31",
+      weekCycleAnchor: "2027-08-02",
+    };
+    const { onSaved } = renderModal({
+      showPeriodField: true,
+      calendarPeriods: [...periods, futurePeriod],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2027/2028",
+    );
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await clickSave();
+
+    // defaultDate 2026-05-04 is a Monday; the first Monday inside the
+    // future period is 2027-08-02.
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendar_period_id: 9,
+          start_date: "2027-08-02",
+          materialize_from: "2027-08-02",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" }),
+    );
+  });
+
   it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
     renderModal({ showPeriodField: true });
 

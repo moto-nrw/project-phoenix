@@ -156,6 +156,7 @@ export function TimetableEventModal({
     form,
     update,
     updateRepeat,
+    selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,
@@ -498,6 +499,7 @@ export function TimetableEventModal({
                 form={form}
                 update={update}
                 updateRepeat={updateRepeat}
+                selectCalendarPeriod={selectCalendarPeriod}
                 toggleWeekday={toggleWeekday}
                 fieldErrors={fieldErrors}
                 calendarPeriods={calendarPeriods}
