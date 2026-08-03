@@ -83,7 +83,7 @@ func datevCategoryValue(category configSvc.PayrollCategoryStatus, row MonthExpor
 	case "plus_stunden":
 		// An opening is a non-payroll go-live rebaseline. Exclude its delta
 		// from the generic Plus-Stunden line; CSV/XLSX expose it explicitly.
-		payrollBalance := row.BalanceMinutes - row.OpeningCarryMinutes
+		payrollBalance := row.BalanceMinutes - row.OpeningMinutes
 		if payrollBalance > 0 {
 			minutes = payrollBalance
 		}

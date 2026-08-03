@@ -364,7 +364,7 @@ export function AbwesenheitenTab({
               </Button>
             </>
           )}
-          {canEdit && (
+          {canManageSickReports && (
             <Button
               type="button"
               variant="outline"

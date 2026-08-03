@@ -329,7 +329,8 @@ export default function OpeningBalanceImportPage() {
         const payload = (await response.json()) as Record<string, unknown>;
         if (!response.ok) {
           throw new Error(
-            (payload.message as string | undefined) ??
+            (payload.error as string | undefined) ??
+              (payload.message as string | undefined) ??
               "Fehler bei der Vorschau",
           );
         }
@@ -402,7 +403,9 @@ export default function OpeningBalanceImportPage() {
       const payload = (await response.json()) as Record<string, unknown>;
       if (!response.ok) {
         throw new Error(
-          (payload.message as string | undefined) ?? "Fehler beim Import",
+          (payload.error as string | undefined) ??
+            (payload.message as string | undefined) ??
+            "Fehler beim Import",
         );
       }
 
