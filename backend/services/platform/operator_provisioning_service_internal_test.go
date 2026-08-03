@@ -187,6 +187,9 @@ func (s *internalCategoryRepoStub) List(context.Context, *modelBase.QueryOptions
 func (s *internalCategoryRepoStub) FindByName(context.Context, string) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (s *internalCategoryRepoStub) FindByNameIncludingArchivedForShare(context.Context, string) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (s *internalCategoryRepoStub) ListAll(context.Context) ([]*activityModels.Category, error) {
 	return nil, nil
 }

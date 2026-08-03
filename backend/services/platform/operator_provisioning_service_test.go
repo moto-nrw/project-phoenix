@@ -171,6 +171,9 @@ func (m *mockCategoryRepo) List(context.Context, *base.QueryOptions) ([]*activit
 func (m *mockCategoryRepo) FindByName(context.Context, string) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (m *mockCategoryRepo) FindByNameIncludingArchivedForShare(context.Context, string) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category, error) {
 	return nil, nil
 }

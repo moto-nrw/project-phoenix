@@ -98,6 +98,19 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 
 		_, err = repo.FindByName(ctx, category.Name)
 		require.Error(t, err)
+
+		archived, err := repo.FindByNameIncludingArchivedForShare(ctx, category.Name)
+		require.NoError(t, err)
+		assert.Equal(t, category.ID, archived.ID)
+		assert.True(t, archived.IsArchived())
+
+		active := &activities.Category{Name: category.Name, Description: "active replacement"}
+		require.NoError(t, repo.Create(ctx, active))
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, active.ID, 0)
+
+		preferred, err := repo.FindByNameIncludingArchivedForShare(ctx, category.Name)
+		require.NoError(t, err)
+		assert.Equal(t, active.ID, preferred.ID, "the active row must win over archived history")
 	})
 }
 
@@ -152,6 +165,36 @@ func TestCategoryRepository_Update(t *testing.T) {
 		found, err := repo.FindByID(ctx, category.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated description", found.Description)
+	})
+
+	t.Run("active edit preserves a concurrently changed shift mapping", func(t *testing.T) {
+		category := testpkg.CreateTestActivityCategory(t, db, "UpdateMapping")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+
+		stRepo := repositories.NewFactory(db).ShiftType
+		shiftType := &scheduleModels.ShiftType{
+			Name:     fmt.Sprintf("UpdateMapping-%d", time.Now().UnixNano()),
+			Color:    "#83CD2D",
+			IsActive: true,
+		}
+		require.NoError(t, stRepo.Create(ctx, shiftType))
+		defer func() { _ = stRepo.Delete(ctx, shiftType.ID) }()
+
+		stale, err := repo.FindByID(ctx, category.ID)
+		require.NoError(t, err)
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, shiftType.ID, []int64{category.ID}))
+
+		stale.Name = fmt.Sprintf("UpdateMappingRenamed-%d", time.Now().UnixNano())
+		stale.Description = "edited after mapping changed"
+		updated, err := repo.UpdateIfActive(ctx, stale)
+		require.NoError(t, err)
+		require.True(t, updated)
+
+		found, err := repo.FindByID(ctx, category.ID)
+		require.NoError(t, err)
+		assert.Equal(t, stale.Name, found.Name)
+		require.NotNil(t, found.ShiftTypeID)
+		assert.Equal(t, shiftType.ID, *found.ShiftTypeID)
 	})
 }
 

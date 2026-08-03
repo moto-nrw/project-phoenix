@@ -17,6 +17,11 @@ type CategoryRepository interface {
 	// FindByName finds a category by its name
 	FindByName(ctx context.Context, name string) (*Category, error)
 
+	// FindByNameIncludingArchivedForShare finds a category by name across active
+	// and archived rows, preferring the active row and holding a transaction-
+	// scoped FOR SHARE lock against a concurrent archive.
+	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*Category, error)
+
 	// FindByIDForShare returns a category while holding a transaction-scoped
 	// FOR SHARE lock. New category assignments use it so an archive cannot
 	// commit between validation and the referencing write.
@@ -25,9 +30,9 @@ type CategoryRepository interface {
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
 
-	// UpdateIfActive writes a category only while archived_at is still NULL.
-	// The condition and update run in one statement so a stale editor cannot
-	// reactivate a category that was archived after it loaded the row.
+	// UpdateIfActive writes only editable fields while archived_at is still
+	// NULL. The condition and update run in one statement so a stale editor
+	// cannot reactivate a category or overwrite a concurrent shift mapping.
 	UpdateIfActive(ctx context.Context, category *Category) (updated bool, err error)
 
 	// SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one

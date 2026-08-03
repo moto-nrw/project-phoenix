@@ -283,10 +283,12 @@ export function useEventForm({
   // replace only its own roster while stale completions cannot overwrite a
   // newer modal state.
   const referenceLoadSeq = useRef(0);
+  const categoryLoadSeq = useRef(0);
   const studentLoadSeq = useRef(0);
   const staffLoadSeq = useRef(0);
   const invalidateReferenceLoads = useCallback(() => {
     referenceLoadSeq.current++;
+    categoryLoadSeq.current++;
     studentLoadSeq.current++;
     staffLoadSeq.current++;
   }, []);
@@ -416,6 +418,7 @@ export function useEventForm({
       return;
     }
     const referenceSeq = ++referenceLoadSeq.current;
+    const categorySeq = ++categoryLoadSeq.current;
     const studentSeq = ++studentLoadSeq.current;
     const staffSeq = ++staffLoadSeq.current;
     const isCurrentReferenceLoad = () =>
@@ -510,13 +513,15 @@ export function useEventForm({
         );
         if (isCurrentReferenceLoad()) {
           setRooms(sortedRooms);
-          setCategories(sortedCategories);
           setGroups(sortedGroups);
-          setForm((prev) =>
-            prev.categoryId || sortedCategories.length === 0
-              ? prev
-              : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
-          );
+          if (categoryLoadSeq.current === categorySeq) {
+            setCategories(sortedCategories);
+            setForm((prev) =>
+              prev.categoryId || sortedCategories.length === 0
+                ? prev
+                : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+            );
+          }
         }
       })
       .finally(() => {
@@ -2001,6 +2006,7 @@ export function useEventForm({
    * away — the user opened the dialog because the one they needed was missing.
    */
   const refreshCategories = useCallback(async (selectId?: string) => {
+    const categorySeq = ++categoryLoadSeq.current;
     if (selectId) {
       setForm((prev) => ({ ...prev, categoryId: selectId }));
     }
@@ -2009,6 +2015,7 @@ export function useEventForm({
       const sorted = [...data].sort((a, b) =>
         a.name.localeCompare(b.name, "de"),
       );
+      if (categoryLoadSeq.current !== categorySeq) return;
       setCategories(sorted);
       setForm((prev) => {
         const categoryId = reconcileCategoryId(

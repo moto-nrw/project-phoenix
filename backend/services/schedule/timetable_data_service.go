@@ -271,7 +271,7 @@ func (s *TimetableDataService) CreateActivityGroup(ctx context.Context, group *a
 }
 
 func (s *TimetableDataService) GetActivityCategoryByName(ctx context.Context, name string) (*activitiesModel.Category, error) {
-	return s.deps.ActivityCategoryRepo.FindByName(ctx, name)
+	return s.deps.ActivityCategoryRepo.FindByNameIncludingArchivedForShare(ctx, name)
 }
 
 func (s *TimetableDataService) CreateActivityCategory(ctx context.Context, category *activitiesModel.Category) error {
