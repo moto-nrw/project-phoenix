@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -287,7 +286,7 @@ func parseInt64Param(r *http.Request, name string) (int64, error) {
 func parseYearQuery(r *http.Request) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
-		return time.Now().Year(), nil
+		return timezone.TodayDate().Year, nil
 	}
 	year, err := strconv.Atoi(yearStr)
 	if err != nil || year < 2000 || year > 2100 {
