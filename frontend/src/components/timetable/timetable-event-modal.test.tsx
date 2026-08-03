@@ -1189,9 +1189,11 @@ describe("TimetableEventModal", () => {
     );
     await clickSave();
 
-    // The create call carries the first 56-day window of the period
-    // (2026-05-01 … 2026-12-31); the remaining four windows follow as
-    // separate materialize calls.
+    // #2135: the picked Datum (2026-05-04) is the series start — it travels
+    // as start_date and the materialization windows begin there, not at the
+    // period start (2026-05-01). The create call carries the first 56-day
+    // window; the remaining four windows follow as separate materialize
+    // calls up to the period end (2026-12-31).
     await waitFor(() =>
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1200,8 +1202,9 @@ describe("TimetableEventModal", () => {
           room_id: 3,
           category_id: 2,
           calendar_period_id: 5,
-          materialize_from: "2026-05-01",
-          materialize_to: "2026-06-25",
+          start_date: "2026-05-04",
+          materialize_from: "2026-05-04",
+          materialize_to: "2026-06-28",
           primary_staff_id: 11,
         }),
       ),
@@ -1209,17 +1212,50 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalledTimes(4));
     expect(mockMaterialize).toHaveBeenNthCalledWith(
       1,
-      "2026-06-26",
-      "2026-08-20",
+      "2026-06-29",
+      "2026-08-23",
     );
     expect(mockMaterialize).toHaveBeenLastCalledWith(
-      "2026-12-11",
+      "2026-12-14",
       "2026-12-31",
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Regeltermin angelegt: 6 Termine eingetragen",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  // #2135: the picked Datum becomes the series start, so it must lie inside
+  // the selected planning period.
+  it("rejects a series start date outside the selected period", async () => {
+    renderModal({ showPeriodField: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2026/2027",
+    );
+    await goToStep(1);
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-02-01" },
+    });
+    // Datum is a step-0 field, so "Weiter" already blocks on the violation.
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
   it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
@@ -1605,17 +1641,23 @@ describe("TimetableEventModal", () => {
 
     await screen.findByText("Termin wiederholen");
     await clickSave();
-    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+    // #2135: the repeated instance's date (2026-05-04) is the series start.
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: "2026-05-04" }),
+      ),
+    );
     expect(mockUpdate).toHaveBeenCalledWith(
       "42",
       expect.objectContaining({ activity_group_id: 8 }),
     );
-    // Conversion materializes the whole period in 56-day chunks.
+    // Conversion materializes from the series start through the period end
+    // in 56-day chunks.
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalledTimes(5));
     expect(mockMaterialize).toHaveBeenNthCalledWith(
       1,
-      "2026-05-01",
-      "2026-06-25",
+      "2026-05-04",
+      "2026-06-28",
     );
     expect(onConvertSaved).toHaveBeenCalledWith({
       kind: "series",
@@ -1777,8 +1819,10 @@ describe("TimetableEventModal", () => {
           weekdays: [1, 2, 3, 4, 5],
           week_pattern: 0,
           calendar_period_id: 5,
-          materialize_from: "2026-05-01",
-          materialize_to: "2026-06-25",
+          // #2135: the picked Datum is the series start.
+          start_date: "2026-05-04",
+          materialize_from: "2026-05-04",
+          materialize_to: "2026-06-28",
         }),
       ),
     );

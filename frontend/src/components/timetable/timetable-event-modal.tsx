@@ -485,6 +485,7 @@ export function TimetableEventModal({
                 loadingRefs={loadingRefs}
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
+                isEditingSeries={isEditingSeries}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}
