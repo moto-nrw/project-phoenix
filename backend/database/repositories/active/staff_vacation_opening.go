@@ -31,27 +31,12 @@ func NewStaffVacationOpeningRepository(db *bun.DB) active.StaffVacationOpeningRe
 	return &StaffVacationOpeningRepository{Repository: repo, db: db}
 }
 
-// List mirrors StaffVacationQuotaRepository.List, but with the explicit
-// aliased table expression: unlike the quota table (whose singular name
-// happens to equal bun's struct-derived default alias) the plural table name
-// needs the alias or every column qualification points nowhere.
+// List delegates to the generic ListWithOptions, which builds the aliased
+// table expression itself. That alias is load-bearing here: bun qualifies
+// model columns with the struct-derived singular alias, which the plural
+// table name does not match.
 func (r *StaffVacationOpeningRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffVacationOpening, error) {
-	var rows []*active.StaffVacationOpening
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(tableStaffVacationOpeningAliased)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list vacation openings", Err: err}
-	}
-	return rows, nil
+	return r.Repository.ListWithOptions(ctx, options)
 }
 
 func (r *StaffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*active.StaffVacationOpening, error) {

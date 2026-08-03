@@ -42,6 +42,7 @@ DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
+DELETE /api/staff/{id}/vacation/opening
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
@@ -206,6 +207,7 @@ GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/import/opening-balances/template
 GET /api/import/students/template
 GET /api/import/teachers/template
 GET /api/iot/*/
@@ -567,6 +569,8 @@ POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+POST /api/import/opening-balances/import
+POST /api/import/opening-balances/preview
 POST /api/import/students/import
 POST /api/import/students/preview
 POST /api/import/teachers/import
@@ -625,8 +629,10 @@ POST /api/staff/{id}/absences
 POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 POST /api/staff/{id}/time-tracking/adjustments
 POST /api/staff/{id}/time-tracking/month-close/reopen
+POST /api/staff/{id}/time-tracking/opening
 POST /api/staff/{id}/time-tracking/reset
 POST /api/staff/{id}/time-tracking/sessions
+POST /api/staff/{id}/vacation/opening
 POST /api/students/
 POST /api/students/arrival-schedules/bulk
 POST /api/students/arrival-times/bulk
