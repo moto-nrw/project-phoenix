@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // The date fields moved from native inputs to the kit picker; this stub keeps
@@ -47,9 +47,11 @@ vi.mock("~/lib/staff-api", () => ({
     create: vi.fn(),
     delete: vi.fn(),
     reset: vi.fn(),
+    createOpening: vi.fn(),
   },
 }));
 
+import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import { StundenkontoPanel } from "./stundenkonto-panel";
 
 describe("StundenkontoPanel", () => {
@@ -137,5 +139,78 @@ describe("StundenkontoPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeDisabled();
+  });
+
+  it("bucht einen negativen Eröffnungssaldo in Minuten zum Stichtag", async () => {
+    const createOpening = vi.mocked(
+      staffBalanceAdjustmentService.createOpening,
+    );
+    createOpening.mockResolvedValue(
+      {} as Awaited<
+        ReturnType<typeof staffBalanceAdjustmentService.createOpening>
+      >,
+    );
+
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={0}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Eröffnungssaldo" }));
+
+    const openingDate = screen.getByLabelText("Stichtag");
+    expect(openingDate).toHaveAttribute("min", "2026-01-01");
+    expect(openingDate).toHaveAttribute("max", "2026-07-23");
+    expect(openingDate).toHaveValue("2026-01-01");
+
+    fireEvent.change(screen.getByLabelText("Übernommener Saldo (Stunden)"), {
+      target: { value: "-2,5" },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Übernahme Altsystem" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buchen" }));
+
+    await waitFor(() => {
+      expect(createOpening).toHaveBeenCalledWith("4", {
+        effectiveDate: "2026-01-01",
+        balanceMinutes: -150,
+        note: "Übernahme Altsystem",
+      });
+    });
+  });
+
+  it("sperrt einen zweiten Eröffnungssaldo", () => {
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={180}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[
+          {
+            id: "21",
+            type: "opening",
+            minutesDelta: 180,
+            effectiveDate: "2026-01-01",
+            note: "Übernahme Altsystem",
+            decidedBy: "9",
+            decidedAt: "2026-01-02T08:00:00Z",
+          },
+        ]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Eröffnungssaldo" }),
+    ).toBeDisabled();
+    expect(screen.getAllByText("Eröffnungssaldo")).toHaveLength(2);
   });
 });

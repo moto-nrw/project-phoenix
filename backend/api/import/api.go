@@ -38,8 +38,18 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	staffImportService   *importService.ImportService[importModels.StaffImportRow]
-	personService        userSvc.PersonService
-	db                   *bun.DB
+	// openingBalanceImportFactory builds a request-scoped opening balance
+	// import service (#2132) — Stichtag/Begründung/actor come from the
+	// upload form. Wired via SetOpeningBalanceImportFactory.
+	openingBalanceImportFactory importService.OpeningBalanceImportFactory
+	personService               userSvc.PersonService
+	db                          *bun.DB
+}
+
+// SetOpeningBalanceImportFactory wires the opening balance import (#2132).
+// Setter injection so existing NewResource call sites stay unchanged.
+func (rs *Resource) SetOpeningBalanceImportFactory(factory importService.OpeningBalanceImportFactory) {
+	rs.openingBalanceImportFactory = factory
 }
 
 // NewResource creates a new import resource
@@ -84,6 +94,17 @@ func (rs *Resource) Router() chi.Router {
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
 			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
+		})
+
+		// Opening balance (Eröffnungssalden) import endpoints (#2132).
+		// Stundenkonto and vacation takeover values are payroll data —
+		// everything sits behind time_tracking:manage.
+		r.Route("/opening-balances", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("time_tracking:manage"), withTx).Get("/template", rs.DownloadOpeningBalanceTemplate)
+			r.With(authorize.RequiresPermission("time_tracking:manage"), withTx).Post("/preview", rs.PreviewOpeningBalanceImport)
+			// Note: no withTx here — the handler manages its own WithTenantTx
+			// to control commit/rollback based on import results.
+			r.With(authorize.RequiresPermission("time_tracking:manage")).Post("/import", rs.ImportOpeningBalances)
 		})
 
 		// Staff (Mitarbeiter) import endpoints

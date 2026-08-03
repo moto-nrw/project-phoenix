@@ -4,10 +4,11 @@
 // Schuljahres-Reset als Admin-Aktionen auf dem Übersicht-Tab, plus die
 // Historie aller Buchungen. Jede Buchung ist eine eigene Transaktion im
 // Stundenkonto, kein Zeiteintrag — der Server rechnet sie live in die
-// Monatskarten-Kette ein.
+// Monatskarten-Kette ein. Dazu der einmalige Eröffnungssaldo (#2132), der den
+// Übernahme-Stand aus dem Altsystem setzt.
 
 import { useState } from "react";
-import { Banknote, Clock4, RotateCcw, Trash2 } from "lucide-react";
+import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -44,7 +45,7 @@ export function StundenkontoPanel({
   onChanged,
 }: StundenkontoPanelProps) {
   const [activeModal, setActiveModal] = useState<
-    "payout" | "comp_time" | "reset" | null
+    "payout" | "comp_time" | "reset" | "opening" | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<BalanceAdjustment | null>(
     null,
@@ -52,7 +53,12 @@ export function StundenkontoPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const toast = useToast();
+  // Reset und Eröffnungssaldo brauchen beide einen abgeschlossenen Kontotag:
+  // der Stichtag muss vor heute liegen.
   const canResetClosedPeriod = accountStartKey < todayKey;
+  const hasOpening = adjustments.some(
+    (adjustment) => adjustment.type === "opening",
+  );
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -112,13 +118,30 @@ export function StundenkontoPanel({
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
             Zurücksetzen
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={() => setActiveModal("opening")}
+            disabled={!canResetClosedPeriod || hasOpening}
+            title={
+              hasOpening
+                ? "Es existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung."
+                : canResetClosedPeriod
+                  ? undefined
+                  : "Ein Eröffnungssaldo ist erst nach dem ersten abgeschlossenen Kontotag möglich."
+            }
+          >
+            <Flag className="h-3.5 w-3.5" aria-hidden />
+            Eröffnungssaldo
+          </Button>
         </div>
       </div>
 
       {adjustments.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-400">
-          Noch keine Buchungen — Auszahlungen, Freizeitausgleich und Resets
-          erscheinen hier.
+          Noch keine Buchungen — Auszahlungen, Freizeitausgleich, Resets und
+          Eröffnungssalden erscheinen hier.
         </p>
       ) : (
         <ul className="divide-y divide-gray-100">
@@ -176,6 +199,19 @@ export function StundenkontoPanel({
       )}
       {activeModal === "reset" && (
         <ResetModal
+          staffId={staffId}
+          accountStartKey={accountStartKey}
+          todayKey={todayKey}
+          balanceMinutes={balanceMinutes}
+          onClose={() => setActiveModal(null)}
+          onSaved={async () => {
+            setActiveModal(null);
+            await onChanged();
+          }}
+        />
+      )}
+      {activeModal === "opening" && (
+        <OpeningModal
           staffId={staffId}
           accountStartKey={accountStartKey}
           todayKey={todayKey}
@@ -481,6 +517,151 @@ function ResetModal({
             step="0.25"
             value={carryoverHours}
             onChange={(e) => setCarryoverHours(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+          />
+        </div>
+        <NoteField note={note} onChange={setNote} />
+      </div>
+    </Modal>
+  );
+}
+
+// Eröffnungssaldo (#2132): einmalige Übernahme aus dem Altsystem. Gleiche
+// Stichtags-Grenzen wie der Reset, aber der Zielwert darf negativ sein.
+function OpeningModal({
+  staffId,
+  accountStartKey,
+  todayKey,
+  balanceMinutes,
+  onClose,
+  onSaved,
+}: {
+  readonly staffId: string;
+  readonly accountStartKey: string;
+  readonly todayKey: string;
+  readonly balanceMinutes: number | null;
+  readonly onClose: () => void;
+  readonly onSaved: () => void | Promise<void>;
+}) {
+  const lastClosedDateKey = previousDateISO(todayKey);
+  const [effectiveDate, setEffectiveDate] = useState(
+    accountStartKey <= lastClosedDateKey ? accountStartKey : lastClosedDateKey,
+  );
+  const [openingHours, setOpeningHours] = useState("0");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
+
+  const opening = Number.parseFloat(openingHours.replace(",", "."));
+  const openingValid =
+    !Number.isNaN(opening) && opening >= -10_000 && opening <= 10_000;
+
+  const handleSubmit = async () => {
+    if (!openingValid) {
+      toast.error("Eröffnungssaldo ungültig.");
+      return;
+    }
+    if (!effectiveDate) {
+      toast.error("Datum fehlt.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await staffBalanceAdjustmentService.createOpening(staffId, {
+        effectiveDate,
+        balanceMinutes: Math.round(opening * 60),
+        note: note.trim(),
+      });
+      toast.success("Eröffnungssaldo gebucht.");
+      await onSaved();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Buchung fehlgeschlagen.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const canSubmit = !submitting && openingValid && note.trim() !== "";
+
+  return (
+    <Modal
+      isOpen
+      onClose={() => !submitting && onClose()}
+      title="Eröffnungssaldo buchen"
+      footer={
+        <AdjustmentModalFooter
+          submitting={submitting}
+          canSubmit={canSubmit}
+          submitLabel="Buchen"
+          onCancel={onClose}
+          onSubmit={handleSubmit}
+        />
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Der Eröffnungssaldo setzt den Übernahme-Stand aus dem Altsystem. Das
+          Stundenkonto steht zum Stichtag danach exakt auf dem eingetragenen
+          Wert. Negative Werte sind zulässig, wenn im Altsystem Minusstunden
+          bestanden. Pro Person ist genau ein Eröffnungssaldo möglich. Für eine
+          Korrektur die bestehende Buchung löschen und neu anlegen.
+        </p>
+        {balanceMinutes !== null && (
+          <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <p>
+              Aktueller Stand:{" "}
+              <span className="font-medium tabular-nums">
+                {formatSignedDuration(balanceMinutes)}
+              </span>
+            </p>
+            {openingValid && (
+              <p>
+                Gewünschter Stand am Stichtag:{" "}
+                <span className="font-medium tabular-nums">
+                  {formatSignedDuration(Math.round(opening * 60))}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+        <div>
+          <label
+            htmlFor="opening-date"
+            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+          >
+            Stichtag
+          </label>
+          <ISODatePicker
+            id="opening-date"
+            min={accountStartKey}
+            max={lastClosedDateKey}
+            value={effectiveDate}
+            onChange={setEffectiveDate}
+            calendarLayout="popover"
+            hideClearButton
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Der Stichtag muss vor dem heutigen Tag liegen.
+          </p>
+        </div>
+        <div>
+          <label
+            htmlFor="opening-balance"
+            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+          >
+            Übernommener Saldo (Stunden)
+          </label>
+          <input
+            id="opening-balance"
+            type="number"
+            min="-10000"
+            max="10000"
+            step="0.25"
+            value={openingHours}
+            onChange={(e) => setOpeningHours(e.target.value)}
+            placeholder="z. B. 12,5 oder -3"
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
         </div>

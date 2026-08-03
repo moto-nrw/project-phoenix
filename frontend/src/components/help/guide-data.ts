@@ -822,13 +822,15 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Reiter `Stammdaten` die Sektionen `Person`, `Kontakt`, `Arbeitsvertrag` und `Qualifikationen` (mit Ablaufdatum, z. B. Erste-Hilfe-Kurs) pflegen. Sichtbar sind diese Sektionen nur mit `Benutzer bearbeiten` oder `time_tracking:manage` — nicht für alle, die die Mitarbeiterliste sehen dürfen; `Bearbeiten` erfordert `Benutzer bearbeiten`, jede Änderung landet mit optionaler Begründung im Audit-Log. In der Sektion `Abrechnung` liegt die Personalnummer für die Abrechnung. Bank- und Steuerdaten (IBAN, Steuer-ID, SV-Nummer) sehen nur Rollen mit der Berechtigung `Bank- & Steuerdaten`: Die Werte sind maskiert, `Anzeigen` blendet sie ein, und jeder Abruf wird protokolliert.",
           "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
           "Im Bereich `Stundenkonto-Verwaltung` Plus-Stunden auszahlen (`Auszahlung`), pauschal als `Freizeitausgleich` verrechnen oder das Konto mit `Zurücksetzen` zum Stichtag (Schuljahresende 31.07.) auf null bzw. einen Rest-Übertrag setzen. Für einen Reset lässt sich nur ein bereits abgeschlossener Tag wählen, nicht der heutige Tag. Jede Buchung braucht eine Begründung und erscheint in der Historie darunter; eine Fehlbuchung lässt sich dort wieder löschen.",
+          "Beim Umstieg auf moto den Stand aus dem Altsystem über `Eröffnungssaldo` übernehmen: Stichtag wählen, den Saldo in Stunden eintragen (auch negativ, z. B. -3,25) und begründen. Ab dem Stichtag zählt moto auf diesem Stand weiter. Pro Person ist nur ein Eröffnungssaldo möglich; eine Korrektur läuft über Löschen der Buchung und Neuanlegen.",
           "Im Reiter `Zeiterfassung` zwischen Woche und Monat wechseln und Plan (geplante Schicht aus dem Dienstplan), Check-in, Check-out, Pause, Soll, Ist, Saldo, Quelle und Hinweise kontrollieren. So stehen geplante Schicht und tatsächliche Zeit nebeneinander.",
-          "In der Monatsansicht zeigt die `Monatskarte` Übertrag aus dem Vormonat, Summe Soll, Summe Ist, Gutschriften für Krankheit und Urlaub (mit Tagen), Stundenkonto-Buchungen des Monats (Auszahlung, Freizeitausgleich, Reset), die im Dienstplan verplanten Stunden und den Monatssaldo. Krankheit und Urlaub erzeugen keine Minusstunden — der Tag wird mit dem Tagessoll gutgeschrieben. Alle Werte werden live berechnet: Eine Korrektur in einem früheren Monat aktualisiert den Übertrag automatisch.",
+          "In der Monatsansicht zeigt die `Monatskarte` Übertrag aus dem Vormonat, Summe Soll, Summe Ist, Gutschriften für Krankheit und Urlaub (mit Tagen), Stundenkonto-Buchungen des Monats (Auszahlung, Freizeitausgleich, Reset, Eröffnungssaldo), die im Dienstplan verplanten Stunden und den Monatssaldo. Krankheit und Urlaub erzeugen keine Minusstunden — der Tag wird mit dem Tagessoll gutgeschrieben. Alle Werte werden live berechnet: Eine Korrektur in einem früheren Monat aktualisiert den Übertrag automatisch.",
           "Bei einem abgeschlossenen Monat trägt die Monatskarte das Schloss-Symbol `Abgeschlossen am ...` und zeigt als verbindlichen Wert den `Übertrag Monatsende (eingefroren)`. Werden danach noch Zeiten in diesem Monat geändert, bleibt der Übertrag in den Folgemonat stehen; ein gelber Hinweis zeigt die Abweichung zum abgeschlossenen Stand. Für die Korrektur gibt es zwei Wege: die Differenz als Buchung im offenen Monat erfassen (Stundenkonto-Verwaltung im Reiter `Übersicht`, empfohlen), oder über `Monat wieder öffnen` den Abschluss dieser Person mit Begründung aufheben, wenn der Abschluss selbst falsch war. Buchungen mit Datum in einem abgeschlossenen Monat lehnt das System ab.",
           "Eine Zeile mit Änderungshistorie aufklappen, um geplante gegen tatsächliche Zeit zu sehen. Wurde beim Stempeln eine Abweichung begründet, erscheint sie dort als `Abweichung` mit geplanter Zeit, Ist-Zeit und Grund.",
           "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
+          "Beim Umstieg auf moto den Resturlaub über die `Urlaubs-Übernahme` erfassen: Stichtag und Resturlaub zum Stichtag eintragen; moto errechnet daraus die vor der Einführung bereits genommenen Tage. Der Jahresanspruch bleibt unverändert, spätere Anspruchskorrekturen wirken sich weiterhin korrekt auf den Rest aus. Auch ein überzogenes Konto (negativer Rest) lässt sich abbilden.",
           "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
@@ -839,6 +841,28 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
+        printCompact: true,
+      },
+      {
+        id: "eroeffnungssalden-import",
+        title: "Eröffnungssalden gesammelt importieren",
+        icon: Download,
+        summary:
+          "Übernimmt beim Umstieg auf moto Stundenkonto-Stände und Resturlaub für das ganze Team aus einer Excel- oder CSV-Liste.",
+        steps: [
+          "In der Datenverwaltung unter `Personal` den Punkt `Eröffnungssalden importieren` öffnen.",
+          "Die Vorlage herunterladen und pro Person ausfüllen: `Stundensaldo` in Stunden (auch negativ, z. B. -3,25), `Jahresanspruch`, `Vorjahresübertrag` und `Resturlaub` in Tagen. Leere Zellen überspringen die jeweilige Übernahme. Die `Personalnummer` sorgt bei Namensgleichheit für eine eindeutige Zuordnung.",
+          "Stichtag (z. B. der Tag vor dem Go-live) und eine Begründung eintragen; beides gilt für die ganze Datei und wird an jeder Buchung gespeichert.",
+          "Die Vorschau prüfen: Zeilen mit Fehlern (unbekannte Person, ungültige Zahl, bereits vorhandene Übernahme) werden einzeln erklärt und beim Import übersprungen.",
+          "Mit `Importieren` bestätigen. Jede Übernahme erscheint anschließend im Änderungsprotokoll der Zeiterfassung und in der Stundenkonto-Historie der Person.",
+        ],
+        callout: {
+          title: "Nur einmal pro Person",
+          body: "Pro Person ist eine Übernahme je Konto möglich. Eine fehlerhafte Übernahme lässt sich im Mitarbeiterprofil löschen und danach neu erfassen oder erneut importieren.",
+          tone: "blue",
+        },
+        screenshot:
+          "Import-Seite für Eröffnungssalden mit Vorlage, Stichtag, Begründung und Vorschau.",
         printCompact: true,
       },
       {

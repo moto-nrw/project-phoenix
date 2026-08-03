@@ -88,9 +88,16 @@ type VacationQuotaSummary struct {
 	Year          int     `json:"year"`
 	EntitledDays  float64 `json:"entitled_days"`
 	CarryoverDays float64 `json:"carryover_days"`
-	TakenDays     float64 `json:"taken_days"`
-	ReservedDays  float64 `json:"reserved_days"`
-	RemainingDays float64 `json:"remaining_days"`
+	// TakenBeforeDays is the vacation takeover from the moto introduction
+	// (#2132): days already taken before the Stichtag in the old system.
+	// 0 without an opening row (or before its Stichtag).
+	TakenBeforeDays float64 `json:"taken_before_days"`
+	TakenDays       float64 `json:"taken_days"`
+	ReservedDays    float64 `json:"reserved_days"`
+	RemainingDays   float64 `json:"remaining_days"`
+	// Opening carries the takeover row for the summary's year, if any —
+	// Stichtag, entered Resturlaub, note, actor for the admin UI.
+	Opening *activeModels.StaffVacationOpening `json:"opening,omitempty"`
 }
 
 // StaffAbsenceService defines operations for staff absence management
@@ -133,6 +140,11 @@ type StaffAbsenceService interface {
 	CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+	// Vacation takeover at the moto introduction (#2132): one row per staff
+	// and year; corrections are delete + re-create (deletion tombstone).
+	GetVacationOpening(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationOpening, error)
+	SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error)
+	DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
 }
 
@@ -146,8 +158,11 @@ type staffAbsenceService struct {
 	absenceRepo     activeModels.StaffAbsenceRepository
 	workSessionRepo activeModels.WorkSessionRepository
 	quotaRepo       activeModels.StaffVacationQuotaRepository
-	auditRepo       activeModels.StaffAbsenceAuditRepository
-	settings        monthSettingsResolver
+	// openingRepo carries the vacation takeover rows (#2132); setter
+	// injection (SetVacationOpeningRepository), nil in bare unit fixtures.
+	openingRepo activeModels.StaffVacationOpeningRepository
+	auditRepo   activeModels.StaffAbsenceAuditRepository
+	settings    monthSettingsResolver
 	// monthService provides the daily-target and closing-balance math for
 	// the comp_time overdraft guard; nil in bare-constructed unit tests.
 	monthService    WorkTimeMonthService
@@ -1339,7 +1354,14 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch year absences: %w", err)
 	}
-	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences), nil
+	var opening *activeModels.StaffVacationOpening
+	if s.openingRepo != nil {
+		opening, err = s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch vacation opening: %w", err)
+		}
+	}
+	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences, opening), nil
 }
 
 // computeVacationQuotaSummary is the pure tail of GetVacationQuotaSummary: the
@@ -1351,6 +1373,7 @@ func computeVacationQuotaSummary(
 	year int,
 	entitled, carryover float64,
 	absences []*activeModels.StaffAbsence,
+	opening *activeModels.StaffVacationOpening,
 ) *VacationQuotaSummary {
 	return computeVacationQuotaSummaryThrough(
 		staffID,
@@ -1359,6 +1382,7 @@ func computeVacationQuotaSummary(
 		carryover,
 		timezone.NewDate(year, time.December, 31),
 		absences,
+		opening,
 	)
 }
 
@@ -1371,11 +1395,22 @@ func computeVacationQuotaSummaryThrough(
 	entitled, carryover float64,
 	through timezone.Date,
 	absences []*activeModels.StaffAbsence,
+	opening *activeModels.StaffVacationOpening,
 ) *VacationQuotaSummary {
 	yearStart := timezone.NewDate(year, time.January, 1)
 	yearEnd := timezone.NewDate(year, time.December, 31)
 	if through.Before(yearEnd) {
 		yearEnd = through
+	}
+
+	// The takeover (#2132) counts only in its own year and only from its
+	// Stichtag on — a historical view that ends before the introduction
+	// keeps the pre-moto arithmetic.
+	takenBefore := 0.0
+	if opening != nil && opening.Year == year && !through.Before(opening.EffectiveDate) {
+		takenBefore = opening.TakenBeforeDays
+	} else {
+		opening = nil
 	}
 
 	taken, reserved := 0.0, 0.0
@@ -1396,13 +1431,15 @@ func computeVacationQuotaSummaryThrough(
 	}
 
 	return &VacationQuotaSummary{
-		StaffID:       staffID,
-		Year:          year,
-		EntitledDays:  entitled,
-		CarryoverDays: carryover,
-		TakenDays:     taken,
-		ReservedDays:  reserved,
-		RemainingDays: entitled + carryover - taken - reserved,
+		StaffID:         staffID,
+		Year:            year,
+		EntitledDays:    entitled,
+		CarryoverDays:   carryover,
+		TakenBeforeDays: takenBefore,
+		TakenDays:       taken,
+		ReservedDays:    reserved,
+		RemainingDays:   entitled + carryover - takenBefore - taken - reserved,
+		Opening:         opening,
 	}
 }
 

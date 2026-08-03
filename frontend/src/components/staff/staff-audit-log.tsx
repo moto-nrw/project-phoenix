@@ -60,6 +60,13 @@ const absenceStatusLabels: Record<string, string> = {
   canceled: "storniert",
 };
 
+// Vacation takeover values are half-day granular and signed (#2132).
+function formatOpeningDays(value: unknown): string {
+  const days = typeof value === "number" ? value : 0;
+  const formatted = days.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  return `${formatted} ${days === 1 ? "Tag" : "Tage"}`;
+}
+
 // One German sentence per event; the typed detail payloads stay readable
 // instead of being squeezed into a shared column schema.
 function describeEvent(event: AuditLogEvent): string {
@@ -97,6 +104,14 @@ function describeEvent(event: AuditLogEvent): string {
           : "";
       return `${type} ${formatSignedDuration(minutes)} zum ${day}`;
     }
+    case "vacation_opening": {
+      const year = typeof d.year === "number" ? d.year : "";
+      const day =
+        typeof d.effective_date === "string"
+          ? formatDate(d.effective_date)
+          : "";
+      return `Urlaubs-Übernahme ${year}: ${formatOpeningDays(d.entered_remaining_days)} Rest zum ${day}`;
+    }
     case "month_close": {
       const count = typeof d.account_count === "number" ? d.account_count : 0;
       return `Monat ${String(d.month).padStart(2, "0")}/${String(d.year)} abgeschlossen (${count} ${count === 1 ? "Konto" : "Konten"})`;
@@ -113,6 +128,10 @@ function describeEvent(event: AuditLogEvent): string {
         const minutes =
           typeof payload.minutes_delta === "number" ? payload.minutes_delta : 0;
         return `Buchung gelöscht: ${type} ${formatSignedDuration(minutes)}`;
+      }
+      if (d.deleted_source === "vacation_opening") {
+        const year = typeof payload.year === "number" ? payload.year : "";
+        return `Urlaubs-Übernahme gelöscht: ${year} (${formatOpeningDays(payload.entered_remaining_days)} Rest)`;
       }
       const type =
         absenceTypeLabels[payload.absence_type as AbsenceType] ??

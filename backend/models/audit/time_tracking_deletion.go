@@ -13,6 +13,7 @@ import (
 const (
 	TimeTrackingDeletionSourceBalanceAdjustment = "balance_adjustment"
 	TimeTrackingDeletionSourceAbsence           = "absence"
+	TimeTrackingDeletionSourceVacationOpening   = "vacation_opening"
 )
 
 // TimeTrackingDeletion is an append-only tombstone for a deleted balance
@@ -36,7 +37,9 @@ func (d *TimeTrackingDeletion) Validate() error {
 	if d.StaffID <= 0 {
 		return errors.New("staff_id is required")
 	}
-	if d.Source != TimeTrackingDeletionSourceBalanceAdjustment && d.Source != TimeTrackingDeletionSourceAbsence {
+	if d.Source != TimeTrackingDeletionSourceBalanceAdjustment &&
+		d.Source != TimeTrackingDeletionSourceAbsence &&
+		d.Source != TimeTrackingDeletionSourceVacationOpening {
 		return errors.New("invalid deletion source")
 	}
 	if d.SourceID <= 0 {

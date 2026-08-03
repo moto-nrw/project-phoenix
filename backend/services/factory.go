@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -121,6 +123,7 @@ type Factory struct {
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
+	OpeningBalanceImport     importService.OpeningBalanceImportFactory                   // Opening balance import (#2132), request-scoped
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
@@ -500,6 +503,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}); ok {
 		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
 	}
+	// Vacation takeover at the moto introduction (#2132): the summary
+	// subtracts pre-introduction days, the write paths book/delete them.
+	if openingAware, ok := staffAbsenceService.(interface {
+		SetVacationOpeningRepository(activeModels.StaffVacationOpeningRepository)
+	}); ok {
+		openingAware.SetVacationOpeningRepository(repos.StaffVacationOpening)
+	}
 
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
@@ -534,6 +544,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)
+	// Vacation takeover (#2132): the Resturlaub column subtracts
+	// pre-introduction days exactly like the /staff/{id} detail view.
+	staffOverviewService.SetVacationOpeningReader(repos.StaffVacationOpening)
 
 	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
 	// prefetch (month) and the single-staff export cells (day); every download
@@ -1297,6 +1310,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffImportService := importService.NewImportService(staffImportConfig)
 	staffImportService.SetAuditRepository(repos.DataImport)
 
+	// Opening balance import (#2132): the config is request-scoped (Stichtag,
+	// Begründung, and acting staff member come from the upload form), so the
+	// factory closes over the request-independent deps and builds a fresh
+	// service per request.
+	openingBalanceImportFactory := importService.OpeningBalanceImportFactory(
+		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *importService.ImportService[importModels.OpeningBalanceImportRow] {
+			config := importService.NewOpeningBalanceImportConfig(importService.OpeningBalanceImportDeps{
+				StaffRepo:            repos.Staff,
+				AdjustmentRepo:       repos.StaffBalanceAdjust,
+				VacationOpeningRepo:  repos.StaffVacationOpening,
+				BalanceAdjustService: staffBalanceAdjustService,
+				StaffAbsenceService:  staffAbsenceService,
+			}, effectiveDate, note, decidedByStaffID)
+			svc := importService.NewImportService(config)
+			svc.SetAuditRepository(repos.DataImport)
+			return svc
+		})
+
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
 	// delivery constraints and security profile). If the two ever need to diverge,
@@ -1979,8 +2010,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileLoader:    guardianProfileLoader,
 		UserContext:              userContextService,
 		Database:                 databaseService,
-		Import:                   studentImportService, // Student import service
-		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
+		Import:                   studentImportService,        // Student import service
+		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
+		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
 		Emergency:                emergencyService,

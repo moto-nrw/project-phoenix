@@ -38,6 +38,10 @@ func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "adjustment_in_closed_month"))
 		return
 	}
+	if errors.Is(err, activeSvc.ErrOpeningAlreadyExists) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "opening_balance_already_exists"))
+		return
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))
 }
 
@@ -164,6 +168,49 @@ func (rs *Resource) deleteBalanceAdjustment(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Balance adjustment deleted")
+}
+
+// openingBalanceRequest is the wire shape for POST
+// /api/staff/{id}/time-tracking/opening (#2132). BalanceMinutes is SIGNED —
+// a migrated Stundenkonto may start negative.
+type openingBalanceRequest struct {
+	EffectiveDate  string `json:"effective_date"`
+	BalanceMinutes int    `json:"balance_minutes"`
+	Note           string `json:"note"`
+}
+
+// createOpeningBalance handles POST /api/staff/{id}/time-tracking/opening
+func (rs *Resource) createOpeningBalance(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
+		return
+	}
+	decidedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	var req openingBalanceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
+		return
+	}
+	adjustment, err := rs.BalanceAdjustService.CreateOpeningBalance(r.Context(), staffID, decidedBy, effectiveDate, req.BalanceMinutes, req.Note)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderBalanceAdjustmentError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, adjustment, "Opening balance created")
 }
 
 // resetStaffBalance handles POST /api/staff/{id}/time-tracking/reset

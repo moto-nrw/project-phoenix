@@ -101,7 +101,11 @@ export interface BackendStaffAbsence {
 
 // Frontend absence type
 export type AbsenceType =
-  "sick" | "vacation" | "training" | "other" | "comp_time";
+  | "sick"
+  | "vacation"
+  | "training"
+  | "other"
+  | "comp_time";
 
 export interface StaffAbsence {
   id: string;
@@ -618,7 +622,11 @@ export interface BackendBalanceAdjustment {
   decided_at: string;
 }
 
-export type BalanceAdjustmentType = "payout" | "comp_time" | "reset";
+export type BalanceAdjustmentType =
+  | "payout"
+  | "comp_time"
+  | "reset"
+  | "opening";
 
 export interface BalanceAdjustment {
   id: string;
@@ -634,6 +642,7 @@ const balanceAdjustmentTypeLabels: Record<BalanceAdjustmentType, string> = {
   payout: "Auszahlung",
   comp_time: "Freizeitausgleich",
   reset: "Reset",
+  opening: "Eröffnungssaldo",
 };
 
 // Defensive lookup: mapBalanceAdjustmentResponse casts the wire type without
