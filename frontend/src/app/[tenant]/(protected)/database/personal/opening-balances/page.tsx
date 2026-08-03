@@ -460,6 +460,9 @@ export default function OpeningBalanceImportPage() {
   const importable = previewResult?.CreatedCount ?? 0;
   const previewErrors = previewResult?.ErrorCount ?? 0;
   const showPreview = previewResult !== null && importResult === null;
+  const importButtonLabel = isImporting
+    ? "Wird übernommen…"
+    : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
@@ -723,9 +726,7 @@ export default function OpeningBalanceImportPage() {
             disabled={importable === 0 || isImporting}
             onClick={() => void handleImport()}
           >
-            {isImporting
-              ? "Wird übernommen…"
-              : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`}
+            {importButtonLabel}
           </Button>
         </div>
       )}

@@ -68,35 +68,42 @@ func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID in
 	return s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
 }
 
-// SetVacationOpening books the vacation takeover for the Stichtag's year.
-func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error) {
-	if s.openingRepo == nil {
-		return nil, fmt.Errorf("vacation opening repository is not configured")
-	}
-	if staffID <= 0 {
-		return nil, fmt.Errorf("%w: staff id is required", ErrVacationOpeningInvalid)
-	}
-	if decidedBy <= 0 {
-		return nil, fmt.Errorf("%w: decided_by is required", ErrVacationOpeningInvalid)
-	}
-	if req.EffectiveDate.IsZero() {
-		return nil, fmt.Errorf("%w: effective_date is required", ErrVacationOpeningInvalid)
-	}
-	if strings.TrimSpace(req.Note) == "" {
-		return nil, fmt.Errorf("%w: note is required", ErrVacationOpeningInvalid)
-	}
+// validateSetVacationOpening runs the pure request guards. Split out so the
+// booking path itself stays readable — the checks are a flat list with no
+// interaction between them.
+func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpeningRequest) error {
+	switch {
+	case staffID <= 0:
+		return fmt.Errorf("%w: staff id is required", ErrVacationOpeningInvalid)
+	case decidedBy <= 0:
+		return fmt.Errorf("%w: decided_by is required", ErrVacationOpeningInvalid)
+	case req.EffectiveDate.IsZero():
+		return fmt.Errorf("%w: effective_date is required", ErrVacationOpeningInvalid)
+	case strings.TrimSpace(req.Note) == "":
+		return fmt.Errorf("%w: note is required", ErrVacationOpeningInvalid)
 	// Same reasoning as the Stundenkonto opening: the Stichtag needs a closed
 	// cutoff, and the bulk import applies ONE Stichtag to both sides.
-	if !req.EffectiveDate.Before(timezone.TodayDate()) {
-		return nil, fmt.Errorf("%w: effective_date must be before today", ErrVacationOpeningInvalid)
-	}
+	case !req.EffectiveDate.Before(timezone.TodayDate()):
+		return fmt.Errorf("%w: effective_date must be before today", ErrVacationOpeningInvalid)
 	// The takeover rebaselines the vacation account of the Stichtag's year, and
 	// only the running year still has a live account to rebaseline. A Stichtag
 	// in a closed year would silently rewrite a historical account whose days
 	// are already spent. The import handler bounds its Stichtag the same way;
 	// the check belongs here too so the per-staff route cannot bypass it.
-	if req.EffectiveDate.Year != timezone.TodayDate().Year {
-		return nil, fmt.Errorf("%w: effective_date must be in the current vacation year", ErrVacationOpeningInvalid)
+	case req.EffectiveDate.Year != timezone.TodayDate().Year:
+		return fmt.Errorf("%w: effective_date must be in the current vacation year", ErrVacationOpeningInvalid)
+	default:
+		return nil
+	}
+}
+
+// SetVacationOpening books the vacation takeover for the Stichtag's year.
+func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error) {
+	if s.openingRepo == nil {
+		return nil, fmt.Errorf("vacation opening repository is not configured")
+	}
+	if err := validateSetVacationOpening(staffID, decidedBy, req); err != nil {
+		return nil, err
 	}
 	// Vacation absences use the same per-staff advisory lock. Holding it from
 	// the pre-cutoff check through the insert makes the double-count guard

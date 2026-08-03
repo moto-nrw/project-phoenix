@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -408,4 +409,56 @@ func TestSetVacationOpening_RespectsCustomQuota(t *testing.T) {
 	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year)
 	require.NoError(t, err)
 	assert.InDelta(t, 12.5, summary.RemainingDays, 0.001)
+}
+
+// TestVacationOpeningRepository_BatchAndListReads covers the repository read
+// helpers the summary/overview paths use: the batched per-staff lookup and
+// the options-based List (whose aliased table expression is load-bearing —
+// bun qualifies model columns with the singular struct alias, which the
+// plural table name does not match).
+func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
+	f := newVacationOpeningFixture(t)
+	repo := activeRepos.NewStaffVacationOpeningRepository(f.db)
+
+	_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
+		EffectiveDate: f.cutoff,
+		RemainingDays: 17.5,
+		Note:          "Übernahme aus Altsystem",
+	})
+	require.NoError(t, err)
+
+	t.Run("batched lookup keyed by staff", func(t *testing.T) {
+		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff.ID, f.admin.ID}, f.cutoff.Year)
+		require.NoError(t, err)
+		require.Contains(t, byStaff, f.staff.ID)
+		assert.NotContains(t, byStaff, f.admin.ID, "staff without a takeover stay absent from the map")
+		assert.InDelta(t, 17.5, byStaff[f.staff.ID].EnteredRemainingDays, 0.0001)
+	})
+
+	t.Run("empty batch short-circuits", func(t *testing.T) {
+		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, nil, f.cutoff.Year)
+		require.NoError(t, err)
+		assert.Empty(t, byStaff)
+	})
+
+	t.Run("list by year", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("year", f.cutoff.Year)
+
+		openings, err := repo.List(f.ctx, options)
+
+		require.NoError(t, err)
+		require.Len(t, openings, 1)
+		assert.Equal(t, f.staff.ID, openings[0].StaffID)
+	})
+
+	t.Run("list of another year is empty", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("year", f.cutoff.Year-1)
+
+		openings, err := repo.List(f.ctx, options)
+
+		require.NoError(t, err)
+		assert.Empty(t, openings)
+	})
 }

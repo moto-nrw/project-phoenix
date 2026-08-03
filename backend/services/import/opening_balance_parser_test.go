@@ -159,3 +159,51 @@ func TestParseOpeningBalanceCSV_NegativeValuesSurviveTheSanitizer(t *testing.T) 
 	require.NotNil(t, row.VacationRemainingDays)
 	assert.InDelta(t, -2, *row.VacationRemainingDays, 0.0001)
 }
+
+func TestParseOpeningBalanceCSV_RejectsMissingIdentityColumns(t *testing.T) {
+	// Neither a Personalnummer nor both name columns: nothing can be matched.
+	csvData := "vorname,stundensaldo\nAnna,\"12,5\""
+
+	_, err := ParseOpeningBalanceCSV(strings.NewReader(csvData))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "fehlende erforderliche Spalten")
+	assert.Contains(t, err.Error(), "nachname")
+}
+
+func TestParseOpeningBalanceCSV_RejectsEmptyFile(t *testing.T) {
+	_, err := ParseOpeningBalanceCSV(strings.NewReader(""))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read header")
+}
+
+func TestParseOpeningBalanceXLSX_RejectsNonExcelInput(t *testing.T) {
+	_, err := ParseOpeningBalanceXLSX(strings.NewReader("Personalnummer;Vorname\nP-100;Anna"))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "open excel file")
+}
+
+func TestParseOpeningBalanceXLSX_RejectsMissingIdentityColumns(t *testing.T) {
+	reader := buildStaffXLSX(t, [][]string{
+		{"Vorname", "Stundensaldo"},
+		{"Anna", "12,5"},
+	})
+
+	_, err := ParseOpeningBalanceXLSX(reader)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "fehlende erforderliche Spalten")
+}
+
+func TestParseOpeningBalanceXLSX_TemplateWithoutDataRows(t *testing.T) {
+	reader := buildStaffXLSX(t, [][]string{
+		{"Personalnummer", "Vorname", "Nachname", "Stundensaldo"},
+	})
+
+	_, err := ParseOpeningBalanceXLSX(reader)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "keine Datenzeilen")
+}

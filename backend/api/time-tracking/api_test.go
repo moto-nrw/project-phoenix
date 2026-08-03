@@ -317,6 +317,9 @@ func (m *mockStaffAbsenceService) SetVacationOpening(_ context.Context, _, _ int
 func (m *mockStaffAbsenceService) DeleteVacationOpening(_ context.Context, _, _ int64, _ int) error {
 	return nil
 }
+func (m *mockStaffAbsenceService) ValidateVacationOpeningAbsencesBefore(_ context.Context, _ int64, _ timezone.Date) error {
+	return nil
+}
 func (m *mockStaffAbsenceService) ListPendingRequests(_ context.Context) ([]*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }

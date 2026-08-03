@@ -148,6 +148,10 @@ type StaffAbsenceService interface {
 	GetVacationOpening(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationOpening, error)
 	SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error)
 	DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error
+	// ValidateVacationOpeningAbsencesBefore is the read-only half of the
+	// takeover guard, used by the bulk import's dry-run preview. Part of the
+	// contract because the import lives in another package.
+	ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
 }
 

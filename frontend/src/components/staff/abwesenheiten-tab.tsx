@@ -175,8 +175,6 @@ export function AbwesenheitenTab({
   // takeover modal.
   const [openingDeleteTarget, setOpeningDeleteTarget] =
     useState<StaffVacationOpening | null>(null);
-  const [openingDeleteLoading, setOpeningDeleteLoading] = useState(false);
-  const [openingDeleteError, setOpeningDeleteError] = useState("");
   // Snapshot of the staff identity taken when the modal opens: the live
   // `staff` prop can flip to undefined while onCreated's cache invalidation
   // refetches the page data, and a conditional `{staff && <Modal/>}` render
@@ -264,27 +262,6 @@ export function AbwesenheitenTab({
       );
     } finally {
       setPendingActionId(null);
-    }
-  };
-
-  const handleDeleteOpening = async () => {
-    if (!openingDeleteTarget) return;
-    setOpeningDeleteLoading(true);
-    setOpeningDeleteError("");
-    try {
-      await staffAbsenceService.deleteVacationOpening(
-        staffId,
-        openingDeleteTarget.year,
-      );
-      toast.success("Urlaubs-Übernahme gelöscht.");
-      setOpeningDeleteTarget(null);
-      await reload();
-    } catch (err) {
-      setOpeningDeleteError(
-        err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
-      );
-    } finally {
-      setOpeningDeleteLoading(false);
     }
   };
 
@@ -520,32 +497,17 @@ export function AbwesenheitenTab({
           }}
         />
       )}
-      <ConfirmDeleteModal
-        isOpen={openingDeleteTarget !== null}
-        title="Urlaubs-Übernahme löschen"
-        description={
-          <>
-            Die Übernahme zum Stichtag{" "}
-            <strong>
-              {openingDeleteTarget
-                ? formatDate(openingDeleteTarget.effective_date)
-                : ""}
-            </strong>{" "}
-            wird gelöscht. Der Resturlaub steigt dadurch wieder um{" "}
-            {openingDeleteTarget
-              ? formatDayCount(openingDeleteTarget.taken_before_days)
-              : ""}
-            .
-          </>
-        }
-        gate={{ mode: "twoStep" }}
-        loading={openingDeleteLoading}
-        error={openingDeleteError}
-        confirmLabel="Löschen"
-        loadingLabel="Wird gelöscht…"
-        onConfirm={handleDeleteOpening}
-        onClose={() => setOpeningDeleteTarget(null)}
-      />
+      {openingDeleteTarget && (
+        <VacationOpeningDeleteModal
+          staffId={staffId}
+          opening={openingDeleteTarget}
+          onClose={() => setOpeningDeleteTarget(null)}
+          onDeleted={async () => {
+            setOpeningDeleteTarget(null);
+            await reload();
+          }}
+        />
+      )}
       {openingModal && quota && (
         <VacationOpeningModal
           staffId={staffId}
@@ -554,7 +516,6 @@ export function AbwesenheitenTab({
           onClose={() => setOpeningModal(false)}
           onDelete={(opening) => {
             setOpeningModal(false);
-            setOpeningDeleteError("");
             setOpeningDeleteTarget(opening);
           }}
           onSaved={async () => {
@@ -579,6 +540,61 @@ export function AbwesenheitenTab({
   );
 
   return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
+}
+
+// Deletion of a vacation takeover (#2132). Own component so the tab renders
+// it as a plain `{target && <Modal/>}` branch: target, loading and error state
+// belong to the dialog, not to the tab.
+function VacationOpeningDeleteModal({
+  staffId,
+  opening,
+  onClose,
+  onDeleted,
+}: {
+  readonly staffId: string;
+  readonly opening: StaffVacationOpening;
+  readonly onClose: () => void;
+  readonly onDeleted: () => Promise<void>;
+}) {
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await staffAbsenceService.deleteVacationOpening(staffId, opening.year);
+      toast.success("Urlaubs-Übernahme gelöscht.");
+      await onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ConfirmDeleteModal
+      isOpen
+      title="Urlaubs-Übernahme löschen"
+      description={
+        <>
+          Die Übernahme zum Stichtag{" "}
+          <strong>{formatDate(opening.effective_date)}</strong> wird gelöscht.
+          Der Resturlaub steigt dadurch wieder um{" "}
+          {formatDayCount(opening.taken_before_days)}.
+        </>
+      }
+      gate={{ mode: "twoStep" }}
+      loading={loading}
+      error={error}
+      confirmLabel="Löschen"
+      loadingLabel="Wird gelöscht…"
+      onConfirm={handleConfirm}
+      onClose={onClose}
+    />
+  );
 }
 
 function PendingAbsences({

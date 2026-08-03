@@ -68,6 +68,15 @@ export function StundenkontoPanel({
   const hasOpening = adjustments.some(
     (adjustment) => adjustment.type === "opening",
   );
+  const openingDisabledHint = () => {
+    if (hasOpening) {
+      return "Es existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.";
+    }
+    if (!canResetClosedPeriod) {
+      return "Ein Eröffnungssaldo ist erst nach dem ersten abgeschlossenen Kontotag möglich.";
+    }
+    return undefined;
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -133,13 +142,7 @@ export function StundenkontoPanel({
             size="compact"
             onClick={() => setActiveModal("opening")}
             disabled={!canResetClosedPeriod || hasOpening}
-            title={
-              hasOpening
-                ? "Es existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung."
-                : canResetClosedPeriod
-                  ? undefined
-                  : "Ein Eröffnungssaldo ist erst nach dem ersten abgeschlossenen Kontotag möglich."
-            }
+            title={openingDisabledHint()}
           >
             <Flag className="h-3.5 w-3.5" aria-hidden />
             Eröffnungssaldo

@@ -100,6 +100,11 @@ type StaffBalanceAdjustmentService interface {
 	// balanceMinutes is SIGNED — a migrated account may start negative. One
 	// opening per staff member, ever; corrections are delete + re-create.
 	CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	// ValidateOpeningBalance runs CreateOpeningBalance's read-only guards
+	// without booking, so the bulk import's dry-run preview can report a
+	// rejection per row. Part of the contract because the import lives in
+	// another package.
+	ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) error
 	// SetSnapshotReader injects the frozen-month reader (#1417) after
 	// construction; nil means no month counts as frozen, so existing unit
 	// fixtures stay valid.
@@ -569,25 +574,8 @@ func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Conte
 	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
 		return 0, err
 	}
-	existing, err := s.listOpenings(ctx, staffID)
-	if err != nil {
+	if err := s.rejectConflictingRebaselines(ctx, staffID, effectiveDate); err != nil {
 		return 0, err
-	}
-	if len(existing) > 0 {
-		return 0, fmt.Errorf("%w: booked %s", ErrOpeningAlreadyExists, existing[0].EffectiveDate.String())
-	}
-	rebaselines, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
-	if err != nil {
-		return 0, err
-	}
-	if len(rebaselines) > 0 {
-		return 0, fmt.Errorf(
-			"%w: opening date %s is not after existing %s booking %s",
-			ErrAdjustmentHasDependentReset,
-			effectiveDate.String(),
-			rebaselines[0].Type,
-			rebaselines[0].EffectiveDate.String(),
-		)
 	}
 
 	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
@@ -599,6 +587,34 @@ func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Conte
 		return 0, fmt.Errorf("%w: calculated opening delta is outside the supported range", ErrAdjustmentInvalid)
 	}
 	return int(delta), nil
+}
+
+// rejectConflictingRebaselines enforces the two "already rebaselined" guards
+// of an opening booking: exactly one opening ever exists per staff member, and
+// no reset/opening may already sit on or after the new Stichtag — both stored
+// a delta derived from the history the new booking would rewrite (#2132).
+func (s *staffBalanceAdjustmentService) rejectConflictingRebaselines(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
+	existing, err := s.listOpenings(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		return fmt.Errorf("%w: booked %s", ErrOpeningAlreadyExists, existing[0].EffectiveDate.String())
+	}
+	rebaselines, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
+	if err != nil {
+		return err
+	}
+	if len(rebaselines) > 0 {
+		return fmt.Errorf(
+			"%w: opening date %s is not after existing %s booking %s",
+			ErrAdjustmentHasDependentReset,
+			effectiveDate.String(),
+			rebaselines[0].Type,
+			rebaselines[0].EffectiveDate.String(),
+		)
+	}
+	return nil
 }
 
 // listOpenings lists all opening bookings for a staff member regardless of

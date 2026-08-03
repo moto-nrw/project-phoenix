@@ -32,6 +32,16 @@ const (
 	testLastNameMueller  = "Müller"
 	testAddressMusterstr = "Musterstr. 1"
 	hintYesNo            = "Ja / Nein"
+
+	// Route paths shared by every import domain (S1192)
+	routeTemplate = "/template"
+	routePreview  = "/preview"
+	routeImport   = "/import"
+
+	// Permissions (S1192)
+	permUsersRead          = "users:read"
+	permUsersCreate        = "users:create"
+	permTimeTrackingManage = "time_tracking:manage"
 )
 
 // Resource defines the import resource
@@ -85,40 +95,40 @@ func (rs *Resource) Router() chi.Router {
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.downloadStudentTemplate)
+			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.downloadStudentTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.previewStudentImport)
+			r.With(authorize.RequiresPermission(permUsersCreate), withTx).Post(routePreview, rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.importStudents)
 		})
 
 		// Opening balance (Eröffnungssalden) import endpoints (#2132).
 		// Stundenkonto and vacation takeover values are payroll data —
 		// everything sits behind time_tracking:manage.
 		r.Route("/opening-balances", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("time_tracking:manage"), withTx).Get("/template", rs.DownloadOpeningBalanceTemplate)
-			r.With(authorize.RequiresPermission("time_tracking:manage"), withTx).Post("/preview", rs.PreviewOpeningBalanceImport)
+			r.With(authorize.RequiresPermission(permTimeTrackingManage), withTx).Get(routeTemplate, rs.DownloadOpeningBalanceTemplate)
+			r.With(authorize.RequiresPermission(permTimeTrackingManage), withTx).Post(routePreview, rs.PreviewOpeningBalanceImport)
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission("time_tracking:manage")).Post("/import", rs.ImportOpeningBalances)
+			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
 		})
 
 		// Staff (Mitarbeiter) import endpoints
 		r.Route("/teachers", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.DownloadStaffTemplate)
+			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.PreviewStaffImport)
+			r.With(authorize.RequiresPermission(permUsersCreate), withTx).Post(routePreview, rs.PreviewStaffImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.ImportStaff)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
 		})
 	})
 
