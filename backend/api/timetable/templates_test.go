@@ -1686,3 +1686,134 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	assert.Equal(t, st.Name, tpl.ShiftTypeName, "template list must expose the mapped shift type name")
 	assert.Equal(t, "#83CD2D", tpl.ShiftTypeColor)
 }
+
+// #2135: the optional start_date on POST /templates becomes the series start.
+// Every schedule row gets it as valid_from (the materializer skips earlier
+// dates) and the initial roster is valid from that date instead of the
+// period start.
+func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	period := createTemplateTestPeriod(t, s.db, "TplStartDatePeriod")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
+	})
+
+	body := createTemplateBody(s, "Tpl-StartDate")
+	body["calendar_period_id"] = period.ID
+	body["start_date"] = "2026-08-13"
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+
+	tpl := listCapacityTemplate(t, router, period.ID, created.TemplateID)
+	require.Len(t, tpl.Schedules, 2)
+	for _, sched := range tpl.Schedules {
+		assert.Equal(t, "2026-08-13", sched.ValidFrom, "schedule valid_from must be the series start")
+		assert.Empty(t, sched.ValidUntil)
+	}
+
+	assertTemplateRosterValidFrom(t, s, created.TemplateID, timezone.NewDate(2026, 8, 13))
+}
+
+// #2135: without a pinned calendar period the start_date still stamps the
+// schedule and roster validity (schedules resolve their period per date).
+func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	body := createTemplateBody(s, "Tpl-StartDate-NoPeriod")
+	body["start_date"] = "2026-08-13"
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+
+	tpl := listCapacityTemplateFromListPath(t, router, "/templates", created.TemplateID)
+	require.Len(t, tpl.Schedules, 2)
+	for _, sched := range tpl.Schedules {
+		assert.Equal(t, "2026-08-13", sched.ValidFrom)
+	}
+
+	assertTemplateRosterValidFrom(t, s, created.TemplateID, timezone.NewDate(2026, 8, 13))
+}
+
+// #2135: start_date format and period-bounds violations are 400s, and the
+// omitted field keeps the legacy behavior (roster anchored on the period
+// start, schedules open-ended).
+func TestTemplateCreateStartDateValidation(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	period := createTemplateTestPeriod(t, s.db, "TplStartDateValidationPeriod")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
+	})
+
+	badFormat := createTemplateBody(s, "Tpl-StartDate-BadFormat")
+	badFormat["start_date"] = "13.08.2026"
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", badFormat)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid start_date format")
+
+	// Period runs 2026-01-01 to 2026-12-31 (createTemplateTestPeriod).
+	outside := createTemplateBody(s, "Tpl-StartDate-Outside")
+	outside["calendar_period_id"] = period.ID
+	outside["start_date"] = "2027-01-01"
+	w = doTemplateJSON(t, router, http.MethodPost, "/templates", outside)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "start_date must lie within the calendar period")
+
+	before := createTemplateBody(s, "Tpl-StartDate-Before")
+	before["calendar_period_id"] = period.ID
+	before["start_date"] = "2025-12-31"
+	w = doTemplateJSON(t, router, http.MethodPost, "/templates", before)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+
+	omitted := createTemplateBody(s, "Tpl-StartDate-Omitted")
+	omitted["calendar_period_id"] = period.ID
+	w = doTemplateJSON(t, router, http.MethodPost, "/templates", omitted)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+	tpl := listCapacityTemplate(t, router, period.ID, created.TemplateID)
+	require.NotEmpty(t, tpl.Schedules)
+	for _, sched := range tpl.Schedules {
+		assert.Empty(t, sched.ValidFrom, "omitted start_date must leave schedules open-started")
+	}
+	assertTemplateRosterValidFrom(t, s, created.TemplateID, period.StartDate)
+}
+
+// assertTemplateRosterValidFrom checks that every enrollment and supervisor
+// row of the template carries the expected valid_from anchor.
+func assertTemplateRosterValidFrom(
+	t *testing.T,
+	s *templateSetup,
+	templateID int64,
+	expected timezone.Date,
+) {
+	t.Helper()
+	var enrollmentFroms []string
+	require.NoError(t, s.db.NewSelect().
+		Table("activities.student_enrollments").
+		ColumnExpr("valid_from::text").
+		Where("activity_group_id = ?", templateID).
+		Scan(s.ctx, &enrollmentFroms))
+	require.NotEmpty(t, enrollmentFroms, "template must have enrollments")
+	for _, from := range enrollmentFroms {
+		assert.Equal(t, expected.String(), from, "enrollment valid_from")
+	}
+
+	var supervisorFroms []string
+	require.NoError(t, s.db.NewSelect().
+		Table("activities.supervisors").
+		ColumnExpr("valid_from::text").
+		Where("group_id = ?", templateID).
+		Scan(s.ctx, &supervisorFroms))
+	require.NotEmpty(t, supervisorFroms, "template must have supervisors")
+	for _, from := range supervisorFroms {
+		assert.Equal(t, expected.String(), from, "supervisor valid_from")
+	}
+}
