@@ -28,6 +28,7 @@ import {
   Search,
   SlidersHorizontal,
   TabletSmartphone,
+  Tags,
   UtensilsCrossed,
   Users,
   Wrench,
@@ -762,6 +763,27 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot: "Aktivitätenliste mit Suche, Filter und neuer Aktivität.",
         image: "/help/screens/aktivitaeten.webp",
+      },
+      {
+        id: "kategorien",
+        title: "Kategorien",
+        icon: Tags,
+        summary:
+          "Kategorien sind die Auswahlliste, aus der jeder Termin und jede Aktivität eine Kategorie erhält. Fehlt eine passende, zum Beispiel für die Essenszeiten, legst du sie hier selbst an.",
+        steps: [
+          "`Datenverwaltung` öffnen und `Kategorien` wählen.",
+          "Über die Schaltfläche zum Anlegen eine neue Kategorie erstellen, Name eintragen und optional Beschreibung und Farbe wählen.",
+          "Eine bestehende Kategorie in der Liste anklicken, um Name, Beschreibung oder Farbe zu ändern.",
+          "Nicht mehr benötigte Kategorien über `Archivieren` aus der Auswahl nehmen.",
+          "Archivierte Kategorien stehen unter `Archiviert` und lassen sich mit `Wiederherstellen` zurückholen.",
+        ],
+        callout: {
+          title: "Archivieren löscht nichts",
+          body: "Eine archivierte Kategorie wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben unverändert gültig. Die Kategorien `WC` und `Schulhof` gehören zum System und können nicht bearbeitet werden.",
+          tone: "blue",
+        },
+        screenshot:
+          "Kategorienliste in der Datenverwaltung mit aktiven und archivierten Kategorien.",
       },
       {
         id: "raeume",

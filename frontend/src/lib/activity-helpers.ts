@@ -63,6 +63,9 @@ export interface BackendActivityCategory {
   description?: string;
   color?: string;
   shift_type_id?: number;
+  is_system?: boolean;
+  archived_at?: string;
+  usage_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -162,6 +165,22 @@ export interface ActivityCategory {
   color?: string;
   /** Optional Dienstplan-Schichtart this category maps to (#1837 follow-up). */
   shiftTypeId?: string;
+  /**
+   * Auto-provisioned infrastructure category (Schulhof, WC). Read-only for
+   * schools — the backend refuses every write on it (#2131). Optional because
+   * older payloads (and fixtures) omit it; treat a missing value as false.
+   */
+  isSystem?: boolean;
+  /**
+   * ISO timestamp set once the category was archived. Archived categories keep
+   * existing Termine and Aktivitäten valid but are not offered for new ones.
+   */
+  archivedAt?: string;
+  /**
+   * How many Aktivitäten/Termin-Vorlagen use the category. Only the category
+   * list endpoint reports it.
+   */
+  usageCount?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -392,8 +411,26 @@ export function mapActivityCategoryResponse(
       backendCategory.shift_type_id !== null
         ? String(backendCategory.shift_type_id)
         : undefined,
+    isSystem: backendCategory.is_system ?? false,
+    archivedAt: backendCategory.archived_at,
+    usageCount: backendCategory.usage_count,
     created_at: new Date(backendCategory.created_at),
     updated_at: new Date(backendCategory.updated_at),
+  };
+}
+
+/**
+ * prepareCategoryForBackend narrows a category form payload to the three
+ * fields the backend accepts. is_system and archived_at are managed
+ * server-side and must never be sent (#2131).
+ */
+export function prepareCategoryForBackend(
+  category: Partial<ActivityCategory>,
+): Record<string, unknown> {
+  return {
+    name: category.name?.trim() ?? "",
+    description: category.description?.trim() ?? "",
+    color: category.color?.trim() ?? "",
   };
 }
 

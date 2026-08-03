@@ -1,0 +1,58 @@
+// app/api/activities/categories/[id]/route.ts
+import type { NextRequest } from "next/server";
+import { apiPut, apiDelete } from "~/lib/api-helpers.server";
+import {
+  createPutHandler,
+  createDeleteHandler,
+} from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
+import type { BackendActivityCategory } from "~/lib/activity-helpers";
+
+/** Body accepted by PUT — mirrors the backend CategoryRequest (#2131). */
+interface CategoryWriteRequest {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+/**
+ * Handler for PUT /api/activities/categories/[id]
+ * Renames a category and updates its description/colour.
+ */
+export const PUT = createPutHandler<
+  BackendActivityCategory,
+  CategoryWriteRequest
+>(
+  async (
+    _request: NextRequest,
+    body: CategoryWriteRequest,
+    token: string,
+    params,
+  ) => {
+    const response = await apiPut<{ data: BackendActivityCategory }>(
+      `/api/activities/categories/${requirePathSegmentParam(params)}`,
+      token,
+      {
+        name: body.name,
+        description: body.description,
+        color: body.color,
+      },
+    );
+    return response.data;
+  },
+);
+
+/**
+ * Handler for DELETE /api/activities/categories/[id]
+ * Archives the category. Nothing is deleted — existing Termine and
+ * Aktivitäten keep their category and stay valid.
+ */
+export const DELETE = createDeleteHandler(
+  async (_request: NextRequest, token: string, params) => {
+    await apiDelete(
+      `/api/activities/categories/${requirePathSegmentParam(params)}`,
+      token,
+    );
+    return null;
+  },
+);

@@ -189,6 +189,10 @@ func (s *internalCategoryRepoStub) SetShiftTypeForCategories(context.Context, in
 	return nil
 }
 
+func (s *internalCategoryRepoStub) SetArchived(context.Context, int64, *time.Time) error {
+	return nil
+}
+
 type internalAuditLogRepoStub struct {
 	createFn func(context.Context, *platformModels.OperatorAuditLog) error
 }
@@ -432,7 +436,28 @@ func TestSeedDefaultActivityCategories_UniqueViolationSkipped(t *testing.T) {
 
 	err := svc.seedDefaultActivityCategories(context.Background(), 1)
 	require.NoError(t, err)
-	assert.Equal(t, 9, count)
+	// 10 since issue #2131 added "Mensa" to the default list; the assertion
+	// pins "every default is attempted even after a unique violation", not the
+	// list length itself — TestSeedDefaultActivityCategories_IncludesMensa
+	// covers the content.
+	assert.Equal(t, 10, count)
+}
+
+// TestSeedDefaultActivityCategories_IncludesMensa pins the Essenszeiten
+// requirement from issue #2131: a newly provisioned school must come with a
+// "Mensa" category, otherwise Termine for lunch have no fitting
+// Pflichtkategorie to select.
+func TestSeedDefaultActivityCategories_IncludesMensa(t *testing.T) {
+	var seeded []string
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{CategoryRepo: &internalCategoryRepoStub{
+		createFn: func(_ context.Context, category *activityModels.Category) error {
+			seeded = append(seeded, category.Name)
+			return nil
+		},
+	}}}
+
+	require.NoError(t, svc.seedDefaultActivityCategories(context.Background(), 42))
+	assert.Contains(t, seeded, "Mensa")
 }
 
 // ---------------------------------------------------------------------------

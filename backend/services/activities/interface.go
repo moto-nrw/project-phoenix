@@ -21,6 +21,16 @@ type ActivityService interface {
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
 	ListCategories(ctx context.Context) ([]*activities.Category, error)
+	// ListCategoriesWithUsage returns every category plus how many activity
+	// groups reference it, for the Stammdaten management screen (#2131).
+	ListCategoriesWithUsage(ctx context.Context) ([]CategoryUsage, error)
+	// UpdateCategory renames a non-system, non-archived category.
+	UpdateCategory(ctx context.Context, id int64, input CategoryInput) (*activities.Category, error)
+	// ArchiveCategory retires a category without deleting it, so existing
+	// Termine and Aktivitäten keep resolving it.
+	ArchiveCategory(ctx context.Context, id int64) (*activities.Category, error)
+	// RestoreCategory un-archives a category.
+	RestoreCategory(ctx context.Context, id int64) (*activities.Category, error)
 	// SetCategoryShiftTypeLinks maps categories to a Dienstplan shift type and
 	// clears the mapping on de-selected ones (#1837 follow-up).
 	SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error

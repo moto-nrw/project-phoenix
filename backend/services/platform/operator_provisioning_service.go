@@ -1206,6 +1206,12 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 		{Name: "Natur & Forschen", Description: "Naturerkundung und einfache Experimente", Color: "#7ED321"},
 		{Name: "Computer", Description: "Grundlagen im Umgang mit dem Computer", Color: "#9013FE"},
 		{Name: "Gruppenraum", Description: "Aktivitäten im Gruppenraum", Color: "#FF6900"},
+		// Essenszeiten need a fitting Pflichtkategorie when a Termin is
+		// created. Mensa existed in the pre-multi-tenant seed but was missing
+		// from this list, so every operator-provisioned school lacked it
+		// (#2131). Migration 1.15.255 backfills the schools created before
+		// this line; keep the three values in sync with it.
+		{Name: "Mensa", Description: "Aktivitäten rund um das Mittagessen", Color: "#FF9500"},
 	}
 
 	categoryCtx := tenant.WithTenantID(ctx, tenantID)

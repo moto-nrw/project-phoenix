@@ -27,6 +27,12 @@ type CategoryRepository interface {
 	// isn't reducible to a single-entity filter, so it lives here rather than on
 	// the generic Repository[T].
 	SetShiftTypeForCategories(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
+
+	// SetArchived stamps or clears activities.categories.archived_at for one
+	// tenant-scoped category (#2131). A single-column write rather than a full
+	// entity Update so an archive/restore never clobbers a concurrent rename,
+	// and so a restore surfaces the partial unique index violation on its own.
+	SetArchived(ctx context.Context, id int64, archivedAt *time.Time) error
 }
 
 // GroupRepository defines operations for managing activity groups
@@ -72,6 +78,13 @@ type GroupRepository interface {
 
 	// FindByCategory finds all groups in a specific category
 	FindByCategory(ctx context.Context, categoryID int64) ([]*Group, error)
+
+	// CountByCategory returns how many activity groups (Aktivitäten and
+	// Termin-Vorlagen alike) reference each category in the current tenant,
+	// keyed by category id. Categories with no groups are absent from the map.
+	// A GROUP BY aggregate across the whole table that the generic
+	// Repository[T] shape cannot express (#2131).
+	CountByCategory(ctx context.Context) (map[int64]int, error)
 
 	// FindOpenGroups finds all groups that are open for enrollment
 	FindOpenGroups(ctx context.Context) ([]*Group, error)

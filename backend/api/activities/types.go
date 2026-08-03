@@ -23,9 +23,18 @@ type CategoryResponse struct {
 	// ShiftTypeID is the optional Dienstplan-Schichtart this category maps to
 	// (#1836/#1837 follow-up); nil = no mapping. Consumers resolve the shift
 	// type's name/color from the shift-types list.
-	ShiftTypeID *int64    `json:"shift_type_id,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ShiftTypeID *int64 `json:"shift_type_id,omitempty"`
+	// IsSystem marks auto-provisioned infrastructure categories (Schulhof,
+	// WC). They are read-only for schools (#2131).
+	IsSystem bool `json:"is_system"`
+	// ArchivedAt is set once a category has been retired. Archived categories
+	// stay resolvable for existing Termine but are not offered for new ones.
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	// UsageCount is how many Aktivitäten/Termin-Vorlagen reference the
+	// category. Only populated by the category list endpoint; nil elsewhere.
+	UsageCount *int      `json:"usage_count,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // SupervisorResponse represents a supervisor in activity response

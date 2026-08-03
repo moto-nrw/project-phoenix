@@ -4,6 +4,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -77,6 +78,31 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	}
 
 	return categories, nil
+}
+
+// SetArchived stamps or clears archived_at on one tenant-scoped category.
+// Passing nil restores the category; the partial unique index
+// idx_categories_tenant_name_active then rejects the restore when an active
+// category already holds the name (#2131).
+func (r *CategoryRepository) SetArchived(ctx context.Context, id int64, archivedAt *time.Time) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Table(tableActivitiesCategories).
+		Set("archived_at = ?", archivedAt).
+		Where("id = ?", id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "set category archived",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(result, 1, "set category archived")
 }
 
 // SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one

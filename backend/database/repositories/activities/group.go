@@ -134,6 +134,39 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 	return groups, nil
 }
 
+// CountByCategory returns the number of activity groups per category id for
+// the current tenant. Archived templates are counted too: they still reference
+// their category and are restorable, so a category backing only archived rows
+// is "in use" for the purpose of the archive warning (#2131).
+func (r *GroupRepository) CountByCategory(ctx context.Context) (map[int64]int, error) {
+	var rows []struct {
+		CategoryID int64 `bun:"category_id"`
+		Total      int   `bun:"total"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprActivitiesGroupsAsGrp).
+		ColumnExpr(`"group".category_id AS category_id`).
+		ColumnExpr(`COUNT(*) AS total`).
+		GroupExpr(`"group".category_id`)
+
+	query = base.WithTenantFilter(ctx, query, "group")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count by category",
+			Err: err,
+		}
+	}
+
+	counts := make(map[int64]int, len(rows))
+	for _, row := range rows {
+		counts[row.CategoryID] = row.Total
+	}
+
+	return counts, nil
+}
+
 // FindOpenGroups finds all groups that are open for enrollment
 func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Group, error) {
 	var groups []*activities.Group

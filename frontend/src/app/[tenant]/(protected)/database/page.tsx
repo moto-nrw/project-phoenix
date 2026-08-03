@@ -147,6 +147,19 @@ const baseDataSections: DataSection[] = [
     iconColor: LOCATION_COLORS.HOME,
   },
   {
+    id: "categories",
+    title: "Kategorien",
+    description: "Aktivitätskategorien anlegen, umbenennen und archivieren",
+    href: "/database/categories",
+    icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z",
+    iconColor: LOCATION_COLORS.SICK,
+    // Categories are activity Stammdaten and ride on the same visibility as
+    // the Aktivitäten section rather than inventing a counts flag (#2131).
+    permissionKey: "canViewActivities",
+    badge: "Stammdaten",
+    cta: "Verwalten",
+  },
+  {
     id: "groups",
     title: "Gruppen",
     description: "Gruppen und Kombinationen verwalten",
