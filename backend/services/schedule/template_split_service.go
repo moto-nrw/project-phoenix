@@ -115,10 +115,12 @@ type TemplateSplitInput struct {
 	EducationGroupID      *int64
 	// Zielgruppe (target-group) fields, carried onto the successor Group
 	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
-	TargetGroupType   string
-	TargetGradeLevel  *int16
-	TargetSchoolClass *string
-	Targets           []*activitiesModel.GroupTarget
+	TargetGroupType    string
+	TargetGradeLevel   *int16
+	TargetSchoolClass  *string
+	Targets            []*activitiesModel.GroupTarget
+	targetsProvided    bool
+	targetsPresenceSet bool
 	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
 	// Group, already normalized (nil = clear). Only applied when NotesProvided
 	// is true; otherwise the successor inherits the source template's note. Same
@@ -269,6 +271,10 @@ func (s *TemplateSplitService) validateCareOfferingSeries(ctx context.Context, g
 // The service reuses an ambient request transaction or creates one when called
 // directly, so the recurrence lock covers the complete operation.
 func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
+	if !in.targetsPresenceSet {
+		in.targetsProvided = in.Targets != nil
+		in.targetsPresenceSet = true
+	}
 	if err := validateSplitInput(&in); err != nil {
 		return nil, err
 	}
@@ -406,6 +412,15 @@ func (s *TemplateSplitService) prepareSplitSource(
 	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.GroupRepo, old.ID)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("load existing dynamic targets: %w", err)
+	}
+	if !in.targetsProvided && len(existingTargets) > 0 {
+		in.Targets = existingTargets
+		in.TargetGroupType = existingTargets[0].TargetGroupType
+		in.TargetGradeLevel = existingTargets[0].TargetGradeLevel
+		in.TargetSchoolClass = existingTargets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = existingTargets[0].EducationGroupID
+		}
 	}
 	if err := validateSplitDynamicTargets(in.GradeLevelMax, old, existingTargets, in.Targets); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)

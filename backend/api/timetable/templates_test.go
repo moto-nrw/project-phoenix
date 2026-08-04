@@ -545,6 +545,9 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	updateBody := createTemplateBody(s, "Tpl-Zielgruppe-Updated")
 	updateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
 	updateBody["target_school_class"] = "3a"
+	updateBody["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "3a"},
+	}
 	updateW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
 	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
 	updated := decodeTemplateData[templateResponse](t, updateW)
@@ -594,6 +597,17 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 	require.Len(t, updated.Targets, 2)
 	assert.Equal(t, "2a", *updated.Targets[0].SchoolClass)
 	assert.Equal(t, "3a", *updated.Targets[1].SchoolClass)
+
+	legacyUpdateBody := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-Legacy-%d", time.Now().UnixNano()))
+	legacyUpdateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	legacyUpdateBody["target_school_class"] = "2a"
+	legacyResponse := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), legacyUpdateBody)
+	require.Equal(t, http.StatusOK, legacyResponse.Code, "body=%s", legacyResponse.Body.String())
+	legacyUpdated := decodeTemplateData[templateResponse](t, legacyResponse)
+	require.Len(t, legacyUpdated.Targets, 2)
+	assert.Equal(t, "2a", *legacyUpdated.Targets[0].SchoolClass)
+	assert.Equal(t, "3a", *legacyUpdated.Targets[1].SchoolClass)
 }
 
 func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {

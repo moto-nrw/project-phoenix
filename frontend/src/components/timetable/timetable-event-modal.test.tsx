@@ -1795,6 +1795,36 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("clears the legacy group target when switching Zielgruppe to none", async () => {
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "gruppe",
+        educationGroupId: "31",
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Keine" }), {
+      button: 0,
+    });
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "none",
+          education_group_id: undefined,
+          targets: [],
+        }),
+      ),
+    );
+  });
+
   it("initializes and saves a direct series edit with its template-only period pin", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));

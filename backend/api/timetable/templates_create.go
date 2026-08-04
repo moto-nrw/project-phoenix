@@ -103,6 +103,9 @@ func (target templateTargetRequest) model() *activitiesModel.GroupTarget {
 }
 
 func targetModels(targets []templateTargetRequest) []*activitiesModel.GroupTarget {
+	if targets == nil {
+		return nil
+	}
 	result := make([]*activitiesModel.GroupTarget, 0, len(targets))
 	for _, target := range targets {
 		result = append(result, target.model())

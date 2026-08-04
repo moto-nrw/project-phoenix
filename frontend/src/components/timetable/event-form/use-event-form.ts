@@ -1086,6 +1086,7 @@ export function useEventForm({
         nextType === "jahrgang" ? current.targetGradeLevels : [],
       targetSchoolClasses:
         nextType === "klasse" ? current.targetSchoolClasses : [],
+      educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
       educationGroupIds: nextType === "gruppe" ? current.educationGroupIds : [],
     }));
     setValidationError(null);
@@ -1290,11 +1291,13 @@ export function useEventForm({
     category_id: categoryId,
     notes: form.seriesNotes.trim() || undefined,
     education_group_id:
-      form.targetGroupType === "gruppe" && form.educationGroupIds.length > 0
-        ? Number(form.educationGroupIds[0])
-        : form.educationGroupId
-          ? Number(form.educationGroupId)
-          : undefined,
+      form.targetGroupType === "gruppe"
+        ? form.educationGroupIds.length > 0
+          ? Number(form.educationGroupIds[0])
+          : form.educationGroupId
+            ? Number(form.educationGroupId)
+            : undefined
+        : undefined,
     target_group_type: form.targetGroupType,
     target_grade_level:
       form.targetGroupType === "jahrgang" && form.targetGradeLevels.length > 0
@@ -1320,7 +1323,7 @@ export function useEventForm({
                 type: "gruppe" as const,
                 education_group_id: Number(value),
               }))
-            : undefined,
+            : [],
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
     required_staff: parseRequiredStaffOverride(form.requiredStaff),

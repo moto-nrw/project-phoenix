@@ -297,10 +297,6 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		body := splitBody(s, "Tpl-GradeCap-Split-Legacy-Successor", timezone.TodayDate().AddDays(7))
 		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
 		body["target_grade_level"] = 5
-		body["targets"] = []map[string]any{
-			{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 5},
-			{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
-		}
 
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
@@ -327,6 +323,9 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		body := splitBody(s, "Tpl-GradeCap-Split-Rejected-Successor", timezone.TodayDate().AddDays(7))
 		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
 		body["target_grade_level"] = 6
+		body["targets"] = []map[string]any{
+			{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
+		}
 
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
