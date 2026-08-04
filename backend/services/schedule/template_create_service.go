@@ -8,7 +8,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -40,13 +39,17 @@ type CreateTemplateInput struct {
 	TargetSchoolClass *string
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
-	ListKind        *string
-	Notes           *string
-	StudentIDs      []int64
-	StaffIDs        []int64
-	PrimaryStaffID  *int64
-	CreatedBy       *int64
-	RosterValidFrom timezone.Date
+	ListKind       *string
+	Notes          *string
+	StudentIDs     []int64
+	StaffIDs       []int64
+	PrimaryStaffID *int64
+	// WeekdayAssignments carries the per-weekday deviations from the shared
+	// roster above (issue #2129). Empty = the roster is identical on every
+	// weekday of the series, which is the pre-#2129 shape.
+	WeekdayAssignments []WeekdayRosterAssignment
+	CreatedBy          *int64
+	RosterValidFrom    timezone.Date
 	// ScheduleValidFrom is the optional series start (#2135): every schedule
 	// row gets it as valid_from, so the materializer skips earlier dates
 	// (scheduleNotStartedOn). nil = the series starts with the planning period.
@@ -101,6 +104,9 @@ func (s *TimetableDataService) validateTemplateCreateRequest(ctx context.Context
 		s.deps.ActivityCategoryRepo == nil {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
+	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
+		return 0, err
+	}
 	return tenantID, nil
 }
 
@@ -146,9 +152,6 @@ func (s *TimetableDataService) createTemplateLocked(
 	// Validation before any write: a rejected request must not strand a
 	// timeframe or a half-built template.
 	if err := ValidateTemplateTargetGradeLimit(in.GradeLevelMax, nil, in.TargetGroupType, in.TargetGradeLevel); err != nil {
-		return err
-	}
-	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
 		return err
 	}
 	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
@@ -225,15 +228,21 @@ func (s *TimetableDataService) createTemplateRoster(
 	in CreateTemplateInput,
 	tenantID int64,
 ) error {
+	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+	if err != nil {
+		return &ScheduleError{Op: "create template: resolve roster", Err: err}
+	}
+
 	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
 		return &ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
-	for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
+	for _, row := range roster.Students {
 		enrollment := &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        row.PersonID,
 			ActivityGroupID:  groupID,
 			ValidFrom:        in.RosterValidFrom,
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
@@ -244,13 +253,14 @@ func (s *TimetableDataService) createTemplateRoster(
 	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
 		return &ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
-	for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+	for _, row := range roster.Staff {
 		supervisor := &activitiesModel.SupervisorPlanned{
-			StaffID:          staffID,
+			StaffID:          row.PersonID,
 			GroupID:          groupID,
-			IsPrimary:        in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+			IsPrimary:        row.IsPrimary,
 			ValidFrom:        in.RosterValidFrom,
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		supervisor.SetTenantID(tenantID)
 		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {

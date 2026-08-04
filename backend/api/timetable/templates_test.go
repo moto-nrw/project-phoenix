@@ -321,6 +321,8 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 
 	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
 	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+	assert.Contains(t, listW.Body.String(), `"weekday_assignments":null`,
+		"a period-free catalog read must not claim an editable shared roster")
 	list := decodeTemplateData[listTemplatesResponse](t, listW)
 	var tpl templateResponse
 	for _, candidate := range list.Templates {
@@ -345,8 +347,16 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	assert.Equal(t, "12:00", tpl.Schedules[0].StartTime)
 	assert.Equal(t, "12:50", tpl.Schedules[0].EndTime)
 	assert.Equal(t, 1, tpl.Schedules[0].WeekPattern)
+	assert.Nil(t, tpl.WeekdayAssignments,
+		"a period-free catalog read must mark weekday rosters as not loaded")
 
-	getW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	missingPeriodW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	require.Equal(t, http.StatusBadRequest, missingPeriodW.Code, "body=%s", missingPeriodW.Body.String())
+
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Editable-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 	got := decodeTemplateData[templateResponse](t, getW)
 	assert.Equal(t, created.TemplateID, got.ID)
@@ -520,7 +530,10 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	created := decodeTemplateData[createTemplateResponse](t, w)
 
-	getW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Zielgruppe-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 	got := decodeTemplateData[templateResponse](t, getW)
 	assert.Equal(t, activitiesModel.TargetGroupTypeJahrgang, got.TargetGroupType)
@@ -553,6 +566,41 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+}
+
+func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{})
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	const foreignTenantID = int64(42)
+	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
+	foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, foreignTenantID, "Tpl-ForeignTarget")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "education.groups", foreignGroup.ID)
+	})
+
+	name := fmt.Sprintf("Tpl-ForeignTopLevelTarget-%d", time.Now().UnixNano())
+	body := createTemplateBody(s, name)
+	body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	body["target_grade_level"] = 3
+	body["education_group_id"] = foreignGroup.ID
+	body["targets"] = []map[string]any{{
+		"type":        activitiesModel.TargetGroupTypeJahrgang,
+		"grade_level": 3,
+	}}
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "education_group_id does not reference a group in this tenant")
+
+	count, err := s.db.NewSelect().
+		TableExpr(`activities.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenant.FromContext(s.ctx)).
+		Where(`"group".name = ?`, name).
+		Count(s.ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count)
 }
 
 func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
@@ -700,7 +748,13 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 		})
 	}
 
-	getMissing := doTemplateJSON(t, router, http.MethodGet, "/templates/500", nil)
+	missingPeriod := doTemplateJSON(t, router, http.MethodGet, "/templates/500", nil)
+	assert.Equal(t, http.StatusBadRequest, missingPeriod.Code)
+
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Missing-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+	getMissing := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/500?period_id=%d", period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, getMissing.Code)
 
 	r := chi.NewRouter()
@@ -917,6 +971,72 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	assert.Equal(t, periodA.StartDate.Format(dateLayout), newStudentFrom.Format(dateLayout))
 }
 
+func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	periodA := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-A")
+	periodB := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-B")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodA.ID, periodB.ID)
+	})
+
+	createBody := createTemplateBody(s, "Tpl-Move-Period")
+	createBody["calendar_period_id"] = periodA.ID
+	createdW := doTemplateJSON(t, router, http.MethodPost, "/templates", createBody)
+	require.Equal(t, http.StatusCreated, createdW.Code, "body=%s", createdW.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdW)
+
+	updateBody := createTemplateBody(s, "Tpl-Moved-Period")
+	updateBody["calendar_period_id"] = periodB.ID
+	updatedW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updatedW.Code, "body=%s", updatedW.Body.String())
+	updated := decodeTemplateData[templateResponse](t, updatedW)
+	require.NotEmpty(t, updated.Schedules)
+	for _, schedule := range updated.Schedules {
+		require.NotNil(t, schedule.CalendarPeriodID)
+		assert.Equal(t, periodB.ID, *schedule.CalendarPeriodID)
+	}
+}
+
+func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Protected-Read")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
+	})
+
+	body := createTemplateBody(s, "Tpl-Protected-Read")
+	body["calendar_period_id"] = period.ID
+	body["student_ids"] = []int64{}
+	createdW := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, createdW.Code, "body=%s", createdW.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdW)
+
+	protected := &activitiesModel.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  created.TemplateID,
+		ValidFrom:        period.StartDate,
+		CalendarPeriodID: &period.ID,
+		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
+	}
+	protected.SetTenantID(tenant.FromContext(s.ctx))
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, protected))
+
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
+	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
+	got := decodeTemplateData[templateResponse](t, getW)
+	assert.Equal(t, []templateProtectedStudentAssignmentResponse{{
+		Weekday:    activitiesModel.WeekdayMonday,
+		StudentIDs: []int64{s.studentA},
+	}}, got.ProtectedStudentAssignments)
+}
+
 // TestListTemplatesEnrollmentCountIsPeriodTolerant is the regression test for
 // the "0 Kinder" bug (WP-B6): template cards lost their headcount when the
 // list was filtered by a period other than the one the roster was written
@@ -1086,7 +1206,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		assert.Equal(t, 2, tplGlobal.AssignedStaffCount,
 			"bounded period P staff counts on its actual dates; period Q staff stays excluded")
 		globalDetailW := doTemplateJSON(t, router, http.MethodGet,
-			fmt.Sprintf("/templates/%d", createdGlobal.TemplateID), nil)
+			fmt.Sprintf("/templates/%d?period_id=%d", createdGlobal.TemplateID, periodP.ID), nil)
 		require.Equal(t, http.StatusOK, globalDetailW.Code, "body=%s", globalDetailW.Body.String())
 		globalDetail := decodeTemplateData[templateResponse](t, globalDetailW)
 		assert.Equal(t, 3, globalDetail.RequiredStaffCount,
@@ -1101,7 +1221,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			"bounded enrollment overlapping P must still drive capacity")
 
 		getW := doTemplateJSON(t, router, http.MethodGet,
-			fmt.Sprintf("/templates/%d", createdBounded.TemplateID), nil)
+			fmt.Sprintf("/templates/%d?period_id=%d", createdBounded.TemplateID, periodP.ID), nil)
 		require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 		boundedDetail := decodeTemplateData[templateResponse](t, getW)
 		assert.Equal(t, 1, boundedDetail.RequiredStaffCount,
@@ -1177,7 +1297,8 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			"the unfiltered list must use actual occurrences instead of the display-roster union")
 		assert.Equal(t, 1, unfiltered.AssignedStaffCount)
 
-		detailW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", templateID), nil)
+		detailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d?period_id=%d", templateID, period.ID), nil)
 		require.Equal(t, http.StatusOK, detailW.Code, "body=%s", detailW.Body.String())
 		detail := decodeTemplateData[templateResponse](t, detailW)
 		assert.Equal(t, 1, detail.RequiredStaffCount,
@@ -1384,10 +1505,9 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		scheduleQ.SetTenantID(1)
 		require.NoError(t, s.res.TimetableData.CreateActivitySchedule(s.ctx, scheduleQ))
 
-		validUntil := end.AddDays(1)
-		createCapacityEnrollment(t, s, templateID, s.studentA, start, &validUntil, &periodP.ID, nil)
-		createCapacityEnrollment(t, s, templateID, s.studentB, start, &validUntil, &periodQ.ID, nil)
-		createCapacitySupervisor(t, s, templateID, s.staffA, start, &validUntil, &periodP.ID)
+		createCapacityEnrollment(t, s, templateID, s.studentA, start, nil, &periodP.ID, nil)
+		createCapacityEnrollment(t, s, templateID, s.studentB, start, nil, &periodQ.ID, nil)
+		createCapacitySupervisor(t, s, templateID, s.staffA, start, nil, &periodP.ID)
 
 		periodPResult := listCapacityTemplate(t, router, periodP.ID, templateID)
 		assert.Equal(t, 1, periodPResult.RequiredStaffCount)
@@ -1401,6 +1521,28 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			"all-period capacity must not union period-specific rosters on the same date")
 		assert.Zero(t, unfiltered.AssignedStaffCount,
 			"the unstaffed period-Q occurrence is the real worst case")
+
+		periodPDetailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d?period_id=%d", templateID, periodP.ID), nil)
+		require.Equal(t, http.StatusOK, periodPDetailW.Code, "body=%s", periodPDetailW.Body.String())
+		periodPDetail := decodeTemplateData[templateResponse](t, periodPDetailW)
+		assert.Equal(t, 1, periodPDetail.EnrollmentCount)
+		assert.Equal(t, []int64{s.studentA}, periodPDetail.StudentIDs)
+		assert.Equal(t, 1, periodPDetail.SupervisorCount)
+		assert.Equal(t, []int64{s.staffA}, periodPDetail.StaffIDs)
+		assert.Equal(t, 1, periodPDetail.RequiredStaffCount)
+		assert.Equal(t, 1, periodPDetail.AssignedStaffCount)
+
+		periodQDetailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d?period_id=%d", templateID, periodQ.ID), nil)
+		require.Equal(t, http.StatusOK, periodQDetailW.Code, "body=%s", periodQDetailW.Body.String())
+		periodQDetail := decodeTemplateData[templateResponse](t, periodQDetailW)
+		assert.Equal(t, 1, periodQDetail.EnrollmentCount)
+		assert.Equal(t, []int64{s.studentB}, periodQDetail.StudentIDs)
+		assert.Zero(t, periodQDetail.SupervisorCount)
+		assert.Empty(t, periodQDetail.StaffIDs)
+		assert.Equal(t, 1, periodQDetail.RequiredStaffCount)
+		assert.Zero(t, periodQDetail.AssignedStaffCount)
 	})
 
 	t.Run("inactive period has no materializable staffing occurrences", func(t *testing.T) {

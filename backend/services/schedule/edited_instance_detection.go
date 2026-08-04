@@ -382,10 +382,11 @@ func diffOccurrence(
 	// Substitutes and is_absent flags are Vertretungsplan deviations ReplanWeek
 	// preserves, so they must not count as edits (an absent planned staff still
 	// counts as planned).
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, inst.Date, periodID)
 	expectedStaff := make(map[int64]bool)
 	for _, sup := range supervisors {
 		if isSupervisorValidOn(sup, inst.Date, periodID) {
-			expectedStaff[sup.StaffID] = sup.IsPrimary
+			expectedStaff[sup.StaffID] = hasPrimary && sup.StaffID == primaryStaffID
 		}
 	}
 	actualStaff := make(map[int64]bool)

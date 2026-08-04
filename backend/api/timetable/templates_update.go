@@ -15,15 +15,15 @@ import (
 )
 
 type updateTemplateRequest struct {
-	Name            string `json:"name"`
-	Type            string `json:"type"`
-	Weekdays        []int  `json:"weekdays"`
-	StartTime       string `json:"start_time"`
-	EndTime         string `json:"end_time"`
-	RoomID          int64  `json:"room_id"`
-	CategoryID      int64  `json:"category_id"`
-	PlanningTrackID *int64 `json:"planning_track_id,omitempty"`
-	MaxParticipants *int   `json:"max_participants,omitempty"`
+	Name            string        `json:"name"`
+	Type            string        `json:"type"`
+	Weekdays        []int         `json:"weekdays"`
+	StartTime       string        `json:"start_time"`
+	EndTime         string        `json:"end_time"`
+	RoomID          int64         `json:"room_id"`
+	CategoryID      int64         `json:"category_id"`
+	PlanningTrackID nullableInt64 `json:"planning_track_id"`
+	MaxParticipants *int          `json:"max_participants,omitempty"`
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// omitted/null clears the override (derive from the Betreuungsschlüssel).
 	RequiredStaff    *int   `json:"required_staff,omitempty"`
@@ -42,6 +42,9 @@ type updateTemplateRequest struct {
 	StudentIDs     []int64 `json:"student_ids,omitempty"`
 	StaffIDs       []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID *int64  `json:"primary_staff_id,omitempty"`
+	// WeekdayAssignments overrides the shared roster for individual weekdays
+	// (#2129); omitted/empty resets the series to one shared roster.
+	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -67,6 +70,9 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		return errors.New("at least one weekday is required")
 	}
 	if err := validateTemplateWeekdays(req.Weekdays); err != nil {
+		return err
+	}
+	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
 	target := &activitiesModel.Group{
@@ -133,7 +139,15 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
-	templates, err := rs.loadTemplates(r.Context(), &id)
+	periodID, ok := templatePeriodIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	if periodID == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id is required when loading a template for editing")))
+		return
+	}
+	templates, err := rs.loadTemplates(r.Context(), &id, periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
@@ -164,7 +178,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	templates, err := rs.loadTemplates(ctx, &id)
+	// Load the existing recurrence independently of the requested target
+	// period. Its schedules still belong to the source period until the update
+	// succeeds, so a target-scoped read would incorrectly report 404 while
+	// moving a template between periods.
+	templates, err := rs.loadTemplates(ctx, &id, nil)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
@@ -203,7 +221,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderUpdateTemplateError(w, r, updateErr)
 		return
 	}
-	templates, err = rs.loadTemplates(ctx, &id)
+	templates, err = rs.loadTemplates(ctx, &id, parsed.req.CalendarPeriodID)
 	if err != nil || len(templates) == 0 {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload template failed", err))
 		return
@@ -253,30 +271,32 @@ func buildUpdateTemplateInput(
 	return scheduleSvc.TemplateUpdateInput{
 		TemplateID: id,
 		Fields: activitiesModel.TemplateFieldsUpdate{
-			Name:              req.Name,
-			Type:              req.Type,
-			CategoryID:        req.CategoryID,
-			PlanningTrackID:   req.PlanningTrackID,
-			RoomID:            req.RoomID,
-			EducationGroupID:  req.EducationGroupID,
-			MaxParticipants:   parsed.maxParticipants,
-			RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-			CalendarPeriodID:  req.CalendarPeriodID,
-			TargetGroupType:   req.TargetGroupType,
-			TargetGradeLevel:  req.TargetGradeLevel,
-			TargetSchoolClass: req.TargetSchoolClass,
-			ListKind:          req.ListKind,
-			Notes:             normalizeNotes(req.Notes),
+			Name:                    req.Name,
+			Type:                    req.Type,
+			CategoryID:              req.CategoryID,
+			PlanningTrackID:         req.PlanningTrackID.Value,
+			PlanningTrackIDProvided: req.PlanningTrackID.Set,
+			RoomID:                  req.RoomID,
+			EducationGroupID:        req.EducationGroupID,
+			MaxParticipants:         parsed.maxParticipants,
+			RequiredStaff:           normalizeRequiredStaff(req.RequiredStaff),
+			CalendarPeriodID:        req.CalendarPeriodID,
+			TargetGroupType:         req.TargetGroupType,
+			TargetGradeLevel:        req.TargetGradeLevel,
+			TargetSchoolClass:       req.TargetSchoolClass,
+			ListKind:                req.ListKind,
+			Notes:                   normalizeNotes(req.Notes),
 		},
-		Weekdays:         req.Weekdays,
-		TimeframeID:      timeframeID,
-		WeekPattern:      parsed.weekPattern,
-		CalendarPeriodID: req.CalendarPeriodID,
-		RosterValidFrom:  rosterValidFrom,
-		StudentIDs:       req.StudentIDs,
-		StaffIDs:         req.StaffIDs,
-		PrimaryStaffID:   req.PrimaryStaffID,
-		GradeLevelMax:    gradeLevelMax,
+		Weekdays:           req.Weekdays,
+		TimeframeID:        timeframeID,
+		WeekPattern:        parsed.weekPattern,
+		CalendarPeriodID:   req.CalendarPeriodID,
+		RosterValidFrom:    rosterValidFrom,
+		StudentIDs:         req.StudentIDs,
+		StaffIDs:           req.StaffIDs,
+		PrimaryStaffID:     req.PrimaryStaffID,
+		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
+		GradeLevelMax:      gradeLevelMax,
 	}
 }
 

@@ -106,6 +106,7 @@ import { useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import type {
   EnrichedInstance,
+  ShiftCoverageCheckParams,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
@@ -175,6 +176,7 @@ const template: TimetableTemplate = {
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
+  weekdayAssignments: [],
   schedules: [
     {
       id: "9",
@@ -183,6 +185,30 @@ const template: TimetableTemplate = {
       endTime: "15:00",
       weekPattern: 0,
       calendarPeriodId: "5",
+    },
+  ],
+};
+
+const templateWithWeekdayRosters: TimetableTemplate = {
+  ...template,
+  studentIds: ["21", "22"],
+  staffIds: ["11", "12"],
+  schedules: [
+    { ...template.schedules[0]!, weekday: 1 },
+    { ...template.schedules[0]!, id: "10", weekday: 2 },
+  ],
+  weekdayAssignments: [
+    {
+      weekday: 1,
+      staffIds: ["11"],
+      studentIds: ["21"],
+      primaryStaffId: "11",
+    },
+    {
+      weekday: 2,
+      staffIds: ["12"],
+      studentIds: ["22"],
+      primaryStaffId: "12",
     },
   ],
 };
@@ -880,6 +906,84 @@ describe("TimetableEventModal", () => {
     expect(
       screen.queryByText(/Die Personalliste konnte nicht vollständig/),
     ).not.toBeInTheDocument();
+  });
+
+  it("blocks the shared staff editor when a weekday roster cannot load students", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    renderModal({ initialSeries: templateWithWeekdayRosters });
+
+    await goToStep(3);
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    expect(
+      screen.getByText(
+        /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: /Ada Staff/ }),
+    ).not.toBeInTheDocument();
+
+    await clickSave();
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("blocks the shared student editor when a weekday roster cannot load staff", async () => {
+    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    renderModal({ initialSeries: templateWithWeekdayRosters });
+
+    await goToStep(3);
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    expect(
+      screen.getByText(
+        /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: /Max Kind/ }),
+    ).not.toBeInTheDocument();
+
+    await clickSave();
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
   });
 
   it("reveals a student load failure immediately in quick mode", async () => {
@@ -1772,6 +1876,102 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("collapses the remaining day's roster into the visible shared fields", async () => {
+    renderModal({
+      initialSeries: templateWithWeekdayRosters,
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(2);
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekdays: [1],
+          staff_ids: [11],
+          student_ids: [],
+          primary_staff_id: 11,
+          weekday_assignments: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("uses the active weekday when switching back to one shared roster", async () => {
+    renderModal({
+      initialSeries: templateWithWeekdayRosters,
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für alle Tage gleich" }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          staff_ids: [12],
+          student_ids: [22],
+          primary_staff_id: 12,
+          weekday_assignments: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("adds a target cohort to every per-weekday child roster", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [
+        { id: "21", name: "Mara Drei A", school_class: "3a" },
+        { id: "22", name: "Mika Drei B", school_class: "3b" },
+        { id: "23", name: "Nora Drei C", school_class: "3c" },
+      ],
+    });
+    renderModal({
+      initialSeries: {
+        ...templateWithWeekdayRosters,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 3,
+      },
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(3);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Alle 3 Kinder aus Jahrgang 3 übernehmen",
+      }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            expect.objectContaining({
+              weekday: 1,
+              student_ids: expect.arrayContaining([21, 22, 23]),
+            }),
+            expect.objectContaining({
+              weekday: 2,
+              student_ids: expect.arrayContaining([21, 22, 23]),
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
   it("cancels a direct Regeltermin edit and writes nothing (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({
       count: 1,
@@ -2505,6 +2705,73 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it.each([
+    {
+      scope: "Ab jetzt dauerhaft",
+      buttonName: /Ab jetzt dauerhaft/,
+      expectedWrite: "split",
+    },
+    {
+      scope: "Alle Termine der Serie",
+      buttonName: /Alle Termine der Serie/,
+      expectedWrite: "update",
+    },
+  ])(
+    "checks weekday-specific staff separately for '$scope'",
+    async ({ buttonName, expectedWrite }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+      const shortPeriod: CalendarPeriod = {
+        ...periods[0]!,
+        startDate: "2026-05-04",
+        endDate: "2026-05-15",
+      };
+      mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+      renderModal({
+        initialInstance: {
+          ...savedInstance,
+          activityGroupId: "7",
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+        calendarPeriods: [shortPeriod],
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      mockCheckShiftCoverage.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+      await waitFor(() => {
+        const scopeProbes = mockCheckShiftCoverage.mock.calls
+          .map(([probe]) => probe as ShiftCoverageCheckParams)
+          .filter((probe) => probe.calendarPeriodId === "5");
+        expect(scopeProbes).toEqual([
+          expect.objectContaining({
+            dates: ["2026-05-04", "2026-05-11"],
+            staffIds: ["11"],
+          }),
+          expect.objectContaining({
+            dates: ["2026-05-05", "2026-05-12"],
+            staffIds: ["12"],
+          }),
+        ]);
+      });
+      if (expectedWrite === "split") {
+        await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+      } else {
+        await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      }
+    },
+  );
+
   it("checks all following occurrences and saves despite coverage warnings", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
@@ -2515,6 +2782,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1 },
         { ...template.schedules[0]!, id: "10", weekday: 3 },
@@ -2587,6 +2855,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
         {
@@ -2638,6 +2907,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
         {
@@ -2831,6 +3101,72 @@ describe("TimetableEventModal", () => {
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
 
+  it.each([
+    { scope: /Alle Termine der Serie/, write: "update" },
+    { scope: /Ab jetzt dauerhaft/, write: "split" },
+  ])(
+    "applies the selected planning track for $write series edits",
+    async ({ scope, write }) => {
+      renderModal({
+        initialInstance: {
+          ...savedInstance,
+          activityGroupId: "7",
+          planningTrackId: "8",
+          planningTrackName: "Mittag",
+          planningTrackColor: "#F78C10",
+          planningTrackSortOrder: 1,
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(screen.getByRole("button", { name: scope }));
+
+      const expected = expect.objectContaining({ planning_track_id: 8 });
+      if (write === "split") {
+        await waitFor(() =>
+          expect(mockSplitTemplate).toHaveBeenCalledWith("7", expected),
+        );
+      } else {
+        await waitFor(() =>
+          expect(mockUpdateTemplate).toHaveBeenCalledWith("7", expected),
+        );
+      }
+    },
+  );
+
+  it("sends an explicit null when an all-series edit clears the planning track", async () => {
+    const trackedTemplate = {
+      ...template,
+      planningTrackId: "8",
+      planningTrackName: "Mittag",
+      planningTrackColor: "#F78C10",
+      planningTrackSortOrder: 1,
+    };
+    mockGetTemplate.mockResolvedValue(trackedTemplate);
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+      },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ planning_track_id: null }),
+      ),
+    );
+  });
+
   it("preserves the fetched staffing override for an untouched all-series edit", async () => {
     mockGetTemplate.mockResolvedValue({
       ...template,
@@ -2946,6 +3282,48 @@ describe("TimetableEventModal", () => {
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
         "7",
         expect.objectContaining({ student_ids: [21, 22] }),
+      ),
+    );
+  });
+
+  it("preserves weekday child rosters after a successful untouched occurrence load", async () => {
+    mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        studentIds: ["31"],
+      },
+    });
+
+    await goToStep(3);
+    await screen.findByText("Max Kind");
+    await clickSave();
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          student_ids: [21, 22],
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
       ),
     );
   });
@@ -3402,6 +3780,7 @@ describe("TimetableEventModal", () => {
     };
     const mondayWednesday: TimetableTemplate = {
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1 },
         { ...template.schedules[0]!, id: "10", weekday: 3 },
@@ -3486,6 +3865,7 @@ describe("TimetableEventModal", () => {
   it("moves a legacy Saturday to Monday even when another workday remains", async () => {
     const fridaySaturdayTemplate: TimetableTemplate = {
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 5 },
         { ...template.schedules[0]!, id: "10", weekday: 6 },
