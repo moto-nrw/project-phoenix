@@ -21,6 +21,7 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	repo := repositories.NewFactory(db).PlanningTrack
+	service := scheduleSvc.NewPlanningTrackService(repo, db)
 	ctx := scope.Context()
 
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
@@ -28,10 +29,16 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, first))
 	require.NoError(t, repo.Create(ctx, second))
 
-	err := tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repo.UpdateSortOrders(txCtx, []int64{second.ID, first.ID})
-	})
+	err := service.ReorderPlanningTracks(ctx, []int64{second.ID, first.ID})
 	require.NoError(t, err)
+
+	shared, err := repo.FindByIDForShare(ctx, second.ID)
+	require.NoError(t, err)
+	assert.Equal(t, second.ID, shared.ID)
+	second.Name = "Spät"
+	updatedActive, err := repo.UpdateIfActive(ctx, second)
+	require.NoError(t, err)
+	assert.True(t, updatedActive)
 
 	archivedAt := time.Now()
 	first.ArchivedAt = &archivedAt
@@ -45,6 +52,9 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	assert.Equal(t, second.ID, tracks[0].ID)
 	assert.Equal(t, first.ID, tracks[1].ID)
 	assert.True(t, tracks[1].IsArchived())
+	updatedActive, err = repo.UpdateIfActive(ctx, first)
+	require.NoError(t, err)
+	assert.False(t, updatedActive)
 
 	otherScope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, otherScope.TenantID)
@@ -58,15 +68,30 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	repo := repositories.NewFactory(db).PlanningTrack
+	service := scheduleSvc.NewPlanningTrackService(repo, db)
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
 	second := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
 	require.NoError(t, repo.Create(scope.Context(), first))
 	require.NoError(t, repo.Create(scope.Context(), second))
 
-	err := tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repo.UpdateSortOrders(txCtx, []int64{first.ID})
+	err := service.ReorderPlanningTracks(scope.Context(), []int64{first.ID})
+	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
+
+	err = tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, repo.UpdateSortOrders(txCtx, nil))
+		return repo.UpdateSortOrders(txCtx, []int64{first.ID, first.ID + second.ID + 1000})
 	})
 	require.Error(t, err)
+	require.Error(t, repo.UpdateSortOrders(context.Background(), []int64{first.ID, second.ID}))
+
+	updated, err := repo.UpdateIfActive(scope.Context(), nil)
+	require.Error(t, err)
+	assert.False(t, updated)
+	updated, err = repo.UpdateIfActive(scope.Context(), &model.PlanningTrack{
+		Name: "Ungültig", Color: "blue",
+	})
+	require.Error(t, err)
+	assert.False(t, updated)
 }
 
 func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
@@ -87,6 +112,14 @@ func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	second, err := service.CreatePlanningTrack(scope.Context(), input)
 	require.NoError(t, err)
+	third, err := service.CreatePlanningTrack(scope.Context(), scheduleSvc.PlanningTrackInput{
+		Name: "Süd", Color: "#F78C10", SortOrder: 1,
+	})
+	require.NoError(t, err)
+	_, err = service.UpdatePlanningTrack(scope.Context(), third.ID, scheduleSvc.PlanningTrackInput{
+		Name: "NORD", Color: "#83CD2D", SortOrder: 1,
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNameTaken)
 	_, err = service.RestorePlanningTrack(scope.Context(), first.ID)
 	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNameTaken)
 	assert.NotEqual(t, first.ID, second.ID)

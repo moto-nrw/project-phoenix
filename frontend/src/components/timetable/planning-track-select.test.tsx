@@ -92,6 +92,32 @@ describe("PlanningTrackSelect", () => {
     expect(onTracksChanged).toHaveBeenCalledWith(created);
   });
 
+  it("keeps the form open when creating a track fails", async () => {
+    create.mockRejectedValue(
+      new Error("Planungsspur konnte nicht angelegt werden"),
+    );
+    const { onChange, onTracksChanged } = renderSelect();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
+    fireEvent.change(
+      screen.getByPlaceholderText("Planungsspur suchen oder anlegen …"),
+      { target: { value: "Nord" } },
+    );
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "„Nord“ als Planungsspur anlegen",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+
+    expect(
+      await screen.findByText("Planungsspur konnte nicht angelegt werden"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Nord");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onTracksChanged).not.toHaveBeenCalled();
+  });
+
   it("manages ordering and archiving inside the same popover", async () => {
     const { onTracksChanged } = renderSelect();
 

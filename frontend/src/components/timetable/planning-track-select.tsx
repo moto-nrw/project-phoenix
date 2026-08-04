@@ -29,6 +29,8 @@ import {
 } from "~/lib/planning-track-api";
 
 type View = "select" | "manage" | "form";
+type MutationResult<T> =
+  { readonly ok: true; readonly value: T } | { readonly ok: false };
 
 interface PlanningTrackSelectProps {
   readonly value: string;
@@ -104,13 +106,16 @@ export function PlanningTrackSelect({
     setError(null);
   };
 
-  const runAction = async (action: () => Promise<void>) => {
+  const executeMutation = async <T,>(
+    mutation: () => Promise<T>,
+  ): Promise<MutationResult<T>> => {
     setBusy(true);
     setError(null);
     try {
-      await action();
+      return { ok: true, value: await mutation() };
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
+      return { ok: false };
     } finally {
       setBusy(false);
     }
@@ -140,22 +145,28 @@ export function PlanningTrackSelect({
       return;
     }
 
-    await runAction(async () => {
-      if (editing) {
+    if (editing) {
+      const result = await executeMutation(async () => {
         const updated = await planningTrackService.update(editing.id, {
           name: trimmedName,
           color,
           sort_order: editing.sortOrder,
         });
-        setItems((current) =>
-          current.map((track) => (track.id === updated.id ? updated : track)),
-        );
         await onTracksChanged();
-        setEditing(null);
-        setView("manage");
-        return;
-      }
+        return updated;
+      });
+      if (!result.ok) return;
+      setItems((current) =>
+        current.map((track) =>
+          track.id === result.value.id ? result.value : track,
+        ),
+      );
+      setEditing(null);
+      setView("manage");
+      return;
+    }
 
+    const result = await executeMutation(async () => {
       const created = await planningTrackService.create({
         name: trimmedName,
         color,
@@ -165,11 +176,13 @@ export function PlanningTrackSelect({
             -1,
           ) + 1,
       });
-      setItems((current) => [...current, created]);
-      onChange(created.id);
       await onTracksChanged(created);
-      handleOpenChange(false);
+      return created;
     });
+    if (!result.ok) return;
+    setItems((current) => [...current, result.value]);
+    onChange(result.value.id);
+    handleOpenChange(false);
   };
 
   const move = async (index: number, offset: -1 | 1) => {
@@ -181,49 +194,52 @@ export function PlanningTrackSelect({
       reordered[index]!,
     ];
 
-    await runAction(async () => {
+    const result = await executeMutation(async () => {
       const saved = await planningTrackService.reorder(
         reordered.map((track) => track.id),
       );
-      setItems(saved);
       await onTracksChanged();
+      return saved;
     });
+    if (result.ok) setItems(result.value);
   };
 
   const restoreTrack = async (track: PlanningTrack) => {
-    await runAction(async () => {
+    const result = await executeMutation(async () => {
       const restored = await planningTrackService.restore(track.id);
-      setItems((current) =>
-        current.map((item) => (item.id === track.id ? restored : item)),
-      );
       await onTracksChanged();
-      toast.success(`Planungsspur „${track.name}“ wiederhergestellt`);
+      return restored;
     });
+    if (!result.ok) return;
+    setItems((current) =>
+      current.map((item) => (item.id === track.id ? result.value : item)),
+    );
+    toast.success(`Planungsspur „${track.name}“ wiederhergestellt`);
   };
 
   const archiveTrack = async (track: PlanningTrack) => {
-    await runAction(async () => {
+    const result = await executeMutation(async () => {
       await planningTrackService.archive(track.id);
-      setItems((current) =>
-        current.map((item) =>
-          item.id === track.id
-            ? { ...item, archivedAt: new Date().toISOString() }
-            : item,
-        ),
-      );
       await onTracksChanged();
-      const toastId = `planning-track-archived-${track.id}`;
-      toast.success(`Planungsspur „${track.name}“ archiviert`, {
-        id: toastId,
-        duration: 0,
-        action: {
-          label: "Rückgängig",
-          onClick: () => {
-            toast.remove(toastId);
-            void restoreTrack(track);
-          },
+      return new Date().toISOString();
+    });
+    if (!result.ok) return;
+    setItems((current) =>
+      current.map((item) =>
+        item.id === track.id ? { ...item, archivedAt: result.value } : item,
+      ),
+    );
+    const toastId = `planning-track-archived-${track.id}`;
+    toast.success(`Planungsspur „${track.name}“ archiviert`, {
+      id: toastId,
+      duration: 0,
+      action: {
+        label: "Rückgängig",
+        onClick: () => {
+          toast.remove(toastId);
+          void restoreTrack(track);
         },
-      });
+      },
     });
   };
 
