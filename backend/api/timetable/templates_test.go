@@ -677,6 +677,41 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 }
 
+func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{})
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	const foreignTenantID = int64(42)
+	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
+	foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, foreignTenantID, "Tpl-ForeignTarget")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "education.groups", foreignGroup.ID)
+	})
+
+	name := fmt.Sprintf("Tpl-ForeignTopLevelTarget-%d", time.Now().UnixNano())
+	body := createTemplateBody(s, name)
+	body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	body["target_grade_level"] = 3
+	body["education_group_id"] = foreignGroup.ID
+	body["targets"] = []map[string]any{{
+		"type":        activitiesModel.TargetGroupTypeJahrgang,
+		"grade_level": 3,
+	}}
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "education_group_id does not reference a group in this tenant")
+
+	count, err := s.db.NewSelect().
+		TableExpr(`activities.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenant.FromContext(s.ctx)).
+		Where(`"group".name = ?`, name).
+		Count(s.ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}
+
 func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 	t.Run("rejects an above-cap Jahrgang before writing", func(t *testing.T) {
 		s := buildTemplateSetup(t, nil)

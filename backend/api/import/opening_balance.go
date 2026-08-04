@@ -220,32 +220,44 @@ func (rs *Resource) PreviewOpeningBalanceImport(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// The preview route carries the tenant-tx middleware, so the tenant-scoped
-	// staff lookup can run directly here.
-	decidedBy, err := rs.resolveOpeningBalanceDecider(r.Context(), reqCtx.AccountID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
-		return
-	}
+	// The preview owns its tenant transaction (no route-level withTx): the
+	// GDPR audit row must be committed before the success response is
+	// written — a middleware transaction commits only after the handler
+	// returns, when a commit failure can no longer be reported. The
+	// tenant-scoped staff lookup therefore also runs inside the TX.
+	tenantID := tenant.FromContext(r.Context())
+	var (
+		result       *importModels.ImportResult[importModels.OpeningBalanceImportRow]
+		deciderError error
+	)
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		decidedBy, err := rs.resolveOpeningBalanceDecider(ctx, reqCtx.AccountID)
+		if err != nil {
+			deciderError = err
+			return err
+		}
 
-	svc := rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, decidedBy)
-	result, err := svc.Import(r.Context(), importModels.ImportRequest[importModels.OpeningBalanceImportRow]{
-		Rows:            reqCtx.Rows,
-		Mode:            importModels.ImportModeCreate,
-		DryRun:          true,
-		StopOnError:     false,
-		UserID:          reqCtx.AccountID,
-		SkipInvalidRows: false,
-	})
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error())))
-		return
-	}
-
-	// GDPR Compliance: Audit log for preview (Article 30). The route's tenant
-	// transaction supplies the RLS context required by the audit repository.
-	if err := svc.RecordAuditInTransaction(r.Context(), "opening_balance", reqCtx.Filename, result, reqCtx.AccountID, true, tenant.FromContext(r.Context())); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau konnte nicht protokolliert werden: %w", err)))
+		svc := rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, decidedBy)
+		var txErr error
+		result, txErr = svc.Import(ctx, importModels.ImportRequest[importModels.OpeningBalanceImportRow]{
+			Rows:            reqCtx.Rows,
+			Mode:            importModels.ImportModeCreate,
+			DryRun:          true,
+			StopOnError:     false,
+			UserID:          reqCtx.AccountID,
+			SkipInvalidRows: false,
+		})
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for preview (Article 30).
+		return svc.RecordAuditInTransaction(ctx, "opening_balance", reqCtx.Filename, result, reqCtx.AccountID, true, tenantID)
+	}); err != nil {
+		if deciderError != nil {
+			common.RenderError(w, r, common.ErrorUnauthorized(deciderError))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import-Vorschau fehlgeschlagen", err))
 		return
 	}
 
@@ -299,7 +311,7 @@ func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request
 			common.RenderError(w, r, common.ErrorUnauthorized(deciderError))
 			return
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
 		return
 	}
 

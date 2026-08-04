@@ -104,6 +104,10 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		Type:                        row.Type,
 		CategoryID:                  row.CategoryID,
 		CategoryName:                row.CategoryName,
+		PlanningTrackID:             nullableTemplateInt64(row.PlanningTrackID.Valid, row.PlanningTrackID.Int64),
+		PlanningTrackName:           row.PlanningTrackName,
+		PlanningTrackColor:          row.PlanningTrackColor,
+		PlanningTrackSortOrder:      nullableTemplateInt64(row.PlanningTrackOrder.Valid, row.PlanningTrackOrder.Int64),
 		RoomID:                      nullableTemplateInt64(row.RoomID.Valid, row.RoomID.Int64),
 		RoomName:                    row.RoomName.String,
 		EducationGroupID:            educationGroupIDFromRow(row),
@@ -215,17 +219,21 @@ func educationGroupIDFromRow(row templateRow) *int64 {
 }
 
 type templateResponse struct {
-	ID                 int64  `json:"id"`
-	Name               string `json:"name"`
-	Type               string `json:"type"`
-	CategoryID         int64  `json:"category_id"`
-	CategoryName       string `json:"category_name"`
-	RoomID             *int64 `json:"room_id,omitempty"`
-	RoomName           string `json:"room_name,omitempty"`
-	EducationGroupID   *int64 `json:"education_group_id,omitempty"`
-	EducationGroupName string `json:"education_group_name,omitempty"`
-	IsOpen             bool   `json:"is_open"`
-	MaxParticipants    int    `json:"max_participants"`
+	ID                     int64  `json:"id"`
+	Name                   string `json:"name"`
+	Type                   string `json:"type"`
+	CategoryID             int64  `json:"category_id"`
+	CategoryName           string `json:"category_name"`
+	PlanningTrackID        *int64 `json:"planning_track_id,omitempty"`
+	PlanningTrackName      string `json:"planning_track_name,omitempty"`
+	PlanningTrackColor     string `json:"planning_track_color,omitempty"`
+	PlanningTrackSortOrder *int64 `json:"planning_track_sort_order,omitempty"`
+	RoomID                 *int64 `json:"room_id,omitempty"`
+	RoomName               string `json:"room_name,omitempty"`
+	EducationGroupID       *int64 `json:"education_group_id,omitempty"`
+	EducationGroupName     string `json:"education_group_name,omitempty"`
+	IsOpen                 bool   `json:"is_open"`
+	MaxParticipants        int    `json:"max_participants"`
 	// CalendarPeriodID is the template's OWN period pin (distinct from each
 	// schedule's own calendar_period_id in templateScheduleResponse).
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`

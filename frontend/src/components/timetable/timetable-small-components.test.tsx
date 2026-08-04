@@ -37,9 +37,10 @@ const instance: EnrichedInstance = {
   assignedStaffCount: 1,
   conflictWarnings: [
     {
-      kind: "room",
+      kind: "staff",
       resourceId: "3",
-      message: "Raum doppelt belegt",
+      message:
+        "Personal ist von 14:30–15:00 auch bei „Lernzeit“ eingeplant (anderer Raum).",
       canOverride: true,
     },
   ],

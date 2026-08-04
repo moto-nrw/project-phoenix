@@ -1,5 +1,7 @@
 "use client";
 
+import { forwardRef } from "react";
+
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -8,17 +10,20 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly controlSize?: "default" | "compact";
 }
 
-export function Input({
-  label,
-  name,
-  id,
-  error,
-  className = "",
-  controlSize = "default",
-  maxLength,
-  type,
-  ...props
-}: InputProps) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  {
+    label,
+    name,
+    id,
+    error,
+    className = "",
+    controlSize = "default",
+    maxLength,
+    type,
+    ...props
+  },
+  ref,
+) {
   // Mirrors ui/Textarea: a caller may identify the field with `id`, `name`, or
   // both. Deriving the association from `name` alone left `htmlFor` undefined
   // whenever only `id` was passed.
@@ -40,6 +45,7 @@ export function Input({
         </label>
       )}
       <input
+        ref={ref}
         id={inputId}
         name={name}
         type={type}
@@ -55,4 +61,4 @@ export function Input({
       )}
     </div>
   );
-}
+});

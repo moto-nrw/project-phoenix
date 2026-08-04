@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   assignBlockLanes,
   chunkDateRange,
+  comparePlanningInstances,
   computeTimetableSetup,
   countPlannedStaff,
   deviationEventLabel,
@@ -435,7 +436,7 @@ describe("backend mappers", () => {
           assigned_staff_count: 1,
           conflict_warnings: [
             {
-              kind: "room",
+              kind: "staff",
               resource_id: 3,
               message: "Doppelt",
               can_override: true,
@@ -1190,6 +1191,26 @@ describe("assignBlockLanes", () => {
     expect(a.laneCount).toBe(2);
     expect(b.laneCount).toBe(2);
     expect(c.laneCount).toBe(2);
+  });
+});
+
+describe("comparePlanningInstances", () => {
+  it("orders equal start times by planning track and then id", () => {
+    const first = fakeInstance("2", "10:00", "11:00");
+    const second = fakeInstance("10", "10:00", "11:00");
+    first.planningTrackSortOrder = 1;
+    second.planningTrackSortOrder = 2;
+    expect(comparePlanningInstances(first, second)).toBeLessThan(0);
+
+    first.planningTrackSortOrder = undefined;
+    expect(comparePlanningInstances(first, second)).toBeGreaterThan(0);
+
+    first.planningTrackSortOrder = 1;
+    second.planningTrackSortOrder = undefined;
+    expect(comparePlanningInstances(first, second)).toBeLessThan(0);
+
+    first.planningTrackSortOrder = undefined;
+    expect(comparePlanningInstances(first, second)).toBeLessThan(0);
   });
 });
 

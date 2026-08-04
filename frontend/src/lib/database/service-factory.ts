@@ -1,6 +1,6 @@
 // Generic CRUD Service Factory
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ServiceFactory" });
@@ -121,7 +121,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
   // Helper to get auth token
   const getToken = async () => {
-    const session = await getSession();
+    const session = await getCachedSession();
     return session?.user?.token;
   };
 

@@ -104,9 +104,10 @@ export const WithConflictsAndAbsences: Story = {
       ],
       conflictWarnings: [
         {
-          kind: "room",
+          kind: "staff",
           resourceId: "10",
-          message: "Raum ist im gleichen Zeitraum doppelt belegt.",
+          message:
+            "Personal ist von 14:30–15:00 auch bei „Lernzeit“ eingeplant (anderer Raum).",
           canOverride: true,
         },
       ],

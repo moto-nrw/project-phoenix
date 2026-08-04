@@ -70,7 +70,7 @@ type betreuungsplanData struct {
 	// from its map, so a missing key is a real zero only when the lookup
 	// itself succeeded.
 	countsLoaded bool
-	// blockColors maps an instance id to its Kategorie colour, the same
+	// blockColors maps an instance id to its Planungsspur colour, the same
 	// colour the planner paints the block with on screen.
 	blockColors map[int64]string
 	closedDays  map[timezone.Date]string
@@ -129,12 +129,12 @@ func (s *service) loadBetreuungsplanData(
 	return data, nil
 }
 
-// blockColors resolves each block's Kategorie colour via its template. Both
+// blockColors resolves each block's Planungsspur colour via its template. Both
 // readers are optional and every failure degrades to "no colour": the bar is
 // recognition, never information the sheet depends on.
 func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.ActivityInstance) map[int64]string {
 	colors := map[int64]string{}
-	if s.deps.ActivityGroups == nil || s.deps.Categories == nil {
+	if s.deps.ActivityGroups == nil || s.deps.PlanningTracks == nil {
 		return colors
 	}
 
@@ -153,22 +153,25 @@ func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.Ac
 		s.getLogger().Warn("plan export: activity group lookup failed", "error", err.Error())
 		return colors
 	}
-	categoryByGroup := make(map[int64]int64, len(groups))
+	trackByGroup := make(map[int64]int64, len(groups))
 	for _, group := range groups {
-		if group != nil {
-			categoryByGroup[group.ID] = group.CategoryID
+		if group != nil && group.PlanningTrackID != nil {
+			trackByGroup[group.ID] = *group.PlanningTrackID
 		}
 	}
-
-	categories, err := s.deps.Categories.ListAll(ctx)
-	if err != nil {
-		s.getLogger().Warn("plan export: category lookup failed", "error", err.Error())
+	if len(trackByGroup) == 0 {
 		return colors
 	}
-	colorByCategory := make(map[int64]string, len(categories))
-	for _, category := range categories {
-		if category != nil {
-			colorByCategory[category.ID] = category.Color
+
+	tracks, err := s.deps.PlanningTracks.ListAll(ctx)
+	if err != nil {
+		s.getLogger().Warn("plan export: planning track lookup failed", "error", err.Error())
+		return colors
+	}
+	colorByTrack := make(map[int64]string, len(tracks))
+	for _, track := range tracks {
+		if track != nil {
+			colorByTrack[track.ID] = track.Color
 		}
 	}
 
@@ -176,7 +179,7 @@ func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.Ac
 		if instance.ActivityGroupID == nil {
 			continue
 		}
-		if color := colorByCategory[categoryByGroup[*instance.ActivityGroupID]]; color != "" {
+		if color := colorByTrack[trackByGroup[*instance.ActivityGroupID]]; color != "" {
 			colors[instance.ID] = color
 		}
 	}

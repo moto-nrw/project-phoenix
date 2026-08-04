@@ -29,6 +29,7 @@ type CreateTemplateInput struct {
 	EndTime           time.Time
 	RoomID            int64
 	CategoryID        int64
+	PlanningTrackID   *int64
 	MaxParticipants   int
 	RequiredStaff     *int
 	WeekPattern       int
@@ -105,6 +106,9 @@ func (s *TimetableDataService) validateTemplateCreateRequest(ctx context.Context
 		s.deps.ActivityCategoryRepo == nil {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
+	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
+		return 0, err
+	}
 	return tenantID, nil
 }
 
@@ -162,6 +166,9 @@ func (s *TimetableDataService) createTemplateLocked(
 	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
 		return err
 	}
+	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, nil); err != nil {
+		return err
+	}
 	applyTargetMirrorToCreateInput(&in, targets)
 
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
@@ -176,6 +183,7 @@ func (s *TimetableDataService) createTemplateLocked(
 		RequiredStaff:     in.RequiredStaff,
 		IsOpen:            true,
 		CategoryID:        in.CategoryID,
+		PlanningTrackID:   in.PlanningTrackID,
 		PlannedRoomID:     &roomID,
 		Type:              in.Type,
 		EducationGroupID:  in.EducationGroupID,

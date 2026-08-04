@@ -50,6 +50,7 @@ func testTimetableDataWithCareValidator(
 		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(db),
+		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
 		DB:                         db,
 	}
 	return scheduleSvc.NewTimetableDataService(deps)

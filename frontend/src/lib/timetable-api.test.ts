@@ -66,9 +66,9 @@ const backendInstance: BackendEnrichedInstance = {
   assigned_staff_count: 1,
   conflict_warnings: [
     {
-      kind: "room",
+      kind: "staff",
       resource_id: 3,
-      message: "Raum doppelt belegt",
+      message: "Personal doppelt eingeplant",
       can_override: true,
     },
   ],
@@ -368,9 +368,9 @@ describe("timetableService", () => {
             end_time: "13:00",
             warnings: [
               {
-                kind: "room",
+                kind: "staff",
                 resource_id: 3,
-                message: "Raum doppelt belegt",
+                message: "Personal doppelt eingeplant",
                 conflicting_instance_id: 42,
                 conflicting_title: "Mensa",
               },
@@ -405,9 +405,9 @@ describe("timetableService", () => {
       endTime: "13:00",
       warnings: [
         {
-          kind: "room",
+          kind: "staff",
           resourceId: "3",
-          message: "Raum doppelt belegt",
+          message: "Personal doppelt eingeplant",
           conflictingInstanceId: "42",
           conflictingTitle: "Mensa",
         },

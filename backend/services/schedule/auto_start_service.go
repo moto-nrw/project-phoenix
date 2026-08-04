@@ -103,6 +103,7 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 			GroupRepo:         deps.ActiveGroupRepo,
 			SupervisorRepo:    deps.SupervisorRepo,
 			VisitRepo:         deps.VisitRepo,
+			InstanceRepo:      deps.InstanceRepo,
 			InstanceStaffRepo: deps.InstanceStaffRepo,
 			InstanceStudents:  deps.InstanceStudents,
 		},

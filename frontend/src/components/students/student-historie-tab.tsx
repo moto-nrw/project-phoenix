@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Loader2 } from "lucide-react";
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "~/lib/session-cache";
 import {
   formatAttendanceSlotStatus,
   type AttendanceSlotStatus,
@@ -96,7 +96,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   const loadData = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const headers: Record<string, string> = {};
       if (session?.user?.token) {
         headers.Authorization = `Bearer ${session.user.token}`;

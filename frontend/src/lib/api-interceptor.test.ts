@@ -328,6 +328,58 @@ describe("response interceptor token refresh queue", () => {
     }
   });
 
+  it("retries with the NEW token even when the session cache was warm (#2123)", async () => {
+    // Regression: the request interceptor reads the session through the 10s
+    // getCachedSession() cache. After a 401→refresh, axios re-runs the request
+    // interceptor on the retried request — if the refresh path did not clear
+    // the cache, the interceptor would overwrite the fresh token with the
+    // stale cached one and the retry would 401 again (hard failure, _retry is
+    // already set).
+    const restore = setupBrowserEnv();
+    try {
+      // 1. Warm the session cache with the OLD token via a normal request.
+      mockGetSession.mockResolvedValue({ user: { token: "old-token" } });
+      const warmup = await requestInterceptorFulfilled({
+        method: "get",
+        url: "/api/warmup",
+        headers: {},
+      });
+      expect(warmup.headers).toMatchObject({
+        Authorization: "Bearer old-token",
+      });
+
+      // 2. The refresh rotates the token.
+      mockHandleAuthFailure.mockResolvedValue(true);
+      mockGetSession.mockResolvedValue({ user: { token: "rotated-token" } });
+
+      // 3. Simulate real axios: the retried request re-runs the request
+      //    interceptor, then report which Authorization header went out.
+      mockAxiosInstance.mockImplementation(
+        async (config: AxiosRequestConfig) => {
+          const finalConfig = await requestInterceptorFulfilled(config);
+          return {
+            status: 200,
+            data: {
+              sentAuth: (finalConfig.headers as Record<string, string>)
+                .Authorization,
+            },
+          };
+        },
+      );
+
+      const error = make401Error({
+        url: "/api/test",
+        method: "get",
+        headers: {},
+      });
+      const result = await responseInterceptorRejected(error);
+
+      expect(result.data).toEqual({ sentAuth: "Bearer rotated-token" });
+    } finally {
+      restore();
+    }
+  });
+
   it("queued requests reject when client-side refresh fails", async () => {
     const restore = setupBrowserEnv();
     try {

@@ -12,13 +12,17 @@
  * bar that ties the card back to the activity type.
  */
 
-import { Archive, Clock, DoorOpen, ShieldCheck, Users } from "lucide-react";
+import {
+  Archive,
+  Clock,
+  DoorOpen,
+  Palette,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import {
-  getActivityColor,
-  getGermanWeekdayShort,
-} from "~/lib/timetable-helpers";
+import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
@@ -80,7 +84,7 @@ export function TemplateCard({
   onApply,
   onArchive,
 }: TemplateCardProps) {
-  const color = getActivityColor(template.type);
+  const color = template.planningTrackColor ?? "#D1D5DB";
   const activeWeekdays = new Set(template.schedules.map((s) => s.weekday));
   const timeRange = summarizeTimeRange(template);
   const targetSummary = summarizeTargets(template);
@@ -163,6 +167,12 @@ export function TemplateCard({
           <div className="flex items-center gap-2">
             <DoorOpen className="h-3.5 w-3.5 text-gray-400" aria-hidden />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Palette className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+            <span className="truncate">
+              {template.planningTrackName ?? "Keine Planungsspur"}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Users className="h-3.5 w-3.5 text-gray-400" aria-hidden />

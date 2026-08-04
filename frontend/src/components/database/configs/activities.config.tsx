@@ -4,7 +4,7 @@ import { defineEntityConfig } from "@/lib/database/types";
 import { databaseThemes } from "@/lib/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { getSupervisors } from "@/lib/activity-api";
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivitiesConfig" });
@@ -133,7 +133,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
               // Fetch categories from API
               const response = await fetch("/api/activities/categories", {
                 headers: {
-                  Authorization: `Bearer ${(await getSession())?.user?.token}`,
+                  Authorization: `Bearer ${(await getCachedSession())?.user?.token}`,
                 },
               });
               const result = (await response.json()) as
@@ -315,7 +315,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         loadOptions: async () => {
           try {
             // Fetch supervisors from API
-            const session = await getSession();
+            const session = await getCachedSession();
             const response = await fetch("/api/activities/supervisors", {
               headers: {
                 Authorization: `Bearer ${session?.user?.token}`,

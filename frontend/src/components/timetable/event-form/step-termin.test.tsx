@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CREATE_CATEGORY_OPTION, StepTermin } from "./step-termin";
 import { emptyForm } from "./form-model";
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import { ToastProvider } from "~/contexts/ToastContext";
 
 const categories: ActivityCategory[] = [
   {
@@ -22,22 +23,24 @@ function renderStep(
   const update = vi.fn();
   const onManageCategories = vi.fn();
   render(
-    <StepTermin
-      form={{ ...emptyForm("2026-08-03"), type: "care" }}
-      update={update}
-      fieldErrors={{}}
-      rooms={[]}
-      categories={categories}
-      loadingRefs={false}
-      expanded
-      isSeriesFlow
-      isEditingSeries={false}
-      quickPreset=""
-      listKindTouched={createRef<boolean>() as React.RefObject<boolean>}
-      canManageCategories
-      onManageCategories={onManageCategories}
-      {...overrides}
-    />,
+    <ToastProvider>
+      <StepTermin
+        form={{ ...emptyForm("2026-08-03"), type: "care" }}
+        update={update}
+        fieldErrors={{}}
+        rooms={[]}
+        categories={categories}
+        loadingRefs={false}
+        expanded
+        isSeriesFlow
+        isEditingSeries={false}
+        quickPreset=""
+        listKindTouched={createRef<boolean>() as React.RefObject<boolean>}
+        canManageCategories
+        onManageCategories={onManageCategories}
+        {...overrides}
+      />
+    </ToastProvider>,
   );
   return { update, onManageCategories };
 }

@@ -6,7 +6,8 @@
 //   - Complete happy-path: bridge ended, CompletedAt stamped.
 //   - Cancel from planned: status flip only, no active.group side effects.
 //   - Cancel from active: bridge ended (visits + supervisors close).
-//   - Conflict detection: room, staff, student sub-checks each produce a warning.
+//   - Conflict detection (#2139): staff (different room) and student
+//     sub-checks produce warnings; shared rooms are sanctioned.
 //   - Re-plan-week: deletes only planned non-spontaneous; all other kinds survive.
 //
 // All fixtures via testpkg.CreateTest* + CleanupTableRecords — no hardcoded IDs.
@@ -627,11 +628,12 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 
 // --- Conflict detection -----------------------------------------------------
 
-func TestInstance_Start_ConflictWarning_Room(t *testing.T) {
+func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 	s := buildLifecycle(t)
 
-	// Pre-seed a live active.group in the same room. We do this through the
-	// repo so it mirrors production state exactly (tenant scoped, open-ended).
+	// Pre-seed a live active.group in the same room. Since #2139 a shared
+	// room is sanctioned (parallel groups may use one room), so starting in
+	// an occupied room must produce NO warning at all.
 	now := time.Now()
 	preGroup := &activeModels.Group{
 		StartTime: now, LastActivity: now, TimeoutMinutes: 30,
@@ -650,14 +652,175 @@ func TestInstance_Start_ConflictWarning_Room(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
 	})
 
-	hasRoomWarning := false
+	assert.Empty(t, result.Warnings, "a pure room overlap must not warn (#2139); got %+v", result.Warnings)
+	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status, "warnings never block the transition")
+}
+
+func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
+	s := buildLifecycle(t)
+
+	// Our staff member already supervises a live group in the SAME room the
+	// instance starts in — sanctioned parallel supervision (#2139).
+	now := time.Now()
+	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
+
+	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
+	sup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
+
+	ai := seedInstance(t, s, true, false)
+	result, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
+
 	for _, w := range result.Warnings {
-		if w.Kind == scheduleSvc.ConflictKindRoom && w.ResourceID == s.roomID && w.CanOverride {
-			hasRoomWarning = true
+		assert.NotEqual(t, scheduleSvc.ConflictKindStaff, w.Kind,
+			"same-room supervision must not warn (#2139); got %+v", result.Warnings)
+	}
+}
+
+// seedBridgedActiveInstance inserts an ACTIVE, spontaneous activity_instance
+// bridged to the given running group (active_group_id set), optionally with
+// one instance_staff row carrying a multi-room override. This is the shape a
+// started multi-room block leaves behind: the active.group stores only the
+// primary room, the per-staff room lives on the bridged instance's roster
+// (#2151 review).
+func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *activeModels.Group, staffID int64, overrideRoomID *int64, withStaffRow bool) {
+	t.Helper()
+	ai := &scheduleModels.ActivityInstance{
+		Date:          timezone.NewDate(2026, 4, 20),
+		Title:         "Lifecycle-Bridged",
+		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		RoomID:        group.RoomID,
+		Status:        scheduleModels.InstanceStatusActive,
+		IsSpontaneous: true,
+		ActiveGroupID: &group.ID,
+	}
+	ai.SetTenantID(1)
+	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", ai.ID) })
+
+	if withStaffRow {
+		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: staffID, IsPrimary: true, RoomID: overrideRoomID}
+		row.SetTenantID(1)
+		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", row.ID) })
+	}
+}
+
+func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
+	s := buildLifecycle(t)
+
+	// The running group's PRIMARY room differs from the new instance's room,
+	// but the staff member's multi-room override on the bridged instance puts
+	// them in exactly the new instance's room — sanctioned, no warning.
+	// Comparing against the group's primary room alone would warn here.
+	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomA-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
+
+	now := time.Now()
+	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
+	preGroup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
+
+	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
+	sup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
+
+	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &s.roomID, true)
+
+	ai := seedInstance(t, s, true, false)
+	result, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
+
+	for _, w := range result.Warnings {
+		assert.NotEqual(t, scheduleSvc.ConflictKindStaff, w.Kind,
+			"bridged same-room override must not warn (#2151 review); got %+v", result.Warnings)
+	}
+}
+
+func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T) {
+	s := buildLifecycle(t)
+
+	// The running group's PRIMARY room equals the new instance's room, but the
+	// staff member's multi-room override on the bridged instance puts them in
+	// ANOTHER room — a real double-booking that the primary-room comparison
+	// would have suppressed.
+	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomB-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
+
+	now := time.Now()
+	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
+
+	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
+	sup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
+
+	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &otherRoom.ID, true)
+
+	ai := seedInstance(t, s, true, false)
+	result, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
+
+	hasStaffWarning := false
+	for _, w := range result.Warnings {
+		if w.Kind == scheduleSvc.ConflictKindStaff && w.ResourceID == s.staffID {
+			hasStaffWarning = true
+			assert.Contains(t, w.Message, "anderen Raum")
 		}
 	}
-	assert.True(t, hasRoomWarning, "start in an occupied room must produce a room warning; got %+v", result.Warnings)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status, "warnings never block the transition")
+	assert.True(t, hasStaffWarning,
+		"bridged different-room override is a real double-booking and must warn (#2151 review); got %+v", result.Warnings)
+}
+
+func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
+	s := buildLifecycle(t)
+
+	// The supervision points at a group bridged to an instance whose roster
+	// does not contain the staff member — the effective room is undetermined,
+	// so the warning must stay ("not certainly the same room").
+	now := time.Now()
+	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
+
+	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
+	sup.SetTenantID(1)
+	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
+
+	seedBridgedActiveInstance(t, s, preGroup, s.staffID, nil, false)
+
+	ai := seedInstance(t, s, true, false)
+	result, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
+
+	hasStaffWarning := false
+	for _, w := range result.Warnings {
+		if w.Kind == scheduleSvc.ConflictKindStaff && w.ResourceID == s.staffID {
+			hasStaffWarning = true
+			assert.Contains(t, w.Message, "nicht eindeutig bestimmbar")
+		}
+	}
+	assert.True(t, hasStaffWarning,
+		"undetermined effective room must keep the warning (#2151 review); got %+v", result.Warnings)
 }
 
 func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
@@ -1437,6 +1600,7 @@ func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
 		GroupRepo:         repoFactory.ActiveGroup,
 		SupervisorRepo:    repoFactory.GroupSupervisor,
 		VisitRepo:         repoFactory.ActiveVisit,
+		InstanceRepo:      repoFactory.ActivityInstance,
 		InstanceStaffRepo: repoFactory.InstanceStaff,
 		InstanceStudents:  repoFactory.InstanceStudent,
 	}, ai, slog.Default())

@@ -596,6 +596,10 @@ const templateListSelect = `
 			g.type,
 			g.category_id,
 			COALESCE(c.name, '') AS category_name,
+			g.planning_track_id,
+			COALESCE(pt.name, '') AS planning_track_name,
+			COALESCE(pt.color, '') AS planning_track_color,
+			pt.sort_order AS planning_track_sort_order,
 				g.planned_room_id AS room_id,
 				COALESCE(r.name, '') AS room_name,
 				g.education_group_id,
@@ -631,6 +635,8 @@ const templateListSelect = `
 			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
 		LEFT JOIN activities.categories AS c
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
+		LEFT JOIN schedule.planning_tracks AS pt
+			ON pt.id = g.planning_track_id AND pt.tenant_id = g.tenant_id
 			LEFT JOIN schedule.shift_types AS st
 				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
 			LEFT JOIN facilities.rooms AS r
@@ -1245,7 +1251,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		targetGroupType = activities.TargetGroupTypeNone
 	}
 
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
 		Set("name = ?", fields.Name).
 		Set("type = ?", fields.Type).
@@ -1264,8 +1270,11 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", id).
 		Where("is_template = true").
-		Where("archived_at IS NULL").
-		Exec(ctx)
+		Where("archived_at IS NULL")
+	if fields.PlanningTrackIDProvided {
+		query = query.Set("planning_track_id = ?", fields.PlanningTrackID)
+	}
+	res, err := query.Exec(ctx)
 	if err != nil {
 		return 0, err
 	}

@@ -774,6 +774,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	require.Len(t, res.NewScheduleIDs, 1)
 	successor := reloadSplitGroup(t, s, res.NewTemplateID)
 	require.NotNil(t, successor.SeriesRootID)
+	assert.Nil(t, successor.PlanningTrackID)
 	assert.Equal(t, s.template.ID, *successor.SeriesRootID,
 		"successor must retain the stable source-series identity")
 
@@ -843,6 +844,101 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	assert.Equal(t, 2, res.Materialization.InstanceStaffCreated)
 	assert.Len(t, listInstancesForDate(t, s.db, res.NewTemplateID, effective), 1)
 	assert.Len(t, listInstancesForDate(t, s.db, res.NewTemplateID, secondMonday), 1)
+}
+
+func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+
+	track, err := s.factory.PlanningTracks.CreatePlanningTrack(s.ctx, scheduleSvc.PlanningTrackInput{
+		Name: "Bestehende Spur", Color: "#5080D8", SortOrder: 0,
+	})
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().Table("activities.groups").
+		Set("planning_track_id = ?", track.ID).
+		Where("tenant_id = ?", s.tenantID).
+		Where("id = ?", s.template.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	_, err = s.factory.PlanningTracks.ArchivePlanningTrack(s.ctx, track.ID)
+	require.NoError(t, err)
+
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Track-%d", time.Now().UnixNano()))
+	in.PlanningTrackID = &track.ID
+	in.PlanningTrackIDProvided = true
+	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, result.NewTemplateID)
+
+	predecessor := reloadSplitGroup(t, s, result.OldTemplateID)
+	successor := reloadSplitGroup(t, s, result.NewTemplateID)
+	require.NotNil(t, predecessor.PlanningTrackID)
+	require.NotNil(t, successor.PlanningTrackID)
+	assert.Equal(t, track.ID, *predecessor.PlanningTrackID)
+	assert.Equal(t, track.ID, *successor.PlanningTrackID)
+}
+
+func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
+	tests := []struct {
+		name      string
+		provided  bool
+		wantTrack bool
+	}{
+		{name: "omitted inherits", provided: false, wantTrack: true},
+		{name: "explicit null clears", provided: true, wantTrack: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			effective := futureMonday(1)
+			s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+			defer s.runCleanup(t)
+
+			track, err := s.factory.PlanningTracks.CreatePlanningTrack(s.ctx, scheduleSvc.PlanningTrackInput{
+				Name: fmt.Sprintf("Spur-%d", time.Now().UnixNano()), Color: "#5080D8", SortOrder: 0,
+			})
+			require.NoError(t, err)
+			_, err = s.db.NewUpdate().Table("activities.groups").
+				Set("planning_track_id = ?", track.ID).
+				Where("tenant_id = ?", s.tenantID).
+				Where("id = ?", s.template.ID).
+				Exec(s.ctx)
+			require.NoError(t, err)
+
+			in := baseSplitInput(s, effective, fmt.Sprintf("Split-Presence-%d", time.Now().UnixNano()))
+			in.PlanningTrackIDProvided = tt.provided
+			result, err := s.factory.TemplateSplit.Split(s.ctx, in)
+			require.NoError(t, err)
+			registerSuccessorCleanup(t, s, result.NewTemplateID)
+
+			successor := reloadSplitGroup(t, s, result.NewTemplateID)
+			if tt.wantTrack {
+				require.NotNil(t, successor.PlanningTrackID)
+				assert.Equal(t, track.ID, *successor.PlanningTrackID)
+			} else {
+				assert.Nil(t, successor.PlanningTrackID)
+			}
+		})
+	}
+}
+
+func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	missingTrackID := time.Now().UnixNano()
+
+	split := baseSplitInput(s, effective, fmt.Sprintf("Split-Unknown-Track-%d", missingTrackID))
+	split.PlanningTrackID = &missingTrackID
+	split.PlanningTrackIDProvided = true
+	_, err := s.factory.TemplateSplit.Split(s.ctx, split)
+	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
+
+	update := linkedTemplateUpdateInput(t, s, &s.period.ID)
+	update.Fields.PlanningTrackID = &missingTrackID
+	update.Fields.PlanningTrackIDProvided = true
+	err = s.factory.TimetableData.UpdateTemplate(s.ctx, update)
+	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
 }
 
 func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
