@@ -139,6 +139,7 @@ export function PlanningTrackManageModal({
         <Button
           type="button"
           variant="outline"
+          size="md"
           onClick={() => setView("list")}
           disabled={busy}
         >
@@ -147,6 +148,7 @@ export function PlanningTrackManageModal({
         <Button
           type="button"
           variant="primary"
+          size="md"
           onClick={() => void save()}
           isLoading={busy}
         >
@@ -155,7 +157,7 @@ export function PlanningTrackManageModal({
       </div>
     ) : (
       <div className="flex w-full justify-end">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" size="md" onClick={onClose}>
           Schließen
         </Button>
       </div>
@@ -213,6 +215,7 @@ export function PlanningTrackManageModal({
             <Button
               type="button"
               variant="outline"
+              size="md"
               onClick={() => {
                 setEditing(null);
                 setName("");

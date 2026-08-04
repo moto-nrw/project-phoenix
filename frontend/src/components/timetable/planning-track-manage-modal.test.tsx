@@ -51,6 +51,14 @@ describe("PlanningTrackManageModal", () => {
     expect(screen.getAllByRole("button", { name: "Archivieren" })).toHaveLength(
       2,
     );
+    expect(
+      screen.getByRole("button", { name: "Neue Planungsspur" }),
+    ).toHaveClass("px-4", "py-2", "text-sm");
+    expect(screen.getByRole("button", { name: "Schließen" })).toHaveClass(
+      "px-4",
+      "py-2",
+      "text-sm",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Früh nach unten" }));
     await waitFor(() => expect(reorder).toHaveBeenCalledWith(["2", "1"]));
@@ -78,6 +86,16 @@ describe("PlanningTrackManageModal", () => {
     );
 
     await screen.findByRole("heading", { name: "Neue Planungsspur" });
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
+      "px-4",
+      "py-2",
+      "text-sm",
+    );
+    expect(screen.getByRole("button", { name: "Speichern" })).toHaveClass(
+      "px-4",
+      "py-2",
+      "text-sm",
+    );
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: " Nord " },
     });
