@@ -264,6 +264,7 @@ export function PlanningTrackSelect({
           }}
           placeholder="Planungsspur suchen oder anlegen …"
           autoComplete="off"
+          controlSize="compact"
         />
       </div>
       <div
@@ -508,6 +509,7 @@ export function PlanningTrackSelect({
             }
           }}
           required
+          controlSize="compact"
         />
       </div>
       <ColorPickerField

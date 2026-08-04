@@ -18,7 +18,6 @@ import { cn } from "~/lib/utils";
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
-const DEFAULT_MAX_WIDTH = 420;
 
 interface AnchoredPopoverProps {
   readonly open: boolean;
@@ -70,10 +69,7 @@ export function AnchoredPopover({
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const maxWidth = Math.max(viewportWidth - VIEWPORT_MARGIN * 2, 0);
-    const width = Math.min(
-      Math.max(Math.min(rect.width, DEFAULT_MAX_WIDTH), 320),
-      maxWidth,
-    );
+    const width = Math.min(rect.width, maxWidth);
     const left = Math.min(
       Math.max(rect.left, VIEWPORT_MARGIN),
       Math.max(viewportWidth - width - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
