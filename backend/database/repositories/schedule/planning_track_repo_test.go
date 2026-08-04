@@ -56,6 +56,12 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, updatedActive)
 
+	require.NoError(t, service.ReorderPlanningTracks(ctx, []int64{second.ID}))
+	restored, err := service.RestorePlanningTrack(ctx, first.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, restored.SortOrder)
+	assert.False(t, restored.IsArchived())
+
 	otherScope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, otherScope.TenantID)
 	_, err = repo.FindByID(otherScope.Context(), second.ID)

@@ -105,3 +105,32 @@ func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 		t.Fatalf("expected error response, got %#v", body)
 	}
 }
+
+func TestPlanningTrackHandlersReturnInternalErrorWithoutService(t *testing.T) {
+	resource := NewResource(Dependencies{})
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		method  string
+		path    string
+	}{
+		{name: "list", handler: resource.listPlanningTracks, method: http.MethodGet, path: "/planning-tracks"},
+		{name: "create", handler: resource.createPlanningTrack, method: http.MethodPost, path: "/planning-tracks"},
+		{name: "update", handler: resource.updatePlanningTrack, method: http.MethodPut, path: "/planning-tracks/1"},
+		{name: "reorder", handler: resource.reorderPlanningTracks, method: http.MethodPut, path: "/planning-tracks/order"},
+		{name: "archive", handler: resource.archivePlanningTrack, method: http.MethodDelete, path: "/planning-tracks/1"},
+		{name: "restore", handler: resource.restorePlanningTrack, method: http.MethodPost, path: "/planning-tracks/1/restore"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(tc.method, tc.path, nil)
+			recorder := httptest.NewRecorder()
+
+			tc.handler(recorder, request)
+
+			if recorder.Code != http.StatusInternalServerError {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+}

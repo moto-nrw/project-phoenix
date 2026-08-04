@@ -1908,7 +1908,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Rooms:          repos.Room,
 		Staff:          repos.Staff,
 		ActivityGroups: repos.ActivityGroup,
-		Categories:     repos.ActivityCategory,
+		PlanningTracks: repos.PlanningTrack,
 		ClosingDays:    closingDayService,
 		Holidays:       holidayService,
 		Renderer:       listExportService,

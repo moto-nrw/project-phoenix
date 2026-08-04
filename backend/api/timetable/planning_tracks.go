@@ -41,7 +41,11 @@ func (req *planningTrackOrderRequest) Bind(_ *http.Request) error {
 }
 
 func (rs *Resource) listPlanningTracks(w http.ResponseWriter, r *http.Request) {
-	tracks, err := rs.PlanningTrackService.ListPlanningTracks(r.Context())
+	service, ok := rs.planningTrackService(w, r)
+	if !ok {
+		return
+	}
+	tracks, err := service.ListPlanningTracks(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load planning tracks failed", err))
 		return
@@ -50,12 +54,16 @@ func (rs *Resource) listPlanningTracks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) createPlanningTrack(w http.ResponseWriter, r *http.Request) {
+	service, ok := rs.planningTrackService(w, r)
+	if !ok {
+		return
+	}
 	req := new(planningTrackRequest)
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	track, err := rs.PlanningTrackService.CreatePlanningTrack(r.Context(), scheduleSvc.PlanningTrackInput{
+	track, err := service.CreatePlanningTrack(r.Context(), scheduleSvc.PlanningTrackInput{
 		Name: req.Name, Color: req.Color, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -66,6 +74,10 @@ func (rs *Resource) createPlanningTrack(w http.ResponseWriter, r *http.Request) 
 }
 
 func (rs *Resource) updatePlanningTrack(w http.ResponseWriter, r *http.Request) {
+	service, ok := rs.planningTrackService(w, r)
+	if !ok {
+		return
+	}
 	id, ok := planningTrackID(w, r)
 	if !ok {
 		return
@@ -75,7 +87,7 @@ func (rs *Resource) updatePlanningTrack(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	track, err := rs.PlanningTrackService.UpdatePlanningTrack(r.Context(), id, scheduleSvc.PlanningTrackInput{
+	track, err := service.UpdatePlanningTrack(r.Context(), id, scheduleSvc.PlanningTrackInput{
 		Name: req.Name, Color: req.Color, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -86,16 +98,20 @@ func (rs *Resource) updatePlanningTrack(w http.ResponseWriter, r *http.Request) 
 }
 
 func (rs *Resource) reorderPlanningTracks(w http.ResponseWriter, r *http.Request) {
+	service, ok := rs.planningTrackService(w, r)
+	if !ok {
+		return
+	}
 	req := new(planningTrackOrderRequest)
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.PlanningTrackService.ReorderPlanningTracks(r.Context(), req.IDs); err != nil {
+	if err := service.ReorderPlanningTracks(r.Context(), req.IDs); err != nil {
 		renderPlanningTrackError(w, r, err)
 		return
 	}
-	tracks, err := rs.PlanningTrackService.ListPlanningTracks(r.Context())
+	tracks, err := service.ListPlanningTracks(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload planning tracks failed", err))
 		return
@@ -104,11 +120,15 @@ func (rs *Resource) reorderPlanningTracks(w http.ResponseWriter, r *http.Request
 }
 
 func (rs *Resource) archivePlanningTrack(w http.ResponseWriter, r *http.Request) {
+	service, ok := rs.planningTrackService(w, r)
+	if !ok {
+		return
+	}
 	id, ok := planningTrackID(w, r)
 	if !ok {
 		return
 	}
-	track, err := rs.PlanningTrackService.ArchivePlanningTrack(r.Context(), id)
+	track, err := service.ArchivePlanningTrack(r.Context(), id)
 	if err != nil {
 		renderPlanningTrackError(w, r, err)
 		return
@@ -117,16 +137,28 @@ func (rs *Resource) archivePlanningTrack(w http.ResponseWriter, r *http.Request)
 }
 
 func (rs *Resource) restorePlanningTrack(w http.ResponseWriter, r *http.Request) {
+	service, ok := rs.planningTrackService(w, r)
+	if !ok {
+		return
+	}
 	id, ok := planningTrackID(w, r)
 	if !ok {
 		return
 	}
-	track, err := rs.PlanningTrackService.RestorePlanningTrack(r.Context(), id)
+	track, err := service.RestorePlanningTrack(r.Context(), id)
 	if err != nil {
 		renderPlanningTrackError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, track, "Planning track restored")
+}
+
+func (rs *Resource) planningTrackService(w http.ResponseWriter, r *http.Request) (scheduleSvc.PlanningTrackService, bool) {
+	if rs.PlanningTrackService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("planning track service is not configured")))
+		return nil, false
+	}
+	return rs.PlanningTrackService, true
 }
 
 func planningTrackID(w http.ResponseWriter, r *http.Request) (int64, bool) {

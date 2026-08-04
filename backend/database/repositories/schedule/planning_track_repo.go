@@ -131,3 +131,40 @@ func (r *PlanningTrackRepository) UpdateSortOrders(ctx context.Context, ids []in
 	}
 	return nil
 }
+
+func (r *PlanningTrackRepository) RestoreAtEnd(ctx context.Context, track *model.PlanningTrack) (bool, error) {
+	if track == nil {
+		return false, errors.New("planning track cannot be nil")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return false, errors.New("no tenant in context")
+	}
+	now := time.Now()
+	var sortOrder int
+	err := repoBase.GetDB(ctx, r.db).NewRaw(`
+		UPDATE schedule.planning_tracks AS "planning_track"
+		SET archived_at = NULL,
+			sort_order = COALESCE((
+				SELECT MAX("active_track".sort_order) + 1
+				FROM schedule.planning_tracks AS "active_track"
+				WHERE "active_track".tenant_id = ?
+					AND "active_track".archived_at IS NULL
+			), 0),
+			updated_at = ?
+		WHERE "planning_track".tenant_id = ?
+			AND "planning_track".id = ?
+			AND "planning_track".archived_at IS NOT NULL
+		RETURNING "planning_track".sort_order
+	`, tenantID, now, tenantID, track.ID).Scan(ctx, &sortOrder)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, &modelBase.DatabaseError{Op: "restore planning track", Err: err}
+	}
+	track.ArchivedAt = nil
+	track.SortOrder = sortOrder
+	track.UpdatedAt = now
+	return true, nil
+}

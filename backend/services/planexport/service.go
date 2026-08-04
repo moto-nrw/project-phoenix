@@ -33,15 +33,14 @@ type ShiftTypeReader interface {
 	ListAll(ctx context.Context) ([]*scheduleModel.ShiftType, error)
 }
 
-// ActivityGroupBatchReader and CategoryReader resolve the Kategorie colour of
-// a Betreuungsblock, so the printed plan groups by the same colours the
-// planner shows on screen.
+// ActivityGroupBatchReader and PlanningTrackReader resolve the planning-track
+// colour of a Betreuungsblock, matching the planner.
 type ActivityGroupBatchReader interface {
 	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModel.Group, error)
 }
 
-type CategoryReader interface {
-	ListAll(ctx context.Context) ([]*activitiesModel.Category, error)
+type PlanningTrackReader interface {
+	ListAll(ctx context.Context) ([]*scheduleModel.PlanningTrack, error)
 }
 
 // Dependencies are the reads the two exports need. The instance-side
@@ -58,10 +57,10 @@ type Dependencies struct {
 	Students      InstanceStudentCountReader
 	Rooms         scheduleSvc.RoomBatchReader
 	Staff         scheduleSvc.StaffOverviewReader
-	// ActivityGroups and Categories drive the colour bar on the care plan.
+	// ActivityGroups and PlanningTracks drive the colour bar on the care plan.
 	// Optional: without them a block simply prints without its colour.
 	ActivityGroups ActivityGroupBatchReader
-	Categories     CategoryReader
+	PlanningTracks PlanningTrackReader
 	// ClosingDays and Holidays label the days nobody is expected to work.
 	// Both are optional: without them a closed day simply prints as empty,
 	// which is a worse sheet but never a wrong one.

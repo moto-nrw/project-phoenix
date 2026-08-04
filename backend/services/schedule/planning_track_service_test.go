@@ -22,6 +22,7 @@ type planningTrackRepoStub struct {
 	updateIfActiveResult *bool
 	updateColumnsErr     error
 	updateSortOrdersErr  error
+	restoreAtEndErr      error
 }
 
 func newPlanningTrackRepoStub(tracks ...*model.PlanningTrack) *planningTrackRepoStub {
@@ -111,6 +112,22 @@ func (r *planningTrackRepoStub) UpdateIfActive(_ context.Context, track *model.P
 
 func (r *planningTrackRepoStub) UpdateSortOrders(context.Context, []int64) error {
 	return r.updateSortOrdersErr
+}
+
+func (r *planningTrackRepoStub) RestoreAtEnd(_ context.Context, track *model.PlanningTrack) (bool, error) {
+	if r.restoreAtEndErr != nil {
+		return false, r.restoreAtEndErr
+	}
+	maxOrder := -1
+	for _, candidate := range r.tracks {
+		if !candidate.IsArchived() && candidate.SortOrder > maxOrder {
+			maxOrder = candidate.SortOrder
+		}
+	}
+	track.ArchivedAt = nil
+	track.SortOrder = maxOrder + 1
+	r.tracks[track.ID] = track
+	return true, nil
 }
 
 func (r *planningTrackRepoStub) UpdateColumns(_ context.Context, track *model.PlanningTrack, _ ...string) (int64, error) {
@@ -239,6 +256,7 @@ func TestPlanningTrackServiceArchiveRestoreEdges(t *testing.T) {
 	if _, err := service.ArchivePlanningTrack(context.Background(), active.ID); !errors.Is(err, wantErr) {
 		t.Fatalf("archive planning track: expected %v, got %v", wantErr, err)
 	}
+	repo.restoreAtEndErr = wantErr
 	if _, err := service.RestorePlanningTrack(context.Background(), archived.ID); !errors.Is(err, wantErr) {
 		t.Fatalf("restore planning track: expected %v, got %v", wantErr, err)
 	}
@@ -334,9 +352,11 @@ func TestPlanningTrackAssignmentRejectsArchivedExceptExistingReference(t *testin
 
 func TestPlanningTrackServiceArchiveAndRestore(t *testing.T) {
 	track := &model.PlanningTrack{
-		Name: "Früh", Color: "#83CD2D",
+		Name: "Früh", Color: "#83CD2D", SortOrder: 0,
 	}
-	repo := newPlanningTrackRepoStub()
+	remaining := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 0}
+	remaining.ID = 2
+	repo := newPlanningTrackRepoStub(remaining)
 	if err := repo.Create(context.Background(), track); err != nil {
 		t.Fatalf("create planning track: %v", err)
 	}
@@ -349,5 +369,8 @@ func TestPlanningTrackServiceArchiveAndRestore(t *testing.T) {
 	restored, err := service.RestorePlanningTrack(context.Background(), track.ID)
 	if err != nil || restored.ArchivedAt != nil {
 		t.Fatalf("restore planning track: track=%#v err=%v", restored, err)
+	}
+	if restored.SortOrder != 1 {
+		t.Fatalf("restored sort order = %d, want 1", restored.SortOrder)
 	}
 }

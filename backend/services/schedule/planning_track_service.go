@@ -147,8 +147,8 @@ func (s *planningTrackService) RestorePlanningTrack(ctx context.Context, id int6
 	if err != nil || !track.IsArchived() {
 		return track, err
 	}
-	track.ArchivedAt = nil
-	if _, err := s.repo.UpdateColumns(ctx, track, "archived_at"); err != nil {
+	_, err = s.repo.RestoreAtEnd(ctx, track)
+	if err != nil {
 		if modelBase.IsUniqueViolation(err) {
 			return nil, ErrPlanningTrackNameTaken
 		}

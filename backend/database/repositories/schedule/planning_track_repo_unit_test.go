@@ -55,6 +55,26 @@ func TestPlanningTrackRepositoryUpdateErrors(t *testing.T) {
 	updated, err = repo.UpdateIfActive(context.Background(), track)
 	require.False(t, updated)
 	require.ErrorContains(t, err, wantErr.Error())
+
+	ctx := tenant.WithTenantID(context.Background(), time.Now().UnixNano())
+	archivedAt := time.Now()
+	track.ArchivedAt = &archivedAt
+	mock.ExpectQuery("UPDATE").WillReturnError(wantErr)
+	restored, err := repo.RestoreAtEnd(ctx, track)
+	require.False(t, restored)
+	require.ErrorContains(t, err, wantErr.Error())
+
+	mock.ExpectQuery("UPDATE").WillReturnRows(sqlmock.NewRows([]string{"sort_order"}))
+	restored, err = repo.RestoreAtEnd(ctx, track)
+	require.NoError(t, err)
+	require.False(t, restored)
+
+	mock.ExpectQuery("UPDATE").WillReturnRows(sqlmock.NewRows([]string{"sort_order"}).AddRow(4))
+	restored, err = repo.RestoreAtEnd(ctx, track)
+	require.NoError(t, err)
+	require.True(t, restored)
+	require.Equal(t, 4, track.SortOrder)
+	require.Nil(t, track.ArchivedAt)
 }
 
 func TestPlanningTrackRepositoryReorderErrors(t *testing.T) {
