@@ -85,7 +85,7 @@ export function AnchoredPopover({
     const coordinateLeft = scopeRect ? left - scopeRect.left : left;
 
     const style: CSSProperties = {
-      position: "fixed",
+      position: scope ? "absolute" : "fixed",
       zIndex: 10000,
       left: coordinateLeft,
       width,
