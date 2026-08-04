@@ -23,9 +23,9 @@ Without it the fixes sit on the PR unreviewed, and nothing tells you: the PR loo
 - The PR has no quorum review yet, or nothing was pushed since the last one → nothing owed; the script exits without acting.
 - The quorum report came from the PR author's own account → GitHub refuses that review request; `quorum babysit` re-triggers itself there, so nothing is owed.
 
-A quorum report is recognised by all five of its headings (`## Summary`, `## Blockers`, `## Critical`, `## Suggestions`, `## Questions`); two of them would also match an ordinary comment. Pin the account explicitly with `git config quorum.reviewer <login>` when in doubt.
+The quorum account is declared, never guessed: `git config quorum.reviewer <login>` per clone, otherwise the tracked `.github/quorum-reviewer`. Without a declared account no review request is touched at all. A quorum report is a comment from that account carrying all five headings (`## Summary`, `## Blockers`, `## Critical`, `## Suggestions`, `## Questions`).
 
-**Only the quorum account is re-requested.** Human reviewers and teams on the PR are never removed and re-added, that would reset a review someone is in the middle of. For the same reason a `review_requested` event only counts as a fresh round when it aimed at the quorum account.
+**Only the quorum account is re-requested.** Human reviewers and teams on the PR are never removed and re-added, that would reset a review someone is in the middle of. For the same reason a `review_requested` event only counts as a fresh round when it aimed at the quorum account **and** came after the last push. Re-requesting and then pushing more commits leaves those commits unreviewed, so the check stays open.
 
 ## Enforcement
 
