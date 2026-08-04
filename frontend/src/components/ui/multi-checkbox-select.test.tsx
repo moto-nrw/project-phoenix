@@ -147,4 +147,31 @@ describe("MultiCheckboxSelect (searchable)", () => {
     expect(screen.queryByRole("dialog", { name: "Auswahl" })).toBeNull();
     expect(trigger).toHaveFocus();
   });
+
+  it("closes on Escape while the trigger retains focus", () => {
+    const onDocumentKeyDown = vi.fn();
+    document.addEventListener("keydown", onDocumentKeyDown);
+
+    try {
+      render(
+        <MultiCheckboxSelect
+          ariaLabel="Auswahl"
+          value={[]}
+          options={OPTIONS}
+          onChange={() => undefined}
+        />,
+      );
+      const trigger = screen.getByRole("button", { name: "Auswahl" });
+      trigger.focus();
+      fireEvent.click(trigger);
+
+      fireEvent.keyDown(trigger, { key: "Escape" });
+
+      expect(screen.queryByRole("dialog", { name: "Auswahl" })).toBeNull();
+      expect(trigger).toHaveFocus();
+      expect(onDocumentKeyDown).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    }
+  });
 });

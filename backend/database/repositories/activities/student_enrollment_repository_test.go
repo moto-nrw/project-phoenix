@@ -472,6 +472,8 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 	groupFuture := testpkg.CreateTestActivityGroup(t, db, "FindActiveFuture")
 	groupExpired := testpkg.CreateTestActivityGroup(t, db, "FindActiveExpired")
 	groupBoundary := testpkg.CreateTestActivityGroup(t, db, "FindActiveBoundary")
+	groupWeekdayMatch := testpkg.CreateTestActivityGroup(t, db, "FindActiveWeekdayMatch")
+	groupWeekdayMismatch := testpkg.CreateTestActivityGroup(t, db, "FindActiveWeekdayMismatch")
 	defer testpkg.CleanupActivityFixtures(t, db,
 		studentA.ID, studentB.ID, studentOther.ID,
 		groupAlpha.ID, groupAlpha.CategoryID, *groupAlpha.CreatedBy,
@@ -479,7 +481,14 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 		groupFuture.ID, groupFuture.CategoryID, *groupFuture.CreatedBy,
 		groupExpired.ID, groupExpired.CategoryID, *groupExpired.CreatedBy,
 		groupBoundary.ID, groupBoundary.CategoryID, *groupBoundary.CreatedBy,
+		groupWeekdayMatch.ID, groupWeekdayMatch.CategoryID, *groupWeekdayMatch.CreatedBy,
+		groupWeekdayMismatch.ID, groupWeekdayMismatch.CategoryID, *groupWeekdayMismatch.CreatedBy,
 	)
+	matchingWeekday := int(onDate.Weekday())
+	if matchingWeekday == 0 {
+		matchingWeekday = activities.WeekdaySunday
+	}
+	mismatchingWeekday := matchingWeekday%activities.WeekdaySunday + 1
 
 	activeOpen := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupBeta.ID, ValidFrom: validFrom}
 	activeBounded := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupAlpha.ID, ValidFrom: validFrom, ValidUntil: &endsAfterDate}
@@ -488,6 +497,8 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 	expired := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupExpired.ID, ValidFrom: validFrom, ValidUntil: &expiredUntil}
 	boundary := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupBoundary.ID, ValidFrom: validFrom, ValidUntil: &endsOnDate}
 	otherStudent := &activities.StudentEnrollment{StudentID: studentOther.ID, ActivityGroupID: groupAlpha.ID, ValidFrom: validFrom}
+	weekdayMatch := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupWeekdayMatch.ID, ValidFrom: validFrom, Weekday: &matchingWeekday}
+	weekdayMismatch := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupWeekdayMismatch.ID, ValidFrom: validFrom, Weekday: &mismatchingWeekday}
 	for _, enrollment := range []*activities.StudentEnrollment{
 		activeOpen,
 		activeBounded,
@@ -496,6 +507,8 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 		expired,
 		boundary,
 		otherStudent,
+		weekdayMatch,
+		weekdayMismatch,
 	} {
 		require.NoError(t, repo.Create(ctx, enrollment))
 		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
@@ -507,7 +520,7 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 
 	got, err := repo.FindActiveByStudentIDs(ctx, []int64{studentA.ID, studentB.ID}, onDate)
 	require.NoError(t, err)
-	require.Len(t, got, 3)
+	require.Len(t, got, 4)
 
 	assert.Equal(t, studentA.ID, got[0].StudentID)
 	require.NotNil(t, got[0].ActivityGroup)
@@ -518,9 +531,13 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 	require.NotNil(t, got[1].ActivityGroup)
 	assert.Equal(t, groupBeta.ID, got[1].ActivityGroup.ID)
 
-	assert.Equal(t, studentB.ID, got[2].StudentID)
+	assert.Equal(t, studentA.ID, got[2].StudentID)
 	require.NotNil(t, got[2].ActivityGroup)
-	assert.Equal(t, groupAlpha.ID, got[2].ActivityGroup.ID)
+	assert.Equal(t, groupWeekdayMatch.ID, got[2].ActivityGroup.ID)
+
+	assert.Equal(t, studentB.ID, got[3].StudentID)
+	require.NotNil(t, got[3].ActivityGroup)
+	assert.Equal(t, groupAlpha.ID, got[3].ActivityGroup.ID)
 }
 
 func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {

@@ -22,6 +22,7 @@ const templates: TimetableTemplate[] = [
     assignedStaffCount: 2,
     studentIds: [],
     staffIds: [],
+    weekdayAssignments: [],
     schedules: [
       {
         id: "s1",
@@ -47,6 +48,7 @@ const templates: TimetableTemplate[] = [
     assignedStaffCount: 1,
     studentIds: [],
     staffIds: [],
+    weekdayAssignments: [],
     schedules: [
       {
         id: "s2",

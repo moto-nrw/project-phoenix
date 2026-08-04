@@ -82,6 +82,10 @@ type createTemplateRequest struct {
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID  *int64  `json:"primary_staff_id,omitempty"`
+	// WeekdayAssignments overrides the shared roster above for individual
+	// weekdays (#2129). Omitted/empty = the same staff and children on every
+	// weekday of the series.
+	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
 }
 
 type templateTargetRequest struct {
@@ -150,6 +154,9 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		return errors.New("at least one weekday is required")
 	}
 	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
+		return err
+	}
+	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
 	target := &activitiesModel.Group{
@@ -343,31 +350,32 @@ func buildCreateTemplateInput(
 		createdByPtr = &c
 	}
 	return scheduleSvc.CreateTemplateInput{
-		Name:              req.Name,
-		Type:              req.Type,
-		Weekdays:          req.Weekdays,
-		StartTime:         parsed.startTime,
-		EndTime:           parsed.endTime,
-		RoomID:            req.RoomID,
-		CategoryID:        req.CategoryID,
-		MaxParticipants:   parsed.maxParticipants,
-		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-		WeekPattern:       parsed.weekPattern,
-		CalendarPeriodID:  req.CalendarPeriodID,
-		EducationGroupID:  req.EducationGroupID,
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		Targets:           targetModels(req.Targets),
-		ListKind:          req.ListKind,
-		Notes:             normalizeNotes(req.Notes),
-		StudentIDs:        req.StudentIDs,
-		StaffIDs:          req.StaffIDs,
-		PrimaryStaffID:    req.PrimaryStaffID,
-		CreatedBy:         createdByPtr,
-		RosterValidFrom:   rosterValidFrom,
-		ScheduleValidFrom: parsed.startDate,
-		GradeLevelMax:     gradeLevelMax,
+		Name:               req.Name,
+		Type:               req.Type,
+		Weekdays:           req.Weekdays,
+		StartTime:          parsed.startTime,
+		EndTime:            parsed.endTime,
+		RoomID:             req.RoomID,
+		CategoryID:         req.CategoryID,
+		MaxParticipants:    parsed.maxParticipants,
+		RequiredStaff:      normalizeRequiredStaff(req.RequiredStaff),
+		WeekPattern:        parsed.weekPattern,
+		CalendarPeriodID:   req.CalendarPeriodID,
+		EducationGroupID:   req.EducationGroupID,
+		TargetGroupType:    req.TargetGroupType,
+		TargetGradeLevel:   req.TargetGradeLevel,
+		TargetSchoolClass:  req.TargetSchoolClass,
+		Targets:            targetModels(req.Targets),
+		ListKind:           req.ListKind,
+		Notes:              normalizeNotes(req.Notes),
+		StudentIDs:         req.StudentIDs,
+		StaffIDs:           req.StaffIDs,
+		PrimaryStaffID:     req.PrimaryStaffID,
+		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
+		CreatedBy:          createdByPtr,
+		RosterValidFrom:    rosterValidFrom,
+		ScheduleValidFrom:  parsed.startDate,
+		GradeLevelMax:      gradeLevelMax,
 	}
 }
 

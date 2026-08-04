@@ -63,6 +63,7 @@ const template: TimetableTemplate = {
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
+  weekdayAssignments: [],
   schedules: [
     {
       id: "9",
@@ -249,6 +250,7 @@ describe("small timetable components", () => {
           categoryName: "",
           roomName: undefined,
           enrollmentCount: 1,
+          weekdayAssignments: [],
           schedules: [],
         }}
         onEdit={onEdit}

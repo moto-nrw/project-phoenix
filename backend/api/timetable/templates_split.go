@@ -277,8 +277,12 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		StudentIDs:        req.StudentIDs,
 		StaffIDs:          req.StaffIDs,
 		PrimaryStaffID:    req.PrimaryStaffID,
-		MaterializeFrom:   materializeFrom,
-		MaterializeTo:     materializeTo,
+		// Per-weekday roster deviations follow the successor (#2129); the
+		// embedded updateTemplateRequest.Bind already validated them against
+		// the submitted weekdays.
+		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
+		MaterializeFrom:    materializeFrom,
+		MaterializeTo:      materializeTo,
 	}, nil
 }
 

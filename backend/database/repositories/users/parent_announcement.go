@@ -60,7 +60,8 @@ func pendingStatusList() string {
 // the single canonical active-enrollment predicate for the audience/feed/stats
 // queries — mirroring activities.StudentEnrollmentRepository.FindActiveByStudentIDs:
 // valid_until is EXCLUSIVE (an enrollment ending today is no longer active), and
-// "today" is Berlin's calendar date, not the DB session's CURRENT_DATE (which is
+// weekday is either unscoped or matches today's ISO weekday. Both checks use
+// Berlin's calendar date, not the DB session's CURRENT_DATE (which is
 // UTC and rolls a day early/late around Berlin midnight). tenantExpr is the SQL
 // expression for the tenant (a bound `?` in the raw builders, `a.tenant_id` in
 // the feed). The Berlin date is rendered from validated integer fields, so
@@ -74,6 +75,7 @@ func activeActivityGroupExists(tenantExpr string) string {
 							AND se.activity_group_id = pt.target_ref_id
 							AND se.valid_from <= %[2]s
 							AND (se.valid_until IS NULL OR se.valid_until > %[2]s)
+							AND (se.weekday IS NULL OR se.weekday = EXTRACT(ISODOW FROM DATE %[2]s)::INT)
 					))`, tenantExpr, today)
 }
 

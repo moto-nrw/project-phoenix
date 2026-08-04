@@ -124,14 +124,15 @@ export function MultiCheckboxSelect({
     setOpen(!open);
   }, [open]);
 
-  const handleMenuKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "Escape") return;
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (!open || event.key !== "Escape") return;
       event.preventDefault();
+      event.stopPropagation();
       closeMenu();
       triggerRef.current?.focus();
     },
-    [closeMenu],
+    [closeMenu, open],
   );
 
   return (
@@ -146,6 +147,7 @@ export function MultiCheckboxSelect({
         aria-controls={open ? menuId : undefined}
         disabled={isDisabled}
         onClick={toggleOpen}
+        onKeyDown={handleKeyDown}
         className={cn(TRIGGER_CLASS, className)}
       >
         <span
@@ -170,7 +172,7 @@ export function MultiCheckboxSelect({
           id={menuId}
           role="dialog"
           aria-label={ariaLabel}
-          onKeyDown={handleMenuKeyDown}
+          onKeyDown={handleKeyDown}
           className={cn(
             "absolute top-full left-0 z-50 mt-1 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-lg",
             menuClassName,

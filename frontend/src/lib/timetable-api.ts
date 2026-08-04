@@ -220,14 +220,23 @@ class TimetableService {
 
   /**
    * GET /api/timetable/templates/{id} — single template with schedules,
-   * enrollment and staff assignments. Same enriched shape as the list.
+   * enrollment and staff assignments. The required period keeps scoped
+   * rosters isolated in the same way as the list endpoint.
    */
-  async getTemplate(templateId: string): Promise<TimetableTemplate> {
-    const response = await fetch(`/api/timetable/templates/${templateId}`, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "include",
-    });
+  async getTemplate(
+    templateId: string,
+    periodId: string,
+  ): Promise<TimetableTemplate> {
+    const params = new URLSearchParams();
+    params.set("period_id", periodId);
+    const response = await fetch(
+      `/api/timetable/templates/${templateId}${params.toString() ? `?${params}` : ""}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
     const raw = await unwrap<BackendTimetableTemplate>(response);
     return mapTemplates({ templates: [raw] }).templates[0]!;
   }

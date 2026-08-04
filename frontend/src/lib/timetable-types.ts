@@ -421,6 +421,28 @@ export interface TimetableTemplate {
   staffIds: string[];
   primaryStaffId?: string;
   schedules: TemplateSchedule[];
+  /**
+   * Per-weekday staff and child lists (#2129). Empty = the series uses one
+   * roster on every weekday. When populated it covers every weekday the
+   * series runs, so each entry can be rendered as that day's roster without
+   * merging it with `staffIds` / `studentIds`.
+   */
+  weekdayAssignments: TemplateWeekdayAssignment[];
+  /** Read-only enrollment-owned child coverage, used when changing roster mode. */
+  protectedStudentAssignments?: TemplateProtectedStudentAssignment[];
+}
+
+/** One weekday's staff and child roster of a Regeltermin (#2129). */
+interface TemplateWeekdayAssignment {
+  weekday: number; // ISO 8601: 1 = Mo … 7 = So
+  staffIds: string[];
+  studentIds: string[];
+  primaryStaffId?: string;
+}
+
+export interface TemplateProtectedStudentAssignment {
+  weekday: number;
+  studentIds: string[];
 }
 
 export interface TemplatesResponse {
@@ -474,6 +496,21 @@ export interface BackendTimetableTemplate {
   staff_ids?: number[];
   primary_staff_id?: number;
   schedules: BackendTemplateSchedule[];
+  weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
+  protected_student_assignments?:
+    BackendTemplateProtectedStudentAssignment[] | null;
+}
+
+interface BackendTemplateWeekdayAssignment {
+  weekday: number;
+  staff_ids?: number[];
+  student_ids?: number[];
+  primary_staff_id?: number;
+}
+
+interface BackendTemplateProtectedStudentAssignment {
+  weekday: number;
+  student_ids?: number[];
 }
 
 export interface BackendTemplatesResponse {
@@ -886,6 +923,20 @@ export interface CreateTemplateBody {
   materialize_to?: string;
   student_ids?: number[];
   staff_ids?: number[];
+  primary_staff_id?: number;
+  /**
+   * Per-weekday roster deviations (#2129). Each entry fully replaces the
+   * shared `staff_ids` / `student_ids` / `primary_staff_id` above for that
+   * one weekday; weekdays without an entry keep the shared roster. Omitted
+   * or empty means the whole series shares one roster.
+   */
+  weekday_assignments?: WeekdayAssignmentBody[];
+}
+
+export interface WeekdayAssignmentBody {
+  weekday: number;
+  staff_ids: number[];
+  student_ids: number[];
   primary_staff_id?: number;
 }
 
