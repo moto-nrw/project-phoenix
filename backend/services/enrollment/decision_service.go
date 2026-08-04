@@ -2416,7 +2416,62 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	if err != nil {
 		return err
 	}
-	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, startFrom)
+	if err := s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, startFrom); err != nil {
+		return err
+	}
+	// The materializer is insert-only and never revisits an existing
+	// occurrence, so an approval after materialization must add the child to
+	// the drafted templates' already-materialized future occurrences itself
+	// (#2147 review).
+	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, draftGroupIDSet(drafts), enrollmentRewriteBoundary(startFrom))
+}
+
+// enrollmentRewriteBoundary is the date from which a decision/adjustment flow
+// may rewrite materialized occurrences: the flow's own start override, never
+// earlier than today (history is observation, not plan).
+func enrollmentRewriteBoundary(startFrom *timezone.Date) timezone.Date {
+	boundary := timezone.TodayDate()
+	if startFrom != nil && startFrom.After(boundary) {
+		boundary = *startFrom
+	}
+	return boundary
+}
+
+func draftGroupIDSet(drafts map[int64]*careEnrollmentDraft) map[int64]bool {
+	groupIDs := make(map[int64]bool, len(drafts))
+	for groupID := range drafts {
+		groupIDs[groupID] = true
+	}
+	return groupIDs
+}
+
+// reconcileEnrollmentInstanceRosters propagates the enrollment rows a
+// decision or adjustment flow just wrote, capped, or removed for ONE student
+// onto the affected templates' already-materialized future occurrences
+// (#2147 review). Without it, added or removed children keep stale
+// schedule.instance_students rows — and stale staffing counts — until a
+// manual re-plan; only the template-save resync reconciled them before.
+func (s *decisionService) reconcileEnrollmentInstanceRosters(
+	ctx context.Context,
+	studentID int64,
+	groupIDs map[int64]bool,
+	from timezone.Date,
+) error {
+	if studentID <= 0 || len(groupIDs) == 0 {
+		return nil
+	}
+	students := map[int64]bool{studentID: true}
+	ids := make([]int64, 0, len(groupIDs))
+	for groupID := range groupIDs {
+		ids = append(ids, groupID)
+	}
+	slices.Sort(ids)
+	for _, groupID := range ids {
+		if err := s.reconcileSourcedInstanceRosters(ctx, groupID, students, from); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *decisionService) hasEnrollmentMaterializationDependencies() bool {
@@ -2504,7 +2559,7 @@ func studentEnrollmentFromCareDraft(
 	draft *careEnrollmentDraft,
 	startFrom *timezone.Date,
 ) *activities.StudentEnrollment {
-	validUntil := phase.ServiceEndDate.AddDays(1)
+	validUntil := careDraftValidUntil(draft, phase)
 	validFrom := phase.ServiceStartDate
 	// A dated switch may start mid-phase; a phase that already began must not
 	// pull the new row back to its service start. Clamped so an effective date
@@ -2513,14 +2568,15 @@ func studentEnrollmentFromCareDraft(
 		validFrom = *startFrom
 	}
 	// A sourced draft is additionally bounded by its segment's recurrence
-	// envelope (#2147 review): approving after a split must not give the capped
-	// predecessor coverage past its valid_until, nor the successor coverage
-	// before its start. Callers skip rows whose window collapses to empty.
+	// envelope and by the child's offering-link window (#2147 review):
+	// approving after a split must not give the capped predecessor coverage
+	// past its valid_until, and a link starting mid-phase must not plan the
+	// child before it. Callers skip rows whose window collapses to empty.
 	if draft.scheduleValidFrom != nil && draft.scheduleValidFrom.After(validFrom) {
 		validFrom = *draft.scheduleValidFrom
 	}
-	if draft.scheduleValidUntil != nil && draft.scheduleValidUntil.Before(validUntil) {
-		validUntil = *draft.scheduleValidUntil
+	if draft.linkValidFrom != nil && draft.linkValidFrom.After(validFrom) {
+		validFrom = *draft.linkValidFrom
 	}
 	row := &activities.StudentEnrollment{
 		StudentID:                studentID,
@@ -2534,6 +2590,24 @@ func studentEnrollmentFromCareDraft(
 		row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
 	}
 	return row
+}
+
+// careDraftValidUntil is the exclusive end a draft's rows may reach: the
+// phase's service window, clamped by the sourced segment's recurrence
+// envelope and by the child's offering-link validity (#2147 review). The
+// dated adjustment's retained-row extension uses the same bound — extending a
+// capped split predecessor back to the phase end would overlap its successor,
+// and extending past the link end would plan the child after leaving the
+// offering.
+func careDraftValidUntil(draft *careEnrollmentDraft, phase *enrollmentModels.Phase) timezone.Date {
+	validUntil := phase.ServiceEndDate.AddDays(1)
+	if draft.scheduleValidUntil != nil && draft.scheduleValidUntil.Before(validUntil) {
+		validUntil = *draft.scheduleValidUntil
+	}
+	if draft.linkValidUntil != nil && draft.linkValidUntil.Before(validUntil) {
+		validUntil = *draft.linkValidUntil
+	}
+	return validUntil
 }
 
 func (s *decisionService) lockTemplateRecurrence(ctx context.Context) error {
@@ -2551,6 +2625,12 @@ type careEnrollmentDraft struct {
 	calendarPeriodID *int64
 	selectedWeekday  map[int]bool
 	allWeekdays      bool
+	// legacyOwned marks a draft written by the legacy ActivityGroupID feed
+	// (#1651). The sourced feed never merges into such a draft: the explicit
+	// legacy link owns the child's row on that template, and mixing both
+	// feeds' weekdays into one row would leave the resync unable to tell
+	// which days belong to which feed (#2147 review).
+	legacyOwned bool
 	// scheduleValidFrom/Until bound the draft's rows to the template segment's
 	// recurrence envelope (#2147 review): a split predecessor must not receive
 	// rows covering dates after its capped valid_until, nor a successor rows
@@ -2558,6 +2638,13 @@ type careEnrollmentDraft struct {
 	// ActivityGroupID feed keeps its pre-#2137 phase-wide rows (nil = open).
 	scheduleValidFrom  *timezone.Date
 	scheduleValidUntil *timezone.Date
+	// linkValidFrom/Until bound a sourced draft's rows to the window the
+	// child's offering link is actually valid in (#2147 review): a dated
+	// switch into or out of the offering must not plan the child outside it.
+	// The legacy feed leaves them nil — its dated flows cap rows via the
+	// adjustment split instead.
+	linkValidFrom  *timezone.Date
+	linkValidUntil *timezone.Date
 }
 
 func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
@@ -2683,14 +2770,22 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 		return fmt.Errorf("decision: care offering %d is not materializable: %w", link.CareOfferingID, err)
 	}
 	for _, segment := range segments {
+		// The explicit legacy link owns the child's row on this template. When
+		// another link's sourced feed drafted it first, that draft is REPLACED,
+		// not merged: one row mixing both feeds' weekdays could never be told
+		// apart again by the resync's provenance check (#2147 review).
+		if draft := drafts[segment.group.ID]; draft != nil && !draft.legacyOwned {
+			delete(drafts, segment.group.ID)
+		}
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
 			return err
 		}
 		// The legacy feed plans phase-wide rows on every overlapping segment
-		// (pre-#2137 behavior). When another link's sourced feed drafted this
-		// template first, its narrower segment bound must widen back out.
+		// (pre-#2137 behavior).
 		if draft := drafts[segment.group.ID]; draft != nil {
+			draft.legacyOwned = true
 			draft.scheduleValidFrom, draft.scheduleValidUntil = nil, nil
+			draft.linkValidFrom, draft.linkValidUntil = nil, nil
 		}
 	}
 	return nil
@@ -2747,6 +2842,12 @@ func (s *decisionService) addSourcedTemplateDrafts(
 			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "phase outside template period", err)
 			continue
 		}
+		if existing := drafts[tmpl.ID]; existing != nil && existing.legacyOwned {
+			// The legacy ActivityGroupID feed already plans this child on the
+			// template and owns the row (see addLegacyLinkedGroupDrafts) — the
+			// sourced feed never merges into it.
+			continue
+		}
 		segment := linkedCareOfferingGroup{group: tmpl, period: period, schedules: schedules}
 		_, existed := drafts[tmpl.ID]
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
@@ -2756,13 +2857,24 @@ func (s *decisionService) addSourcedTemplateDrafts(
 			// FindTemplatesBySourceOffering returns every segment of a split
 			// series, so the drafted rows must stop at each segment's schedule
 			// envelope — otherwise an approval after a split plans the capped
-			// predecessor for dates after it ended (#2147 review). A draft the
-			// legacy feed created first stays phase-wide (its pre-#2137 shape).
+			// predecessor for dates after it ended (#2147 review). The child's
+			// offering-link window bounds the rows the same way: a link ending
+			// mid-phase must not plan the child after leaving the offering.
 			draft := drafts[tmpl.ID]
 			draft.scheduleValidFrom, draft.scheduleValidUntil = scheduleValidityBounds(schedules)
+			draft.linkValidFrom = cloneOptionalDraftDate(link.ValidFrom)
+			draft.linkValidUntil = cloneOptionalDraftDate(link.ValidUntil)
 		}
 	}
 	return nil
+}
+
+func cloneOptionalDraftDate(date *timezone.Date) *timezone.Date {
+	if date == nil {
+		return nil
+	}
+	cloned := *date
+	return &cloned
 }
 
 func mergeCareEnrollmentDraft(

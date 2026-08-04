@@ -455,3 +455,84 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)
 }
+
+// Removing a template's source while re-picking a child by hand must leave
+// that child on the template's already-materialized future occurrences: the
+// source resync runs BEFORE the roster replacement and clears the child's
+// still-planned instance rows, so the update has to reconcile the manual
+// roster back onto existing occurrences afterwards (#2147 review, round 4).
+func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *testing.T) {
+	monday := futureMonday(2)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                 name,
+		Type:                 activitiesModels.GroupTypeCare,
+		Weekdays:             []int{activitiesModels.WeekdayMonday},
+		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:               s.roomID,
+		CategoryID:           s.categoryID,
+		MaxParticipants:      20,
+		CalendarPeriodID:     &s.period.ID,
+		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingID: &offering.ID,
+		RosterValidFrom:      monday.AddDays(-30),
+		GradeLevelMax:        schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	// One occurrence is already materialized when the edit happens.
+	instance := &scheduleModels.ActivityInstance{
+		Date:             monday,
+		ActivityGroupID:  &result.TemplateID,
+		CalendarPeriodID: &s.period.ID,
+		Title:            name,
+		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:           s.roomID,
+		Status:           scheduleModels.InstanceStatusPlanned,
+	}
+	instance.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("schedule.activity_instances", instance.ID)
+	s.extraCleanups = append([]func(){func() {
+		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
+	}}, s.extraCleanups...)
+
+	manualStudentID := s.students[0]
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: result.TemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:             name,
+			Type:             activitiesModels.GroupTypeCare,
+			CategoryID:       s.categoryID,
+			RoomID:           s.roomID,
+			MaxParticipants:  20,
+			CalendarPeriodID: &s.period.ID,
+			TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+		},
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		TimeframeID:      result.TimeframeID,
+		CalendarPeriodID: &s.period.ID,
+		RosterValidFrom:  monday.AddDays(-30),
+		StudentIDs:       []int64{manualStudentID},
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	}))
+
+	var rows []scheduleModels.InstanceStudent
+	require.NoError(t, s.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, instance.ID).
+		Scan(s.ctx))
+	require.Len(t, rows, 1, "the manually re-picked child must land on the pre-existing occurrence")
+	assert.Equal(t, manualStudentID, rows[0].StudentID)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+}

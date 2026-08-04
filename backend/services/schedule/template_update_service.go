@@ -210,6 +210,9 @@ func (s *TimetableDataService) updateTemplateLocked(
 	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil, previousCalendarPeriodID); err != nil {
 		return err
 	}
+	if err := s.reconcileRetainedManualRosterInstances(ctx, in, previousSourceOfferingID, validFrom); err != nil {
+		return err
+	}
 	if s.deps.ValidateCareOfferingSeries == nil {
 		return nil
 	}
@@ -239,29 +242,95 @@ func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
 	if s.deps.ResyncOfferingRoster == nil {
 		return &ScheduleError{Op: updateTemplateOp, Err: errors.New("offering roster resync is not configured")}
 	}
-	effectiveFrom := in.RosterValidFrom
-	if scheduleValidFrom != nil {
-		effectiveFrom = *scheduleValidFrom
-	}
-	// An already-started series must not use its schedule start as the rewrite
-	// boundary: the resync deletes rows starting on or after EffectiveFrom and
-	// caps earlier ones AT it, so a past boundary would rewrite roster history
-	// that was already effective. Today is the earliest honest edit boundary; a
-	// future schedule start stays as-is (#2147 review).
-	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
-		effectiveFrom = today
-	}
 	if err := s.deps.ResyncOfferingRoster(ctx, OfferingRosterResyncInput{
 		TemplateID:         in.TemplateID,
 		PreviousOfferingID: previousSourceOfferingID,
 		OfferingID:         in.Fields.SourceCareOfferingID,
 		GradeLevels:        in.Fields.SourceGradeLevels,
 		CalendarPeriodID:   in.CalendarPeriodID,
-		EffectiveFrom:      effectiveFrom,
+		EffectiveFrom:      offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
 	}); err != nil {
 		return &ScheduleError{Op: "update template: resync offering roster", Err: err}
 	}
 	return nil
+}
+
+// offeringResyncBoundary is the date from which a template edit may rewrite
+// its offering-sourced roster: the series start when one exists, else the
+// roster valid_from. An already-started series must not use its schedule
+// start as the rewrite boundary: the resync deletes rows starting on or after
+// EffectiveFrom and caps earlier ones AT it, so a past boundary would rewrite
+// roster history that was already effective. Today is the earliest honest
+// edit boundary; a future schedule start stays as-is (#2147 review).
+func offeringResyncBoundary(rosterValidFrom timezone.Date, scheduleValidFrom *timezone.Date) timezone.Date {
+	effectiveFrom := rosterValidFrom
+	if scheduleValidFrom != nil {
+		effectiveFrom = *scheduleValidFrom
+	}
+	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
+		effectiveFrom = today
+	}
+	return effectiveFrom
+}
+
+// reconcileRetainedManualRosterInstances re-aligns the template's already-
+// materialized future occurrences with the manual roster the update just
+// wrote. Only edits that involved an offering source need it: the source
+// resync runs BEFORE the roster replacement (see the ordering comment at its
+// call site) and removes a departing child's still-planned instance rows — so
+// when the source is removed and a child re-picked by hand in the same save,
+// nothing after replaceTemplateRoster would put that child back on existing
+// occurrences until a manual re-plan (#2147 review). A manual roster can only
+// coexist with a source edit in exactly that removal shape, because
+// validateOfferingSourceInput rejects student_ids next to a set source.
+func (s *TimetableDataService) reconcileRetainedManualRosterInstances(
+	ctx context.Context,
+	in TemplateUpdateInput,
+	previousSourceOfferingID *int64,
+	scheduleValidFrom *timezone.Date,
+) error {
+	if in.Fields.SourceCareOfferingID == nil && previousSourceOfferingID == nil {
+		return nil
+	}
+	if s.deps.ActivityInstanceRepo == nil || s.deps.InstanceStudentRepo == nil || s.deps.StudentEnrollmentRepo == nil {
+		return nil // read-only test facades have no occurrences to reconcile
+	}
+	studentIDs := manualRosterStudentIDs(in)
+	if len(studentIDs) == 0 {
+		return nil
+	}
+	reconciler := NewRosterReconciler(s.deps.ActivityInstanceRepo, s.deps.InstanceStudentRepo, s.deps.StudentEnrollmentRepo, s.deps.Logger)
+	if _, _, err := reconciler.ReconcileSourcedTemplateRosters(
+		ctx,
+		in.TemplateID,
+		studentIDs,
+		offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
+	); err != nil {
+		return &ScheduleError{Op: "update template: reconcile manual roster occurrences", Err: err}
+	}
+	return nil
+}
+
+// manualRosterStudentIDs collects the distinct students the editor manages by
+// hand — the shared roster plus every per-weekday assignment.
+func manualRosterStudentIDs(in TemplateUpdateInput) []int64 {
+	seen := make(map[int64]bool, len(in.StudentIDs))
+	ids := make([]int64, 0, len(in.StudentIDs))
+	appendID := func(id int64) {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	for _, id := range in.StudentIDs {
+		appendID(id)
+	}
+	for _, assignment := range in.WeekdayAssignments {
+		for _, id := range assignment.StudentIDs {
+			appendID(id)
+		}
+	}
+	return ids
 }
 
 func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupRepository, groupID int64) ([]*activitiesModel.GroupTarget, error) {

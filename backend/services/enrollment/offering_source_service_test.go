@@ -845,3 +845,328 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 		"a row a human decided by hand must never be removed by the resync")
 	assert.Equal(t, studentGrade2, decidedRows[1].StudentID)
 }
+
+// ---- review follow-ups, round 4 (#2147) -----------------------------------
+
+// loadSourcedInstanceStudents reads one occurrence's attendance rows ordered
+// by student id.
+func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID int64) []scheduleModels.InstanceStudent {
+	t.Helper()
+	var rows []scheduleModels.InstanceStudent
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, instanceID).
+		Order("student_id ASC").
+		Scan(testpkg.TenantContext(1)))
+	return rows
+}
+
+// firstInPhaseMondayOnOrAfter returns the first Monday on or after the date.
+func firstInPhaseMondayOnOrAfter(date timezone.Date) timezone.Date {
+	for date.Weekday() != time.Monday {
+		date = date.AddDays(1)
+	}
+	return date
+}
+
+// registerSourcedInstanceCleanup drops an occurrence with its attendance rows.
+func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instanceIDs ...int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		for _, instanceID := range instanceIDs {
+			_, _ = env.db.NewDelete().
+				TableExpr("schedule.instance_students").
+				Where("instance_id = ?", instanceID).
+				Exec(context.Background())
+		}
+		testpkg.CleanupTableRecords(t, env.db, "schedule.activity_instances", instanceIDs...)
+	})
+}
+
+// The approval fan-out must honour the offering link's own validity window: a
+// child whose link ends mid-phase must not stay planned for the rest of the
+// phase (#2147 review, round 4).
+func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "LinkFenster", nil)
+	template := createSourcedTemplate(t, env, "LinkFensterTermin", offering.ID, []int{2}, period)
+
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Fenster",
+		GuardianEmail:     "link-window@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Fenja",
+			LastName:         "Fenster",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			OfferingIDs:      []int64{offering.ID},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	childID := submitted.Children[0].ID
+
+	// The child leaves the offering mid-phase BEFORE the request is decided.
+	switchDate := env.sourcePhase.ServiceStartDate.AddDays(60)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(ctx, childID, switchDate, nil))
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.student_enrollments").
+			Where("student_id = ?", *outcome.Child.CreatedStudentID).
+			Exec(context.Background())
+	})
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, switchDate, *rows[0].ValidUntil,
+		"the approval fan-out must not plan the child past the offering link's end")
+}
+
+// An approval AFTER materialization must add the child to the template's
+// already-materialized future occurrences itself — the materializer is
+// insert-only and never revisits an existing instance (#2147 review, round 4).
+func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "InstanzGenehmigung", nil)
+	template := createSourcedTemplate(t, env, "InstanzGenehmigungTermin", offering.ID, nil, period)
+
+	// The occurrence exists BEFORE any child is approved.
+	occurrenceDate := firstInPhaseMondayOnOrAfter(env.sourcePhase.ServiceStartDate)
+	require.NotNil(t, template.PlannedRoomID)
+	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &template.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	registerSourcedInstanceCleanup(t, env, planned.ID)
+
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-genehmigung@example.com", "Insa", 2)
+
+	rows := loadSourcedInstanceStudents(t, env, planned.ID)
+	require.Len(t, rows, 1, "the approval must add the child to the pre-existing occurrence")
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+}
+
+// A dated offering switch must propagate onto already-materialized future
+// occurrences: the child leaves the sourced template at the switch date, so a
+// still-planned attendance row after that date has to disappear (#2147
+// review, round 4).
+func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "InstanzWechselQuelle", nil)
+	otherOffering := createSourceOffering(t, env, "InstanzWechselZiel", nil)
+	template := createSourcedTemplate(t, env, "InstanzWechselTermin", offering.ID, []int{2}, period)
+
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-wechsel@example.com", "Iwa", 2)
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+
+	switchDate := env.sourcePhase.ServiceStartDate.AddDays(60)
+	occurrenceDate := firstInPhaseMondayOnOrAfter(switchDate)
+	require.NotNil(t, template.PlannedRoomID)
+	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &template.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	registerSourcedInstanceCleanup(t, env, planned.ID)
+	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      child.RequestID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Wechsel zum Halbjahr",
+		EffectiveFrom:  &switchDate,
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: otherOffering.ID},
+		},
+	})
+	require.NoError(t, err)
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].ValidUntil)
+	require.Equal(t, switchDate, *rows[0].ValidUntil)
+	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
+		"the switched-away child must leave the already-materialized occurrence after the switch date")
+}
+
+// A dated adjustment that KEEPS the offering must not extend the retained row
+// past the sourced segment's envelope: a capped split predecessor would
+// otherwise regain coverage past the split and overlap its successor (#2147
+// review, round 4).
+func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "SegmentBehaltQuelle", nil)
+	splitDate := env.sourcePhase.ServiceStartDate.AddDays(90)
+	template := createSourcedTemplateSegment(t, env, "SegmentBehaltTermin", offering.ID, []int{2}, period, nil, &splitDate)
+
+	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "segment-behalt@example.com", "Seba", 2)
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].ValidUntil)
+	require.Equal(t, splitDate, *rows[0].ValidUntil)
+
+	// The switch keeps the same offering with unchanged days, so the existing
+	// row is retained rather than capped and re-seeded.
+	switchDate := env.sourcePhase.ServiceStartDate.AddDays(30)
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      child.RequestID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Korrektur ohne Angebotswechsel",
+		EffectiveFrom:  &switchDate,
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID},
+		},
+	})
+	require.NoError(t, err)
+
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, splitDate, *rows[0].ValidUntil,
+		"the retained row must keep the segment end — not be extended to the phase end")
+}
+
+// A child fed into a template by the legacy CareOffering.ActivityGroupID link
+// AND holding the template's source offering keeps exactly the legacy-shaped
+// row: the source never seeds a second row for them, and source-shaped rows of
+// the same child (stale data from a removed source) are reconciled away by
+// provenance instead of surviving behind the child-level protection (#2147
+// review, round 4).
+func TestResyncTemplateOfferingRoster_LegacyLinkedChildKeepsLegacyRowOnly(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	legacyTemplate := createCareOfferingTemplateGroup(t, env.db, "LegacyMisch")
+	createCareOfferingTemplateSchedule(t, env.db, legacyTemplate.ID, activitiesModels.WeekdayMonday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, legacyTemplate.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	legacyOffering := createSourceOffering(t, env, "LegacyMischFeed", &legacyTemplate.ID)
+	sourceOffering := createSourceOffering(t, env, "LegacyMischQuelle", nil)
+	sourceOffering.AvailableDays = []string{"tue"}
+	require.NoError(t, env.repos.CareOffering.Update(ctx, sourceOffering))
+
+	// The child holds BOTH offerings.
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Misch",
+		GuardianEmail:     "legacy-misch@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Mila",
+			LastName:         "Misch",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			OfferingIDs:      []int64{legacyOffering.ID, sourceOffering.ID},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	childID := submitted.Children[0].ID
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.student_enrollments").
+			Where("student_id = ?", studentID).
+			Exec(context.Background())
+	})
+
+	rows := loadTemplateEnrollments(t, env, legacyTemplate.ID)
+	require.Len(t, rows, 1, "the legacy link owns the child's row — no second, source-fed row")
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays,
+		"the row carries the legacy offering's days, not a merge with the source days")
+
+	// Sourcing the same template from the second offering must not seed a
+	// second row for the legacy-fed child.
+	resyncer := offeringResyncer(t, env)
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+		TemplateID:       legacyTemplate.ID,
+		OfferingID:       &sourceOffering.ID,
+		CalendarPeriodID: &period.ID,
+		EffectiveFrom:    timezone.TodayDate(),
+	}))
+	rows = loadTemplateEnrollments(t, env, legacyTemplate.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
+
+	// A stale source-shaped row of the SAME child must not hide behind the
+	// legacy protection when the source is removed.
+	phaseEndExclusive := env.sourcePhase.ServiceEndDate.AddDays(1)
+	stale := &activitiesModels.StudentEnrollment{
+		StudentID:                studentID,
+		ActivityGroupID:          legacyTemplate.ID,
+		ValidFrom:                env.sourcePhase.ServiceStartDate,
+		ValidUntil:               &phaseEndExclusive,
+		CalendarPeriodID:         &period.ID,
+		EnrollmentRequestChildID: &childID,
+		SelectedWeekdays:         []int{2},
+	}
+	stale.SetTenantID(1)
+	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, stale))
+
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+		TemplateID:         legacyTemplate.ID,
+		PreviousOfferingID: &sourceOffering.ID,
+		OfferingID:         nil,
+		EffectiveFrom:      timezone.TodayDate(),
+	}))
+	rows = loadTemplateEnrollments(t, env, legacyTemplate.ID)
+	require.Len(t, rows, 1, "the stale source-shaped row must be reconciled away")
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays,
+		"the legacy-shaped row survives the source removal untouched")
+}

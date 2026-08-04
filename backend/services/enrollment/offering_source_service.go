@@ -54,8 +54,13 @@ type sourcedRosterTarget struct {
 //     offering-scoped cleanup via PreviousOfferingID is needed
 //   - missing children are seeded via the same draft/persist shapes the
 //     decision fan-out uses, so both write paths stay byte-compatible
-//   - rows fed by a legacy CareOffering.ActivityGroupID link pointing at the
-//     same template are protected and never touched
+//   - children fed by a legacy CareOffering.ActivityGroupID link pointing at
+//     the same template are owned by that feed: their legacy-shaped rows are
+//     never touched and the source never seeds an own row for them. Rows of
+//     such a child that select weekdays OUTSIDE the legacy footprint carry a
+//     source contribution and are reconciled normally — protection by child
+//     identity alone would let stale source rows outlive a filter change or
+//     source removal (#2147 review)
 //   - wanted windows stop at the template's own schedule envelope, so a
 //     capped split predecessor is never planned past its segment end
 //   - finally, the touched students' already-materialized future occurrences
@@ -97,9 +102,14 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 		}
 	}
 
-	protectedChildren, err := s.legacyLinkedChildIDs(ctx, in.TemplateID, in.EffectiveFrom)
+	protectedChildren, err := s.legacyLinkedChildCoverage(ctx, in.TemplateID, in.EffectiveFrom)
 	if err != nil {
 		return err
+	}
+	// A legacy-linked child is planned by THAT feed; seeding a source row next
+	// to the legacy row would double the child on the template.
+	for childID := range protectedChildren {
+		delete(wanted, childID)
 	}
 
 	// Students whose rows this resync creates, caps, deletes, or resizes. Their
@@ -458,8 +468,8 @@ func sourcedRosterWindow(
 }
 
 // reconcileSourcedRosterRow applies keep/cap/delete to one existing row.
-// Manual rows (no request-child tag), history, and rows protected by a
-// legacy offering link are left untouched.
+// Manual rows (no request-child tag), history, and legacy-owned rows (see
+// legacyChildCoverage.coversRow) are left untouched.
 //
 // A row is only reused for a target whose window it can actually serve: the
 // weekday/period draft must match AND the validity start must line up (either
@@ -476,7 +486,7 @@ func (s *decisionService) reconcileSourcedRosterRow(
 	ctx context.Context,
 	row *activities.StudentEnrollment,
 	wanted map[int64][]*sourcedRosterTarget,
-	protectedChildren map[int64]bool,
+	protectedChildren map[int64]*legacyChildCoverage,
 	effectiveFrom timezone.Date,
 ) (bool, error) {
 	if row == nil || row.EnrollmentRequestChildID == nil {
@@ -486,17 +496,19 @@ func (s *decisionService) reconcileSourcedRosterRow(
 		return false, nil // history stays
 	}
 	childID := *row.EnrollmentRequestChildID
+	if coverage := protectedChildren[childID]; coverage.coversRow(row) {
+		// The row plans nothing the legacy CareOffering.ActivityGroupID feed
+		// would not plan itself: its lifecycle belongs to THAT offering's
+		// flows and is never rewritten here. A row of the same child selecting
+		// weekdays outside the legacy footprint falls through — it carries a
+		// source contribution the resync must reconcile (#2147 review).
+		return false, nil
+	}
 	if idx := indexOfServableTarget(wanted[childID], row, effectiveFrom); idx >= 0 {
 		target := wanted[childID][idx]
 		wanted[childID] = append(wanted[childID][:idx], wanted[childID][idx+1:]...)
 		if len(wanted[childID]) == 0 {
 			delete(wanted, childID)
-		}
-		if protectedChildren[childID] {
-			// The row is owned by the legacy CareOffering.ActivityGroupID feed:
-			// consuming the target avoids seeding a duplicate, but its window
-			// belongs to THAT offering's lifecycle and is never resized here.
-			return false, nil
 		}
 		if row.ValidUntil == nil || *row.ValidUntil != target.validUntil {
 			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, target.validUntil); err != nil {
@@ -504,9 +516,6 @@ func (s *decisionService) reconcileSourcedRosterRow(
 			}
 			return true, nil
 		}
-		return false, nil
-	}
-	if protectedChildren[childID] {
 		return false, nil
 	}
 	if !row.ValidFrom.Before(effectiveFrom) {
@@ -545,25 +554,62 @@ func indexOfServableTarget(
 	return -1
 }
 
-// legacyLinkedChildIDs returns the request children whose roster rows on this
-// template are owned by the legacy CareOffering.ActivityGroupID feed (#1651).
-// The resync must never rewrite those: their lifecycle belongs to the
-// decision/adjustment flows of THAT offering.
-func (s *decisionService) legacyLinkedChildIDs(
+// legacyChildCoverage is the weekday footprint the legacy
+// CareOffering.ActivityGroupID feed (#1651) plans for one child on the
+// template being resynced. The resync uses it to tell legacy-owned rows
+// (protected) from source-owned rows of the SAME child (reconciled normally)
+// — protection by child identity alone would let stale source rows survive a
+// filter change or source removal whenever the child is also legacy-linked
+// (#2147 review).
+type legacyChildCoverage struct {
+	allWeekdays bool
+	weekdays    map[int]bool
+}
+
+// coversRow reports whether a roster row's weekday selection lies fully
+// inside the legacy footprint. Such a row plans nothing the legacy feed would
+// not plan itself, so the resync leaves it alone; ambiguity resolves toward
+// protection, never toward removing a child the legacy link still plans.
+func (c *legacyChildCoverage) coversRow(row *activities.StudentEnrollment) bool {
+	if c == nil {
+		return false
+	}
+	if c.allWeekdays {
+		return true
+	}
+	if len(row.SelectedWeekdays) == 0 {
+		// An empty selection means every weekday — wider than the footprint.
+		return false
+	}
+	for _, weekday := range row.SelectedWeekdays {
+		if !c.weekdays[weekday] {
+			return false
+		}
+	}
+	return true
+}
+
+// legacyLinkedChildCoverage returns, per request child, the weekday footprint
+// the legacy CareOffering.ActivityGroupID feed (#1651) plans on this
+// template. The resync must never rewrite rows inside that footprint: their
+// lifecycle belongs to the decision/adjustment flows of THAT offering.
+func (s *decisionService) legacyLinkedChildCoverage(
 	ctx context.Context,
 	templateID int64,
 	onOrAfter timezone.Date,
-) (map[int64]bool, error) {
+) (map[int64]*legacyChildCoverage, error) {
 	offerings, err := s.CareOfferingRepo.ListByActivityGroupIDs(ctx, []int64{templateID})
 	if err != nil {
 		return nil, fmt.Errorf("offering roster resync: list legacy-linked offerings: %w", err)
 	}
 	if len(offerings) == 0 {
-		return map[int64]bool{}, nil
+		return map[int64]*legacyChildCoverage{}, nil
 	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	offeringIDs := make([]int64, 0, len(offerings))
 	for _, offering := range offerings {
 		if offering != nil {
+			offeringByID[offering.ID] = offering
 			offeringIDs = append(offeringIDs, offering.ID)
 		}
 	}
@@ -571,9 +617,39 @@ func (s *decisionService) legacyLinkedChildIDs(
 	if err != nil {
 		return nil, fmt.Errorf("offering roster resync: list legacy-linked children: %w", err)
 	}
-	protected := make(map[int64]bool, len(children))
+	protected := make(map[int64]*legacyChildCoverage, len(children))
 	for _, child := range children {
-		protected[child.Link.RequestChildID] = true
+		coverage := protected[child.Link.RequestChildID]
+		if coverage == nil {
+			coverage = &legacyChildCoverage{weekdays: map[int]bool{}}
+			protected[child.Link.RequestChildID] = coverage
+		}
+		offering := offeringByID[child.Link.CareOfferingID]
+		if offering == nil {
+			coverage.allWeekdays = true
+			continue
+		}
+		days, err := effectiveOfferingDaysForEnrollment(offering, child.Link)
+		if err != nil || len(days) == 0 {
+			// mergeCareEnrollmentDraft treats an empty day list as every
+			// weekday; an unresolvable selection is protected the same,
+			// conservative way instead of failing the whole resync.
+			if err != nil {
+				s.Logger.Warn("offering roster resync: cannot resolve legacy-linked days; protecting all weekdays",
+					slog.Int64("template_id", templateID),
+					slog.Int64("care_offering_id", offering.ID),
+					slog.Int64("request_child_id", child.Link.RequestChildID),
+					slog.String("error", err.Error()),
+				)
+			}
+			coverage.allWeekdays = true
+			continue
+		}
+		for _, day := range days {
+			if weekday, ok := enrollmentDayToISOWeekday(day); ok {
+				coverage.weekdays[weekday] = true
+			}
+		}
 	}
 	return protected, nil
 }
