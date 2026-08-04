@@ -514,6 +514,14 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       resourceId: String(warning.resource_id),
       message: warning.message,
       canOverride: warning.can_override,
+      fingerprint: warning.fingerprint,
+      conflictingInstanceId:
+        warning.conflicting_instance_id !== undefined
+          ? String(warning.conflicting_instance_id)
+          : undefined,
+      conflictingTitle: warning.conflicting_title,
+      overlapStart: warning.overlap_start,
+      overlapEnd: warning.overlap_end,
     })),
   };
 }

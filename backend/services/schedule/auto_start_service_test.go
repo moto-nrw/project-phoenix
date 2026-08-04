@@ -39,7 +39,7 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 		RoomRepo:          &autoStartRoomRepo{},
 		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
 			if inst.ID == 104 {
-				return []InstanceConflictWarning{{Kind: ConflictKindRoom, ResourceID: inst.RoomID, CanOverride: true}}
+				return []InstanceConflictWarning{{Kind: ConflictKindStaff, ResourceID: inst.RoomID, CanOverride: true}}
 			}
 			return nil
 		},

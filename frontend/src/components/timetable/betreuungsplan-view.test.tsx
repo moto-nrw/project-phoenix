@@ -237,8 +237,20 @@ vi.mock("~/components/timetable/period-switcher-dropdown", () => ({
 }));
 
 vi.mock("~/components/timetable/conflict-warnings-banner", () => ({
-  ConflictWarningsBanner: ({ conflictCount }: { conflictCount: number }) => (
-    <div data-testid="conflicts">{conflictCount}</div>
+  ConflictWarningsBanner: ({
+    openConflicts,
+    hiddenConflicts,
+    periodLabel,
+  }: {
+    openConflicts: unknown[];
+    hiddenConflicts: unknown[];
+    periodLabel: string;
+  }) => (
+    <div data-testid="conflicts">
+      {openConflicts.length}
+      <span data-testid="conflicts-hidden">{hiddenConflicts.length}</span>
+      <span data-testid="conflicts-period">{periodLabel}</span>
+    </div>
   ),
 }));
 
@@ -545,10 +557,16 @@ const instance = {
   assignedStaffCount: 1,
   conflictWarnings: [
     {
-      kind: "room" as const,
-      resourceId: "3",
-      message: "Raum doppelt",
+      kind: "staff" as const,
+      resourceId: "11",
+      message:
+        "Personal ist von 14:30–15:00 auch bei „Lernzeit“ eingeplant (anderer Raum).",
       canOverride: true,
+      fingerprint: "aaaa1111bbbb2222cccc3333dddd4444",
+      conflictingInstanceId: "99",
+      conflictingTitle: "Lernzeit",
+      overlapStart: "14:30",
+      overlapEnd: "15:00",
     },
   ],
 };
@@ -638,6 +656,7 @@ function setupSWR({
   phases = [] as Array<Record<string, unknown>>,
   phasesState = "ready" as "ready" | "loading" | "error",
   closingDaysLoading = false,
+  conflictAcks = [] as string[],
 }: {
   periods?: Array<typeof period>;
   templates?: TimetableTemplate[];
@@ -650,6 +669,7 @@ function setupSWR({
   phases?: Array<Record<string, unknown>>;
   phasesState?: "ready" | "loading" | "error";
   closingDaysLoading?: boolean;
+  conflictAcks?: string[];
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -694,6 +714,9 @@ function setupSWR({
     }
     if (key === "timetable-student-list") {
       return { data: { students: [{ id: "21", name: "Max Kind" }] } };
+    }
+    if (key === "timetable-conflict-acks") {
+      return { data: conflictAcks };
     }
     if (key.startsWith("timetable-gaps")) {
       if (gapsState === "loading") return { isLoading: true };
@@ -796,9 +819,22 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
+    expect(screen.getByTestId("conflicts-hidden")).toHaveTextContent("0");
+    expect(screen.getByTestId("conflicts-period")).toHaveTextContent(
+      "diese Woche",
+    );
     // Kein Alt-URL-Parameter überlebt.
     expect(urlParams().has("week")).toBe(false);
     expect(urlParams().has("month")).toBe(false);
+  });
+
+  it("counts an acknowledged conflict as hidden, not open (#2139)", () => {
+    setupSWR({ conflictAcks: ["aaaa1111bbbb2222cccc3333dddd4444"] });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("conflicts")).toHaveTextContent("0");
+    expect(screen.getByTestId("conflicts-hidden")).toHaveTextContent("1");
   });
 
   it("passes schedules:manage to the staff-pool controls", () => {

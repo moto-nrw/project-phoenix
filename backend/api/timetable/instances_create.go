@@ -228,7 +228,10 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	var enriched enrichedInstance
 	careDays, err := rs.careDaysForInstance(r.Context(), inst)
 	if err == nil {
-		enriched, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
+		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
+	}
+	if err == nil {
+		enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)
 	}
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with

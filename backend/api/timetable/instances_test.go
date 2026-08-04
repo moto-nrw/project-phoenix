@@ -224,7 +224,7 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 			Instance:      &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive},
 			ActiveGroupID: 1,
 			Warnings: []scheduleSvc.InstanceConflictWarning{
-				{Kind: scheduleSvc.ConflictKindRoom, ResourceID: 5, Message: "Raum belegt", CanOverride: true},
+				{Kind: scheduleSvc.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
 			},
 		},
 	}
