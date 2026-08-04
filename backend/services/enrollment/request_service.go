@@ -4298,8 +4298,38 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 	preservedClaims map[int64]int,
 	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
+	var resolveWaitlistEnabled func(context.Context) (bool, error)
+	if s.Settings != nil {
+		resolveWaitlistEnabled = func(ctx context.Context) (bool, error) {
+			return s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentWaitlistEnabled)
+		}
+	}
+	return applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.RequestChildOfferingRepo,
+		resolveWaitlistEnabled, phase, children, openByID, preservedClaims, replacedRequestChildIDs)
+}
+
+// applyCapacityOverflowCore is the shared capacity gate behind every path
+// that (re-)creates active offering claims: Submit and its edit/replace
+// variants above, and the admin restore of a withdrawn request
+// (decisionService.RestoreWithdrawn). It locks the selected offerings by
+// ascending id — the same order the offering-change approval takes — counts
+// active claims in the phase's remaining capacity window, and flags
+// over-capacity children per the phase's overflow mode (waitlist/reject/
+// allow). Extracted to a package-level function so the decision service can
+// run the identical machinery without reaching into requestService.
+func applyCapacityOverflowCore(
+	ctx context.Context,
+	careOfferingRepo enrollmentModels.CareOfferingRepository,
+	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository,
+	resolveWaitlistEnabled func(context.Context) (bool, error),
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
+	replacedRequestChildIDs []int64,
+) (map[int]string, error) {
 	overrides := make(map[int]string)
-	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
+	if requestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
 	}
 	// Historical manual approvals and late invites can legitimately target a
@@ -4311,7 +4341,7 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 	// Serialize this count with offering-change approvals and other
 	// submissions. Both paths lock care offerings by ascending id before they
 	// inspect capacity and write the booking links.
-	if s.CareOfferingRepo == nil {
+	if careOfferingRepo == nil {
 		return nil, errors.New("care offering repository is not configured")
 	}
 	selectedIDs := make([]int64, 0)
@@ -4325,7 +4355,7 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 		}
 	}
 	sort.Slice(selectedIDs, func(i, j int) bool { return selectedIDs[i] < selectedIDs[j] })
-	lockedOfferings, err := s.CareOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs)
+	lockedOfferings, err := careOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs)
 	if err != nil {
 		return nil, fmt.Errorf("lock care offering capacity: %w", err)
 	}
@@ -4345,10 +4375,10 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 		mode = enrollmentModels.PhaseCareOverflowWaitlist
 	}
 	if mode == enrollmentModels.PhaseCareOverflowWaitlist {
-		if s.Settings == nil {
+		if resolveWaitlistEnabled == nil {
 			return nil, errors.New("enrollment settings resolver is not configured")
 		}
-		waitlistEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentWaitlistEnabled)
+		waitlistEnabled, err := resolveWaitlistEnabled(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentWaitlistEnabled, err)
 		}
@@ -4383,17 +4413,17 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 			capacityFrom = phase.ServiceStartDate
 		}
 		capacityUntil := phase.ServiceEndDate.AddDays(1)
-		count, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, capacityFrom, capacityUntil)
+		count, err := requestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, capacityFrom, capacityUntil)
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
-		s := &slot{
+		entry := &slot{
 			capacity:  offering.Capacity,
 			current:   max(count-preservedClaims[offeringID], 0),
 			preserved: preservedClaims[offeringID],
 		}
-		slots[offeringID] = s
-		return s, nil
+		slots[offeringID] = entry
+		return entry, nil
 	}
 
 	for childIdx, child := range children {

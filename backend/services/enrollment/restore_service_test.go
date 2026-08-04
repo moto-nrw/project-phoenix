@@ -2,11 +2,14 @@ package enrollment_test
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -173,6 +176,146 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	for _, child := range children {
 		assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, child.Status)
 	}
+}
+
+// newRestoreDecisionServiceForRequestEnv wires the minimal DecisionService
+// the restore flow needs on top of the request-test env, so the capacity
+// tests can drive Submit/Withdraw through the real request service and then
+// restore through the real decision service against the same DB.
+func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentService.DecisionService {
+	t.Helper()
+	repoFactory := repositories.NewFactory(env.db)
+	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		RequestRepo:              repoFactory.Request,
+		RequestChildRepo:         repoFactory.RequestChild,
+		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
+		CareOfferingRepo:         repoFactory.CareOffering,
+		PhaseRepo:                repoFactory.Phase,
+		RestorationAuditRepo:     repoFactory.EnrollmentRestorationAudit,
+		Logger:                   slog.Default(),
+	})
+}
+
+func cleanupRestorationAuditRows(t *testing.T, db *bun.DB, requestID int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			Model((*auditModels.EnrollmentRestoration)(nil)).
+			ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
+			Where(`"enrollment_restoration".request_id = ?`, requestID).
+			Exec(testpkg.TenantContext(1))
+	})
+}
+
+func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	// Family A takes the only slot, then withdraws.
+	first := validSubmission(env.phaseID)
+	first.GuardianEmail = "restore-cap-a@example.com"
+	first.Children[0].OfferingIDs = []int64{offering.ID}
+	resA, err := env.svc.Submit(ctx, first)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusSubmitted, resA.Children[0].Status)
+	require.NoError(t, env.svc.Withdraw(ctx, resA.Request.StatusToken, 0))
+
+	// Family B claims the freed slot in the meantime.
+	second := validSubmission(env.phaseID)
+	second.GuardianEmail = "restore-cap-b@example.com"
+	second.Children[0].FirstName = "Bela"
+	second.Children[0].OfferingIDs = []int64{offering.ID}
+	resB, err := env.svc.Submit(ctx, second)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusSubmitted, resB.Children[0].Status)
+
+	decision := newRestoreDecisionServiceForRequestEnv(t, env)
+	cleanupRestorationAuditRows(t, env.db, resA.Request.ID)
+	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
+	require.NoError(t, err)
+	require.Len(t, outcome.RestoredChildIDs, 1)
+	assert.Equal(t, []int64{resA.Children[0].ID}, outcome.WaitlistedChildIDs,
+		"the offering is full again, so the restored child must come back waitlisted, not submitted")
+
+	repoFactory := repositories.NewFactory(env.db)
+	children, err := repoFactory.RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, children[0].Status)
+	assert.Nil(t, children[0].ReviewedAt)
+	assert.Nil(t, children[0].ReviewedBy)
+
+	// Family B's claim is untouched.
+	othersChildren, err := repoFactory.RequestChild.ListByRequestID(ctx, resB.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, othersChildren, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, othersChildren[0].Status)
+}
+
+func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	first := validSubmission(env.phaseID)
+	first.GuardianEmail = "restore-freeslot@example.com"
+	first.Children[0].OfferingIDs = []int64{offering.ID}
+	resA, err := env.svc.Submit(ctx, first)
+	require.NoError(t, err)
+	require.NoError(t, env.svc.Withdraw(ctx, resA.Request.StatusToken, 0))
+
+	// Nobody took the slot: the child's own (withdrawn) claim must not
+	// count against itself, so the restore lands on submitted.
+	decision := newRestoreDecisionServiceForRequestEnv(t, env)
+	cleanupRestorationAuditRows(t, env.db, resA.Request.ID)
+	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
+	require.NoError(t, err)
+	require.Len(t, outcome.RestoredChildIDs, 1)
+	assert.Empty(t, outcome.WaitlistedChildIDs)
+
+	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
+}
+
+func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	first := validSubmission(env.phaseID)
+	first.GuardianEmail = "restore-reject-a@example.com"
+	first.Children[0].OfferingIDs = []int64{offering.ID}
+	resA, err := env.svc.Submit(ctx, first)
+	require.NoError(t, err)
+	require.NoError(t, env.svc.Withdraw(ctx, resA.Request.StatusToken, 0))
+
+	second := validSubmission(env.phaseID)
+	second.GuardianEmail = "restore-reject-b@example.com"
+	second.Children[0].FirstName = "Bela"
+	second.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err = env.svc.Submit(ctx, second)
+	require.NoError(t, err)
+
+	decision := newRestoreDecisionServiceForRequestEnv(t, env)
+	_, err = decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull),
+		"reject-mode phase must refuse the restore instead of overbooking")
+
+	// Nothing changed on the withdrawn request.
+	children, listErr := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	require.NoError(t, listErr)
+	require.Len(t, children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
 }
 
 func TestDecisionService_RestoreWithdrawn_BlockedByActiveDuplicate(t *testing.T) {

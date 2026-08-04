@@ -454,7 +454,8 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]any{
-		"restored_children": len(outcome.RestoredChildIDs),
+		"restored_children":   len(outcome.RestoredChildIDs),
+		"waitlisted_children": len(outcome.WaitlistedChildIDs),
 	}, "Request restored")
 }
 
@@ -475,6 +476,12 @@ func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_phase_inactive"))
 	case errors.Is(err, enrollmentService.ErrRestoreDuplicateActive):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_duplicate"))
+	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
+		// Reject-mode phase: the capacity gate refuses the restore because
+		// an offering is meanwhile full. Same code the submit path uses.
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentCareOfferingFull))
+	case errors.Is(err, enrollmentService.ErrCareOfferingClosed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_offering_closed"))
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:

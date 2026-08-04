@@ -173,11 +173,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     try {
       const result = await restoreAdminRequest(requestId);
       setRestoreOpen(false);
-      setInfo(
-        result.restored_children === 1
-          ? "Die Anmeldung wurde wiederhergestellt. 1 Kind steht wieder auf „Eingegangen“."
-          : `Die Anmeldung wurde wiederhergestellt. ${result.restored_children} Kinder stehen wieder auf „Eingegangen“.`,
-      );
+      setInfo(buildRestoreInfoMessage(result));
       await load();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
@@ -333,7 +329,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           {withdrawnChildCount === 1
             ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
             : `Alle ${withdrawnChildCount} zurückgezogenen Kinder werden wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet.`}{" "}
-          Bereits entschiedene Kinder bleiben unverändert.
+          Bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes
+          Betreuungsangebot inzwischen voll, kommt das betroffene Kind
+          stattdessen auf die Warteliste.
         </p>
       </ConfirmationModal>
       <AdminEnrollmentDeletionModal
@@ -818,6 +816,24 @@ function getDecisionIcon(status: DecisionStatus): React.ReactNode {
     return <ClipboardList className="h-4 w-4" aria-hidden="true" />;
   }
   return <CalendarClock className="h-4 w-4" aria-hidden="true" />;
+}
+
+export function buildRestoreInfoMessage(result: {
+  restored_children: number;
+  waitlisted_children: number;
+}): string {
+  const restored = result.restored_children;
+  const waitlisted = result.waitlisted_children;
+  if (waitlisted > 0) {
+    const restoredPart =
+      restored === 1 ? "1 Kind wurde" : `${restored} Kinder wurden`;
+    const waitlistedPart =
+      waitlisted === 1 ? "1 Kind steht" : `${waitlisted} Kinder stehen`;
+    return `Die Anmeldung wurde wiederhergestellt. ${restoredPart} zurückgesetzt; ${waitlistedPart} auf der Warteliste, weil ein Betreuungsangebot inzwischen voll ist.`;
+  }
+  return restored === 1
+    ? "Die Anmeldung wurde wiederhergestellt. 1 Kind steht wieder auf „Eingegangen“."
+    : `Die Anmeldung wurde wiederhergestellt. ${restored} Kinder stehen wieder auf „Eingegangen“.`;
 }
 
 function summarizeChildren(children: AdminRequestChild[]) {

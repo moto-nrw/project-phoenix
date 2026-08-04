@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
@@ -21,8 +23,11 @@ var (
 )
 
 // RestoreOutcome is what the admin handler gets back from RestoreWithdrawn.
+// WaitlistedChildIDs is the subset of RestoredChildIDs that came back as
+// waitlisted instead of submitted because an offering is meanwhile full.
 type RestoreOutcome struct {
-	RestoredChildIDs []int64
+	RestoredChildIDs   []int64
+	WaitlistedChildIDs []int64
 }
 
 // RestoreWithdrawn undoes a parent-initiated withdraw (#2157): every
@@ -32,12 +37,15 @@ type RestoreOutcome struct {
 // (approved/rejected) are untouched because the withdraw path never changed
 // them in the first place.
 //
-// Guards mirror the submit flow: the phase must still be active, and the
+// Guards mirror the submit flow: the phase must still be active, the
 // submit-time duplicate checks re-run under the same advisory locks so a
 // restore cannot produce a second active request for the same child in the
-// phase (e.g. when the parent already re-submitted after withdrawing).
-// Restored children count against offering capacity again automatically —
-// every capacity query filters on non-terminal statuses.
+// phase (e.g. when the parent already re-submitted after withdrawing), and
+// the capacity gate re-runs under the same offering row locks Submit takes
+// (applyCapacityOverflowCore). If another family claimed the freed slots
+// after the withdraw, the affected children come back as waitlisted instead
+// of submitted — exactly what Submit would have produced — or, in a
+// reject-mode phase, the restore fails with ErrCareOfferingFull.
 //
 // The append-only audit row (who restored what, when) is written in the
 // same tenant transaction; if it fails the restore rolls back with it.
@@ -123,7 +131,15 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 		}
 	}
 
-	restoredIDs, err := s.RequestChildRepo.RestoreWithdrawnByRequestID(ctx, requestID)
+	// Capacity gate, under the same offering row locks Submit takes. Runs
+	// BEFORE the status flip so the restored children's own (still
+	// withdrawn) claims cannot inflate the count.
+	waitlistedIDs, err := s.restoreCapacityWaitlist(ctx, phase, withdrawn)
+	if err != nil {
+		return nil, err
+	}
+
+	restoredIDs, err := s.RequestChildRepo.RestoreWithdrawnByRequestID(ctx, requestID, waitlistedIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: update children: %w", err)
 	}
@@ -153,7 +169,81 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 	s.Logger.Info("enrollment request restored",
 		slog.Int64("request_id", requestID),
 		slog.Int("restored_children", len(restoredIDs)),
+		slog.Int("waitlisted_children", len(waitlistedIDs)),
 		slog.Int64("restored_by", restoredBy),
 	)
-	return &RestoreOutcome{RestoredChildIDs: restoredIDs}, nil
+	return &RestoreOutcome{RestoredChildIDs: restoredIDs, WaitlistedChildIDs: waitlistedIDs}, nil
+}
+
+// restoreCapacityWaitlist re-runs the submit-time capacity gate for the
+// children about to be restored and returns the ids that must come back as
+// waitlisted because an offering is meanwhile full. The claims are the
+// children's surviving request_child_offerings rows, reduced to those that
+// still cover a day of the phase's remaining capacity window (a dated
+// switch whose interval already ended holds no future slot). Reject-mode
+// phases surface ErrCareOfferingFull instead; a meanwhile-deactivated
+// offering fails closed with ErrCareOfferingClosed.
+func (s *decisionService) restoreCapacityWaitlist(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	withdrawn []*enrollmentModels.RequestChild,
+) ([]int64, error) {
+	if s.RequestChildOfferingRepo == nil || s.CareOfferingRepo == nil {
+		return nil, nil
+	}
+	offeringsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return nil, fmt.Errorf("restore: resolve care offerings setting: %w", err)
+	}
+	if !offeringsEnabled {
+		return nil, nil
+	}
+
+	childIDs := make([]int64, 0, len(withdrawn))
+	for _, child := range withdrawn {
+		childIDs = append(childIDs, child.ID)
+	}
+	rows, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("restore: load offering selections: %w", err)
+	}
+	capacityFrom := timezone.TodayDate()
+	if phase.ServiceStartDate.After(capacityFrom) {
+		capacityFrom = phase.ServiceStartDate
+	}
+	claimsByChild := make(map[int64][]int64)
+	anyClaim := false
+	for _, row := range rows {
+		// ValidUntil is exclusive: an interval ending on or before the
+		// window start holds no remaining slot.
+		if row.ValidUntil != nil && !row.ValidUntil.After(capacityFrom) {
+			continue
+		}
+		claimsByChild[row.RequestChildID] = append(claimsByChild[row.RequestChildID], row.CareOfferingID)
+		anyClaim = true
+	}
+	if !anyClaim {
+		return nil, nil
+	}
+
+	children := make([]SubmitChild, len(withdrawn))
+	for i, child := range withdrawn {
+		children[i] = SubmitChild{OfferingIDs: claimsByChild[child.ID]}
+	}
+	overrides, err := applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.RequestChildOfferingRepo,
+		func(ctx context.Context) (bool, error) {
+			return s.resolveDecisionBool(ctx, configModel.KeyEnrollmentWaitlistEnabled, true)
+		},
+		phase, children, nil, nil, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("restore: capacity gate: %w", err)
+	}
+
+	waitlisted := make([]int64, 0, len(overrides))
+	for idx, status := range overrides {
+		if status == enrollmentModels.ChildStatusWaitlisted {
+			waitlisted = append(waitlisted, withdrawn[idx].ID)
+		}
+	}
+	return waitlisted, nil
 }

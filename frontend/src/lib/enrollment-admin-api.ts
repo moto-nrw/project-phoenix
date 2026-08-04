@@ -347,12 +347,19 @@ export async function deleteAdminRequest(
 
 export interface AdminRestoreResult {
   restored_children: number;
+  /**
+   * Subset of restored_children that came back as "waitlisted" because an
+   * offering is meanwhile full (the capacity gate re-runs on restore).
+   */
+  waitlisted_children: number;
 }
 
 /**
  * Restores a withdrawn request: every withdrawn child goes back to
- * "submitted", withdrawn_at is cleared (#2157). Fails with a coded 409
- * when the phase is inactive or an active duplicate request exists.
+ * "submitted" — or "waitlisted" when its offering is meanwhile full —
+ * and withdrawn_at is cleared (#2157). Fails with a coded 409 when the
+ * phase is inactive, an active duplicate request exists, or a reject-mode
+ * phase's offering is full.
  */
 export async function restoreAdminRequest(
   requestId: string,

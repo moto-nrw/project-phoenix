@@ -210,7 +210,10 @@ describe("AdminEnrollmentDetail restore (#2157)", () => {
         withdrawn_at: null,
         children: [{ ...withdrawnChild, status: "submitted" }],
       });
-    mocks.restoreAdminRequest.mockResolvedValue({ restored_children: 1 });
+    mocks.restoreAdminRequest.mockResolvedValue({
+      restored_children: 1,
+      waitlisted_children: 0,
+    });
     vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
 
     render(<AdminEnrollmentDetail requestId="request-1" />);
@@ -229,6 +232,33 @@ describe("AdminEnrollmentDetail restore (#2157)", () => {
     expect(
       screen.queryByRole("button", { name: "Anmeldung wiederherstellen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("reports waitlisted children when the capacity gate demoted them", async () => {
+    mocks.getAdminRequest
+      .mockResolvedValueOnce(withdrawnRequest)
+      .mockResolvedValueOnce({
+        ...withdrawnRequest,
+        withdrawn_at: null,
+        children: [{ ...withdrawnChild, status: "waitlisted" }],
+      });
+    mocks.restoreAdminRequest.mockResolvedValue({
+      restored_children: 1,
+      waitlisted_children: 1,
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldung wiederherstellen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+
+    expect(
+      await screen.findByText(
+        /1 Kind steht auf der Warteliste, weil ein Betreuungsangebot inzwischen voll ist/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("hides the restore action on a request that is not withdrawn", async () => {

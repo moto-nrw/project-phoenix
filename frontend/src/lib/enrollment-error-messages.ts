@@ -67,6 +67,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Die Anmeldephase ist nicht mehr aktiv. Die Anmeldung kann nicht wiederhergestellt werden.",
   "enrollment.restore_duplicate":
     "Für mindestens ein Kind dieser Anmeldung existiert bereits eine andere aktive Anmeldung in dieser Phase. Bitte prüfe die vorhandenen Anmeldungen, bevor du wiederherstellst.",
+  "enrollment.restore_offering_closed":
+    "Ein in dieser Anmeldung gewähltes Betreuungsangebot ist inzwischen deaktiviert. Bitte prüfe die Betreuungsangebote der Phase, bevor du wiederherstellst.",
   "enrollment.schema_has_phases":
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":
