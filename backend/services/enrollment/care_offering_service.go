@@ -115,8 +115,28 @@ type CareOfferingServiceConfig struct {
 	Logger                 *slog.Logger
 }
 
+// CareOfferingSourcedTemplateResyncer re-reconciles the rosters of every
+// template sourcing an offering (#2137/#2147 review). Implemented by the
+// enrollment decision service; injected via SetSourcedTemplateResyncer
+// because the decision service is constructed after this one.
+type CareOfferingSourcedTemplateResyncer interface {
+	ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
+}
+
+// CareOfferingSourceResyncBinder is the factory-facing setter for the
+// sourced-template resyncer (late-bound wiring, see above).
+type CareOfferingSourceResyncBinder interface {
+	SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer)
+}
+
 type careOfferingService struct {
 	CareOfferingServiceConfig
+	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
+}
+
+// SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
+func (s *careOfferingService) SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer) {
+	s.sourcedTemplateResyncer = resyncer
 }
 
 // NewCareOfferingService builds the service.
@@ -946,7 +966,30 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.Repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return err
 	}
+	if err := s.resyncSourcedTemplates(ctx, offering.ID); err != nil {
+		return err
+	}
 	s.Logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
+	return nil
+}
+
+// resyncSourcedTemplates re-reconciles every template sourcing this offering
+// after an update (#2147 review): changed days or a moved phase change the
+// wanted roster, and the sourced enrollment rows plus already-materialized
+// occurrences must follow immediately, not at the next unrelated template
+// save. Runs under the recurrence lock the update already holds; history
+// before today stays untouched.
+func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeringID int64) error {
+	if s.sourcedTemplateResyncer == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.Logger.Warn("care offering update: sourced-template resyncer not configured; sourced rosters may be stale",
+			slog.Int64("offering_id", offeringID))
+		return nil
+	}
+	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+		return fmt.Errorf("care offering update: resync sourced templates: %w", err)
+	}
 	return nil
 }
 

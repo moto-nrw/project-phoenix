@@ -2422,6 +2422,9 @@ export function useEventForm({
   const [offeringSourcesError, setOfferingSourcesError] = useState<
     string | null
   >(null);
+  // The manual shared roster as it was before a source was selected in this
+  // session — restored when the source is cleared again (#2147 review).
+  const preSourceStudentIdsRef = useRef<string[]>([]);
   const wantsOfferingSources =
     expanded && isSeriesFlow && form.targetGroupType === "angebot";
   useEffect(() => {
@@ -2507,17 +2510,31 @@ export function useEventForm({
   }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSource]);
 
   const changeSourceOffering = (offeringId: string) => {
-    setForm((current) => ({
-      ...current,
-      sourceCareOfferingId: offeringId,
-      // A filter belongs to one offering; switching resets it.
-      sourceGradeLevels:
-        offeringId === current.sourceCareOfferingId
-          ? current.sourceGradeLevels
-          : [],
-      // The sourced roster is server-managed.
-      studentIds: offeringId ? [] : current.studentIds,
-    }));
+    setForm((current) => {
+      // Selecting a source clears the manual roster (server-managed). Stash
+      // it so clearing the source restores the admin's picks — submitting the
+      // emptied array would wipe the shared manual assignments on save
+      // (#2147 review). Idempotent, so a re-run of the updater is safe.
+      if (offeringId && !current.sourceCareOfferingId) {
+        preSourceStudentIdsRef.current = current.studentIds;
+      }
+      return {
+        ...current,
+        sourceCareOfferingId: offeringId,
+        // A filter belongs to one offering; switching resets it.
+        sourceGradeLevels:
+          offeringId === current.sourceCareOfferingId
+            ? current.sourceGradeLevels
+            : [],
+        // The sourced roster is server-managed; clearing the source restores
+        // the manual roster picked before the source was set.
+        studentIds: offeringId
+          ? []
+          : current.sourceCareOfferingId
+            ? preSourceStudentIdsRef.current
+            : current.studentIds,
+      };
+    });
     setValidationError(null);
   };
 

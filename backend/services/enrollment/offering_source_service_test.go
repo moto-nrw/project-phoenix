@@ -1069,12 +1069,12 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 }
 
 // A child fed into a template by the legacy CareOffering.ActivityGroupID link
-// AND holding the template's source offering keeps exactly the legacy-shaped
-// row: the source never seeds a second row for them, and source-shaped rows of
-// the same child (stale data from a removed source) are reconciled away by
-// provenance instead of surviving behind the child-level protection (#2147
-// review, round 4).
-func TestResyncTemplateOfferingRoster_LegacyLinkedChildKeepsLegacyRowOnly(t *testing.T) {
+// AND holding the template's source offering keeps the legacy-shaped row
+// untouched, while the source contributes exactly its NON-overlapping
+// weekdays as an own row — weekday-level protection, not child-level (#2147
+// review, round 5). Removing the source reconciles the source-shaped row away
+// by provenance instead of letting it survive behind the legacy protection.
+func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
@@ -1131,8 +1131,9 @@ func TestResyncTemplateOfferingRoster_LegacyLinkedChildKeepsLegacyRowOnly(t *tes
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays,
 		"the row carries the legacy offering's days, not a merge with the source days")
 
-	// Sourcing the same template from the second offering must not seed a
-	// second row for the legacy-fed child.
+	// Sourcing the same template from the second offering seeds the child's
+	// Tuesday contribution — the legacy Monday must not suppress it — while
+	// the legacy Monday row stays untouched.
 	resyncer := offeringResyncer(t, env)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
 		TemplateID:       legacyTemplate.ID,
@@ -1141,24 +1142,15 @@ func TestResyncTemplateOfferingRoster_LegacyLinkedChildKeepsLegacyRowOnly(t *tes
 		EffectiveFrom:    timezone.TodayDate(),
 	}))
 	rows = loadTemplateEnrollments(t, env, legacyTemplate.ID)
-	require.Len(t, rows, 1)
-	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
+	require.Len(t, rows, 2, "the source contributes its non-overlapping weekday next to the legacy row")
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays,
+		"the legacy-shaped row survives the source resync untouched")
+	assert.Equal(t, []int{2}, rows[1].SelectedWeekdays,
+		"the source-seeded row carries only the source offering's weekday")
+	assert.Equal(t, studentID, rows[1].StudentID)
 
-	// A stale source-shaped row of the SAME child must not hide behind the
-	// legacy protection when the source is removed.
-	phaseEndExclusive := env.sourcePhase.ServiceEndDate.AddDays(1)
-	stale := &activitiesModels.StudentEnrollment{
-		StudentID:                studentID,
-		ActivityGroupID:          legacyTemplate.ID,
-		ValidFrom:                env.sourcePhase.ServiceStartDate,
-		ValidUntil:               &phaseEndExclusive,
-		CalendarPeriodID:         &period.ID,
-		EnrollmentRequestChildID: &childID,
-		SelectedWeekdays:         []int{2},
-	}
-	stale.SetTenantID(1)
-	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, stale))
-
+	// Removing the source must reconcile the source-shaped row away — it must
+	// not hide behind the legacy protection, which covers Monday only.
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
 		TemplateID:         legacyTemplate.ID,
 		PreviousOfferingID: &sourceOffering.ID,
@@ -1166,7 +1158,108 @@ func TestResyncTemplateOfferingRoster_LegacyLinkedChildKeepsLegacyRowOnly(t *tes
 		EffectiveFrom:      timezone.TodayDate(),
 	}))
 	rows = loadTemplateEnrollments(t, env, legacyTemplate.ID)
-	require.Len(t, rows, 1, "the stale source-shaped row must be reconciled away")
+	require.Len(t, rows, 1, "the source-shaped row must be reconciled away")
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays,
 		"the legacy-shaped row survives the source removal untouched")
+}
+
+// A legacy link that only starts mid-phase must not suppress the source's
+// rows before it begins: the legacy protection is bounded by each link's
+// validity window, not just its weekday set (#2147 review, round 5).
+func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSourceRows(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	sourceOffering := createSourceOffering(t, env, "FruehQuelle", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, sourceOffering.ID, "future-legacy@example.com", "Frueh", 2)
+
+	template := createSourcedTemplate(t, env, "FruehTermin", sourceOffering.ID, []int{2}, period)
+	legacyOffering := createSourceOffering(t, env, "SpaetLegacy", &template.ID)
+
+	// The child joins the legacy offering mid-phase and keeps the source
+	// offering; before that date only the source plans the child.
+	legacyStart := env.sourcePhase.ServiceStartDate.AddDays(60)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+		ctx,
+		childID,
+		legacyStart,
+		[]*enrollmentModels.RequestChildOffering{
+			{CareOfferingID: sourceOffering.ID},
+			{CareOfferingID: legacyOffering.ID},
+		},
+	))
+
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &sourceOffering.ID,
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1, "the source plans the child until the legacy link begins")
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
+	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, legacyStart, *rows[0].ValidUntil,
+		"the source row stops where the legacy feed takes over — and is not suppressed before it")
+}
+
+// Editing a care offering must immediately re-reconcile every template
+// sourcing it: changed available days reshape the wanted roster, and without
+// the update-time resync the sourced rows would keep the pre-edit weekdays
+// until an unrelated template save (#2147 review, round 5).
+func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "TagQuelle", nil)
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "offering-update@example.com", "Tag", 2)
+	template := createSourcedTemplate(t, env, "TagTermin", offering.ID, []int{2}, period)
+
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &offering.ID,
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
+
+	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
+		Repo:                     env.repos.CareOffering,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		ActivityGroupRepo:        env.repos.ActivityGroup,
+		ActivityScheduleRepo:     env.repos.ActivitySchedule,
+		CalendarPeriodRepo:       env.repos.CalendarPeriod,
+		TimeframeRepo:            env.repos.Timeframe,
+		ActivityExceptionRepo:    env.repos.ActivityException,
+		PhaseRepo:                env.repos.Phase,
+	})
+	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
+	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
+	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the offering-update resync")
+	binder.SetSourcedTemplateResyncer(sourcedResyncer)
+
+	offering.AvailableDays = []string{"tue"}
+	require.NoError(t, svc.Update(ctx, offering))
+
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1, "the pre-edit Monday row is replaced, not kept alongside")
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, []int{2}, rows[0].SelectedWeekdays,
+		"the sourced row follows the offering's new weekday immediately after the update")
 }

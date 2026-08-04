@@ -1570,6 +1570,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
 	}
 	gradeTransitionService.SetOfferingSourceResyncer(gradeTransitionResyncer)
+	// A care-offering edit changes the wanted roster of every template sourcing
+	// it (#2147 review). Wired late because the decision service is constructed
+	// after the care-offering service.
+	careOfferingSourceBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSourceResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not accept the sourced-template resyncer")
+	}
+	careOfferingSourcedResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingSourcedTemplateResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
+	}
+	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,

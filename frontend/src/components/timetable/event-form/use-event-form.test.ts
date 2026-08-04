@@ -35,6 +35,57 @@ describe("reconcileCategoryId", () => {
   });
 });
 
+describe("useEventForm offering source roster stash", () => {
+  it("restores the manual roster when the source is cleared again", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.update("studentIds", ["11", "12"]);
+    });
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+    expect(result.current.form.studentIds).toEqual([]);
+
+    // Switching between offerings keeps the stash from before the first one.
+    act(() => {
+      result.current.changeSourceOffering("6");
+    });
+    expect(result.current.form.studentIds).toEqual([]);
+
+    // Clearing the source must restore the manual picks — submitting the
+    // emptied array would wipe the shared manual roster on save.
+    act(() => {
+      result.current.changeSourceOffering("");
+    });
+    expect(result.current.form.studentIds).toEqual(["11", "12"]);
+  });
+});
+
 describe("useEventForm category loading", () => {
   it("does not let the initial request overwrite a newer refresh", async () => {
     let resolveInitialCategories: (value: ActivityCategory[]) => void = () =>

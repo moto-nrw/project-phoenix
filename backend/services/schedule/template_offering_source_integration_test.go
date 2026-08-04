@@ -536,3 +536,91 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	assert.Equal(t, manualStudentID, rows[0].StudentID)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
 }
+
+// Converting a manual template to an offering-sourced one retires the manual
+// enrollment rows — and the retired students must also leave the template's
+// already-materialized future occurrences, because the materializer never
+// revisits an existing instance (#2147 review, round 5).
+func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrences(t *testing.T) {
+	monday := futureMonday(3)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+	manualStudentID := s.students[0]
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:             name,
+		Type:             activitiesModels.GroupTypeCare,
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:           s.roomID,
+		CategoryID:       s.categoryID,
+		MaxParticipants:  20,
+		CalendarPeriodID: &s.period.ID,
+		StudentIDs:       []int64{manualStudentID},
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	// One occurrence with the manual child is already materialized when the
+	// conversion happens.
+	instance := &scheduleModels.ActivityInstance{
+		Date:             monday,
+		ActivityGroupID:  &result.TemplateID,
+		CalendarPeriodID: &s.period.ID,
+		Title:            name,
+		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:           s.roomID,
+		Status:           scheduleModels.InstanceStatusPlanned,
+	}
+	instance.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("schedule.activity_instances", instance.ID)
+	s.extraCleanups = append([]func(){func() {
+		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
+	}}, s.extraCleanups...)
+	instanceStudent := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  manualStudentID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	instanceStudent.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(instanceStudent).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	// The offering has no enrolled children, so the new source covers nobody:
+	// the retired manual child must disappear from the existing occurrence.
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: result.TemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:                 name,
+			Type:                 activitiesModels.GroupTypeCare,
+			CategoryID:           s.categoryID,
+			RoomID:               s.roomID,
+			MaxParticipants:      20,
+			CalendarPeriodID:     &s.period.ID,
+			TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+			SourceCareOfferingID: &offering.ID,
+		},
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		TimeframeID:      result.TimeframeID,
+		CalendarPeriodID: &s.period.ID,
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	}))
+
+	var rows []scheduleModels.InstanceStudent
+	require.NoError(t, s.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, instance.ID).
+		Scan(s.ctx))
+	require.Empty(t, rows, "the retired manual child must be removed from the already-materialized occurrence")
+}
