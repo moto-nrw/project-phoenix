@@ -36,8 +36,8 @@ func init() {
 // has reviewed and dismissed one concrete planning conflict. The fingerprint
 // encodes kind, person, involved instances, date, overlap window, and
 // relevant rooms — when the conflict changes, its fingerprint changes and the
-// stored ack simply stops matching (no cleanup needed; stale rows are
-// harmless and tiny).
+// stored ack simply stops matching. Growth is bounded at the repository:
+// inserts prune the account's oldest rows beyond MaxConflictAcksPerAccount.
 func timetableConflictAcksUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.263: Per-user Betreuungsplan conflict acknowledgements...")
 

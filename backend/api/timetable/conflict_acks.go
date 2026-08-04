@@ -14,7 +14,9 @@
 //
 // Permission: SchedulesRead — anyone who can see the plan (and thus the
 // banner) may manage their own view state. Writes only ever touch rows of the
-// calling account in the calling tenant.
+// calling account in the calling tenant. Fingerprints are opaque to the
+// server, so stored acks are bounded per account: the repository prunes the
+// oldest rows beyond schedule.MaxConflictAcksPerAccount on every insert.
 package timetable
 
 import (

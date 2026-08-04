@@ -64,11 +64,12 @@ type InstanceConflictWarning struct {
 // the service wiring is explicit. All fields are required; passing nil for
 // any of them is a programmer error and will panic on first call — there is
 // no graceful-degradation path here because the planner cannot reliably
-// decide whether to warn without all three checks.
+// decide whether to warn without all sub-checks.
 type ConflictDependencies struct {
 	GroupRepo         active.GroupRepository
 	SupervisorRepo    active.GroupSupervisorRepository
 	VisitRepo         active.VisitRepository
+	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	InstanceStudents  scheduleModel.InstanceStudentRepository
 }
@@ -100,8 +101,11 @@ func DetectStartConflicts(
 	// an active.group IN A DIFFERENT ROOM. Supervising a parallel group in
 	// the SAME room is a sanctioned pattern (one Betreuungskraft, several
 	// parallel groups, one physical room — #2139), so those supervisions are
-	// skipped. When the other group's room cannot be resolved the warning
-	// stays: an undetermined room counts as "not certainly the same room".
+	// skipped. The staff member's room in the RUNNING session is resolved via
+	// activeSupervisionRoom (the bridged instance's per-row multi-room
+	// override, not just the group's primary room — see #2151 review). When
+	// that room cannot be resolved the warning stays: an undetermined room
+	// counts as "not certainly the same room".
 	// FindActiveByStaffID filters on end_date IS NULL / end_date > NOW() at
 	// the repo level, so a result means "still supervising".
 	staffRows, err := deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
@@ -156,13 +160,18 @@ func DetectStartConflicts(
 				})
 				break
 			}
-			if group.RoomID == effectiveRoom {
+			supervisionRoom, roomKnown := activeSupervisionRoom(ctx, deps, group, row.StaffID, logger)
+			if roomKnown && supervisionRoom == effectiveRoom {
 				continue // same concrete room — sanctioned parallel supervision
+			}
+			message := fmt.Sprintf("Mitarbeiter betreut bereits aktive Gruppe #%d in einem anderen Raum", group.ID)
+			if !roomKnown {
+				message = fmt.Sprintf("Mitarbeiter betreut bereits aktive Gruppe #%d (Raum nicht eindeutig bestimmbar)", group.ID)
 			}
 			warnings = append(warnings, InstanceConflictWarning{
 				Kind:        ConflictKindStaff,
 				ResourceID:  row.StaffID,
-				Message:     fmt.Sprintf("Mitarbeiter betreut bereits aktive Gruppe #%d in einem anderen Raum", group.ID),
+				Message:     message,
 				CanOverride: true,
 			})
 			break
@@ -222,6 +231,56 @@ func DetectStartConflicts(
 	}
 
 	return warnings
+}
+
+// activeSupervisionRoom resolves the room a staff member is actually bound to
+// in the given RUNNING group. active.groups stores only the session's primary
+// room, so for a group bridged to a timetable instance the staff member's
+// per-row multi-room override on that instance's instance_staff rows wins —
+// comparing against the group's primary room alone would suppress a real
+// double-booking (staff actually in a secondary room) or warn although the
+// staff member sits in the same room (#2151 review).
+//
+// A spontaneous group without a bridged instance has exactly one room, so the
+// group's room is authoritative. ok=false means the room could not be
+// determined (lookup failure, or a bridged instance whose roster does not
+// contain the staff member) — callers must then KEEP the warning, because an
+// undetermined room is "not certainly the same room".
+func activeSupervisionRoom(
+	ctx context.Context,
+	deps ConflictDependencies,
+	group *active.Group,
+	staffID int64,
+	logger *slog.Logger,
+) (roomID int64, ok bool) {
+	instance, err := deps.InstanceRepo.FindByActiveGroupID(ctx, group.ID)
+	if err != nil {
+		logger.Warn("conflict detection: bridged instance lookup failed",
+			slog.Int64("active_group_id", group.ID),
+			slog.String("error", err.Error()),
+		)
+		return 0, false
+	}
+	if instance == nil {
+		return group.RoomID, true
+	}
+	rows, err := deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		logger.Warn("conflict detection: bridged instance_staff lookup failed",
+			slog.Int64("instance_id", instance.ID),
+			slog.String("error", err.Error()),
+		)
+		return 0, false
+	}
+	for _, row := range rows {
+		if row.StaffID == staffID {
+			return effectiveStaffRoom(instance, row), true
+		}
+	}
+	// Supervisor without a matching roster row on the bridged instance —
+	// anomalous (Start and the deviation flows keep both in sync), so the
+	// effective room is unknown.
+	return 0, false
 }
 
 // germanDateLayout renders calendar dates as dd.mm.yyyy in user-facing copy.

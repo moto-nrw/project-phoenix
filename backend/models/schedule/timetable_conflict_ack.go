@@ -13,6 +13,17 @@ import (
 // future length changes without a migration).
 var conflictAckFingerprintPattern = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
 
+// MaxConflictAcksPerAccount caps how many acknowledgements one account can
+// hold per tenant. Fingerprints are opaque to the server (they cannot be
+// verified against a concrete conflict without recomputing the caller's whole
+// planning window), so without a cap the endpoint would let any SchedulesRead
+// holder accumulate unbounded rows (#2151 review). Acknowledge prunes the
+// oldest rows beyond the cap — stale acks stop matching anyway once the
+// underlying conflict changes, so dropping the oldest first is lossless in
+// practice. 500 is far above what a user can meaningfully review ("Alle
+// ausblenden" on a busy month acks a few dozen).
+const MaxConflictAcksPerAccount = 500
+
 // TimetableConflictAck records that ONE user of ONE school has reviewed and
 // dismissed ONE concrete planning conflict (#2139). The fingerprint is the
 // conflict's stable identity (kind, person, involved instances, date, overlap
@@ -59,7 +70,9 @@ type TimetableConflictAckRepository interface {
 	// acknowledged in the current tenant.
 	ListFingerprintsByAccount(ctx context.Context, accountID int64) ([]string, error)
 
-	// Acknowledge idempotently records the fingerprint for the account.
+	// Acknowledge idempotently records the fingerprint for the account and
+	// prunes the account's oldest acknowledgements beyond
+	// MaxConflictAcksPerAccount.
 	Acknowledge(ctx context.Context, accountID int64, fingerprint string) error
 
 	// Unacknowledge removes the fingerprint for the account. Removing an

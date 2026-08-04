@@ -55,6 +55,12 @@ func (r *TimetableConflictAckRepository) ListFingerprintsByAccount(ctx context.C
 // Acknowledge idempotently records the fingerprint for the account. The
 // ON CONFLICT DO NOTHING rides on the (tenant_id, account_id, fingerprint)
 // unique constraint, so double-clicks and concurrent tabs cannot fail.
+//
+// Every actual insert then prunes the account's oldest rows beyond
+// schedule.MaxConflictAcksPerAccount — fingerprints are opaque and cannot be
+// verified against a live conflict, so this cap is what keeps a
+// SchedulesRead holder from accumulating unbounded rows (#2151 review).
+// Idempotent re-acks skip the prune: they cannot grow the set.
 func (r *TimetableConflictAckRepository) Acknowledge(ctx context.Context, accountID int64, fingerprint string) error {
 	ack := &schedule.TimetableConflictAck{
 		AccountID:   accountID,
@@ -64,13 +70,42 @@ func (r *TimetableConflictAckRepository) Acknowledge(ctx context.Context, accoun
 		return err
 	}
 	base.EnsureTenantID(ctx, ack)
-	_, err := base.GetDB(ctx, r.db).NewInsert().
+	res, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(ack).
 		ModelTableExpr(tableScheduleConflictAcks).
 		On("CONFLICT (tenant_id, account_id, fingerprint) DO NOTHING").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "acknowledge conflict", Err: err}
+	}
+	if rows, err := res.RowsAffected(); err != nil || rows == 0 {
+		return nil // duplicate ack — the set did not grow, nothing to prune
+	}
+	return r.pruneOldest(ctx, accountID)
+}
+
+// pruneOldest deletes the account's acknowledgements beyond the newest
+// MaxConflictAcksPerAccount, ordered by creation time (id as tiebreaker).
+// Dropping oldest-first is lossless in practice: old acks reference old
+// conflicts, and a changed conflict stops matching its ack anyway.
+func (r *TimetableConflictAckRepository) pruneOldest(ctx context.Context, accountID int64) error {
+	keep := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprConflictAcksAsAck).
+		ColumnExpr(`"conflict_ack".id`).
+		Where(conflictAcksAccountFilterExpr, accountID).
+		OrderExpr(`"conflict_ack".created_at DESC, "conflict_ack".id DESC`).
+		Limit(schedule.MaxConflictAcksPerAccount)
+	keep = base.WithTenantFilter(ctx, keep, "conflict_ack")
+
+	prune := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.TimetableConflictAck)(nil)).
+		ModelTableExpr(tableExprConflictAcksAsAck).
+		Where(conflictAcksAccountFilterExpr, accountID).
+		Where(`"conflict_ack".id NOT IN (?)`, keep)
+	prune = base.WithTenantFilter(ctx, prune, "conflict_ack")
+
+	if _, err := prune.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "prune conflict acks", Err: err}
 	}
 	return nil
 }
