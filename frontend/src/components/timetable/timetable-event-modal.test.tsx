@@ -1636,6 +1636,48 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("allows adding a valid grade while retaining one above the tenant cap", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: { gradeLevelMax: 4 } as TenantInfo,
+    });
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 4,
+        targets: [
+          { type: "jahrgang", gradeLevel: 4 },
+          { type: "jahrgang", gradeLevel: 13 },
+        ],
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    fireEvent.click(screen.getByLabelText(/^Jahrgang\*/));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 3" }));
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "jahrgang",
+          target_grade_level: 4,
+          targets: [
+            { type: "jahrgang", grade_level: 4 },
+            { type: "jahrgang", grade_level: 13 },
+            { type: "jahrgang", grade_level: 3 },
+          ],
+        }),
+      ),
+    );
+  });
+
   it("adds the selected target cohort without replacing existing children", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [

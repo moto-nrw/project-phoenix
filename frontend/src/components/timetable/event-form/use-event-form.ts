@@ -417,10 +417,6 @@ export function useEventForm({
   if (initialSeries?.targetGradeLevel !== undefined) {
     initialGradeTargets.add(String(initialSeries.targetGradeLevel));
   }
-  const preservesExistingTargetGrade = form.targetGradeLevels.every(
-    (grade) =>
-      Number(grade) <= (gradeLevelMax ?? 0) || initialGradeTargets.has(grade),
-  );
   const preservesGradeAboveTenantCap =
     gradeLevelMax !== undefined &&
     form.targetGradeLevels.some((grade) => Number(grade) > gradeLevelMax);
@@ -1170,7 +1166,7 @@ export function useEventForm({
             gradeLevel < 1 ||
             gradeLevel > MAX_SUPPORTED_TARGET_GRADE_LEVEL ||
             gradeLevelMax === undefined ||
-            (gradeLevel > gradeLevelMax && !preservesExistingTargetGrade)
+            (gradeLevel > gradeLevelMax && !initialGradeTargets.has(value))
           );
         });
         if (form.targetGradeLevels.length === 0) {

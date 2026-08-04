@@ -298,8 +298,8 @@ func buildUpdateTemplateInput(
 
 // renderUpdateTemplateError maps an UpdateTemplate failure to its HTTP response.
 // A capped/archived segment surfaces as the same 404 as the preflight lookup;
-// the care-offering, roster-rebase, and grade-cap conflicts each carry their
-// own status and code; everything else is a 500.
+// education-group failures and the care-offering, roster-rebase, and grade-cap
+// conflicts each carry their own status and code; everything else is a 500.
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
@@ -308,6 +308,7 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
+	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):

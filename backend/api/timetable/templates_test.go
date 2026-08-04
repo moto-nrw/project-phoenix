@@ -618,6 +618,37 @@ func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 	assert.Contains(t, response.Body.String(), "education_group_id does not reference a group in this tenant")
 }
 
+func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	currentGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-Update-Current-Group")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "education.groups", currentGroup.ID) })
+	otherTenant := testpkg.NewTenantScope(t, s.db)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, otherTenant.TenantID) })
+	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, otherTenant.TenantID, "Tpl-Update-Cross-Tenant")
+
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-Update-Target-%d", time.Now().UnixNano()))
+	body["education_group_id"] = currentGroup.ID
+	body["target_group_type"] = activitiesModel.TargetGroupTypeGruppe
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeGruppe, "education_group_id": currentGroup.ID},
+	}
+	createdResponse := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, createdResponse.Code, "body=%s", createdResponse.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdResponse)
+
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeGruppe, "education_group_id": currentGroup.ID},
+		{"type": activitiesModel.TargetGroupTypeGruppe, "education_group_id": otherGroup.ID},
+	}
+	response := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), body)
+
+	assert.Equal(t, http.StatusBadRequest, response.Code, "body=%s", response.Body.String())
+	assert.Contains(t, response.Body.String(), "education_group_id does not reference a group in this tenant")
+}
+
 func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
