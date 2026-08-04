@@ -126,6 +126,28 @@ func validateTargetRequests(targetType string, targets []templateTargetRequest) 
 	return nil
 }
 
+func normalizeTemplateTargetFields(
+	targetType string,
+	gradeLevel *int16,
+	schoolClass *string,
+	educationGroupID *int64,
+	targets []templateTargetRequest,
+) (string, *string, error) {
+	target := &activitiesModel.Group{
+		TargetGroupType:   targetType,
+		TargetGradeLevel:  gradeLevel,
+		TargetSchoolClass: schoolClass,
+		EducationGroupID:  educationGroupID,
+	}
+	if err := target.ValidateTargetGroup(); err != nil && len(targets) == 0 {
+		return "", nil, err
+	}
+	if err := validateTargetRequests(target.TargetGroupType, targets); err != nil {
+		return "", nil, err
+	}
+	return target.TargetGroupType, target.TargetSchoolClass, nil
+}
+
 // Bind enforces presence, but defers format/business validation to the
 // handler so error messages are precise.
 func (req *createTemplateRequest) Bind(_ *http.Request) error {
@@ -159,22 +181,14 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	target := &activitiesModel.Group{
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		EducationGroupID:  req.EducationGroupID,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
-		if len(req.Targets) == 0 {
-			return err
-		}
-	}
-	req.TargetGroupType = target.TargetGroupType
-	req.TargetSchoolClass = target.TargetSchoolClass
-	if err := validateTargetRequests(req.TargetGroupType, req.Targets); err != nil {
+	targetType, schoolClass, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID, req.Targets,
+	)
+	if err != nil {
 		return err
 	}
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err

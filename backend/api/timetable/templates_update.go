@@ -75,22 +75,14 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	target := &activitiesModel.Group{
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		EducationGroupID:  req.EducationGroupID,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
-		if len(req.Targets) == 0 {
-			return err
-		}
-	}
-	req.TargetGroupType = target.TargetGroupType
-	req.TargetSchoolClass = target.TargetSchoolClass
-	if err := validateTargetRequests(req.TargetGroupType, req.Targets); err != nil {
+	targetType, schoolClass, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID, req.Targets,
+	)
+	if err != nil {
 		return err
 	}
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err

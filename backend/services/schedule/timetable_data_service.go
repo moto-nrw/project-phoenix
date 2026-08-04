@@ -336,6 +336,9 @@ func (s *TimetableDataService) ListTemplateRowsForTemplatePeriod(
 		return nil, err
 	}
 	setDisplayRosterCapacity(rows)
+	if err := s.attachTemplateTargets(ctx, rows); err != nil {
+		return nil, err
+	}
 	if err := s.attachWorstTemplateCapacity(
 		ctx,
 		rows,

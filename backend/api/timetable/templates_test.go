@@ -558,6 +558,8 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 	s := buildTemplateSetup(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Multiple-Targets-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 
 	body := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-%d", time.Now().UnixNano()))
 	body["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
@@ -571,7 +573,8 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createdResponse.Code, "body=%s", createdResponse.Body.String())
 	created := decodeTemplateData[createTemplateResponse](t, createdResponse)
 
-	getResponse := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	getResponse := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getResponse.Code, "body=%s", getResponse.Body.String())
 	template := decodeTemplateData[templateResponse](t, getResponse)
 	require.Len(t, template.Targets, 2)
