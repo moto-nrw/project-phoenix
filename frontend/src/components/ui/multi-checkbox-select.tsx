@@ -62,6 +62,10 @@ export function MultiCheckboxSelect({
   const generatedId = useId();
   const triggerId = id ?? generatedId;
   const menuId = `${triggerId}-menu`;
+  const validationAttributes = {
+    "aria-invalid": ariaInvalid,
+    "aria-describedby": ariaDescribedBy,
+  };
   const containerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -145,10 +149,8 @@ export function MultiCheckboxSelect({
         ref={triggerRef}
         id={triggerId}
         type="button"
-        role="combobox"
         aria-label={ariaLabel}
-        aria-invalid={ariaInvalid}
-        aria-describedby={ariaDescribedBy}
+        {...validationAttributes}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

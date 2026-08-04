@@ -11,7 +11,7 @@ const OPTIONS = [
 ];
 
 function openMenu() {
-  fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+  fireEvent.click(screen.getByRole("button", { name: "Auswahl" }));
 }
 
 describe("MultiCheckboxSelect (searchable)", () => {
@@ -27,7 +27,7 @@ describe("MultiCheckboxSelect (searchable)", () => {
       />,
     );
 
-    const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+    const trigger = screen.getByRole("button", { name: "Auswahl" });
     expect(trigger).toHaveAttribute("aria-invalid", "true");
     expect(trigger).toHaveAttribute("aria-describedby", "selection_error");
   });
@@ -152,7 +152,7 @@ describe("MultiCheckboxSelect (searchable)", () => {
         searchable
       />,
     );
-    const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+    const trigger = screen.getByRole("button", { name: "Auswahl" });
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog", { name: "Auswahl" })).toBeVisible();
     expect(screen.getByRole("checkbox", { name: "Bärengruppe" })).toBeChecked();
@@ -178,7 +178,7 @@ describe("MultiCheckboxSelect (searchable)", () => {
           onChange={() => undefined}
         />,
       );
-      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+      const trigger = screen.getByRole("button", { name: "Auswahl" });
       trigger.focus();
       fireEvent.click(trigger);
 
