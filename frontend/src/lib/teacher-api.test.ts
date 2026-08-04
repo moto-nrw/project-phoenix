@@ -150,18 +150,17 @@ describe("teacher-api", () => {
       );
     });
 
-    it("works without auth token", async () => {
+    it("rejects without auth token", async () => {
+      // sessionFetch has always thrown without a token; this test previously
+      // asserted the opposite and only stayed green because earlier tests in
+      // this file left a session in the module-level getSession cache (10s
+      // TTL). Since the cache is reset between tests (#2123), the null mock
+      // is actually honored and the real contract shows.
       mockedGetSession.mockResolvedValue(null);
 
-      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve([sampleTeacher]),
-      } as Response);
-
-      const result = await teacherService.getTeachers();
-
-      expect(result).toHaveLength(1);
+      await expect(teacherService.getTeachers()).rejects.toThrow(
+        "No authentication token available",
+      );
     });
   });
 

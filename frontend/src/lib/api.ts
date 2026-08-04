@@ -1,5 +1,5 @@
 import type { AxiosError } from "axios";
-import { getSession } from "next-auth/react";
+import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import { env } from "~/env";
 import api from "./api-transport";
@@ -308,10 +308,14 @@ function buildStudentQueryParams(filters?: {
 }
 
 /**
- * Get new token from session (helper for fetchWithRetry)
+ * Get new token from session (helper for fetchWithRetry).
+ * Called after a 401 → token refresh, so the cached session is stale by
+ * definition — drop it first, or this (and every concurrent caller for up to
+ * 10s) would retry with the dead token.
  */
 async function getNewTokenFromSession(): Promise<string | undefined> {
-  const session = await getSession();
+  clearSessionCache();
+  const session = await getCachedSession();
   return session?.user?.token;
 }
 
@@ -986,7 +990,7 @@ export const studentService = {
         // Use provided token or fall back to getSession()
         let authToken = filters?.token;
         if (!authToken) {
-          const session = await getSession();
+          const session = await getCachedSession();
           authToken = session?.user?.token;
         }
 
@@ -1025,7 +1029,7 @@ export const studentService = {
       if (useProxyApi) {
         let authToken = filters?.token;
         if (!authToken) {
-          const session = await getSession();
+          const session = await getCachedSession();
           authToken = session?.user?.token;
         }
 
@@ -1060,7 +1064,7 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
-        const session = await getSession();
+        const session = await getCachedSession();
         const { data } = await fetchWithRetry<unknown>(
           url,
           session?.user?.token,
@@ -1095,7 +1099,7 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
@@ -1160,7 +1164,7 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
         // Send frontend format data - the API route will handle transformation
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
@@ -1303,7 +1307,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        const session = await getCachedSession();
         const { response, data } = await fetchWithRetry<unknown>(
           url,
           session?.user?.token,
@@ -1345,7 +1349,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        const session = await getCachedSession();
         const { response, data } = await fetchWithRetry<unknown>(
           url,
           session?.user?.token,
@@ -1391,7 +1395,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
@@ -1450,7 +1454,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
@@ -1514,7 +1518,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
@@ -1567,7 +1571,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           credentials: "include",
           headers: session?.user?.token
@@ -1631,7 +1635,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
@@ -1686,7 +1690,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
@@ -1736,7 +1740,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
@@ -1801,7 +1805,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        const session = await getCachedSession();
         const { data } = await fetchWithRetry<unknown>(
           url,
           session?.user?.token,
@@ -1837,7 +1841,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        const session = await getCachedSession();
         const { response, data } = await fetchWithRetry<unknown>(
           url,
           session?.user?.token,
@@ -1881,7 +1885,7 @@ export const roomService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
@@ -1936,7 +1940,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
@@ -1998,7 +2002,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
@@ -2044,7 +2048,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           credentials: "include",
           headers: session?.user?.token

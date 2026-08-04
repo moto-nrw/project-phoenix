@@ -1,6 +1,21 @@
 import "@testing-library/jest-dom/vitest";
 import type React from "react";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
+
+// Reset the module-level session cache between tests. Since #2123 the API
+// clients read the NextAuth session through ~/lib/session-cache (10s TTL), so
+// a session cached by one test would otherwise leak into the next. Lazy import
+// on purpose: a static import would pull next-auth/react into every test
+// file's module graph. Guarded because some tests mock ./session-cache with
+// only a sessionFetch export — those never touch the real cache.
+beforeEach(async () => {
+  try {
+    const { clearSessionCache } = await import("~/lib/session-cache");
+    clearSessionCache();
+  } catch {
+    // Module mocked without clearSessionCache — nothing to reset.
+  }
+});
 
 function createStorageMock(): Storage {
   const store = new Map<string, string>();

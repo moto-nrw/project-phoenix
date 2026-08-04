@@ -22,6 +22,12 @@ let inflight: Promise<Awaited<ReturnType<typeof getSession>>> | null = null;
 // which automatically invalidates the stale cache entry.
 let cachedTenantId: number | undefined;
 
+// Incremented on every clearSessionCache(). An in-flight getSession() that
+// started BEFORE a clear must not write its (potentially stale, pre-refresh)
+// result back into the cache after the clear — the retry after a 401/token
+// refresh would then read the dead token again.
+let generation = 0;
+
 const TTL_MS = 10_000; // 10 second cache window
 
 /**
@@ -32,6 +38,7 @@ export function clearSessionCache() {
   cached = null;
   cachedTenantId = undefined;
   inflight = null;
+  generation += 1;
 }
 
 export async function getCachedSession() {
@@ -51,18 +58,27 @@ export async function getCachedSession() {
   }
   if (inflight) return inflight;
 
-  inflight = getSession()
+  const startedGeneration = generation;
+  const request = getSession()
     .then((session) => {
-      cachedTenantId = (session?.user as { tenantId?: number } | undefined)
-        ?.tenantId;
-      cached = { session, expiry: Date.now() + TTL_MS };
+      // Only populate the cache if no clearSessionCache() happened while this
+      // request was in flight — otherwise this result predates a token
+      // refresh/tenant switch and must not be reused.
+      if (generation === startedGeneration) {
+        cachedTenantId = (session?.user as { tenantId?: number } | undefined)
+          ?.tenantId;
+        cached = { session, expiry: Date.now() + TTL_MS };
+      }
       return session;
     })
     .finally(() => {
-      inflight = null;
+      if (generation === startedGeneration) {
+        inflight = null;
+      }
     });
+  inflight = request;
 
-  return inflight;
+  return request;
 }
 
 /**
@@ -94,7 +110,11 @@ export async function sessionFetch(
 
   if (response.status === 401) {
     clearSessionCache();
-    const { handleAuthFailure } = await import("./auth-api");
+    // Import from auth-failure directly (auth-api only re-exports it):
+    // going through auth-api would close a module cycle
+    // session-cache -> auth-api -> auth-service -> api-transport -> session-cache
+    // now that the API clients import this module statically (#2123).
+    const { handleAuthFailure } = await import("./auth-failure");
     const refreshed = await handleAuthFailure();
     if (refreshed) {
       const freshSession = await getCachedSession();
