@@ -115,6 +115,13 @@ func (s *userContextService) GetCurrentUser(ctx context.Context) (*auth.Account,
 		return nil, err
 	}
 
+	cache, key, memo := identityMemo(ctx)
+	if memo {
+		if account, ok := cache.accountFor(key); ok && account != nil {
+			return account, nil
+		}
+	}
+
 	account, err := s.accountRepo.FindByID(ctx, int64(userID))
 	if err != nil {
 		return nil, &UserContextError{Op: "get current user", Err: err}
@@ -123,6 +130,9 @@ func (s *userContextService) GetCurrentUser(ctx context.Context) (*auth.Account,
 		return nil, &UserContextError{Op: "get current user", Err: ErrUserNotFound}
 	}
 
+	if memo {
+		cache.storeAccount(key, account)
+	}
 	return account, nil
 }
 
@@ -133,9 +143,23 @@ func (s *userContextService) GetCurrentPerson(ctx context.Context) (*users.Perso
 		return nil, err
 	}
 
+	cache, key, memo := identityMemo(ctx)
+	if memo {
+		if person, ok := cache.personFor(key); ok {
+			if person == nil {
+				return nil, &UserContextError{Op: "get current person", Err: ErrUserNotLinkedToPerson}
+			}
+			return person, nil
+		}
+	}
+
 	person, err := s.personRepo.FindByAccountID(ctx, int64(userID))
 	if err != nil {
 		return nil, &UserContextError{Op: "get current person", Err: err}
+	}
+	if memo {
+		// person may be nil here — a clean "not linked" outcome worth memoizing.
+		cache.storePerson(key, person)
 	}
 	if person == nil {
 		return nil, &UserContextError{Op: "get current person", Err: ErrUserNotLinkedToPerson}
@@ -146,6 +170,16 @@ func (s *userContextService) GetCurrentPerson(ctx context.Context) (*users.Perso
 
 // GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff, error) {
+	cache, key, memo := identityMemo(ctx)
+	if memo {
+		if staff, ok := cache.staffFor(key); ok {
+			if staff == nil {
+				return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
+			}
+			return staff, nil
+		}
+	}
+
 	person, err := s.GetCurrentPerson(ctx)
 	if err != nil {
 		return nil, err
@@ -155,14 +189,23 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 	if err != nil {
 		// Check if it's a "no rows" error
 		if errors.Is(err, sql.ErrNoRows) {
+			if memo {
+				cache.storeStaff(key, nil)
+			}
 			return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
 		}
 		return nil, &UserContextError{Op: opGetCurrentStaff, Err: err}
 	}
 	if staff == nil {
+		if memo {
+			cache.storeStaff(key, nil)
+		}
 		return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
 	}
 
+	if memo {
+		cache.storeStaff(key, staff)
+	}
 	return staff, nil
 }
 
@@ -173,9 +216,33 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 		return nil, err
 	}
 
+	return s.resolveTeacherForStaff(ctx, staff)
+}
+
+// resolveTeacherForStaff resolves the teacher linked to an already-resolved
+// staff member. Shared by GetCurrentTeacher and GetMyGroups so both memoize
+// the same teacher stage. The error wrapping is load-bearing:
+// hasValidStaffOrTeacher relies on ErrUserNotLinkedToTeacher for the clean
+// "staff without teacher role" outcome, which is memoized as a nil teacher.
+func (s *userContextService) resolveTeacherForStaff(ctx context.Context, staff *users.Staff) (*users.Teacher, error) {
+	cache, key, memo := identityMemo(ctx)
+	if memo {
+		if teacher, ok := cache.teacherFor(key); ok {
+			if teacher == nil {
+				return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
+			}
+			return teacher, nil
+		}
+	}
+
 	teacher, err := s.teacherRepo.FindByStaffID(ctx, staff.ID)
 	if err != nil {
 		return nil, &UserContextError{Op: "get current teacher", Err: err}
+	}
+	if memo {
+		// teacher may be nil — staff without a teacher role is a common,
+		// clean outcome (see GetMyGroups) and is memoized as such.
+		cache.storeTeacher(key, teacher)
 	}
 	if teacher == nil {
 		return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
@@ -190,20 +257,23 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 		return nil, &UserContextError{Op: "get my groups", Err: ErrUserNotAuthenticated}
 	}
 
+	cache, key, memo := identityMemo(ctx)
+	if memo {
+		if groups, ok := cache.groupsFor(key); ok {
+			return groups, nil
+		}
+	}
+
 	staff, staffErr := s.GetCurrentStaff(ctx)
 
 	// Derive teacher from the already-resolved staff to avoid duplicate identity queries.
 	// GetCurrentTeacher would call GetCurrentStaff again (which calls GetCurrentPerson),
-	// duplicating 2 DB round-trips. Instead, reuse the staff result directly.
+	// duplicating 2 DB round-trips. resolveTeacherForStaff reuses the staff result
+	// directly and shares the memoized teacher stage with GetCurrentTeacher.
 	var teacher *users.Teacher
 	var teacherErr error
 	if staffErr == nil && staff != nil {
-		teacher, teacherErr = s.teacherRepo.FindByStaffID(ctx, staff.ID)
-		if teacher == nil && teacherErr == nil {
-			teacherErr = &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
-		} else if teacherErr != nil {
-			teacherErr = &UserContextError{Op: "get current teacher", Err: teacherErr}
-		}
+		teacher, teacherErr = s.resolveTeacherForStaff(ctx, staff)
 	} else {
 		teacherErr = staffErr
 	}
@@ -214,7 +284,11 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 		return nil, &UserContextError{Op: "get my groups", Err: unexpectedErr}
 	}
 	if !valid {
-		return []*education.Group{}, nil
+		empty := []*education.Group{}
+		if memo {
+			cache.storeGroups(key, empty)
+		}
+		return empty, nil
 	}
 
 	groupMap := make(map[int64]*education.Group)
@@ -232,8 +306,13 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 		partialErr = s.addSubstitutionGroups(ctx, staff.ID, groupMap)
 	}
 
-	groups := mapToSlice(groupMap)
-	return s.handlePartialError(groups, partialErr)
+	groups, err := s.handlePartialError(mapToSlice(groupMap), partialErr)
+	// Memoize only complete results — a partially loaded group set must not
+	// be pinned for the rest of the request.
+	if err == nil && memo {
+		cache.storeGroups(key, groups)
+	}
+	return groups, err
 }
 
 // isAuthenticated returns true when the context carries JWT claims with a
@@ -317,11 +396,21 @@ func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID 
 // user is not staff or has no active substitutions; only unexpected errors
 // are propagated.
 func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
+	cache, key, memo := identityMemo(ctx)
+	if memo {
+		if subs, ok := cache.substitutedFor(key); ok {
+			return subs, nil
+		}
+	}
+
 	result := make(map[int64]bool)
 
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		if isExpectedLinkageError(err) {
+			if memo {
+				cache.storeSubstituted(key, result)
+			}
 			return result, nil
 		}
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
@@ -337,6 +426,9 @@ func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[in
 		if sub.RegularStaffID == nil {
 			result[sub.GroupID] = true
 		}
+	}
+	if memo {
+		cache.storeSubstituted(key, result)
 	}
 	return result, nil
 }
@@ -761,6 +853,11 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 		return nil, &UserContextError{Op: "update current profile", Err: err}
 	}
 
+	// The writes above may have created a person for an account whose person
+	// stage is memoized as "not linked" (or changed memoized person/account
+	// fields). Drop the entry so the trailing re-read returns committed state.
+	invalidateIdentity(ctx)
+
 	return s.GetCurrentProfile(ctx)
 }
 
@@ -877,6 +974,10 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 	}
 
 	s.cleanupOldAvatar(ctx, oldAvatarPath)
+
+	// accountRepo.UpdateAvatar does not mutate the in-memory account struct —
+	// a memoized account would ship the OLD avatar URL in the response below.
+	invalidateIdentity(ctx)
 
 	return s.GetCurrentProfile(ctx)
 }

@@ -88,6 +88,10 @@ Every model field mapped to a `DATE` column MUST be `timezone.Date` (or `*timezo
 
 Per-school config resolves tenant DB override → registry default; the service does **not** check env vars. Consumers needing env var backward compatibility must check `HasTenantOverride()` first, then fall back to `os.Getenv()` manually. Use `Resolve*(ctx, key)` inside tenant middleware, `Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler loops). Everything else — registry, field types, permissions, add/edit/delete workflows: `.claude/rules/settings-system.md`.
 
+## Request-Scoped Identity Memoization (#2099)
+
+The identity chain (Account → Person → Staff → Teacher → `GetMyGroups`/`GetSubstitutedGroupIDs`) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`) attaches an empty cache; `services/usercontext` consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never DB errors or partial `GetMyGroups` results. Self-writes (`UpdateCurrentProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment in `services/usercontext/identity_request_cache.go`.
+
 ## Domain Knowledge
 
 ### RFID/IoT Integration
