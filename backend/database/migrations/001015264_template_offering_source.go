@@ -71,6 +71,32 @@ func templateOfferingSourceUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed adding offering-source check constraint: %w", err)
 	}
 
+	// The FK's ON DELETE SET NULL only touches source_care_offering_id; a
+	// template with a grade filter would then violate the CHECK above and the
+	// offering delete would fail. This BEFORE UPDATE trigger clears the filter
+	// whenever the source is nulled — by the referential action or by an app
+	// update — so deleting an offering always degrades its sourced templates
+	// to plain rosters.
+	_, err = db.NewRaw(`
+		CREATE OR REPLACE FUNCTION activities.groups_clear_orphaned_source_filter()
+		RETURNS trigger AS $$
+		BEGIN
+			NEW.source_grade_levels := NULL;
+			RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
+
+		DROP TRIGGER IF EXISTS trg_groups_clear_orphaned_source_filter ON activities.groups;
+		CREATE TRIGGER trg_groups_clear_orphaned_source_filter
+			BEFORE UPDATE OF source_care_offering_id ON activities.groups
+			FOR EACH ROW
+			WHEN (NEW.source_care_offering_id IS NULL AND NEW.source_grade_levels IS NOT NULL)
+			EXECUTE FUNCTION activities.groups_clear_orphaned_source_filter();
+	`).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed creating offering-source cleanup trigger: %w", err)
+	}
+
 	_, err = db.NewRaw(`
 		CREATE INDEX IF NOT EXISTS idx_activities_groups_source_offering
 			ON activities.groups (tenant_id, source_care_offering_id)
@@ -88,6 +114,9 @@ func templateOfferingSourceDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.264: Dropping offering-source columns from activities.groups...")
 
 	_, err := db.NewRaw(`
+		DROP TRIGGER IF EXISTS trg_groups_clear_orphaned_source_filter ON activities.groups;
+		DROP FUNCTION IF EXISTS activities.groups_clear_orphaned_source_filter();
+
 		DROP INDEX IF EXISTS activities.idx_activities_groups_source_offering;
 
 		ALTER TABLE activities.groups

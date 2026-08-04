@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -27,7 +28,10 @@ type OfferingRosterResyncer interface {
 // sourcedRosterTarget is one wanted roster row of an offering-sourced
 // template: the child's student, the draft describing period + weekdays, and
 // the window the child actually holds the offering in. validUntil is
-// exclusive, matching activities.StudentEnrollment.
+// exclusive, matching activities.StudentEnrollment. A child with
+// non-contiguous offering links (left and later re-joined) yields one target
+// per disjoint window — bridging the gap would plan the child on days it does
+// not hold the offering.
 type sourcedRosterTarget struct {
 	studentID  int64
 	draft      *careEnrollmentDraft
@@ -40,11 +44,14 @@ type sourcedRosterTarget struct {
 // student_enrollments rows of one template with the offering's currently
 // approved enrollments, applying the template's Jahrgang filter.
 //
-//   - rows for children that still match keep their row (extended when a
-//     dated switch had capped it earlier than the child's offering window
-//     now ends)
-//   - rows for children that no longer match are deleted (not yet effective)
-//     or capped at EffectiveFrom (already started)
+//   - rows for children that still match keep their row when start and
+//     weekday set line up with a wanted window; the end is then set exactly
+//     to where the child's offering window reaches (extended OR shrunk)
+//   - rows for children that no longer match — including rows whose validity
+//     no longer fits any wanted window, e.g. after a source switch — are
+//     deleted (not yet effective) or capped at EffectiveFrom (already
+//     started); the reconcile diffs EVERY tagged row of the template, so no
+//     offering-scoped cleanup via PreviousOfferingID is needed
 //   - missing children are seeded via the same draft/persist shapes the
 //     decision fan-out uses, so both write paths stay byte-compatible
 //   - rows fed by a legacy CareOffering.ActivityGroupID link pointing at the
@@ -64,7 +71,7 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 	}
 
 	var phase *enrollmentModels.Phase
-	wanted := make(map[int64]*sourcedRosterTarget)
+	wanted := make(map[int64][]*sourcedRosterTarget)
 	if in.OfferingID != nil {
 		offering, offeringPhase, err := s.loadOfferingSource(ctx, *in.OfferingID, in.CalendarPeriodID)
 		if err != nil {
@@ -98,19 +105,64 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 	}
 	sort.Slice(childIDs, func(i, j int) bool { return childIDs[i] < childIDs[j] })
 	for _, childID := range childIDs {
-		target := wanted[childID]
-		row := studentEnrollmentFromCareDraft(childID, target.studentID, phase, target.draft, &target.validFrom)
-		// The child's offering link can start after the template's effective
-		// date and end before the phase does (dated switch into or out of the
-		// offering). Planning them for the full phase window would place them
-		// on days they do not hold the offering.
-		validUntil := target.validUntil
-		row.ValidUntil = &validUntil
-		if err := row.Validate(); err != nil {
-			return fmt.Errorf("offering roster resync: validate seeded enrollment: %w", err)
+		for _, target := range wanted[childID] {
+			row := studentEnrollmentFromCareDraft(childID, target.studentID, phase, target.draft, &target.validFrom)
+			// The child's offering link can start after the template's effective
+			// date and end before the phase does (dated switch into or out of the
+			// offering). Planning them for the full phase window would place them
+			// on days they do not hold the offering.
+			validUntil := target.validUntil
+			row.ValidUntil = &validUntil
+			if err := row.Validate(); err != nil {
+				return fmt.Errorf("offering roster resync: validate seeded enrollment: %w", err)
+			}
+			if err := s.StudentEnrollmentRepo.Create(ctx, row); err != nil {
+				return fmt.Errorf("offering roster resync: create seeded enrollment: %w", err)
+			}
 		}
-		if err := s.StudentEnrollmentRepo.Create(ctx, row); err != nil {
-			return fmt.Errorf("offering roster resync: create seeded enrollment: %w", err)
+	}
+	return nil
+}
+
+// ResyncOfferingSourcedTemplates re-reconciles EVERY offering-sourced
+// template of the tenant against its offering's approved children. Grade
+// transitions call it (apply AND revert) after rewriting school classes:
+// promotions move children between Jahrgänge, so a template with a grade
+// filter must lose the children that left its filter and gain the ones that
+// entered it — and graduations turn children into alumni, whose rows are
+// capped. History before effectiveFrom stays untouched.
+//
+// A template whose source has drifted invalid (offering deleted mid-flight,
+// phase outside the period) is skipped with a warning, mirroring the decision
+// fan-out: one broken template must not block a whole grade transition.
+// The caller must hold the tenant recurrence lock.
+func (s *decisionService) ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error {
+	if !s.hasEnrollmentMaterializationDependencies() {
+		s.Logger.Warn("offering roster resync: enrollment repositories not configured; skipping sourced-template resync")
+		return nil
+	}
+	templates, err := s.ActivityGroupRepo.FindTemplatesWithOfferingSource(ctx)
+	if err != nil {
+		return fmt.Errorf("offering roster resync: list sourced templates: %w", err)
+	}
+	for _, tmpl := range templates {
+		if tmpl == nil || tmpl.SourceCareOfferingID == nil {
+			continue
+		}
+		err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+			TemplateID:         tmpl.ID,
+			PreviousOfferingID: tmpl.SourceCareOfferingID,
+			OfferingID:         tmpl.SourceCareOfferingID,
+			GradeLevels:        tmpl.SourceGradeLevels,
+			CalendarPeriodID:   tmpl.CalendarPeriodID,
+			EffectiveFrom:      effectiveFrom,
+		})
+		if err != nil {
+			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+				s.logSkippedSourcedTemplate(tmpl.ID, *tmpl.SourceCareOfferingID, "tenant-wide resync: source invalid", err)
+				continue
+			}
+			return fmt.Errorf("offering roster resync: template %d: %w", tmpl.ID, err)
 		}
 	}
 	return nil
@@ -126,7 +178,24 @@ func (s *decisionService) loadOfferingSource(
 	offeringID int64,
 	calendarPeriodID *int64,
 ) (*enrollmentModels.CareOffering, *enrollmentModels.Phase, error) {
-	offering, err := s.CareOfferingRepo.FindByID(ctx, offeringID)
+	return loadValidatedOfferingSource(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringID, calendarPeriodID)
+}
+
+// loadValidatedOfferingSource is the shared offering-source guard (#2137):
+// the offering must exist in this tenant and its phase's service window must
+// lie within the given calendar period (nil skips the period check). Every
+// declaration path uses it — template create/update via the resync, and the
+// split via CareOfferingSeriesValidator.ValidateTemplateOfferingSource — so
+// no path can persist a source rule the others would reject.
+func loadValidatedOfferingSource(
+	ctx context.Context,
+	offeringRepo enrollmentModels.CareOfferingRepository,
+	phaseRepo enrollmentModels.PhaseRepository,
+	periodRepo scheduleModels.CalendarPeriodRepository,
+	offeringID int64,
+	calendarPeriodID *int64,
+) (*enrollmentModels.CareOffering, *enrollmentModels.Phase, error) {
+	offering, err := offeringRepo.FindByID(ctx, offeringID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, nil, fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
@@ -136,7 +205,7 @@ func (s *decisionService) loadOfferingSource(
 	if offering == nil {
 		return nil, nil, fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	phase, err := phaseRepo.FindByID(ctx, offering.PhaseID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, nil, fmt.Errorf("%w: enrollment phase of care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
@@ -144,7 +213,7 @@ func (s *decisionService) loadOfferingSource(
 		return nil, nil, fmt.Errorf("offering roster resync: load phase: %w", err)
 	}
 	if calendarPeriodID != nil {
-		period, err := s.CalendarPeriodRepo.FindByID(ctx, *calendarPeriodID)
+		period, err := periodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
 				return nil, nil, fmt.Errorf("%w: calendar period %d not found", scheduleService.ErrOfferingSourceInvalid, *calendarPeriodID)
@@ -161,18 +230,19 @@ func (s *decisionService) loadOfferingSource(
 // wantedSourcedRosterTargets builds the desired roster of the sourced
 // template: every approved, grade-matching child of the offering with the
 // weekday set their enrollment selects, bounded by the window their offering
-// link is actually valid in.
+// link is actually valid in. Each child maps to one target per disjoint
+// link window (see coalesceSourcedRosterTargets).
 func (s *decisionService) wantedSourcedRosterTargets(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
 	phase *enrollmentModels.Phase,
 	in scheduleService.OfferingRosterResyncInput,
-) (map[int64]*sourcedRosterTarget, error) {
+) (map[int64][]*sourcedRosterTarget, error) {
 	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offering.ID}, in.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering roster resync: list approved children: %w", err)
 	}
-	wanted := make(map[int64]*sourcedRosterTarget, len(children))
+	wanted := make(map[int64][]*sourcedRosterTarget, len(children))
 	for _, child := range children {
 		grade := gradeLevelFromSchoolClass(child.SchoolClass)
 		if !gradeFilterMatches(in.GradeLevels, grade) {
@@ -192,27 +262,66 @@ func (s *decisionService) wantedSourcedRosterTargets(
 		if err != nil {
 			return nil, err
 		}
-		// A child can hold several sequential links to the same offering
-		// (dated switch). One roster row per child suffices: merge weekday
-		// sets and windows, widest wins.
-		if existing, ok := wanted[child.Link.RequestChildID]; ok {
-			mergeSourcedDraftDays(existing.draft, draft)
-			if validFrom.Before(existing.validFrom) {
-				existing.validFrom = validFrom
-			}
-			if validUntil.After(existing.validUntil) {
-				existing.validUntil = validUntil
-			}
-			continue
-		}
-		wanted[child.Link.RequestChildID] = &sourcedRosterTarget{
+		wanted[child.Link.RequestChildID] = append(wanted[child.Link.RequestChildID], &sourcedRosterTarget{
 			studentID:  child.StudentID,
 			draft:      draft,
 			validFrom:  validFrom,
 			validUntil: validUntil,
-		}
+		})
+	}
+	for childID := range wanted {
+		wanted[childID] = coalesceSourcedRosterTargets(wanted[childID])
 	}
 	return wanted, nil
+}
+
+// coalesceSourcedRosterTargets reduces a child's per-link windows to the
+// minimal row set. Windows that overlap or touch AND select the same weekday
+// set collapse into one row — the common dated-switch shape of consecutive
+// links with unchanged days. Everything else stays a separate row: bridging a
+// gap between two links would plan the child in a window it left the offering
+// for, and unifying different weekday sets would plan days only one of the
+// links selects.
+func coalesceSourcedRosterTargets(targets []*sourcedRosterTarget) []*sourcedRosterTarget {
+	sort.Slice(targets, func(i, j int) bool {
+		if targets[i].validFrom != targets[j].validFrom {
+			return targets[i].validFrom.Before(targets[j].validFrom)
+		}
+		return targets[i].validUntil.Before(targets[j].validUntil)
+	})
+	merged := make([]*sourcedRosterTarget, 0, len(targets))
+	for _, target := range targets {
+		if len(merged) > 0 {
+			last := merged[len(merged)-1]
+			if !target.validFrom.After(last.validUntil) && sameSourcedDraftDays(last.draft, target.draft) {
+				if target.validUntil.After(last.validUntil) {
+					last.validUntil = target.validUntil
+				}
+				continue
+			}
+		}
+		merged = append(merged, target)
+	}
+	return merged
+}
+
+// sameSourcedDraftDays reports whether two drafts select the same weekday set.
+func sameSourcedDraftDays(left, right *careEnrollmentDraft) bool {
+	if left.allWeekdays != right.allWeekdays {
+		return false
+	}
+	if left.allWeekdays {
+		return true
+	}
+	if len(left.selectedWeekday) != len(right.selectedWeekday) {
+		return false
+	}
+	for weekday := range left.selectedWeekday {
+		if !right.selectedWeekday[weekday] {
+			return false
+		}
+	}
+	return true
 }
 
 // sourcedRosterWindow intersects three windows into the validity of one
@@ -249,10 +358,18 @@ func sourcedRosterWindow(
 // reconcileSourcedRosterRow applies keep/cap/delete to one existing row.
 // Manual rows (no request-child tag), history, and rows protected by a
 // legacy offering link are left untouched.
+//
+// A row is only reused for a target whose window it can actually serve: the
+// weekday/period draft must match AND the validity start must line up (either
+// exactly, or the row already started before the rewrite boundary and the
+// target begins at that boundary). Matching on the draft alone would let a
+// row survive a source switch with a start or end outside the new offering
+// link's validity. The end is then set EXACTLY — shrinking is as necessary as
+// extending, because the child's offering window may have contracted.
 func (s *decisionService) reconcileSourcedRosterRow(
 	ctx context.Context,
 	row *activities.StudentEnrollment,
-	wanted map[int64]*sourcedRosterTarget,
+	wanted map[int64][]*sourcedRosterTarget,
 	protectedChildren map[int64]bool,
 	effectiveFrom timezone.Date,
 ) error {
@@ -263,18 +380,26 @@ func (s *decisionService) reconcileSourcedRosterRow(
 		return nil // history stays
 	}
 	childID := *row.EnrollmentRequestChildID
-	if target, ok := wanted[childID]; ok && careDraftMatchesEnrollment(target.draft, row) {
-		delete(wanted, childID)
-		// Only ever widen: a row capped by a dated switch is re-extended to
-		// where the child's offering window now reaches, never beyond it.
-		if row.ValidUntil != nil && row.ValidUntil.Before(target.validUntil) {
+	if idx := indexOfServableTarget(wanted[childID], row, effectiveFrom); idx >= 0 {
+		target := wanted[childID][idx]
+		wanted[childID] = append(wanted[childID][:idx], wanted[childID][idx+1:]...)
+		if len(wanted[childID]) == 0 {
+			delete(wanted, childID)
+		}
+		if protectedChildren[childID] {
+			// The row is owned by the legacy CareOffering.ActivityGroupID feed:
+			// consuming the target avoids seeding a duplicate, but its window
+			// belongs to THAT offering's lifecycle and is never resized here.
+			return nil
+		}
+		if row.ValidUntil == nil || *row.ValidUntil != target.validUntil {
 			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, target.validUntil); err != nil {
-				return fmt.Errorf("offering roster resync: extend retained enrollment: %w", err)
+				return fmt.Errorf("offering roster resync: adjust retained enrollment: %w", err)
 			}
 		}
 		return nil
 	}
-	if _, stillWanted := wanted[childID]; !stillWanted && protectedChildren[childID] {
+	if protectedChildren[childID] {
 		return nil
 	}
 	if !row.ValidFrom.Before(effectiveFrom) {
@@ -287,6 +412,30 @@ func (s *decisionService) reconcileSourcedRosterRow(
 		return fmt.Errorf("offering roster resync: cap enrollment: %w", err)
 	}
 	return nil
+}
+
+// indexOfServableTarget returns the first target the row can serve without
+// misrepresenting any day: draft (weekdays + period) equal and validity start
+// aligned. A row whose ValidFrom lies before effectiveFrom carries immutable
+// history, so it may serve a target starting exactly at the rewrite boundary;
+// any other start mismatch means cap-and-reseed.
+func indexOfServableTarget(
+	targets []*sourcedRosterTarget,
+	row *activities.StudentEnrollment,
+	effectiveFrom timezone.Date,
+) int {
+	for i, target := range targets {
+		if !careDraftMatchesEnrollment(target.draft, row) {
+			continue
+		}
+		if row.ValidFrom == target.validFrom {
+			return i
+		}
+		if row.ValidFrom.Before(effectiveFrom) && target.validFrom == effectiveFrom {
+			return i
+		}
+	}
+	return -1
 }
 
 // legacyLinkedChildIDs returns the request children whose roster rows on this
@@ -348,22 +497,6 @@ func sourcedTemplateDraft(templateID int64, calendarPeriodID *int64, days []stri
 		draft.selectedWeekday[weekday] = true
 	}
 	return draft, nil
-}
-
-// mergeSourcedDraftDays widens target's weekday set by other's. Any all-days
-// draft makes the merge all-days.
-func mergeSourcedDraftDays(target, other *careEnrollmentDraft) {
-	if target.allWeekdays {
-		return
-	}
-	if other.allWeekdays {
-		target.allWeekdays = true
-		target.selectedWeekday = make(map[int]bool)
-		return
-	}
-	for weekday := range other.selectedWeekday {
-		target.selectedWeekday[weekday] = true
-	}
 }
 
 // gradeLevelFromSchoolClass derives the numeric Jahrgang from the free-text

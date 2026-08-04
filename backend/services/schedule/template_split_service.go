@@ -195,6 +195,13 @@ type TemplateSplitDependencies struct {
 	// visible inside the split transaction. It rejects a split that would make
 	// an existing care-offering link impossible to materialize later.
 	ValidateCareOfferingSeries func(context.Context, int64) error
+	// ValidateOfferingSource guards the successor's inherited offering-source
+	// rule (#2137): the offering must exist and its phase must fit the
+	// successor's calendar period. Without it a split into a different
+	// Planungszeitraum could persist a source rule that create/update reject
+	// and later approvals only skip with a warning. Failures wrap
+	// ErrOfferingSourceInvalid.
+	ValidateOfferingSource func(ctx context.Context, offeringID int64, calendarPeriodID *int64) error
 	// Broadcaster is optional (nil → no SSE). Split/end delete planned
 	// instances outside the CRUD broadcast paths, so they must invalidate the
 	// staffing caches themselves (#1844).
@@ -227,7 +234,7 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitServi
 	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.InstanceService == nil ||
-		deps.ValidateCareOfferingSeries == nil || deps.DB == nil {
+		deps.ValidateCareOfferingSeries == nil || deps.ValidateOfferingSource == nil || deps.DB == nil {
 		panic("schedule.NewTemplateSplitService: required dependency is nil")
 	}
 	deviations, ok := deps.InstanceService.(splitDeviationPreserver)
@@ -250,6 +257,35 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitServi
 
 func (s *TemplateSplitService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
+}
+
+// validateSuccessorOfferingSource rejects a split whose successor would carry
+// the inherited offering-source rule (#2137) into a calendar period the
+// offering's phase does not fit. Create and update refuse that combination
+// (ErrOfferingSourceInvalid → 400); a "this and following" edit must not be
+// the back door that persists it, leaving later approvals to skip the
+// template with only a warning. Skipped entirely when the split moves the
+// Zielgruppe away from 'angebot' — createSuccessorGroup drops the source then.
+func (s *TemplateSplitService) validateSuccessorOfferingSource(
+	ctx context.Context,
+	in TemplateSplitInput,
+	old *activitiesModel.Group,
+) error {
+	if in.TargetGroupType != activitiesModel.TargetGroupTypeAngebot || old.SourceCareOfferingID == nil {
+		return nil
+	}
+	// Nil only in legacy package-local unit fixtures constructing the struct
+	// directly; NewTemplateSplitService requires the callback in production.
+	if s.deps.ValidateOfferingSource == nil {
+		return nil
+	}
+	if err := s.deps.ValidateOfferingSource(ctx, *old.SourceCareOfferingID, in.CalendarPeriodID); err != nil {
+		// Client-correctable 400: keep TenantTxMiddleware from committing any
+		// provisional split writes that preceded the check.
+		tenant.MarkRollback(ctx)
+		return &ScheduleError{Op: "split template: validate offering source", Err: err}
+	}
+	return nil
 }
 
 func (s *TemplateSplitService) validateCareOfferingSeries(ctx context.Context, groupID int64) error {
@@ -304,6 +340,9 @@ func (s *TemplateSplitService) splitInTransaction(
 
 	old, sourceValidUntil, activeEnrollments, activeSupervisors, err := s.prepareSplitSource(ctx, &in)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateSuccessorOfferingSource(ctx, in, old); err != nil {
 		return nil, err
 	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(

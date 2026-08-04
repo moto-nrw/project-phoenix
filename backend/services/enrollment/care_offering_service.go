@@ -68,6 +68,15 @@ type CareOfferingService interface {
 // enrollment endpoint.
 type CareOfferingSeriesValidator interface {
 	ValidateTemplateSeries(ctx context.Context, groupID int64) error
+	// ValidateTemplateOfferingSource guards a template's offering-source rule
+	// (#2137) against a calendar period: the offering must exist and its
+	// phase's service window must lie within the period (nil skips the period
+	// check). The split service calls it before carrying an inherited source
+	// onto a successor pinned to a different Planungszeitraum — create/update
+	// run the same check via the roster resync, and a split must not be able
+	// to persist a state those paths reject. Failures wrap
+	// services/schedule.ErrOfferingSourceInvalid.
+	ValidateTemplateOfferingSource(ctx context.Context, offeringID int64, calendarPeriodID *int64) error
 }
 
 // CareOfferingMaterializationResourceValidator is the narrow cross-domain
@@ -748,6 +757,16 @@ func (s *careOfferingService) lockTemplateRecurrence(ctx context.Context) error 
 		return fmt.Errorf("care offering: lock template recurrence: %w", err)
 	}
 	return nil
+}
+
+// ValidateTemplateOfferingSource implements the split-side offering-source
+// guard declared on CareOfferingSeriesValidator (#2137).
+func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context, offeringID int64, calendarPeriodID *int64) error {
+	if s.Repo == nil || s.PhaseRepo == nil || s.CalendarPeriodRepo == nil {
+		return errors.New("offering source validation dependencies are not configured")
+	}
+	_, _, err := loadValidatedOfferingSource(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringID, calendarPeriodID)
+	return err
 }
 
 // ValidateTemplateSeries checks every care offering linked to any live segment

@@ -144,6 +144,13 @@ type GroupRepository interface {
 	// offering may feed many parallel Regeltermine; split successors carry
 	// the copied source column, so every live segment appears individually.
 	FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*Group, error)
+
+	// FindTemplatesWithOfferingSource returns every non-archived template of
+	// the tenant that declares ANY care offering as its roster source (#2137).
+	// Grade transitions use it to re-reconcile all sourced rosters after
+	// school_class rewrites — a per-offering lookup cannot enumerate them
+	// because the affected offerings are unknown at that point.
+	FindTemplatesWithOfferingSource(ctx context.Context) ([]*Group, error)
 }
 
 // TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time

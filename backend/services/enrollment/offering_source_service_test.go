@@ -434,3 +434,204 @@ func TestResyncTemplateOfferingRoster_UnknownOfferingIsInvalid(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid)
 }
+
+// ---- review follow-ups (#2147) --------------------------------------------
+
+// A child who leaves the offering mid-phase and re-joins later holds two
+// disjoint links. Merging them into one interval would plan the child during
+// the gap, so the resync must seed one row per window.
+func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "LueckeQuelle", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "gap-link@example.com", "Gap", 2)
+
+	leaveDate := env.sourcePhase.ServiceStartDate.AddDays(30)
+	rejoinDate := env.sourcePhase.ServiceStartDate.AddDays(90)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(ctx, childID, leaveDate, nil))
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+		ctx,
+		childID,
+		rejoinDate,
+		[]*enrollmentModels.RequestChildOffering{{CareOfferingID: offering.ID}},
+	))
+
+	template := createSourcedTemplate(t, env, "LueckeTermin", offering.ID, []int{2}, period)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &offering.ID,
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 2, "two disjoint links yield two rows — one merged row would plan the gap")
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, leaveDate, *rows[0].ValidUntil)
+	assert.Equal(t, studentID, rows[1].StudentID)
+	assert.Equal(t, rejoinDate, rows[1].ValidFrom)
+	require.NotNil(t, rows[1].ValidUntil)
+	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[1].ValidUntil)
+}
+
+// An existing row must SHRINK when the child's offering window contracted
+// after the row was seeded — only ever extending would keep planning the
+// child past the link's end.
+func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "SchrumpfQuelle", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "shrink-link@example.com", "Kurz", 2)
+
+	template := createSourcedTemplate(t, env, "SchrumpfTermin", offering.ID, []int{2}, period)
+	input := scheduleService.OfferingRosterResyncInput{
+		TemplateID:       template.ID,
+		OfferingID:       &offering.ID,
+		GradeLevels:      []int{2},
+		CalendarPeriodID: &period.ID,
+		EffectiveFrom:    timezone.TodayDate(),
+	}
+	resyncer := offeringResyncer(t, env)
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].ValidUntil)
+	require.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+
+	// The child leaves the offering mid-phase AFTER the row was seeded.
+	capDate := env.sourcePhase.ServiceStartDate.AddDays(45)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(ctx, childID, capDate, nil))
+
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, studentID, rows[0].StudentID)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, capDate, *rows[0].ValidUntil,
+		"the retained row must shrink to the contracted offering window")
+}
+
+// Retargeting a template onto another offering must respect WHEN the child
+// holds the new offering: a row inherited from the old source may not keep a
+// start before the new link's ValidFrom.
+func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offeringA := createSourceOffering(t, env, "QuelleAlt", nil)
+	offeringB := createSourceOffering(t, env, "QuelleNeu", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, offeringA.ID, "switch-source@example.com", "Sway", 2)
+
+	template := createSourcedTemplate(t, env, "QuellwechselTermin", offeringA.ID, []int{2}, period)
+	resyncer := offeringResyncer(t, env)
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+		TemplateID:       template.ID,
+		OfferingID:       &offeringA.ID,
+		GradeLevels:      []int{2},
+		CalendarPeriodID: &period.ID,
+		EffectiveFrom:    timezone.TodayDate(),
+	}))
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+
+	// The child switches to offering B mid-phase; the template is retargeted
+	// from A to B in the same breath.
+	switchDate := env.sourcePhase.ServiceStartDate.AddDays(45)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+		ctx,
+		childID,
+		switchDate,
+		[]*enrollmentModels.RequestChildOffering{{CareOfferingID: offeringB.ID}},
+	))
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+		TemplateID:         template.ID,
+		PreviousOfferingID: &offeringA.ID,
+		OfferingID:         &offeringB.ID,
+		GradeLevels:        []int{2},
+		CalendarPeriodID:   &period.ID,
+		EffectiveFrom:      timezone.TodayDate(),
+	}))
+
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, switchDate, rows[0].ValidFrom,
+		"the row must not start before the child holds the NEW offering")
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+}
+
+// A grade transition rewrites school classes; the tenant-wide resync must
+// move children between Jahrgang-filtered Termine accordingly.
+func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "VersetzungsQuelle", nil)
+	templateGrade2 := createSourcedTemplate(t, env, "VersetzungJg2", offering.ID, []int{2}, period)
+	templateGrade3 := createSourcedTemplate(t, env, "VersetzungJg3", offering.ID, []int{3}, period)
+
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "promotion@example.com", "Promo", 2)
+	require.Len(t, loadTemplateEnrollments(t, env, templateGrade2.ID), 1)
+	require.Empty(t, loadTemplateEnrollments(t, env, templateGrade3.ID))
+
+	// Promotion: the child moves from Jahrgang 2 into Jahrgang 3.
+	_, err := env.db.NewUpdate().
+		TableExpr("users.students").
+		Set("school_class = ?", "3a").
+		Where("id = ?", studentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	resyncAll, ok := env.decision.(interface {
+		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+	})
+	require.True(t, ok, "decision service must implement the tenant-wide offering resync")
+	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()))
+
+	assert.Empty(t, loadTemplateEnrollments(t, env, templateGrade2.ID),
+		"the promoted child must leave the Jahrgang-2 Termin")
+	rows := loadTemplateEnrollments(t, env, templateGrade3.ID)
+	require.Len(t, rows, 1, "the promoted child must enter the Jahrgang-3 Termin")
+	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
+// Deleting an offering must degrade its sourced templates to plain rosters:
+// the FK nulls the source and the DB trigger clears the grade filter, so the
+// CHECK constraint cannot fail the delete.
+func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "LoeschQuelle", nil)
+	template := createSourcedTemplate(t, env, "LoeschTermin", offering.ID, []int{2}, period)
+
+	_, err := env.db.NewDelete().
+		TableExpr("enrollment.care_offerings").
+		Where("id = ?", offering.ID).
+		Exec(ctx)
+	require.NoError(t, err, "deleting an offering with a grade-filtered sourced template must not fail")
+
+	degraded, err := repositories.NewFactory(env.db).ActivityGroup.FindByID(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Nil(t, degraded.SourceCareOfferingID)
+	assert.Empty(t, degraded.SourceGradeLevels)
+}

@@ -962,6 +962,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:            materializationService,
 		InstanceService:            instanceService,
 		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
@@ -1554,6 +1555,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if !ok {
 		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
 	}
+	// Grade transitions rewrite school classes, so they must re-reconcile the
+	// offering-sourced templates' Jahrgang-filtered rosters (#2137). Wired
+	// here because the decision service is constructed after the grade
+	// transition service.
+	gradeTransitionResyncer, ok := enrollmentDecisionService.(education.OfferingSourceResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
+	}
+	gradeTransitionService.SetOfferingSourceResyncer(gradeTransitionResyncer)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,

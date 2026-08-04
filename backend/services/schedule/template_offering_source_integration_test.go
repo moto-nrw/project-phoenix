@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -383,4 +384,74 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	require.NotNil(t, kept.SourceCareOfferingID)
 	assert.Equal(t, fitting.ID, *kept.SourceCareOfferingID,
 		"a rejected edit must leave the previous source in place")
+}
+
+// A split may re-pin the successor to another Kalenderzeitraum. Carrying the
+// inherited source into a period the offering's phase does not fit would
+// persist a state create/update reject, so the split must refuse it too
+// (#2147 review).
+func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.T) {
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                 name,
+		Type:                 activitiesModels.GroupTypeCare,
+		Weekdays:             []int{activitiesModels.WeekdayMonday},
+		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:               s.roomID,
+		CategoryID:           s.categoryID,
+		MaxParticipants:      20,
+		CalendarPeriodID:     &s.period.ID,
+		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingID: &offering.ID,
+		SourceGradeLevels:    []int{1, 2},
+		RosterValidFrom:      monday.AddDays(-30),
+		GradeLevelMax:        schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	// A period starting after the offering's phase begins — the phase no
+	// longer fits, so the successor could never materialize the source.
+	latePeriod := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("Spaetzeitraum-%d", time.Now().UnixNano()),
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       s.period.StartDate.AddDays(60),
+		EndDate:         s.period.EndDate,
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	latePeriod.SetTenantID(s.tenantID)
+	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, latePeriod))
+	s.extraCleanups = append([]func(){func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", latePeriod.ID)
+	}}, s.extraCleanups...)
+
+	_, err = s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
+		TemplateID:       result.TemplateID,
+		EffectiveDate:    monday,
+		Name:             name,
+		Type:             activitiesModels.GroupTypeCare,
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		StartTime:        time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
+		RoomID:           s.roomID,
+		CategoryID:       s.categoryID,
+		CalendarPeriodID: &latePeriod.ID,
+		TargetGroupType:  activitiesModels.TargetGroupTypeAngebot,
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
+
+	// The rejected split must leave no successor behind.
+	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
+	require.NoError(t, err)
+	require.Len(t, sourced, 1)
+	assert.Equal(t, result.TemplateID, sourced[0].ID)
 }

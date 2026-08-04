@@ -305,6 +305,8 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("split template failed", err))
 	}

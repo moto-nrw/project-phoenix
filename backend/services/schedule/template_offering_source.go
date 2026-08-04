@@ -24,8 +24,10 @@ var ErrOfferingSourceInvalid = errors.New("offering source is invalid")
 type OfferingRosterResyncInput struct {
 	TemplateID int64
 	// PreviousOfferingID is the offering the template was sourced from before
-	// this edit (nil on create or when it had no source). It scopes the
-	// cleanup when the source changes or is removed.
+	// this edit (nil on create or when it had no source). Informational: the
+	// resync reconciles by diffing every tagged row of the template against
+	// the new source's wanted windows, so stale rows are cleaned up without
+	// scoping by the previous offering.
 	PreviousOfferingID *int64
 	// OfferingID is the new source; nil removes the source (cleanup only).
 	OfferingID *int64

@@ -131,6 +131,27 @@ func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, off
 	return groups, nil
 }
 
+// FindTemplatesWithOfferingSource returns every live template of the tenant
+// that declares an offering source (#2137). See the interface doc for why
+// this cannot be a per-offering lookup.
+func (r *GroupRepository) FindTemplatesWithOfferingSource(ctx context.Context) ([]*activities.Group, error) {
+	tenantID := tenant.FromContext(ctx)
+	groups := make([]*activities.Group, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".is_template = TRUE`).
+		Where(`"group".archived_at IS NULL`).
+		Where(`"group".source_care_offering_id IS NOT NULL`).
+		OrderExpr(`"group".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find templates with offering source", Err: err}
+	}
+	return groups, nil
+}
+
 // FindByCategory finds all groups in a specific category
 func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
