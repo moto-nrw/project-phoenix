@@ -13,8 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -74,16 +72,8 @@ func (c *planningTimesCounter) captured(table string) []string {
 // enrichWithDayPlanning had already issued, so every bucket held 2.
 func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 	tc := setupTestContext(t)
-
-	// The bulk loaders return early with zero queries on weekends (schedules
-	// only apply Mon-Fri), which would make the ==1 assertions fail vacuously.
-	berlinToday := timezone.DateOf(time.Now())
-	todayWeekday := int(berlinToday.Weekday())
-	if todayWeekday == 0 {
-		todayWeekday = 7 // Sunday
-	}
-	if todayWeekday > scheduleModel.WeekdayFriday {
-		t.Skip("Skipping planning-times budget test on weekend — schedules only apply Mon-Fri")
+	tc.resource.Now = func() time.Time {
+		return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	}
 
 	studentA := testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindA", "TB1")
