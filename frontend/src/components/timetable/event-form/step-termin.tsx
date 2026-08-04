@@ -17,6 +17,7 @@ import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
 import type { RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
+import { PlanningTrackSelect } from "../planning-track-select";
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -68,7 +69,7 @@ export interface StepTerminProps {
   /** Opens the Kategorien-verwalten dialog, either on the list or straight in the create form. */
   onManageCategories: (mode: "list" | "create") => void;
   canManagePlanningTracks?: boolean;
-  onManagePlanningTracks?: (mode: "list" | "create") => void;
+  onPlanningTracksChanged?: (created?: PlanningTrack) => void | Promise<void>;
 }
 
 /**
@@ -77,7 +78,7 @@ export interface StepTerminProps {
  */
 export const CREATE_CATEGORY_OPTION = "__create_category__";
 const EMPTY_PLANNING_TRACKS: PlanningTrack[] = [];
-const NOOP_MANAGE_PLANNING_TRACKS = () => undefined;
+const NOOP_PLANNING_TRACKS_CHANGED = () => undefined;
 
 /**
  * Wizard step 1 "Termin": the fields that make an event savable on their own —
@@ -102,7 +103,7 @@ export function StepTermin({
   canManageCategories,
   onManageCategories,
   canManagePlanningTracks = false,
-  onManagePlanningTracks = NOOP_MANAGE_PLANNING_TRACKS,
+  onPlanningTracksChanged = NOOP_PLANNING_TRACKS_CHANGED,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -219,40 +220,13 @@ export function StepTermin({
             />
           </Field>
 
-          <Field
-            label="Planungsspur"
-            htmlFor="event_planning_track"
-            action={
-              canManagePlanningTracks ? (
-                <button
-                  type="button"
-                  onClick={() => onManagePlanningTracks("list")}
-                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
-                >
-                  Verwalten
-                </button>
-              ) : undefined
-            }
-          >
-            <CustomSelect
-              id="event_planning_track"
-              ariaLabel="Planungsspur"
+          <Field label="Planungsspur" htmlFor="event_planning_track">
+            <PlanningTrackSelect
               value={form.planningTrackId}
-              options={[
-                { value: "", label: "Keine Planungsspur" },
-                ...planningTracks
-                  .filter(
-                    (track) =>
-                      !track.archivedAt || track.id === form.planningTrackId,
-                  )
-                  .map((track) => ({
-                    value: track.id,
-                    label: track.archivedAt
-                      ? `${track.name} (archiviert)`
-                      : track.name,
-                  })),
-              ]}
+              tracks={planningTracks}
               onChange={(next) => update("planningTrackId", next)}
+              onTracksChanged={onPlanningTracksChanged}
+              canManage={canManagePlanningTracks}
               disabled={loadingRefs}
             />
             <p className="mt-1 text-[11px] leading-4 text-gray-500">

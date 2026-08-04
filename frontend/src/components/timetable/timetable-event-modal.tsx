@@ -29,7 +29,6 @@ import {
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
 import { CategoryManageModal } from "./category-manage-modal";
-import { PlanningTrackManageModal } from "./planning-track-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -153,9 +152,6 @@ export function TimetableEventModal({
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
   const [categoryDialog, setCategoryDialog] = useState<
-    "list" | "create" | null
-  >(null);
-  const [planningTrackDialog, setPlanningTrackDialog] = useState<
     "list" | "create" | null
   >(null);
   const {
@@ -510,7 +506,9 @@ export function TimetableEventModal({
                 canManageCategories={canManageCategories}
                 onManageCategories={setCategoryDialog}
                 canManagePlanningTracks={canManagePlanningTracks}
-                onManagePlanningTracks={setPlanningTrackDialog}
+                onPlanningTracksChanged={async (created) => {
+                  await refreshPlanningTracks(created?.id);
+                }}
               />
             )}
 
@@ -882,17 +880,6 @@ export function TimetableEventModal({
             onChanged={async (created) => {
               await refreshCategories(created?.id);
               if (created) setCategoryDialog(null);
-            }}
-          />
-        )}
-        {canManagePlanningTracks && planningTrackDialog && (
-          <PlanningTrackManageModal
-            isOpen
-            initialView={planningTrackDialog}
-            onClose={() => setPlanningTrackDialog(null)}
-            onChanged={async (created) => {
-              await refreshPlanningTracks(created?.id);
-              if (created) setPlanningTrackDialog(null);
             }}
           />
         )}
