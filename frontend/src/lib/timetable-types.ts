@@ -948,9 +948,11 @@ export interface CreateTemplateBody {
   target_school_class?: string;
   /** Offering-source rule (#2137, target_group_type "angebot" only). With a
    * source set, student_ids must be empty — the roster derives from the
-   * offering's approved enrollments. */
-  source_care_offering_id?: number;
-  source_grade_levels?: number[];
+   * offering's approved enrollments. The update endpoint is presence-aware:
+   * an omitted field keeps the stored value, only an explicit null clears
+   * it — so always send null, never undefined, to mean "no source". */
+  source_care_offering_id?: number | null;
+  source_grade_levels?: number[] | null;
   /**
    * Series start (#2135): schedules get it as valid_from, so no instances
    * materialize before it and the roster becomes valid from it. Must lie

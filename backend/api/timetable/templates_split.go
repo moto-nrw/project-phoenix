@@ -53,6 +53,24 @@ func (n *nullableInt) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &n.Value)
 }
 
+// nullableIntSlice is the []int member of the tri-state family: it tells an
+// omitted source_grade_levels ("keep the stored Jahrgangsfilter") apart from
+// an explicit null or empty list ("clear the filter") on the template PUT
+// (#2147 review round 12).
+type nullableIntSlice struct {
+	Set   bool
+	Value []int
+}
+
+func (n *nullableIntSlice) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 // nullableStr is the string analogue of nullableInt: it tells an omitted note
 // ("inherit the source Wochennotiz") apart from an explicit null ("clear the
 // series note") for the split flow (#1837 follow-up). (Named nullableStr to

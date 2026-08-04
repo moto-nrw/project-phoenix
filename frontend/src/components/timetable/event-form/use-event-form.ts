@@ -1337,16 +1337,20 @@ export function useEventForm({
       form.targetGroupType === "klasse" && form.targetSchoolClasses.length > 0
         ? form.targetSchoolClasses[0]?.trim()
         : undefined,
+    // Explicit null, never undefined: the update endpoint is presence-aware
+    // (#2147 review round 12) — an omitted field keeps the stored source, so
+    // clearing it in the editor MUST send null to be honored. Create treats
+    // null and omitted alike.
     source_care_offering_id:
       form.targetGroupType === "angebot" && form.sourceCareOfferingId
         ? Number(form.sourceCareOfferingId)
-        : undefined,
+        : null,
     source_grade_levels:
       form.targetGroupType === "angebot" &&
       form.sourceCareOfferingId &&
       form.sourceGradeLevels.length > 0
         ? [...form.sourceGradeLevels].sort((a, b) => a - b)
-        : undefined,
+        : null,
     targets:
       form.targetGroupType === "jahrgang"
         ? form.targetGradeLevels.map((value) => ({
@@ -1505,15 +1509,17 @@ export function useEventForm({
       target_group_type: template.targetGroupType,
       target_grade_level: template.targetGradeLevel,
       target_school_class: template.targetSchoolClass,
+      // Explicit null mirrors seriesBody: the presence-aware PUT keeps an
+      // omitted source, so preserving "no source" needs null (#2147 r12).
       source_care_offering_id: template.sourceCareOfferingId
         ? Number(template.sourceCareOfferingId)
-        : undefined,
+        : null,
       source_grade_levels:
         template.sourceCareOfferingId &&
         template.sourceGradeLevels &&
         template.sourceGradeLevels.length > 0
           ? template.sourceGradeLevels
-          : undefined,
+          : null,
       targets: template.targets?.map((target) => ({
         type: target.type,
         grade_level: target.gradeLevel,

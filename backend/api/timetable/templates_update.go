@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/go-chi/render"
@@ -35,9 +36,13 @@ type updateTemplateRequest struct {
 	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
 	Targets           []templateTargetRequest `json:"targets,omitempty"`
-	// Offering-source rule (#2137) — see createTemplateRequest.
-	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
-	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
+	// Offering-source rule (#2137) — see createTemplateRequest. Both fields
+	// are presence-aware (#2147 review round 12): an omitted field keeps the
+	// template's stored value, only an explicit null (or explicit empty
+	// filter list) clears it. A client predating these fields must not strip
+	// a template's dynamic Angebots-Belegung by simply not knowing them.
+	SourceCareOfferingID nullableInt64    `json:"source_care_offering_id"`
+	SourceGradeLevels    nullableIntSlice `json:"source_grade_levels"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -81,14 +86,14 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	}
 	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
 		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingID, req.SourceGradeLevels, req.Targets,
+		req.SourceCareOfferingID.Value, req.SourceGradeLevels.Value, req.Targets,
 	)
 	if err != nil {
 		return err
 	}
 	req.TargetGroupType = targetType
 	req.TargetSchoolClass = schoolClass
-	req.SourceGradeLevels = sourceGradeLevels
+	req.SourceGradeLevels.Value = sourceGradeLevels
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -202,6 +207,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	applyOfferingSourcePresence(parsed.req, templates[0])
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, nil)
 	if !ok {
 		return
@@ -230,6 +236,36 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
+}
+
+// applyOfferingSourcePresence resolves the presence-aware offering-source
+// fields against the stored template (#2147 review round 12): an omitted
+// field keeps the stored value — a client sending the pre-#2137 full update
+// body must not silently strip the dynamic Angebots-Belegung — while an
+// explicit null clears it. Carrying only applies while the update keeps the
+// 'angebot' Zielgruppe; every other type cannot hold a source (DB CHECK), so
+// a type switch drops the rule like a split away from 'angebot' does. The
+// merged result still passes the service validation, so a carried source
+// conflicts loudly (400) with submitted student_ids or weekday_assignments
+// instead of being half-applied.
+func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateResponse) {
+	if req.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
+		return
+	}
+	if !req.SourceCareOfferingID.Set && existing.SourceCareOfferingID != nil {
+		id := *existing.SourceCareOfferingID
+		req.SourceCareOfferingID.Value = &id
+	}
+	if req.SourceGradeLevels.Set {
+		return
+	}
+	// The filter follows the source: a kept or carried source keeps the stored
+	// filter; a source cleared by explicit null takes the filter down with it.
+	if req.SourceCareOfferingID.Value != nil {
+		req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
+	} else {
+		req.SourceGradeLevels.Value = nil
+	}
 }
 
 // validateLegacyTemplateWorkdays permits an update to retain a weekend
@@ -287,8 +323,8 @@ func buildUpdateTemplateInput(
 			TargetGroupType:         req.TargetGroupType,
 			TargetGradeLevel:        req.TargetGradeLevel,
 			TargetSchoolClass:       req.TargetSchoolClass,
-			SourceCareOfferingID:    req.SourceCareOfferingID,
-			SourceGradeLevels:       req.SourceGradeLevels,
+			SourceCareOfferingID:    req.SourceCareOfferingID.Value,
+			SourceGradeLevels:       req.SourceGradeLevels.Value,
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),
 		},

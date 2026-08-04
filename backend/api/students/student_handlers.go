@@ -1180,12 +1180,12 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 // Recurrence gate: a school_class edit moves the child between Jahrgängen, so
 // the Jahrgang-filtered offering-sourced Regeltermine must be re-reconciled in
 // the same transaction, exactly like a grade transition (#2147 review round
-// 10). The gate is taken BEFORE any student row lock, mirroring the
-// grade-transition lock order (recurrence gate first, row locks second) —
-// acquiring it after the row locks could deadlock against a concurrently
-// applying transition. It is taken whenever the request carries a class at
-// all, because whether the class actually changes is only known once the row
-// is locked.
+// 10). The gates are taken BEFORE any student row lock, in the project-wide
+// grade-transition order (shared class-writes gate first, recurrence gate
+// second, row locks last) — any other order can deadlock against a
+// concurrently applying transition. They are taken whenever the request
+// carries a class at all, because whether the class actually changes is only
+// known once the row is locked.
 func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *users.Student, req *UpdateStudentRequest) (classChangeRequested bool, err error) {
 	consentChanging := req.PhotoConsentGiven != nil &&
 		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
@@ -1200,6 +1200,16 @@ func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *users.S
 	}
 	if rs.LockTemplateRecurrence == nil {
 		return false, errors.New("template recurrence lock is not configured")
+	}
+	// Shared class-writes gate BEFORE the recurrence gate: a grade transition
+	// takes the class-writes gate exclusively FIRST and then the recurrence
+	// gate (lockRecurrenceThenTransitions). Taking recurrence here and the
+	// shared class gate only later (implicitly, inside FindByIDForUpdate)
+	// would let the two transactions wait on each other cyclically until
+	// PostgreSQL aborts one (#2147 review round 12). Re-entrant, so the
+	// row-lock methods' implicit shared acquisition stays a no-op.
+	if err := rs.StudentService.LockClassWritesShared(ctx); err != nil {
+		return false, err
 	}
 	if err := rs.LockTemplateRecurrence(ctx); err != nil {
 		return false, err
