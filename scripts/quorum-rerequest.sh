@@ -152,7 +152,7 @@ if [[ -z "$target" ]]; then
 fi
 
 # --- PR state ---------------------------------------------------------------
-pr_fields="number,state,url,author,reviewRequests,comments,commits"
+pr_fields="number,state,url,author,reviewRequests"
 if ! pr_json=$(gh pr view ${pr_arg:+"$pr_arg"} --json "$pr_fields" 2>&1); then
     case "$pr_json" in
         *"no pull requests found"* | *"Could not resolve"* | *"no default remote"*)
@@ -180,20 +180,48 @@ if [[ "$pr_state" != "OPEN" ]]; then
     exit 0
 fi
 
+repo_slug=$(printf '%s' "$pr_url" | sed -E 's#https://[^/]+/([^/]+/[^/]+)/pull/.*#\1#')
+
+# Comments come from the REST endpoint with explicit pagination - provably
+# complete on any PR size. An unanswerable lookup is inconclusive, not clean.
+comments="[]"
+comments_ok=0
+for _ in 1 2 3; do
+    if comments_raw=$(gh api "repos/$repo_slug/issues/$pr_number/comments" --paginate --slurp 2>/dev/null) &&
+        comments=$(printf '%s' "$comments_raw" | jq -c 'add // []' 2>/dev/null); then
+        comments_ok=1
+        break
+    fi
+    sleep 1
+done
+if [[ "$comments_ok" == "0" ]]; then
+    can_cache=0
+    if [[ "$mode" == "stop-hook" ]]; then
+        emit_block "BLOCKED: quorum re-request status on PR #$pr_number is INCONCLUSIVE.
+
+The PR's comments could not be fetched, so it is unknown whether a quorum
+review exists that was answered without a re-request. Do not report this work
+as finished. Retry:
+  scripts/quorum-rerequest.sh --check
+If GitHub is unreachable and the user wants to finish anyway, they can opt out
+with QUORUM_RERQ_OFF=1 or: touch .git/quorum-rerequest-off"
+    fi
+    bail "could not fetch comments for PR #$pr_number"
+fi
+
 # A quorum report comes from that account and carries all five of its section
 # headings, which excludes quorum's own "Review fix round N" notes.
-last_review=$(printf '%s' "$pr_json" | jq -c --arg qr "$target" '
+last_review=$(printf '%s' "$comments" | jq -c --arg qr "$target" '
     def is_quorum_report:
         (.body | test("(^|\n)## Summary"))
         and (.body | test("(^|\n)## Blockers"))
         and (.body | test("(^|\n)## Critical"))
         and (.body | test("(^|\n)## Suggestions"))
         and (.body | test("(^|\n)## Questions"));
-    .comments
-    | map(select(.author.login == $qr and is_quorum_report))
+    map(select(.user.login == $qr and is_quorum_report))
     | last // {}
 ')
-last_review_at=$(printf '%s' "$last_review" | jq -r '.createdAt // empty')
+last_review_at=$(printf '%s' "$last_review" | jq -r '.created_at // empty')
 
 # Nothing to re-trigger without a review to answer.
 if [[ -z "$last_review_at" ]]; then
@@ -217,13 +245,13 @@ if [[ "$target" == "$pr_author" ]]; then
 fi
 
 # --- did anything change since that review ----------------------------------
-# committedDate is when a commit was written, not when it reached the PR, so it
-# alone misses a fix that was committed before the review and pushed after it.
-# The timeline is the second opinion: commit events that sit behind the review
-# comment arrived after it. Either signal is enough.
-last_commit_at=$(printf '%s' "$pr_json" | jq -r '[.commits[].committedDate] | max // empty')
-
-repo_slug=$(printf '%s' "$pr_url" | sed -E 's#https://[^/]+/([^/]+/[^/]+)/pull/.*#\1#')
+# The timeline is the only authority on "was something pushed after the
+# review": commit TIMESTAMPS (committedDate) are useless in both directions -
+# a fix committed before the review and pushed after it carries an old date
+# (missed re-request), a preserved or future-dated commit pushed before the
+# review carries a newer one (false alarm). Only the POSITION of head-movement
+# events relative to the report comment is trustworthy; every issue comment
+# has exactly one timeline "commented" event with an identical created_at.
 
 # A failed timeline call must not read as "nothing changed" and must never be
 # cached as clean, otherwise one flaky request silences the check for this HEAD.
@@ -244,13 +272,13 @@ if [[ "$timeline_ok" == "0" ]]; then
     can_cache=0
 fi
 
+# head_moved is three-valued: true / false / unknown. Unknown covers a dead
+# timeline AND a timeline in which the report comment cannot be located - in
+# both cases "nothing changed" would be a guess, and a guess must not end a
+# turn cleanly.
 # A review_requested event only counts when it aimed at the quorum account and
-# sits behind the last head movement in the timeline: a re-request followed by
-# further commits leaves those commits unreviewed, so it does not settle the
-# loop. Ordering is judged by timeline POSITION, not by committedDate - the
-# committer timestamp survives rebases and cherry-picks, so a preserved or
-# future-dated commit would otherwise reject a perfectly valid re-request
-# forever.
+# sits behind the last head movement: a re-request followed by further commits
+# leaves those commits unreviewed, so it does not settle the loop.
 timeline_flags=$(printf '%s' "$timeline" | jq -c \
     --arg rev "$last_review_at" --arg tgt "$target" '
     def target_of: (.requested_reviewer.login // .requested_team.slug // "");
@@ -261,8 +289,9 @@ timeline_flags=$(printf '%s' "$timeline" | jq -c \
     | ([range(0; length) | select($ev[.] | is_head_move)] | last) as $h
     | {
         head_moved: (
-            if $i == null then false
-            else ($ev[($i + 1):] | map(select(is_head_move)) | length > 0)
+            if $i == null then "unknown"
+            elif ($ev[($i + 1):] | map(select(is_head_move)) | length > 0) then "true"
+            else "false"
             end
         ),
         rerequested: (
@@ -275,38 +304,34 @@ timeline_flags=$(printf '%s' "$timeline" | jq -c \
             | length > 0
         )
     }
-' 2>/dev/null) || timeline_flags='{"head_moved":false,"rerequested":false}'
+' 2>/dev/null) || timeline_flags='{"head_moved":"unknown","rerequested":false}'
 
-head_moved=$(printf '%s' "$timeline_flags" | jq -r '.head_moved // false')
+head_moved=$(printf '%s' "$timeline_flags" | jq -r '.head_moved // "unknown"')
 rerequested=$(printf '%s' "$timeline_flags" | jq -r '.rerequested // false')
 
-pushed_after_review=0
-if [[ -n "$last_commit_at" ]] && [[ "$last_commit_at" > "$last_review_at" ]]; then
-    pushed_after_review=1
-fi
-if [[ "$head_moved" == "true" ]]; then
-    pushed_after_review=1
+if [[ "$timeline_ok" == "0" ]]; then
+    head_moved="unknown"
 fi
 
-# With the timeline unavailable, "nothing pushed" cannot be distinguished from
-# "a pre-review commit was pushed after the review": committedDate alone cannot
-# see the latter. Inconclusive is not clean - the Stop hook blocks and says so,
-# the other modes exit 3.
-if [[ "$timeline_ok" == "0" && "$pushed_after_review" == "0" && "$force" == "0" ]]; then
+# Unknown is not clean - the Stop hook blocks and says so, the other modes
+# exit 3. --force skips the question entirely.
+if [[ "$head_moved" == "unknown" && "$force" == "0" ]]; then
+    can_cache=0
     if [[ "$mode" == "stop-hook" ]]; then
         emit_block "BLOCKED: quorum re-request status on PR #$pr_number is INCONCLUSIVE.
 
-A quorum review from $last_review_at exists, but the GitHub timeline could not
-be fetched, so it is unknown whether fixes were pushed since and whether
-$target was re-requested. Do not report this work as finished. Retry:
+A quorum review from $last_review_at exists, but the PR timeline could not be
+read (or the report could not be located in it), so it is unknown whether
+fixes were pushed since and whether $target was re-requested. Do not report
+this work as finished. Retry:
   scripts/quorum-rerequest.sh --check
 If GitHub is unreachable and the user wants to finish anyway, they can opt out
 with QUORUM_RERQ_OFF=1 or: touch .git/quorum-rerequest-off"
     fi
-    bail "timeline lookup for PR #$pr_number failed - cannot tell whether a re-request is owed (retry, or --force to re-request regardless)"
+    bail "cannot tell whether a re-request is owed on PR #$pr_number - timeline unreadable or report not found in it (retry, or --force to re-request regardless)"
 fi
 
-if [[ "$force" == "0" && "$pushed_after_review" == "0" ]]; then
+if [[ "$force" == "0" && "$head_moved" == "false" ]]; then
     if [[ "$mode" == "apply" ]]; then
         echo "PR #$pr_number: nothing pushed since the quorum review at $last_review_at."
         echo "Nothing to re-review. Use --force to request a fresh round anyway."
@@ -349,19 +374,28 @@ fi
 
 # apply
 # The removal is what makes the following add produce a fresh review_requested
-# event. A failed removal may only be ignored while the target is NOT currently
-# requested (removing an absent reviewer errors by design) - swallowing it
-# otherwise would turn the add into a silent no-op that this script would then
-# report as a fresh request.
-requested_now=$(printf '%s' "$pr_json" | jq -r --arg t "$target" '
-    [.reviewRequests[]? | (.login // .slug // "")]
-    | any(. == $t or . == ($t | split("/") | last))')
+# event. Every pending-request check below asks GitHub FRESH - the pr_json
+# snapshot from the top of the script is stale by now and a stale answer here
+# turns the add into a silent no-op that would be reported as success.
+pending_now() {
+    # Prints true / false, or fails (non-zero) when GitHub cannot be asked.
+    gh pr view "$pr_number" --json reviewRequests 2>/dev/null |
+        jq -r --arg t "$target" '
+            [.reviewRequests[]? | (.login // .slug // "")]
+            | any(. == $t or . == ($t | split("/") | last))' 2>/dev/null
+    return "${PIPESTATUS[0]}"
+}
 
 if ! rm_out=$(gh pr edit "$pr_number" --remove-reviewer "$target" 2>&1); then
-    if [[ "$requested_now" == "true" ]]; then
+    # A failed removal is only tolerable when the target is verifiably not
+    # requested (removing an absent reviewer errors by design). Decide on a
+    # fresh lookup; if that lookup fails too, the state is unknown - abort.
+    still_pending=$(pending_now) || still_pending="unknown"
+    if [[ "$still_pending" != "false" ]]; then
         echo "Failed to remove the pending request for $target on PR #$pr_number:" >&2
         echo "  $rm_out" >&2
-        echo "Without the removal the add would be a silent no-op. Nothing was changed." >&2
+        echo "Pending state now: $still_pending. Without a confirmed removal the add" >&2
+        echo "would be a silent no-op. Nothing was changed." >&2
         exit 1
     fi
 fi
@@ -378,22 +412,20 @@ done
 if [[ "$added" == "0" ]]; then
     echo "Failed to re-request review from $target on PR #$pr_number:" >&2
     echo "  $add_out" >&2
-    if [[ "$requested_now" == "true" ]]; then
-        echo "The previous request WAS already removed - the PR currently has no pending" >&2
-        echo "request for $target. Repair it with:" >&2
-        echo "  gh pr edit $pr_number --add-reviewer $target" >&2
-    fi
+    echo "The pending request may already have been removed. Check and repair with:" >&2
+    echo "  gh pr view $pr_number --json reviewRequests" >&2
+    echo "  gh pr edit $pr_number --add-reviewer $target" >&2
     exit 1
 fi
 
-# Trust, but verify: the add must actually have landed as a pending request.
-verify=$(gh pr view "$pr_number" --json reviewRequests 2>/dev/null |
-    jq -r --arg t "$target" '
-        [.reviewRequests[]? | (.login // .slug // "")]
-        | any(. == $t or . == ($t | split("/") | last))' 2>/dev/null || echo "unknown")
-if [[ "$verify" == "false" ]]; then
-    echo "gh reported success, but $target is not in the PR's pending requests." >&2
-    echo "Verify manually: gh pr view $pr_number --json reviewRequests" >&2
+# Trust, but verify: the add must verifiably have landed as a pending request.
+# An unanswerable verification is a failure, not a pass - the cache stays
+# untouched so the next hook run re-checks.
+verify=$(pending_now) || verify="unknown"
+if [[ "$verify" != "true" ]]; then
+    echo "gh reported success, but the pending request for $target could not be" >&2
+    echo "confirmed (state: $verify). Verify manually:" >&2
+    echo "  gh pr view $pr_number --json reviewRequests" >&2
     exit 1
 fi
 
