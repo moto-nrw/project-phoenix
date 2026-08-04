@@ -19,6 +19,10 @@
 #   --stop-hook   Stop-hook protocol: exit 2 (with instructions on stderr)
 #                 when a re-request is owed and the work looks finished
 #
+# The quorum account is taken from the author of the quorum report on the PR.
+# Pin it explicitly with `git config quorum.reviewer <login>`. Only that account
+# is ever re-requested; other reviewers and teams on the PR are left alone.
+#
 # Opt out per clone with `touch .git/quorum-rerequest-off`, per invocation
 # with QUORUM_RERQ_OFF=1.
 #
@@ -122,12 +126,21 @@ pr_number=$(printf '%s' "$pr_json" | jq -r '.number')
 pr_url=$(printf '%s' "$pr_json" | jq -r '.url')
 pr_author=$(printf '%s' "$pr_json" | jq -r '.author.login // empty')
 
-# A quorum report is a comment carrying both the Summary and the Blockers
-# heading. That excludes quorum's own "Review fix round N" progress notes and
-# third-party bot comments.
-last_review=$(printf '%s' "$pr_json" | jq -c '
+# A quorum report carries all five of its section headings. Two of them would
+# also match an ordinary human comment; the full set is the stable fingerprint,
+# and it excludes quorum's own "Review fix round N" notes and other bots.
+# `git config quorum.reviewer <login>` pins the account on top of that.
+quorum_reviewer=$(git config --get quorum.reviewer 2>/dev/null || echo "")
+
+last_review=$(printf '%s' "$pr_json" | jq -c --arg qr "$quorum_reviewer" '
+    def is_quorum_report:
+        (.body | test("(^|\n)## Summary"))
+        and (.body | test("(^|\n)## Blockers"))
+        and (.body | test("(^|\n)## Critical"))
+        and (.body | test("(^|\n)## Suggestions"))
+        and (.body | test("(^|\n)## Questions"));
     .comments
-    | map(select((.body | test("(^|\n)## Summary")) and (.body | test("(^|\n)## Blockers"))))
+    | map(select(is_quorum_report and ($qr == "" or .author.login == $qr)))
     | last // {}
 ')
 last_review_at=$(printf '%s' "$last_review" | jq -r '.createdAt // empty')
@@ -142,101 +155,117 @@ if [[ -z "$last_review_at" ]]; then
     exit 0
 fi
 
-# ISO-8601 Z timestamps compare correctly as strings.
+# --- who to re-request ------------------------------------------------------
+# Exactly the quorum account, never the other reviewers on the PR: re-requesting
+# a human or a team would reset a review they are in the middle of.
+target="${quorum_reviewer:-$last_review_by}"
+
+if [[ -z "$target" || "$target" == "$pr_author" ]]; then
+    # GitHub refuses a review request from the PR author. quorum reviewing its
+    # own operator's PR means `quorum babysit`, which re-triggers itself, so
+    # there is nothing to enforce here.
+    if [[ "$mode" == "apply" ]]; then
+        echo "PR #$pr_number: the quorum review came from the PR author ($pr_author);"
+        echo "GitHub does not accept a review request from the author. Nothing to do."
+    fi
+    mark_clean
+    exit 0
+fi
+
+# --- did anything change since that review ----------------------------------
+# committedDate is when a commit was written, not when it reached the PR, so it
+# alone misses a fix that was committed before the review and pushed after it.
+# The timeline is the second opinion: commit events that sit behind the review
+# comment arrived after it. Either signal is enough.
 last_commit_at=$(printf '%s' "$pr_json" | jq -r '[.commits[].committedDate] | max // empty')
 
-pushed_after_review=1
-if [[ -z "$last_commit_at" ]] || [[ ! "$last_commit_at" > "$last_review_at" ]]; then
-    pushed_after_review=0
+repo_slug=$(printf '%s' "$pr_url" | sed -E 's#https://[^/]+/([^/]+/[^/]+)/pull/.*#\1#')
+timeline=$(gh api "repos/$repo_slug/issues/$pr_number/timeline" --paginate --slurp 2>/dev/null |
+    jq -c 'add // []' 2>/dev/null) || timeline="[]"
+
+# A review_requested event only counts when it aimed at the quorum account -
+# requesting some other reviewer must not pass as a fresh quorum round.
+timeline_flags=$(printf '%s' "$timeline" | jq -c --arg rev "$last_review_at" --arg tgt "$target" '
+    def target_of: (.requested_reviewer.login // .requested_team.slug // "");
+    def short: ($tgt | split("/") | last);
+    . as $ev
+    | ([range(0; length) | select($ev[.].event == "commented" and $ev[.].created_at == $rev)] | last) as $i
+    | {
+        head_moved: (
+            if $i == null then false
+            else ($ev[($i + 1):] | map(select(.event == "committed" or .event == "head_ref_force_pushed")) | length > 0)
+            end
+        ),
+        rerequested: (
+            $ev
+            | map(select(.event == "review_requested"
+                and (target_of == $tgt or target_of == short)
+                and (.created_at > $rev)))
+            | length > 0
+        )
+    }
+' 2>/dev/null) || timeline_flags='{"head_moved":false,"rerequested":false}'
+
+head_moved=$(printf '%s' "$timeline_flags" | jq -r '.head_moved // false')
+rerequested=$(printf '%s' "$timeline_flags" | jq -r '.rerequested // false')
+
+pushed_after_review=0
+if [[ -n "$last_commit_at" ]] && [[ "$last_commit_at" > "$last_review_at" ]]; then
+    pushed_after_review=1
+fi
+if [[ "$head_moved" == "true" ]]; then
+    pushed_after_review=1
 fi
 
 if [[ "$force" == "0" && "$pushed_after_review" == "0" ]]; then
     if [[ "$mode" == "apply" ]]; then
-        echo "PR #$pr_number: no commits pushed since the quorum review at $last_review_at."
+        echo "PR #$pr_number: nothing pushed since the quorum review at $last_review_at."
         echo "Nothing to re-review. Use --force to request a fresh round anyway."
     fi
     mark_clean
     exit 0
 fi
 
-# Only now, when a re-request is plausible, pay for the timeline call.
-repo_slug=$(printf '%s' "$pr_url" | sed -E 's#https://[^/]+/([^/]+/[^/]+)/pull/.*#\1#')
-last_request_at=$(gh api "repos/$repo_slug/issues/$pr_number/timeline" --paginate \
-    --jq '[.[] | select(.event == "review_requested") | .created_at] | max // empty' 2>/dev/null || echo "")
-
-if [[ "$force" == "0" && -n "$last_request_at" ]] && [[ "$last_request_at" > "$last_review_at" ]]; then
+if [[ "$force" == "0" && "$rerequested" == "true" ]]; then
     if [[ "$mode" == "apply" ]]; then
-        echo "PR #$pr_number was already re-requested at $last_request_at (review: $last_review_at)."
+        echo "PR #$pr_number: $target was already re-requested after the review at $last_review_at."
         echo "Use --force to request another round."
     fi
     mark_clean
     exit 0
 fi
 
-# --- who to re-request ------------------------------------------------------
-# Whoever is on the PR right now, else the account that posted the review.
-# GitHub refuses a review request from the PR author, so that case is reported
-# rather than failed on.
-targets=$(printf '%s' "$pr_json" |
-    jq -r '.reviewRequests[]? | (.login // .slug // empty)' | sed '/^$/d')
-
-if [[ -z "$targets" && -n "$last_review_by" && "$last_review_by" != "$pr_author" ]]; then
-    targets="$last_review_by"
-fi
-
-if [[ -z "$targets" ]]; then
-    no_target_msg="quorum re-request owed on PR #$pr_number, but no reviewer could be determined:
-nobody is requested on the PR, and the review came from the PR author, whom
-GitHub refuses as a reviewer.
-
-Ask the user who should be re-requested, then run:
-  gh pr edit $pr_number --add-reviewer <login-or-org/team>"
-    # Blocking here too: silently dropping this case is the exact failure the
-    # hook exists to prevent.
-    if [[ "$mode" == "stop-hook" ]]; then emit_block "$no_target_msg"; fi
-    printf '%s\n' "$no_target_msg" >&2
-    exit 1
-fi
-
-targets_flat=$(printf '%s' "$targets" | tr '\n' ' ' | sed 's/ *$//')
-
 # --- report / act -----------------------------------------------------------
 if [[ "$mode" == "check" ]]; then
-    echo "quorum re-request owed on PR #$pr_number (review $last_review_at, head $last_commit_at): $targets_flat"
+    echo "quorum re-request owed on PR #$pr_number (review $last_review_at): $target"
     exit 1
 fi
 
 if [[ "$mode" == "stop-hook" ]]; then
     emit_block "BLOCKED: quorum re-request owed on PR #$pr_number.
 
-The quorum review from $last_review_at was answered with commits pushed
-afterwards ($last_commit_at), and no review has been re-requested since. quorum
-triggers on the review request, not on new code, so those fixes sit there
-unreviewed until the reviewer is removed and added again.
+The quorum review from $last_review_at was answered with pushed commits, and
+$target has not been re-requested since. quorum triggers on the review request,
+not on new code, so those fixes sit there unreviewed until the reviewer is
+removed and added again.
 
 Run this, then finish:
   scripts/quorum-rerequest.sh
 
-Reviewers to re-request: $targets_flat
+Reviewer to re-request: $target
 If the user deliberately does not want another review round, say so instead of
 running it - and touch .git/quorum-rerequest-off to stop the check for this
 clone."
 fi
 
 # apply
-exit_code=0
-for target in $targets; do
-    # Removing a reviewer who is not currently requested errors; that is fine.
-    gh pr edit "$pr_number" --remove-reviewer "$target" >/dev/null 2>&1 || true
-    if gh pr edit "$pr_number" --add-reviewer "$target" >/dev/null 2>&1; then
-        echo "Re-requested review from $target on PR #$pr_number."
-    else
-        echo "Failed to re-request review from $target on PR #$pr_number." >&2
-        exit_code=1
-    fi
-done
-
-if [[ "$exit_code" == "0" ]]; then
-    rm -f "$cache_file" 2>/dev/null || true
+# Removing a reviewer who is not currently requested errors; that is fine. The
+# removal is what makes the following add produce a new review_requested event.
+gh pr edit "$pr_number" --remove-reviewer "$target" >/dev/null 2>&1 || true
+if ! gh pr edit "$pr_number" --add-reviewer "$target" >/dev/null 2>&1; then
+    echo "Failed to re-request review from $target on PR #$pr_number." >&2
+    exit 1
 fi
-exit "$exit_code"
+
+echo "Re-requested review from $target on PR #$pr_number."
+rm -f "$cache_file" 2>/dev/null || true
