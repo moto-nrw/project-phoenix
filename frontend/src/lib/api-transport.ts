@@ -1,8 +1,8 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
-import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import { createLogger } from "~/lib/logger";
+import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 
 /**
  * Extended request config with retry tracking properties
@@ -31,9 +31,11 @@ const api = createAxios({
 // Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
-    // Only try to get session if we're in the browser
+    // Only try to get session if we're in the browser. getCachedSession
+    // deduplicates concurrent session lookups — every raw getSession() call is
+    // its own network round trip to /api/auth/session (#2123).
     if (globalThis.window !== undefined) {
-      const session = await getSession();
+      const session = await getCachedSession();
 
       // If there's a token, add it to the headers
       if (session?.user?.token) {
@@ -125,7 +127,13 @@ async function attemptClientSideRefresh(
     return null;
   }
 
-  const session = await getSession();
+  // The refresh rotated the tokens. Drop the cached session BEFORE reading it
+  // again: the retry below re-runs the request interceptor, which reads
+  // getCachedSession() — served the stale pre-refresh token, the retry would
+  // 401 again and fail hard (_retry is already set). Repopulating the cache
+  // here also hands the fresh token to every queued subscriber.
+  clearSessionCache();
+  const session = await getCachedSession();
 
   if (!session?.user?.token) {
     return null;

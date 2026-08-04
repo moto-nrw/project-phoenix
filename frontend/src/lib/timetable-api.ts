@@ -9,7 +9,7 @@
  * - materialize(from?, to?)      → POST   /materialize
  */
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { createLogger } from "./logger";
 import type {
   BackendConflictCheckResult,
@@ -134,7 +134,7 @@ class TimetableService {
    * lightweight enrichment (room name, type, staff list, counts).
    */
   async getWeek(from: string, to: string): Promise<WeeklyInstancesResponse> {
-    const session = await getSession();
+    const session = await getCachedSession();
     if (!session?.user?.token) {
       throw new TimetableApiError("Nicht angemeldet", 401, "UNAUTHENTICATED");
     }
