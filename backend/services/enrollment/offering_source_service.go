@@ -330,11 +330,15 @@ func (s *decisionService) loadOfferingSource(
 }
 
 // loadValidatedOfferingSource is the shared offering-source guard (#2137):
-// the offering must exist in this tenant and its phase's service window must
-// lie within the given calendar period (nil skips the period check). Every
-// declaration path uses it — template create/update via the resync, and the
-// split via CareOfferingSeriesValidator.ValidateTemplateOfferingSource — so
-// no path can persist a source rule the others would reject.
+// the offering must exist in this tenant, be active — the editor's selector
+// only offers active offerings, and a direct request must not wire a retired
+// offering either — and its phase's service window must lie within the given
+// calendar period (nil skips the period check). Every declaration path uses
+// it — template create/update via the resync, and the split via
+// CareOfferingSeriesValidator.ValidateTemplateOfferingSource — so no path can
+// persist a source rule the others would reject. Deactivating an offering
+// that still feeds templates is consequently rejected like any other
+// incompatible offering edit (the update flow's resync runs this guard).
 func loadValidatedOfferingSource(
 	ctx context.Context,
 	offeringRepo enrollmentModels.CareOfferingRepository,
@@ -352,6 +356,9 @@ func loadValidatedOfferingSource(
 	}
 	if offering == nil {
 		return nil, nil, fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
+	}
+	if !offering.IsActive {
+		return nil, nil, fmt.Errorf("%w: care offering %d is inactive", scheduleService.ErrOfferingSourceInvalid, offeringID)
 	}
 	phase, err := phaseRepo.FindByID(ctx, offering.PhaseID)
 	if err != nil {
@@ -1070,7 +1077,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 	if err != nil {
 		return nil, fmt.Errorf("offering source options: list offerings: %w", err)
 	}
-	phases, err := s.offeringSourcePhases(ctx, calendarPeriodID)
+	phases, period, err := s.offeringSourcePhases(ctx, calendarPeriodID)
 	if err != nil {
 		return nil, err
 	}
@@ -1087,7 +1094,16 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		selected = append(selected, offering)
 		offeringIDs = append(offeringIDs, offering.ID)
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, timezone.TodayDate())
+	// The counts must mirror what a resync for the selected period would seed:
+	// its effective date never lies before the period starts, so for a future
+	// period a link that ends before the period begins contributes nothing.
+	// For a running (or past) period today stays the boundary — links that
+	// already ended are no longer plannable either way.
+	countedFrom := timezone.TodayDate()
+	if period != nil && period.StartDate.After(countedFrom) {
+		countedFrom = period.StartDate
+	}
+	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, countedFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering source options: list approved children: %w", err)
 	}
@@ -1130,23 +1146,24 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 }
 
 // offeringSourcePhases returns the tenant's phases keyed by id, restricted to
-// those fitting the calendar period when one is given.
-func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeriodID *int64) (map[int64]*enrollmentModels.Phase, error) {
+// those fitting the calendar period when one is given. The loaded period is
+// returned alongside so the caller can scope its child counts to it.
+func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeriodID *int64) (map[int64]*enrollmentModels.Phase, *scheduleModels.CalendarPeriod, error) {
 	phases, err := s.PhaseRepo.ListByTenant(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("offering source options: list phases: %w", err)
+		return nil, nil, fmt.Errorf("offering source options: list phases: %w", err)
 	}
 	var period *scheduleModels.CalendarPeriod
 	if calendarPeriodID != nil {
 		if s.CalendarPeriodRepo == nil {
-			return nil, fmt.Errorf("offering source options: calendar period repository is not configured")
+			return nil, nil, fmt.Errorf("offering source options: calendar period repository is not configured")
 		}
 		period, err = s.CalendarPeriodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
-				return nil, fmt.Errorf("%w: calendar period %d not found", scheduleService.ErrOfferingSourceInvalid, *calendarPeriodID)
+				return nil, nil, fmt.Errorf("%w: calendar period %d not found", scheduleService.ErrOfferingSourceInvalid, *calendarPeriodID)
 			}
-			return nil, fmt.Errorf("offering source options: load calendar period: %w", err)
+			return nil, nil, fmt.Errorf("offering source options: load calendar period: %w", err)
 		}
 	}
 	byID := make(map[int64]*enrollmentModels.Phase, len(phases))
@@ -1159,7 +1176,7 @@ func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeri
 		}
 		byID[phase.ID] = phase
 	}
-	return byID, nil
+	return byID, period, nil
 }
 
 type offeringGradeCount struct {

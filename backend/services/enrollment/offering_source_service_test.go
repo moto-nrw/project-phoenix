@@ -1415,3 +1415,102 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	assert.True(t, tenant.RollbackRequested(ctx),
 		"the rejected update must discard the already-written offering row via the ambient-transaction rollback marker")
 }
+
+// #2147 review round 9: the selector's counts must be scoped to the selected
+// planning period — a link that ends before a future period begins would
+// otherwise inflate the preview for that period.
+func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	// Move the phase into the future so a period starting after today can
+	// still contain it, keeping the test independent of the real date.
+	phaseStart := timezone.TodayDate().AddDays(60)
+	setSourcePhaseServiceStartDate(t, env, phaseStart)
+	futurePeriod := createCareOfferingTestPeriod(t, env.db, "offering-source-future",
+		phaseStart.AddDays(-5),
+		env.sourcePhase.ServiceEndDate.AddDays(30))
+
+	offering := createSourceOffering(t, env, "ZaehlerPeriode", nil)
+	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "count-period@example.com", "Paula", 2)
+
+	// The child leaves the offering before the future period begins: the link
+	// still counts today, but contributes nothing to that period. valid_from
+	// opens so the interval stays non-empty (the approval stamped the phase
+	// start, which lies after the cap).
+	ctx := testpkg.TenantContext(1)
+	_, err := env.db.NewRaw(
+		`UPDATE enrollment.request_child_offerings SET valid_from = NULL, valid_until = ? WHERE request_child_id = ? AND care_offering_id = ?`,
+		phaseStart.AddDays(-20), childID, offering.ID,
+	).Exec(ctx)
+	require.NoError(t, err)
+
+	lister, ok := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	require.True(t, ok, "decision service must implement the editor's option lister")
+
+	findOption := func(options []enrollmentService.OfferingSourceOption) *enrollmentService.OfferingSourceOption {
+		for i := range options {
+			if options[i].ID == offering.ID {
+				return &options[i]
+			}
+		}
+		return nil
+	}
+
+	unscoped, err := lister.ListOfferingSourceOptions(ctx, nil)
+	require.NoError(t, err)
+	current := findOption(unscoped)
+	require.NotNil(t, current, "the offering must be listed without a period filter")
+	assert.Equal(t, 1, current.TotalCount, "the link is still active today")
+
+	scoped, err := lister.ListOfferingSourceOptions(ctx, &futurePeriod.ID)
+	require.NoError(t, err)
+	future := findOption(scoped)
+	require.NotNil(t, future, "the offering's phase fits the future period")
+	assert.Equal(t, 0, future.TotalCount,
+		"a link ending before the period begins must not count for that period")
+}
+
+// #2147 review round 9: sourced rows are phase-bounded (non-null valid_until)
+// by design; the template list aggregates and the weekday roster read must
+// still surface them as long as they cover today or later.
+func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "ListRead", nil)
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "list-read@example.com", "Lia", 2)
+
+	template := createSourcedTemplate(t, env, "ListReadJg2", offering.ID, []int{2}, period)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
+		testpkg.TenantContext(1),
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &offering.ID,
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+
+	ctx := testpkg.TenantContext(1)
+	repo := repositories.NewFactory(env.db).ActivityGroup
+
+	rows, err := repo.ListTemplateRows(ctx, &template.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, rows, "the sourced template must appear in the list read")
+	assert.Equal(t, 1, rows[0].EnrollmentCount, "the phase-bounded sourced row must count")
+	assert.Contains(t, rows[0].StudentIDs, studentID)
+
+	roster, err := repo.ListTemplateWeekdayRoster(ctx, &template.ID, &period.ID)
+	require.NoError(t, err)
+	foundProtected := false
+	for _, row := range roster {
+		if row.Kind == activitiesModels.TemplateWeekdayRosterKindProtectedStudent && row.PersonID == studentID {
+			foundProtected = true
+		}
+	}
+	assert.True(t, foundProtected,
+		"the sourced child must surface as a protected weekday assignment")
+}

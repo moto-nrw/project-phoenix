@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -690,6 +691,13 @@ const templateListSelect = `
 
 // ListTemplateRows returns the template list read model, optionally filtered
 // to one template (issue #584: moved verbatim from api/timetable).
+//
+// Student aggregates count every row still covering today or later, not just
+// open-ended ones: offering-sourced and legacy-linked rows are deliberately
+// phase-bounded (non-null valid_until), and a split caps the predecessor's
+// rows at the future split date — all of them are scheduled children the
+// planner cards must show (#2147 review). valid_until is exclusive.
+// Supervisor aggregates keep the open-rows-only filter on purpose.
 func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int64) ([]activities.TemplateListRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateListRow, 0)
@@ -703,7 +711,7 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 					SELECT DISTINCT activity_group_id, student_id
 					FROM activities.student_enrollments
 					WHERE tenant_id = ?
-					  AND valid_until IS NULL
+					  AND (valid_until IS NULL OR valid_until > ?)
 				) AS active_enrollments
 				GROUP BY activity_group_id
 			) AS enrollments ON enrollments.activity_group_id = g.id
@@ -726,7 +734,7 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 	  AND g.is_template = true
 	  AND g.archived_at IS NULL
 	  AND s.valid_until IS NULL`
-	args := []any{tenantID, tenantID, tenantID}
+	args := []any{tenantID, timezone.TodayDate(), tenantID, tenantID}
 	if templateID != nil {
 		query += ` AND g.id = ?`
 		args = append(args, *templateID)
@@ -741,7 +749,8 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 // ListTemplateRowsForTemplatePeriod returns the editable detail read model for
 // one template and calendar period. Unlike the list read, its top-level roster
 // must not merge assignments from other periods because the editor writes this
-// data back to the selected period.
+// data back to the selected period. Like ListTemplateRows, the student
+// aggregate includes phase-bounded rows still covering today or later.
 func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 	ctx context.Context,
 	templateID, periodID int64,
@@ -758,7 +767,7 @@ func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 				SELECT DISTINCT activity_group_id, student_id
 				FROM activities.student_enrollments
 				WHERE tenant_id = ?
-				  AND valid_until IS NULL
+				  AND (valid_until IS NULL OR valid_until > ?)
 				  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
 			) AS active_enrollments
 			GROUP BY activity_group_id
@@ -803,7 +812,7 @@ func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 	  AND g.id = ?
 	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
 	args := []any{
-		tenantID, periodID,
+		tenantID, timezone.TodayDate(), periodID,
 		periodID, tenantID, periodID,
 		tenantID, periodID, periodID, templateID,
 	}
@@ -819,16 +828,21 @@ func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 // can group them into per-weekday assignments in Go instead of building a
 // second jsonb-aggregating monster query.
 //
-// The `valid_until IS NULL` filter mirrors the flat aggregates in
-// templateListSelect: the editor reads the currently open roster, not the
-// historical retired rows. A nil calendarPeriodID selects only unscoped rows;
-// it must never mean "all periods", because the response has no period field
-// with which the caller could separate those rosters again.
+// The validity filters mirror the flat aggregates in templateListSelect: the
+// editor reads the current roster, not the historical retired rows. Student
+// rows additionally count when their (exclusive) valid_until lies in the
+// future — offering-sourced and legacy-linked rows are phase-bounded by
+// design and must still surface as protected assignments (#2147 review);
+// supervisor rows keep the open-rows-only filter. A nil calendarPeriodID
+// selects only unscoped rows; it must never mean "all periods", because the
+// response has no period field with which the caller could separate those
+// rosters again.
 func (r *GroupRepository) ListTemplateWeekdayRoster(
 	ctx context.Context,
 	templateID, calendarPeriodID *int64,
 ) ([]activities.TemplateWeekdayRosterRow, error) {
 	tenantID := tenant.FromContext(ctx)
+	today := timezone.TodayDate()
 	rows := make([]activities.TemplateWeekdayRosterRow, 0)
 	query := `
 		WITH per_weekday_templates AS (
@@ -851,10 +865,10 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 			SELECT enrollment.activity_group_id AS template_id
 			FROM activities.student_enrollments AS enrollment
 			WHERE enrollment.tenant_id = ?
-			  AND enrollment.valid_until IS NULL
+			  AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?)
 			  AND enrollment.weekday IS NOT NULL
 	`
-	args = append(args, tenantID)
+	args = append(args, tenantID, today)
 	if calendarPeriodID != nil {
 		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
 		args = append(args, *calendarPeriodID)
@@ -970,8 +984,8 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 			ON template_day.template_id = enrollment.activity_group_id
 			AND (enrollment.weekday IS NULL OR template_day.weekday = enrollment.weekday)
 		WHERE enrollment.tenant_id = ?
-		  AND enrollment.valid_until IS NULL`
-	args = append(args, tenantID)
+		  AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?)`
+	args = append(args, tenantID, today)
 	if calendarPeriodID != nil {
 		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
 		args = append(args, *calendarPeriodID)
@@ -996,8 +1010,8 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 		INNER JOIN scheduled_template_weekdays AS template_day
 			ON template_day.template_id = enrollment.activity_group_id
 		WHERE enrollment.tenant_id = ?
-		  AND enrollment.valid_until IS NULL`
-	args = append(args, tenantID)
+		  AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?)`
+	args = append(args, tenantID, today)
 	if calendarPeriodID != nil {
 		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
 		args = append(args, *calendarPeriodID)
@@ -1038,7 +1052,7 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 					SELECT DISTINCT activity_group_id, student_id
 					FROM activities.student_enrollments
 					WHERE tenant_id = ?
-					  AND valid_until IS NULL
+					  AND (valid_until IS NULL OR valid_until > ?)
 				) AS active_enrollments
 				GROUP BY activity_group_id
 			) AS enrollments ON enrollments.activity_group_id = g.id
@@ -1062,7 +1076,7 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 	  AND g.archived_at IS NULL
 	  AND s.valid_until IS NULL`
 
-	args := []any{tenantID}
+	args := []any{tenantID, timezone.TodayDate()}
 	args = append(args, tenantID)
 	args = append(args, tenantID)
 	if periodID != nil {

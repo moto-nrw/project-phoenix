@@ -479,6 +479,39 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 		"a rejected edit must leave the previous source in place")
 }
 
+// The editor's selector only offers active offerings; a direct request naming
+// a retired offering must be rejected the same way (#2147 review round 9).
+func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	_, err := s.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = FALSE WHERE id = ?`, offering.ID).Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                 fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
+		Type:                 activitiesModels.GroupTypeCare,
+		Weekdays:             []int{activitiesModels.WeekdayMonday},
+		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:               s.roomID,
+		CategoryID:           s.categoryID,
+		MaxParticipants:      20,
+		CalendarPeriodID:     &s.period.ID,
+		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingID: &offering.ID,
+		RosterValidFrom:      monday.AddDays(-30),
+		GradeLevelMax:        schoolclass.MaxGradeLevel,
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
+
+	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
+	require.NoError(t, err)
+	assert.Empty(t, sourced, "nothing may survive the rejected create")
+}
+
 // A split may re-pin the successor to another Kalenderzeitraum. Carrying the
 // inherited source into a period the offering's phase does not fit would
 // persist a state create/update reject, so the split must refuse it too
