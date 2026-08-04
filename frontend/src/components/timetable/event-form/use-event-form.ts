@@ -2548,6 +2548,11 @@ export function useEventForm({
   >(null);
   useEffect(() => {
     setPendingSourceOfferingId(null);
+    // A new modal session must not inherit the previous session's stashed
+    // manual roster: clearing a source in a freshly opened, already sourced
+    // template would otherwise restore (and save) another template's picks
+    // (#2147 review round 10).
+    preSourceStudentIdsRef.current = [];
   }, [isOpen]);
 
   const changeSourceOffering = (offeringId: string) => {

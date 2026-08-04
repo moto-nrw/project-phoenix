@@ -84,8 +84,8 @@ type GroupRepository interface {
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error)
 
 	// ListTemplateWeekdayRoster returns the weekday-scoped roster rows of the
-	// current roster (open rows, plus phase-bounded student rows still
-	// covering today or later) of every non-archived template, optionally narrowed
+	// current roster (open rows, plus still-running phase-bounded student rows
+	// on offering-sourced templates) of every non-archived template, optionally narrowed
 	// to one template and calendar period (issue #2129). A concrete period also
 	// includes series-wide rows whose calendar_period_id is NULL; a nil period
 	// returns only unscoped rows and never merges several periods. It includes

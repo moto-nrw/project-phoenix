@@ -2,10 +2,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import type { TimetableTemplate } from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
 import { staffService } from "~/lib/staff-api";
 import * as formModel from "./form-model";
 import { reconcileCategoryId, useEventForm } from "./use-event-form";
+import type { UseEventFormParams } from "./use-event-form";
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
@@ -83,6 +85,89 @@ describe("useEventForm offering source roster stash", () => {
       result.current.changeSourceOffering("");
     });
     expect(result.current.form.studentIds).toEqual(["11", "12"]);
+  });
+
+  it("does not leak the stash into the next modal session", () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    // An already sourced series, as the SECOND session opens it.
+    const sourcedSeries: TimetableTemplate = {
+      id: "7",
+      name: "Mittagessen Jg. 2",
+      type: "care",
+      categoryId: "2",
+      categoryName: "Betreuung",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "angebot",
+      sourceCareOfferingId: "9",
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "9",
+          weekday: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+
+    const props = (
+      isOpen: boolean,
+      initialSeries: TimetableTemplate | null,
+    ): UseEventFormParams => ({
+      isOpen,
+      onClose: vi.fn(),
+      onSaved: vi.fn(),
+      defaultDate: "2026-08-03",
+      calendarPeriods: [],
+      defaultCalendarPeriodId: null,
+      initialInstance: null,
+      initialSeries,
+      convertInstance: null,
+      defaultRepeat: "none",
+      variant: "full",
+      canCheckShiftCoverage: false,
+    });
+
+    const { result, rerender } = renderHook(
+      (hookProps: UseEventFormParams) => useEventForm(hookProps),
+      { initialProps: props(true, null) },
+    );
+
+    // Session 1: a manual roster gets stashed when a source is selected.
+    act(() => {
+      result.current.update("studentIds", ["11", "12"]);
+    });
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+    expect(result.current.form.studentIds).toEqual([]);
+
+    // Session 2 opens an ALREADY sourced template. Clearing its source must
+    // not adopt (and later save) session 1's stashed roster.
+    rerender(props(false, sourcedSeries));
+    rerender(props(true, sourcedSeries));
+    expect(result.current.form.sourceCareOfferingId).toBe("9");
+    act(() => {
+      result.current.changeSourceOffering("");
+    });
+    expect(result.current.form.studentIds).toEqual([]);
   });
 
   it("asks for confirmation before a source flattens per-weekday staffing", () => {

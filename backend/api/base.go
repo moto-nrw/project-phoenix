@@ -68,7 +68,9 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // offeringSourceOptions narrows the enrollment decision service to the
@@ -465,6 +467,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:          db,
 		Logger:      logger.With("service", "student-photo"),
 	})
+	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
+	// Regeltermine like a grade transition does (#2147 review round 10). The
+	// factory already fails startup when the decision service stops
+	// implementing the resync, so the assertion cannot silently miss here.
+	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
@@ -493,13 +500,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActivityService:         api.Services.Activities,
 		EnrollmentDecision:      api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
-		Broadcaster:             api.Services.RealtimeHub,
-		ParentEventEmitter:      api.Services.ParentEventEmitter,
-		AbsenceNotifier:         api.Services.AbsenceNotifier,
-		StudentPhotos:           api.Services.StudentPhotos,
-		ListExportService:       api.Services.ListExport,
-		Logger:                  logger.With("handler", "students"),
-		DB:                      db,
+		OfferingSourceResyncer:  studentClassResyncer,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Broadcaster:        api.Services.RealtimeHub,
+		ParentEventEmitter: api.Services.ParentEventEmitter,
+		AbsenceNotifier:    api.Services.AbsenceNotifier,
+		StudentPhotos:      api.Services.StudentPhotos,
+		ListExportService:  api.Services.ListExport,
+		Logger:             logger.With("handler", "students"),
+		DB:                 db,
 	})
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))

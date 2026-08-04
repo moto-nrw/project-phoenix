@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -77,7 +78,17 @@ type ResourceConfig struct {
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
-	Broadcaster             realtime.Broadcaster
+	// OfferingSourceResyncer re-reconciles Jahrgang-filtered offering-sourced
+	// Regeltermine after a direct school_class edit, in the same transaction —
+	// the same hook a grade transition uses (#2147 review round 10). Optional:
+	// nil skips the resync (bare test Resources).
+	OfferingSourceResyncer educationService.OfferingSourceResyncer
+	// LockTemplateRecurrence takes the tenant-wide recurrence gate the resync
+	// requires. It must be acquired BEFORE the student row locks (see
+	// applyStudentUpdate for the ordering rationale). Required whenever
+	// OfferingSourceResyncer is set.
+	LockTemplateRecurrence func(ctx context.Context) error
+	Broadcaster            realtime.Broadcaster
 	// ParentEventEmitter wakes a child's guardians (message-independent
 	// parent_child_updated SSE fan-out) after staff-side care writes, so an open
 	// parents-app tab refetches the child's care state live (#1725). Optional —
