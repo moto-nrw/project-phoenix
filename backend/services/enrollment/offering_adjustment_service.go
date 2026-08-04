@@ -400,6 +400,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	// stranded on a now-stale grade ("2a" while the edit bumps to grade 3)
 	// falls back to the new bare grade rather than leaving the student in a
 	// mismatched class. Issue #1833.
+	previousSchoolClass := student.SchoolClass
 	student.SchoolClass = s.resolveRolloverSchoolClass(child, student.SchoolClass)
 	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
 	if guardianEmail != "" {
@@ -408,6 +409,24 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	student.GuardianPhone = req.GuardianPhone
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
+	}
+
+	// A confirmed edit can move the child into another Jahrgang, exactly like
+	// a direct school_class edit or a grade transition, so the Jahrgang-
+	// filtered offering-sourced Regeltermine and their materialized future
+	// occurrences must follow in the same transaction (#2147 review round 13).
+	// Lock order is safe: the row locks above already hold the shared
+	// class-writes gate (taken inside FindByIDForUpdate/Update), which
+	// excludes a concurrently applying grade transition outright; taking the
+	// recurrence gate after the row locks matches the established order of
+	// the enrollment flows (materializeEnrollmentsFrom).
+	if student.SchoolClass != previousSchoolClass {
+		if err := s.lockTemplateRecurrence(ctx); err != nil {
+			return nil, err
+		}
+		if err := s.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+			return nil, fmt.Errorf("decision: resync sourced templates after class change: %w", err)
+		}
 	}
 
 	var guardian *users.GuardianProfile

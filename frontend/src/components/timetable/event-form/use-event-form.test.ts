@@ -234,6 +234,166 @@ describe("useEventForm offering source roster stash", () => {
     expect(result.current.pendingSourceOfferingId).toBeNull();
     expect(result.current.form.sourceCareOfferingId).toBe("5");
   });
+
+  it("restores the manual roster when the target group leaves 'angebot'", () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.update("studentIds", ["11", "12"]);
+    });
+    act(() => {
+      result.current.changeTargetGroupType("angebot");
+    });
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+    expect(result.current.form.studentIds).toEqual([]);
+
+    // Switching the target group away clears the source, so the stashed
+    // manual picks must come back with it — otherwise the next save submits
+    // the emptied list and wipes the participants.
+    act(() => {
+      result.current.changeTargetGroupType("klasse");
+    });
+    expect(result.current.form.sourceCareOfferingId).toBe("");
+    expect(result.current.form.studentIds).toEqual(["11", "12"]);
+  });
+
+  it("clears the shared staffing when a confirmed source replaces deviating weekday staff", () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.update("staffIds", ["7"]);
+    });
+    act(() => {
+      result.current.update("weekdays", [1, 2]);
+    });
+    act(() => {
+      result.current.setPerWeekdayRoster(true);
+    });
+    act(() => {
+      result.current.setWeekdayRoster(2, {
+        staffIds: ["8"],
+        primaryStaffId: "8",
+        studentIds: [],
+      });
+    });
+
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+    act(() => {
+      result.current.confirmPendingSourceOffering();
+    });
+
+    // Nobody chose an all-weekdays union: per-weekday mode ends and the
+    // shared Besetzung starts empty until it is picked explicitly.
+    expect(result.current.form.sourceCareOfferingId).toBe("5");
+    expect(result.current.form.perWeekdayRoster).toBe(false);
+    expect(result.current.form.staffIds).toEqual([]);
+    expect(result.current.form.primaryStaffId).toBe("");
+  });
+
+  it("adopts the identical day staffing when a source ends per-weekday mode without deviation", () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.update("staffIds", ["7"]);
+    });
+    act(() => {
+      result.current.update("weekdays", [1, 2]);
+    });
+    act(() => {
+      result.current.setPerWeekdayRoster(true);
+    });
+    // The shared list goes stale while the concrete day rosters still agree.
+    act(() => {
+      result.current.update("staffIds", ["9"]);
+    });
+
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+
+    // No deviation between days, so no confirmation — and the collapse takes
+    // the concrete day staffing, not the stale shared list.
+    expect(result.current.pendingSourceOfferingId).toBeNull();
+    expect(result.current.form.sourceCareOfferingId).toBe("5");
+    expect(result.current.form.perWeekdayRoster).toBe(false);
+    expect(result.current.form.staffIds).toEqual(["7"]);
+  });
 });
 
 describe("useEventForm category loading", () => {

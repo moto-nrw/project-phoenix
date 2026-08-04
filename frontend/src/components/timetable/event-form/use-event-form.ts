@@ -1098,6 +1098,8 @@ export function useEventForm({
   };
 
   const changeTargetGroupType = (nextType: TargetGroupType) => {
+    // Read outside the updater so it stays pure (mirrors applySourceOffering).
+    const restoredStudentIds = preSourceStudentIdsRef.current;
     setForm((current) => ({
       ...current,
       targetGroupType: nextType,
@@ -1113,6 +1115,14 @@ export function useEventForm({
         nextType === "angebot" ? current.sourceCareOfferingId : "",
       sourceGradeLevels:
         nextType === "angebot" ? current.sourceGradeLevels : [],
+      // Leaving "angebot" clears the source above, so the manual roster
+      // stashed when the source was picked must come back with it, exactly
+      // like clearing the source in place. Keeping the emptied list would
+      // make the next save wipe the participants (#2147 review round 13).
+      studentIds:
+        nextType !== "angebot" && current.sourceCareOfferingId !== ""
+          ? restoredStudentIds
+          : current.studentIds,
     }));
     setValidationError(null);
     setFieldErrors((current) => {
@@ -2525,30 +2535,61 @@ export function useEventForm({
     if (offeringId && !form.sourceCareOfferingId) {
       preSourceStudentIdsRef.current = form.studentIds;
     }
+    if (offeringId && form.perWeekdayRoster) {
+      staffRosterTouched.current = true;
+      studentRosterTouched.current = true;
+    }
     const restoredStudentIds = preSourceStudentIdsRef.current;
-    setForm((current) => ({
-      ...current,
-      sourceCareOfferingId: offeringId,
-      // A filter belongs to one offering; switching resets it.
-      sourceGradeLevels:
-        offeringId === current.sourceCareOfferingId
-          ? current.sourceGradeLevels
-          : [],
-      // The sourced roster is server-managed; clearing the source restores
-      // the manual roster picked before the source was set.
-      studentIds: offeringId
-        ? []
-        : current.sourceCareOfferingId
-          ? restoredStudentIds
-          : current.studentIds,
-    }));
+    setForm((current) => {
+      const next = {
+        ...current,
+        sourceCareOfferingId: offeringId,
+        // A filter belongs to one offering; switching resets it.
+        sourceGradeLevels:
+          offeringId === current.sourceCareOfferingId
+            ? current.sourceGradeLevels
+            : [],
+        // The sourced roster is server-managed; clearing the source restores
+        // the manual roster picked before the source was set.
+        studentIds: offeringId
+          ? []
+          : current.sourceCareOfferingId
+            ? restoredStudentIds
+            : current.studentIds,
+      };
+      if (!offeringId || !current.perWeekdayRoster) return next;
+      // A source knows only one shared Besetzung, so per-weekday mode ends
+      // right here, visibly in the Personal step, not silently at save time.
+      // Days that staff identically collapse into the shared controls. Days
+      // that deviate are NOT aggregated into an all-weekdays union: nobody
+      // chose that staffing, so the shared Besetzung starts empty and has to
+      // be picked explicitly (#2147 review round 13).
+      const baseline = rosterForWeekday(
+        current,
+        current.weekdays[0] ?? activeRosterWeekday,
+      );
+      const flattened = hasPerWeekdayStaffDeviation(current)
+        ? { staffIds: [] as string[], primaryStaffId: "" }
+        : {
+            staffIds: [...baseline.staffIds],
+            primaryStaffId: baseline.primaryStaffId,
+          };
+      return {
+        ...next,
+        ...flattened,
+        perWeekdayRoster: false,
+        weekdayRosters: {},
+      };
+    });
     setValidationError(null);
   };
 
-  // Offering pick awaiting explicit confirmation because applying it would
-  // flatten a deliberate per-weekday staffing on save (#2147 review): with a
-  // source set, the payload carries only the shared staff list — the backend
-  // rejects weekday_assignments next to a source.
+  // Offering pick awaiting explicit confirmation because applying it removes
+  // a deliberate per-weekday staffing (#2147 review): with a source set, the
+  // payload carries only the shared staff list (the backend rejects
+  // weekday_assignments next to a source). Confirming empties the shared
+  // Besetzung, so the replacement staffing is an explicit choice, never an
+  // implicit all-weekdays union (#2147 review round 13).
   const [pendingSourceOfferingId, setPendingSourceOfferingId] = useState<
     string | null
   >(null);

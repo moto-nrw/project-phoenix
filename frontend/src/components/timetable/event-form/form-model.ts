@@ -239,11 +239,13 @@ function sameIdSet(left: string[], right: string[]): boolean {
 
 /**
  * True when at least one weekday staffs differently from the others. This is
- * the state an offering source would silently destroy on save: with a source
- * set, the payload carries only the shared staff list (the backend rejects
+ * the state an offering source destroys: with a source set, the payload
+ * carries only the shared staff list (the backend rejects
  * `weekday_assignments` next to a source), so activating one must ask for
- * explicit confirmation first (#2147 review). Child lists are not compared;
- * a sourced roster replaces them by design.
+ * explicit confirmation first (#2147 review). Confirming then empties the
+ * shared staffing instead of adopting an aggregated all-weekdays union, so
+ * the replacement Besetzung is picked explicitly (#2147 review round 13).
+ * Child lists are not compared; a sourced roster replaces them by design.
  */
 export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
   if (!form.perWeekdayRoster || form.weekdays.length < 2) return false;

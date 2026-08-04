@@ -673,6 +673,48 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 	assert.Equal(t, studentID, rows[0].StudentID)
 }
 
+// A confirmed Änderungsanmeldung or admin data correction changes the class
+// through SyncApprovedChildData. When that moves the child into another
+// Jahrgang, the Jahrgang-filtered sourced Regeltermine must follow in the
+// same flow, exactly like a direct school_class edit or a grade transition
+// (#2147 review round 13).
+func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "KorrekturQuelle", nil)
+	templateGrade2 := createSourcedTemplate(t, env, "KorrekturJg2", offering.ID, []int{2}, period)
+	templateGrade3 := createSourcedTemplate(t, env, "KorrekturJg3", offering.ID, []int{3}, period)
+
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "korrektur@example.com", "Korri", 2)
+	require.Len(t, loadTemplateEnrollments(t, env, templateGrade2.ID), 1)
+	require.Empty(t, loadTemplateEnrollments(t, env, templateGrade3.ID))
+
+	// The confirmed edit carries the new Jahrgang on the request child; the
+	// sync re-derives school_class from it.
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	newGrade := int16(3)
+	child.TargetGradeLevel = &newGrade
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:      child.RequestID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Empty(t, loadTemplateEnrollments(t, env, templateGrade2.ID),
+		"the corrected child must leave the Jahrgang-2 Termin")
+	rows := loadTemplateEnrollments(t, env, templateGrade3.ID)
+	require.Len(t, rows, 1, "the corrected child must enter the Jahrgang-3 Termin")
+	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
 // Deleting an offering must degrade its sourced templates to plain rosters:
 // the FK nulls the source and the DB trigger clears the grade filter, so the
 // CHECK constraint cannot fail the delete.

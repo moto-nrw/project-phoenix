@@ -896,8 +896,9 @@ export function TimetableEventModal({
 
         {/* #2137 x #2129: ein Angebot als Quelle kennt nur eine gemeinsame
             Besetzung. Bestehende wochentagsspezifische Personalzuweisungen
-            würden beim Speichern stillschweigend ersetzt; das braucht eine
-            ausdrückliche Bestätigung. */}
+            werden beim Übernehmen entfernt und NICHT zu einer Sammelliste
+            zusammengelegt; die gemeinsame Besetzung muss danach ausdrücklich
+            neu gewählt werden. Das braucht eine ausdrückliche Bestätigung. */}
         <ConfirmationModal
           isOpen={pendingSourceOfferingId !== null}
           onClose={cancelPendingSourceOffering}
@@ -912,9 +913,10 @@ export function TimetableEventModal({
             {pendingSourceOfferingName
               ? ` dem Angebot „${pendingSourceOfferingName}“ `
               : " einem Angebot "}
-            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage; die
-            Abweichungen je Wochentag werden beim Speichern entfernt. Die
-            Kinderliste kommt dann automatisch aus dem Angebot.
+            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage. Die
+            bisherigen Zuweisungen je Wochentag werden entfernt; wähle die
+            gemeinsame Besetzung anschließend im Schritt „Personal und Kinder“
+            neu. Die Kinderliste kommt automatisch aus dem Angebot.
           </p>
         </ConfirmationModal>
 
