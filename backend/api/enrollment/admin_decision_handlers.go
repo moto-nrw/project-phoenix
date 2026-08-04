@@ -424,6 +424,64 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
 }
 
+// restoreAdminRequest undoes a parent-initiated withdraw (#2157): the
+// decision service flips every withdrawn child back to submitted, clears
+// withdrawn_at, and writes the append-only audit row — all inside the
+// tenant transaction owned here.
+func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	var outcome *enrollmentService.RestoreOutcome
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		out, e := rs.DecisionService.RestoreWithdrawn(ctx, requestID, int64(claims.ID))
+		if e != nil {
+			return e
+		}
+		outcome = out
+		return nil
+	})
+	if err != nil {
+		renderRestoreError(w, r, err)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"restored_children": len(outcome.RestoredChildIDs),
+	}, "Request restored")
+}
+
+// renderRestoreError maps a restore failure to its HTTP status. The two
+// business guards (inactive phase, active duplicate) surface as 409s with
+// stable codes so the frontend can show specific German messages.
+func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		common.RenderError(w, r, common.ErrorClientClosed(err))
+	case errors.Is(err, context.DeadlineExceeded):
+		common.RenderError(w, r, common.ErrorRequestTimeout(err))
+	case errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, enrollmentService.ErrRestoreNothingWithdrawn):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, enrollmentService.ErrRestorePhaseInactive):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_phase_inactive"))
+	case errors.Is(err, enrollmentService.ErrRestoreDuplicateActive):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_duplicate"))
+	case common.IsTransientDatabaseError(err):
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
+}
+
 // decideChildWithRetry runs the decision inside a tenant transaction,
 // retrying once on a transient database error when the decision body has
 // not yet committed. A cancelled/expired request context stops the retry

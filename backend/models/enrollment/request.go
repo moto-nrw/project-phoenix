@@ -129,6 +129,10 @@ type RequestRepository interface {
 	// MarkWithdrawn stamps withdrawn_at and bumps updated_at.
 	MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error
 
+	// ClearWithdrawn is the inverse of MarkWithdrawn: nulls withdrawn_at and
+	// bumps updated_at. Used by the admin restore flow (#2157).
+	ClearWithdrawn(ctx context.Context, requestID int64) error
+
 	// FindActiveDuplicate returns the names of any children for which a
 	// non-terminal-rejected/withdrawn enrollment already exists for the
 	// same (phase_id, guardian_email). Empty result means safe to

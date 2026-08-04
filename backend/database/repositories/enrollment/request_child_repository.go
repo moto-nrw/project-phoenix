@@ -145,6 +145,35 @@ func (r *RequestChildRepository) UpdateStatus(ctx context.Context, id int64, new
 	return nil
 }
 
+// RestoreWithdrawnByRequestID flips every withdrawn child of the request
+// back to submitted and clears the review metadata the withdraw path
+// stamped (status_reason, reviewed_at, reviewed_by). UpdateStatus cannot
+// express this: it always bumps reviewed_at, but a restored child must
+// look un-reviewed again. Returns the ids of the restored rows; an empty
+// result means the request had no withdrawn children.
+func (r *RequestChildRepository) RestoreWithdrawnByRequestID(ctx context.Context, requestID int64) ([]int64, error) {
+	if requestID <= 0 {
+		return nil, fmt.Errorf("request id is required")
+	}
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("status = ?", enrollment.ChildStatusSubmitted).
+		Set("status_reason = NULL").
+		Set("reviewed_at = NULL").
+		Set("reviewed_by = NULL").
+		Set("updated_at = NOW()").
+		Where(`"request_child".request_id = ?`, requestID).
+		Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn).
+		Returning(`"request_child".id`).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to restore withdrawn request children: %w", err)
+	}
+	return ids, nil
+}
+
 // UpdateData updates the parent-supplied child fields without changing
 // status, review metadata, rollover metadata, or created_student_id.
 func (r *RequestChildRepository) UpdateData(ctx context.Context, child *enrollment.RequestChild) error {
