@@ -84,6 +84,71 @@ describe("useEventForm offering source roster stash", () => {
     });
     expect(result.current.form.studentIds).toEqual(["11", "12"]);
   });
+
+  it("asks for confirmation before a source flattens per-weekday staffing", () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.update("weekdays", [1, 2]);
+    });
+    act(() => {
+      result.current.setPerWeekdayRoster(true);
+    });
+    act(() => {
+      result.current.setWeekdayRoster(2, {
+        staffIds: ["7"],
+        primaryStaffId: "",
+        studentIds: [],
+      });
+    });
+
+    // The pick is parked, not applied — saving now would silently replace
+    // the deviating weekday staffing with the shared list.
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+    expect(result.current.pendingSourceOfferingId).toBe("5");
+    expect(result.current.form.sourceCareOfferingId).toBe("");
+
+    act(() => {
+      result.current.cancelPendingSourceOffering();
+    });
+    expect(result.current.pendingSourceOfferingId).toBeNull();
+    expect(result.current.form.sourceCareOfferingId).toBe("");
+
+    act(() => {
+      result.current.changeSourceOffering("5");
+    });
+    act(() => {
+      result.current.confirmPendingSourceOffering();
+    });
+    expect(result.current.pendingSourceOfferingId).toBeNull();
+    expect(result.current.form.sourceCareOfferingId).toBe("5");
+  });
 });
 
 describe("useEventForm category loading", () => {

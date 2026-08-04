@@ -223,6 +223,9 @@ export function TimetableEventModal({
     sourceFilteredCount,
     sourceOverlapWarnings,
     changeSourceOffering,
+    pendingSourceOfferingId,
+    confirmPendingSourceOffering,
+    cancelPendingSourceOffering,
     toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,
@@ -264,6 +267,13 @@ export function TimetableEventModal({
     canCheckShiftCoverage,
     closingDayRanges,
   });
+
+  const pendingSourceOfferingName =
+    pendingSourceOfferingId !== null
+      ? (offeringSources?.find(
+          (offering) => offering.id === pendingSourceOfferingId,
+        )?.name ?? null)
+      : null;
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
   // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
@@ -882,6 +892,30 @@ export function TimetableEventModal({
               </p>
             </div>
           )}
+        </ConfirmationModal>
+
+        {/* #2137 x #2129: ein Angebot als Quelle kennt nur eine gemeinsame
+            Besetzung. Bestehende wochentagsspezifische Personalzuweisungen
+            würden beim Speichern stillschweigend ersetzt; das braucht eine
+            ausdrückliche Bestätigung. */}
+        <ConfirmationModal
+          isOpen={pendingSourceOfferingId !== null}
+          onClose={cancelPendingSourceOffering}
+          onConfirm={confirmPendingSourceOffering}
+          title="Besetzung je Wochentag wird ersetzt"
+          confirmText="Angebot als Quelle übernehmen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+        >
+          <p className="text-sm leading-relaxed text-gray-600">
+            Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit
+            {pendingSourceOfferingName
+              ? ` dem Angebot „${pendingSourceOfferingName}“ `
+              : " einem Angebot "}
+            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage; die
+            Abweichungen je Wochentag werden beim Speichern entfernt. Die
+            Kinderliste kommt dann automatisch aus dem Angebot.
+          </p>
         </ConfirmationModal>
 
         {/* Kategorien verwalten (#2131): mounted only while open so its fetch

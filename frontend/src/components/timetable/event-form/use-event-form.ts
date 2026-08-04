@@ -49,6 +49,7 @@ import {
   fetchAllStudentOptions,
   formFromInstance,
   formFromSeries,
+  hasPerWeekdayStaffDeviation,
   initialPrimaryStaffID,
   initialStaffIDs,
   initialStudentIDs,
@@ -2509,7 +2510,7 @@ export function useEventForm({
       });
   }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSource]);
 
-  const changeSourceOffering = (offeringId: string) => {
+  const applySourceOffering = (offeringId: string) => {
     // Selecting a source clears the manual roster (server-managed). Stash it
     // so clearing the source restores the admin's picks — submitting the
     // emptied array would wipe the shared manual assignments on save
@@ -2537,6 +2538,37 @@ export function useEventForm({
     }));
     setValidationError(null);
   };
+
+  // Offering pick awaiting explicit confirmation because applying it would
+  // flatten a deliberate per-weekday staffing on save (#2147 review): with a
+  // source set, the payload carries only the shared staff list — the backend
+  // rejects weekday_assignments next to a source.
+  const [pendingSourceOfferingId, setPendingSourceOfferingId] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    setPendingSourceOfferingId(null);
+  }, [isOpen]);
+
+  const changeSourceOffering = (offeringId: string) => {
+    if (
+      offeringId !== "" &&
+      form.sourceCareOfferingId === "" &&
+      hasPerWeekdayStaffDeviation(form)
+    ) {
+      setPendingSourceOfferingId(offeringId);
+      return;
+    }
+    applySourceOffering(offeringId);
+  };
+
+  const confirmPendingSourceOffering = () => {
+    if (pendingSourceOfferingId === null) return;
+    applySourceOffering(pendingSourceOfferingId);
+    setPendingSourceOfferingId(null);
+  };
+
+  const cancelPendingSourceOffering = () => setPendingSourceOfferingId(null);
 
   const toggleSourceGradeLevel = (grade: number) => {
     setForm((current) => ({
@@ -2723,6 +2755,9 @@ export function useEventForm({
     sourceFilteredCount,
     sourceOverlapWarnings,
     changeSourceOffering,
+    pendingSourceOfferingId,
+    confirmPendingSourceOffering,
+    cancelPendingSourceOffering,
     toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,

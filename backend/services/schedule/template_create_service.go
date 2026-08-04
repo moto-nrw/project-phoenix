@@ -207,6 +207,16 @@ func (s *TimetableDataService) createTemplateLocked(
 	tenantID int64,
 	result *CreateTemplateResult,
 ) error {
+	// The tenant-wide recurrence gate serializes this create with every other
+	// recurrence writer — update, split, materialization, and the enrollment
+	// decision fan-out. An offering-sourced template seeds its roster from the
+	// approved enrollments inside this transaction; without the gate a
+	// concurrent approval and this create can each miss the other's
+	// uncommitted rows, leaving the child off the new template until an
+	// unrelated resync (#2147 review).
+	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+		return &ScheduleError{Op: "create template: lock recurrence", Err: err}
+	}
 	// Validation before any write: a rejected request must not strand a
 	// timeframe or a half-built template.
 	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {

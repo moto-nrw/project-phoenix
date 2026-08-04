@@ -207,6 +207,63 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 		"a rejected service-window expansion must not be persisted")
 }
 
+// recordingSourcedTemplateResyncer captures the offering IDs the phase
+// service hands to the sourced-template resync after a service-window change.
+type recordingSourcedTemplateResyncer struct {
+	offeringIDs []int64
+}
+
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(
+	_ context.Context, offeringID int64, _ timezone.Date,
+) error {
+	r.offeringIDs = append(r.offeringIDs, offeringID)
+	return nil
+}
+
+func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {
+	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:            created.ID,
+		Name:               "offering-" + t.Name(),
+		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:      []string{"mon"},
+		IsActive:           true,
+		AutoAddGradeLevels: []int{},
+		SelectionRule:      enrollmentModels.SelectionRuleOptional,
+	}
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	resyncer := &recordingSourcedTemplateResyncer{}
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:                   repoFactory.Phase,
+		RequestRepo:            repoFactory.Request,
+		RequestChildRepo:       repoFactory.RequestChild,
+		CareOfferingRepo:       repoFactory.CareOffering,
+		FormSchemaRepo:         repoFactory.FormSchema,
+		LockTemplateRecurrence: func(context.Context) error { return nil },
+		DB:                     db,
+		Logger:                 slog.Default(),
+	})
+	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
+	require.True(t, ok, "phase service must accept the sourced-template resyncer")
+	binder.SetSourcedTemplateResyncer(resyncer)
+
+	created.Name += "-metadata-only"
+	require.NoError(t, svc.Update(ctx, created))
+	assert.Empty(t, resyncer.offeringIDs,
+		"metadata-only updates must not resync sourced templates")
+
+	created.ServiceEndDate = created.ServiceEndDate.AddDays(7)
+	require.NoError(t, svc.Update(ctx, created))
+	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs,
+		"a service-window change must resync every template sourcing the phase's offerings")
+}
+
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()

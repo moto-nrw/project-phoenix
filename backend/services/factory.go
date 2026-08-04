@@ -1582,6 +1582,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
 	}
 	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
+	// A phase service-window change re-bounds every roster row derived from
+	// the phase's offerings, so the templates sourcing them must resync too
+	// (#2147 review). Same late binding as above.
+	phaseSourceBinder, ok := enrollmentPhaseService.(enrollment.CareOfferingSourceResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment phase service does not accept the sourced-template resyncer")
+	}
+	phaseSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,

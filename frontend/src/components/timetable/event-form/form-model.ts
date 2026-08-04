@@ -237,6 +237,28 @@ function sameIdSet(left: string[], right: string[]): boolean {
   return right.every((id) => seen.has(id));
 }
 
+/**
+ * True when at least one weekday staffs differently from the others. This is
+ * the state an offering source would silently destroy on save: with a source
+ * set, the payload carries only the shared staff list (the backend rejects
+ * `weekday_assignments` next to a source), so activating one must ask for
+ * explicit confirmation first (#2147 review). Child lists are not compared;
+ * a sourced roster replaces them by design.
+ */
+export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
+  if (!form.perWeekdayRoster || form.weekdays.length < 2) return false;
+  const [first, ...rest] = form.weekdays;
+  if (first === undefined) return false;
+  const baseline = rosterForWeekday(form, first);
+  return rest.some((weekday) => {
+    const current = rosterForWeekday(form, weekday);
+    return (
+      !sameIdSet(baseline.staffIds, current.staffIds) ||
+      baseline.primaryStaffId !== current.primaryStaffId
+    );
+  });
+}
+
 export interface EventFormState {
   title: string;
   date: string;
