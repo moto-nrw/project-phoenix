@@ -15,6 +15,8 @@ Shared [Claude Code](https://claude.ai/code) configuration for this repo. Everyt
 │   ├── check-env-files.sh      #   env file security check on session start
 │   ├── skill-reminder.sh       #   nudges active skill usage, area-aware
 │   └── subagent-reminder.sh
+│                               # (the Stop hook lives outside: it runs
+│                               #  ../scripts/quorum-rerequest.sh --stop-hook)
 ├── scripts/                    # Helper scripts (context-monitor.py)
 ├── skills/                     # Project skills: settings, help-guide-sync,
 │   │                           #   env-docker-sync, creating-team-skills, find-skills
@@ -53,6 +55,7 @@ Files in `.claude/rules/` without frontmatter are loaded into **every** session;
 | `help-guide-sync.md` | Keeping the in-app manual in sync with features |
 | `env-docker-sync.md` | Env var + docker-compose file sync checklists |
 | `github-labels.md` | Only existing labels; one Type + one Priority |
+| `quorum-review-loop.md` | Re-request the reviewer after fixing quorum findings |
 | `no-test-modifications.md` | Never change existing tests to make new code pass |
 | `no-production-requests.md` | Never hit moto-app.de / moto.nrw domains |
 | `security/hardcoded-credentials.md` | Never hardcode secrets |

@@ -254,6 +254,20 @@ Key rules:
 
 **CRITICAL**: Never include "Co-Authored-By: Claude" in commits.
 
+### After Fixing Review Findings: Re-request the Reviewer
+
+`quorum` reviews trigger on the **review request**, not on new code, and it posts
+its report as a plain PR comment — so GitHub never clears the request and a bare
+`gh pr edit --add-reviewer` is a silent no-op. Once fixes for a quorum review are
+pushed, the reviewer must be removed and added again:
+
+```bash
+scripts/quorum-rerequest.sh   # remove/add round trip for this branch's PR
+```
+
+A `Stop` hook blocks the end of a turn while this is owed. Details:
+`.claude/rules/quorum-review-loop.md`.
+
 ### PR Screenshots and QA Evidence
 
 Never create GitHub Releases, prereleases, tags, Gists, branches, or commits
