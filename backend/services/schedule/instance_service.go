@@ -414,6 +414,7 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		GroupRepo:         s.deps.ActiveGroupRepo,
 		SupervisorRepo:    s.deps.SupervisorRepo,
 		VisitRepo:         s.deps.VisitRepo,
+		InstanceRepo:      s.deps.InstanceRepo,
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
 		InstanceStudents:  s.deps.InstanceStudents,
 	}, instance, s.getLogger())

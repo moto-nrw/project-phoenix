@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	planningTracksVersion     = "1.15.263"
+	planningTracksVersion     = "1.15.264"
 	planningTracksDescription = "Add tenant planning tracks and optional recurring-template assignments (issue #2138)"
 )
 
@@ -16,13 +16,13 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     planningTracksVersion,
 		Description: planningTracksDescription,
-		DependsOn:   []string{openingBalancesVersion},
+		DependsOn:   []string{timetableConflictAcksVersion},
 	})
 	Migrations.MustRegister(planningTracksUp, planningTracksDown)
 }
 
 func planningTracksUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.263: Creating schedule.planning_tracks...")
+	fmt.Println("Migration 1.15.264: Creating schedule.planning_tracks...")
 	if _, err := db.NewRaw(`
 		CREATE TABLE schedule.planning_tracks (
 			id BIGSERIAL PRIMARY KEY,
@@ -76,7 +76,7 @@ func planningTracksUp(ctx context.Context, db *bun.DB) error {
 }
 
 func planningTracksDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.263: Dropping schedule.planning_tracks...")
+	fmt.Println("Rolling back migration 1.15.264: Dropping schedule.planning_tracks...")
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_groups_planning_track;
 		ALTER TABLE activities.groups DROP CONSTRAINT IF EXISTS fk_groups_planning_track;

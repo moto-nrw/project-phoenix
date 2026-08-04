@@ -2111,6 +2111,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
 			DeviationEventRepo:         repos.DeviationEvent,
+			ConflictAckRepo:            repos.TimetableConflictAck,
 			Broadcaster:                realtimeHub,
 			Logger:                     logger.With("service", "timetable-data"),
 			DB:                         db,

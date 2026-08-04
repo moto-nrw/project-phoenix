@@ -60,6 +60,7 @@ DELETE /api/suggestions/{id}/comments/{commentId}
 DELETE /api/suggestions/{id}/vote
 DELETE /api/time-tracking/absences/{id}
 DELETE /api/timetable/closing-days/{id}
+DELETE /api/timetable/conflict-acks/{fingerprint}
 DELETE /api/timetable/instances/{id}
 DELETE /api/timetable/periods/{id}
 DELETE /api/timetable/planning-tracks/{id}
@@ -373,6 +374,7 @@ GET /api/time-tracking/shifts
 GET /api/time-tracking/vacation/quota
 GET /api/time-tracking/{id}/edits
 GET /api/timetable/closing-days/
+GET /api/timetable/conflict-acks/
 GET /api/timetable/conflicts
 GET /api/timetable/deviations/history
 GET /api/timetable/exception-conflicts
@@ -855,6 +857,7 @@ PUT /api/suggestions/{id}
 PUT /api/time-tracking/absences/{id}
 PUT /api/time-tracking/{id}
 PUT /api/timetable/closing-days/{id}
+PUT /api/timetable/conflict-acks/{fingerprint}
 PUT /api/timetable/instances/{id}
 PUT /api/timetable/periods/{id}
 PUT /api/timetable/planning-tracks/order

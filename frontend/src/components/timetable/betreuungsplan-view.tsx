@@ -44,7 +44,10 @@ import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
+import {
+  ConflictWarningsBanner,
+  type ConflictBannerEntry,
+} from "~/components/timetable/conflict-warnings-banner";
 import { GapJumpList } from "~/components/timetable/gap-jump-list";
 import {
   InstanceDetailModal,
@@ -113,6 +116,7 @@ import {
 const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
 const PHASES_SWR_KEY = "timetable-enrollment-phases";
+const CONFLICT_ACKS_SWR_KEY = "timetable-conflict-acks";
 
 // Das verbindliche Drei-Parameter-Vokabular (06 §2.1). updateUrlParams baut die
 // URL aus dieser Allowlist neu auf, damit fremde Params (?utm_source=…) nicht
@@ -626,15 +630,153 @@ function TimetablesContent() {
       isActive: true,
     };
   }, [weekRange.from]);
-  const conflictCount = useMemo(
+  // Konflikte (#2139): fensterweite Personen-Doppelbelegungen, aggregiert
+  // nach Fingerprint (beide beteiligten Termine tragen denselben). Die
+  // Quittierung ist Nutzerdatenzustand und kommt pro Konto vom Backend.
+  const { data: ackData } = useSWRAuth(
+    status === "authenticated" ? CONFLICT_ACKS_SWR_KEY : null,
+    () => timetableService.getConflictAcks(),
+  );
+  const ackedFingerprints = useMemo(() => new Set(ackData ?? []), [ackData]);
+
+  const conflictEntries = useMemo(() => {
+    const byFingerprint = new Map<string, ConflictBannerEntry>();
+    for (const inst of instances) {
+      for (const warning of inst.conflictWarnings) {
+        if (!warning.fingerprint) continue;
+        const existing = byFingerprint.get(warning.fingerprint);
+        if (existing) {
+          if (!existing.instances.some((item) => item.id === inst.id)) {
+            existing.instances.push({ id: inst.id, title: inst.title });
+          }
+          continue;
+        }
+        const personName =
+          (warning.kind === "student"
+            ? studentNames.get(warning.resourceId)
+            : staffNames.get(warning.resourceId)) ??
+          (warning.kind === "student" ? "Kind" : "Personal");
+        byFingerprint.set(warning.fingerprint, {
+          fingerprint: warning.fingerprint,
+          kind: warning.kind,
+          personName,
+          dateISO: inst.date,
+          overlapStart: warning.overlapStart,
+          overlapEnd: warning.overlapEnd,
+          instances: [{ id: inst.id, title: inst.title }],
+        });
+      }
+    }
+    return [...byFingerprint.values()];
+  }, [instances, staffNames, studentNames]);
+
+  const openConflicts = useMemo(
     () =>
-      instances.reduce((sum, inst) => sum + inst.conflictWarnings.length, 0),
-    [instances],
+      conflictEntries.filter(
+        (entry) => !ackedFingerprints.has(entry.fingerprint),
+      ),
+    [conflictEntries, ackedFingerprints],
+  );
+  const hiddenConflicts = useMemo(
+    () =>
+      conflictEntries.filter((entry) =>
+        ackedFingerprints.has(entry.fingerprint),
+      ),
+    [conflictEntries, ackedFingerprints],
   );
 
+  // Quittierte Konflikte verschwinden auch von den Terminkarten und aus dem
+  // Detail-Modal — sonst zählt der Banner anders als das Raster markiert.
+  const visibleInstances = useMemo(
+    () =>
+      instances.map((inst) =>
+        inst.conflictWarnings.some(
+          (warning) =>
+            warning.fingerprint && ackedFingerprints.has(warning.fingerprint),
+        )
+          ? {
+              ...inst,
+              conflictWarnings: inst.conflictWarnings.filter(
+                (warning) =>
+                  !warning.fingerprint ||
+                  !ackedFingerprints.has(warning.fingerprint),
+              ),
+            }
+          : inst,
+      ),
+    [instances, ackedFingerprints],
+  );
+
+  const handleHideConflict = useCallback(
+    async (entry: ConflictBannerEntry) => {
+      try {
+        await timetableService.acknowledgeConflict(entry.fingerprint);
+        await tenantMutate(CONFLICT_ACKS_SWR_KEY);
+      } catch (err) {
+        logger.error("conflict_ack_failed", {
+          fingerprint: entry.fingerprint,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toast.error("Konflikt konnte nicht ausgeblendet werden");
+      }
+    },
+    [tenantMutate, toast],
+  );
+
+  // Sammel-Quittierung: jeder offene Konflikt wird einzeln über seinen
+  // Fingerprint quittiert — kein Kategorien-Schalter, Neues taucht wieder auf.
+  const handleHideAllConflicts = useCallback(async () => {
+    try {
+      await Promise.all(
+        openConflicts.map((entry) =>
+          timetableService.acknowledgeConflict(entry.fingerprint),
+        ),
+      );
+      await tenantMutate(CONFLICT_ACKS_SWR_KEY);
+    } catch (err) {
+      logger.error("conflict_ack_all_failed", {
+        count: openConflicts.length,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Konflikte konnten nicht ausgeblendet werden");
+      // Teil-Erfolge sichtbar machen: was durchging, ist quittiert.
+      await tenantMutate(CONFLICT_ACKS_SWR_KEY);
+    }
+  }, [openConflicts, tenantMutate, toast]);
+
+  const handleUnhideConflict = useCallback(
+    async (entry: ConflictBannerEntry) => {
+      try {
+        await timetableService.unacknowledgeConflict(entry.fingerprint);
+        await tenantMutate(CONFLICT_ACKS_SWR_KEY);
+      } catch (err) {
+        logger.error("conflict_unack_failed", {
+          fingerprint: entry.fingerprint,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toast.error("Konflikt konnte nicht wieder angezeigt werden");
+      }
+    },
+    [tenantMutate, toast],
+  );
+
+  const handleJumpToConflict = useCallback(
+    (entry: ConflictBannerEntry, instanceId: string) => {
+      updateUrlParams({ d: entry.dateISO, block: instanceId });
+    },
+    [updateUrlParams],
+  );
+
+  // Sind alle Konflikte quittiert, verschwindet der Banner komplett ("nicht
+  // bei jedem Aufruf erneut erscheinen", #2139). Der Wiedereinstieg zu den
+  // Ausgeblendeten liegt im ⋮-Menü der Kopfzeile und öffnet dieses Panel.
+  const [hiddenConflictsPanelOpen, setHiddenConflictsPanelOpen] =
+    useState(false);
+
   const selectedInstance = useMemo(
-    () => instances.find((inst) => inst.id === selectedInstanceId) ?? null,
-    [instances, selectedInstanceId],
+    () =>
+      visibleInstances.find((inst) => inst.id === selectedInstanceId) ?? null,
+    [visibleInstances, selectedInstanceId],
   );
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
 
@@ -1053,6 +1195,21 @@ function TimetablesContent() {
     })),
   ];
 
+  // Wiedereinstieg zu quittierten Konflikten (#2139): der Banner ist bei
+  // "alles quittiert" bewusst weg, also führt dieser Menü-Eintrag zurück zum
+  // ausgeblendeten Bestand. Nur angeboten, wenn es welche gibt.
+  const hiddenConflictsMenuItems: OverflowMenuEntry[] =
+    shouldLoadInstances && hiddenConflicts.length > 0
+      ? [
+          { kind: "header", label: "Konflikte" },
+          {
+            label: `Ausgeblendete Konflikte anzeigen`,
+            badge: hiddenConflicts.length,
+            onClick: () => setHiddenConflictsPanelOpen(true),
+          },
+        ]
+      : [];
+
   // Leerzustand (Kriterium 5): solange kein Planungszeitraum existiert, zeigt
   // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
@@ -1090,14 +1247,31 @@ function TimetablesContent() {
         }
         actions={
           <>
-            {view === "week" && (
-              // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
-              // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
-              // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
-              // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
-              <span className="hidden sm:contents">
-                <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
-              </span>
+            {hiddenConflictsMenuItems.length > 0 ? (
+              // Mit ausgeblendeten Konflikten trägt das Menü den Wieder-
+              // einstieg und muss überall erreichbar sein (auch mobil und in
+              // der Monatsansicht); die Zeilenhöhe bleibt an die Wochenansicht
+              // gebunden.
+              <OverflowMenu
+                ariaLabel="Weitere Optionen"
+                items={[
+                  ...(view === "week" ? densityMenuItems : []),
+                  ...hiddenConflictsMenuItems,
+                ]}
+              />
+            ) : (
+              view === "week" && (
+                // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
+                // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
+                // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
+                // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
+                <span className="hidden sm:contents">
+                  <OverflowMenu
+                    ariaLabel="Zeilenhöhe"
+                    items={densityMenuItems}
+                  />
+                </span>
+              )
             )}
             {/* Drucken/Exportieren (#2079): gehört auf die Fläche, weil der
                 Export die Woche meint, die gerade zu sehen ist. Unter sm nur
@@ -1171,7 +1345,17 @@ function TimetablesContent() {
       ) : (
         <>
           {shouldLoadInstances && (
-            <ConflictWarningsBanner conflictCount={conflictCount} />
+            <ConflictWarningsBanner
+              openConflicts={openConflicts}
+              hiddenConflicts={hiddenConflicts}
+              periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
+              onHide={handleHideConflict}
+              onHideAll={handleHideAllConflicts}
+              onUnhide={handleUnhideConflict}
+              onJump={handleJumpToConflict}
+              revealHidden={hiddenConflictsPanelOpen}
+              onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
+            />
           )}
 
           {shouldLoadInstances &&
@@ -1190,7 +1374,7 @@ function TimetablesContent() {
               <MonthPlannerGrid
                 days={monthDays}
                 monthDate={visibleDate}
-                instances={instances}
+                instances={visibleInstances}
                 todayISO={todayISO}
                 closingDays={closingDays}
                 onDayClick={openWeekForDay}
@@ -1205,7 +1389,7 @@ function TimetablesContent() {
               ) : (
                 <WeeklyCalendarGrid
                   weekDays={weekDays}
-                  instances={instances}
+                  instances={visibleInstances}
                   selectedId={selectedInstanceId}
                   onInstanceClick={handleSelectInstance}
                   onSlotClick={openQuickCreate}

@@ -116,10 +116,11 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
 		return
 	}
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), rs.childrenPerStaffRatio(r.Context()), careDays)
+	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return
 	}
+	enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)
 	common.Respond(w, r, http.StatusOK, enriched, "Instance updated")
 }

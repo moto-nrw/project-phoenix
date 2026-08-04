@@ -56,6 +56,8 @@ type TimetableDataDependencies struct {
 	ValidateCareOfferingSeries func(context.Context, int64) error
 	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
 	DeviationEventRepo auditModel.DeviationEventRepository
+	// ConflictAckRepo stores per-user conflict acknowledgements (#2139).
+	ConflictAckRepo scheduleModel.TimetableConflictAckRepository
 	// Broadcaster invalidates planner and "Heute geplant" caches after
 	// template-side changes that bypass the instance CRUD flows.
 	Broadcaster realtime.Broadcaster
@@ -135,21 +137,39 @@ func (s *TimetableDataService) MarkInstanceCompleted(ctx context.Context, id int
 	return s.deps.ActivityInstanceRepo.MarkCompleted(ctx, id, completedAt)
 }
 
-// DetectInstanceStartConflicts runs the planner's start-conflict checks using
-// this facade's repositories.
-func (s *TimetableDataService) DetectInstanceStartConflicts(ctx context.Context, instance *scheduleModel.ActivityInstance, logger *slog.Logger) []InstanceConflictWarning {
-	return DetectStartConflicts(
-		ctx,
-		ConflictDependencies{
-			GroupRepo:         s.deps.ActiveGroupRepo,
-			SupervisorRepo:    s.deps.SupervisorRepo,
-			VisitRepo:         s.deps.VisitRepo,
-			InstanceStaffRepo: s.deps.InstanceStaffRepo,
-			InstanceStudents:  s.deps.InstanceStudentRepo,
-		},
-		instance,
-		logger,
-	)
+// ErrInvalidConflictFingerprint rejects malformed conflict fingerprints
+// before they reach the database (#2139).
+var ErrInvalidConflictFingerprint = errors.New("invalid conflict fingerprint")
+
+// ListConflictAcks returns every conflict fingerprint the account has
+// acknowledged in the current tenant (#2139).
+func (s *TimetableDataService) ListConflictAcks(ctx context.Context, accountID int64) ([]string, error) {
+	if accountID <= 0 {
+		return nil, errors.New("account id is required")
+	}
+	return s.deps.ConflictAckRepo.ListFingerprintsByAccount(ctx, accountID)
+}
+
+// AcknowledgeConflict idempotently hides one concrete conflict for one user.
+func (s *TimetableDataService) AcknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	if accountID <= 0 {
+		return errors.New("account id is required")
+	}
+	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+		return ErrInvalidConflictFingerprint
+	}
+	return s.deps.ConflictAckRepo.Acknowledge(ctx, accountID, fingerprint)
+}
+
+// UnacknowledgeConflict makes a previously hidden conflict visible again.
+func (s *TimetableDataService) UnacknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	if accountID <= 0 {
+		return errors.New("account id is required")
+	}
+	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+		return ErrInvalidConflictFingerprint
+	}
+	return s.deps.ConflictAckRepo.Unacknowledge(ctx, accountID, fingerprint)
 }
 
 func (s *TimetableDataService) GetActivityExceptionsByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityException, error) {

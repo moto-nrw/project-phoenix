@@ -98,9 +98,10 @@ export const WithConflict: Story = {
     instance: makeInstance({
       conflictWarnings: [
         {
-          kind: "room",
+          kind: "staff",
           resourceId: "1",
-          message: "Raum bereits belegt",
+          message:
+            "Personal ist von 14:30–15:00 auch bei „Fußball-AG“ eingeplant (anderer Raum).",
           canOverride: true,
         },
       ],

@@ -252,9 +252,21 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
 
-			// Shift coverage exposes Dienstplan availability, so it requires both
-			// timetable read access and shift-management access. It is separate from
-			// /conflicts, which remains available to schedules:read-only users.
+		// Per-user conflict acknowledgements (#2139). SchedulesRead on
+		// purpose: whoever sees the banner may manage their own view state;
+		// writes only touch the calling account's rows.
+		r.Route("/conflict-acks", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/", rs.listConflictAcks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Put("/{fingerprint}", rs.acknowledgeConflict)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Delete("/{fingerprint}", rs.unacknowledgeConflict)
+		})
+
+		// Shift coverage exposes Dienstplan availability, so it requires both
+		// timetable read access and shift-management access. It is separate from
+		// /conflicts, which remains available to schedules:read-only users.
 		r.With(authorize.RequiresAllPermissions(
 			permissions.SchedulesRead,
 			permissions.TimeTrackingManage,

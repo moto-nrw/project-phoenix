@@ -91,9 +91,9 @@ export const WithInstances: Story = {
         status: "cancelled",
         conflictWarnings: [
           {
-            kind: "room",
-            resourceId: "room-1",
-            message: "Raum bereits belegt",
+            kind: "student",
+            resourceId: "21",
+            message: "Kind ist von 14:30–15:00 auch bei „Lernzeit“ eingeplant.",
             canOverride: true,
           },
         ],
