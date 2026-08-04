@@ -31,4 +31,6 @@ The quorum account is declared, never guessed: `git config quorum.reviewer <logi
 
 The `Stop` hook `scripts/quorum-rerequest.sh --stop-hook` (wired in `.claude/settings.json` and `.codex/hooks.json`) blocks the end of a turn while a re-request is owed. It only fires when the work looks finished (no uncommitted changes, nothing unpushed) and never twice in a row.
 
+Codex loads `.codex/hooks.json` only behind its experimental hooks feature flag. The repo config (`.codex/config.toml`) switches it on (`[features] hooks = true`, plus the pre-rename alias `codex_hooks` for older CLI versions); if the Stop hook still does not fire there, set the same flag in `~/.codex/config.toml`.
+
 If a re-request is deliberately unwanted, say so — do not work around the hook. Per clone it can be switched off with `touch .git/quorum-rerequest-off`.

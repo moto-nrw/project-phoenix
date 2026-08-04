@@ -83,6 +83,10 @@ fi
 
 cache_file="$git_dir/quorum-rerequest.cache"
 
+# Set when the local push state cannot be settled from local refs alone; the
+# answer then comes from comparing the PR head with the local HEAD below.
+check_pr_head=0
+
 # --- stop-hook input --------------------------------------------------------
 # stop_hook_active is true when the agent is already continuing because of a
 # Stop hook. Blocking again there loops forever.
@@ -101,8 +105,24 @@ if [[ "$mode" == "stop-hook" ]]; then
     # is noise. Untracked files are ignored on purpose - a stray screenshot or
     # scratch file must not be able to switch the check off by accident.
     if [[ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]]; then soft_exit; fi
-    upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) || soft_exit
-    if [[ -n "$(git log --oneline "$upstream..HEAD" 2>/dev/null)" ]]; then soft_exit; fi
+
+    # A branch can be fully pushed without tracking information (git push
+    # origin HEAD without -u), so a missing upstream must not switch the
+    # enforcement off. Fall back to the matching origin ref; when neither
+    # exists, the push state is settled against the PR head further down.
+    upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) || upstream=""
+    if [[ -z "$upstream" ]]; then
+        branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || branch=""
+        if [[ -n "$branch" && "$branch" != "HEAD" ]] &&
+            git rev-parse --verify --quiet "refs/remotes/origin/$branch" >/dev/null 2>&1; then
+            upstream="origin/$branch"
+        fi
+    fi
+    if [[ -n "$upstream" ]]; then
+        if [[ -n "$(git log --oneline "$upstream..HEAD" 2>/dev/null)" ]]; then soft_exit; fi
+    else
+        check_pr_head=1
+    fi
 
     # Negative results are cached per HEAD sha, so the API round trip only
     # happens on turns that actually moved the branch.
@@ -152,16 +172,20 @@ if [[ -z "$target" ]]; then
 fi
 
 # --- PR state ---------------------------------------------------------------
-pr_fields="number,state,url,author,reviewRequests"
+pr_fields="number,state,url,author,reviewRequests,headRefOid"
 if ! pr_json=$(gh pr view ${pr_arg:+"$pr_arg"} --json "$pr_fields" 2>&1); then
     case "$pr_json" in
         *"no pull requests found"* | *"Could not resolve"* | *"no default remote"*)
-            # No PR is genuinely "nothing owed", not an error.
-            if [[ "$mode" == "check" ]]; then
-                echo "No open PR here - nothing owed."
-                exit 0
+            # An explicitly named PR that cannot be resolved is an error; a
+            # branch without an open PR is genuinely "nothing owed" - in every
+            # mode, not just --check.
+            if [[ -n "$pr_arg" ]]; then
+                bail "no open PR found for '$pr_arg'"
             fi
-            bail "no open PR found${pr_arg:+ for '$pr_arg'}"
+            if [[ "$mode" != "stop-hook" ]]; then
+                echo "No open PR here - nothing owed."
+            fi
+            exit 0
             ;;
         *) bail "gh pr view failed: $pr_json" ;;
     esac
@@ -178,6 +202,17 @@ if [[ "$pr_state" != "OPEN" ]]; then
         echo "PR #$pr_number is $pr_state - nothing to re-request."
     fi
     exit 0
+fi
+
+# Without a local tracking ref, "is everything pushed" is answered by the PR
+# itself: a head that does not match the local HEAD (or cannot be read) means
+# the fix round is still in flight - not a finished turn. Never cached: the
+# next push changes the answer.
+if [[ "$mode" == "stop-hook" && "$check_pr_head" == "1" ]]; then
+    pr_head=$(printf '%s' "$pr_json" | jq -r '.headRefOid // empty')
+    if [[ -z "$pr_head" || "$pr_head" != "$(git rev-parse HEAD 2>/dev/null)" ]]; then
+        soft_exit
+    fi
 fi
 
 repo_slug=$(printf '%s' "$pr_url" | sed -E 's#https://[^/]+/([^/]+/[^/]+)/pull/.*#\1#')
