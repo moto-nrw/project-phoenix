@@ -415,6 +415,51 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 	assert.Equal(t, int64(73), *service.lastSpontaneousInput.ActivityGroupID)
 }
 
+func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T) {
+	archivedAt := time.Now()
+	categoryRepo := &fakeOperationActivityCategoryRepo{
+		findByNameResult: &activityModels.Category{
+			Name:       "Spontan",
+			ArchivedAt: &archivedAt,
+		},
+	}
+	groupRepo := &fakeOperationActivityGroupRepo{}
+	service := &fakeOperationsService{}
+	res := NewResource(Dependencies{
+		OperationsService: service,
+		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
+			ActiveGroupRepo:      &fakeOperationActiveGroupRepo{},
+			ActivityGroupRepo:    groupRepo,
+			ActivityCategoryRepo: categoryRepo,
+		}),
+		PersonService: &userstest.PersonServiceMock{
+			FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+				person := &userModels.Person{}
+				person.ID = 223
+				return person, nil
+			},
+			GetStaffByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+				staff := &userModels.Staff{}
+				staff.ID = 323
+				return staff, nil
+			},
+		},
+		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
+	})
+	res.Now = testWorkdayNow
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"title":   "Neue Werkstatt",
+		"room_id": int64(70),
+	})
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	assert.Nil(t, categoryRepo.createdCategory, "an archived Spontan category must not be recreated")
+	assert.Nil(t, groupRepo.createdGroup)
+	assert.Nil(t, service.lastSpontaneousInput)
+}
+
 func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
 	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 7, 5, 44, 0, time.UTC))
 
@@ -947,6 +992,14 @@ type fakeOperationActivityCategoryRepo struct {
 }
 
 func (r *fakeOperationActivityCategoryRepo) FindByName(_ context.Context, _ string) (*activityModels.Category, error) {
+	return r.findByName()
+}
+
+func (r *fakeOperationActivityCategoryRepo) FindByNameIncludingArchivedForShare(_ context.Context, _ string) (*activityModels.Category, error) {
+	return r.findByName()
+}
+
+func (r *fakeOperationActivityCategoryRepo) findByName() (*activityModels.Category, error) {
 	if r.findByNameErr != nil {
 		return nil, r.findByNameErr
 	}

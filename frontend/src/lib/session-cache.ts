@@ -51,18 +51,28 @@ export async function getCachedSession() {
   }
   if (inflight) return inflight;
 
-  inflight = getSession()
+  // A request may only touch module state while it is still the current
+  // `inflight`. clearSessionCache() (token refresh, tenant switch) nulls
+  // `inflight`, so a lookup that was already in flight at that point must
+  // neither write its stale, pre-refresh result back into the cache nor
+  // clear a newer lookup that started after the invalidation.
+  const request: Promise<Awaited<ReturnType<typeof getSession>>> = getSession()
     .then((session) => {
-      cachedTenantId = (session?.user as { tenantId?: number } | undefined)
-        ?.tenantId;
-      cached = { session, expiry: Date.now() + TTL_MS };
+      if (inflight === request) {
+        cachedTenantId = (session?.user as { tenantId?: number } | undefined)
+          ?.tenantId;
+        cached = { session, expiry: Date.now() + TTL_MS };
+      }
       return session;
     })
     .finally(() => {
-      inflight = null;
+      if (inflight === request) {
+        inflight = null;
+      }
     });
+  inflight = request;
 
-  return inflight;
+  return request;
 }
 
 /**
@@ -94,7 +104,11 @@ export async function sessionFetch(
 
   if (response.status === 401) {
     clearSessionCache();
-    const { handleAuthFailure } = await import("./auth-api");
+    // Import from auth-failure directly (auth-api only re-exports it):
+    // going through auth-api would close a module cycle
+    // session-cache -> auth-api -> auth-service -> api-transport -> session-cache
+    // now that the API clients import this module statically (#2123).
+    const { handleAuthFailure } = await import("./auth-failure");
     const refreshed = await handleAuthFailure();
     if (refreshed) {
       const freshSession = await getCachedSession();

@@ -109,11 +109,12 @@ type Dependencies struct {
 	SettingsService        configSvc.SettingsService
 	SlotListsService       slotlists.Service
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
-	PlanExportService planexport.Service
-	Broadcaster       realtime.Broadcaster
-	Logger            *slog.Logger
-	DB                *bun.DB
-	Now               func() time.Time
+	PlanExportService    planexport.Service
+	PlanningTrackService scheduleSvc.PlanningTrackService
+	Broadcaster          realtime.Broadcaster
+	Logger               *slog.Logger
+	DB                   *bun.DB
+	Now                  func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -251,9 +252,21 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
 
-			// Shift coverage exposes Dienstplan availability, so it requires both
-			// timetable read access and shift-management access. It is separate from
-			// /conflicts, which remains available to schedules:read-only users.
+		// Per-user conflict acknowledgements (#2139). SchedulesRead on
+		// purpose: whoever sees the banner may manage their own view state;
+		// writes only touch the calling account's rows.
+		r.Route("/conflict-acks", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/", rs.listConflictAcks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Put("/{fingerprint}", rs.acknowledgeConflict)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Delete("/{fingerprint}", rs.unacknowledgeConflict)
+		})
+
+		// Shift coverage exposes Dienstplan availability, so it requires both
+		// timetable read access and shift-management access. It is separate from
+		// /conflicts, which remains available to schedules:read-only users.
 		r.With(authorize.RequiresAllPermissions(
 			permissions.SchedulesRead,
 			permissions.TimeTrackingManage,
@@ -332,6 +345,15 @@ func (rs *Resource) Router() chi.Router {
 			Post("/templates/{id}/end", rs.endTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Delete("/templates/{id}", rs.archiveTemplate)
+
+		r.Route("/planning-tracks", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPlanningTracks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Post("/", rs.createPlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Put("/order", rs.reorderPlanningTracks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Put("/{id}", rs.updatePlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Delete("/{id}", rs.archivePlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Post("/{id}/restore", rs.restorePlanningTrack)
+		})
 	})
 
 	return r

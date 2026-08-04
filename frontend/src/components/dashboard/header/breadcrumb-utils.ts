@@ -95,6 +95,7 @@ const subPageLabels: Record<string, string> = {
   edit: "Bearbeiten",
   details: "Details",
   permissions: "Berechtigungen",
+  "opening-balances": "Eröffnungssalden",
 };
 
 /**

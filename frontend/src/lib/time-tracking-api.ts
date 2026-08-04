@@ -1,6 +1,6 @@
 // Time tracking API service for check-in/out and history management
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { buildApiError } from "./auth-api";
 import type {
   BackendClosingDayRange,
@@ -101,7 +101,7 @@ class TimeTrackingService {
   private readonly baseUrl = "/api/time-tracking";
 
   private async getToken(): Promise<string | undefined> {
-    const session = await getSession();
+    const session = await getCachedSession();
     return session?.user?.token;
   }
 

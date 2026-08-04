@@ -49,7 +49,6 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 	if len(staffMembers) == 0 {
 		return []MonthExportRow{}, nil
 	}
-
 	// One prefetch for the whole request. `lower` widens the window to the
 	// first requested month: for a year export the early months may lie before
 	// the account anchor and are then computed as standalone months — exactly
@@ -68,7 +67,8 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 			if err != nil {
 				return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
 			}
-			rows = append(rows, buildMonthExportRow(staff, summary))
+			row := buildMonthExportRow(staff, summary)
+			rows = append(rows, row)
 		}
 	}
 	return rows, nil
@@ -113,6 +113,8 @@ func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthEx
 			row.CompTimeMinutes += adjustment.MinutesDelta
 		case activeModels.BalanceAdjustmentTypeReset:
 			row.ResetMinutes += adjustment.MinutesDelta
+		case activeModels.BalanceAdjustmentTypeOpening:
+			row.OpeningMinutes += adjustment.MinutesDelta
 		}
 	}
 	if staff.EmploymentType != nil {

@@ -83,6 +83,12 @@ type UnregisteredTagScanCleaner interface {
 	DeleteOlderThan(ctx context.Context, days int) (int, error)
 }
 
+// StaffDocumentFileCleaner removes files whose staff-document metadata either
+// never committed or belongs to an offboarded staff member.
+type StaffDocumentFileCleaner interface {
+	CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error)
+}
+
 // SettingsResolver resolves setting values per tenant. Implemented by config.SettingsService.
 type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
@@ -102,6 +108,7 @@ type Scheduler struct {
 	autoCheckouter             AutoCheckouter
 	feedbackCleaner            FeedbackCleaner
 	unregisteredTagScanCleaner UnregisteredTagScanCleaner
+	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup        active.TimeTrackingCleanupService
@@ -175,6 +182,15 @@ type Scheduler struct {
 	reminderNotified      sync.Map // reminderNotificationKey → time.Time
 	reminderNotifiedDay   timezone.Date
 	reminderNotifiedDayMu sync.Mutex
+
+	// Guardian appointment reminders (#1671). Wired via
+	// SetAppointmentReminderQueuer; nil → task does not register.
+	// appointmentReminderScannedAt holds the upper bound of each tenant's last
+	// successful scan. Failed scans deliberately leave their tenant's boundary
+	// untouched so the next tick retries its bounded window.
+	appointmentReminders         AppointmentReminderQueuer
+	appointmentReminderScannedAt map[int64]time.Time
+	appointmentReminderScanMu    sync.Mutex
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the
@@ -249,6 +265,12 @@ func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
 
 func (s *Scheduler) SetUnregisteredTagScanCleaner(cleaner UnregisteredTagScanCleaner) {
 	s.unregisteredTagScanCleaner = cleaner
+}
+
+// SetStaffDocumentFileCleaner wires the filesystem-backed staff-document
+// recovery worker. Nil disables the task for tests without file storage.
+func (s *Scheduler) SetStaffDocumentFileCleaner(cleaner StaffDocumentFileCleaner) {
+	s.staffDocumentFileCleaner = cleaner
 }
 
 // SetMaterializer wires the timetable materialization service. When set, the
@@ -370,15 +392,45 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 	return nil
 }
 
-// forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
-// Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
-// seeded schools). Production jobs share one cross-tenant settings snapshot per minute.
-func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) {
+// forEachTenantIncludingInactive runs a maintenance operation for every
+// non-deleted tenant. It is reserved for recovery work that must continue
+// after a school has been deactivated.
+func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
 			slog.String("operation", opName))
-		_ = fn(ctx, 0)
-		return
+		return fn(ctx)
+	}
+
+	var schools []platform.School
+	if err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		var listErr error
+		schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
+		return listErr
+	}); err != nil {
+		return fmt.Errorf("load tenants for %s: %w", opName, err)
+	}
+	tenantIDs := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		tenantIDs = append(tenantIDs, school.ID)
+	}
+	s.forEachKnownTenant(ctx, tenantIDs, opName, func(txCtx context.Context, _ int64) error {
+		return fn(txCtx)
+	})
+	return nil
+}
+
+// forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
+// Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
+// seeded schools). Production jobs share one cross-tenant settings snapshot per minute.
+func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) []int64 {
+	if s.db == nil || s.schoolRepo == nil {
+		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
+			slog.String("operation", opName))
+		if err := fn(ctx, 0); err != nil {
+			return nil
+		}
+		return []int64{0}
 	}
 
 	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
@@ -386,22 +438,29 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		// Older unit-test fakes implement only the narrow per-key resolver.
 		// Production SettingsService always implements the batch loader.
 		if errors.Is(err, errSchedulerSettingsBatchUnsupported) {
-			if iterationErr := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, fn); iterationErr != nil {
+			completed := make([]int64, 0)
+			if iterationErr := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, func(txCtx context.Context, tenantID int64) error {
+				if fnErr := fn(txCtx, tenantID); fnErr != nil {
+					return fnErr
+				}
+				completed = append(completed, tenantID)
+				return nil
+			}); iterationErr != nil {
 				s.getLogger().Error("failed to list active tenants",
 					slog.String("operation", opName),
 					slog.String("error", iterationErr.Error()),
 				)
 			}
-			return
+			return completed
 		}
 		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
 			slog.String("error", err.Error()),
 		)
-		return
+		return nil
 	}
 
-	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
+	return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
 		snapshot := minuteSnapshot.settings[tenantID]
 		if snapshot == nil {
 			return fmt.Errorf("settings snapshot missing for tenant %d", tenantID)
@@ -437,6 +496,10 @@ func (s *Scheduler) Start() {
 	// Schedule token cleanup every hour
 	s.scheduleTokenCleanupTask()
 
+	// Recover orphaned staff-document files after interrupted uploads, even
+	// when no tenant user later opens the documents UI.
+	s.scheduleStaffDocumentFileCleanupTask()
+
 	// Schedule abandoned session cleanup
 	s.scheduleSessionCleanupTask()
 
@@ -467,6 +530,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule per-tenant rollover deadline resolver (phase rollover)
 	s.scheduleRolloverDeadlineTask()
+
+	// Schedule per-tenant guardian appointment reminders (#1671)
+	s.scheduleAppointmentReminderTask()
 }
 
 // Stop gracefully stops the scheduler

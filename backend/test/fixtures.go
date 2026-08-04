@@ -2617,6 +2617,7 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		"active.groups",
 		"activities.student_enrollments",
 		"activities.groups",
+		"schedule.planning_tracks",
 		"activities.categories",
 		"education.group_teacher",
 		"education.group_substitution",

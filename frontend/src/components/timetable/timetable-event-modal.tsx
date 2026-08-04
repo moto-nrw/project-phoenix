@@ -28,6 +28,7 @@ import {
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
+import { CategoryManageModal } from "./category-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -112,6 +113,8 @@ interface TimetableEventModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  canManageCategories: boolean;
+  canManagePlanningTracks?: boolean;
   /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
    * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
@@ -142,20 +145,29 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  canManageCategories,
+  canManagePlanningTracks = false,
   closingDayRanges,
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
+  const [categoryDialog, setCategoryDialog] = useState<
+    "list" | "create" | null
+  >(null);
   const {
     form,
     update,
     updateRepeat,
+    selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,
     validationError,
     rooms,
     categories,
+    refreshCategories,
+    planningTracks,
+    refreshPlanningTracks,
     groups,
     students,
     staff,
@@ -204,7 +216,6 @@ export function TimetableEventModal({
     abWeekHint,
     studentBulkOptions,
     targetClassOptions,
-    targetClassDescriptionIDs,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,
@@ -218,6 +229,11 @@ export function TimetableEventModal({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    activeRosterWeekday,
+    setActiveRosterWeekday,
+    setPerWeekdayRoster,
+    setWeekdayRoster,
+    applyActiveWeekdayRosterToAll,
     listKindTouched,
     manualWeekPattern,
   } = useEventForm({
@@ -269,8 +285,12 @@ export function TimetableEventModal({
     );
     if (!period) return null;
     const today = berlinTodayISO();
-    const from =
-      initialSeries && today > period.startDate ? today : period.startDate;
+    // Serien-Edits schauen ab heute nach vorn. Neue und umgewandelte Serien
+    // beginnen am gewählten Datum (#2135): frühere Slots werden nie
+    // materialisiert und dürfen die Rückfrage nicht auslösen.
+    // materializedRecurrenceDates klemmt beide Untergrenzen auf den
+    // Periodenstart.
+    const from = initialSeries ? today : form.date;
     const validity = initialSeries?.schedules[0];
     const dates = materializedRecurrenceDates({
       period,
@@ -475,11 +495,19 @@ export function TimetableEventModal({
                 fieldErrors={fieldErrors}
                 rooms={rooms}
                 categories={categories}
+                planningTracks={planningTracks}
                 loadingRefs={loadingRefs}
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
+                isEditingSeries={isEditingSeries}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
+                canManageCategories={canManageCategories}
+                onManageCategories={setCategoryDialog}
+                canManagePlanningTracks={canManagePlanningTracks}
+                onPlanningTracksChanged={async (created) => {
+                  await refreshPlanningTracks(created?.id);
+                }}
               />
             )}
 
@@ -488,6 +516,7 @@ export function TimetableEventModal({
                 form={form}
                 update={update}
                 updateRepeat={updateRepeat}
+                selectCalendarPeriod={selectCalendarPeriod}
                 toggleWeekday={toggleWeekday}
                 fieldErrors={fieldErrors}
                 calendarPeriods={calendarPeriods}
@@ -528,7 +557,6 @@ export function TimetableEventModal({
                 preservesGradeAboveTenantCap={preservesGradeAboveTenantCap}
                 studentBulkOptions={studentBulkOptions}
                 targetClassOptions={targetClassOptions}
-                targetClassDescriptionIDs={targetClassDescriptionIDs}
                 targetCohort={targetCohort}
                 missingTargetCohortCount={missingTargetCohortCount}
                 targetCohortButtonLabel={targetCohortButtonLabel}
@@ -539,6 +567,11 @@ export function TimetableEventModal({
                 coverageCheckError={coverageCheckError}
                 requiredStaffTouched={requiredStaffTouched}
                 staffRosterTouched={staffRosterTouched}
+                activeRosterWeekday={activeRosterWeekday}
+                setActiveRosterWeekday={setActiveRosterWeekday}
+                setPerWeekdayRoster={setPerWeekdayRoster}
+                setWeekdayRoster={setWeekdayRoster}
+                applyActiveWeekdayRosterToAll={applyActiveWeekdayRosterToAll}
               />
             )}
 
@@ -834,6 +867,20 @@ export function TimetableEventModal({
             </div>
           )}
         </ConfirmationModal>
+
+        {/* Kategorien verwalten (#2131): mounted only while open so its fetch
+            and dialog context stay out of every test that never opens it. */}
+        {canManageCategories && categoryDialog && (
+          <CategoryManageModal
+            isOpen
+            initialView={categoryDialog}
+            onClose={() => setCategoryDialog(null)}
+            onChanged={async (created) => {
+              await refreshCategories(created?.id);
+              if (created) setCategoryDialog(null);
+            }}
+          />
+        )}
       </SlideOverContent>
     </SlideOver>
   );

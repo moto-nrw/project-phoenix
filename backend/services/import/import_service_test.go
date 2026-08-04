@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,6 +27,29 @@ type mockImportConfig struct {
 	createErr       error
 	updateErr       error
 	entityName      string
+	processingOrder []int
+	createdRows     []string
+	createErrByName map[string]error
+}
+
+type mockDataImportRepository struct {
+	created *auditModels.DataImport
+	ctx     context.Context
+	err     error
+}
+
+func (m *mockDataImportRepository) Create(ctx context.Context, record *auditModels.DataImport) error {
+	m.ctx = ctx
+	m.created = record
+	return m.err
+}
+
+func (m *mockDataImportRepository) FindByID(context.Context, int64) (*auditModels.DataImport, error) {
+	return nil, nil
+}
+
+func (m *mockDataImportRepository) List(context.Context, map[string]interface{}) ([]*auditModels.DataImport, error) {
+	return nil, nil
 }
 
 func (m *mockImportConfig) PreloadReferenceData(_ context.Context) error {
@@ -40,7 +64,11 @@ func (m *mockImportConfig) FindExisting(_ context.Context, _ testRow) (*int64, e
 	return m.findExistingID, m.findExistingErr
 }
 
-func (m *mockImportConfig) Create(_ context.Context, _ testRow) (int64, error) {
+func (m *mockImportConfig) Create(_ context.Context, row testRow) (int64, error) {
+	m.createdRows = append(m.createdRows, row.Name)
+	if err := m.createErrByName[row.Name]; err != nil {
+		return 0, err
+	}
 	return m.createID, m.createErr
 }
 
@@ -53,6 +81,10 @@ func (m *mockImportConfig) EntityName() string {
 		return "TestEntity"
 	}
 	return m.entityName
+}
+
+func (m *mockImportConfig) ProcessingOrder(_ []testRow) []int {
+	return m.processingOrder
 }
 
 // ============================================================================
@@ -71,6 +103,35 @@ func TestNewImportService(t *testing.T) {
 		require.NotNil(t, service)
 		assert.Equal(t, 100, service.batchSize)
 	})
+}
+
+func TestImportService_RecordAuditInTransaction(t *testing.T) {
+	service := NewImportService[testRow](&mockImportConfig{})
+	repo := &mockDataImportRepository{}
+	service.SetAuditRepository(repo)
+	result := &importModels.ImportResult[testRow]{
+		TotalRows:    4,
+		CreatedCount: 3,
+		ErrorCount:   1,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Sentinel values for the in-memory repository stub — no DB rows involved.
+	const wantTenantID int64 = 7
+	const accountID int64 = 42
+
+	err := service.RecordAuditInTransaction(ctx, "opening_balance", "opening.csv", result, accountID, false, wantTenantID)
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.created)
+	assert.Same(t, ctx, repo.ctx)
+	assert.Equal(t, wantTenantID, repo.created.TenantID)
+	assert.Equal(t, "opening_balance", repo.created.EntityType)
+	assert.Equal(t, "opening.csv", repo.created.Filename)
+	assert.Equal(t, 3, repo.created.CreatedCount)
+	assert.Equal(t, 1, repo.created.ErrorCount)
+	assert.False(t, repo.created.DryRun)
 }
 
 // ============================================================================
@@ -417,6 +478,38 @@ func TestImportService_Import(t *testing.T) {
 		assert.False(t, result.CompletedAt.IsZero())
 		assert.True(t, result.CompletedAt.After(result.StartedAt) || result.CompletedAt.Equal(result.StartedAt))
 	})
+}
+
+func TestImportService_ImportUsesConfiguredProcessingOrder(t *testing.T) {
+	config := &mockImportConfig{processingOrder: []int{1, 0}}
+	service := NewImportService[testRow](config)
+
+	result, err := service.Import(context.Background(), importModels.ImportRequest[testRow]{
+		Rows: []testRow{{Name: "first"}, {Name: "second"}},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.CreatedCount)
+	assert.Equal(t, []string{"second", "first"}, config.createdRows)
+}
+
+func TestImportService_ImportKeepsOriginalRowNumbersWhenReordered(t *testing.T) {
+	config := &mockImportConfig{
+		processingOrder: []int{1, 0},
+		createErrByName: map[string]error{
+			"second": errors.New("cannot create second"),
+		},
+	}
+	service := NewImportService[testRow](config)
+
+	result, err := service.Import(context.Background(), importModels.ImportRequest[testRow]{
+		Rows: []testRow{{Name: "first"}, {Name: "second"}},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, result.Errors, 1)
+	assert.Equal(t, 3, result.Errors[0].RowNumber)
+	assert.Equal(t, "second", result.Errors[0].Data.Name)
 }
 
 // ============================================================================

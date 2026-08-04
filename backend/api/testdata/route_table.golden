@@ -3,6 +3,7 @@ DELETE /api/active/combined/{id}
 DELETE /api/active/groups/{id}
 DELETE /api/active/supervisors/{id}
 DELETE /api/active/visits/{id}
+DELETE /api/activities/categories/{categoryId}
 DELETE /api/activities/{id}
 DELETE /api/activities/{id}/schedules/{scheduleId}
 DELETE /api/activities/{id}/students/{studentId}
@@ -41,7 +42,9 @@ DELETE /api/staff-shifts/series/{id}
 DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
+DELETE /api/staff/{id}/documents/{documentId}
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
+DELETE /api/staff/{id}/vacation/opening
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
@@ -57,8 +60,10 @@ DELETE /api/suggestions/{id}/comments/{commentId}
 DELETE /api/suggestions/{id}/vote
 DELETE /api/time-tracking/absences/{id}
 DELETE /api/timetable/closing-days/{id}
+DELETE /api/timetable/conflict-acks/{fingerprint}
 DELETE /api/timetable/instances/{id}
 DELETE /api/timetable/periods/{id}
+DELETE /api/timetable/planning-tracks/{id}
 DELETE /api/timetable/templates/{id}
 DELETE /api/users/{id}
 DELETE /api/work-time-models/{id}
@@ -206,6 +211,7 @@ GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/import/opening-balances/template
 GET /api/import/students/template
 GET /api/import/teachers/template
 GET /api/iot/*/
@@ -292,6 +298,8 @@ GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
 GET /api/staff/dashboard-summary
+GET /api/staff/documents-directory
+GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
 GET /api/staff/pin
 GET /api/staff/time-tracking/audit-log
@@ -302,6 +310,8 @@ GET /api/staff/time-tracking/overview
 GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar
+GET /api/staff/{id}/documents
+GET /api/staff/{id}/documents/{documentId}/download
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
@@ -364,6 +374,7 @@ GET /api/time-tracking/shifts
 GET /api/time-tracking/vacation/quota
 GET /api/time-tracking/{id}/edits
 GET /api/timetable/closing-days/
+GET /api/timetable/conflict-acks/
 GET /api/timetable/conflicts
 GET /api/timetable/deviations/history
 GET /api/timetable/exception-conflicts
@@ -377,6 +388,7 @@ GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
 GET /api/timetable/periods/
 GET /api/timetable/periods/{id}
+GET /api/timetable/planning-tracks/
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
 GET /api/timetable/templates
@@ -518,6 +530,8 @@ POST /api/active/visits/student/{studentId}/checkout
 POST /api/active/visits/transit/assign
 POST /api/active/visits/{id}/end
 POST /api/activities/
+POST /api/activities/categories
+POST /api/activities/categories/{categoryId}/restore
 POST /api/activities/quick-create
 POST /api/activities/{id}/schedules
 POST /api/activities/{id}/students/{studentId}
@@ -567,6 +581,8 @@ POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+POST /api/import/opening-balances/import
+POST /api/import/opening-balances/preview
 POST /api/import/students/import
 POST /api/import/students/preview
 POST /api/import/teachers/import
@@ -622,11 +638,14 @@ POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/documents
 POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 POST /api/staff/{id}/time-tracking/adjustments
 POST /api/staff/{id}/time-tracking/month-close/reopen
+POST /api/staff/{id}/time-tracking/opening
 POST /api/staff/{id}/time-tracking/reset
 POST /api/staff/{id}/time-tracking/sessions
+POST /api/staff/{id}/vacation/opening
 POST /api/students/
 POST /api/students/arrival-schedules/bulk
 POST /api/students/arrival-times/bulk
@@ -679,6 +698,8 @@ POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start
 POST /api/timetable/periods/
 POST /api/timetable/periods/bootstrap
+POST /api/timetable/planning-tracks/
+POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
@@ -779,6 +800,7 @@ PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
 PUT /api/active/visits/{id}
+PUT /api/activities/categories/{categoryId}
 PUT /api/activities/{id}
 PUT /api/activities/{id}/schedules/{scheduleId}
 PUT /api/activities/{id}/students
@@ -835,8 +857,11 @@ PUT /api/suggestions/{id}
 PUT /api/time-tracking/absences/{id}
 PUT /api/time-tracking/{id}
 PUT /api/timetable/closing-days/{id}
+PUT /api/timetable/conflict-acks/{fingerprint}
 PUT /api/timetable/instances/{id}
 PUT /api/timetable/periods/{id}
+PUT /api/timetable/planning-tracks/order
+PUT /api/timetable/planning-tracks/{id}
 PUT /api/timetable/templates/{id}
 PUT /api/users/{id}
 PUT /api/work-time-models/{id}

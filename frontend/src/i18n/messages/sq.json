@@ -62,7 +62,8 @@
     "role": "Prind",
     "childProfile": "Profili i fëmijës",
     "loading": "Po ngarkohet...",
-    "feedback": "Reagime"
+    "feedback": "Reagime",
+    "settings": "Cilësimet"
   },
   "parentMealPlan": {
     "title": "Plani i ushqimit",
@@ -130,6 +131,11 @@
     "newsPollNeedsAnswer": "Kërkohet përgjigje",
     "newsClose": "Mbyll",
     "newEnrollment": "Regjistrim i ri"
+  },
+  "parentSettings": {
+    "eyebrow": "Llogaria juaj",
+    "title": "Cilësimet",
+    "description": "Zgjidhni për çfarë ju informon moto dhe në cilën pajisje."
   },
   "parentEnroll": {
     "back": "Kthehu te portali i prindërve",

@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { useSWRConfig } from "swr";
-import { Clock3, Thermometer, Trash2 } from "lucide-react";
+import { CalendarClock, Clock3, Thermometer, Trash2 } from "lucide-react";
 
 import {
   DenyAbsenceModal,
@@ -32,15 +32,23 @@ import {
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { todayISO } from "~/lib/date-helpers";
+import {
+  formatDate,
+  berlinTodayISO,
+  parseISODate,
+  todayISO,
+  toISODate,
+} from "~/lib/date-helpers";
 import {
   staffAbsenceService,
   type StaffAbsenceRow,
+  type StaffVacationOpening,
   type StaffVacationQuotaSummary,
 } from "~/lib/staff-api";
 import { useTenantMutateMatching } from "~/lib/swr";
@@ -58,6 +66,15 @@ const VACATION_WORKFLOW_STATUSES = new Set([
   "declined",
   "canceled",
 ]);
+
+const ONE_DECIMAL_INPUT_PATTERN = /^[+-]?(?:\d+(?:[,.]\d)?|[,.]\d)$/;
+
+function parseOneDecimalInput(value: string): number | null {
+  const normalized = value.trim();
+  if (!ONE_DECIMAL_INPUT_PATTERN.test(normalized)) return null;
+  const parsed = Number(normalized.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function formatRange(start: string, end: string): string {
   return formatAbsenceRange(start, end);
@@ -142,7 +159,7 @@ export function AbwesenheitenTab({
   readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
-  const year = useMemo(() => new Date().getFullYear(), []);
+  const year = Number.parseInt(berlinTodayISO().slice(0, 4), 10);
   const [quota, setQuota] = useState<StaffVacationQuotaSummary | null>(null);
   const [absences, setAbsences] = useState<StaffAbsenceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +169,12 @@ export function AbwesenheitenTab({
     null,
   );
   const [quotaModal, setQuotaModal] = useState(false);
+  const [openingModal, setOpeningModal] = useState(false);
+  // Vacation takeover deletion (#2132) runs through the shared
+  // ConfirmDeleteModal at tab level instead of nesting a dialog inside the
+  // takeover modal.
+  const [openingDeleteTarget, setOpeningDeleteTarget] =
+    useState<StaffVacationOpening | null>(null);
   // Snapshot of the staff identity taken when the modal opens: the live
   // `staff` prop can flip to undefined while onCreated's cache invalidation
   // refetches the page data, and a conditional `{staff && <Modal/>}` render
@@ -295,37 +318,50 @@ export function AbwesenheitenTab({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        {canManageSickReports && staff ? (
-          <div className="flex flex-wrap gap-2">
+      {quota?.opening && <VacationOpeningSummary opening={quota.opening} />}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {canManageSickReports && staff && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setManagedAbsenceType("sick");
+                  setSickStaff(staff);
+                }}
+              >
+                <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+                Krank melden
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setManagedAbsenceType("comp_time");
+                  setSickStaff(staff);
+                }}
+              >
+                <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
+                Freizeitausgleich eintragen
+              </Button>
+            </>
+          )}
+          {canManageSickReports && (
             <Button
               type="button"
               variant="outline"
               size="md"
-              onClick={() => {
-                setManagedAbsenceType("sick");
-                setSickStaff(staff);
-              }}
+              onClick={() => setOpeningModal(true)}
             >
-              <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
-              Krank melden
+              <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
+              Urlaubs-Übernahme
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                setManagedAbsenceType("comp_time");
-                setSickStaff(staff);
-              }}
-            >
-              <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
-              Freizeitausgleich eintragen
-            </Button>
-          </div>
-        ) : (
-          <span />
-        )}
+          )}
+        </div>
         <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
           Jahr {year}
         </span>
@@ -461,6 +497,33 @@ export function AbwesenheitenTab({
           }}
         />
       )}
+      {openingDeleteTarget && (
+        <VacationOpeningDeleteModal
+          staffId={staffId}
+          opening={openingDeleteTarget}
+          onClose={() => setOpeningDeleteTarget(null)}
+          onDeleted={async () => {
+            setOpeningDeleteTarget(null);
+            await reload();
+          }}
+        />
+      )}
+      {openingModal && quota && (
+        <VacationOpeningModal
+          staffId={staffId}
+          year={year}
+          quota={quota}
+          onClose={() => setOpeningModal(false)}
+          onDelete={(opening) => {
+            setOpeningModal(false);
+            setOpeningDeleteTarget(opening);
+          }}
+          onSaved={async () => {
+            setOpeningModal(false);
+            await reload();
+          }}
+        />
+      )}
       {quotaModal && quota && (
         <EditQuotaModal
           staffId={staffId}
@@ -477,6 +540,61 @@ export function AbwesenheitenTab({
   );
 
   return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
+}
+
+// Deletion of a vacation takeover (#2132). Own component so the tab renders
+// it as a plain `{target && <Modal/>}` branch: target, loading and error state
+// belong to the dialog, not to the tab.
+function VacationOpeningDeleteModal({
+  staffId,
+  opening,
+  onClose,
+  onDeleted,
+}: {
+  readonly staffId: string;
+  readonly opening: StaffVacationOpening;
+  readonly onClose: () => void;
+  readonly onDeleted: () => Promise<void>;
+}) {
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await staffAbsenceService.deleteVacationOpening(staffId, opening.year);
+      toast.success("Urlaubs-Übernahme gelöscht.");
+      await onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ConfirmDeleteModal
+      isOpen
+      title="Urlaubs-Übernahme löschen"
+      description={
+        <>
+          Die Übernahme zum Stichtag{" "}
+          <strong>{formatDate(opening.effective_date)}</strong> wird gelöscht.
+          Der Resturlaub steigt dadurch wieder um{" "}
+          {formatDayCount(opening.taken_before_days)}.
+        </>
+      }
+      gate={{ mode: "twoStep" }}
+      loading={loading}
+      error={error}
+      confirmLabel="Löschen"
+      loadingLabel="Wird gelöscht…"
+      onConfirm={handleConfirm}
+      onClose={onClose}
+    />
+  );
 }
 
 function PendingAbsences({
@@ -678,6 +796,289 @@ function AbsenceRow({
         )}
       </div>
     </li>
+  );
+}
+
+// Dezente Zeile unter den Quota-Kacheln: macht sichtbar, dass ein Teil des
+// Jahresanspruchs bereits vor der moto-Einführung verbraucht war (#2132).
+function VacationOpeningSummary({
+  opening,
+}: {
+  readonly opening: StaffVacationOpening;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
+      <span className="font-semibold tracking-wider text-gray-500 uppercase">
+        Übernahme
+      </span>
+      <span className="tabular-nums">
+        {formatDayCount(opening.taken_before_days)} vor Einführung genommen
+      </span>
+      <span className="text-gray-300">·</span>
+      <span>Stichtag {formatDate(opening.effective_date)}</span>
+    </div>
+  );
+}
+
+function previousDayISO(dateKey: string): string {
+  const date = parseISODate(dateKey);
+  date.setDate(date.getDate() - 1);
+  return toISODate(date);
+}
+
+// Urlaubs-Übernahme zum Go-live-Stichtag (#2132). Der Admin trägt den
+// Resturlaub zum Stichtag ein, der Server leitet daraus die vorher genommenen
+// Tage ab (Anspruch + Übertrag − Rest). Existiert die Übernahme bereits, zeigt
+// das Modal nur noch den gebuchten Stand: Korrekturen laufen über Löschen und
+// neu anlegen, damit die Historie erhalten bleibt.
+function VacationOpeningModal({
+  staffId,
+  year,
+  quota,
+  onClose,
+  onDelete,
+  onSaved,
+}: {
+  readonly staffId: string;
+  readonly year: number;
+  readonly quota: StaffVacationQuotaSummary;
+  readonly onClose: () => void;
+  readonly onDelete: (opening: StaffVacationOpening) => void;
+  readonly onSaved: () => void | Promise<void>;
+}) {
+  const existing = quota.opening ?? null;
+  const [effectiveDate, setEffectiveDate] = useState("");
+  const [remainingDays, setRemainingDays] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
+
+  const yearEndKey = `${year}-12-31`;
+  const yesterdayKey = previousDayISO(berlinTodayISO());
+  const maxEffectiveDateKey =
+    yesterdayKey < yearEndKey ? yesterdayKey : yearEndKey;
+
+  const remaining = parseOneDecimalInput(remainingDays);
+  const remainingValid =
+    remaining !== null && remaining >= -999 && remaining <= 999;
+  const entitledTotal = quota.entitled_days + quota.carryover_days;
+  const computedTakenBefore =
+    remaining === null ? null : entitledTotal - remaining;
+
+  const handleSubmit = async () => {
+    if (!effectiveDate) {
+      toast.error("Stichtag fehlt.");
+      return;
+    }
+    if (remaining === null || remaining < -999 || remaining > 999) {
+      toast.error("Resturlaub ungültig (-999 bis 999).");
+      return;
+    }
+    if (note.trim() === "") {
+      toast.error("Begründung fehlt.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await staffAbsenceService.setVacationOpening(staffId, {
+        effectiveDate,
+        remainingDays: remaining,
+        note: note.trim(),
+      });
+      toast.success("Urlaubs-Übernahme gespeichert.");
+      await onSaved();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Übernahme fehlgeschlagen.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (existing) {
+    return (
+      <Modal
+        isOpen
+        onClose={onClose}
+        title={`Urlaubs-Übernahme ${year}`}
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" size="md" onClick={onClose}>
+              Schließen
+            </Button>
+            <Button
+              type="button"
+              variant="outline_danger"
+              size="md"
+              onClick={() => onDelete(existing)}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
+              Übernahme löschen
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Für dieses Jahr ist bereits eine Übernahme gebucht. Eine Korrektur
+            läuft über Löschen und neues Anlegen, damit die Historie
+            nachvollziehbar bleibt.
+          </p>
+          <dl className="space-y-2 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Stichtag</dt>
+              <dd className="font-medium">
+                {formatDate(existing.effective_date)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Resturlaub zum Stichtag</dt>
+              <dd className="font-medium tabular-nums">
+                {formatDayCount(existing.entered_remaining_days)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Vor Einführung genommen</dt>
+              <dd className="font-medium tabular-nums">
+                {formatDayCount(existing.taken_before_days)}
+              </dd>
+            </div>
+          </dl>
+          {existing.note && (
+            <div>
+              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                Begründung
+              </p>
+              <p className="text-sm text-gray-700">{existing.note}</p>
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  }
+
+  const canSubmit =
+    !submitting && effectiveDate !== "" && remainingValid && note.trim() !== "";
+
+  return (
+    <Modal
+      isOpen
+      onClose={() => !submitting && onClose()}
+      title={`Urlaubs-Übernahme ${year}`}
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+          >
+            {submitting ? "…" : "Übernahme buchen"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-500">
+          moto errechnet daraus die vor der Einführung bereits genommenen Tage.
+          Der Jahresanspruch bleibt unverändert.
+        </p>
+        <div>
+          <label
+            htmlFor="vacation-opening-date"
+            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+          >
+            Stichtag
+          </label>
+          <ISODatePicker
+            id="vacation-opening-date"
+            min={`${year}-01-01`}
+            max={maxEffectiveDateKey}
+            value={effectiveDate}
+            onChange={setEffectiveDate}
+            calendarLayout="popover"
+            hideClearButton
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Der Stichtag muss im Jahr {year} und vor dem heutigen Tag liegen.
+          </p>
+        </div>
+        <div>
+          <label
+            htmlFor="vacation-opening-remaining"
+            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+          >
+            Resturlaub zum Stichtag (Tage)
+          </label>
+          <input
+            id="vacation-opening-remaining"
+            type="text"
+            inputMode="decimal"
+            value={remainingDays}
+            onChange={(e) => setRemainingDays(e.target.value)}
+            placeholder="z. B. 12,5"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+          />
+          {remainingDays.trim() !== "" && !remainingValid && (
+            <p className="mt-1 text-xs text-[#FF3130]" role="alert">
+              Bitte eine Zahl zwischen -999 und 999 mit höchstens einer
+              Nachkommastelle eingeben.
+            </p>
+          )}
+        </div>
+        <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <p>
+            Jahresanspruch inklusive Übertrag:{" "}
+            <span className="font-medium tabular-nums">
+              {formatDayCount(entitledTotal)}
+            </span>
+          </p>
+          {remainingValid && computedTakenBefore !== null && (
+            <p>
+              Errechnet vor Einführung genommen:{" "}
+              <span className="font-medium tabular-nums">
+                {formatDayCount(computedTakenBefore)}
+              </span>
+            </p>
+          )}
+          {/* Brand orange (LOCATION_COLORS.SCHOOLYARD) statt einer generischen
+              Tailwind-Warnfarbe. */}
+          {computedTakenBefore !== null && computedTakenBefore < 0 && (
+            <p className="text-xs text-[#F78C10]">
+              Der eingegebene Resturlaub liegt über dem Jahresanspruch. moto
+              schreibt die Differenz zusätzlich gut.
+            </p>
+          )}
+        </div>
+        <div>
+          <label
+            htmlFor="vacation-opening-note"
+            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+          >
+            Begründung (Pflicht)
+          </label>
+          <textarea
+            id="vacation-opening-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+          />
+        </div>
+      </div>
+    </Modal>
   );
 }
 

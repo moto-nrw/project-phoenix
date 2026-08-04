@@ -34,6 +34,8 @@ type spontaneousStartRequest struct {
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 }
 
+var errSpontaneousCategoryArchived = errors.New("spontaneous activity category is archived")
+
 func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	if req.Title == "" {
 		return errors.New("title is required")
@@ -185,7 +187,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	createdBy := currentStaffID
 	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
+		renderSpontaneousActivityResolutionError(w, r, err)
 		return
 	}
 
@@ -325,6 +327,9 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 		return nil, err
 	}
 	if existing, err := rs.TimetableData.GetActivityCategoryByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
+		if existing.IsArchived() {
+			return nil, errSpontaneousCategoryArchived
+		}
 		return existing, nil
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -538,6 +543,14 @@ func appendUniquePositive(ids []int64, id int64) []int64 {
 		}
 	}
 	return append(ids, id)
+}
+
+func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errSpontaneousCategoryArchived) {
+		common.RenderError(w, r, common.ErrorConflict(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {

@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -99,6 +101,7 @@ type Factory struct {
 	StaffAssignments         schedule.StaffAssignmentService
 	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
 	ShiftTypes               schedule.ShiftTypeService
+	PlanningTracks           schedule.PlanningTrackService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -113,6 +116,7 @@ type Factory struct {
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
+	StaffDocuments           users.StaffDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -121,6 +125,7 @@ type Factory struct {
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
+	OpeningBalanceImport     importService.OpeningBalanceImportFactory                   // Opening balance import (#2132), request-scoped
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
@@ -394,6 +399,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          logger.With("service", "users"),
 	})
 
+	// Staff documents (#1424): metadata + per-category authority for the
+	// Dokumente tab. Shares the Stammdaten audit trail and access log.
+	staffDocumentService := users.NewStaffDocumentService(
+		db,
+		repos.StaffDocument,
+		repos.Staff,
+		repos.StaffMasterData,
+		repos.StaffMasterDataChange,
+		repos.DataAccessLog,
+		logger.With("service", "staff_documents"),
+	)
+
 	// Initialize guardian service
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo:     repos.GuardianProfile,
@@ -500,6 +517,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}); ok {
 		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
 	}
+	// Vacation takeover at the moto introduction (#2132): the summary
+	// subtracts pre-introduction days, the write paths book/delete them.
+	if openingAware, ok := staffAbsenceService.(interface {
+		SetVacationOpeningRepository(activeModels.StaffVacationOpeningRepository)
+	}); ok {
+		openingAware.SetVacationOpeningRepository(repos.StaffVacationOpening)
+	}
 
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
@@ -534,6 +558,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)
+	// Vacation takeover (#2132): the Resturlaub column subtracts
+	// pre-introduction days exactly like the /staff/{id} detail view.
+	staffOverviewService.SetVacationOpeningReader(repos.StaffVacationOpening)
 
 	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
 	// prefetch (month) and the single-staff export cells (day); every download
@@ -769,6 +796,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ShiftType,
 		logger.With("service", "shift_type"),
 	)
+	planningTrackService := schedule.NewPlanningTrackService(repos.PlanningTrack, db)
 
 	// Initialize staff shift service (Dienstplan, #1376 core slice)
 	staffShiftService := schedule.NewStaffShiftService(
@@ -927,6 +955,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// materialization service.
 	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
 		GroupRepo:                  repos.ActivityGroup,
+		CategoryRepo:               repos.ActivityCategory,
+		PlanningTrackRepo:          repos.PlanningTrack,
 		ScheduleRepo:               repos.ActivitySchedule,
 		EnrollmentRepo:             repos.StudentEnrollment,
 		SupervisorRepo:             repos.ActivitySupervisor,
@@ -1153,6 +1183,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
 	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
 		DefaultFrom: defaultFrom,
+		DB:          db,
+		Guardians:   repos.StudentGuardian,
 	}))
 	for _, kind := range []string{
 		platformModels.EmailKindAppointmentPublished,
@@ -1296,6 +1328,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
 	staffImportService.SetAuditRepository(repos.DataImport)
+
+	// Opening balance import (#2132): the config is request-scoped (Stichtag,
+	// Begründung, and acting staff member come from the upload form), so the
+	// factory closes over the request-independent deps and builds a fresh
+	// service per request.
+	openingBalanceImportFactory := importService.OpeningBalanceImportFactory(
+		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *importService.ImportService[importModels.OpeningBalanceImportRow] {
+			config := importService.NewOpeningBalanceImportConfig(importService.OpeningBalanceImportDeps{
+				StaffRepo:            repos.Staff,
+				AdjustmentRepo:       repos.StaffBalanceAdjust,
+				VacationOpeningRepo:  repos.StaffVacationOpening,
+				BalanceAdjustService: staffBalanceAdjustService,
+				StaffAbsenceService:  staffAbsenceService,
+			}, effectiveDate, note, decidedByStaffID)
+			svc := importService.NewImportService(config)
+			svc.SetAuditRepository(repos.DataImport)
+			return svc
+		})
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -1665,6 +1715,38 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "excused-requests"),
 	)
 
+	// The notification router and the consent service are built here, ahead of
+	// their consumers: messaging, the calendar (#1671) and the announcement
+	// producer all need them, and messaging is constructed first.
+	vapidConfig := notifications.VAPIDConfig{
+		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
+		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
+		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
+	}
+	if err := vapidConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
+	}
+	if !vapidConfig.Configured() {
+		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
+	}
+	notificationsService := notifications.NewService(
+		settingsService,
+		logger.With("service", "notifications"),
+		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
+			db, repos.StudentGuardian, logger.With("channel", "sse"))),
+		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
+	)
+	notificationPreferencesService := notifications.NewPreferenceService(
+		repos.NotificationPreference,
+		settingsService,
+		db,
+		repos.AccountTenant,
+	)
+
+	// Decided change requests reach the parent's devices through the pill
+	// emitter, which is where all three request flows already converge (#1671).
+	pillEmitter.WithDecisionNotifications(notificationsService, notificationPreferencesService)
+
 	messagingService := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
@@ -1675,6 +1757,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster: realtimeHub,
 		DB:          db,
 		Logger:      logger.With("service", "messaging"),
+		Notifier:    notificationsService,
+		Preferences: notificationPreferencesService,
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
@@ -1704,6 +1788,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:             settingsService,
 		AccountRepo:          repos.Account,
 		ParentsURL:           parentsURL,
+		Notifier:             notificationsService,
+		ReminderNotifier:     notificationsService,
+		Preferences:          notificationPreferencesService,
+		Logger:               logger.With("service", "calendar"),
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
@@ -1745,33 +1833,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "parent"),
 	})
-
-	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
-		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
-		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
-	}
-	if err := vapidConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
-	}
-	if !vapidConfig.Configured() {
-		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
-	}
-	notificationsService := notifications.NewService(
-		settingsService,
-		logger.With("service", "notifications"),
-		notifications.NewSSEChannel(realtimeHub),
-		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
-	)
-
-	// Built here rather than next to the other notification services because
-	// the announcement producer below needs it to gate its guardian push.
-	notificationPreferencesService := notifications.NewPreferenceService(
-		repos.NotificationPreference,
-		settingsService,
-		db,
-		repos.AccountTenant,
-	)
 
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
 		Repo:        repos.ParentAnnouncement,
@@ -1847,7 +1908,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Rooms:          repos.Room,
 		Staff:          repos.Staff,
 		ActivityGroups: repos.ActivityGroup,
-		Categories:     repos.ActivityCategory,
+		PlanningTracks: repos.PlanningTrack,
 		ClosingDays:    closingDayService,
 		Holidays:       holidayService,
 		Renderer:       listExportService,
@@ -1958,6 +2019,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffAssignments:         staffAssignmentService,
 		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
+		PlanningTracks:           planningTrackService,
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
@@ -1973,14 +2035,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
+		StaffDocuments:           staffDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
 		GuardianProfileLoader:    guardianProfileLoader,
 		UserContext:              userContextService,
 		Database:                 databaseService,
-		Import:                   studentImportService, // Student import service
-		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
+		Import:                   studentImportService,        // Student import service
+		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
+		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
 		Emergency:                emergencyService,
@@ -2039,6 +2103,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			VisitRepo:                  repos.ActiveVisit,
 			RoomRepo:                   repos.Room,
 			ActivityCategoryRepo:       repos.ActivityCategory,
+			PlanningTrackRepo:          repos.PlanningTrack,
 			ActivityGroupRepo:          repos.ActivityGroup,
 			ActivitySupervisorRepo:     repos.ActivitySupervisor,
 			StudentEnrollmentRepo:      repos.StudentEnrollment,
@@ -2046,6 +2111,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
 			DeviationEventRepo:         repos.DeviationEvent,
+			ConflictAckRepo:            repos.TimetableConflictAck,
 			Broadcaster:                realtimeHub,
 			Logger:                     logger.With("service", "timetable-data"),
 			DB:                         db,

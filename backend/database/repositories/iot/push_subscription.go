@@ -35,6 +35,23 @@ const (
 			AND "guardian_account_role".tenant_id = "push_subscription".tenant_id
 			AND LOWER("guardian_role".name) = ?
 	)`
+	// childAccessFilter keeps a notification about one or more children to the
+	// accounts that still hold parent_portal.access for at least one of them. The
+	// relationship row, not the account, carries that permission: the same person
+	// can be a full guardian for one child and hidden from another.
+	childAccessFilter = `EXISTS (
+		SELECT 1
+		FROM users.students_guardians AS "child_link"
+		INNER JOIN users.guardian_profiles AS "child_guardian"
+			ON "child_guardian".id = "child_link".guardian_profile_id
+		WHERE "child_link".student_id IN (?)
+			AND "child_link".tenant_id = "push_subscription".tenant_id
+			AND "child_guardian".account_id = "push_subscription".account_id
+			AND "child_link".permissions @> ?::jsonb
+	)`
+	// guardianPortalAccessPermission is the containment probe for
+	// childAccessFilter, spelled exactly as the parent read paths spell it.
+	guardianPortalAccessPermission = `{"parent_portal.access": true}`
 )
 
 // PushSubscriptionRepository implements iot.PushSubscriptionRepository.
@@ -253,7 +270,14 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 // FindForGuardians returns parent-portal subscriptions of guardian accounts
 // with an active mapping and guardian role in the current tenant. This keeps
 // pending-enrollment-only recipients out of Web Push until access is active.
-func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guardianAccountIDs []int64) ([]*iot.PushSubscription, error) {
+//
+// A non-empty studentIDs narrows the result to accounts that still hold
+// parent_portal.access for at least one of those children. The producer decided
+// its audience in an earlier transaction; this one sends. Asking again here is
+// what keeps a notification about a child from reaching an account whose access
+// was revoked in between — the same containment predicate the parent read paths
+// and the messaging fan-out use, so the three cannot drift apart.
+func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guardianAccountIDs []int64, studentIDs []int64) ([]*iot.PushSubscription, error) {
 	if len(guardianAccountIDs) == 0 {
 		return nil, nil
 	}
@@ -268,6 +292,9 @@ func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guard
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(guardianRoleFilter, authModels.BaseRoleGuardian).
 		Where(`"push_subscription".account_id IN (?)`, bun.List(guardianAccountIDs))
+	if len(studentIDs) > 0 {
+		query = query.Where(childAccessFilter, bun.List(studentIDs), guardianPortalAccessPermission)
+	}
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find guardian push subscriptions", Err: err}

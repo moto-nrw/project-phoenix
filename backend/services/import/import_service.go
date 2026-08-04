@@ -3,10 +3,8 @@ package importpkg
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 )
@@ -44,63 +42,42 @@ func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService
 
 // SetAuditRepository wires the GDPR import-audit repository (issue #584:
 // audit writes moved out of api/import). Optional at construction time, but
-// production wiring must set it — RecordAudit logs an error and drops the
-// audit record when unset.
+// production wiring must set it — RecordAuditInTransaction fails when unset.
 func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
 	s.auditRepo = repo
 }
 
-// RecordAudit asynchronously writes a GDPR audit record for an import
-// operation (moved verbatim from api/import). entityType identifies the
-// imported entity (e.g. "student", "staff"). The write runs detached on
-// context.Background() with panic recovery, exactly as before.
-func (s *ImportService[T]) RecordAudit(entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
+// RecordAuditInTransaction writes a GDPR import audit record using the caller's
+// tenant-scoped transaction, so the import is only acknowledged once its
+// required audit record has been persisted. The write MUST run inside a tenant
+// transaction (TenantTxMiddleware or tenant.WithTenantTx): a detached context
+// leaves the connection on the NOINHERIT phoenix_auth role, which has no
+// grants on audit.data_imports, and the INSERT fails with 42501 (#2141).
+func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) error {
 	if s.auditRepo == nil {
-		// GDPR Article 30 requires these records — a missing repo is a wiring
-		// bug, never a valid configuration. Log loudly instead of silently
-		// dropping the record.
-		slog.Default().Error("import audit repository not wired, dropping GDPR import audit record",
-			slog.String("entity_type", entityType),
-			slog.String("filename", filename),
-			slog.Int64("tenant_id", tenantID),
-		)
-		return
+		return fmt.Errorf("import audit repository not wired")
 	}
-	auditRepo := s.auditRepo
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("panic in import audit logging: %v", r)
-				slog.Default().Error("goroutine panic recovered", slog.String("error", err.Error()))
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		auditCtx := context.Background()
-		auditRecord := &audit.DataImport{
-			EntityType:   entityType,
-			Filename:     filename,
-			TotalRows:    result.TotalRows,
-			CreatedCount: result.CreatedCount,
-			UpdatedCount: result.UpdatedCount,
-			SkippedCount: 0, // Not tracked separately
-			ErrorCount:   result.ErrorCount,
-			WarningCount: result.WarningCount,
-			DryRun:       dryRun,
-			ImportedBy:   userID,
-			StartedAt:    result.StartedAt,
-			CompletedAt:  &result.CompletedAt,
-			Metadata:     audit.JSONBMap{},
-		}
-		auditRecord.SetTenantID(tenantID)
-		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
-			if dryRun {
-				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
-			} else {
-				slog.Default().Error("Failed to create audit log for import", slog.String("error", err.Error()))
-			}
-		}
-	}()
+
+	auditRecord := &audit.DataImport{
+		EntityType:   entityType,
+		Filename:     filename,
+		TotalRows:    result.TotalRows,
+		CreatedCount: result.CreatedCount,
+		UpdatedCount: result.UpdatedCount,
+		SkippedCount: 0, // Not tracked separately
+		ErrorCount:   result.ErrorCount,
+		WarningCount: result.WarningCount,
+		DryRun:       dryRun,
+		ImportedBy:   userID,
+		StartedAt:    result.StartedAt,
+		CompletedAt:  &result.CompletedAt,
+		Metadata:     audit.JSONBMap{},
+	}
+	auditRecord.SetTenantID(tenantID)
+	if err := s.auditRepo.Create(ctx, auditRecord); err != nil {
+		return fmt.Errorf("create import audit record: %w", err)
+	}
+	return nil
 }
 
 // Import executes the import operation
@@ -139,7 +116,19 @@ func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int]
 
 // processAllRows processes all rows in the import request
 func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
+	order := make([]int, len(request.Rows))
 	for i := range request.Rows {
+		order[i] = i
+	}
+	if !request.DryRun {
+		if orderer, ok := s.config.(importModels.ProcessingOrderer[T]); ok {
+			if configuredOrder := orderer.ProcessingOrder(request.Rows); validProcessingOrder(configuredOrder, len(request.Rows)) {
+				order = configuredOrder
+			}
+		}
+	}
+
+	for _, i := range order {
 		row := &request.Rows[i]
 		rowNum := i + 2
 
@@ -148,6 +137,22 @@ func (s *ImportService[T]) processAllRows(ctx context.Context, request importMod
 		}
 	}
 	return false
+}
+
+// validProcessingOrder verifies an optional config's order before using it so
+// a malformed implementation cannot skip a row or panic the generic importer.
+func validProcessingOrder(order []int, rowCount int) bool {
+	if len(order) != rowCount {
+		return false
+	}
+	seen := make([]bool, rowCount)
+	for _, index := range order {
+		if index < 0 || index >= rowCount || seen[index] {
+			return false
+		}
+		seen[index] = true
+	}
+	return true
 }
 
 // processImportRow processes a single row

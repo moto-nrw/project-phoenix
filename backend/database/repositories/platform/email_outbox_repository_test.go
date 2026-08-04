@@ -20,7 +20,7 @@ func uniqueOutboxToken(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
-func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxRepository, int64) {
+func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxCleanupRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

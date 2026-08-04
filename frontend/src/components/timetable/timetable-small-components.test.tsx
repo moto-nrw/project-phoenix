@@ -37,9 +37,10 @@ const instance: EnrichedInstance = {
   assignedStaffCount: 1,
   conflictWarnings: [
     {
-      kind: "room",
+      kind: "staff",
       resourceId: "3",
-      message: "Raum doppelt belegt",
+      message:
+        "Personal ist von 14:30–15:00 auch bei „Lernzeit“ eingeplant (anderer Raum).",
       canOverride: true,
     },
   ],
@@ -63,6 +64,7 @@ const template: TimetableTemplate = {
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
+  weekdayAssignments: [],
   schedules: [
     {
       id: "9",
@@ -249,6 +251,7 @@ describe("small timetable components", () => {
           categoryName: "",
           roomName: undefined,
           enrollmentCount: 1,
+          weekdayAssignments: [],
           schedules: [],
         }}
         onEdit={onEdit}
@@ -260,6 +263,25 @@ describe("small timetable components", () => {
     expect(screen.getByText("Keine Zeiten hinterlegt")).toBeInTheDocument();
     expect(screen.getByText("Kein Raum")).toBeInTheDocument();
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
+  });
+
+  it("renders class targets without duplicating their prefix", () => {
+    render(
+      <TemplateCard
+        template={{
+          ...template,
+          targets: [
+            { type: "klasse", schoolClass: "Klasse 1a" },
+            { type: "klasse", schoolClass: "2a" },
+          ],
+        }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Klasse 1a, Klasse 2a")).toBeInTheDocument();
   });
 
   it("shows staffing capacity on template cards", () => {

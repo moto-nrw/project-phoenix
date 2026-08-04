@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"sort"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -106,6 +107,42 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Staff members retrieved successfully")
 }
 
+type documentDirectoryEntry struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+}
+
+// listDocumentDirectory exposes only staff identities to document-capable
+// roles. It intentionally omits directory, attendance, and account data.
+func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request) {
+	staffMembers, err := rs.PersonService.ListStaffWithPerson(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	entries := make([]documentDirectoryEntry, 0, len(staffMembers))
+	for _, staff := range staffMembers {
+		rs.ensureStaffPerson(r.Context(), staff)
+		if staff.Person == nil {
+			continue
+		}
+		entries = append(entries, documentDirectoryEntry{
+			ID:        staff.ID,
+			Name:      staff.Person.FirstName + " " + staff.Person.LastName,
+			FirstName: staff.Person.FirstName,
+			LastName:  staff.Person.LastName,
+		})
+	}
+	rs.retryQueuedStaffDocumentCleanups(r.Context(), "directory")
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name < entries[j].Name
+	})
+	common.Respond(w, r, http.StatusOK, entries, "Document staff directory retrieved successfully")
+}
+
 // getStaff handles getting a staff member by ID
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
@@ -140,6 +177,17 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 // staff:financial Stammdaten section. It deliberately excludes the generic
 // profile's notes, RFID, account, presence, and absence data.
 func (rs *Resource) getFinancialProfile(w http.ResponseWriter, r *http.Request) {
+	rs.getMinimalStaffProfile(w, r, "Financial staff profile retrieved successfully")
+}
+
+// getDocumentProfile returns only the staff identity needed to operate the
+// documents tab. Dedicated health-document users must not need unrelated
+// directory permissions merely to identify the profile they may access.
+func (rs *Resource) getDocumentProfile(w http.ResponseWriter, r *http.Request) {
+	rs.getMinimalStaffProfile(w, r, "Document staff profile retrieved successfully")
+}
+
+func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Request, message string) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
 		return
@@ -159,7 +207,7 @@ func (rs *Resource) getFinancialProfile(w http.ResponseWriter, r *http.Request) 
 		"name":      staff.Person.FirstName + " " + staff.Person.LastName,
 		"firstName": staff.Person.FirstName,
 		"lastName":  staff.Person.LastName,
-	}, "Financial staff profile retrieved successfully")
+	}, message)
 }
 
 // ensureStaffPerson lazily loads the linked person when GetStaffWithPerson did
@@ -361,9 +409,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedByStaffID, claims.Username)
-	}); err != nil {
+	if err := rs.offboardStaffAndQueueDocumentCleanup(r.Context(), tenantID, id, deletedByStaffID, claims.Username); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
 			common.RenderError(w, r, common.ErrorConflictMessage(usersSvc.ErrStaffInUse.Error()))
 			return
@@ -377,6 +423,39 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Staff member deleted successfully")
+}
+
+func (rs *Resource) offboardStaffAndQueueDocumentCleanup(ctx context.Context, tenantID, staffID, deletedByStaffID int64, deletedBy string) error {
+	return tenant.WithTenantTx(ctx, rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.StaffOffboardingService.OffboardStaff(ctx, staffID, deletedByStaffID, deletedBy); err != nil {
+			return err
+		}
+		return rs.queueOffboardedStaffDocumentCleanup(ctx, tenantID, staffID)
+	})
+}
+
+func (rs *Resource) queueOffboardedStaffDocumentCleanup(ctx context.Context, tenantID, staffID int64) error {
+	documents, err := rs.StaffDocumentService.ListStaffDocumentsPendingFileCleanup(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	for _, document := range documents {
+		docID, storedName := document.ID, document.FilenameStored
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.cleanupStaffDocumentFile(tenantID, staffID, docID, storedName, "offboarding")
+		})
+	}
+	cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	for _, cleanup := range cleanups {
+		cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID, storedName, "offboarding")
+		})
+	}
+	return nil
 }
 
 // serveStaffAvatar serves the avatar image for a staff member.

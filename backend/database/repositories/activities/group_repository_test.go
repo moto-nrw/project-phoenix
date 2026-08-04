@@ -9,10 +9,66 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	scope := testpkg.NewTenantScope(t, db)
+	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
+	ctx := scope.Context()
+	factory := repositories.NewFactory(db)
+
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "PlanningTrackPresence")
+	room := testpkg.CreateTestRoomForTenant(t, db, scope.TenantID, "PlanningTrackPresence")
+	track := &scheduleModel.PlanningTrack{Name: "Bestehend", Color: "#5080D8", SortOrder: 0}
+	require.NoError(t, factory.PlanningTrack.Create(ctx, track))
+	_, err := db.NewUpdate().Table("activities.groups").
+		Set("is_template = true").
+		Set("planned_room_id = ?", room.ID).
+		Set("planning_track_id = ?", track.ID).
+		Where("tenant_id = ?", scope.TenantID).
+		Where("id = ?", group.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	persisted, err := factory.ActivityGroup.FindByID(ctx, group.ID)
+	require.NoError(t, err)
+	fields := activities.TemplateFieldsUpdate{
+		Name:              persisted.Name,
+		Type:              persisted.Type,
+		CategoryID:        persisted.CategoryID,
+		RoomID:            room.ID,
+		EducationGroupID:  persisted.EducationGroupID,
+		MaxParticipants:   persisted.MaxParticipants,
+		RequiredStaff:     persisted.RequiredStaff,
+		CalendarPeriodID:  persisted.CalendarPeriodID,
+		TargetGroupType:   persisted.TargetGroupType,
+		TargetGradeLevel:  persisted.TargetGradeLevel,
+		TargetSchoolClass: persisted.TargetSchoolClass,
+		ListKind:          persisted.ListKind,
+		Notes:             persisted.Notes,
+	}
+
+	_, err = factory.ActivityGroup.UpdateTemplateFields(ctx, group.ID, fields)
+	require.NoError(t, err)
+	persisted, err = factory.ActivityGroup.FindByID(ctx, group.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persisted.PlanningTrackID)
+	assert.Equal(t, track.ID, *persisted.PlanningTrackID)
+
+	fields.PlanningTrackIDProvided = true
+	fields.PlanningTrackID = nil
+	_, err = factory.ActivityGroup.UpdateTemplateFields(ctx, group.ID, fields)
+	require.NoError(t, err)
+	persisted, err = factory.ActivityGroup.FindByID(ctx, group.ID)
+	require.NoError(t, err)
+	assert.Nil(t, persisted.PlanningTrackID)
+}
 
 // ============================================================================
 // CRUD Tests
@@ -71,6 +127,75 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 
 		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
+}
+
+func TestActivityGroupTargets_AreTenantScoped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+	defer testpkg.CleanupTenantTestData(t, db, tenantA, tenantB)
+
+	groupA := testpkg.CreateTestActivityGroupForTenant(t, db, tenantA, "Target-A")
+	groupB := testpkg.CreateTestActivityGroupForTenant(t, db, tenantB, "Target-B")
+	repo, ok := repositories.NewFactory(db).ActivityGroup.(activities.GroupTargetRepository)
+	require.True(t, ok)
+	classA := "1a"
+	classB := "2a"
+	require.NoError(t, repo.ReplaceTargets(testpkg.TenantContext(tenantA), groupA.ID, []*activities.GroupTarget{
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classA},
+	}))
+	require.NoError(t, repo.ReplaceTargets(testpkg.TenantContext(tenantB), groupB.ID, []*activities.GroupTarget{
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classB},
+	}))
+
+	visible, err := repo.FindTargetsByGroupIDs(testpkg.TenantContext(tenantA), []int64{groupA.ID, groupB.ID})
+	require.NoError(t, err)
+	require.Len(t, visible[groupA.ID], 1)
+	assert.Empty(t, visible[groupB.ID])
+
+	err = repo.ReplaceTargets(testpkg.TenantContext(tenantA), groupB.ID, []*activities.GroupTarget{
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classA},
+	})
+	require.Error(t, err)
+}
+
+func TestActivityGroupTargets_ReplaceIsAtomic(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Atomic-Targets")
+	repo, ok := repositories.NewFactory(db).ActivityGroup.(activities.GroupTargetRepository)
+	require.True(t, ok)
+	ctx := testpkg.TenantContext(tenantID)
+	classA := "1a"
+	require.NoError(t, repo.ReplaceTargets(ctx, group.ID, []*activities.GroupTarget{
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classA},
+	}))
+
+	gradeOne := int16(1)
+	err := repo.ReplaceTargets(ctx, group.ID, []*activities.GroupTarget{
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classA},
+		{TargetGroupType: activities.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeOne},
+	})
+	require.ErrorContains(t, err, "same type")
+
+	classB := "2a"
+	err = repo.ReplaceTargets(ctx, group.ID, []*activities.GroupTarget{
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classB},
+		{TargetGroupType: activities.TargetGroupTypeKlasse, TargetSchoolClass: &classB},
+	})
+	require.Error(t, err)
+
+	stored, err := repo.FindTargetsByGroupIDs(ctx, []int64{group.ID})
+	require.NoError(t, err)
+	require.Len(t, stored[group.ID], 1)
+	assert.Equal(t, classA, *stored[group.ID][0].TargetSchoolClass)
 }
 
 func TestActivityGroupRepository_FindByID(t *testing.T) {

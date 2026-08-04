@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -29,6 +29,7 @@ type CreateTemplateInput struct {
 	EndTime           time.Time
 	RoomID            int64
 	CategoryID        int64
+	PlanningTrackID   *int64
 	MaxParticipants   int
 	RequiredStaff     *int
 	WeekPattern       int
@@ -37,15 +38,24 @@ type CreateTemplateInput struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
+	Targets           []*activitiesModel.GroupTarget
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
-	ListKind        *string
-	Notes           *string
-	StudentIDs      []int64
-	StaffIDs        []int64
-	PrimaryStaffID  *int64
-	CreatedBy       *int64
-	RosterValidFrom timezone.Date
+	ListKind       *string
+	Notes          *string
+	StudentIDs     []int64
+	StaffIDs       []int64
+	PrimaryStaffID *int64
+	// WeekdayAssignments carries the per-weekday deviations from the shared
+	// roster above (issue #2129). Empty = the roster is identical on every
+	// weekday of the series, which is the pre-#2129 shape.
+	WeekdayAssignments []WeekdayRosterAssignment
+	CreatedBy          *int64
+	RosterValidFrom    timezone.Date
+	// ScheduleValidFrom is the optional series start (#2135): every schedule
+	// row gets it as valid_from, so the materializer skips earlier dates
+	// (scheduleNotStartedOn). nil = the series starts with the planning period.
+	ScheduleValidFrom *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
@@ -92,8 +102,12 @@ func (s *TimetableDataService) validateTemplateCreateRequest(ctx context.Context
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
 		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil ||
-		s.deps.TimeframeRepo == nil || s.deps.EducationGroupRepo == nil {
+		s.deps.TimeframeRepo == nil || s.deps.EducationGroupRepo == nil ||
+		s.deps.ActivityCategoryRepo == nil {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("template repositories are not configured")}
+	}
+	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
+		return 0, err
 	}
 	return tenantID, nil
 }
@@ -139,12 +153,23 @@ func (s *TimetableDataService) createTemplateLocked(
 ) error {
 	// Validation before any write: a rejected request must not strand a
 	// timeframe or a half-built template.
-	if err := ValidateTemplateTargetGradeLimit(in.GradeLevelMax, nil, in.TargetGroupType, in.TargetGradeLevel); err != nil {
-		return err
-	}
 	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
 		return err
 	}
+	targets, err := normalizeDynamicTargets(in.TargetGroupType, in.TargetGradeLevel, in.TargetSchoolClass, in.EducationGroupID, in.Targets)
+	if err != nil {
+		return err
+	}
+	if err := validateDynamicTargets(ctx, s, in.GradeLevelMax, nil, nil, targets); err != nil {
+		return err
+	}
+	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
+		return err
+	}
+	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, nil); err != nil {
+		return err
+	}
+	applyTargetMirrorToCreateInput(&in, targets)
 
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
@@ -158,6 +183,7 @@ func (s *TimetableDataService) createTemplateLocked(
 		RequiredStaff:     in.RequiredStaff,
 		IsOpen:            true,
 		CategoryID:        in.CategoryID,
+		PlanningTrackID:   in.PlanningTrackID,
 		PlannedRoomID:     &roomID,
 		Type:              in.Type,
 		EducationGroupID:  in.EducationGroupID,
@@ -174,6 +200,15 @@ func (s *TimetableDataService) createTemplateLocked(
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
 		return &ScheduleError{Op: "create template: create group", Err: err}
 	}
+	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok && len(targets) > 0 {
+		return &ScheduleError{Op: "create template: replace targets", Err: errors.New("target repository is not configured")}
+	}
+	if ok {
+		if err := targetRepo.ReplaceTargets(ctx, group.ID, targets); err != nil {
+			return &ScheduleError{Op: "create template: replace targets", Err: err}
+		}
+	}
 
 	scheduleIDs := make([]int64, 0, len(in.Weekdays))
 	for _, weekday := range in.Weekdays {
@@ -184,6 +219,7 @@ func (s *TimetableDataService) createTemplateLocked(
 			ActivityGroupID:  group.ID,
 			WeekPattern:      in.WeekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
+			ValidFrom:        cloneOptionalDate(in.ScheduleValidFrom),
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, sched); err != nil {
@@ -202,6 +238,89 @@ func (s *TimetableDataService) createTemplateLocked(
 	return nil
 }
 
+func normalizeDynamicTargets(targetType string, grade *int16, class *string, groupID *int64, targets []*activitiesModel.GroupTarget) ([]*activitiesModel.GroupTarget, error) {
+	if len(targets) == 0 {
+		switch targetType {
+		case activitiesModel.TargetGroupTypeJahrgang:
+			if grade != nil {
+				targets = []*activitiesModel.GroupTarget{{TargetGroupType: targetType, TargetGradeLevel: grade}}
+			}
+		case activitiesModel.TargetGroupTypeKlasse:
+			if class != nil {
+				targets = []*activitiesModel.GroupTarget{{TargetGroupType: targetType, TargetSchoolClass: class}}
+			}
+		case activitiesModel.TargetGroupTypeGruppe:
+			if groupID != nil {
+				targets = []*activitiesModel.GroupTarget{{TargetGroupType: targetType, EducationGroupID: groupID}}
+			}
+		}
+	}
+	seen := make(map[string]struct{}, len(targets))
+	normalized := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	for _, target := range targets {
+		if target == nil {
+			return nil, errors.New("target cannot be null")
+		}
+		copy := *target
+		if copy.TargetGroupType == "" {
+			copy.TargetGroupType = targetType
+		}
+		if copy.TargetGroupType != targetType {
+			return nil, errors.New("all dynamic targets must match target_group_type")
+		}
+		if err := copy.Validate(); err != nil {
+			return nil, err
+		}
+		key := copy.TargetGroupType
+		switch copy.TargetGroupType {
+		case activitiesModel.TargetGroupTypeJahrgang:
+			key += fmt.Sprintf(":%d", *copy.TargetGradeLevel)
+		case activitiesModel.TargetGroupTypeKlasse:
+			key += ":" + strings.ToLower(*copy.TargetSchoolClass)
+		case activitiesModel.TargetGroupTypeGruppe:
+			key += fmt.Sprintf(":%d", *copy.EducationGroupID)
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, &copy)
+	}
+	if targetType == activitiesModel.TargetGroupTypeJahrgang || targetType == activitiesModel.TargetGroupTypeKlasse || targetType == activitiesModel.TargetGroupTypeGruppe {
+		if len(normalized) == 0 {
+			return nil, errors.New("at least one dynamic target is required")
+		}
+	} else if len(normalized) > 0 {
+		return nil, errors.New("dynamic targets require jahrgang, klasse, or gruppe")
+	}
+	return normalized, nil
+}
+
+func validateDynamicTargets(ctx context.Context, s *TimetableDataService, gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+	if err := ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, existingTargets, targets); err != nil {
+		return err
+	}
+	for _, target := range targets {
+		if err := s.ValidateTemplateEducationGroup(ctx, target.EducationGroupID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyTargetMirrorToCreateInput(in *CreateTemplateInput, targets []*activitiesModel.GroupTarget) {
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(targets) == 0 {
+		return
+	}
+	in.TargetGradeLevel = targets[0].TargetGradeLevel
+	in.TargetSchoolClass = targets[0].TargetSchoolClass
+	if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+		in.EducationGroupID = targets[0].EducationGroupID
+	}
+}
+
 // createTemplateRoster seeds the fresh template's period-scoped roster. The
 // close-open calls are defensive no-ops for a brand-new group but keep the
 // write path identical to a roster replacement.
@@ -211,15 +330,21 @@ func (s *TimetableDataService) createTemplateRoster(
 	in CreateTemplateInput,
 	tenantID int64,
 ) error {
+	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+	if err != nil {
+		return &ScheduleError{Op: "create template: resolve roster", Err: err}
+	}
+
 	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
 		return &ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
-	for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
+	for _, row := range roster.Students {
 		enrollment := &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        row.PersonID,
 			ActivityGroupID:  groupID,
 			ValidFrom:        in.RosterValidFrom,
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
@@ -230,13 +355,14 @@ func (s *TimetableDataService) createTemplateRoster(
 	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
 		return &ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
-	for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+	for _, row := range roster.Staff {
 		supervisor := &activitiesModel.SupervisorPlanned{
-			StaffID:          staffID,
+			StaffID:          row.PersonID,
 			GroupID:          groupID,
-			IsPrimary:        in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+			IsPrimary:        row.IsPrimary,
 			ValidFrom:        in.RosterValidFrom,
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		supervisor.SetTenantID(tenantID)
 		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {

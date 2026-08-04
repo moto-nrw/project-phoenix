@@ -18,6 +18,13 @@ type SupervisorPlanned struct {
 	ValidFrom        timezone.Date  `bun:"valid_from,notnull,default:current_date" json:"valid_from"`
 	ValidUntil       *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
 	CalendarPeriodID *int64         `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	// Weekday scopes this assignment to a single ISO weekday (1=Mon … 7=Sun)
+	// of the recurring template (issue #2129). NULL means the assignment
+	// applies on every weekday the series runs, which is what every row
+	// created before per-weekday staffing means. The template writer expands
+	// the shared default plus the per-weekday deviations into concrete rows,
+	// so readers only need `Weekday == nil || *Weekday == isoWeekday(date)`.
+	Weekday *int `bun:"weekday" json:"weekday,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
@@ -32,6 +39,10 @@ func (sp *SupervisorPlanned) Validate() error {
 
 	if sp.GroupID <= 0 {
 		return errors.New("group ID is required")
+	}
+
+	if sp.Weekday != nil && !IsValidWeekday(*sp.Weekday) {
+		return errors.New("weekday must be between 1 and 7")
 	}
 
 	return nil

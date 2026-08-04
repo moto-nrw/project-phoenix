@@ -44,12 +44,21 @@ var (
 	// validation message. Wraps ErrAdjustmentInvalid so existing errors.Is
 	// call sites keep matching.
 	ErrAdjustmentInClosedMonth = fmt.Errorf("%w: effective month is closed", ErrAdjustmentInvalid)
+	// ErrOpeningAlreadyExists marks a second opening balance for the same
+	// staff member (#2132) — HTTP 409. A takeover is a one-time event;
+	// corrections go through delete + re-create so the deletion tombstone
+	// keeps the history.
+	ErrOpeningAlreadyExists = errors.New("opening balance already exists for this staff member")
 )
 
 const (
 	// resetUniqueConstraintName is the partial unique index guarding one reset
 	// per staff and effective date (migration 1.15.219).
 	resetUniqueConstraintName = "uq_sba_reset_per_day"
+
+	// openingUniqueConstraintName is the partial unique index guarding one
+	// opening balance per staff member (migration 1.15.261).
+	openingUniqueConstraintName = "uq_sba_opening_per_staff"
 
 	// These bounds mirror the privileged admin UI. They are business limits,
 	// not presentation hints: direct API callers must not bypass them.
@@ -86,6 +95,16 @@ type StaffBalanceAdjustmentService interface {
 	// run inside the ambient tenant transaction (advisory lock + unique
 	// index serialize concurrent resets).
 	ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	// CreateOpeningBalance writes an 'opening' transaction whose delta turns
+	// the closing balance as of effectiveDate into balanceMinutes (#2132).
+	// balanceMinutes is SIGNED — a migrated account may start negative. One
+	// opening per staff member, ever; corrections are delete + re-create.
+	CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	// ValidateOpeningBalance runs CreateOpeningBalance's read-only guards
+	// without booking, so the bulk import's dry-run preview can report a
+	// rejection per row. Part of the contract because the import lives in
+	// another package.
+	ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) error
 	// SetSnapshotReader injects the frozen-month reader (#1417) after
 	// construction; nil means no month counts as frozen, so existing unit
 	// fixtures stay valid.
@@ -230,7 +249,7 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if err := s.rejectFrozenMonth(ctx, staffID, req.EffectiveDate); err != nil {
 		return nil, err
 	}
-	resets, err := s.listResetsOnOrAfter(ctx, staffID, req.EffectiveDate)
+	resets, err := s.listRebaselinesOnOrAfter(ctx, staffID, req.EffectiveDate)
 	if err != nil {
 		return nil, err
 	}
@@ -316,8 +335,14 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if dependent {
 		return fmt.Errorf("%w: adjustment id %d", ErrAdjustmentHasDependentReset, adjustmentID)
 	}
-	if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
-		return err
+	// An opening balance is a migration rebaseline and may legitimately be
+	// replaced by a negative opening. Its documented correction workflow is
+	// delete + re-create, so do not reject the transient deletion solely
+	// because later consumption would make the account negative.
+	if adjustment.Type != activeModels.BalanceAdjustmentTypeOpening {
+		if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
+			return err
+		}
 	}
 	// Tombstone first, delete second, same transaction: a deleted booking
 	// must stay visible in the audit log (#1417).
@@ -406,18 +431,19 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
 		return nil, err
 	}
-	resets, err := s.listResetsOnOrAfter(ctx, staffID, effectiveDate)
+	resets, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
 	if err != nil {
 		return nil, err
 	}
 	if len(resets) > 0 {
-		if resets[0].EffectiveDate == effectiveDate {
+		if resets[0].EffectiveDate == effectiveDate && resets[0].Type == activeModels.BalanceAdjustmentTypeReset {
 			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
 		}
 		return nil, fmt.Errorf(
-			"%w: reset date %s is before existing reset %s",
+			"%w: reset date %s is not after existing %s booking %s",
 			ErrAdjustmentHasDependentReset,
 			effectiveDate.String(),
+			resets[0].Type,
 			resets[0].EffectiveDate.String(),
 		)
 	}
@@ -474,8 +500,139 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	return adjustment, nil
 }
 
+// CreateOpeningBalance writes the go-live opening booking (#2132): a signed
+// rebaseline that turns the closing balance as of effectiveDate into
+// balanceMinutes. Unlike ResetBalance there is no lower bound and no
+// reduction-capacity check — a migrated account legitimately starts negative
+// when the staff member owed hours in the previous system.
+func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
+	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, true)
+	if err != nil {
+		return nil, err
+	}
+
+	adjustment := &activeModels.StaffBalanceAdjustment{
+		StaffID:       staffID,
+		Type:          activeModels.BalanceAdjustmentTypeOpening,
+		MinutesDelta:  delta,
+		EffectiveDate: effectiveDate,
+		Note:          note,
+		DecidedBy:     decidedBy,
+		DecidedAt:     time.Now(),
+	}
+	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+		if modelBase.IsUniqueViolationOn(err, openingUniqueConstraintName) {
+			return nil, fmt.Errorf("%w: %s", ErrOpeningAlreadyExists, effectiveDate.String())
+		}
+		return nil, fmt.Errorf("failed to create opening balance: %w", err)
+	}
+	s.getLogger().Info("opening balance created",
+		"staff_id", staffID,
+		"effective_date", effectiveDate.String(),
+		"balance_minutes", balanceMinutes,
+		"minutes_delta", adjustment.MinutesDelta,
+		"decided_by", decidedBy,
+	)
+	s.broadcastTimeTrackingChanged(ctx)
+	return adjustment, nil
+}
+
+// ValidateOpeningBalance runs the read-only booking guards used by
+// CreateOpeningBalance. It deliberately does not take the transaction-scoped
+// staff lock: bulk imports validate every uploaded row before their sorted
+// creation pass, and file-order locks here could deadlock concurrent imports.
+func (s *staffBalanceAdjustmentService) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) error {
+	_, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, false)
+	return err
+}
+
+func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string, lockWrites bool) (int, error) {
+	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
+		return 0, err
+	}
+	if balanceMinutes < -maxBalanceCarryoverMinutes || balanceMinutes > maxBalanceCarryoverMinutes {
+		return 0, fmt.Errorf(
+			"%w: balance_minutes must be between %d and %d",
+			ErrAdjustmentInvalid,
+			-maxBalanceCarryoverMinutes,
+			maxBalanceCarryoverMinutes,
+		)
+	}
+	// Same reasoning as the reset: the Stichtag needs a closed cutoff so the
+	// stored delta cannot go stale before the day ends.
+	if !effectiveDate.Before(timezone.TodayDate()) {
+		return 0, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
+	}
+	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
+		return 0, err
+	}
+	if lockWrites {
+		if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+			return 0, fmt.Errorf("failed to lock staff balance writes: %w", err)
+		}
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
+		return 0, err
+	}
+	if err := s.rejectConflictingRebaselines(ctx, staffID, effectiveDate); err != nil {
+		return 0, err
+	}
+
+	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute balance for opening: %w", err)
+	}
+	delta := int64(balanceMinutes) - int64(previousBalance)
+	if delta < minPostgresInteger || delta > maxPostgresInteger {
+		return 0, fmt.Errorf("%w: calculated opening delta is outside the supported range", ErrAdjustmentInvalid)
+	}
+	return int(delta), nil
+}
+
+// rejectConflictingRebaselines enforces the two "already rebaselined" guards
+// of an opening booking: exactly one opening ever exists per staff member, and
+// no reset/opening may already sit on or after the new Stichtag — both stored
+// a delta derived from the history the new booking would rewrite (#2132).
+func (s *staffBalanceAdjustmentService) rejectConflictingRebaselines(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
+	existing, err := s.listOpenings(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		return fmt.Errorf("%w: booked %s", ErrOpeningAlreadyExists, existing[0].EffectiveDate.String())
+	}
+	rebaselines, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
+	if err != nil {
+		return err
+	}
+	if len(rebaselines) > 0 {
+		return fmt.Errorf(
+			"%w: opening date %s is not after existing %s booking %s",
+			ErrAdjustmentHasDependentReset,
+			effectiveDate.String(),
+			rebaselines[0].Type,
+			rebaselines[0].EffectiveDate.String(),
+		)
+	}
+	return nil
+}
+
+// listOpenings lists all opening bookings for a staff member regardless of
+// date — the one-opening-ever guard (#2132).
+func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffID int64) ([]*activeModels.StaffBalanceAdjustment, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.
+		Equal("staff_id", staffID).
+		Equal("type", activeModels.BalanceAdjustmentTypeOpening)
+	openings, err := s.adjustmentRepo.List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing opening balances: %w", err)
+	}
+	return openings, nil
+}
+
 func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, adjustment *activeModels.StaffBalanceAdjustment) (bool, error) {
-	resets, err := s.listResetsOnOrAfter(ctx, adjustment.StaffID, adjustment.EffectiveDate)
+	resets, err := s.listRebaselinesOnOrAfter(ctx, adjustment.StaffID, adjustment.EffectiveDate)
 	if err != nil {
 		return false, err
 	}
@@ -488,11 +645,16 @@ func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, a
 	return false, nil
 }
 
-func (s *staffBalanceAdjustmentService) listResetsOnOrAfter(ctx context.Context, staffID int64, effectiveDate timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
+// listRebaselinesOnOrAfter lists reset AND opening bookings from
+// effectiveDate onward. Both types persisted a delta computed from the
+// history before their Stichtag, so any write dated on/before them would
+// silently shift the balance they pinned — the shared dependent-booking
+// guard treats them identically (#1420, #2132).
+func (s *staffBalanceAdjustmentService) listRebaselinesOnOrAfter(ctx context.Context, staffID int64, effectiveDate timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
 	options := modelBase.NewQueryOptions()
 	options.Filter.
 		Equal("staff_id", staffID).
-		Equal("type", activeModels.BalanceAdjustmentTypeReset).
+		In("type", activeModels.BalanceAdjustmentTypeReset, activeModels.BalanceAdjustmentTypeOpening).
 		GreaterThanOrEqual("effective_date", effectiveDate)
 	sorting := &modelBase.Sorting{}
 	sorting.AddField("effective_date", modelBase.SortAsc)

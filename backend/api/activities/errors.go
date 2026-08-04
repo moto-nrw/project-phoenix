@@ -28,6 +28,10 @@ var errorRules = []common.ErrorRule{
 	{Target: activities.ErrNotEnrolled, Render: common.ErrorNotFound},
 	{Target: activities.ErrStudentIsAlumnus, Render: common.ErrorInvalidRequest},
 	{Target: activities.ErrSystemActivityProtected, Render: common.ErrorForbidden},
+	{Target: activities.ErrSystemCategoryProtected, Render: common.ErrorForbidden},
+	{Target: activities.ErrSystemCategoryNameReserved, Render: common.ErrorConflict},
+	{Target: activities.ErrCategoryNameExists, Render: common.ErrorConflict},
+	{Target: activities.ErrCategoryArchived, Render: common.ErrorConflict},
 	{Target: activities.ErrGroupClosed, Render: common.ErrorForbidden},
 	{Target: activities.ErrInvalidAttendanceStatus, Render: common.ErrorInvalidRequest},
 	{Target: activities.ErrStaffNotFound, Render: common.ErrorNotFound},
@@ -35,3 +39,11 @@ var errorRules = []common.ErrorRule{
 
 // ErrorRenderer renders an error to an HTTP response.
 var ErrorRenderer = common.RulesRenderer(errorRules, common.ErrorInternalServer)
+
+// categoryErrorRenderer is ErrorRenderer with the ActivityError wrapper peeled
+// off, so a category conflict reaches the school as "Eine Kategorie mit diesem
+// Namen existiert bereits" rather than "activity error during create category:
+// …". Scoped to the category Stammdaten routes (#2131): the other activities
+// endpoints keep their current wire strings, which existing consumers and
+// tests pin.
+var categoryErrorRenderer = common.UnwrapRenderer[*activities.ActivityError](errorRules, common.ErrorInternalServer)

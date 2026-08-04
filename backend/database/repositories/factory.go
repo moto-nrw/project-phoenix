@@ -85,6 +85,9 @@ type Factory struct {
 	StaffQualification userModels.StaffQualificationRepository
 	StaffFinancialData userModels.StaffFinancialDataRepository
 
+	// Staff documents (#1424)
+	StaffDocument userModels.StaffDocumentRepository
+
 	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
@@ -111,6 +114,8 @@ type Factory struct {
 	StaffShiftSeries          scheduleModels.StaffShiftSeriesRepository
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
+	PlanningTrack             scheduleModels.PlanningTrackRepository
+	TimetableConflictAck      scheduleModels.TimetableConflictAckRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
@@ -139,6 +144,7 @@ type Factory struct {
 	StaffAbsence          activeModels.StaffAbsenceRepository
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
+	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
 
@@ -292,6 +298,9 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffQualification: users.NewStaffQualificationRepository(db),
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
 
+		// Staff documents (#1424)
+		StaffDocument: users.NewStaffDocumentRepository(db),
+
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
@@ -318,6 +327,8 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
+		PlanningTrack:             schedule.NewPlanningTrackRepository(db),
+		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ClosingDay:                schedule.NewClosingDayRepository(db),
 		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
@@ -346,6 +357,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
+		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
 		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
 

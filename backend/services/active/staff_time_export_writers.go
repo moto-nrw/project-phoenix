@@ -35,7 +35,7 @@ var monthExportHeaders = []string{
 	"Übertrag Vormonat", "Soll", "Ist",
 	"Gutschrift Krank", "Gutschrift Urlaub", "Gutschrift Fortbildung", "Gutschrift Sonstige",
 	"Krank (Tage)", "Urlaub (Tage)", "Fortbildung (Tage)",
-	"Auszahlung", "Freizeitausgleich", "Saldo-Reset",
+	"Auszahlung", "Freizeitausgleich", "Saldo-Reset", "Eröffnungssaldo",
 	"Saldo Monat", "Übertrag Monatsende", "Abweichung seit Abschluss", "Status",
 }
 
@@ -93,6 +93,7 @@ func monthExportCells(row MonthExportRow, timeFormat string) []string {
 		formatExportMinutes(row.PayoutMinutes, timeFormat),
 		formatExportMinutes(row.CompTimeMinutes, timeFormat),
 		formatExportMinutes(row.ResetMinutes, timeFormat),
+		formatExportMinutes(row.OpeningMinutes, timeFormat),
 		formatExportMinutes(row.BalanceMinutes, timeFormat),
 		formatExportMinutes(row.ClosingBalanceMinutes, timeFormat),
 		formatExportMinutes(row.DriftMinutes, timeFormat),
@@ -128,15 +129,16 @@ func writeMonthXLSX(rows []MonthExportRow, timeFormat string) ([]byte, error) {
 			values[15] = float64(row.PayoutMinutes) / 60
 			values[16] = float64(row.CompTimeMinutes) / 60
 			values[17] = float64(row.ResetMinutes) / 60
-			values[18] = float64(row.BalanceMinutes) / 60
-			values[19] = float64(row.ClosingBalanceMinutes) / 60
-			values[20] = float64(row.DriftMinutes) / 60
+			values[18] = float64(row.OpeningMinutes) / 60
+			values[19] = float64(row.BalanceMinutes) / 60
+			values[20] = float64(row.ClosingBalanceMinutes) / 60
+			values[21] = float64(row.DriftMinutes) / 60
 		}
 		cells = append(cells, values)
 	}
 	var decimalColumns []int
 	if timeFormat == ExportTimeDecimal {
-		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21}
+		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21, 22}
 	}
 	return writeExportXLSX("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
 }

@@ -4,7 +4,7 @@ import { AlertTriangle, CalendarDays } from "lucide-react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import {
-  getActivityColor,
+  comparePlanningInstances,
   getGermanWeekdayShort,
   groupInstancesByDate,
   toISODate,
@@ -56,7 +56,9 @@ export function MonthPlannerGrid({
       <div className="grid grid-cols-7">
         {days.map((day) => {
           const iso = toISODate(day);
-          const dayInstances = grouped.get(iso) ?? [];
+          const dayInstances = [...(grouped.get(iso) ?? [])].sort(
+            comparePlanningInstances,
+          );
           const isToday = iso === todayISO;
           const outsideMonth = day.getMonth() !== currentMonth;
           const closingReason = closingDays?.get(iso);
@@ -147,7 +149,7 @@ export function MonthPlannerGrid({
                           style={{
                             borderLeftColor: isCancelled
                               ? "#FF3130"
-                              : getActivityColor(inst.activityType),
+                              : (inst.planningTrackColor ?? "#D1D5DB"),
                           }}
                         >
                           <span
@@ -155,13 +157,18 @@ export function MonthPlannerGrid({
                             style={{
                               backgroundColor: isCancelled
                                 ? "#FF3130"
-                                : getActivityColor(inst.activityType),
+                                : (inst.planningTrackColor ?? "#D1D5DB"),
                             }}
                             aria-hidden
                           />
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {inst.title}
                           </span>
+                          {inst.planningTrackName && (
+                            <span className="sr-only">
+                              Planungsspur {inst.planningTrackName}
+                            </span>
+                          )}
                           {inst.isSpontaneous && !isCancelled && (
                             <span
                               className="shrink-0 rounded-full bg-gray-100 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"

@@ -4,10 +4,16 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
-import type { EventFormState, PersonOption } from "./form-model";
+import type {
+  EventFormState,
+  PersonOption,
+  WeekdayRosterState,
+} from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
+import { WeekdayRosterSection } from "./weekday-roster-section";
 import type { GroupOption } from "./use-event-form";
 import type {
   ConflictWarningItem,
@@ -57,7 +63,6 @@ export interface StepPersonalKinderProps {
     memberIds: string[];
   }>;
   targetClassOptions: string[];
-  targetClassDescriptionIDs: string;
   targetCohort: { label: string | null; memberIds: string[] };
   missingTargetCohortCount: number;
   targetCohortButtonLabel: string;
@@ -68,6 +73,12 @@ export interface StepPersonalKinderProps {
   coverageCheckError: string | null;
   requiredStaffTouched: React.RefObject<boolean>;
   staffRosterTouched: React.RefObject<boolean>;
+  /** Per-weekday roster controls (#2129); only rendered in the series flow. */
+  activeRosterWeekday: number;
+  setActiveRosterWeekday: (weekday: number) => void;
+  setPerWeekdayRoster: (enabled: boolean) => void;
+  setWeekdayRoster: (weekday: number, roster: WeekdayRosterState) => void;
+  applyActiveWeekdayRosterToAll: () => void;
 }
 
 /**
@@ -98,7 +109,6 @@ export function StepPersonalKinder({
   preservesGradeAboveTenantCap,
   studentBulkOptions,
   targetClassOptions,
-  targetClassDescriptionIDs,
   targetCohort,
   missingTargetCohortCount,
   targetCohortButtonLabel,
@@ -109,7 +119,30 @@ export function StepPersonalKinder({
   coverageCheckError,
   requiredStaffTouched,
   staffRosterTouched,
+  activeRosterWeekday,
+  setActiveRosterWeekday,
+  setPerWeekdayRoster,
+  setWeekdayRoster,
+  applyActiveWeekdayRosterToAll,
 }: Readonly<StepPersonalKinderProps>) {
+  // Per-weekday rosters only make sense for a recurring series, and only once
+  // the people lists have actually loaded — otherwise a save would write the
+  // empty placeholder lists onto every weekday.
+  const rosterWeekdays = [...form.weekdays].sort((a, b) => a - b);
+  const showWeekdayRoster =
+    isSeriesFlow &&
+    !loadingStaff &&
+    !staffLoadError &&
+    !loadingStudents &&
+    !studentLoadError;
+  const usePerWeekdayRoster =
+    showWeekdayRoster && form.perWeekdayRoster && rosterWeekdays.length >= 2;
+  const preserveUnavailableWeekdayRoster =
+    isSeriesFlow &&
+    form.perWeekdayRoster &&
+    rosterWeekdays.length >= 2 &&
+    !showWeekdayRoster;
+
   let studentRosterField: React.ReactNode;
   if (loadingStudents) {
     studentRosterField = (
@@ -142,6 +175,9 @@ export function StepPersonalKinder({
         onChange={(ids) => update("studentIds", ids)}
         metadata="student"
         bulkOptions={studentBulkOptions}
+        protectedValues={form.protectedStudentAssignments.flatMap(
+          (assignment) => assignment.studentIds,
+        )}
       />
     );
   }
@@ -239,30 +275,25 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetGradeLevel}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_grade_level"
                   ariaLabel="Jahrgang"
+                  ariaInvalid={Boolean(fieldErrors.targetGradeLevel)}
                   ariaDescribedBy={
                     fieldErrors.targetGradeLevel
                       ? "event_target_grade_level_error"
                       : undefined
                   }
-                  value={form.targetGradeLevel}
-                  options={[
-                    { value: "", label: "Jahrgang wählen …" },
-                    ...targetGradeOptions,
-                  ]}
-                  onChange={(next) => update("targetGradeLevel", next)}
-                  required
-                  invalid={Boolean(fieldErrors.targetGradeLevel)}
-                  placeholder="Jahrgang wählen …"
+                  value={form.targetGradeLevels}
+                  options={targetGradeOptions}
+                  onChange={(next) => update("targetGradeLevels", next)}
+                  emptyLabel="Jahrgänge wählen ..."
                 />
               </Field>
               {preservesGradeAboveTenantCap ? (
                 <p className="mt-1 text-xs text-gray-500" role="status">
-                  Jahrgang {form.targetGradeLevel} liegt über der aktuell
-                  konfigurierten Höchststufe {gradeLevelMax}. Die bestehende
-                  Zielgruppe bleibt beim Speichern erhalten.
+                  Eine bestehende Auswahl liegt über der aktuell konfigurierten
+                  Höchststufe {gradeLevelMax} und bleibt erhalten.
                 </p>
               ) : null}
             </div>
@@ -276,23 +307,24 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetSchoolClass}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_school_class"
                   ariaLabel="Klasse"
-                  ariaDescribedBy={targetClassDescriptionIDs || undefined}
-                  value={form.targetSchoolClass}
-                  options={[
-                    { value: "", label: "Klasse wählen …" },
-                    ...targetClassOptions.map((schoolClass) => ({
-                      value: schoolClass,
-                      label: schoolClass,
-                    })),
-                  ]}
-                  onChange={(next) => update("targetSchoolClass", next)}
+                  ariaInvalid={Boolean(fieldErrors.targetSchoolClass)}
+                  ariaDescribedBy={
+                    fieldErrors.targetSchoolClass
+                      ? "event_target_school_class_error"
+                      : undefined
+                  }
+                  value={form.targetSchoolClasses}
+                  options={targetClassOptions.map((schoolClass) => ({
+                    value: schoolClass,
+                    label: schoolClass,
+                  }))}
+                  onChange={(next) => update("targetSchoolClasses", next)}
                   disabled={loadingStudents || studentLoadError !== null}
-                  required
-                  invalid={Boolean(fieldErrors.targetSchoolClass)}
-                  placeholder="Klasse wählen …"
+                  emptyLabel="Klassen wählen ..."
+                  searchable
                 />
               </Field>
               {loadingStudents || studentLoadError ? (
@@ -317,27 +349,24 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.educationGroupId}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_gruppe"
                   ariaLabel="Gruppe"
+                  ariaInvalid={Boolean(fieldErrors.educationGroupId)}
                   ariaDescribedBy={
                     fieldErrors.educationGroupId
                       ? "event_target_gruppe_error"
                       : undefined
                   }
-                  value={form.educationGroupId}
-                  options={[
-                    { value: "", label: "Gruppe wählen …" },
-                    ...groups.map((group) => ({
-                      value: group.id,
-                      label: group.name,
-                    })),
-                  ]}
-                  onChange={(next) => update("educationGroupId", next)}
+                  value={form.educationGroupIds}
+                  options={groups.map((group) => ({
+                    value: group.id,
+                    label: group.name,
+                  }))}
+                  onChange={(next) => update("educationGroupIds", next)}
                   disabled={loadingRefs}
-                  required
-                  invalid={Boolean(fieldErrors.educationGroupId)}
-                  placeholder="Gruppe wählen …"
+                  emptyLabel="Gruppen wählen ..."
+                  searchable
                 />
               </Field>
             </div>
@@ -351,31 +380,63 @@ export function StepPersonalKinder({
             </p>
           )}
 
-          {targetCohort.label && !loadingStudents && !studentLoadError && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
-              <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
-                Die Zielgruppe beschreibt den Regeltermin. Übernimm die
-                passenden Kinder mit einem Klick; die Auswahl bleibt danach
-                anpassbar.
+          {form.targetGroupType !== "none" &&
+            form.targetGroupType !== "angebot" && (
+              <p className="mt-2 text-xs leading-5 text-gray-600">
+                Die Kinderliste wird bei der Planung aus allen ausgewählten
+                Zielgruppen gebildet. Überschneidungen werden automatisch
+                entfernt, spätere Gruppenwechsel werden bei einer Neuplanung
+                berücksichtigt. Mit der Schaltfläche darunter kannst du die
+                aktuell passenden Kinder zusätzlich fest auswählen.
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                onClick={addTargetCohort}
-                disabled={
-                  targetCohort.memberIds.length === 0 ||
-                  missingTargetCohortCount === 0
-                }
-              >
-                {targetCohortButtonLabel}
-              </Button>
-            </div>
-          )}
+            )}
+          {targetCohort.label && !loadingStudents && !studentLoadError ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              className="mt-2 self-start"
+              onClick={addTargetCohort}
+              disabled={
+                targetCohort.memberIds.length === 0 ||
+                missingTargetCohortCount === 0
+              }
+            >
+              {targetCohortButtonLabel}
+            </Button>
+          ) : null}
         </div>
       )}
 
-      {staffRosterField}
+      {showWeekdayRoster && (
+        <WeekdayRosterSection
+          form={form}
+          weekdays={rosterWeekdays}
+          activeWeekday={activeRosterWeekday}
+          setActiveWeekday={setActiveRosterWeekday}
+          setPerWeekdayRoster={setPerWeekdayRoster}
+          setWeekdayRoster={setWeekdayRoster}
+          applyActiveWeekdayToAll={applyActiveWeekdayRosterToAll}
+          staff={staff}
+          students={students}
+          studentBulkOptions={studentBulkOptions}
+        />
+      )}
+
+      {preserveUnavailableWeekdayRoster && (
+        <div className="flex flex-col gap-2">
+          <Alert
+            type="info"
+            message="Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden, wenn Personal- und Kinderliste vollständig geladen sind. Die bestehenden Zuordnungen bleiben beim Speichern unverändert."
+          />
+          {(loadingStaff || staffLoadError) && staffRosterField}
+          {(loadingStudents || studentLoadError) && studentRosterField}
+        </div>
+      )}
+
+      {!usePerWeekdayRoster &&
+        !preserveUnavailableWeekdayRoster &&
+        staffRosterField}
 
       <Field label="Benötigtes Personal" htmlFor="event_required_staff">
         <Input
@@ -399,7 +460,9 @@ export function StepPersonalKinder({
         </p>
       </Field>
 
-      {studentRosterField}
+      {!usePerWeekdayRoster &&
+        !preserveUnavailableWeekdayRoster &&
+        studentRosterField}
 
       {(conflictWarnings.length > 0 ||
         coverageWarnings.length > 0 ||

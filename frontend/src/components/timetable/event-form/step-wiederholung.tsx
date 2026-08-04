@@ -31,6 +31,11 @@ export interface StepWiederholungProps {
     value: EventFormState[K],
   ) => void;
   updateRepeat: (repeat: RepeatMode) => void;
+  /**
+   * Sets the Planungszeitraum and, for new series, moves an out-of-period
+   * Datum to the first occurrence inside the period (#2135).
+   */
+  selectCalendarPeriod: (nextId: string) => void;
   toggleWeekday: (iso: number) => void;
   fieldErrors: Record<string, string>;
   calendarPeriods: CalendarPeriod[];
@@ -56,6 +61,7 @@ export function StepWiederholung({
   form,
   update,
   updateRepeat,
+  selectCalendarPeriod,
   toggleWeekday,
   fieldErrors,
   calendarPeriods,
@@ -251,7 +257,7 @@ export function StepWiederholung({
                       label: period.name,
                     })),
                   ]}
-                  onChange={(next) => update("calendarPeriodId", next)}
+                  onChange={selectCalendarPeriod}
                   required
                   invalid={Boolean(fieldErrors.calendarPeriodId)}
                   placeholder="Zeitraum auswählen …"

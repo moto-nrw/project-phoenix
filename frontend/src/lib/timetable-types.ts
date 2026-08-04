@@ -13,18 +13,29 @@ export type ActivityType = "care" | "activity" | "external";
 export type TimetableListKind =
   "edge_hours" | "learning_time" | "activity" | "mensa";
 
-type ConflictKind = "room" | "staff" | "student";
+type ConflictKind = "staff" | "student";
 
 /**
- * Soft warning surfaced by the backend when an instance has overlapping
- * rooms, double-booked staff, or double-booked students. Conflicts never
- * block an action; they are advisory and can always be overridden.
+ * Soft warning surfaced by the backend for a person double-booking (#2139):
+ * a child in two overlapping blocks, or staff planned in overlapping blocks
+ * that are not certainly in the same room. Conflicts never block an action;
+ * they are advisory and can always be overridden.
+ *
+ * The optional fields are set by the calendar's window-wide detection; the
+ * transient start-time warnings omit them. `fingerprint` is the conflict's
+ * stable identity — the per-user acknowledgement ("Konflikt ausblenden")
+ * keys on it.
  */
 interface ConflictWarning {
   kind: ConflictKind;
   resourceId: string;
   message: string;
   canOverride: boolean;
+  fingerprint?: string;
+  conflictingInstanceId?: string;
+  conflictingTitle?: string;
+  overlapStart?: string;
+  overlapEnd?: string;
 }
 
 /**
@@ -127,6 +138,10 @@ export interface EnrichedInstance {
   isSpontaneous: boolean;
   isLive: boolean;
   activityGroupId?: string;
+  planningTrackId?: string;
+  planningTrackName?: string;
+  planningTrackColor?: string;
+  planningTrackSortOrder?: number;
   listKind?: TimetableListKind;
   activityType: ActivityType;
   roomId: string;
@@ -211,6 +226,10 @@ export interface BackendEnrichedInstance {
   is_spontaneous: boolean;
   is_live: boolean;
   activity_group_id?: number;
+  planning_track_id?: number;
+  planning_track_name?: string;
+  planning_track_color?: string;
+  planning_track_sort_order?: number;
   list_kind?: TimetableListKind;
   activity_type: ActivityType;
   room_id: number;
@@ -234,6 +253,11 @@ export interface BackendEnrichedInstance {
     resource_id: number;
     message: string;
     can_override: boolean;
+    fingerprint?: string;
+    conflicting_instance_id?: number;
+    conflicting_title?: string;
+    overlap_start?: string;
+    overlap_end?: string;
   }>;
 }
 
@@ -378,6 +402,14 @@ interface TemplateSchedule {
 export type TargetGroupType =
   "jahrgang" | "klasse" | "gruppe" | "angebot" | "none";
 
+interface TimetableTarget {
+  type: Exclude<TargetGroupType, "angebot" | "none">;
+  gradeLevel?: number;
+  schoolClass?: string;
+  educationGroupId?: string;
+  educationGroupName?: string;
+}
+
 export interface TimetableTemplate {
   id: string;
   name: string;
@@ -385,6 +417,10 @@ export interface TimetableTemplate {
   listKind?: TimetableListKind;
   categoryId: string;
   categoryName: string;
+  planningTrackId?: string;
+  planningTrackName?: string;
+  planningTrackColor?: string;
+  planningTrackSortOrder?: number;
   roomId?: string;
   roomName?: string;
   educationGroupId?: string;
@@ -401,6 +437,7 @@ export interface TimetableTemplate {
   targetGroupType: TargetGroupType;
   targetGradeLevel?: number;
   targetSchoolClass?: string;
+  targets?: TimetableTarget[];
   enrollmentCount: number;
   supervisorCount: number;
   /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
@@ -412,6 +449,28 @@ export interface TimetableTemplate {
   staffIds: string[];
   primaryStaffId?: string;
   schedules: TemplateSchedule[];
+  /**
+   * Per-weekday staff and child lists (#2129). Empty = the series uses one
+   * roster on every weekday. When populated it covers every weekday the
+   * series runs, so each entry can be rendered as that day's roster without
+   * merging it with `staffIds` / `studentIds`.
+   */
+  weekdayAssignments: TemplateWeekdayAssignment[];
+  /** Read-only enrollment-owned child coverage, used when changing roster mode. */
+  protectedStudentAssignments?: TemplateProtectedStudentAssignment[];
+}
+
+/** One weekday's staff and child roster of a Regeltermin (#2129). */
+interface TemplateWeekdayAssignment {
+  weekday: number; // ISO 8601: 1 = Mo … 7 = So
+  staffIds: string[];
+  studentIds: string[];
+  primaryStaffId?: string;
+}
+
+export interface TemplateProtectedStudentAssignment {
+  weekday: number;
+  studentIds: string[];
 }
 
 export interface TemplatesResponse {
@@ -436,6 +495,10 @@ export interface BackendTimetableTemplate {
   list_kind?: TimetableListKind;
   category_id: number;
   category_name: string;
+  planning_track_id?: number;
+  planning_track_name?: string;
+  planning_track_color?: string;
+  planning_track_sort_order?: number;
   room_id?: number;
   room_name?: string;
   education_group_id?: number;
@@ -449,6 +512,13 @@ export interface BackendTimetableTemplate {
   target_group_type: TargetGroupType;
   target_grade_level?: number;
   target_school_class?: string;
+  targets?: Array<{
+    type: "jahrgang" | "klasse" | "gruppe";
+    grade_level?: number;
+    school_class?: string;
+    education_group_id?: number;
+    education_group_name?: string;
+  }>;
   enrollment_count: number;
   supervisor_count: number;
   required_staff_count: number;
@@ -458,6 +528,21 @@ export interface BackendTimetableTemplate {
   staff_ids?: number[];
   primary_staff_id?: number;
   schedules: BackendTemplateSchedule[];
+  weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
+  protected_student_assignments?:
+    BackendTemplateProtectedStudentAssignment[] | null;
+}
+
+interface BackendTemplateWeekdayAssignment {
+  weekday: number;
+  staff_ids?: number[];
+  student_ids?: number[];
+  primary_staff_id?: number;
+}
+
+interface BackendTemplateProtectedStudentAssignment {
+  weekday: number;
+  student_ids?: number[];
 }
 
 export interface BackendTemplatesResponse {
@@ -843,6 +928,7 @@ export interface CreateTemplateBody {
   end_time: string; // HH:MM
   room_id: number;
   category_id: number;
+  planning_track_id?: number | null;
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
   education_group_id?: number;
@@ -854,16 +940,42 @@ export interface CreateTemplateBody {
   target_group_type?: TargetGroupType;
   target_grade_level?: number;
   target_school_class?: string;
+  /**
+   * Series start (#2135): schedules get it as valid_from, so no instances
+   * materialize before it and the roster becomes valid from it. Must lie
+   * within the calendar period. Omitted = series starts with the period.
+   */
+  start_date?: string;
+  targets?: Array<{
+    type: "jahrgang" | "klasse" | "gruppe";
+    grade_level?: number;
+    school_class?: string;
+    education_group_id?: number;
+  }>;
   materialize_from?: string;
   materialize_to?: string;
   student_ids?: number[];
   staff_ids?: number[];
   primary_staff_id?: number;
+  /**
+   * Per-weekday roster deviations (#2129). Each entry fully replaces the
+   * shared `staff_ids` / `student_ids` / `primary_staff_id` above for that
+   * one weekday; weekdays without an entry keep the shared roster. Omitted
+   * or empty means the whole series shares one roster.
+   */
+  weekday_assignments?: WeekdayAssignmentBody[];
+}
+
+export interface WeekdayAssignmentBody {
+  weekday: number;
+  staff_ids: number[];
+  student_ids: number[];
+  primary_staff_id?: number;
 }
 
 export type UpdateTemplateBody = Omit<
   CreateTemplateBody,
-  "materialize_from" | "materialize_to" | "list_kind"
+  "materialize_from" | "materialize_to" | "list_kind" | "start_date"
 > & {
   /**
    * Listenart classification. A value sets it; explicit `null` clears it. On the

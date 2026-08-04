@@ -304,6 +304,22 @@ func (m *mockStaffAbsenceService) GetVacationQuotaSummary(_ context.Context, _ i
 func (m *mockStaffAbsenceService) UpsertVacationQuota(_ context.Context, _ int64, _ int, _, _ float64) error {
 	return nil
 }
+
+// Vacation takeover (#2132). The staff-facing time-tracking API never calls
+// these — the takeover is admin-only — so the mock just satisfies the
+// interface.
+func (m *mockStaffAbsenceService) GetVacationOpening(_ context.Context, _ int64, _ int) (*activeModels.StaffVacationOpening, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) SetVacationOpening(_ context.Context, _, _ int64, _ activeSvc.SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) DeleteVacationOpening(_ context.Context, _, _ int64, _ int) error {
+	return nil
+}
+func (m *mockStaffAbsenceService) ValidateVacationOpeningAbsencesBefore(_ context.Context, _ int64, _ timezone.Date) error {
+	return nil
+}
 func (m *mockStaffAbsenceService) ListPendingRequests(_ context.Context) ([]*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }

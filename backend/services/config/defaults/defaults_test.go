@@ -146,6 +146,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"reminders.activity_start_enabled",
 		"reminders.activity_start_lead_minutes",
 		"reminders.activity_overdue_enabled",
+		// Guardian appointment reminders (issue #1671): the parent-facing half of
+		// the Erinnerungen tab.
+		"calendar.appointment_reminder_enabled",
+		"calendar.appointment_reminder_lead_hours",
 		// Info-point display feature (issue #1325): opt-in toggle, default off.
 		"display.enabled",
 		// Absence-approval email notifications (issue #1419 4d).

@@ -9,7 +9,7 @@
  * - materialize(from?, to?)      → POST   /materialize
  */
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { createLogger } from "./logger";
 import type {
   BackendConflictCheckResult,
@@ -134,7 +134,7 @@ class TimetableService {
    * lightweight enrichment (room name, type, staff list, counts).
    */
   async getWeek(from: string, to: string): Promise<WeeklyInstancesResponse> {
-    const session = await getSession();
+    const session = await getCachedSession();
     if (!session?.user?.token) {
       throw new TimetableApiError("Nicht angemeldet", 401, "UNAUTHENTICATED");
     }
@@ -220,14 +220,23 @@ class TimetableService {
 
   /**
    * GET /api/timetable/templates/{id} — single template with schedules,
-   * enrollment and staff assignments. Same enriched shape as the list.
+   * enrollment and staff assignments. The required period keeps scoped
+   * rosters isolated in the same way as the list endpoint.
    */
-  async getTemplate(templateId: string): Promise<TimetableTemplate> {
-    const response = await fetch(`/api/timetable/templates/${templateId}`, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "include",
-    });
+  async getTemplate(
+    templateId: string,
+    periodId: string,
+  ): Promise<TimetableTemplate> {
+    const params = new URLSearchParams();
+    params.set("period_id", periodId);
+    const response = await fetch(
+      `/api/timetable/templates/${templateId}${params.toString() ? `?${params}` : ""}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
     const raw = await unwrap<BackendTimetableTemplate>(response);
     return mapTemplates({ templates: [raw] }).templates[0]!;
   }
@@ -326,6 +335,52 @@ class TimetableService {
   }
 
   /**
+   * GET /api/timetable/conflict-acks — fingerprints of the conflicts the
+   * current user has hidden in this school (#2139).
+   */
+  async getConflictAcks(): Promise<string[]> {
+    const response = await fetch(`/api/timetable/conflict-acks`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    const raw = await unwrap<{ fingerprints: string[] | null }>(response);
+    return raw.fingerprints ?? [];
+  }
+
+  /**
+   * PUT /api/timetable/conflict-acks/{fingerprint} — hide one reviewed
+   * conflict for the current user. Idempotent.
+   */
+  async acknowledgeConflict(fingerprint: string): Promise<void> {
+    const response = await fetch(
+      `/api/timetable/conflict-acks/${encodeURIComponent(fingerprint)}`,
+      {
+        method: "PUT",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /**
+   * DELETE /api/timetable/conflict-acks/{fingerprint} — show a previously
+   * hidden conflict again. Idempotent.
+   */
+  async unacknowledgeConflict(fingerprint: string): Promise<void> {
+    const response = await fetch(
+      `/api/timetable/conflict-acks/${encodeURIComponent(fingerprint)}`,
+      {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /**
    * POST /api/timetable/shift-coverage — batched, read-only comparison of
    * concrete candidate dates with the assigned staff members' shifts.
    */
@@ -421,7 +476,7 @@ class TimetableService {
   /**
    * POST /api/timetable/instances/{id}/start.
    * Transitions a planned instance to active and creates the active.group
-   * bridge. Returns soft warnings (room/staff/student conflicts) so the
+   * bridge. Returns soft warnings (staff/student double-bookings) so the
    * caller can surface them.
    */
   async start(instanceId: string): Promise<StartInstanceResult> {

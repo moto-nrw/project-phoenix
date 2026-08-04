@@ -66,9 +66,9 @@ const backendInstance: BackendEnrichedInstance = {
   assigned_staff_count: 1,
   conflict_warnings: [
     {
-      kind: "room",
+      kind: "staff",
       resource_id: 3,
-      message: "Raum doppelt belegt",
+      message: "Personal doppelt eingeplant",
       can_override: true,
     },
   ],
@@ -295,11 +295,13 @@ describe("timetableService", () => {
         }),
       );
 
-    await expect(timetableService.getTemplate("7")).resolves.toMatchObject({
-      id: "7",
-      name: "Yoga",
-      primaryStaffId: "11",
-    });
+    await expect(timetableService.getTemplate("7", "5")).resolves.toMatchObject(
+      {
+        id: "7",
+        name: "Yoga",
+        primaryStaffId: "11",
+      },
+    );
 
     const splitBody = {
       name: "Yoga",
@@ -335,7 +337,7 @@ describe("timetableService", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/timetable/templates/7",
+      "/api/timetable/templates/7?period_id=5",
       expect.objectContaining({ method: "GET", credentials: "include" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -366,9 +368,9 @@ describe("timetableService", () => {
             end_time: "13:00",
             warnings: [
               {
-                kind: "room",
+                kind: "staff",
                 resource_id: 3,
-                message: "Raum doppelt belegt",
+                message: "Personal doppelt eingeplant",
                 conflicting_instance_id: 42,
                 conflicting_title: "Mensa",
               },
@@ -403,9 +405,9 @@ describe("timetableService", () => {
       endTime: "13:00",
       warnings: [
         {
-          kind: "room",
+          kind: "staff",
           resourceId: "3",
-          message: "Raum doppelt belegt",
+          message: "Personal doppelt eingeplant",
           conflictingInstanceId: "42",
           conflictingTitle: "Mensa",
         },

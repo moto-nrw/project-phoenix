@@ -28,6 +28,7 @@ import (
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,7 @@ func attachSplitServiceWithValidator(
 ) {
 	s.res.TemplateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
 		GroupRepo:                  activitiesRepo.NewGroupRepository(s.db),
+		CategoryRepo:               activitiesRepo.NewCategoryRepository(s.db),
 		ScheduleRepo:               activitiesRepo.NewScheduleRepository(s.db),
 		EnrollmentRepo:             activitiesRepo.NewStudentEnrollmentRepository(s.db),
 		SupervisorRepo:             activitiesRepo.NewSupervisorPlannedRepository(s.db),
@@ -215,12 +217,24 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 
 	s.res.SettingsService = templateGradeSettings(13, nil)
 	created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Update-Source", 5)
+	gradeFive := int16(5)
+	gradeSix := int16(6)
+	targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+	require.True(t, ok)
+	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, created.TemplateID, []*activitiesModel.GroupTarget{
+		{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeFive},
+		{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeSix},
+	}))
 
 	// Lowering the tenant cap must not strand an existing legacy series.
 	s.res.SettingsService = templateGradeSettings(4, nil)
 	unchanged := createTemplateBody(s, "Tpl-GradeCap-Update-Unchanged")
 	unchanged["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
 	unchanged["target_grade_level"] = 5
+	unchanged["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 5},
+		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
+	}
 	unchangedW := doTemplateJSON(t, router, http.MethodPut,
 		fmt.Sprintf("/templates/%d", created.TemplateID), unchanged)
 	require.Equal(t, http.StatusOK, unchangedW.Code, "body=%s", unchangedW.Body.String())
@@ -229,13 +243,18 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
 	rejected := createTemplateBody(s, rejectedName)
 	rejected["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
-	rejected["target_grade_level"] = 6
+	rejected["target_grade_level"] = 5
+	rejected["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 5},
+		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
+		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 7},
+	}
 	rejected["start_time"] = startTime
 	rejected["end_time"] = endTime
 	rejectedW := doTemplateJSON(t, router, http.MethodPut,
 		fmt.Sprintf("/templates/%d", created.TemplateID), rejected)
 	require.Equal(t, http.StatusBadRequest, rejectedW.Code, "body=%s", rejectedW.Body.String())
-	require.Contains(t, rejectedW.Body.String(), "target_grade_level 6 exceeds tenant maximum 4")
+	require.Contains(t, rejectedW.Body.String(), "target_grade_level 7 exceeds tenant maximum 4")
 
 	group, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
@@ -266,6 +285,14 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 
 		s.res.SettingsService = templateGradeSettings(13, nil)
 		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Legacy", 5)
+		gradeFive := int16(5)
+		gradeSix := int16(6)
+		targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+		require.True(t, ok)
+		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, created.TemplateID, []*activitiesModel.GroupTarget{
+			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeFive},
+			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeSix},
+		}))
 		s.res.SettingsService = templateGradeSettings(4, nil)
 		body := splitBody(s, "Tpl-GradeCap-Split-Legacy-Successor", timezone.TodayDate().AddDays(7))
 		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
@@ -279,6 +306,9 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, successor.TargetGradeLevel)
 		assert.EqualValues(t, 5, *successor.TargetGradeLevel)
+		successorTargets, err := targetRepo.FindTargetsByGroupIDs(s.ctx, []int64{result.NewTemplateID})
+		require.NoError(t, err)
+		require.Len(t, successorTargets[result.NewTemplateID], 2)
 	})
 
 	t.Run("rejects a changed above-cap Jahrgang before capping the source", func(t *testing.T) {
@@ -293,6 +323,9 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		body := splitBody(s, "Tpl-GradeCap-Split-Rejected-Successor", timezone.TodayDate().AddDays(7))
 		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
 		body["target_grade_level"] = 6
+		body["targets"] = []map[string]any{
+			{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
+		}
 
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
@@ -699,8 +732,10 @@ func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
 		assert.NotEqual(t, created.TemplateID, tpl.ID, "ended template must not remain in the active template list")
 	}
 
+	period := createTemplateTestPeriod(t, s.db, "Tpl-End-Hidden-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	getW := doTemplateJSON(t, router, http.MethodGet,
-		fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, getW.Code, "body=%s", getW.Body.String())
 
 	updateBody := createTemplateBody(s, "Tpl-End-Hidden-Resurrected")

@@ -60,7 +60,8 @@ func withActorTx(ctx context.Context, db *bun.DB, tenantID int64, actor string, 
 
 	// Outermost call: attach a fresh hooks holder so nested
 	// RegisterAfterCommit appends to it via context propagation.
-	ctx, hooks := withAfterCommitHooks(ctx)
+	ctx, commitHooks := withAfterCommitHooks(ctx)
+	ctx, rollbackHooks := withAfterRollbackHooks(ctx)
 
 	err := db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		// Switch to the RLS-enforced tenant role
@@ -94,9 +95,10 @@ func withActorTx(ctx context.Context, db *bun.DB, tenantID int64, actor string, 
 		return fn(ctx, tx)
 	})
 	if err != nil {
+		runAfterRollbackHooks(rollbackHooks)
 		return err
 	}
-	runAfterCommitHooks(hooks)
+	runAfterCommitHooks(commitHooks)
 	return nil
 }
 

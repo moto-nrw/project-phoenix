@@ -61,7 +61,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 
 	assert.Equal(t, 1, created.InstancesCreated)
 
-	rr = s.do("GET", fmt.Sprintf("/templates/%d", created.TemplateID), nil, primaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil, primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "get template body=%s", rr.Body.String())
 
 	var templateResp struct {

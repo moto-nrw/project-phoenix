@@ -62,7 +62,8 @@
     "role": "Eltern",
     "childProfile": "Kinderprofil",
     "loading": "Lädt...",
-    "feedback": "Feedback"
+    "feedback": "Feedback",
+    "settings": "Einstellungen"
   },
   "parentMealPlan": {
     "title": "Essensplan",
@@ -130,6 +131,11 @@
     "newsPollNeedsAnswer": "Antwort erforderlich",
     "newsClose": "Schließen",
     "newEnrollment": "Neue Anmeldung"
+  },
+  "parentSettings": {
+    "eyebrow": "Ihr Konto",
+    "title": "Einstellungen",
+    "description": "Legen Sie hier fest, worüber moto Sie informiert und auf welchem Gerät."
   },
   "parentEnroll": {
     "back": "Zurück zum Elternportal",

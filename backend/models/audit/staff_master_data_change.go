@@ -17,6 +17,10 @@ const (
 	StammdatenSectionArbeitsvertrag = "arbeitsvertrag"
 	StammdatenSectionQualifikation  = "qualifikationen"
 	StammdatenSectionBankSteuer     = "bank-steuer"
+	// StammdatenSectionDokumente records document uploads and deletions of
+	// the Dokumente tab (#1424): field_name is the category, old/new carry
+	// the display filename (upload: old empty; delete: new empty).
+	StammdatenSectionDokumente = "dokumente"
 )
 
 // StaffMasterDataChange is an append-only audit row for one changed
@@ -50,7 +54,7 @@ func (c *StaffMasterDataChange) Validate() error {
 	}
 	switch c.Section {
 	case StammdatenSectionPerson, StammdatenSectionKontakt, StammdatenSectionArbeitsvertrag,
-		StammdatenSectionQualifikation, StammdatenSectionBankSteuer:
+		StammdatenSectionQualifikation, StammdatenSectionBankSteuer, StammdatenSectionDokumente:
 		// valid
 	default:
 		return errors.New("unknown stammdaten section")

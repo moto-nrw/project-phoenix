@@ -33,7 +33,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -94,16 +93,18 @@ func templateCareOfferingValidationError(ctx context.Context, op, action string,
 // provided StaffIDs roster; carried-over supervisors keep their own
 // is_primary flag.
 type TemplateSplitInput struct {
-	TemplateID      int64
-	EffectiveDate   timezone.Date
-	Name            string
-	Type            string // care | activity | external
-	Weekdays        []int  // ISO 8601, Mo=1 … Su=7
-	StartTime       time.Time
-	EndTime         time.Time
-	RoomID          int64
-	CategoryID      int64
-	MaxParticipants *int
+	TemplateID              int64
+	EffectiveDate           timezone.Date
+	Name                    string
+	Type                    string // care | activity | external
+	Weekdays                []int  // ISO 8601, Mo=1 … Su=7
+	StartTime               time.Time
+	EndTime                 time.Time
+	RoomID                  int64
+	CategoryID              int64
+	PlanningTrackID         *int64
+	PlanningTrackIDProvided bool
+	MaxParticipants         *int
 	// RequiredStaff is the manual Personalbedarf override (#1839) for the
 	// successor Group, already normalized (nil = clear/derive). It is only
 	// applied when RequiredStaffProvided is true; otherwise the successor
@@ -116,9 +117,12 @@ type TemplateSplitInput struct {
 	EducationGroupID      *int64
 	// Zielgruppe (target-group) fields, carried onto the successor Group
 	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
-	TargetGroupType   string
-	TargetGradeLevel  *int16
-	TargetSchoolClass *string
+	TargetGroupType    string
+	TargetGradeLevel   *int16
+	TargetSchoolClass  *string
+	Targets            []*activitiesModel.GroupTarget
+	targetsProvided    bool
+	targetsPresenceSet bool
 	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
 	// Group, already normalized (nil = clear). Only applied when NotesProvided
 	// is true; otherwise the successor inherits the source template's note. Same
@@ -137,8 +141,12 @@ type TemplateSplitInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
-	MaterializeFrom  *timezone.Date
-	MaterializeTo    *timezone.Date
+	// WeekdayAssignments carries the per-weekday roster deviations (#2129)
+	// onto the successor. It only applies to the explicit-roster path: a
+	// carried-over roster keeps each row's own weekday scope.
+	WeekdayAssignments []WeekdayRosterAssignment
+	MaterializeFrom    *timezone.Date
+	MaterializeTo      *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -177,13 +185,15 @@ type TemplateEndResult struct {
 // TemplateSplitDependencies aggregates wiring. All fields are required;
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
-	GroupRepo       activitiesModel.GroupRepository
-	ScheduleRepo    activitiesModel.ScheduleRepository
-	EnrollmentRepo  activitiesModel.StudentEnrollmentRepository
-	SupervisorRepo  activitiesModel.SupervisorPlannedRepository
-	InstanceRepo    scheduleModel.ActivityInstanceRepository
-	TimeframeRepo   scheduleModel.TimeframeRepository
-	Materialization MaterializationService
+	GroupRepo         activitiesModel.GroupRepository
+	CategoryRepo      activitiesModel.CategoryRepository
+	PlanningTrackRepo scheduleModel.PlanningTrackRepository
+	ScheduleRepo      activitiesModel.ScheduleRepository
+	EnrollmentRepo    activitiesModel.StudentEnrollmentRepository
+	SupervisorRepo    activitiesModel.SupervisorPlannedRepository
+	InstanceRepo      scheduleModel.ActivityInstanceRepository
+	TimeframeRepo     scheduleModel.TimeframeRepository
+	Materialization   MaterializationService
 	// InstanceService supplies the existing deviation snapshot/reapply machinery.
 	// The constructor narrows it to the package-private capability used by Split.
 	InstanceService InstanceService
@@ -220,7 +230,7 @@ type splitDeviationPreserver interface {
 // required dependency is nil — the split has no sensible degraded mode, so
 // the factory must wire it completely at startup.
 func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitService {
-	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
+	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.InstanceService == nil ||
 		deps.ValidateCareOfferingSeries == nil || deps.DB == nil {
@@ -264,6 +274,10 @@ func (s *TemplateSplitService) validateCareOfferingSeries(ctx context.Context, g
 // The service reuses an ambient request transaction or creates one when called
 // directly, so the recurrence lock covers the complete operation.
 func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
+	if !in.targetsPresenceSet {
+		in.targetsProvided = in.Targets != nil
+		in.targetsPresenceSet = true
+	}
 	if err := validateSplitInput(&in); err != nil {
 		return nil, err
 	}
@@ -294,10 +308,18 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err := s.lockTenantRecurrence(ctx); err != nil {
 		return nil, &ScheduleError{Op: "split template: lock recurrence", Err: err}
 	}
+	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
+		return nil, err
+	}
 
 	old, sourceValidUntil, activeEnrollments, activeSupervisors, err := s.prepareSplitSource(ctx, &in)
 	if err != nil {
 		return nil, err
+	}
+	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
+		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, old.PlanningTrackID); err != nil {
+			return nil, err
+		}
 	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(
 		ctx, old, in, tenantID, sourceValidUntil, activeEnrollments, activeSupervisors,
@@ -395,13 +417,30 @@ func (s *TemplateSplitService) prepareSplitSource(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if err := ValidateTemplateTargetGradeLimit(
-		in.GradeLevelMax,
-		old,
-		in.TargetGroupType,
-		in.TargetGradeLevel,
-	); err != nil {
+	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.GroupRepo, old.ID)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("load existing dynamic targets: %w", err)
+	}
+	if !in.targetsProvided && len(existingTargets) > 0 {
+		in.Targets = existingTargets
+		in.TargetGroupType = existingTargets[0].TargetGroupType
+		in.TargetGradeLevel = existingTargets[0].TargetGradeLevel
+		in.TargetSchoolClass = existingTargets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = existingTargets[0].EducationGroupID
+		}
+	}
+	if err := validateSplitDynamicTargets(in.GradeLevelMax, old, existingTargets, in.Targets); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(in.Targets) > 0 {
+		in.TargetGradeLevel = in.Targets[0].TargetGradeLevel
+		in.TargetSchoolClass = in.Targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = in.Targets[0].EducationGroupID
+		}
 	}
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "split template", false)
 	if err != nil {
@@ -424,6 +463,10 @@ func (s *TemplateSplitService) prepareSplitSource(
 		return nil, nil, nil, nil, err
 	}
 	return old, sourceValidUntil, enrollments, supervisors, nil
+}
+
+func validateSplitDynamicTargets(gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+	return ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, existingTargets, targets)
 }
 
 func (s *TemplateSplitService) capSplitSource(
@@ -615,10 +658,26 @@ func validateSplitInput(in *TemplateSplitInput) error {
 	if err := validateSplitRecurrence(*in); err != nil {
 		return err
 	}
+	if err := validateSplitWeekdayAssignments(*in); err != nil {
+		return err
+	}
 	if err := validateSplitTargetGroup(in); err != nil {
 		return err
 	}
 	return validateSplitMaterializationWindow(*in)
+}
+
+func validateSplitWeekdayAssignments(in TemplateSplitInput) error {
+	if len(in.WeekdayAssignments) == 0 {
+		return nil
+	}
+	if in.StudentIDs == nil || in.StaffIDs == nil {
+		return fmt.Errorf("%w: weekday assignments require explicit student and staff rosters", ErrSplitInvalidInput)
+	}
+	if _, err := indexWeekdayAssignments(in.Weekdays, in.WeekdayAssignments); err != nil {
+		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
+	}
+	return nil
 }
 
 func validateSplitTemplateFields(in TemplateSplitInput) error {
@@ -673,10 +732,26 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 }
 
 func validateSplitTargetGroup(in *TemplateSplitInput) error {
-	// Reuses Group.ValidateTargetGroup() rather than re-implementing the
-	// type-conditional invariant here (Rule 10) — the handler's Bind() also
-	// runs this check, but the service defends itself independently since
-	// TemplateSplitInput is a public entry point other callers could reach.
+	targets, err := normalizeDynamicTargets(
+		in.TargetGroupType,
+		in.TargetGradeLevel,
+		in.TargetSchoolClass,
+		in.EducationGroupID,
+		in.Targets,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.Targets = targets
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(targets) > 0 {
+		in.TargetGradeLevel = targets[0].TargetGradeLevel
+		in.TargetSchoolClass = targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = targets[0].EducationGroupID
+		}
+	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
@@ -945,6 +1020,10 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.ListKindProvided {
 		listKind = in.ListKind
 	}
+	planningTrackID := old.PlanningTrackID
+	if in.PlanningTrackIDProvided {
+		planningTrackID = in.PlanningTrackID
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
@@ -956,6 +1035,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		RequiredStaff:     requiredStaff,
 		IsOpen:            old.IsOpen,
 		CategoryID:        in.CategoryID,
+		PlanningTrackID:   planningTrackID,
 		PlannedRoomID:     &roomID,
 		CreatedBy:         old.CreatedBy,
 		Type:              in.Type,
@@ -972,6 +1052,15 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
 		return nil, &ScheduleError{Op: "split template: create successor template", Err: err}
+	}
+	targetRepo, ok := s.deps.GroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok && len(in.Targets) > 0 {
+		return nil, &ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
+	}
+	if ok {
+		if err := targetRepo.ReplaceTargets(ctx, group.ID, in.Targets); err != nil {
+			return nil, &ScheduleError{Op: "split template: create successor targets", Err: err}
+		}
 	}
 	return group, nil
 }
@@ -1037,8 +1126,15 @@ func (s *TemplateSplitService) createStudentRoster(
 	if err := validateProtectedEnrollmentRebase(protected, in.CalendarPeriodID); err != nil {
 		return &ScheduleError{Op: "split template: rebase protected enrollments", Err: err}
 	}
-	protectedStudents := protectedStudentsForPeriod(protected, in.CalendarPeriodID)
-	rows := buildSuccessorStudentRows(in, manual, protectedStudents, segmentValidUntil)
+	protectedCoverage := buildProtectedStudentCoverage(
+		protected,
+		in.Weekdays,
+		func(row *activitiesModel.StudentEnrollment) bool {
+			return rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) ||
+				(in.CalendarPeriodID != nil && row.CalendarPeriodID != nil)
+		},
+	)
+	rows := buildSuccessorStudentRows(in, manual, protectedCoverage, segmentValidUntil)
 	if err := s.persistSuccessorStudentRows(ctx, groupID, in, rows, tenantID, segmentValidUntil); err != nil {
 		return err
 	}
@@ -1058,20 +1154,6 @@ func partitionCarriedEnrollments(
 		}
 	}
 	return manual, protected
-}
-
-func protectedStudentsForPeriod(
-	rows []*activitiesModel.StudentEnrollment,
-	periodID *int64,
-) map[int64]struct{} {
-	students := make(map[int64]struct{})
-	for _, row := range rows {
-		if rosterPeriodApplies(row.CalendarPeriodID, periodID) ||
-			(periodID != nil && row.CalendarPeriodID != nil) {
-			students[row.StudentID] = struct{}{}
-		}
-	}
-	return students
 }
 
 func validateProtectedEnrollmentRebase(
@@ -1101,16 +1183,21 @@ func validateProtectedEnrollmentRebase(
 func buildSuccessorStudentRows(
 	in TemplateSplitInput,
 	carried []*activitiesModel.StudentEnrollment,
-	protectedStudents map[int64]struct{},
+	protectedCoverage map[int64]protectedStudentCoverage,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
 	if in.StudentIDs != nil {
-		rows := make([]*activitiesModel.StudentEnrollment, 0, len(in.StudentIDs))
-		for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
-			if _, protected := protectedStudents[studentID]; protected {
-				continue
-			}
-			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
+		resolved, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, nil, nil, in.WeekdayAssignments)
+		if err != nil {
+			resolved = resolvedTemplateRoster{Students: sharedRosterRows(in.StudentIDs, nil)}
+		}
+		manualRows := excludeProtectedStudentWeekdays(resolved.Students, protectedCoverage)
+		rows := make([]*activitiesModel.StudentEnrollment, 0, len(manualRows))
+		for _, row := range manualRows {
+			rows = append(rows, &activitiesModel.StudentEnrollment{
+				StudentID: row.PersonID,
+				Weekday:   weekdayScopePtr(row.Weekday),
+			})
 		}
 		return rows
 	}
@@ -1122,23 +1209,27 @@ func carriedStudentRowsByPerson(
 	periodID *int64,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
-	byStudent := make(map[int64][]*activitiesModel.StudentEnrollment, len(carried))
-	order := make([]int64, 0, len(carried))
+	// Keyed by (student, weekday scope) — see carriedStaffRowsByPerson for why
+	// the weekday must be part of the key (#2129).
+	byStudent := make(map[rosterPersonScope][]*activitiesModel.StudentEnrollment, len(carried))
+	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
-		if _, seen := byStudent[row.StudentID]; !seen {
-			order = append(order, row.StudentID)
+		key := rosterPersonScope{PersonID: row.StudentID, Weekday: weekdayScopeKey(row.Weekday)}
+		if _, seen := byStudent[key]; !seen {
+			order = append(order, key)
 		}
-		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
+		byStudent[key] = append(byStudent[key], row)
 	}
 	rows := make([]*activitiesModel.StudentEnrollment, 0, len(order))
-	for _, studentID := range order {
-		group := byStudent[studentID]
+	for _, key := range order {
+		group := byStudent[key]
 		preferred := preferCarriedRow(group, periodID, func(row *activitiesModel.StudentEnrollment) *int64 { return row.CalendarPeriodID })
 		rows = append(rows, &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        key.PersonID,
 			ValidFrom:        preferred.ValidFrom,
 			ValidUntil:       earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
 			SelectedWeekdays: unionSelectedWeekdays(group, preferred),
+			Weekday:          weekdayScopePtr(preferred.Weekday),
 		})
 	}
 	return rows
@@ -1188,6 +1279,7 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 			CalendarPeriodID:         protectedEnrollmentPeriodAfterRebase(source.CalendarPeriodID, in.CalendarPeriodID),
 			EnrollmentRequestChildID: cloneOptionalInt64(source.EnrollmentRequestChildID),
 			SelectedWeekdays:         append([]int(nil), source.SelectedWeekdays...),
+			Weekday:                  weekdayScopePtr(source.Weekday),
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
@@ -1245,11 +1337,19 @@ func buildSuccessorStaffRows(
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.SupervisorPlanned {
 	if in.StaffIDs != nil {
-		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(in.StaffIDs))
-		for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+		resolved, err := resolveTemplateRoster(in.Weekdays, nil, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+		if err != nil {
+			// The handler validates the assignments before reaching the split,
+			// so an error here means a caller bypassed that check; fall back to
+			// the shared roster rather than dropping the staff entirely.
+			resolved = resolvedTemplateRoster{Staff: sharedRosterRows(in.StaffIDs, in.PrimaryStaffID)}
+		}
+		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(resolved.Staff))
+		for _, row := range resolved.Staff {
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
-				StaffID:   staffID,
-				IsPrimary: in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+				StaffID:   row.PersonID,
+				IsPrimary: row.IsPrimary,
+				Weekday:   weekdayScopePtr(row.Weekday),
 			})
 		}
 		return rows
@@ -1262,25 +1362,45 @@ func carriedStaffRowsByPerson(
 	periodID *int64,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.SupervisorPlanned {
-	byStaff := make(map[int64][]*activitiesModel.SupervisorPlanned, len(carried))
-	order := make([]int64, 0, len(carried))
+	// Keyed by (staff, weekday scope), not by staff alone: collapsing a
+	// per-weekday roster (#2129) to one row per person would turn "Anna
+	// montags, Bea dienstags" into "Anna and Bea every day" on the successor.
+	byStaff := make(map[rosterPersonScope][]*activitiesModel.SupervisorPlanned, len(carried))
+	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
-		if _, seen := byStaff[row.StaffID]; !seen {
-			order = append(order, row.StaffID)
+		key := rosterPersonScope{PersonID: row.StaffID, Weekday: weekdayScopeKey(row.Weekday)}
+		if _, seen := byStaff[key]; !seen {
+			order = append(order, key)
 		}
-		byStaff[row.StaffID] = append(byStaff[row.StaffID], row)
+		byStaff[key] = append(byStaff[key], row)
 	}
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(order))
-	for _, staffID := range order {
-		preferred := preferCarriedRow(byStaff[staffID], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
+	for _, key := range order {
+		preferred := preferCarriedRow(byStaff[key], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
 		rows = append(rows, &activitiesModel.SupervisorPlanned{
-			StaffID:    staffID,
+			StaffID:    key.PersonID,
 			IsPrimary:  preferred.IsPrimary,
 			ValidFrom:  preferred.ValidFrom,
 			ValidUntil: earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
+			Weekday:    weekdayScopePtr(preferred.Weekday),
 		})
 	}
 	return rows
+}
+
+// rosterPersonScope keys a carried roster row by person AND weekday scope.
+type rosterPersonScope struct {
+	PersonID int64
+	// Weekday is 0 for the series-wide scope (a real ISO weekday is 1..7),
+	// which makes the struct usable as a map key without a pointer.
+	Weekday int
+}
+
+func weekdayScopeKey(weekday *int) int {
+	if weekday == nil {
+		return 0
+	}
+	return *weekday
 }
 
 // preferCarriedRow picks the carried roster row whose calendar_period_id

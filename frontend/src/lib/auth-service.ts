@@ -1,5 +1,5 @@
 // lib/auth-service.ts
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { isAxiosError } from "axios";
 import { env } from "~/env";
 import api from "./api-transport";
@@ -218,8 +218,7 @@ function buildAxiosApiError(
   apiError.status = error.response?.status;
 
   const headers = error.response?.headers as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   const retryAfterHeader = headers ? headers["retry-after"] : undefined;
   let retryAfterValue: string | null = null;
   if (Array.isArray(retryAfterHeader)) {
@@ -276,7 +275,7 @@ async function buildAuthHeaders(
     return headers;
   }
 
-  const session = await getSession();
+  const session = await getCachedSession();
   if (session?.user?.token) {
     headers.Authorization = `Bearer ${session.user.token}`;
   }
@@ -583,7 +582,7 @@ export const authService = {
     const url = useProxyApi ? "/api/auth/logout" : `${env.API_URL}/auth/logout`;
 
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       if (!session?.user?.token) {
         return; // Already logged out
       }

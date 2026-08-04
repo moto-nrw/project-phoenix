@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -75,14 +76,32 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 	if err := category.Validate(); err != nil {
 		return nil, &ActivityError{Op: "create category", Err: err}
 	}
+	if !category.IsSystem && isReservedSystemCategoryName(category.Name) {
+		return nil, &ActivityError{Op: "create category", Err: ErrSystemCategoryNameReserved}
+	}
 
 	// Set tenant ID from context
 	category.SetTenantID(tenant.FromContext(ctx))
 	if err := s.categoryRepo.Create(ctx, category); err != nil {
+		// Only active rows share the case-insensitive tenant/name unique index,
+		// so a violation always means another live category holds the name.
+		if base.IsUniqueViolation(err) {
+			return nil, &ActivityError{Op: "create category", Err: ErrCategoryNameExists}
+		}
 		return nil, &ActivityError{Op: "create category", Err: err}
 	}
 
 	return category, nil
+}
+
+// isReservedSystemCategoryName protects the case-insensitive namespace used
+// by the lazily provisioned WC and Schulhof infrastructure. Provisioners may
+// create those categories with IsSystem set; school-owned categories may not
+// claim either name before provisioning runs.
+func isReservedSystemCategoryName(name string) bool {
+	name = strings.TrimSpace(name)
+	return strings.EqualFold(name, constants.WCCategoryName) ||
+		strings.EqualFold(name, constants.SchulhofCategoryName)
 }
 
 // GetCategory retrieves a category by ID
@@ -163,14 +182,16 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 		return nil
 	}
 
-	category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+	category, err := s.categoryRepo.FindByIDForShare(ctx, group.CategoryID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActivityError{Op: "validate category", Err: ErrCategoryNotFound}
 		}
 		return &ActivityError{Op: "validate category", Err: err}
 	}
-
+	if category.IsArchived() {
+		return &ActivityError{Op: "validate category", Err: ErrCategoryArchived}
+	}
 	group.Category = category
 	return nil
 }
@@ -273,6 +294,11 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	}
 	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
 		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
+	}
+	if group.CategoryID != existingGroup.CategoryID {
+		if err := s.validateAndSetCategory(ctx, group); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {

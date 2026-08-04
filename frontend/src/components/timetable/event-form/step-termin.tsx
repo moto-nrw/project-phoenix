@@ -6,6 +6,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import type { PlanningTrack } from "~/lib/planning-track-api";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import {
   timetableRequiredMark,
@@ -16,6 +17,7 @@ import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
 import type { RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
+import { PlanningTrackSelect } from "../planning-track-select";
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -48,15 +50,35 @@ export interface StepTerminProps {
   fieldErrors: Record<string, string>;
   rooms: RoomOption[];
   categories: ActivityCategory[];
+  planningTracks?: PlanningTrack[];
   loadingRefs: boolean;
   expanded: boolean;
   isSeriesFlow: boolean;
+  /**
+   * True when a stored Regeltermin is edited. The Datum then does not move
+   * the series start (#2135) — the hint under the field says so.
+   */
+  isEditingSeries: boolean;
   quickPreset: string;
   // Flipped true the moment the user changes Listenart, so an all/following
   // series edit writes the new value instead of echoing the fetched template
   // (#1565 review).
   listKindTouched: React.RefObject<boolean>;
+  /** Whether category catalog controls may be shown to this user. */
+  canManageCategories: boolean;
+  /** Opens the Kategorien-verwalten dialog, either on the list or straight in the create form. */
+  onManageCategories: (mode: "list" | "create") => void;
+  canManagePlanningTracks?: boolean;
+  onPlanningTracksChanged?: (created?: PlanningTrack) => void | Promise<void>;
 }
+
+/**
+ * Sentinel option value for "+ Neue Kategorie anlegen". Picked so it can never
+ * collide with a real category id (those are numeric strings).
+ */
+export const CREATE_CATEGORY_OPTION = "__create_category__";
+const EMPTY_PLANNING_TRACKS: PlanningTrack[] = [];
+const NOOP_PLANNING_TRACKS_CHANGED = () => undefined;
 
 /**
  * Wizard step 1 "Termin": the fields that make an event savable on their own —
@@ -71,11 +93,17 @@ export function StepTermin({
   fieldErrors,
   rooms,
   categories,
+  planningTracks = EMPTY_PLANNING_TRACKS,
   loadingRefs,
   expanded,
   isSeriesFlow,
+  isEditingSeries,
   quickPreset,
   listKindTouched,
+  canManageCategories,
+  onManageCategories,
+  canManagePlanningTracks = false,
+  onPlanningTracksChanged = NOOP_PLANNING_TRACKS_CHANGED,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -135,6 +163,17 @@ export function StepTermin({
             htmlFor="event_category"
             required
             error={fieldErrors.categoryId}
+            action={
+              canManageCategories ? (
+                <button
+                  type="button"
+                  onClick={() => onManageCategories("list")}
+                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                >
+                  Verwalten
+                </button>
+              ) : undefined
+            }
           >
             <CustomSelect
               id="event_category"
@@ -154,8 +193,24 @@ export function StepTermin({
                   value: category.id,
                   label: category.name,
                 })),
+                ...(canManageCategories
+                  ? [
+                      // Last entry, so the missing category can be created without
+                      // leaving the Termin (#2131 — the reported Essenszeiten case).
+                      {
+                        value: CREATE_CATEGORY_OPTION,
+                        label: "+ Neue Kategorie anlegen",
+                      },
+                    ]
+                  : []),
               ]}
-              onChange={(next) => update("categoryId", next)}
+              onChange={(next) => {
+                if (next === CREATE_CATEGORY_OPTION) {
+                  onManageCategories("create");
+                  return;
+                }
+                update("categoryId", next);
+              }}
               required
               disabled={loadingRefs}
               invalid={Boolean(fieldErrors.categoryId)}
@@ -163,6 +218,20 @@ export function StepTermin({
                 loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"
               }
             />
+          </Field>
+
+          <Field label="Planungsspur" htmlFor="event_planning_track">
+            <PlanningTrackSelect
+              value={form.planningTrackId}
+              tracks={planningTracks}
+              onChange={(next) => update("planningTrackId", next)}
+              onTracksChanged={onPlanningTracksChanged}
+              canManage={canManagePlanningTracks}
+              disabled={loadingRefs}
+            />
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Optional. Farbe und Reihenfolge gelten im Betreuungsplan.
+            </p>
           </Field>
         </>
       )}
@@ -253,6 +322,17 @@ export function StepTermin({
               }
             }}
           />
+          {isSeriesFlow && !isEditingSeries && (
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Die Serie beginnt an diesem Datum. Frühere Termine werden nicht
+              angelegt.
+            </p>
+          )}
+          {isEditingSeries && (
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Der Serienbeginn bleibt unverändert.
+            </p>
+          )}
         </Field>
         <Field label="Start" htmlFor="event_start" required>
           <Input

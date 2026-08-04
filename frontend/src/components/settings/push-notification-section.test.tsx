@@ -10,8 +10,12 @@ const pushApi = vi.hoisted(() => ({
   subscribePush: vi.fn(),
   unsubscribePush: vi.fn(),
 }));
+const notificationApi = vi.hoisted(() => ({
+  sendTestNotification: vi.fn(),
+}));
 
 vi.mock("~/lib/push-api", () => pushApi);
+vi.mock("~/lib/notification-api", () => notificationApi);
 
 function stubNotificationPermission(permission: NotificationPermission) {
   vi.stubGlobal("Notification", { permission });
@@ -24,6 +28,7 @@ describe("PushNotificationSection", () => {
     pushApi.needsIOSInstall.mockReturnValue(false);
     pushApi.isPushSupported.mockReturnValue(true);
     pushApi.syncExistingPushSubscription.mockResolvedValue(null);
+    notificationApi.sendTestNotification.mockResolvedValue(undefined);
     stubNotificationPermission("default");
   });
 
@@ -144,6 +149,98 @@ describe("PushNotificationSection", () => {
     );
     expect(
       await screen.findByRole("button", { name: "Aktivieren" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a test notification only for an active tenant subscription", async () => {
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+
+    const { rerender } = render(<PushNotificationSection portal="tenant" />);
+    const testButton = await screen.findByRole("button", {
+      name: "Testbenachrichtigung senden",
+    });
+    expect(testButton).toHaveClass("h-8", "text-xs", "bg-transparent");
+    expect(testButton).not.toHaveClass("ring-1", "shadow-md");
+
+    rerender(<PushNotificationSection portal="parent" />);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", {
+          name: "Testbenachrichtigung senden",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("sends a test notification and confirms success", async () => {
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+
+    render(<PushNotificationSection />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Testbenachrichtigung senden",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(notificationApi.sendTestNotification).toHaveBeenCalledOnce(),
+    );
+    expect(
+      await screen.findByText("Testbenachrichtigung wurde gesendet."),
+    ).toBeInTheDocument();
+  });
+
+  it("disables competing actions while the test request is pending", async () => {
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+    let finishRequest: (() => void) | undefined;
+    notificationApi.sendTestNotification.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRequest = resolve;
+        }),
+    );
+
+    render(<PushNotificationSection />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Testbenachrichtigung senden",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Wird gesendet…" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Deaktivieren" })).toBeDisabled();
+
+    finishRequest?.();
+    await screen.findByText("Testbenachrichtigung wurde gesendet.");
+  });
+
+  it("surfaces test notification errors", async () => {
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+    notificationApi.sendTestNotification.mockRejectedValue(
+      new Error("Ihre Schule hat Benachrichtigungen derzeit deaktiviert."),
+    );
+
+    render(<PushNotificationSection />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Testbenachrichtigung senden",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Ihre Schule hat Benachrichtigungen derzeit deaktiviert.",
+      ),
     ).toBeInTheDocument();
   });
 });

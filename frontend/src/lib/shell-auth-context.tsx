@@ -240,7 +240,9 @@ export function ParentShellProvider({
       },
       mode: "parent" as const,
       homeUrl: parentPath("/parents"),
-      profileUrl: null,
+      // Was null until #1671: the parents portal had no page of its own for
+      // account settings, so the avatar menu offered nothing but "Abmelden".
+      profileUrl: parentPath("/parents/settings"),
     };
   }, [session, sessionStatus]);
 

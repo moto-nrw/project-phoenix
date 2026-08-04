@@ -7,7 +7,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -51,6 +50,10 @@ type TemplateUpdateInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
+	Targets          []*activitiesModel.GroupTarget
+	// WeekdayAssignments carries the per-weekday deviations from the shared
+	// roster above (issue #2129). Empty = identical roster on every weekday.
+	WeekdayAssignments []WeekdayRosterAssignment
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -61,6 +64,7 @@ type TemplateUpdateInput struct {
 // valid_until boundaries across all three. All schedule rows of a segment must
 // share one envelope; inconsistent existing rows are rejected before mutation.
 func (s *TimetableDataService) UpdateTemplate(ctx context.Context, in TemplateUpdateInput) error {
+	targetsProvided := in.Targets != nil
 	if err := normalizeTemplateUpdateTarget(&in); err != nil {
 		return &ScheduleError{Op: updateTemplateOp, Err: err}
 	}
@@ -70,22 +74,25 @@ func (s *TimetableDataService) UpdateTemplate(ctx context.Context, in TemplateUp
 	}
 
 	return tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return s.updateTemplateLocked(txCtx, in, tenantID)
+		return s.updateTemplateLocked(txCtx, in, tenantID, targetsProvided)
 	})
 }
 
 func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
-	target := &activitiesModel.Group{
-		TargetGroupType:   in.Fields.TargetGroupType,
-		TargetGradeLevel:  in.Fields.TargetGradeLevel,
-		TargetSchoolClass: in.Fields.TargetSchoolClass,
-		EducationGroupID:  in.Fields.EducationGroupID,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
+	targets, err := normalizeDynamicTargets(in.Fields.TargetGroupType, in.Fields.TargetGradeLevel, in.Fields.TargetSchoolClass, in.Fields.EducationGroupID, in.Targets)
+	if err != nil {
 		return err
 	}
-	in.Fields.TargetGroupType = target.TargetGroupType
-	in.Fields.TargetSchoolClass = target.TargetSchoolClass
+	in.Targets = targets
+	in.Fields.TargetGradeLevel = nil
+	in.Fields.TargetSchoolClass = nil
+	if len(targets) > 0 {
+		in.Fields.TargetGradeLevel = targets[0].TargetGradeLevel
+		in.Fields.TargetSchoolClass = targets[0].TargetSchoolClass
+		if in.Fields.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.Fields.EducationGroupID = targets[0].EducationGroupID
+		}
+	}
 	return nil
 }
 
@@ -101,13 +108,19 @@ func (s *TimetableDataService) validateTemplateUpdateRequest(ctx context.Context
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("database is not configured")}
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
-		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil {
+		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil ||
+		s.deps.ActivityCategoryRepo == nil {
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
 	return tenantID, nil
 }
 
-func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in TemplateUpdateInput, tenantID int64) error {
+func (s *TimetableDataService) updateTemplateLocked(
+	ctx context.Context,
+	in TemplateUpdateInput,
+	tenantID int64,
+	targetsProvided bool,
+) error {
 	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
 		return &ScheduleError{Op: "update template: lock recurrence", Err: err}
 	}
@@ -121,12 +134,30 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if existing == nil || !existing.IsTemplate || existing.ArchivedAt != nil {
 		return &ScheduleError{Op: "update template: load target", Err: ErrTemplateSegmentNotEditable}
 	}
-	if err := ValidateTemplateTargetGradeLimit(
-		in.GradeLevelMax,
-		existing,
-		in.Fields.TargetGroupType,
-		in.Fields.TargetGradeLevel,
-	); err != nil {
+	if in.Fields.CategoryID != existing.CategoryID {
+		if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.Fields.CategoryID, "update template: validate category"); err != nil {
+			return err
+		}
+	}
+	if in.Fields.PlanningTrackIDProvided && !samePlanningTrackID(in.Fields.PlanningTrackID, existing.PlanningTrackID) {
+		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.Fields.PlanningTrackID, existing.PlanningTrackID); err != nil {
+			return err
+		}
+	}
+	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
+	if err != nil {
+		return &ScheduleError{Op: "update template: load targets", Err: err}
+	}
+	if !targetsProvided && len(existingTargets) > 0 {
+		in.Targets = existingTargets
+		in.Fields.TargetGroupType = existingTargets[0].TargetGroupType
+		in.Fields.TargetGradeLevel = existingTargets[0].TargetGradeLevel
+		in.Fields.TargetSchoolClass = existingTargets[0].TargetSchoolClass
+		if in.Fields.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.Fields.EducationGroupID = existingTargets[0].EducationGroupID
+		}
+	}
+	if err := validateDynamicTargets(ctx, s, in.GradeLevelMax, existing, existingTargets, in.Targets); err != nil {
 		return &ScheduleError{Op: "update template: validate target grade", Err: err}
 	}
 	validFrom, validUntil, err := s.loadEditableTemplateEnvelope(ctx, in.TemplateID)
@@ -144,8 +175,19 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	// instance propagation can tell an untouched occurrence (still carrying the
 	// series value) from a per-occurrence override.
 	previousListKind := existing.ListKind
+	previousCalendarPeriodID := cloneOptionalInt64(existing.CalendarPeriodID)
 	if err := s.updateTemplateFields(ctx, in); err != nil {
 		return err
+	}
+	if targetsProvided {
+		targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+		if !ok {
+			return &ScheduleError{Op: "update template: replace targets", Err: errors.New("target repository is not configured")}
+		} else {
+			if err := targetRepo.ReplaceTargets(ctx, in.TemplateID, in.Targets); err != nil {
+				return &ScheduleError{Op: "update template: replace targets", Err: err}
+			}
+		}
 	}
 	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
 		return err
@@ -156,7 +198,7 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if err := s.deleteRemovedLegacyWeekendInstances(ctx, in.TemplateID, previousSchedules, in.Weekdays); err != nil {
 		return err
 	}
-	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil); err != nil {
+	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil, previousCalendarPeriodID); err != nil {
 		return err
 	}
 	if s.deps.ValidateCareOfferingSeries == nil {
@@ -171,6 +213,18 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 		)
 	}
 	return nil
+}
+
+func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupRepository, groupID int64) ([]*activitiesModel.GroupTarget, error) {
+	targetRepo, ok := repo.(activitiesModel.GroupTargetRepository)
+	if !ok {
+		return nil, nil
+	}
+	byGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, []int64{groupID})
+	if err != nil {
+		return nil, err
+	}
+	return byGroup[groupID], nil
 }
 
 func validateLegacyTemplateWeekdays(existing []*activitiesModel.Schedule, requested []int) error {
@@ -388,6 +442,7 @@ func (s *TimetableDataService) replaceTemplateRoster(
 	in TemplateUpdateInput,
 	tenantID int64,
 	scheduleValidFrom, scheduleValidUntil *timezone.Date,
+	previousCalendarPeriodID *int64,
 ) error {
 	rosterValidFrom := in.RosterValidFrom
 	if scheduleValidFrom != nil {
@@ -404,20 +459,33 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		}
 	}
 
-	preservedStudents, err := s.retireTemplateEnrollments(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil)
+	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+	if err != nil {
+		return &ScheduleError{Op: "update template: resolve roster", Err: err}
+	}
+
+	protectedCoverage, err := s.retireTemplateEnrollments(
+		ctx,
+		in.TemplateID,
+		in.CalendarPeriodID,
+		in.Weekdays,
+		rosterValidFrom,
+		scheduleValidUntil,
+		previousCalendarPeriodID,
+	)
 	if err != nil {
 		return err
 	}
-	for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
-		if _, preserved := preservedStudents[studentID]; preserved {
-			continue
-		}
+	for _, row := range excludeProtectedStudentWeekdays(roster.Students, protectedCoverage) {
+		// A child kept by a care-offering row is already on the roster with a
+		// provenance this editor must not overwrite on the weekdays it covers.
 		enrollment := &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        row.PersonID,
 			ActivityGroupID:  in.TemplateID,
 			ValidFrom:        rosterValidFrom,
 			ValidUntil:       cloneOptionalDate(scheduleValidUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
@@ -425,17 +493,18 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		}
 	}
 
-	if err := s.retireTemplateSupervisors(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil); err != nil {
+	if err := s.retireTemplateSupervisors(ctx, in.TemplateID, in.CalendarPeriodID, rosterValidFrom, scheduleValidUntil, previousCalendarPeriodID); err != nil {
 		return err
 	}
-	for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+	for _, row := range roster.Staff {
 		supervisor := &activitiesModel.SupervisorPlanned{
-			StaffID:          staffID,
+			StaffID:          row.PersonID,
 			GroupID:          in.TemplateID,
-			IsPrimary:        in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+			IsPrimary:        row.IsPrimary,
 			ValidFrom:        rosterValidFrom,
 			ValidUntil:       cloneOptionalDate(scheduleValidUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
+			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		supervisor.SetTenantID(tenantID)
 		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {
@@ -458,9 +527,11 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 	ctx context.Context,
 	templateID int64,
 	calendarPeriodID *int64,
+	weekdays []int,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
-) (map[int64]struct{}, error) {
+	previousCalendarPeriodID *int64,
+) (map[int64]protectedStudentCoverage, error) {
 	rows, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "update template: load enrollments", Err: err}
@@ -471,11 +542,12 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 		calendarPeriodID,
 		replacementFrom,
 		replacementUntil,
+		previousCalendarPeriodID,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return s.rebaseProtectedTemplateEnrollments(ctx, protected, calendarPeriodID)
+	return s.rebaseProtectedTemplateEnrollments(ctx, protected, calendarPeriodID, weekdays)
 }
 
 func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
@@ -484,6 +556,7 @@ func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
+	previousCalendarPeriodID *int64,
 ) ([]*activitiesModel.StudentEnrollment, error) {
 	protected := make([]*activitiesModel.StudentEnrollment, 0)
 	for _, row := range rows {
@@ -492,7 +565,7 @@ func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
 			protected = append(protected, row)
 			continue
 		}
-		action := classifyEnrollmentRetirement(row, calendarPeriodID, replacementFrom, replacementUntil)
+		action := classifyEnrollmentRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, previousCalendarPeriodID)
 		if err := s.applyEnrollmentRetirement(ctx, row, action, replacementFrom); err != nil {
 			return nil, err
 		}
@@ -523,20 +596,23 @@ func (s *TimetableDataService) rebaseProtectedTemplateEnrollments(
 	ctx context.Context,
 	protected []*activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
-) (map[int64]struct{}, error) {
+	weekdays []int,
+) (map[int64]protectedStudentCoverage, error) {
 	if err := validateProtectedEnrollmentRebase(protected, calendarPeriodID); err != nil {
 		return nil, &ScheduleError{Op: "update template: rebase protected enrollments", Err: err}
 	}
-	preservedStudents := make(map[int64]struct{})
 	for _, row := range protected {
 		if err := s.rebaseProtectedEnrollmentPeriod(ctx, row, calendarPeriodID); err != nil {
 			return nil, err
 		}
-		if rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID) {
-			preservedStudents[row.StudentID] = struct{}{}
-		}
 	}
-	return preservedStudents, nil
+	return buildProtectedStudentCoverage(
+		protected,
+		weekdays,
+		func(row *activitiesModel.StudentEnrollment) bool {
+			return rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID)
+		},
+	), nil
 }
 
 func (s *TimetableDataService) rebaseProtectedEnrollmentPeriod(
@@ -560,6 +636,7 @@ func classifyEnrollmentRetirement(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
+	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
 	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
@@ -577,7 +654,7 @@ func classifyEnrollmentRetirement(
 	return classifyOwnedRosterRetirement(
 		row.ValidFrom,
 		row.ValidUntil,
-		optionalInt64sEqual(row.CalendarPeriodID, calendarPeriodID),
+		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
 		replacementUntil,
 	)
@@ -589,13 +666,14 @@ func (s *TimetableDataService) retireTemplateSupervisors(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
+	previousCalendarPeriodID *int64,
 ) error {
 	rows, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return &ScheduleError{Op: "update template: load supervisors", Err: err}
 	}
 	for _, row := range rows {
-		switch classifySupervisorRetirement(row, calendarPeriodID, replacementFrom, replacementUntil) {
+		switch classifySupervisorRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, previousCalendarPeriodID) {
 		case rosterRetirementDelete:
 			if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
 				return &ScheduleError{Op: "update template: delete future supervisor", Err: err}
@@ -614,6 +692,7 @@ func classifySupervisorRetirement(
 	calendarPeriodID *int64,
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
+	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
 	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
@@ -621,10 +700,15 @@ func classifySupervisorRetirement(
 	return classifyOwnedRosterRetirement(
 		row.ValidFrom,
 		row.ValidUntil,
-		optionalInt64sEqual(row.CalendarPeriodID, calendarPeriodID),
+		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
 		replacementUntil,
 	)
+}
+
+func ownedRosterPeriodMatches(rowPeriodID, targetPeriodID, previousPeriodID *int64) bool {
+	return optionalInt64sEqual(rowPeriodID, targetPeriodID) ||
+		optionalInt64sEqual(rowPeriodID, previousPeriodID)
 }
 
 func classifyOwnedRosterRetirement(

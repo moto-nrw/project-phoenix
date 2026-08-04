@@ -32,14 +32,34 @@ const (
 	testLastNameMueller  = "Müller"
 	testAddressMusterstr = "Musterstr. 1"
 	hintYesNo            = "Ja / Nein"
+
+	// Route paths shared by every import domain (S1192)
+	routeTemplate = "/template"
+	routePreview  = "/preview"
+	routeImport   = "/import"
+
+	// Permissions (S1192)
+	permUsersRead          = "users:read"
+	permUsersCreate        = "users:create"
+	permTimeTrackingManage = "time_tracking:manage"
 )
 
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	staffImportService   *importService.ImportService[importModels.StaffImportRow]
-	personService        userSvc.PersonService
-	db                   *bun.DB
+	// openingBalanceImportFactory builds a request-scoped opening balance
+	// import service (#2132) — Stichtag/Begründung/actor come from the
+	// upload form. Wired via SetOpeningBalanceImportFactory.
+	openingBalanceImportFactory importService.OpeningBalanceImportFactory
+	personService               userSvc.PersonService
+	db                          *bun.DB
+}
+
+// SetOpeningBalanceImportFactory wires the opening balance import (#2132).
+// Setter injection so existing NewResource call sites stay unchanged.
+func (rs *Resource) SetOpeningBalanceImportFactory(factory importService.OpeningBalanceImportFactory) {
+	rs.openingBalanceImportFactory = factory
 }
 
 // NewResource creates a new import resource
@@ -75,29 +95,47 @@ func (rs *Resource) Router() chi.Router {
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.downloadStudentTemplate)
+			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.downloadStudentTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.previewStudentImport)
+			// Note: no withTx here — the handler owns its tenant transaction
+			// so the GDPR audit row is committed before the success response.
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.importStudents)
+		})
+
+		// Opening balance (Eröffnungssalden) import endpoints (#2132).
+		// Stundenkonto and vacation takeover values are payroll data —
+		// everything sits behind time_tracking:manage.
+		r.Route("/opening-balances", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permTimeTrackingManage), withTx).Get(routeTemplate, rs.DownloadOpeningBalanceTemplate)
+			// Note: no withTx on the preview either — the handler owns its
+			// tenant transaction so the GDPR audit row is committed before
+			// the success response.
+			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routePreview, rs.PreviewOpeningBalanceImport)
+			// Note: no withTx here — the handler manages its own WithTenantTx
+			// to control commit/rollback based on import results.
+			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
 		})
 
 		// Staff (Mitarbeiter) import endpoints
 		r.Route("/teachers", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.DownloadStaffTemplate)
+			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.PreviewStaffImport)
+			// Note: no withTx here — the handler owns its tenant transaction
+			// so the GDPR audit row is committed before the success response.
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.ImportStaff)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
 		})
 	})
 
@@ -420,13 +458,6 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return // Error already handled by validateAndParseCSVFile
 	}
 
-	// Resolve staff ID from JWT (pickup schedule FK references users.staff, not auth.accounts)
-	staffID, err := rs.getStaffIDFromJWT(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
-		return
-	}
-
 	// Get account ID for audit logging (GDPR: audit tracks auth identity)
 	accountID, err := getAccountIDFromContext(r.Context())
 	if err != nil {
@@ -434,25 +465,45 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Run dry-run import (preview only, no database changes)
-	ctx := r.Context()
-	request := importModels.ImportRequest[importModels.StudentImportRow]{
-		Rows:            uploadResult.Rows,
-		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-		DryRun:          true,                          // PREVIEW ONLY
-		StopOnError:     false,                         // Collect all errors
-		UserID:          staffID,
-		SkipInvalidRows: false,
-	}
+	// The preview owns its tenant transaction (no route-level withTx): the
+	// GDPR audit row must be committed before the success response is
+	// written — a middleware transaction commits only after the handler
+	// returns, when a commit failure can no longer be reported. Staff ID
+	// resolution happens inside the TX because the lookup is RLS-scoped.
+	tenantID := tenant.FromContext(r.Context())
+	var result *importModels.ImportResult[importModels.StudentImportRow]
+	var staffResolutionErr error
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		staffID, staffErr := rs.getStaffIDFromJWT(ctx)
+		if staffErr != nil {
+			staffResolutionErr = staffErr
+			return staffErr
+		}
 
-	result, err := rs.studentImportService.Import(ctx, request)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error())))
+		request := importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows:            uploadResult.Rows,
+			Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
+			DryRun:          true,                          // PREVIEW ONLY
+			StopOnError:     false,                         // Collect all errors
+			UserID:          staffID,
+			SkipInvalidRows: false,
+		}
+
+		var txErr error
+		result, txErr = rs.studentImportService.Import(ctx, request)
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for preview (Article 30).
+		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, true, tenantID)
+	}); err != nil {
+		if staffResolutionErr != nil {
+			common.RenderError(w, r, common.ErrorUnauthorized(staffResolutionErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import-Vorschau fehlgeschlagen", err))
 		return
 	}
-
-	// GDPR Compliance: Audit log for preview (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, accountID, true, tenant.FromContext(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -494,9 +545,15 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 
 		var txErr error
 		result, txErr = rs.studentImportService.Import(ctx, request)
-		return txErr
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for actual import (Article 30). Written
+		// inside the import transaction so the import is only acknowledged
+		// once its audit record is persisted.
+		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, false, tenantID)
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
 		return
 	}
 
@@ -506,9 +563,6 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		slog.Int("updated", result.UpdatedCount),
 		slog.Int("errors", result.ErrorCount),
 		slog.String("filename", uploadResult.Filename))
-
-	// GDPR Compliance: Audit log for actual import (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, accountID, false, tenant.FromContext(r.Context()))
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
@@ -552,9 +606,4 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 	}
 
 	return staff.ID, nil
-}
-
-// logImportAudit creates an audit record for student import operations (GDPR compliance)
-func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
-	rs.studentImportService.RecordAudit("student", filename, result, userID, dryRun, tenantID)
 }

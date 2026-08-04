@@ -3,6 +3,7 @@ package activities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 const (
 	tableActivitiesGroups          = "activities.groups"
 	tableExprActivitiesGroupsAsGrp = `activities.groups AS "group"`
+	tableExprGroupTargets          = `activities.group_targets AS "group_target"`
 	orderByNameAsc                 = "name ASC"
 	whereIDEquals                  = "id = ?"
 )
@@ -110,6 +112,129 @@ func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64)
 	return groups, nil
 }
 
+func (r *GroupRepository) ReplaceTargets(ctx context.Context, groupID int64, targets []*activities.GroupTarget) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("replace group targets requires a tenant")
+	}
+	if groupID <= 0 {
+		return errors.New("replace group targets requires a positive activity group id")
+	}
+	normalized := make([]*activities.GroupTarget, 0, len(targets))
+	var targetType string
+	for _, target := range targets {
+		if target == nil {
+			return errors.New("invalid group target: target cannot be null")
+		}
+		copy := *target
+		copy.ID = 0
+		copy.ActivityGroupID = groupID
+		copy.SetTenantID(tenantID)
+		if err := copy.Validate(); err != nil {
+			return fmt.Errorf("invalid group target: %w", err)
+		}
+		if targetType == "" {
+			targetType = copy.TargetGroupType
+		} else if copy.TargetGroupType != targetType {
+			return errors.New("invalid group targets: all targets must have the same type")
+		}
+		normalized = append(normalized, &copy)
+	}
+
+	return modelBase.NewTxHandler(r.db).RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		db := base.GetDB(txCtx, r.db)
+		if _, err := db.NewDelete().
+			Model((*activities.GroupTarget)(nil)).
+			ModelTableExpr(tableExprGroupTargets).
+			Where(`"group_target".tenant_id = ?`, tenantID).
+			Where(`"group_target".activity_group_id = ?`, groupID).
+			Exec(txCtx); err != nil {
+			return &modelBase.DatabaseError{Op: "delete group targets", Err: err}
+		}
+		if len(normalized) == 0 {
+			return nil
+		}
+		if _, err := db.NewInsert().
+			Model(&normalized).
+			ModelTableExpr(tableExprGroupTargets).
+			Exec(txCtx); err != nil {
+			return &modelBase.DatabaseError{Op: "create group targets", Err: err}
+		}
+		return nil
+	})
+}
+
+func (r *GroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activities.GroupTarget, error) {
+	result := make(map[int64][]*activities.GroupTarget, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	var targets []*activities.GroupTarget
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&targets).
+		ModelTableExpr(`activities.group_targets AS "target"`).
+		ColumnExpr(`"target".*`).
+		ColumnExpr(`COALESCE("education_group".name, '') AS education_group_name`).
+		Join(`LEFT JOIN education.groups AS "education_group" ON "education_group".tenant_id = "target".tenant_id AND "education_group".id = "target".education_group_id`).
+		Where(`"target".tenant_id = ?`, tenantID).
+		Where(`"target".activity_group_id IN (?)`, bun.List(groupIDs)).
+		OrderExpr(`"target".activity_group_id ASC, "target".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find group targets", Err: err}
+	}
+	for _, target := range targets {
+		result[target.ActivityGroupID] = append(result[target.ActivityGroupID], target)
+	}
+	return result, nil
+}
+
+func (r *GroupRepository) FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error) {
+	byGroup, err := r.FindTargetStudentIDsByGroupIDs(ctx, []int64{groupID})
+	if err != nil {
+		return nil, err
+	}
+	return byGroup[groupID], nil
+}
+
+func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	result := make(map[int64][]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	var rows []struct {
+		GroupID   int64 `bun:"group_id"`
+		StudentID int64 `bun:"student_id"`
+	}
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT DISTINCT target.activity_group_id AS group_id, student.id AS student_id
+		FROM users.students AS student
+		INNER JOIN activities.group_targets AS target
+			ON target.tenant_id = student.tenant_id
+			AND target.activity_group_id IN (?)
+			AND (
+				(target.target_group_type = 'jahrgang'
+					AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
+				OR (target.target_group_type = 'klasse'
+					AND LOWER(BTRIM(student.school_class)) = LOWER(BTRIM(target.target_school_class)))
+				OR (target.target_group_type = 'gruppe'
+					AND student.group_id = target.education_group_id)
+			)
+		WHERE student.tenant_id = ?
+			AND student.status <> 'alumnus'
+		ORDER BY target.activity_group_id ASC, student.id ASC
+	`, bun.List(groupIDs), tenantID).Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find target students", Err: err}
+	}
+	for _, row := range rows {
+		result[row.GroupID] = append(result[row.GroupID], row.StudentID)
+	}
+	return result, nil
+}
+
 // FindByCategory finds all groups in a specific category
 func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
@@ -132,6 +257,39 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 	}
 
 	return groups, nil
+}
+
+// CountByCategory returns the number of activity groups per category id for
+// the current tenant. Archived templates are counted too: they still reference
+// their category and are restorable, so a category backing only archived rows
+// is "in use" for the purpose of the archive warning (#2131).
+func (r *GroupRepository) CountByCategory(ctx context.Context) (map[int64]int, error) {
+	var rows []struct {
+		CategoryID int64 `bun:"category_id"`
+		Total      int   `bun:"total"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprActivitiesGroupsAsGrp).
+		ColumnExpr(`"group".category_id AS category_id`).
+		ColumnExpr(`COUNT(*) AS total`).
+		GroupExpr(`"group".category_id`)
+
+	query = base.WithTenantFilter(ctx, query, "group")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count by category",
+			Err: err,
+		}
+	}
+
+	counts := make(map[int64]int, len(rows))
+	for _, row := range rows {
+		counts[row.CategoryID] = row.Total
+	}
+
+	return counts, nil
 }
 
 // FindOpenGroups finds all groups that are open for enrollment
@@ -438,6 +596,10 @@ const templateListSelect = `
 			g.type,
 			g.category_id,
 			COALESCE(c.name, '') AS category_name,
+			g.planning_track_id,
+			COALESCE(pt.name, '') AS planning_track_name,
+			COALESCE(pt.color, '') AS planning_track_color,
+			pt.sort_order AS planning_track_sort_order,
 				g.planned_room_id AS room_id,
 				COALESCE(r.name, '') AS room_name,
 				g.education_group_id,
@@ -473,6 +635,8 @@ const templateListSelect = `
 			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
 		LEFT JOIN activities.categories AS c
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
+		LEFT JOIN schedule.planning_tracks AS pt
+			ON pt.id = g.planning_track_id AND pt.tenant_id = g.tenant_id
 			LEFT JOIN schedule.shift_types AS st
 				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
 			LEFT JOIN facilities.rooms AS r
@@ -524,6 +688,291 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 		args = append(args, *templateID)
 	}
 	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
+	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ListTemplateRowsForTemplatePeriod returns the editable detail read model for
+// one template and calendar period. Unlike the list read, its top-level roster
+// must not merge assignments from other periods because the editor writes this
+// data back to the selected period.
+func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
+	ctx context.Context,
+	templateID, periodID int64,
+) ([]activities.TemplateListRow, error) {
+	tenantID := tenant.FromContext(ctx)
+	rows := make([]activities.TemplateListRow, 0)
+	query := templateListSelect + `
+		LEFT JOIN (
+			SELECT
+				activity_group_id,
+				COUNT(*) AS count,
+				ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
+			FROM (
+				SELECT DISTINCT activity_group_id, student_id
+				FROM activities.student_enrollments
+				WHERE tenant_id = ?
+				  AND valid_until IS NULL
+				  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
+			) AS active_enrollments
+			GROUP BY activity_group_id
+		) AS enrollments ON enrollments.activity_group_id = g.id
+		LEFT JOIN (
+			SELECT
+				group_id,
+				COUNT(*) AS count,
+				ARRAY_AGG(staff_id ORDER BY is_primary DESC, primary_rank DESC, staff_id) AS staff_ids,
+				(ARRAY_AGG(staff_id ORDER BY primary_rank DESC, staff_id)
+					FILTER (WHERE is_primary))[1] AS primary_staff_id
+			FROM (
+				SELECT
+					group_id,
+					staff_id,
+					BOOL_OR(is_primary) AS is_primary,
+					MAX(CASE
+						WHEN is_primary THEN
+							CASE WHEN calendar_period_id = ? THEN 2 ELSE 0 END
+							+ CASE WHEN weekday IS NOT NULL THEN 1 ELSE 0 END
+						ELSE -1
+					END) AS primary_rank
+				FROM activities.supervisors
+				WHERE tenant_id = ?
+				  AND valid_until IS NULL
+				  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
+				GROUP BY group_id, staff_id
+			) AS active_supervisors
+			GROUP BY group_id
+		) AS supervisors ON supervisors.group_id = g.id
+	WHERE g.tenant_id = ?
+	  AND g.is_template = TRUE
+	  AND g.archived_at IS NULL
+	  AND s.valid_until IS NULL
+	  AND (
+		s.calendar_period_id = ?
+		OR (
+			s.calendar_period_id IS NULL
+			AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
+		)
+	  )
+	  AND g.id = ?
+	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
+	args := []any{
+		tenantID, periodID,
+		periodID, tenantID, periodID,
+		tenantID, periodID, periodID, templateID,
+	}
+	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
+// the open roster of every non-archived template (issue #2129). Staff, students,
+// and empty-day markers come back as one flat, kind-tagged stream so the caller
+// can group them into per-weekday assignments in Go instead of building a
+// second jsonb-aggregating monster query.
+//
+// The `valid_until IS NULL` filter mirrors the flat aggregates in
+// templateListSelect: the editor reads the currently open roster, not the
+// historical retired rows. A nil calendarPeriodID selects only unscoped rows;
+// it must never mean "all periods", because the response has no period field
+// with which the caller could separate those rosters again.
+func (r *GroupRepository) ListTemplateWeekdayRoster(
+	ctx context.Context,
+	templateID, calendarPeriodID *int64,
+) ([]activities.TemplateWeekdayRosterRow, error) {
+	tenantID := tenant.FromContext(ctx)
+	rows := make([]activities.TemplateWeekdayRosterRow, 0)
+	query := `
+		WITH per_weekday_templates AS (
+			SELECT supervisor.group_id AS template_id
+			FROM activities.supervisors AS supervisor
+			WHERE supervisor.tenant_id = ?
+			  AND supervisor.valid_until IS NULL
+			  AND supervisor.weekday IS NOT NULL
+	`
+	args := []any{tenantID}
+	if calendarPeriodID != nil {
+		query += ` AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += ` AND supervisor.calendar_period_id IS NULL`
+	}
+	query += `
+			GROUP BY supervisor.group_id
+			UNION
+			SELECT enrollment.activity_group_id AS template_id
+			FROM activities.student_enrollments AS enrollment
+			WHERE enrollment.tenant_id = ?
+			  AND enrollment.valid_until IS NULL
+			  AND enrollment.weekday IS NOT NULL
+	`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += ` AND enrollment.calendar_period_id IS NULL`
+	}
+	query += `
+			GROUP BY enrollment.activity_group_id
+		), scheduled_template_weekdays AS (
+			SELECT g.id AS template_id, schedule.weekday
+			FROM activities.groups AS g
+			INNER JOIN activities.schedules AS schedule
+				ON schedule.activity_group_id = g.id
+				AND schedule.tenant_id = g.tenant_id
+			WHERE g.tenant_id = ?
+			  AND g.is_template = TRUE
+			  AND g.archived_at IS NULL
+			  AND schedule.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (
+				schedule.calendar_period_id = ?
+				OR (
+					schedule.calendar_period_id IS NULL
+					AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
+				)
+			)`
+		args = append(args, *calendarPeriodID, *calendarPeriodID)
+	}
+	if templateID != nil {
+		query += ` AND g.id = ?`
+		args = append(args, *templateID)
+	}
+	query += `
+			GROUP BY g.id, schedule.weekday
+		), template_weekdays AS (
+			SELECT scheduled.template_id, scheduled.weekday
+			FROM scheduled_template_weekdays AS scheduled
+			INNER JOIN per_weekday_templates AS scoped
+				ON scoped.template_id = scheduled.template_id
+		), effective_primary_staff AS (
+			SELECT
+				template_day.template_id,
+				template_day.weekday,
+				primary_staff.staff_id
+			FROM template_weekdays AS template_day
+			LEFT JOIN LATERAL (
+				SELECT candidate.staff_id
+				FROM activities.supervisors AS candidate
+				WHERE candidate.tenant_id = ?
+				  AND candidate.group_id = template_day.template_id
+				  AND candidate.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += `
+				  AND (candidate.calendar_period_id IS NULL OR candidate.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += `
+				  AND candidate.calendar_period_id IS NULL`
+	}
+	query += `
+				  AND (candidate.weekday IS NULL OR candidate.weekday = template_day.weekday)
+				  AND candidate.is_primary
+				ORDER BY
+					(candidate.calendar_period_id IS NOT NULL) DESC,
+					(candidate.weekday IS NOT NULL) DESC,
+					candidate.id DESC
+				LIMIT 1
+			) AS primary_staff ON TRUE
+		)
+		SELECT
+			template_day.template_id,
+			template_day.weekday,
+			'empty' AS kind,
+			0 AS person_id,
+			FALSE AS is_primary
+		FROM template_weekdays AS template_day
+		UNION ALL
+		SELECT
+			supervisor.group_id AS template_id,
+			template_day.weekday,
+			'staff' AS kind,
+			supervisor.staff_id AS person_id,
+			COALESCE(BOOL_OR(supervisor.staff_id = effective_primary.staff_id), FALSE) AS is_primary
+		FROM activities.supervisors AS supervisor
+		INNER JOIN template_weekdays AS template_day
+			ON template_day.template_id = supervisor.group_id
+			AND (supervisor.weekday IS NULL OR template_day.weekday = supervisor.weekday)
+		INNER JOIN effective_primary_staff AS effective_primary
+			ON effective_primary.template_id = template_day.template_id
+			AND effective_primary.weekday = template_day.weekday
+		WHERE supervisor.tenant_id = ?
+		  AND supervisor.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += ` AND supervisor.calendar_period_id IS NULL`
+	}
+	query += `
+		GROUP BY supervisor.group_id, template_day.weekday, supervisor.staff_id
+		UNION ALL
+		SELECT
+			enrollment.activity_group_id AS template_id,
+			template_day.weekday,
+			'student' AS kind,
+			enrollment.student_id AS person_id,
+			FALSE AS is_primary
+		FROM activities.student_enrollments AS enrollment
+		INNER JOIN template_weekdays AS template_day
+			ON template_day.template_id = enrollment.activity_group_id
+			AND (enrollment.weekday IS NULL OR template_day.weekday = enrollment.weekday)
+		WHERE enrollment.tenant_id = ?
+		  AND enrollment.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += ` AND enrollment.calendar_period_id IS NULL`
+	}
+	query += `
+		  AND (
+			enrollment.selected_weekdays IS NULL
+			OR jsonb_array_length(enrollment.selected_weekdays) = 0
+			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
+		  )
+		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
+		UNION ALL
+		SELECT
+			enrollment.activity_group_id AS template_id,
+			template_day.weekday,
+			'protected_student' AS kind,
+			enrollment.student_id AS person_id,
+			FALSE AS is_primary
+		FROM activities.student_enrollments AS enrollment
+		INNER JOIN scheduled_template_weekdays AS template_day
+			ON template_day.template_id = enrollment.activity_group_id
+		WHERE enrollment.tenant_id = ?
+		  AND enrollment.valid_until IS NULL`
+	args = append(args, tenantID)
+	if calendarPeriodID != nil {
+		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
+		args = append(args, *calendarPeriodID)
+	} else {
+		query += ` AND enrollment.calendar_period_id IS NULL`
+	}
+	query += `
+		  AND (
+			enrollment.enrollment_request_child_id IS NOT NULL
+			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
+		  )
+		  AND (enrollment.weekday IS NULL OR enrollment.weekday = template_day.weekday)
+		  AND (
+			enrollment.selected_weekdays IS NULL
+			OR jsonb_array_length(enrollment.selected_weekdays) = 0
+			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
+		  )
+		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
+		ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
@@ -616,7 +1065,7 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 			WHERE tenant_id = ?
 			  AND is_active = TRUE
 			  AND (?::BIGINT IS NULL OR id = ?)
-		), candidate_occurrences AS (
+		), candidate_occurrences AS MATERIALIZED (
 			SELECT DISTINCT
 				g.id AS template_id,
 				period.calendar_period_id,
@@ -682,32 +1131,58 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 					) + 1
 				)
 			  )
-		), student_counts AS (
-			SELECT
-				occurrence.template_id,
-				occurrence.calendar_period_id,
-				occurrence.occurrence_date,
-				COUNT(DISTINCT enrollment.student_id)::INT AS enrollment_count
-			FROM candidate_occurrences AS occurrence
-			INNER JOIN activities.student_enrollments AS enrollment
-				ON enrollment.tenant_id = ?
-				AND enrollment.activity_group_id = occurrence.template_id
-				AND enrollment.valid_from <= occurrence.occurrence_date
-				AND (enrollment.valid_until IS NULL OR enrollment.valid_until > occurrence.occurrence_date)
-				AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = occurrence.calendar_period_id)
+		), dynamic_target_students AS (
+			SELECT DISTINCT target.activity_group_id AS template_id, student.id AS student_id
+			FROM activities.group_targets AS target
+			INNER JOIN users.students AS student
+				ON student.tenant_id = target.tenant_id
+				AND student.status <> 'alumnus'
 				AND (
-					enrollment.selected_weekdays IS NULL
-					OR jsonb_array_length(enrollment.selected_weekdays) = 0
-					OR enrollment.selected_weekdays @> jsonb_build_array(
-						EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
-					)
+					(target.target_group_type = 'jahrgang' AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
+					OR (target.target_group_type = 'klasse' AND LOWER(BTRIM(student.school_class)) = LOWER(BTRIM(target.target_school_class)))
+					OR (target.target_group_type = 'gruppe' AND student.group_id = target.education_group_id)
 				)
-			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
-		), supervisor_counts AS (
+			WHERE target.tenant_id = ?
+			  AND target.activity_group_id IN (?)
+		), capacity_parts AS (
 			SELECT
 				occurrence.template_id,
 				occurrence.calendar_period_id,
 				occurrence.occurrence_date,
+				COUNT(DISTINCT roster.student_id)::INT AS enrollment_count,
+				0::INT AS supervisor_count
+			FROM candidate_occurrences AS occurrence
+			CROSS JOIN LATERAL (
+				SELECT enrollment.student_id
+				FROM activities.student_enrollments AS enrollment
+				WHERE enrollment.tenant_id = ?
+					AND enrollment.activity_group_id = occurrence.template_id
+					AND enrollment.valid_from <= occurrence.occurrence_date
+					AND (enrollment.valid_until IS NULL OR enrollment.valid_until > occurrence.occurrence_date)
+					AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = occurrence.calendar_period_id)
+					AND (
+						enrollment.selected_weekdays IS NULL
+						OR jsonb_array_length(enrollment.selected_weekdays) = 0
+						OR enrollment.selected_weekdays @> jsonb_build_array(EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT)
+					)
+					AND (
+						enrollment.weekday IS NULL
+						OR enrollment.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+					)
+				UNION
+				SELECT dynamic.student_id
+				FROM dynamic_target_students AS dynamic
+				WHERE dynamic.template_id = occurrence.template_id
+			) AS roster
+			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
+
+			UNION ALL
+
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				0::INT AS enrollment_count,
 				COUNT(DISTINCT supervisor.staff_id)::INT AS supervisor_count
 			FROM candidate_occurrences AS occurrence
 			INNER JOIN activities.supervisors AS supervisor
@@ -716,27 +1191,40 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 				AND supervisor.valid_from <= occurrence.occurrence_date
 				AND (supervisor.valid_until IS NULL OR supervisor.valid_until > occurrence.occurrence_date)
 				AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = occurrence.calendar_period_id)
+				AND (
+					supervisor.weekday IS NULL
+					OR supervisor.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+				)
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
+
+			UNION ALL
+
+			-- Preserve occurrences with no matching roster rows. Keeping the
+			-- student and staff aggregates in UNION branches avoids joining two
+			-- severely underestimated aggregate CTEs: PostgreSQL otherwise
+			-- rescans them through nested loops for every generated date.
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				0::INT AS enrollment_count,
+				0::INT AS supervisor_count
+			FROM candidate_occurrences AS occurrence
 		)
+		-- Each aggregate branch populates one metric and zeroes the other;
+		-- MAX recombines them without multiplying student and staff rows.
 		SELECT
-			occurrence.template_id,
-			occurrence.calendar_period_id,
-			occurrence.occurrence_date,
-			COALESCE(students.enrollment_count, 0) AS enrollment_count,
-			COALESCE(staff.supervisor_count, 0) AS supervisor_count
-		FROM candidate_occurrences AS occurrence
-		LEFT JOIN student_counts AS students
-			ON students.template_id = occurrence.template_id
-			AND students.calendar_period_id = occurrence.calendar_period_id
-			AND students.occurrence_date = occurrence.occurrence_date
-		LEFT JOIN supervisor_counts AS staff
-			ON staff.template_id = occurrence.template_id
-			AND staff.calendar_period_id = occurrence.calendar_period_id
-			AND staff.occurrence_date = occurrence.occurrence_date
-		ORDER BY occurrence.template_id ASC, occurrence.occurrence_date ASC, occurrence.calendar_period_id ASC
+			template_id,
+			calendar_period_id,
+			occurrence_date,
+			MAX(enrollment_count) AS enrollment_count,
+			MAX(supervisor_count) AS supervisor_count
+		FROM capacity_parts
+		GROUP BY template_id, calendar_period_id, occurrence_date
+		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC
 	`, tenantID, periodID, periodID,
 		tenantID, bun.List(templateIDs),
-		tenantID,
+		tenantID, bun.List(templateIDs), tenantID,
 		tenantID,
 	).Scan(ctx, &occurrences)
 	if err != nil {
@@ -763,7 +1251,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		targetGroupType = activities.TargetGroupTypeNone
 	}
 
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
 		Set("name = ?", fields.Name).
 		Set("type = ?", fields.Type).
@@ -782,8 +1270,11 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", id).
 		Where("is_template = true").
-		Where("archived_at IS NULL").
-		Exec(ctx)
+		Where("archived_at IS NULL")
+	if fields.PlanningTrackIDProvided {
+		query = query.Set("planning_track_id = ?", fields.PlanningTrackID)
+	}
+	res, err := query.Exec(ctx)
 	if err != nil {
 		return 0, err
 	}

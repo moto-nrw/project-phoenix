@@ -491,6 +491,13 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       raw.activity_group_id !== undefined && raw.activity_group_id !== null
         ? String(raw.activity_group_id)
         : undefined,
+    planningTrackId:
+      raw.planning_track_id !== undefined && raw.planning_track_id !== null
+        ? String(raw.planning_track_id)
+        : undefined,
+    planningTrackName: raw.planning_track_name,
+    planningTrackColor: raw.planning_track_color,
+    planningTrackSortOrder: raw.planning_track_sort_order,
     listKind: raw.list_kind,
     activityType: raw.activity_type,
     roomId: String(raw.room_id),
@@ -514,6 +521,14 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       resourceId: String(warning.resource_id),
       message: warning.message,
       canOverride: warning.can_override,
+      fingerprint: warning.fingerprint,
+      conflictingInstanceId:
+        warning.conflicting_instance_id !== undefined
+          ? String(warning.conflicting_instance_id)
+          : undefined,
+      conflictingTitle: warning.conflicting_title,
+      overlapStart: warning.overlap_start,
+      overlapEnd: warning.overlap_end,
     })),
   };
 }
@@ -870,6 +885,14 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       listKind: template.list_kind,
       categoryId: String(template.category_id),
       categoryName: template.category_name,
+      planningTrackId:
+        template.planning_track_id !== undefined &&
+        template.planning_track_id !== null
+          ? String(template.planning_track_id)
+          : undefined,
+      planningTrackName: template.planning_track_name,
+      planningTrackColor: template.planning_track_color,
+      planningTrackSortOrder: template.planning_track_sort_order,
       roomId:
         template.room_id !== undefined && template.room_id !== null
           ? String(template.room_id)
@@ -894,6 +917,20 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       targetGroupType: template.target_group_type,
       targetGradeLevel: template.target_grade_level,
       targetSchoolClass: template.target_school_class,
+      ...(template.targets
+        ? {
+            targets: template.targets.map((target) => ({
+              type: target.type,
+              gradeLevel: target.grade_level,
+              schoolClass: target.school_class,
+              educationGroupId:
+                target.education_group_id === undefined
+                  ? undefined
+                  : String(target.education_group_id),
+              educationGroupName: target.education_group_name,
+            })),
+          }
+        : {}),
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
@@ -919,6 +956,24 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
             : undefined,
         validFrom: schedule.valid_from,
         validUntil: schedule.valid_until,
+      })),
+      weekdayAssignments: (template.weekday_assignments ?? []).map(
+        (assignment) => ({
+          weekday: assignment.weekday,
+          staffIds: (assignment.staff_ids ?? []).map(String),
+          studentIds: (assignment.student_ids ?? []).map(String),
+          primaryStaffId:
+            assignment.primary_staff_id !== undefined &&
+            assignment.primary_staff_id !== null
+              ? String(assignment.primary_staff_id)
+              : undefined,
+        }),
+      ),
+      protectedStudentAssignments: (
+        template.protected_student_assignments ?? []
+      ).map((assignment) => ({
+        weekday: assignment.weekday,
+        studentIds: (assignment.student_ids ?? []).map(String),
       })),
     })),
   };
@@ -1032,6 +1087,19 @@ interface LanedInstance {
   laneCount: number; // total lanes in this cluster (column-width divisor)
 }
 
+export function comparePlanningInstances(
+  a: EnrichedInstance,
+  b: EnrichedInstance,
+): number {
+  const start =
+    parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
+  if (start !== 0) return start;
+  const aOrder = a.planningTrackSortOrder ?? Number.MAX_SAFE_INTEGER;
+  const bOrder = b.planningTrackSortOrder ?? Number.MAX_SAFE_INTEGER;
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  return a.id.localeCompare(b.id, "de", { numeric: true });
+}
+
 /**
  * Lane assignment for overlapping events in a single day column.
  *
@@ -1054,9 +1122,7 @@ export function assignBlockLanes(
 ): LanedInstance[] {
   if (instances.length === 0) return [];
 
-  const sorted = [...instances].sort(
-    (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
-  );
+  const sorted = [...instances].sort(comparePlanningInstances);
 
   const result: LanedInstance[] = [];
   let cluster: LanedInstance[] = [];

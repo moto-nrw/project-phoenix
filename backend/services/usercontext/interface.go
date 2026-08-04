@@ -10,7 +10,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// UserContextService defines operations available in the user context service layer
+// UserContextService defines operations available in the user context service layer.
+//
+// Identity reads (account/person/staff/teacher/groups/substitutions) are
+// request-memoized when WithIdentityRequestCache is attached to the context
+// (issue #2099, done by RequestIdentityCacheMiddleware); without the cache
+// behavior is unchanged. Contract: identity_request_cache.go.
 type UserContextService interface {
 	// GetCurrentUser retrieves the currently authenticated user account
 	GetCurrentUser(ctx context.Context) (*auth.Account, error)

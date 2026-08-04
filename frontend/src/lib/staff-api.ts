@@ -78,12 +78,20 @@ export interface Staff {
   workStatus?: string;
   absenceType?: string;
   isFinancialProfile?: boolean;
+  isLimitedProfile?: boolean;
 }
 
 export interface StaffFilters {
   search?: string;
   status?: "all" | "supervising" | "available";
   type?: "all" | "teachers" | "staff";
+}
+
+export interface StaffDocumentDirectoryEntry {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
 }
 
 /** Active group with supervisors and room info */
@@ -350,6 +358,17 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
 
 // Staff service
 class StaffService {
+  async getDocumentDirectory(): Promise<StaffDocumentDirectoryEntry[]> {
+    const response = await sessionFetch("/api/staff/documents-directory");
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch document directory: ${response.statusText}`,
+      );
+    }
+    return ((await response.json()) as { data: StaffDocumentDirectoryEntry[] })
+      .data;
+  }
+
   // Get all staff members with their current supervision status.
   // `options.strict` opts into the /api/staff route's non-swallowing path so a
   // backend failure rejects here instead of masquerading as an empty staff list
@@ -432,10 +451,27 @@ class StaffService {
   }
 
   async getFinancialProfile(id: string): Promise<Staff> {
-    const response = await sessionFetch(`/api/staff/financial-profile/${id}`);
+    return this.getMinimalProfile(
+      `/api/staff/financial-profile/${id}`,
+      "financial",
+    );
+  }
+
+  async getDocumentProfile(id: string): Promise<Staff> {
+    return this.getMinimalProfile(
+      `/api/staff/documents-profile/${id}`,
+      "document",
+    );
+  }
+
+  async getMinimalProfile(
+    url: string,
+    profileType: "financial" | "document",
+  ): Promise<Staff> {
+    const response = await sessionFetch(url);
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch financial staff profile: ${response.statusText}`,
+        `Failed to fetch ${profileType} staff profile: ${response.statusText}`,
       );
     }
     const json = (await response.json()) as {
@@ -451,7 +487,8 @@ class StaffService {
       isTeacher: false,
       isSupervising: false,
       supervisions: [],
-      isFinancialProfile: true,
+      isFinancialProfile: profileType === "financial",
+      isLimitedProfile: true,
     };
   }
 
@@ -751,14 +788,69 @@ export interface StaffAbsenceRow {
   duration_days?: number;
 }
 
+// Vacation takeover at the moto introduction (#2132): days already taken
+// before the Stichtag in the previous system. The row is its own audit
+// record (Stichtag, entered Resturlaub, note, actor).
+export interface StaffVacationOpening {
+  id: string;
+  staff_id: string;
+  year: number;
+  effective_date: string;
+  taken_before_days: number;
+  entered_remaining_days: number;
+  note: string;
+  decided_by: string;
+  decided_at: string;
+}
+
+interface BackendStaffVacationOpening extends Omit<
+  StaffVacationOpening,
+  "id" | "staff_id" | "decided_by"
+> {
+  id: number;
+  staff_id: number;
+  decided_by: number;
+}
+
+function mapStaffVacationOpening(
+  data: BackendStaffVacationOpening,
+): StaffVacationOpening {
+  return {
+    ...data,
+    id: data.id.toString(),
+    staff_id: data.staff_id.toString(),
+    decided_by: data.decided_by.toString(),
+  };
+}
+
 export interface StaffVacationQuotaSummary {
   staff_id: number;
   year: number;
   entitled_days: number;
   carryover_days: number;
+  taken_before_days: number;
   taken_days: number;
   reserved_days: number;
   remaining_days: number;
+  opening?: StaffVacationOpening | null;
+}
+
+interface BackendStaffVacationQuotaSummary extends Omit<
+  StaffVacationQuotaSummary,
+  "opening"
+> {
+  opening?: BackendStaffVacationOpening | null;
+}
+
+function mapStaffVacationQuotaSummary(
+  data: BackendStaffVacationQuotaSummary,
+): StaffVacationQuotaSummary {
+  return {
+    ...data,
+    opening: data.opening
+      ? mapStaffVacationOpening(data.opening)
+      : data.opening,
+  };
 }
 
 // Body for the admin "Abwesenheit anlegen" endpoint (POST
@@ -806,9 +898,9 @@ class StaffAbsenceService {
       throw new Error(`Failed to fetch quota: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: StaffVacationQuotaSummary;
+      data: BackendStaffVacationQuotaSummary;
     };
-    return json.data;
+    return mapStaffVacationQuotaSummary(json.data);
   }
 
   async setVacationQuota(
@@ -831,9 +923,65 @@ class StaffAbsenceService {
       throw new Error(`Failed to save quota: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: StaffVacationQuotaSummary;
+      data: BackendStaffVacationQuotaSummary;
     };
-    return json.data;
+    return mapStaffVacationQuotaSummary(json.data);
+  }
+
+  // Vacation takeover (#2132): the admin enters the Resturlaub as of the
+  // Stichtag; the backend derives the pre-introduction days from the quota.
+  async setVacationOpening(
+    staffId: string,
+    payload: {
+      effectiveDate: string;
+      remainingDays: number;
+      note: string;
+    },
+  ): Promise<StaffVacationOpening> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/opening`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          effective_date: payload.effectiveDate,
+          remaining_days: payload.remainingDays,
+          note: payload.note,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Übernahme fehlgeschlagen",
+      );
+      if (error.code === "vacation_opening_already_exists") {
+        throw new Error(
+          "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
+        );
+      }
+      if (error.code === "vacation_opening_absences_before_cutoff") {
+        throw new Error(
+          "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as {
+      data: BackendStaffVacationOpening;
+    };
+    return mapStaffVacationOpening(json.data);
+  }
+
+  async deleteVacationOpening(staffId: string, year: number): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/opening?year=${year}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
+      throw new Error(error.message);
+    }
   }
 
   async approve(absenceId: number, decisionNote?: string): Promise<void> {
@@ -1340,6 +1488,55 @@ class StaffBalanceAdjustmentService {
       if (error.code === "balance_adjustment_exceeds_balance") {
         throw new Error(
           "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
+        );
+      }
+      if (error.code === "adjustment_in_closed_month") {
+        throw new Error(
+          "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as { data: BackendBalanceAdjustment };
+    return mapBalanceAdjustmentResponse(json.data);
+  }
+
+  // Eröffnungssaldo (#2132): sets the Stundenkonto to a SIGNED target value
+  // as of the Stichtag — the only booking that may take the account negative
+  // (takeover from the previous system). One opening per person, ever.
+  async createOpening(
+    staffId: string,
+    payload: {
+      effectiveDate: string;
+      balanceMinutes: number;
+      note: string;
+    },
+  ): Promise<BalanceAdjustment> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/opening`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          effective_date: payload.effectiveDate,
+          balance_minutes: payload.balanceMinutes,
+          note: payload.note,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Eröffnungssaldo fehlgeschlagen",
+      );
+      if (error.code === "opening_balance_already_exists") {
+        throw new Error(
+          "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
+        );
+      }
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
         );
       }
       if (error.code === "adjustment_in_closed_month") {

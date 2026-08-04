@@ -426,6 +426,13 @@ func (s *materializationService) materializeTemplate(
 	if err != nil {
 		return &ScheduleError{Op: "materialize template: load enrollments", Err: err}
 	}
+	targetStudentIDs := make([]int64, 0)
+	if targetRepo, ok := s.groupRepo.(activities.GroupTargetRepository); ok {
+		targetStudentIDs, err = targetRepo.FindTargetStudentIDs(ctx, tmpl.ID)
+		if err != nil {
+			return &ScheduleError{Op: "materialize template: load target students", Err: err}
+		}
+	}
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, tmpl.ID)
 	if err != nil {
 		return &ScheduleError{Op: "materialize template: load supervisors", Err: err}
@@ -568,12 +575,59 @@ func (s *materializationService) materializeTemplate(
 			if err := s.copyEnrollments(ctx, instance.ID, enrollments, date, period.ID, result); err != nil {
 				return err
 			}
+			if err := s.copyTargetStudents(ctx, instance.ID, targetStudentIDs, enrollments, date, period.ID, result); err != nil {
+				return err
+			}
 			if err := s.copySupervisors(ctx, instance.ID, supervisors, date, period.ID, result); err != nil {
 				return err
 			}
 		}
 	}
 
+	return nil
+}
+
+func (s *materializationService) copyTargetStudents(
+	ctx context.Context,
+	instanceID int64,
+	studentIDs []int64,
+	enrollments []*activities.StudentEnrollment,
+	date timezone.Date,
+	periodID int64,
+	result *MaterializationResult,
+) error {
+	seen := make(map[int64]struct{}, len(enrollments)+len(studentIDs))
+	for _, enrollment := range enrollments {
+		if isEnrollmentValidOn(enrollment, date, periodID) && !enrollmentStudentIsAlumnus(enrollment) {
+			seen[enrollment.StudentID] = struct{}{}
+		}
+	}
+	created := 0
+	for _, studentID := range studentIDs {
+		if studentID <= 0 {
+			continue
+		}
+		if _, exists := seen[studentID]; exists {
+			continue
+		}
+		seen[studentID] = struct{}{}
+		row := &schedule.InstanceStudent{
+			InstanceID: instanceID,
+			StudentID:  studentID,
+			Status:     schedule.AttendanceStatusExpected,
+		}
+		if err := s.studentRepo.Create(ctx, row); err != nil {
+			return &ScheduleError{Op: "materialize template: copy target student", Err: err}
+		}
+		created++
+		result.InstanceStudentsCreated++
+	}
+	if created == 0 {
+		return nil
+	}
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+		return &ScheduleError{Op: "materialize template: apply target student status days", Err: err}
+	}
 	return nil
 }
 
@@ -640,6 +694,8 @@ func (s *materializationService) copySupervisors(
 	periodID int64,
 	result *MaterializationResult,
 ) error {
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID)
+
 	// `unique_instance_staff (instance_id, staff_id)` rejects the same staff
 	// on the same instance twice. Same staff on *different* instances at the
 	// same time is a separate concept — surfaced by the conflict_warnings
@@ -662,7 +718,7 @@ func (s *materializationService) copySupervisors(
 		row := &schedule.InstanceStaff{
 			InstanceID:   instanceID,
 			StaffID:      sup.StaffID,
-			IsPrimary:    sup.IsPrimary,
+			IsPrimary:    hasPrimary && sup.StaffID == primaryStaffID,
 			IsSubstitute: false,
 			IsAbsent:     false,
 		}
@@ -746,6 +802,7 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 //   - valid_until IS NULL OR valid_until > date  (end is exclusive; a row
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
+//   - weekday IS NULL OR weekday == date's ISO weekday (#2129)
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
 //
 // enrollmentStudentIsAlumnus reports whether the enrollment's joined student
@@ -769,6 +826,9 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 		return false
 	}
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
+		return false
+	}
+	if !rosterWeekdayApplies(e.Weekday, date) {
 		return false
 	}
 	if len(e.SelectedWeekdays) > 0 {
@@ -816,7 +876,54 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 	if sp.CalendarPeriodID != nil && *sp.CalendarPeriodID != periodID {
 		return false
 	}
-	return true
+	return rosterWeekdayApplies(sp.Weekday, date)
+}
+
+// effectivePrimarySupervisor resolves overlapping legacy and scoped primary
+// rows for one concrete occurrence. A NULL period or weekday is a fallback,
+// while an exact period/weekday is more specific and therefore wins. Period
+// specificity precedes weekday specificity because materialization first
+// selects the occurrence's calendar period and then its weekday.
+//
+// The trigger can only enforce uniqueness inside an exact scope: clearing an
+// unscoped legacy row when a Monday override is inserted would also remove the
+// legacy primary from Tuesday. Resolve that overlap here instead, where both
+// the occurrence period and date are known.
+func effectivePrimarySupervisor(
+	supervisors []*activities.SupervisorPlanned,
+	date timezone.Date,
+	periodID int64,
+) (int64, bool) {
+	selectedRank := -1
+	var selectedStaffID, selectedRowID int64
+	for _, supervisor := range supervisors {
+		if !isSupervisorValidOn(supervisor, date, periodID) || !supervisor.IsPrimary {
+			continue
+		}
+		rank := 0
+		if supervisor.CalendarPeriodID != nil {
+			rank += 2
+		}
+		if supervisor.Weekday != nil {
+			rank++
+		}
+		if rank > selectedRank || (rank == selectedRank && supervisor.ID > selectedRowID) {
+			selectedRank = rank
+			selectedStaffID = supervisor.StaffID
+			selectedRowID = supervisor.ID
+		}
+	}
+	return selectedStaffID, selectedRank >= 0
+}
+
+// rosterWeekdayApplies answers whether a weekday-scoped roster row (#2129)
+// contributes on `date`. A nil scope is the series-wide default and applies on
+// every weekday the template runs; a set scope applies only on that ISO
+// weekday. This is the single rule behind per-weekday staff and child lists —
+// the template writer expands "shared default + deviations" into concrete
+// per-weekday rows, so nothing here needs to know about that distinction.
+func rosterWeekdayApplies(weekday *int, date timezone.Date) bool {
+	return weekday == nil || *weekday == isoWeekday(date)
 }
 
 // applyException returns the effective (start, end, room) for a candidate and

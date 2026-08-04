@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,8 +13,23 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
-func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodID *int64) (timezone.Date, error) {
+// errTemplateStartDateOutsidePeriod marks a create request whose start_date
+// lies outside its pinned calendar period (#2135); rendered as a 400.
+var errTemplateStartDateOutsidePeriod = errors.New("start_date must lie within the calendar period")
+
+// templateRosterValidFrom resolves the anchor date the initial roster becomes
+// valid from. An explicit series start (#2135) wins; otherwise the pinned
+// period's start date, or today when no period is pinned. With a pinned period
+// the start date must lie within it.
+func (rs *Resource) templateRosterValidFrom(
+	ctx context.Context,
+	calendarPeriodID *int64,
+	startDate *timezone.Date,
+) (timezone.Date, error) {
 	if calendarPeriodID == nil {
+		if startDate != nil {
+			return *startDate, nil
+		}
 		return timezone.TodayDate(), nil
 	}
 	if rs.CalendarPeriodService == nil {
@@ -23,6 +39,14 @@ func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodI
 	if err != nil {
 		return timezone.Date{}, err
 	}
+	if startDate != nil {
+		if startDate.Before(period.StartDate) || startDate.After(period.EndDate) {
+			return timezone.Date{}, fmt.Errorf("%w (%s to %s)",
+				errTemplateStartDateOutsidePeriod,
+				period.StartDate.String(), period.EndDate.String())
+		}
+		return *startDate, nil
+	}
 	return period.StartDate, nil
 }
 
@@ -31,17 +55,23 @@ func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		return
 	}
+	if errors.Is(err, errTemplateStartDateOutsidePeriod) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	common.RenderError(w, r, common.ErrorInternalServerWrap("load calendar period failed", err))
 }
 
 // templateWritePreflight resolves the tenant-scoped inputs both the create and
 // update write paths need before touching the database: the grade-level cap and
-// the roster valid_from anchor. It renders the appropriate error and returns
-// ok=false on failure.
+// the roster valid_from anchor. Create passes its optional series start
+// (#2135); update passes nil (the stored validity envelope is preserved there).
+// It renders the appropriate error and returns ok=false on failure.
 func (rs *Resource) templateWritePreflight(
 	w http.ResponseWriter,
 	r *http.Request,
 	calendarPeriodID *int64,
+	startDate *timezone.Date,
 ) (gradeLevelMax int, rosterValidFrom timezone.Date, ok bool) {
 	ctx := r.Context()
 	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
@@ -50,7 +80,7 @@ func (rs *Resource) templateWritePreflight(
 			"resolve template grade level limit failed", err))
 		return 0, timezone.Date{}, false
 	}
-	rosterValidFrom, err = rs.templateRosterValidFrom(ctx, calendarPeriodID)
+	rosterValidFrom, err = rs.templateRosterValidFrom(ctx, calendarPeriodID, startDate)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
 		return 0, timezone.Date{}, false

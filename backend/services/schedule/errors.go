@@ -10,6 +10,10 @@ import (
 var (
 	ErrDateframeNotFound = errors.New("dateframe not found")
 	ErrTimeframeNotFound = errors.New("timeframe not found")
+	// ErrCategoryNotAssignable rejects new references to missing or archived
+	// activity categories. Existing rows may keep an archived category, but no
+	// create, category change, or series split may assign one.
+	ErrCategoryNotAssignable = errors.New("activity category is not available for new assignments")
 	// ErrTimeframeRequiredByCareOffering covers both updates and deletions that
 	// would make a linked care offering impossible to materialize.
 	ErrTimeframeRequiredByCareOffering = errors.New("Zeitrahmen kann nicht geändert oder gelöscht werden: Ein verknüpftes Betreuungsangebot benötigt ihn") //nolint:staticcheck // ST1005: user-facing German message

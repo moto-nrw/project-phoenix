@@ -3,7 +3,7 @@ import { createPostHandler } from "~/lib/route-wrapper.server";
 
 /**
  * POST /api/notifications/test — proxy to the backend test-notification
- * trigger (#1624). Lets an admin verify the notification setup end to end:
+ * trigger (#1624). Lets a staff user verify their notification setup end to end:
  * feature flag on → backend dispatch → SSE → in-app toast.
  */
 export const POST = createPostHandler<null, Record<string, never>>(

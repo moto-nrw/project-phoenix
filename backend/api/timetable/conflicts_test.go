@@ -135,10 +135,12 @@ func TestConflicts_EmptyWarnings(t *testing.T) {
 	assert.Empty(t, got.Warnings)
 }
 
-func TestConflicts_RoomWarning(t *testing.T) {
+func TestConflicts_RoomOverlapAloneYieldsNoWarning(t *testing.T) {
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
+	// #2139: several groups may share a room — a probe that only shares the
+	// room with an overlapping instance answers 200 with zero warnings.
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Raum"})
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
@@ -147,11 +149,30 @@ func TestConflicts_RoomWarning(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
 	got := decodePlannedConflicts(t, w)
-	require.Len(t, got.Warnings, 1)
-	assert.Equal(t, scheduleSvc.ConflictKindRoom, got.Warnings[0].Kind)
-	assert.Equal(t, s.roomID, got.Warnings[0].ResourceID)
-	assert.Equal(t, inst.ID, got.Warnings[0].ConflictingInstanceID)
-	assert.Equal(t, "Conf-Raum", got.Warnings[0].ConflictingTitle)
+	assert.Empty(t, got.Warnings, "a pure room overlap must not warn")
+}
+
+func TestConflicts_StaffSameRoomYieldsNoWarning(t *testing.T) {
+	s := buildPlannedConflictsSetup(t)
+	router := plannedConflictsRouter(s.ctx, s.res)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Parallel"})
+	staff := testpkg.CreateTestStaff(t, s.db, "Conf", fmt.Sprintf("SameRoom-%d", time.Now().UnixNano()))
+	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() {
+		testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID)
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupActivityFixtures(t, s.db, 0, staff.ID, 0, 0, 0)
+	})
+
+	// Same staff, overlapping window, SAME room — sanctioned (#2139).
+	w := doPlannedConflicts(t, router, fmt.Sprintf(
+		"/conflicts?date=%s&start_time=14:30&end_time=15:30&room_id=%d&staff_ids=%d",
+		s.date.String(), s.roomID, staff.ID))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodePlannedConflicts(t, w)
+	assert.Empty(t, got.Warnings, "same-room staff overlap must not warn")
 }
 
 func TestConflicts_StaffWarning(t *testing.T) {

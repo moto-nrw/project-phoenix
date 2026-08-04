@@ -1,7 +1,7 @@
 // Package notifications exposes the notification abstraction (#1624) over
-// HTTP. Its single endpoint lets an admin fire a test notification to verify
-// the tenant's setup end to end; real producers (reminders, #669) call the
-// service directly.
+// HTTP. Its test endpoint lets staff fire a notification to their own account
+// to verify the tenant's setup end to end; real producers (reminders, #669)
+// call the service directly.
 package notifications
 
 import (
@@ -11,8 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -48,9 +46,9 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-		// config:update — the same permission that guards the feature flag —
-		// so exactly the admins who can enable notifications can test them.
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate), withTx).Post("/test", rs.sendTestNotification)
+		// The event is scoped to the logged-in staff account, so a valid tenant
+		// session is sufficient. No user can trigger a test for someone else.
+		r.With(withTx).Post("/test", rs.sendTestNotification)
 
 		// Push subscription management for the logged-in staff user's own
 		// devices — no extra permission beyond a valid tenant session.
@@ -74,9 +72,9 @@ func (rs *Resource) Router() chi.Router {
 }
 
 // sendTestNotification fires a fixed, display-safe test event only to the
-// requesting admin. This verifies the notification setup (feature flag on, SSE
-// connected, toast rendering) without broadcasting an unsolicited test to
-// other staff.
+// requesting staff account. This verifies the notification setup (feature flag
+// on, SSE connected, toast rendering) without broadcasting an unsolicited test
+// to other staff.
 func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

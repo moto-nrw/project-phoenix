@@ -30,6 +30,20 @@ type nullableInt struct {
 	Value *int
 }
 
+type nullableInt64 struct {
+	Set   bool
+	Value *int64
+}
+
+func (n *nullableInt64) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 func (n *nullableInt) UnmarshalJSON(b []byte) error {
 	n.Set = true
 	if string(b) == "null" {
@@ -188,13 +202,19 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 	// Same tenant-scoped period check the create/update handlers run; the
 	// returned roster start date is unused — the split anchors rosters on
 	// the effective date instead.
-	if _, err := rs.templateRosterValidFrom(r.Context(), req.CalendarPeriodID); err != nil {
+	if _, err := rs.templateRosterValidFrom(r.Context(), req.CalendarPeriodID, nil); err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
 	if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
+	}
+	for _, target := range req.Targets {
+		if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 	}
 
 	result, err := rs.TemplateSplitService.Split(r.Context(), in)
@@ -240,16 +260,18 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 	}
 
 	return scheduleSvc.TemplateSplitInput{
-		TemplateID:      id,
-		EffectiveDate:   effectiveDate,
-		Name:            req.Name,
-		Type:            req.Type,
-		Weekdays:        req.Weekdays,
-		StartTime:       startTime,
-		EndTime:         endTime,
-		RoomID:          req.RoomID,
-		CategoryID:      req.CategoryID,
-		MaxParticipants: req.MaxParticipants,
+		TemplateID:              id,
+		EffectiveDate:           effectiveDate,
+		Name:                    req.Name,
+		Type:                    req.Type,
+		Weekdays:                req.Weekdays,
+		StartTime:               startTime,
+		EndTime:                 endTime,
+		RoomID:                  req.RoomID,
+		CategoryID:              req.CategoryID,
+		PlanningTrackID:         req.PlanningTrackID.Value,
+		PlanningTrackIDProvided: req.PlanningTrackID.Set,
+		MaxParticipants:         req.MaxParticipants,
 		// Three-state: only when required_staff is present in the body do we
 		// touch the successor's override — a null clears it (derive), an
 		// omitted field inherits the source template's value.
@@ -267,11 +289,16 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
+		Targets:           targetModels(req.Targets),
 		StudentIDs:        req.StudentIDs,
 		StaffIDs:          req.StaffIDs,
 		PrimaryStaffID:    req.PrimaryStaffID,
-		MaterializeFrom:   materializeFrom,
-		MaterializeTo:     materializeTo,
+		// Per-weekday roster deviations follow the successor (#2129); the
+		// embedded updateTemplateRequest.Bind already validated them against
+		// the submitted weekdays.
+		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
+		MaterializeFrom:    materializeFrom,
+		MaterializeTo:      materializeTo,
 	}, nil
 }
 
@@ -297,6 +324,10 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
+	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
