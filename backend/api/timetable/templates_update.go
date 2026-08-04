@@ -31,9 +31,10 @@ type updateTemplateRequest struct {
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
 	// Zielgruppe fields — see createTemplateRequest for the full contract.
-	TargetGroupType   string  `json:"target_group_type,omitempty"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	Targets           []templateTargetRequest `json:"targets,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -75,17 +76,14 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	target := &activitiesModel.Group{
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		EducationGroupID:  req.EducationGroupID,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
+	targetType, schoolClass, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID, req.Targets,
+	)
+	if err != nil {
 		return err
 	}
-	req.TargetGroupType = target.TargetGroupType
-	req.TargetSchoolClass = target.TargetSchoolClass
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -295,6 +293,7 @@ func buildUpdateTemplateInput(
 		StudentIDs:         req.StudentIDs,
 		StaffIDs:           req.StaffIDs,
 		PrimaryStaffID:     req.PrimaryStaffID,
+		Targets:            targetModels(req.Targets),
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		GradeLevelMax:      gradeLevelMax,
 	}
@@ -302,8 +301,8 @@ func buildUpdateTemplateInput(
 
 // renderUpdateTemplateError maps an UpdateTemplate failure to its HTTP response.
 // A capped/archived segment surfaces as the same 404 as the preflight lookup;
-// the care-offering, roster-rebase, and grade-cap conflicts each carry their
-// own status and code; everything else is a 500.
+// education-group failures and the care-offering, roster-rebase, and grade-cap
+// conflicts each carry their own status and code; everything else is a 500.
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
@@ -314,6 +313,7 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
+	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):

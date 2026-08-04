@@ -342,9 +342,8 @@ function currentStep(): number {
  * values always win, and only when we actually have to pass step 1.
  */
 /**
- * Pick an option from a CustomSelect. The trigger is a role="combobox" button;
- * its menu (and the role="option" entries) only exist in the DOM while open, so
- * we click the trigger first, then the option by its visible label.
+ * Pick an option from a single or multiple select. Multiple selects expose
+ * native checkboxes so their checked state remains accessible.
  */
 async function chooseFromSelect(
   trigger: HTMLElement,
@@ -352,7 +351,14 @@ async function chooseFromSelect(
 ) {
   await waitFor(() => expect(trigger).not.toBeDisabled());
   fireEvent.click(trigger);
-  fireEvent.click(await screen.findByRole("option", { name: optionLabel }));
+  const option = await waitFor(() => {
+    const control =
+      screen.queryByRole("option", { name: optionLabel }) ??
+      screen.queryByRole("checkbox", { name: optionLabel });
+    if (!control) throw new Error("select option is not visible");
+    return control;
+  });
+  fireEvent.click(option);
 }
 
 async function fillStep1Requirements() {
@@ -1575,7 +1581,7 @@ describe("TimetableEventModal", () => {
     ).toBeNull();
   });
 
-  it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
+  it("submits multiple selected Jahrgang targets", async () => {
     renderModal({ showPeriodField: true });
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
@@ -1602,10 +1608,11 @@ describe("TimetableEventModal", () => {
     });
     fireEvent.click(screen.getByLabelText(/^Jahrgang\*/));
     expect(
-      screen.getByRole("option", { name: "Jahrgang 13" }),
+      screen.getByRole("checkbox", { name: "Jahrgang 13" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Jahrgang 14" })).toBeNull();
-    fireEvent.click(screen.getByRole("option", { name: "Jahrgang 13" }));
+    expect(screen.queryByRole("checkbox", { name: "Jahrgang 14" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 12" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 13" }));
 
     await clickSave();
 
@@ -1613,13 +1620,17 @@ describe("TimetableEventModal", () => {
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 13,
+          target_grade_level: 12,
+          targets: [
+            { type: "jahrgang", grade_level: 12 },
+            { type: "jahrgang", grade_level: 13 },
+          ],
         }),
       ),
     );
   });
 
-  it("shows and preserves an existing grade above the current tenant cap", async () => {
+  it("allows removing an existing grade above the current tenant cap", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
       routingMode: "path",
@@ -1629,7 +1640,11 @@ describe("TimetableEventModal", () => {
       initialSeries: {
         ...template,
         targetGroupType: "jahrgang",
-        targetGradeLevel: 13,
+        targetGradeLevel: 4,
+        targets: [
+          { type: "jahrgang", gradeLevel: 4 },
+          { type: "jahrgang", gradeLevel: 13 },
+        ],
       },
       showPeriodField: true,
     });
@@ -1637,14 +1652,18 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await goToStep(3);
     const gradeSelect = screen.getByLabelText(/^Jahrgang\*/);
-    expect(gradeSelect).toHaveTextContent("Jahrgang 13 (bestehend)");
+    expect(gradeSelect).toHaveTextContent("2 ausgewählt");
     fireEvent.click(gradeSelect);
     expect(
-      screen.getByRole("option", { name: "Jahrgang 13 (bestehend)" }),
-    ).toBeDisabled();
+      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+    ).toBeEnabled();
     expect(
       screen.getByText(/über der aktuell konfigurierten Höchststufe 4/),
     ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+    );
 
     await clickSave();
 
@@ -1653,7 +1672,50 @@ describe("TimetableEventModal", () => {
         "7",
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 13,
+          target_grade_level: 4,
+          targets: [{ type: "jahrgang", grade_level: 4 }],
+        }),
+      ),
+    );
+  });
+
+  it("allows adding a valid grade while retaining one above the tenant cap", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: { gradeLevelMax: 4 } as TenantInfo,
+    });
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 4,
+        targets: [
+          { type: "jahrgang", gradeLevel: 4 },
+          { type: "jahrgang", gradeLevel: 13 },
+        ],
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    fireEvent.click(screen.getByLabelText(/^Jahrgang\*/));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 3" }));
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "jahrgang",
+          target_grade_level: 4,
+          targets: [
+            { type: "jahrgang", grade_level: 4 },
+            { type: "jahrgang", grade_level: 13 },
+            { type: "jahrgang", grade_level: 3 },
+          ],
         }),
       ),
     );
@@ -1771,6 +1833,64 @@ describe("TimetableEventModal", () => {
         expect.objectContaining({
           target_group_type: "none",
           target_grade_level: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("clears the legacy group target when switching Zielgruppe to none", async () => {
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "gruppe",
+        educationGroupId: "31",
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Keine" }), {
+      button: 0,
+    });
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "none",
+          education_group_id: undefined,
+          targets: [],
+        }),
+      ),
+    );
+  });
+
+  it("preserves an independent education group on an existing series", async () => {
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "none",
+        educationGroupId: "31",
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga aktualisiert" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          name: "Yoga aktualisiert",
+          target_group_type: "none",
+          education_group_id: 31,
         }),
       ),
     );

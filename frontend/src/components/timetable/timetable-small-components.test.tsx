@@ -265,6 +265,25 @@ describe("small timetable components", () => {
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
   });
 
+  it("renders class targets without duplicating their prefix", () => {
+    render(
+      <TemplateCard
+        template={{
+          ...template,
+          targets: [
+            { type: "klasse", schoolClass: "Klasse 1a" },
+            { type: "klasse", schoolClass: "2a" },
+          ],
+        }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Klasse 1a, Klasse 2a")).toBeInTheDocument();
+  });
+
   it("shows staffing capacity on template cards", () => {
     render(
       <TemplateCard

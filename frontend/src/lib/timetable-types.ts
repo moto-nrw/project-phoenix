@@ -402,6 +402,14 @@ interface TemplateSchedule {
 export type TargetGroupType =
   "jahrgang" | "klasse" | "gruppe" | "angebot" | "none";
 
+interface TimetableTarget {
+  type: Exclude<TargetGroupType, "angebot" | "none">;
+  gradeLevel?: number;
+  schoolClass?: string;
+  educationGroupId?: string;
+  educationGroupName?: string;
+}
+
 export interface TimetableTemplate {
   id: string;
   name: string;
@@ -429,6 +437,7 @@ export interface TimetableTemplate {
   targetGroupType: TargetGroupType;
   targetGradeLevel?: number;
   targetSchoolClass?: string;
+  targets?: TimetableTarget[];
   enrollmentCount: number;
   supervisorCount: number;
   /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
@@ -503,6 +512,13 @@ export interface BackendTimetableTemplate {
   target_group_type: TargetGroupType;
   target_grade_level?: number;
   target_school_class?: string;
+  targets?: Array<{
+    type: "jahrgang" | "klasse" | "gruppe";
+    grade_level?: number;
+    school_class?: string;
+    education_group_id?: number;
+    education_group_name?: string;
+  }>;
   enrollment_count: number;
   supervisor_count: number;
   required_staff_count: number;
@@ -930,6 +946,12 @@ export interface CreateTemplateBody {
    * within the calendar period. Omitted = series starts with the period.
    */
   start_date?: string;
+  targets?: Array<{
+    type: "jahrgang" | "klasse" | "gruppe";
+    grade_level?: number;
+    school_class?: string;
+    education_group_id?: number;
+  }>;
   materialize_from?: string;
   materialize_to?: string;
   student_ids?: number[];

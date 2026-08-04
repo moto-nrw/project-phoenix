@@ -117,9 +117,12 @@ type TemplateSplitInput struct {
 	EducationGroupID      *int64
 	// Zielgruppe (target-group) fields, carried onto the successor Group
 	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
-	TargetGroupType   string
-	TargetGradeLevel  *int16
-	TargetSchoolClass *string
+	TargetGroupType    string
+	TargetGradeLevel   *int16
+	TargetSchoolClass  *string
+	Targets            []*activitiesModel.GroupTarget
+	targetsProvided    bool
+	targetsPresenceSet bool
 	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
 	// Group, already normalized (nil = clear). Only applied when NotesProvided
 	// is true; otherwise the successor inherits the source template's note. Same
@@ -271,6 +274,10 @@ func (s *TemplateSplitService) validateCareOfferingSeries(ctx context.Context, g
 // The service reuses an ambient request transaction or creates one when called
 // directly, so the recurrence lock covers the complete operation.
 func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
+	if !in.targetsPresenceSet {
+		in.targetsProvided = in.Targets != nil
+		in.targetsPresenceSet = true
+	}
 	if err := validateSplitInput(&in); err != nil {
 		return nil, err
 	}
@@ -410,13 +417,30 @@ func (s *TemplateSplitService) prepareSplitSource(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if err := ValidateTemplateTargetGradeLimit(
-		in.GradeLevelMax,
-		old,
-		in.TargetGroupType,
-		in.TargetGradeLevel,
-	); err != nil {
+	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.GroupRepo, old.ID)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("load existing dynamic targets: %w", err)
+	}
+	if !in.targetsProvided && len(existingTargets) > 0 {
+		in.Targets = existingTargets
+		in.TargetGroupType = existingTargets[0].TargetGroupType
+		in.TargetGradeLevel = existingTargets[0].TargetGradeLevel
+		in.TargetSchoolClass = existingTargets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = existingTargets[0].EducationGroupID
+		}
+	}
+	if err := validateSplitDynamicTargets(in.GradeLevelMax, old, existingTargets, in.Targets); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(in.Targets) > 0 {
+		in.TargetGradeLevel = in.Targets[0].TargetGradeLevel
+		in.TargetSchoolClass = in.Targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = in.Targets[0].EducationGroupID
+		}
 	}
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "split template", false)
 	if err != nil {
@@ -439,6 +463,10 @@ func (s *TemplateSplitService) prepareSplitSource(
 		return nil, nil, nil, nil, err
 	}
 	return old, sourceValidUntil, enrollments, supervisors, nil
+}
+
+func validateSplitDynamicTargets(gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+	return ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, existingTargets, targets)
 }
 
 func (s *TemplateSplitService) capSplitSource(
@@ -704,10 +732,26 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 }
 
 func validateSplitTargetGroup(in *TemplateSplitInput) error {
-	// Reuses Group.ValidateTargetGroup() rather than re-implementing the
-	// type-conditional invariant here (Rule 10) — the handler's Bind() also
-	// runs this check, but the service defends itself independently since
-	// TemplateSplitInput is a public entry point other callers could reach.
+	targets, err := normalizeDynamicTargets(
+		in.TargetGroupType,
+		in.TargetGradeLevel,
+		in.TargetSchoolClass,
+		in.EducationGroupID,
+		in.Targets,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.Targets = targets
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(targets) > 0 {
+		in.TargetGradeLevel = targets[0].TargetGradeLevel
+		in.TargetSchoolClass = targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = targets[0].EducationGroupID
+		}
+	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
@@ -1008,6 +1052,15 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
 		return nil, &ScheduleError{Op: "split template: create successor template", Err: err}
+	}
+	targetRepo, ok := s.deps.GroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok && len(in.Targets) > 0 {
+		return nil, &ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
+	}
+	if ok {
+		if err := targetRepo.ReplaceTargets(ctx, group.ID, in.Targets); err != nil {
+			return nil, &ScheduleError{Op: "split template: create successor targets", Err: err}
+		}
 	}
 	return group, nil
 }

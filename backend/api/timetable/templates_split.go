@@ -210,6 +210,12 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	for _, target := range req.Targets {
+		if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	}
 
 	result, err := rs.TemplateSplitService.Split(r.Context(), in)
 	if err != nil {
@@ -283,6 +289,7 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
+		Targets:           targetModels(req.Targets),
 		StudentIDs:        req.StudentIDs,
 		StaffIDs:          req.StaffIDs,
 		PrimaryStaffID:    req.PrimaryStaffID,

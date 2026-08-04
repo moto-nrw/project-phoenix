@@ -3,6 +3,7 @@ package activities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 const (
 	tableActivitiesGroups          = "activities.groups"
 	tableExprActivitiesGroupsAsGrp = `activities.groups AS "group"`
+	tableExprGroupTargets          = `activities.group_targets AS "group_target"`
 	orderByNameAsc                 = "name ASC"
 	whereIDEquals                  = "id = ?"
 )
@@ -108,6 +110,129 @@ func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64)
 		return nil, &modelBase.DatabaseError{Op: "find template series", Err: err}
 	}
 	return groups, nil
+}
+
+func (r *GroupRepository) ReplaceTargets(ctx context.Context, groupID int64, targets []*activities.GroupTarget) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("replace group targets requires a tenant")
+	}
+	if groupID <= 0 {
+		return errors.New("replace group targets requires a positive activity group id")
+	}
+	normalized := make([]*activities.GroupTarget, 0, len(targets))
+	var targetType string
+	for _, target := range targets {
+		if target == nil {
+			return errors.New("invalid group target: target cannot be null")
+		}
+		copy := *target
+		copy.ID = 0
+		copy.ActivityGroupID = groupID
+		copy.SetTenantID(tenantID)
+		if err := copy.Validate(); err != nil {
+			return fmt.Errorf("invalid group target: %w", err)
+		}
+		if targetType == "" {
+			targetType = copy.TargetGroupType
+		} else if copy.TargetGroupType != targetType {
+			return errors.New("invalid group targets: all targets must have the same type")
+		}
+		normalized = append(normalized, &copy)
+	}
+
+	return modelBase.NewTxHandler(r.db).RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		db := base.GetDB(txCtx, r.db)
+		if _, err := db.NewDelete().
+			Model((*activities.GroupTarget)(nil)).
+			ModelTableExpr(tableExprGroupTargets).
+			Where(`"group_target".tenant_id = ?`, tenantID).
+			Where(`"group_target".activity_group_id = ?`, groupID).
+			Exec(txCtx); err != nil {
+			return &modelBase.DatabaseError{Op: "delete group targets", Err: err}
+		}
+		if len(normalized) == 0 {
+			return nil
+		}
+		if _, err := db.NewInsert().
+			Model(&normalized).
+			ModelTableExpr(tableExprGroupTargets).
+			Exec(txCtx); err != nil {
+			return &modelBase.DatabaseError{Op: "create group targets", Err: err}
+		}
+		return nil
+	})
+}
+
+func (r *GroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activities.GroupTarget, error) {
+	result := make(map[int64][]*activities.GroupTarget, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	var targets []*activities.GroupTarget
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&targets).
+		ModelTableExpr(`activities.group_targets AS "target"`).
+		ColumnExpr(`"target".*`).
+		ColumnExpr(`COALESCE("education_group".name, '') AS education_group_name`).
+		Join(`LEFT JOIN education.groups AS "education_group" ON "education_group".tenant_id = "target".tenant_id AND "education_group".id = "target".education_group_id`).
+		Where(`"target".tenant_id = ?`, tenantID).
+		Where(`"target".activity_group_id IN (?)`, bun.List(groupIDs)).
+		OrderExpr(`"target".activity_group_id ASC, "target".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find group targets", Err: err}
+	}
+	for _, target := range targets {
+		result[target.ActivityGroupID] = append(result[target.ActivityGroupID], target)
+	}
+	return result, nil
+}
+
+func (r *GroupRepository) FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error) {
+	byGroup, err := r.FindTargetStudentIDsByGroupIDs(ctx, []int64{groupID})
+	if err != nil {
+		return nil, err
+	}
+	return byGroup[groupID], nil
+}
+
+func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	result := make(map[int64][]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	var rows []struct {
+		GroupID   int64 `bun:"group_id"`
+		StudentID int64 `bun:"student_id"`
+	}
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT DISTINCT target.activity_group_id AS group_id, student.id AS student_id
+		FROM users.students AS student
+		INNER JOIN activities.group_targets AS target
+			ON target.tenant_id = student.tenant_id
+			AND target.activity_group_id IN (?)
+			AND (
+				(target.target_group_type = 'jahrgang'
+					AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
+				OR (target.target_group_type = 'klasse'
+					AND LOWER(BTRIM(student.school_class)) = LOWER(BTRIM(target.target_school_class)))
+				OR (target.target_group_type = 'gruppe'
+					AND student.group_id = target.education_group_id)
+			)
+		WHERE student.tenant_id = ?
+			AND student.status <> 'alumnus'
+		ORDER BY target.activity_group_id ASC, student.id ASC
+	`, bun.List(groupIDs), tenantID).Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find target students", Err: err}
+	}
+	for _, row := range rows {
+		result[row.GroupID] = append(result[row.GroupID], row.StudentID)
+	}
+	return result, nil
 }
 
 // FindByCategory finds all groups in a specific category
@@ -1006,33 +1131,49 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 					) + 1
 				)
 			  )
+		), dynamic_target_students AS (
+			SELECT DISTINCT target.activity_group_id AS template_id, student.id AS student_id
+			FROM activities.group_targets AS target
+			INNER JOIN users.students AS student
+				ON student.tenant_id = target.tenant_id
+				AND student.status <> 'alumnus'
+				AND (
+					(target.target_group_type = 'jahrgang' AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
+					OR (target.target_group_type = 'klasse' AND LOWER(BTRIM(student.school_class)) = LOWER(BTRIM(target.target_school_class)))
+					OR (target.target_group_type = 'gruppe' AND student.group_id = target.education_group_id)
+				)
+			WHERE target.tenant_id = ?
+			  AND target.activity_group_id IN (?)
 		), capacity_parts AS (
 			SELECT
 				occurrence.template_id,
 				occurrence.calendar_period_id,
 				occurrence.occurrence_date,
-				COUNT(DISTINCT enrollment.student_id)::INT AS enrollment_count,
+				COUNT(DISTINCT roster.student_id)::INT AS enrollment_count,
 				0::INT AS supervisor_count
 			FROM candidate_occurrences AS occurrence
-			INNER JOIN activities.student_enrollments AS enrollment
-				ON enrollment.tenant_id = ?
-				AND enrollment.activity_group_id = occurrence.template_id
-				AND enrollment.valid_from <= occurrence.occurrence_date
-				AND (enrollment.valid_until IS NULL OR enrollment.valid_until > occurrence.occurrence_date)
-				AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = occurrence.calendar_period_id)
-				AND (
-					enrollment.selected_weekdays IS NULL
-					OR jsonb_array_length(enrollment.selected_weekdays) = 0
-					OR enrollment.selected_weekdays @> jsonb_build_array(
-						EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+			CROSS JOIN LATERAL (
+				SELECT enrollment.student_id
+				FROM activities.student_enrollments AS enrollment
+				WHERE enrollment.tenant_id = ?
+					AND enrollment.activity_group_id = occurrence.template_id
+					AND enrollment.valid_from <= occurrence.occurrence_date
+					AND (enrollment.valid_until IS NULL OR enrollment.valid_until > occurrence.occurrence_date)
+					AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = occurrence.calendar_period_id)
+					AND (
+						enrollment.selected_weekdays IS NULL
+						OR jsonb_array_length(enrollment.selected_weekdays) = 0
+						OR enrollment.selected_weekdays @> jsonb_build_array(EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT)
 					)
-				)
-				-- Weekday-scoped roster row (#2129): NULL applies on every
-				-- weekday of the series, a value only on that weekday.
-				AND (
-					enrollment.weekday IS NULL
-					OR enrollment.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
-				)
+					AND (
+						enrollment.weekday IS NULL
+						OR enrollment.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+					)
+				UNION
+				SELECT dynamic.student_id
+				FROM dynamic_target_students AS dynamic
+				WHERE dynamic.template_id = occurrence.template_id
+			) AS roster
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
 
 			UNION ALL
@@ -1083,7 +1224,7 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC
 	`, tenantID, periodID, periodID,
 		tenantID, bun.List(templateIDs),
-		tenantID,
+		tenantID, bun.List(templateIDs), tenantID,
 		tenantID,
 	).Scan(ctx, &occurrences)
 	if err != nil {

@@ -545,6 +545,9 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	updateBody := createTemplateBody(s, "Tpl-Zielgruppe-Updated")
 	updateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
 	updateBody["target_school_class"] = "3a"
+	updateBody["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "3a"},
+	}
 	updateW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
 	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
 	updated := decodeTemplateData[templateResponse](t, updateW)
@@ -552,6 +555,112 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	assert.Nil(t, updated.TargetGradeLevel)
 	require.NotNil(t, updated.TargetSchoolClass)
 	assert.Equal(t, "3a", *updated.TargetSchoolClass)
+}
+
+func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Multiple-Targets-Read")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-%d", time.Now().UnixNano()))
+	body["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	body["target_school_class"] = "1a"
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "1a"},
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "2a"},
+	}
+
+	createdResponse := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, createdResponse.Code, "body=%s", createdResponse.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdResponse)
+
+	getResponse := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
+	require.Equal(t, http.StatusOK, getResponse.Code, "body=%s", getResponse.Body.String())
+	template := decodeTemplateData[templateResponse](t, getResponse)
+	require.Len(t, template.Targets, 2)
+	assert.Equal(t, "1a", *template.Targets[0].SchoolClass)
+	assert.Equal(t, "2a", *template.Targets[1].SchoolClass)
+
+	updateBody := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-Updated-%d", time.Now().UnixNano()))
+	updateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	updateBody["target_school_class"] = "2a"
+	updateBody["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "2a"},
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "3a"},
+	}
+	updatedResponse := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updatedResponse.Code, "body=%s", updatedResponse.Body.String())
+	updated := decodeTemplateData[templateResponse](t, updatedResponse)
+	require.Len(t, updated.Targets, 2)
+	assert.Equal(t, "2a", *updated.Targets[0].SchoolClass)
+	assert.Equal(t, "3a", *updated.Targets[1].SchoolClass)
+
+	legacyUpdateBody := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-Legacy-%d", time.Now().UnixNano()))
+	legacyUpdateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	legacyUpdateBody["target_school_class"] = "2a"
+	legacyResponse := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), legacyUpdateBody)
+	require.Equal(t, http.StatusOK, legacyResponse.Code, "body=%s", legacyResponse.Body.String())
+	legacyUpdated := decodeTemplateData[templateResponse](t, legacyResponse)
+	require.Len(t, legacyUpdated.Targets, 2)
+	assert.Equal(t, "2a", *legacyUpdated.Targets[0].SchoolClass)
+	assert.Equal(t, "3a", *legacyUpdated.Targets[1].SchoolClass)
+}
+
+func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	otherTenant := testpkg.NewTenantScope(t, s.db)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, otherTenant.TenantID) })
+	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, otherTenant.TenantID, "Tpl-Cross-Tenant")
+
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-Cross-Tenant-Target-%d", time.Now().UnixNano()))
+	body["education_group_id"] = otherGroup.ID
+	body["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "1a"},
+		{"type": activitiesModel.TargetGroupTypeKlasse, "school_class": "2a"},
+	}
+
+	response := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	assert.Equal(t, http.StatusBadRequest, response.Code, "body=%s", response.Body.String())
+	assert.Contains(t, response.Body.String(), "education_group_id does not reference a group in this tenant")
+}
+
+func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	currentGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-Update-Current-Group")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "education.groups", currentGroup.ID) })
+	otherTenant := testpkg.NewTenantScope(t, s.db)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, otherTenant.TenantID) })
+	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, otherTenant.TenantID, "Tpl-Update-Cross-Tenant")
+
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-Update-Target-%d", time.Now().UnixNano()))
+	body["education_group_id"] = currentGroup.ID
+	body["target_group_type"] = activitiesModel.TargetGroupTypeGruppe
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeGruppe, "education_group_id": currentGroup.ID},
+	}
+	createdResponse := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, createdResponse.Code, "body=%s", createdResponse.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, createdResponse)
+
+	body["targets"] = []map[string]any{
+		{"type": activitiesModel.TargetGroupTypeGruppe, "education_group_id": currentGroup.ID},
+		{"type": activitiesModel.TargetGroupTypeGruppe, "education_group_id": otherGroup.ID},
+	}
+	response := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), body)
+
+	assert.Equal(t, http.StatusBadRequest, response.Code, "body=%s", response.Body.String())
+	assert.Contains(t, response.Body.String(), "education_group_id does not reference a group in this tenant")
 }
 
 func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
@@ -1261,6 +1370,36 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
 	router := templateRouter(s.ctx, s.res)
+
+	t.Run("deduplicates explicit and dynamic class membership", func(t *testing.T) {
+		period := createTemplateTestPeriodRange(
+			t,
+			s.db,
+			"TplOccurrenceDynamicOverlap",
+			timezone.NewDate(2025, 9, 1),
+			timezone.NewDate(2025, 9, 7),
+			1,
+			nil,
+		)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Dynamic-Overlap", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		class := " 3A "
+		targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+		require.True(t, ok)
+		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, templateID, []*activitiesModel.GroupTarget{
+			{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &class},
+		}))
+		start := timezone.NewDate(2025, 9, 1)
+		end := timezone.NewDate(2025, 9, 8)
+		createCapacityEnrollment(t, s, templateID, s.studentA, start, &end, &period.ID, nil)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 2, got.EnrollmentCount,
+			"the displayed child count must union explicit and dynamic students")
+		assert.Equal(t, 2, got.RequiredStaffCount,
+			"the explicit student must be counted once while both 3a students match case-insensitively")
+	})
 
 	t.Run("does not combine weekday cohorts or validity windows", func(t *testing.T) {
 		period := createTemplateTestPeriodRange(
