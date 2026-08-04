@@ -222,6 +222,7 @@ last_review=$(printf '%s' "$comments" | jq -c --arg qr "$target" '
     | last // {}
 ')
 last_review_at=$(printf '%s' "$last_review" | jq -r '.created_at // empty')
+last_review_id=$(printf '%s' "$last_review" | jq -r '.id // empty')
 
 # Nothing to re-trigger without a review to answer.
 if [[ -z "$last_review_at" ]]; then
@@ -250,8 +251,10 @@ fi
 # a fix committed before the review and pushed after it carries an old date
 # (missed re-request), a preserved or future-dated commit pushed before the
 # review carries a newer one (false alarm). Only the POSITION of head-movement
-# events relative to the report comment is trustworthy; every issue comment
-# has exactly one timeline "commented" event with an identical created_at.
+# events relative to the report comment is trustworthy. The report is located
+# by its comment ID, which the timeline "commented" event carries verbatim -
+# created_at is NOT unique (two comments can share a second, and `last` would
+# then anchor on the wrong one).
 
 # A failed timeline call must not read as "nothing changed" and must never be
 # cached as clean, otherwise one flaky request silences the check for this HEAD.
@@ -280,12 +283,13 @@ fi
 # sits behind the last head movement: a re-request followed by further commits
 # leaves those commits unreviewed, so it does not settle the loop.
 timeline_flags=$(printf '%s' "$timeline" | jq -c \
-    --arg rev "$last_review_at" --arg tgt "$target" '
+    --arg rid "$last_review_id" --arg tgt "$target" '
     def target_of: (.requested_reviewer.login // .requested_team.slug // "");
     def short: ($tgt | split("/") | last);
     def is_head_move: (.event == "committed" or .event == "head_ref_force_pushed");
     . as $ev
-    | ([range(0; length) | select($ev[.].event == "commented" and $ev[.].created_at == $rev)] | last) as $i
+    | ([range(0; length)
+        | select($ev[.].event == "commented" and (($ev[.].id | tostring) == $rid))] | last) as $i
     | ([range(0; length) | select($ev[.] | is_head_move)] | last) as $h
     | {
         head_moved: (
@@ -299,7 +303,7 @@ timeline_flags=$(printf '%s' "$timeline" | jq -c \
              | select(
                  ($ev[.].event == "review_requested")
                  and ((($ev[.] | target_of) == $tgt) or (($ev[.] | target_of) == short))
-                 and ($ev[.].created_at > $rev)
+                 and ($i != null and . > $i)
                  and ($h == null or . > $h))]
             | length > 0
         )
