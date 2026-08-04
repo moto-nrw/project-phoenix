@@ -62,13 +62,16 @@ type createTemplateRequest struct {
 	// "angebot" | "none"/omitted). "gruppe" reuses EducationGroupID above
 	// rather than a separate field. Cross-field validity is checked via
 	// activitiesModel.Group.ValidateTargetGroup() in Bind() below.
-	TargetGroupType   string  `json:"target_group_type,omitempty"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	Targets           []templateTargetRequest `json:"targets,omitempty"`
 	// SourceCareOfferingID/SourceGradeLevels declare the offering-source rule
 	// (#2137, target_group_type "angebot" only): the roster derives from the
 	// offering's approved enrollments, optionally filtered to the given
-	// Jahrgänge (empty = all). student_ids must be empty when set.
+	// Jahrgänge (empty = all). student_ids must be empty when set, and the
+	// rule is mutually exclusive with the multi-target list above (targets
+	// never carry the type "angebot").
 	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
 	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565):
@@ -92,6 +95,78 @@ type createTemplateRequest struct {
 	// weekdays (#2129). Omitted/empty = the same staff and children on every
 	// weekday of the series.
 	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
+}
+
+type templateTargetRequest struct {
+	Type             string  `json:"type"`
+	GradeLevel       *int16  `json:"grade_level,omitempty"`
+	SchoolClass      *string `json:"school_class,omitempty"`
+	EducationGroupID *int64  `json:"education_group_id,omitempty"`
+}
+
+func (target templateTargetRequest) model() *activitiesModel.GroupTarget {
+	return &activitiesModel.GroupTarget{
+		TargetGroupType: target.Type, TargetGradeLevel: target.GradeLevel,
+		TargetSchoolClass: target.SchoolClass, EducationGroupID: target.EducationGroupID,
+	}
+}
+
+func targetModels(targets []templateTargetRequest) []*activitiesModel.GroupTarget {
+	if targets == nil {
+		return nil
+	}
+	result := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	for _, target := range targets {
+		result = append(result, target.model())
+	}
+	return result
+}
+
+func validateTargetRequests(targetType string, targets []templateTargetRequest) error {
+	for _, request := range targets {
+		target := request.model()
+		if target.TargetGroupType == "" {
+			target.TargetGroupType = targetType
+		}
+		if target.TargetGroupType != targetType {
+			return errors.New("all targets must match target_group_type")
+		}
+		if err := target.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func normalizeTemplateTargetFields(
+	targetType string,
+	gradeLevel *int16,
+	schoolClass *string,
+	educationGroupID *int64,
+	sourceCareOfferingID *int64,
+	sourceGradeLevels []int,
+	targets []templateTargetRequest,
+) (string, *string, []int, error) {
+	// The offering-source rule (#2137) exists only on the single-target
+	// "angebot" shape; the multi-target list (#2130) never carries that type.
+	if (sourceCareOfferingID != nil || len(sourceGradeLevels) > 0) && len(targets) > 0 {
+		return "", nil, nil, errors.New("source_care_offering_id cannot be combined with targets")
+	}
+	target := &activitiesModel.Group{
+		TargetGroupType:      targetType,
+		TargetGradeLevel:     gradeLevel,
+		TargetSchoolClass:    schoolClass,
+		EducationGroupID:     educationGroupID,
+		SourceCareOfferingID: sourceCareOfferingID,
+		SourceGradeLevels:    sourceGradeLevels,
+	}
+	if err := target.ValidateTargetGroup(); err != nil && len(targets) == 0 {
+		return "", nil, nil, err
+	}
+	if err := validateTargetRequests(target.TargetGroupType, targets); err != nil {
+		return "", nil, nil, err
+	}
+	return target.TargetGroupType, target.TargetSchoolClass, target.SourceGradeLevels, nil
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -127,20 +202,16 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	target := &activitiesModel.Group{
-		TargetGroupType:      req.TargetGroupType,
-		TargetGradeLevel:     req.TargetGradeLevel,
-		TargetSchoolClass:    req.TargetSchoolClass,
-		EducationGroupID:     req.EducationGroupID,
-		SourceCareOfferingID: req.SourceCareOfferingID,
-		SourceGradeLevels:    req.SourceGradeLevels,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
+	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
+		req.SourceCareOfferingID, req.SourceGradeLevels, req.Targets,
+	)
+	if err != nil {
 		return err
 	}
-	req.TargetGroupType = target.TargetGroupType
-	req.TargetSchoolClass = target.TargetSchoolClass
-	req.SourceGradeLevels = target.SourceGradeLevels
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
+	req.SourceGradeLevels = sourceGradeLevels
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -332,6 +403,7 @@ func buildCreateTemplateInput(
 		TargetGroupType:      req.TargetGroupType,
 		TargetGradeLevel:     req.TargetGradeLevel,
 		TargetSchoolClass:    req.TargetSchoolClass,
+		Targets:              targetModels(req.Targets),
 		SourceCareOfferingID: req.SourceCareOfferingID,
 		SourceGradeLevels:    req.SourceGradeLevels,
 		ListKind:             req.ListKind,

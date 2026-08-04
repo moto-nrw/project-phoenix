@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -38,6 +39,7 @@ type CreateTemplateInput struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
+	Targets           []*activitiesModel.GroupTarget
 	// SourceCareOfferingID/SourceGradeLevels declare the offering-source rule
 	// (#2137). With a source set, the roster is seeded from the offering's
 	// approved enrollments and StudentIDs must be empty.
@@ -207,7 +209,14 @@ func (s *TimetableDataService) createTemplateLocked(
 ) error {
 	// Validation before any write: a rejected request must not strand a
 	// timeframe or a half-built template.
-	if err := ValidateTemplateTargetGradeLimit(in.GradeLevelMax, nil, in.TargetGroupType, in.TargetGradeLevel); err != nil {
+	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
+		return err
+	}
+	targets, err := normalizeDynamicTargets(in.TargetGroupType, in.TargetGradeLevel, in.TargetSchoolClass, in.EducationGroupID, in.Targets)
+	if err != nil {
+		return err
+	}
+	if err := validateDynamicTargets(ctx, s, in.GradeLevelMax, nil, nil, targets); err != nil {
 		return err
 	}
 	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
@@ -216,6 +225,7 @@ func (s *TimetableDataService) createTemplateLocked(
 	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, nil); err != nil {
 		return err
 	}
+	applyTargetMirrorToCreateInput(&in, targets)
 
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
@@ -247,6 +257,15 @@ func (s *TimetableDataService) createTemplateLocked(
 	group.SetTenantID(tenantID)
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
 		return &ScheduleError{Op: "create template: create group", Err: err}
+	}
+	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok && len(targets) > 0 {
+		return &ScheduleError{Op: "create template: replace targets", Err: errors.New("target repository is not configured")}
+	}
+	if ok {
+		if err := targetRepo.ReplaceTargets(ctx, group.ID, targets); err != nil {
+			return &ScheduleError{Op: "create template: replace targets", Err: err}
+		}
 	}
 
 	scheduleIDs := make([]int64, 0, len(in.Weekdays))
@@ -290,6 +309,89 @@ func (s *TimetableDataService) createTemplateLocked(
 	result.TimeframeID = timeframeID
 	result.ScheduleIDs = scheduleIDs
 	return nil
+}
+
+func normalizeDynamicTargets(targetType string, grade *int16, class *string, groupID *int64, targets []*activitiesModel.GroupTarget) ([]*activitiesModel.GroupTarget, error) {
+	if len(targets) == 0 {
+		switch targetType {
+		case activitiesModel.TargetGroupTypeJahrgang:
+			if grade != nil {
+				targets = []*activitiesModel.GroupTarget{{TargetGroupType: targetType, TargetGradeLevel: grade}}
+			}
+		case activitiesModel.TargetGroupTypeKlasse:
+			if class != nil {
+				targets = []*activitiesModel.GroupTarget{{TargetGroupType: targetType, TargetSchoolClass: class}}
+			}
+		case activitiesModel.TargetGroupTypeGruppe:
+			if groupID != nil {
+				targets = []*activitiesModel.GroupTarget{{TargetGroupType: targetType, EducationGroupID: groupID}}
+			}
+		}
+	}
+	seen := make(map[string]struct{}, len(targets))
+	normalized := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	for _, target := range targets {
+		if target == nil {
+			return nil, errors.New("target cannot be null")
+		}
+		copy := *target
+		if copy.TargetGroupType == "" {
+			copy.TargetGroupType = targetType
+		}
+		if copy.TargetGroupType != targetType {
+			return nil, errors.New("all dynamic targets must match target_group_type")
+		}
+		if err := copy.Validate(); err != nil {
+			return nil, err
+		}
+		key := copy.TargetGroupType
+		switch copy.TargetGroupType {
+		case activitiesModel.TargetGroupTypeJahrgang:
+			key += fmt.Sprintf(":%d", *copy.TargetGradeLevel)
+		case activitiesModel.TargetGroupTypeKlasse:
+			key += ":" + strings.ToLower(*copy.TargetSchoolClass)
+		case activitiesModel.TargetGroupTypeGruppe:
+			key += fmt.Sprintf(":%d", *copy.EducationGroupID)
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, &copy)
+	}
+	if targetType == activitiesModel.TargetGroupTypeJahrgang || targetType == activitiesModel.TargetGroupTypeKlasse || targetType == activitiesModel.TargetGroupTypeGruppe {
+		if len(normalized) == 0 {
+			return nil, errors.New("at least one dynamic target is required")
+		}
+	} else if len(normalized) > 0 {
+		return nil, errors.New("dynamic targets require jahrgang, klasse, or gruppe")
+	}
+	return normalized, nil
+}
+
+func validateDynamicTargets(ctx context.Context, s *TimetableDataService, gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+	if err := ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, existingTargets, targets); err != nil {
+		return err
+	}
+	for _, target := range targets {
+		if err := s.ValidateTemplateEducationGroup(ctx, target.EducationGroupID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyTargetMirrorToCreateInput(in *CreateTemplateInput, targets []*activitiesModel.GroupTarget) {
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(targets) == 0 {
+		return
+	}
+	in.TargetGradeLevel = targets[0].TargetGradeLevel
+	in.TargetSchoolClass = targets[0].TargetSchoolClass
+	if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+		in.EducationGroupID = targets[0].EducationGroupID
+	}
 }
 
 // createTemplateRoster seeds the fresh template's period-scoped roster. The

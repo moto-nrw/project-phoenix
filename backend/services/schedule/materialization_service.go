@@ -426,6 +426,13 @@ func (s *materializationService) materializeTemplate(
 	if err != nil {
 		return &ScheduleError{Op: "materialize template: load enrollments", Err: err}
 	}
+	targetStudentIDs := make([]int64, 0)
+	if targetRepo, ok := s.groupRepo.(activities.GroupTargetRepository); ok {
+		targetStudentIDs, err = targetRepo.FindTargetStudentIDs(ctx, tmpl.ID)
+		if err != nil {
+			return &ScheduleError{Op: "materialize template: load target students", Err: err}
+		}
+	}
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, tmpl.ID)
 	if err != nil {
 		return &ScheduleError{Op: "materialize template: load supervisors", Err: err}
@@ -568,12 +575,59 @@ func (s *materializationService) materializeTemplate(
 			if err := s.copyEnrollments(ctx, instance.ID, enrollments, date, period.ID, result); err != nil {
 				return err
 			}
+			if err := s.copyTargetStudents(ctx, instance.ID, targetStudentIDs, enrollments, date, period.ID, result); err != nil {
+				return err
+			}
 			if err := s.copySupervisors(ctx, instance.ID, supervisors, date, period.ID, result); err != nil {
 				return err
 			}
 		}
 	}
 
+	return nil
+}
+
+func (s *materializationService) copyTargetStudents(
+	ctx context.Context,
+	instanceID int64,
+	studentIDs []int64,
+	enrollments []*activities.StudentEnrollment,
+	date timezone.Date,
+	periodID int64,
+	result *MaterializationResult,
+) error {
+	seen := make(map[int64]struct{}, len(enrollments)+len(studentIDs))
+	for _, enrollment := range enrollments {
+		if isEnrollmentValidOn(enrollment, date, periodID) && !enrollmentStudentIsAlumnus(enrollment) {
+			seen[enrollment.StudentID] = struct{}{}
+		}
+	}
+	created := 0
+	for _, studentID := range studentIDs {
+		if studentID <= 0 {
+			continue
+		}
+		if _, exists := seen[studentID]; exists {
+			continue
+		}
+		seen[studentID] = struct{}{}
+		row := &schedule.InstanceStudent{
+			InstanceID: instanceID,
+			StudentID:  studentID,
+			Status:     schedule.AttendanceStatusExpected,
+		}
+		if err := s.studentRepo.Create(ctx, row); err != nil {
+			return &ScheduleError{Op: "materialize template: copy target student", Err: err}
+		}
+		created++
+		result.InstanceStudentsCreated++
+	}
+	if created == 0 {
+		return nil
+	}
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+		return &ScheduleError{Op: "materialize template: apply target student status days", Err: err}
+	}
 	return nil
 }
 

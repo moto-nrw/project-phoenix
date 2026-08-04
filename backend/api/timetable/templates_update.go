@@ -31,9 +31,10 @@ type updateTemplateRequest struct {
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
 	// Zielgruppe fields — see createTemplateRequest for the full contract.
-	TargetGroupType   string  `json:"target_group_type,omitempty"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	Targets           []templateTargetRequest `json:"targets,omitempty"`
 	// Offering-source rule (#2137) — see createTemplateRequest.
 	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
 	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
@@ -78,20 +79,16 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	target := &activitiesModel.Group{
-		TargetGroupType:      req.TargetGroupType,
-		TargetGradeLevel:     req.TargetGradeLevel,
-		TargetSchoolClass:    req.TargetSchoolClass,
-		EducationGroupID:     req.EducationGroupID,
-		SourceCareOfferingID: req.SourceCareOfferingID,
-		SourceGradeLevels:    req.SourceGradeLevels,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
+	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
+		req.SourceCareOfferingID, req.SourceGradeLevels, req.Targets,
+	)
+	if err != nil {
 		return err
 	}
-	req.TargetGroupType = target.TargetGroupType
-	req.TargetSchoolClass = target.TargetSchoolClass
-	req.SourceGradeLevels = target.SourceGradeLevels
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
+	req.SourceGradeLevels = sourceGradeLevels
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -303,6 +300,7 @@ func buildUpdateTemplateInput(
 		StudentIDs:         req.StudentIDs,
 		StaffIDs:           req.StaffIDs,
 		PrimaryStaffID:     req.PrimaryStaffID,
+		Targets:            targetModels(req.Targets),
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		GradeLevelMax:      gradeLevelMax,
 	}
@@ -310,8 +308,8 @@ func buildUpdateTemplateInput(
 
 // renderUpdateTemplateError maps an UpdateTemplate failure to its HTTP response.
 // A capped/archived segment surfaces as the same 404 as the preflight lookup;
-// the care-offering, roster-rebase, and grade-cap conflicts each carry their
-// own status and code; everything else is a 500.
+// education-group failures and the care-offering, roster-rebase, and grade-cap
+// conflicts each carry their own status and code; everything else is a 500.
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
@@ -324,6 +322,7 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
 	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):

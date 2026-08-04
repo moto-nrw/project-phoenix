@@ -33,6 +33,14 @@ type templateScheduleResponse struct {
 	ValidUntil string `json:"valid_until,omitempty"`
 }
 
+type templateTargetResponse struct {
+	Type               string  `json:"type"`
+	GradeLevel         *int16  `json:"grade_level,omitempty"`
+	SchoolClass        *string `json:"school_class,omitempty"`
+	EducationGroupID   *int64  `json:"education_group_id,omitempty"`
+	EducationGroupName string  `json:"education_group_name,omitempty"`
+}
+
 func (rs *Resource) loadTemplates(
 	ctx context.Context,
 	templateID, calendarPeriodID *int64,
@@ -116,6 +124,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		TargetGroupType:             row.TargetGroupType,
 		TargetGradeLevel:            nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
 		TargetSchoolClass:           nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		Targets:                     templateTargetsFromRow(row),
 		SourceCareOfferingID:        nullableTemplateInt64(row.SourceCareOfferingID.Valid, row.SourceCareOfferingID.Int64),
 		SourceGradeLevels:           sourceGradeLevels,
 		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
@@ -134,6 +143,21 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		WeekdayAssignments:          []templateWeekdayAssignmentResponse{},
 		ProtectedStudentAssignments: []templateProtectedStudentAssignmentResponse{},
 	}
+}
+
+func templateTargetsFromRow(row templateRow) []templateTargetResponse {
+	targets := make([]templateTargetResponse, 0, len(row.Targets))
+	for _, target := range row.Targets {
+		if target == nil {
+			continue
+		}
+		targets = append(targets, templateTargetResponse{
+			Type: target.TargetGroupType, GradeLevel: target.TargetGradeLevel,
+			SchoolClass: target.TargetSchoolClass, EducationGroupID: target.EducationGroupID,
+			EducationGroupName: target.EducationGroupName,
+		})
+	}
+	return targets
 }
 
 // templateRequiredStaffCount computes the displayed staffing requirement.
@@ -224,9 +248,10 @@ type templateResponse struct {
 	// Zielgruppe (target-group) fields — see activities.Group's
 	// TargetGroupType* constants ("jahrgang" | "klasse" | "gruppe" |
 	// "angebot" | "none").
-	TargetGroupType   string  `json:"target_group_type"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                   `json:"target_group_type"`
+	TargetGradeLevel  *int16                   `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                  `json:"target_school_class,omitempty"`
+	Targets           []templateTargetResponse `json:"targets"`
 	// Offering-source rule (#2137): set only on "angebot" templates whose
 	// roster derives from a Betreuungsangebot. Lets the editor prefill the
 	// Angebots- and Jahrgangsauswahl on edit.

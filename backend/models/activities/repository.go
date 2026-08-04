@@ -153,6 +153,14 @@ type GroupRepository interface {
 	FindTemplatesWithOfferingSource(ctx context.Context) ([]*Group, error)
 }
 
+// GroupTargetRepository manages dynamic target cohorts for timetable templates.
+type GroupTargetRepository interface {
+	ReplaceTargets(ctx context.Context, groupID int64, targets []*GroupTarget) error
+	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*GroupTarget, error)
+	FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error)
+	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
+}
+
 // TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time
 // lookup row returned by ScheduleRepository.FindTemplateStartTimesByGroupIDs.
 // Used by the WP-B13 exception-conflict endpoint to resolve the "original"
@@ -376,6 +384,7 @@ type TemplateListRow struct {
 	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
 	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
+	Targets                 []*GroupTarget `bun:"-"`
 }
 
 // ParseSourceGradeLevels decodes the SourceGradeLevelsJSON text form of the

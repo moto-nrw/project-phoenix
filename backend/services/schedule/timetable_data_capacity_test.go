@@ -19,6 +19,11 @@ func capacityOccurrence(date timezone.Date, children, staff int) activities.Temp
 	}
 }
 
+func TestUnionCountDeduplicatesRosterAndTargetStudents(t *testing.T) {
+	assert.Equal(t, 3, unionCount([]int64{1, 2}, []int64{2, 3}))
+	assert.Zero(t, unionCount(nil, nil))
+}
+
 func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 	jan1 := timezone.NewDate(2026, 1, 1)
 

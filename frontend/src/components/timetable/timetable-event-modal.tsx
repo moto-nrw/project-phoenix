@@ -216,7 +216,6 @@ export function TimetableEventModal({
     abWeekHint,
     studentBulkOptions,
     targetClassOptions,
-    targetClassDescriptionIDs,
     offeringSources,
     offeringSourcesError,
     selectedOfferingSource,
@@ -566,7 +565,6 @@ export function TimetableEventModal({
                 preservesGradeAboveTenantCap={preservesGradeAboveTenantCap}
                 studentBulkOptions={studentBulkOptions}
                 targetClassOptions={targetClassOptions}
-                targetClassDescriptionIDs={targetClassDescriptionIDs}
                 targetCohort={targetCohort}
                 missingTargetCohortCount={missingTargetCohortCount}
                 targetCohortButtonLabel={targetCohortButtonLabel}
