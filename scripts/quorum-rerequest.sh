@@ -23,8 +23,14 @@
 # <login>` per clone, otherwise the tracked `.github/quorum-reviewer`. Only that
 # account is ever re-requested; other reviewers and teams are left alone.
 #
-# Opt out per clone with `touch .git/quorum-rerequest-off`, per invocation
-# with QUORUM_RERQ_OFF=1.
+# Exit codes: 0 nothing owed / re-request performed, 1 re-request owed
+# (--check) or the remove/add round trip failed, 2 Stop-hook block, 3 unable
+# to determine (missing tool, API failure). --stop-hook never exits 3: it
+# stays silent on environment problems and blocks on an inconclusive check.
+#
+# The opt-outs (`touch .git/quorum-rerequest-off` per clone, QUORUM_RERQ_OFF=1
+# per invocation) silence only the Stop hook; manual and --check runs always
+# answer.
 #
 # Kept bash-3.2 compatible (macOS /bin/bash).
 
@@ -39,7 +45,7 @@ while [[ $# -gt 0 ]]; do
         --stop-hook) mode="stop-hook" ;;
         --force) force=1 ;;
         -h | --help)
-            sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         [0-9]*) pr_arg="$1" ;;
@@ -51,17 +57,29 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# A hook must never break the session over a missing tool or a detached repo.
+# The Stop hook must never wedge a session over a missing tool or a broken
+# lookup - but a manual or --check run reporting success for a skipped action
+# is exactly the silent failure this script exists to prevent. Environment
+# problems are therefore silent (exit 0) only in stop-hook mode and loud
+# (exit 3) everywhere else.
 soft_exit() { exit 0; }
+bail() {
+    if [[ "$mode" == "stop-hook" ]]; then exit 0; fi
+    echo "quorum-rerequest: $1" >&2
+    exit 3
+}
 
-if ! command -v gh >/dev/null 2>&1; then soft_exit; fi
-if ! command -v jq >/dev/null 2>&1; then soft_exit; fi
-if ! project_root=$(git rev-parse --show-toplevel 2>/dev/null); then soft_exit; fi
+command -v gh >/dev/null 2>&1 || bail "gh is not installed"
+command -v jq >/dev/null 2>&1 || bail "jq is not installed"
+project_root=$(git rev-parse --show-toplevel 2>/dev/null) || bail "not inside a git repository"
 cd "$project_root"
-git_dir=$(git rev-parse --git-dir 2>/dev/null) || soft_exit
+git_dir=$(git rev-parse --git-dir 2>/dev/null) || bail "cannot resolve the git directory"
 
-if [[ -n "${QUORUM_RERQ_OFF:-}" ]]; then soft_exit; fi
-if [[ -f "$git_dir/quorum-rerequest-off" ]]; then soft_exit; fi
+# Deliberate opt-outs silence only the enforcement path.
+if [[ "$mode" == "stop-hook" ]]; then
+    if [[ -n "${QUORUM_RERQ_OFF:-}" ]]; then soft_exit; fi
+    if [[ -f "$git_dir/quorum-rerequest-off" ]]; then soft_exit; fi
+fi
 
 cache_file="$git_dir/quorum-rerequest.cache"
 
@@ -115,27 +133,13 @@ emit_block() {
     exit 2
 }
 
-# --- PR state ---------------------------------------------------------------
-pr_fields="number,state,url,author,reviewRequests,comments,commits"
-if [[ -n "$pr_arg" ]]; then
-    pr_json=$(gh pr view "$pr_arg" --json "$pr_fields" 2>/dev/null) || soft_exit
-else
-    pr_json=$(gh pr view --json "$pr_fields" 2>/dev/null) || soft_exit
-fi
-if [[ -z "$pr_json" ]]; then soft_exit; fi
-
-if [[ "$(printf '%s' "$pr_json" | jq -r '.state // empty')" != "OPEN" ]]; then soft_exit; fi
-
-pr_number=$(printf '%s' "$pr_json" | jq -r '.number')
-pr_url=$(printf '%s' "$pr_json" | jq -r '.url')
-pr_author=$(printf '%s' "$pr_json" | jq -r '.author.login // empty')
-
 # --- who runs quorum here ---------------------------------------------------
 # The account is declared, never guessed: this script removes and re-adds a
 # review request, and inferring the account from comment shape alone would let a
 # human who writes the same headings have their pending review reset.
 # Per clone `git config quorum.reviewer` wins, otherwise the tracked
-# .github/quorum-reviewer applies.
+# .github/quorum-reviewer applies. Resolved before any API call, so repos
+# without quorum pay nothing per turn.
 target=$(git config --get quorum.reviewer 2>/dev/null || echo "")
 if [[ -z "$target" && -f "$project_root/.github/quorum-reviewer" ]]; then
     target=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$project_root/.github/quorum-reviewer" |
@@ -144,12 +148,35 @@ fi
 
 if [[ -z "$target" ]]; then
     # Without a declared account there is nothing safe to re-request.
-    if [[ "$mode" == "apply" ]]; then
-        echo "No quorum account configured. Set one with:" >&2
-        echo "  git config quorum.reviewer <login>    # or commit .github/quorum-reviewer" >&2
-        exit 1
+    bail "no quorum account configured - set 'git config quorum.reviewer <login>' or commit .github/quorum-reviewer"
+fi
+
+# --- PR state ---------------------------------------------------------------
+pr_fields="number,state,url,author,reviewRequests,comments,commits"
+if ! pr_json=$(gh pr view ${pr_arg:+"$pr_arg"} --json "$pr_fields" 2>&1); then
+    case "$pr_json" in
+        *"no pull requests found"* | *"Could not resolve"* | *"no default remote"*)
+            # No PR is genuinely "nothing owed", not an error.
+            if [[ "$mode" == "check" ]]; then
+                echo "No open PR here - nothing owed."
+                exit 0
+            fi
+            bail "no open PR found${pr_arg:+ for '$pr_arg'}"
+            ;;
+        *) bail "gh pr view failed: $pr_json" ;;
+    esac
+fi
+[[ -n "$pr_json" ]] || bail "gh pr view returned nothing"
+
+pr_number=$(printf '%s' "$pr_json" | jq -r '.number')
+pr_url=$(printf '%s' "$pr_json" | jq -r '.url')
+pr_author=$(printf '%s' "$pr_json" | jq -r '.author.login // empty')
+pr_state=$(printf '%s' "$pr_json" | jq -r '.state // empty')
+
+if [[ "$pr_state" != "OPEN" ]]; then
+    if [[ "$mode" != "stop-hook" ]]; then
+        echo "PR #$pr_number is $pr_state - nothing to re-request."
     fi
-    mark_clean
     exit 0
 fi
 
@@ -200,23 +227,32 @@ repo_slug=$(printf '%s' "$pr_url" | sed -E 's#https://[^/]+/([^/]+/[^/]+)/pull/.
 
 # A failed timeline call must not read as "nothing changed" and must never be
 # cached as clean, otherwise one flaky request silences the check for this HEAD.
+# Retried, because a transient blip downgrading the whole check to
+# "inconclusive" (below) is worth two seconds.
 timeline="[]"
-timeline_ok=1
-if timeline_raw=$(gh api "repos/$repo_slug/issues/$pr_number/timeline" --paginate --slurp 2>/dev/null); then
-    timeline=$(printf '%s' "$timeline_raw" | jq -c 'add // []' 2>/dev/null) || timeline_ok=0
-else
-    timeline_ok=0
-fi
+timeline_ok=0
+for _ in 1 2 3; do
+    if timeline_raw=$(gh api "repos/$repo_slug/issues/$pr_number/timeline" --paginate --slurp 2>/dev/null) &&
+        timeline=$(printf '%s' "$timeline_raw" | jq -c 'add // []' 2>/dev/null); then
+        timeline_ok=1
+        break
+    fi
+    sleep 1
+done
 if [[ "$timeline_ok" == "0" ]]; then
     timeline="[]"
     can_cache=0
 fi
 
 # A review_requested event only counts when it aimed at the quorum account and
-# came after the last head movement. A re-request followed by further commits
-# leaves those commits unreviewed, so it does not settle the loop.
+# sits behind the last head movement in the timeline: a re-request followed by
+# further commits leaves those commits unreviewed, so it does not settle the
+# loop. Ordering is judged by timeline POSITION, not by committedDate - the
+# committer timestamp survives rebases and cherry-picks, so a preserved or
+# future-dated commit would otherwise reject a perfectly valid re-request
+# forever.
 timeline_flags=$(printf '%s' "$timeline" | jq -c \
-    --arg rev "$last_review_at" --arg tgt "$target" --arg head "$last_commit_at" '
+    --arg rev "$last_review_at" --arg tgt "$target" '
     def target_of: (.requested_reviewer.login // .requested_team.slug // "");
     def short: ($tgt | split("/") | last);
     def is_head_move: (.event == "committed" or .event == "head_ref_force_pushed");
@@ -235,7 +271,6 @@ timeline_flags=$(printf '%s' "$timeline" | jq -c \
                  ($ev[.].event == "review_requested")
                  and ((($ev[.] | target_of) == $tgt) or (($ev[.] | target_of) == short))
                  and ($ev[.].created_at > $rev)
-                 and ($head == "" or $ev[.].created_at > $head)
                  and ($h == null or . > $h))]
             | length > 0
         )
@@ -251,6 +286,24 @@ if [[ -n "$last_commit_at" ]] && [[ "$last_commit_at" > "$last_review_at" ]]; th
 fi
 if [[ "$head_moved" == "true" ]]; then
     pushed_after_review=1
+fi
+
+# With the timeline unavailable, "nothing pushed" cannot be distinguished from
+# "a pre-review commit was pushed after the review": committedDate alone cannot
+# see the latter. Inconclusive is not clean - the Stop hook blocks and says so,
+# the other modes exit 3.
+if [[ "$timeline_ok" == "0" && "$pushed_after_review" == "0" && "$force" == "0" ]]; then
+    if [[ "$mode" == "stop-hook" ]]; then
+        emit_block "BLOCKED: quorum re-request status on PR #$pr_number is INCONCLUSIVE.
+
+A quorum review from $last_review_at exists, but the GitHub timeline could not
+be fetched, so it is unknown whether fixes were pushed since and whether
+$target was re-requested. Do not report this work as finished. Retry:
+  scripts/quorum-rerequest.sh --check
+If GitHub is unreachable and the user wants to finish anyway, they can opt out
+with QUORUM_RERQ_OFF=1 or: touch .git/quorum-rerequest-off"
+    fi
+    bail "timeline lookup for PR #$pr_number failed - cannot tell whether a re-request is owed (retry, or --force to re-request regardless)"
 fi
 
 if [[ "$force" == "0" && "$pushed_after_review" == "0" ]]; then
@@ -295,11 +348,52 @@ clone."
 fi
 
 # apply
-# Removing a reviewer who is not currently requested errors; that is fine. The
-# removal is what makes the following add produce a new review_requested event.
-gh pr edit "$pr_number" --remove-reviewer "$target" >/dev/null 2>&1 || true
-if ! gh pr edit "$pr_number" --add-reviewer "$target" >/dev/null 2>&1; then
-    echo "Failed to re-request review from $target on PR #$pr_number." >&2
+# The removal is what makes the following add produce a fresh review_requested
+# event. A failed removal may only be ignored while the target is NOT currently
+# requested (removing an absent reviewer errors by design) - swallowing it
+# otherwise would turn the add into a silent no-op that this script would then
+# report as a fresh request.
+requested_now=$(printf '%s' "$pr_json" | jq -r --arg t "$target" '
+    [.reviewRequests[]? | (.login // .slug // "")]
+    | any(. == $t or . == ($t | split("/") | last))')
+
+if ! rm_out=$(gh pr edit "$pr_number" --remove-reviewer "$target" 2>&1); then
+    if [[ "$requested_now" == "true" ]]; then
+        echo "Failed to remove the pending request for $target on PR #$pr_number:" >&2
+        echo "  $rm_out" >&2
+        echo "Without the removal the add would be a silent no-op. Nothing was changed." >&2
+        exit 1
+    fi
+fi
+
+added=0
+add_out=""
+for _ in 1 2 3; do
+    if add_out=$(gh pr edit "$pr_number" --add-reviewer "$target" 2>&1); then
+        added=1
+        break
+    fi
+    sleep 2
+done
+if [[ "$added" == "0" ]]; then
+    echo "Failed to re-request review from $target on PR #$pr_number:" >&2
+    echo "  $add_out" >&2
+    if [[ "$requested_now" == "true" ]]; then
+        echo "The previous request WAS already removed - the PR currently has no pending" >&2
+        echo "request for $target. Repair it with:" >&2
+        echo "  gh pr edit $pr_number --add-reviewer $target" >&2
+    fi
+    exit 1
+fi
+
+# Trust, but verify: the add must actually have landed as a pending request.
+verify=$(gh pr view "$pr_number" --json reviewRequests 2>/dev/null |
+    jq -r --arg t "$target" '
+        [.reviewRequests[]? | (.login // .slug // "")]
+        | any(. == $t or . == ($t | split("/") | last))' 2>/dev/null || echo "unknown")
+if [[ "$verify" == "false" ]]; then
+    echo "gh reported success, but $target is not in the PR's pending requests." >&2
+    echo "Verify manually: gh pr view $pr_number --json reviewRequests" >&2
     exit 1
 fi
 
