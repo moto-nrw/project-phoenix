@@ -63,6 +63,10 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Dieses Kind konnte nicht eindeutig zugeordnet werden, weil an der Schule mehrere übereinstimmende Datensätze vorliegen. Bitte wende dich an die Schule, damit die doppelten Einträge zusammengeführt werden.",
   "enrollment.child_not_permitted":
     "Dein Konto hat keine Berechtigung, dieses bereits angemeldete Kind erneut anzumelden. Bitte wende dich an die Schule, um die Berechtigung zu erhalten.",
+  "enrollment.restore_phase_inactive":
+    "Die Anmeldephase ist nicht mehr aktiv. Die Anmeldung kann nicht wiederhergestellt werden.",
+  "enrollment.restore_duplicate":
+    "Für mindestens ein Kind dieser Anmeldung existiert bereits eine andere aktive Anmeldung in dieser Phase. Bitte prüfe die vorhandenen Anmeldungen, bevor du wiederherstellst.",
   "enrollment.schema_has_phases":
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":

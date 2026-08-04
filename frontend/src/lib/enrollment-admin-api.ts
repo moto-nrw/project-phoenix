@@ -345,6 +345,31 @@ export async function deleteAdminRequest(
   return readJSON<AdminEnrollmentDeletionImpact>(response);
 }
 
+export interface AdminRestoreResult {
+  restored_children: number;
+}
+
+/**
+ * Restores a withdrawn request: every withdrawn child goes back to
+ * "submitted", withdrawn_at is cleared (#2157). Fails with a coded 409
+ * when the phase is inactive or an active duplicate request exists.
+ */
+export async function restoreAdminRequest(
+  requestId: string,
+): Promise<AdminRestoreResult> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(requestId)}/restore`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Anmeldung konnte nicht wiederhergestellt werden",
+    );
+  }
+  return readJSON<AdminRestoreResult>(response);
+}
+
 export async function deleteAdminChild(
   requestId: string,
   childId: string,

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   listCareOfferings: vi.fn(),
   listAdminChildOfferingAdjustments: vi.fn(),
   updateAdminChildOfferings: vi.fn(),
+  restoreAdminRequest: vi.fn(),
   routerPush: vi.fn(),
 }));
 
@@ -35,6 +36,7 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
     correctAdminChildData: mocks.correctAdminChildData,
     listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
     updateAdminChildOfferings: mocks.updateAdminChildOfferings,
+    restoreAdminRequest: mocks.restoreAdminRequest,
   };
 });
 
@@ -119,6 +121,7 @@ beforeEach(() => {
   mocks.listCareOfferings.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockReset();
   mocks.updateAdminChildOfferings.mockReset();
+  mocks.restoreAdminRequest.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockResolvedValue([]);
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
 });
@@ -174,6 +177,111 @@ describe("AdminEnrollmentDetail data correction", () => {
       await screen.findAllByRole("heading", { name: "Lina Richtig" }),
     ).not.toHaveLength(0);
     expect(screen.getByText("Refetch fehlgeschlagen")).toBeInTheDocument();
+  });
+});
+
+describe("AdminEnrollmentDetail restore (#2157)", () => {
+  const withdrawnChild: AdminRequestChild = {
+    id: "child-1",
+    first_name: "Lina",
+    last_name: "Kind",
+    date_of_birth: "2018-04-15",
+    status: "withdrawn",
+    activation_mode: "scheduled",
+  };
+  const withdrawnRequest = {
+    id: "request-1",
+    phase_id: "phase-1",
+    phase_name: "2026/27",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Beispiel",
+    guardian_email: "mara@example.com",
+    submitted_at: "2026-07-14T10:00:00Z",
+    withdrawn_at: "2026-08-04T09:00:00Z",
+    status_token: "status-token",
+    children: [withdrawnChild],
+  };
+
+  it("restores a withdrawn request after confirmation", async () => {
+    mocks.getAdminRequest
+      .mockResolvedValueOnce(withdrawnRequest)
+      .mockResolvedValueOnce({
+        ...withdrawnRequest,
+        withdrawn_at: null,
+        children: [{ ...withdrawnChild, status: "submitted" }],
+      });
+    mocks.restoreAdminRequest.mockResolvedValue({ restored_children: 1 });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldung wiederherstellen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+
+    await waitFor(() =>
+      expect(mocks.restoreAdminRequest).toHaveBeenCalledWith("request-1"),
+    );
+    expect(
+      await screen.findByText(/Die Anmeldung wurde wiederhergestellt/),
+    ).toBeInTheDocument();
+    // After the refetch the child is active again, so the action disappears.
+    expect(
+      screen.queryByRole("button", { name: "Anmeldung wiederherstellen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the restore action on a request that is not withdrawn", async () => {
+    mocks.getAdminRequest.mockResolvedValueOnce({
+      ...withdrawnRequest,
+      withdrawn_at: null,
+      children: [{ ...withdrawnChild, status: "submitted" }],
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    await screen.findByRole("button", { name: "Gesamte Anmeldung löschen" });
+    expect(
+      screen.queryByRole("button", { name: "Anmeldung wiederherstellen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the restore action when every child was withdrawn individually", async () => {
+    // One-by-one withdraws never stamp withdrawn_at on the request.
+    mocks.getAdminRequest.mockResolvedValueOnce({
+      ...withdrawnRequest,
+      withdrawn_at: null,
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung wiederherstellen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces the error message when the restore fails", async () => {
+    mocks.getAdminRequest.mockResolvedValueOnce(withdrawnRequest);
+    mocks.restoreAdminRequest.mockRejectedValue(
+      new Error(
+        "Für mindestens ein Kind dieser Anmeldung existiert bereits eine andere aktive Anmeldung in dieser Phase. Bitte prüfe die vorhandenen Anmeldungen, bevor du wiederherstellst.",
+      ),
+    );
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldung wiederherstellen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+
+    expect(
+      await screen.findByText(/bereits eine andere aktive Anmeldung/),
+    ).toBeInTheDocument();
+    // The action stays available for a retry once the conflict is resolved.
+    expect(
+      screen.getByRole("button", { name: "Anmeldung wiederherstellen" }),
+    ).toBeInTheDocument();
   });
 });
 
