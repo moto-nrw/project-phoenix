@@ -138,6 +138,10 @@ export interface EnrichedInstance {
   isSpontaneous: boolean;
   isLive: boolean;
   activityGroupId?: string;
+  planningTrackId?: string;
+  planningTrackName?: string;
+  planningTrackColor?: string;
+  planningTrackSortOrder?: number;
   listKind?: TimetableListKind;
   activityType: ActivityType;
   roomId: string;
@@ -222,6 +226,10 @@ export interface BackendEnrichedInstance {
   is_spontaneous: boolean;
   is_live: boolean;
   activity_group_id?: number;
+  planning_track_id?: number;
+  planning_track_name?: string;
+  planning_track_color?: string;
+  planning_track_sort_order?: number;
   list_kind?: TimetableListKind;
   activity_type: ActivityType;
   room_id: number;
@@ -401,6 +409,10 @@ export interface TimetableTemplate {
   listKind?: TimetableListKind;
   categoryId: string;
   categoryName: string;
+  planningTrackId?: string;
+  planningTrackName?: string;
+  planningTrackColor?: string;
+  planningTrackSortOrder?: number;
   roomId?: string;
   roomName?: string;
   educationGroupId?: string;
@@ -474,6 +486,10 @@ export interface BackendTimetableTemplate {
   list_kind?: TimetableListKind;
   category_id: number;
   category_name: string;
+  planning_track_id?: number;
+  planning_track_name?: string;
+  planning_track_color?: string;
+  planning_track_sort_order?: number;
   room_id?: number;
   room_name?: string;
   education_group_id?: number;
@@ -896,6 +912,7 @@ export interface CreateTemplateBody {
   end_time: string; // HH:MM
   room_id: number;
   category_id: number;
+  planning_track_id?: number | null;
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
   education_group_id?: number;

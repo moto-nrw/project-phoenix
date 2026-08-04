@@ -77,6 +77,7 @@ type Group struct {
 	RequiredStaff    *int       `bun:"required_staff" json:"required_staff,omitempty"`
 	IsOpen           bool       `bun:"is_open,notnull,default:false" json:"is_open"`
 	CategoryID       int64      `bun:"category_id,notnull" json:"category_id"`
+	PlanningTrackID  *int64     `bun:"planning_track_id" json:"planning_track_id,omitempty"`
 	PlannedRoomID    *int64     `bun:"planned_room_id" json:"planned_room_id,omitempty"`
 	CreatedBy        *int64     `bun:"created_by" json:"created_by"`
 	Type             string     `bun:"type,notnull,default:'activity'" json:"type"`

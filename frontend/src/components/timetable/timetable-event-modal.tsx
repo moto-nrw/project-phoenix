@@ -114,6 +114,7 @@ interface TimetableEventModalProps {
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
   canManageCategories: boolean;
+  canManagePlanningTracks?: boolean;
   /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
    * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
@@ -145,6 +146,7 @@ export function TimetableEventModal({
   defaultEndTime,
   canCheckShiftCoverage,
   canManageCategories,
+  canManagePlanningTracks = false,
   closingDayRanges,
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
@@ -164,6 +166,8 @@ export function TimetableEventModal({
     rooms,
     categories,
     refreshCategories,
+    planningTracks,
+    refreshPlanningTracks,
     groups,
     students,
     staff,
@@ -492,6 +496,7 @@ export function TimetableEventModal({
                 fieldErrors={fieldErrors}
                 rooms={rooms}
                 categories={categories}
+                planningTracks={planningTracks}
                 loadingRefs={loadingRefs}
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
@@ -500,6 +505,10 @@ export function TimetableEventModal({
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}
                 onManageCategories={setCategoryDialog}
+                canManagePlanningTracks={canManagePlanningTracks}
+                onPlanningTracksChanged={async (created) => {
+                  await refreshPlanningTracks(created?.id);
+                }}
               />
             )}
 

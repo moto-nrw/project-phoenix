@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -228,7 +229,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	var enriched enrichedInstance
 	careDays, err := rs.careDaysForInstance(r.Context(), inst)
 	if err == nil {
-		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
+		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), rs.childrenPerStaffRatio(r.Context()), careDays)
 	}
 	if err == nil {
 		enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)

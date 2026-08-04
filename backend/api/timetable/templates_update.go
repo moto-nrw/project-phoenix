@@ -15,14 +15,15 @@ import (
 )
 
 type updateTemplateRequest struct {
-	Name            string `json:"name"`
-	Type            string `json:"type"`
-	Weekdays        []int  `json:"weekdays"`
-	StartTime       string `json:"start_time"`
-	EndTime         string `json:"end_time"`
-	RoomID          int64  `json:"room_id"`
-	CategoryID      int64  `json:"category_id"`
-	MaxParticipants *int   `json:"max_participants,omitempty"`
+	Name            string        `json:"name"`
+	Type            string        `json:"type"`
+	Weekdays        []int         `json:"weekdays"`
+	StartTime       string        `json:"start_time"`
+	EndTime         string        `json:"end_time"`
+	RoomID          int64         `json:"room_id"`
+	CategoryID      int64         `json:"category_id"`
+	PlanningTrackID nullableInt64 `json:"planning_track_id"`
+	MaxParticipants *int          `json:"max_participants,omitempty"`
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// omitted/null clears the override (derive from the Betreuungsschlüssel).
 	RequiredStaff    *int   `json:"required_staff,omitempty"`
@@ -270,19 +271,21 @@ func buildUpdateTemplateInput(
 	return scheduleSvc.TemplateUpdateInput{
 		TemplateID: id,
 		Fields: activitiesModel.TemplateFieldsUpdate{
-			Name:              req.Name,
-			Type:              req.Type,
-			CategoryID:        req.CategoryID,
-			RoomID:            req.RoomID,
-			EducationGroupID:  req.EducationGroupID,
-			MaxParticipants:   parsed.maxParticipants,
-			RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-			CalendarPeriodID:  req.CalendarPeriodID,
-			TargetGroupType:   req.TargetGroupType,
-			TargetGradeLevel:  req.TargetGradeLevel,
-			TargetSchoolClass: req.TargetSchoolClass,
-			ListKind:          req.ListKind,
-			Notes:             normalizeNotes(req.Notes),
+			Name:                    req.Name,
+			Type:                    req.Type,
+			CategoryID:              req.CategoryID,
+			PlanningTrackID:         req.PlanningTrackID.Value,
+			PlanningTrackIDProvided: req.PlanningTrackID.Set,
+			RoomID:                  req.RoomID,
+			EducationGroupID:        req.EducationGroupID,
+			MaxParticipants:         parsed.maxParticipants,
+			RequiredStaff:           normalizeRequiredStaff(req.RequiredStaff),
+			CalendarPeriodID:        req.CalendarPeriodID,
+			TargetGroupType:         req.TargetGroupType,
+			TargetGradeLevel:        req.TargetGradeLevel,
+			TargetSchoolClass:       req.TargetSchoolClass,
+			ListKind:                req.ListKind,
+			Notes:                   normalizeNotes(req.Notes),
 		},
 		Weekdays:           req.Weekdays,
 		TimeframeID:        timeframeID,
@@ -307,6 +310,8 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
+	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
 	case renderTemplateCareOfferingConflict(w, r, err):

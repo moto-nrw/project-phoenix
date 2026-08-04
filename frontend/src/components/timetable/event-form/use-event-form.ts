@@ -25,6 +25,10 @@ import {
   fetchPlannerGroups,
   fetchPlannerRooms,
 } from "~/lib/planner-reference-api";
+import {
+  planningTrackService,
+  type PlanningTrack,
+} from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
@@ -248,6 +252,7 @@ export function useEventForm({
     );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
   const [staff, setStaff] = useState<PersonOption[]>([]);
@@ -523,8 +528,14 @@ export function useEventForm({
           });
           return [] as GroupOption[];
         }),
+      planningTrackService.list().catch((err: unknown) => {
+        logger.error("planning_tracks_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return [] as PlanningTrack[];
+      }),
     ])
-      .then(([roomData, categoryData, groupData]) => {
+      .then(([roomData, categoryData, groupData, planningTrackData]) => {
         const sortedRooms = [...roomData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
@@ -537,6 +548,7 @@ export function useEventForm({
         if (isCurrentReferenceLoad()) {
           setRooms(sortedRooms);
           setGroups(sortedGroups);
+          setPlanningTracks(planningTrackData);
           if (categoryLoadSeq.current === categorySeq) {
             setCategories(sortedCategories);
             setForm((prev) =>
@@ -1280,6 +1292,9 @@ export function useEventForm({
     end_time: form.endTime,
     room_id: roomId,
     category_id: categoryId,
+    planning_track_id: form.planningTrackId
+      ? Number(form.planningTrackId)
+      : null,
     notes: form.seriesNotes.trim() || undefined,
     education_group_id: form.educationGroupId
       ? Number(form.educationGroupId)
@@ -1414,6 +1429,9 @@ export function useEventForm({
       end_time: form.endTime,
       room_id: roomId,
       category_id: Number(template.categoryId),
+      planning_track_id: form.planningTrackId
+        ? Number(form.planningTrackId)
+        : null,
       // Preserve the series' own Wochennotiz verbatim — an instance-scope edit
       // (all/following) must never wipe it. It is read-only in this flow.
       notes: template.notes ?? undefined,
@@ -2389,6 +2407,19 @@ export function useEventForm({
     }
   }, []);
 
+  const refreshPlanningTracks = useCallback(async (selectId?: string) => {
+    if (selectId) {
+      setForm((prev) => ({ ...prev, planningTrackId: selectId }));
+    }
+    try {
+      setPlanningTracks(await planningTrackService.list());
+    } catch (err: unknown) {
+      logger.error("planning_tracks_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   return {
     form,
     update,
@@ -2401,6 +2432,8 @@ export function useEventForm({
     rooms,
     categories,
     refreshCategories,
+    planningTracks,
+    refreshPlanningTracks,
     groups,
     students,
     staff,

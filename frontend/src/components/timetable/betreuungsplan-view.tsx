@@ -40,6 +40,7 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -178,6 +179,36 @@ function schoolYearPeriodDefaults(anchor: Date): {
     startDate: `${startYear}-08-01`,
     endDate: `${endYear}-07-31`,
   };
+}
+
+export function buildPlanningTrackLegend(
+  instances: readonly EnrichedInstance[],
+): PlanLegendEntry[] {
+  const used = new Map<string, PlanLegendEntry & { sortOrder: number }>();
+  let hasUnassigned = false;
+  for (const instance of instances) {
+    if (!instance.planningTrackId || !instance.planningTrackName) {
+      hasUnassigned = true;
+      continue;
+    }
+    used.set(instance.planningTrackId, {
+      key: instance.planningTrackId,
+      label: instance.planningTrackName,
+      color: instance.planningTrackColor,
+      sortOrder: instance.planningTrackSortOrder ?? Number.MAX_SAFE_INTEGER,
+    });
+  }
+  const entries = [...used.values()]
+    .sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder ||
+        left.label.localeCompare(right.label, "de"),
+    )
+    .map(({ sortOrder: _sortOrder, ...entry }) => entry);
+  if (hasUnassigned) {
+    entries.push({ key: "unassigned", label: "Ohne Planungsspur" });
+  }
+  return entries;
 }
 
 function TimetablesContent() {
@@ -517,6 +548,10 @@ function TimetablesContent() {
   // when SWR returns the same response (the linter warns when arrays are
   // derived inline because `?? []` produces a new array each render).
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
+  const planningTrackLegend = useMemo(
+    () => buildPlanningTrackLegend(instances),
+    [instances],
+  );
   const gaps = useMemo(() => gapsData?.gaps ?? [], [gapsData?.gaps]);
   const gapInstanceIds = useMemo(
     () => new Set(gaps.map((gap) => gap.instanceId)),
@@ -1323,6 +1358,15 @@ function TimetablesContent() {
             />
           )}
 
+          {shouldLoadInstances &&
+            !isInstanceDataLoading &&
+            planningTrackLegend.length > 0 && (
+              <PlanLegend
+                entries={planningTrackLegend}
+                aria-label="Planungsspuren im sichtbaren Betreuungsplan"
+              />
+            )}
+
           {view === "month" &&
             (isInstanceDataLoading ? (
               <TimetableContentSkeleton view="month" />
@@ -1447,6 +1491,7 @@ function TimetablesContent() {
       <TimetableEventModal
         canCheckShiftCoverage={canCheckShiftCoverage}
         canManageCategories={canManageCategories}
+        canManagePlanningTracks={canManageSchedules}
         isOpen={eventModalOpen}
         onClose={() => {
           setEventModalOpen(false);

@@ -129,6 +129,11 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 			return err
 		}
 	}
+	if in.Fields.PlanningTrackIDProvided && !samePlanningTrackID(in.Fields.PlanningTrackID, existing.PlanningTrackID) {
+		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.Fields.PlanningTrackID, existing.PlanningTrackID); err != nil {
+			return err
+		}
+	}
 	if err := ValidateTemplateTargetGradeLimit(
 		in.GradeLevelMax,
 		existing,
