@@ -21,6 +21,7 @@ type planningTrackRepoStub struct {
 	updateIfActiveErr    error
 	updateIfActiveResult *bool
 	updateColumnsErr     error
+	updateSortOrdersErr  error
 }
 
 func newPlanningTrackRepoStub(tracks ...*model.PlanningTrack) *planningTrackRepoStub {
@@ -109,7 +110,7 @@ func (r *planningTrackRepoStub) UpdateIfActive(_ context.Context, track *model.P
 }
 
 func (r *planningTrackRepoStub) UpdateSortOrders(context.Context, []int64) error {
-	return nil
+	return r.updateSortOrdersErr
 }
 
 func (r *planningTrackRepoStub) UpdateColumns(_ context.Context, track *model.PlanningTrack, _ ...string) (int64, error) {

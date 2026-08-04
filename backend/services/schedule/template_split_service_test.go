@@ -922,6 +922,25 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 	}
 }
 
+func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	missingTrackID := time.Now().UnixNano()
+
+	split := baseSplitInput(s, effective, fmt.Sprintf("Split-Unknown-Track-%d", missingTrackID))
+	split.PlanningTrackID = &missingTrackID
+	split.PlanningTrackIDProvided = true
+	_, err := s.factory.TemplateSplit.Split(s.ctx, split)
+	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
+
+	update := linkedTemplateUpdateInput(t, s, &s.period.ID)
+	update.Fields.PlanningTrackID = &missingTrackID
+	update.Fields.PlanningTrackIDProvided = true
+	err = s.factory.TimetableData.UpdateTemplate(s.ctx, update)
+	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
+}
+
 func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
