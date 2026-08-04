@@ -80,6 +80,13 @@ func (s *userContextService) resolveSSEStaff(ctx context.Context) (*users.Staff,
 		return nil, "User is not a staff member", http.StatusForbidden
 	}
 
+	// Prime the request memo (#2099) so buildSSESubscription's GetMyGroups
+	// call doesn't resolve person+staff a second time for this connection.
+	if cache, key, ok := identityMemo(ctx); ok {
+		cache.storePerson(key, person)
+		cache.storeStaff(key, staff)
+	}
+
 	return staff, "", 0
 }
 
