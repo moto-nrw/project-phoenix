@@ -403,25 +403,20 @@ func (s *TemplateSplitService) prepareSplitSource(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	targets, err := normalizeDynamicTargets(in.TargetGroupType, in.TargetGradeLevel, in.TargetSchoolClass, in.EducationGroupID, in.Targets)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
-	}
 	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.GroupRepo, old.ID)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("load existing dynamic targets: %w", err)
 	}
-	if err := validateSplitDynamicTargets(in.GradeLevelMax, old, existingTargets, targets); err != nil {
+	if err := validateSplitDynamicTargets(in.GradeLevelMax, old, existingTargets, in.Targets); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
 	}
-	in.Targets = targets
 	in.TargetGradeLevel = nil
 	in.TargetSchoolClass = nil
-	if len(targets) > 0 {
-		in.TargetGradeLevel = targets[0].TargetGradeLevel
-		in.TargetSchoolClass = targets[0].TargetSchoolClass
+	if len(in.Targets) > 0 {
+		in.TargetGradeLevel = in.Targets[0].TargetGradeLevel
+		in.TargetSchoolClass = in.Targets[0].TargetSchoolClass
 		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
-			in.EducationGroupID = targets[0].EducationGroupID
+			in.EducationGroupID = in.Targets[0].EducationGroupID
 		}
 	}
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "split template", false)
@@ -714,10 +709,26 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 }
 
 func validateSplitTargetGroup(in *TemplateSplitInput) error {
-	// Reuses Group.ValidateTargetGroup() rather than re-implementing the
-	// type-conditional invariant here (Rule 10) — the handler's Bind() also
-	// runs this check, but the service defends itself independently since
-	// TemplateSplitInput is a public entry point other callers could reach.
+	targets, err := normalizeDynamicTargets(
+		in.TargetGroupType,
+		in.TargetGradeLevel,
+		in.TargetSchoolClass,
+		in.EducationGroupID,
+		in.Targets,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.Targets = targets
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(targets) > 0 {
+		in.TargetGradeLevel = targets[0].TargetGradeLevel
+		in.TargetSchoolClass = targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = targets[0].EducationGroupID
+		}
+	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,

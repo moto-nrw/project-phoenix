@@ -404,7 +404,7 @@ export function useEventForm({
       options.push({
         value: selected,
         label: `Jahrgang ${selected} (${supported ? "bestehend" : "ungültig"})`,
-        disabled: true,
+        disabled: !supported,
       });
     }
     return options;

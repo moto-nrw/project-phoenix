@@ -1587,7 +1587,7 @@ describe("TimetableEventModal", () => {
     );
   });
 
-  it("shows and preserves an existing grade above the current tenant cap", async () => {
+  it("allows removing an existing grade above the current tenant cap", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
       routingMode: "path",
@@ -1597,7 +1597,11 @@ describe("TimetableEventModal", () => {
       initialSeries: {
         ...template,
         targetGroupType: "jahrgang",
-        targetGradeLevel: 13,
+        targetGradeLevel: 4,
+        targets: [
+          { type: "jahrgang", gradeLevel: 4 },
+          { type: "jahrgang", gradeLevel: 13 },
+        ],
       },
       showPeriodField: true,
     });
@@ -1605,14 +1609,18 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await goToStep(3);
     const gradeSelect = screen.getByLabelText(/^Jahrgang\*/);
-    expect(gradeSelect).toHaveTextContent("Jahrgang 13 (bestehend)");
+    expect(gradeSelect).toHaveTextContent("2 ausgewählt");
     fireEvent.click(gradeSelect);
     expect(
       screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     expect(
       screen.getByText(/über der aktuell konfigurierten Höchststufe 4/),
     ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+    );
 
     await clickSave();
 
@@ -1621,7 +1629,8 @@ describe("TimetableEventModal", () => {
         "7",
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 13,
+          target_grade_level: 4,
+          targets: [{ type: "jahrgang", grade_level: 4 }],
         }),
       ),
     );
