@@ -301,3 +301,143 @@ type instanceStudentPair struct {
 	instanceID int64
 	studentID  int64
 }
+
+// ReconcileSourcedTemplateRosters aligns the already-materialized future
+// occurrences of ONE template with its current enrollment rows, restricted to
+// the given students (#2147 review). The offering-source resync rewrites
+// activities.student_enrollments, but the materializer is insert-only and
+// never revisits an existing instance — without this pass, children added to
+// or removed from a sourced roster keep stale schedule.instance_students rows
+// on occurrences materialized before the edit, and the children/staffing
+// counts derived from them stay wrong until a manual re-plan.
+//
+// Restricting the diff to the resync's touched students keeps per-occurrence
+// hand edits for every OTHER child untouched. For a touched student:
+//
+//   - occurrences the student's enrollments now cover gain an 'expected' row,
+//     followed by the materializer's status-day pass, so an active sickness /
+//     excusal / class trip lands as absent instead of expected
+//   - occurrences no longer covered lose the student's row — but only while
+//     the row is still purely a plan (see instanceRowIsStillPlanned); rows
+//     recording an actual event or a hand decision stay
+//
+// Only planned, materializer-produced instances are visited (hand-created
+// blocks keep their planner-typed roster). `from` bounds the rewrite and is
+// clamped to today — history is never edited. Runs inside the caller's
+// transaction. Returns the rows created and removed.
+func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
+	ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date,
+) (int, int, error) {
+	if templateID <= 0 || len(studentIDs) == 0 {
+		return 0, 0, nil
+	}
+	if today := timezone.TodayDate(); from.Before(today) {
+		from = today
+	}
+	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
+	if err != nil {
+		return 0, 0, &ScheduleError{Op: "reconcile sourced roster: load future instances", Err: err}
+	}
+	instances := make([]*schedule.ActivityInstance, 0, len(all))
+	instanceIDs := make([]int64, 0, len(all))
+	for _, inst := range all {
+		if inst.ActivityGroupID == nil || *inst.ActivityGroupID != templateID {
+			continue
+		}
+		instances = append(instances, inst)
+		instanceIDs = append(instanceIDs, inst.ID)
+	}
+	if len(instances) == 0 {
+		return 0, 0, nil
+	}
+
+	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, templateID)
+	if err != nil {
+		return 0, 0, &ScheduleError{Op: "reconcile sourced roster: load enrollments", Err: err}
+	}
+	enrollmentsByStudent := make(map[int64][]*activities.StudentEnrollment, len(enrollments))
+	for _, e := range enrollments {
+		enrollmentsByStudent[e.StudentID] = append(enrollmentsByStudent[e.StudentID], e)
+	}
+
+	existingRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return 0, 0, &ScheduleError{Op: "reconcile sourced roster: load existing rows", Err: err}
+	}
+	existing := make(map[instanceStudentPair]*schedule.InstanceStudent, len(existingRows))
+	for _, row := range existingRows {
+		existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StudentID}] = row
+	}
+
+	created, removed := 0, 0
+	touched := make(map[int64]timezone.Date)
+	for _, inst := range instances {
+		periodID := int64(0)
+		if inst.CalendarPeriodID != nil {
+			periodID = *inst.CalendarPeriodID
+		}
+		for _, sid := range studentIDs {
+			desired := false
+			for _, e := range enrollmentsByStudent[sid] {
+				if isEnrollmentValidOn(e, inst.Date, periodID) && !enrollmentStudentIsAlumnus(e) {
+					desired = true
+					break
+				}
+			}
+			key := instanceStudentPair{instanceID: inst.ID, studentID: sid}
+			row, exists := existing[key]
+			switch {
+			case desired && !exists:
+				fresh := &schedule.InstanceStudent{
+					InstanceID: inst.ID,
+					StudentID:  sid,
+					Status:     schedule.AttendanceStatusExpected,
+				}
+				if err := s.instanceStudentRepo.Create(ctx, fresh); err != nil {
+					return created, removed, &ScheduleError{Op: "reconcile sourced roster: add student", Err: err}
+				}
+				existing[key] = fresh
+				touched[inst.ID] = inst.Date
+				created++
+			case !desired && exists && instanceRowIsStillPlanned(row):
+				if err := s.instanceStudentRepo.Delete(ctx, row.ID); err != nil {
+					return created, removed, &ScheduleError{Op: "reconcile sourced roster: remove student", Err: err}
+				}
+				delete(existing, key)
+				removed++
+			}
+		}
+	}
+
+	// Mirror the materializer's post-copy pass for the rows just inserted: a
+	// child with an active broad day status on that date must read absent with
+	// the matching substatus, not expected.
+	for instanceID, date := range touched {
+		if _, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student status days", Err: err}
+		}
+	}
+
+	if created > 0 || removed > 0 {
+		s.getLogger().Info("reconciled materialized rosters after offering-source resync",
+			slog.Int64("template_id", templateID),
+			slog.Int("students", len(studentIDs)),
+			slog.Int("rows_created", created),
+			slog.Int("rows_removed", removed),
+		)
+	}
+	return created, removed, nil
+}
+
+// instanceRowIsStillPlanned reports whether an attendance row is still purely
+// a plan: no observed presence, no hand decision, not a hand-added walk-in.
+// Only such rows may be removed when the sourced roster stops covering the
+// child. A row a broad day status rewrote to 'absent' is still a plan — the
+// status day describes the child's day, not this occurrence — and its slot
+// dies with the booking (same rule as the grade-transition archive, #405).
+func instanceRowIsStillPlanned(row *schedule.InstanceStudent) bool {
+	if row.IsUnplanned || row.CheckedInAt != nil || row.CheckedOutAt != nil || row.ManualStatusAt != nil {
+		return false
+	}
+	return row.Status == schedule.AttendanceStatusExpected || row.StudentStatusDayID != nil
+}

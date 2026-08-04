@@ -56,6 +56,10 @@ type sourcedRosterTarget struct {
 //     decision fan-out uses, so both write paths stay byte-compatible
 //   - rows fed by a legacy CareOffering.ActivityGroupID link pointing at the
 //     same template are protected and never touched
+//   - wanted windows stop at the template's own schedule envelope, so a
+//     capped split predecessor is never planned past its segment end
+//   - finally, the touched students' already-materialized future occurrences
+//     are reconciled (the materializer never revisits existing instances)
 //
 // Runs inside the template save's tenant transaction; the caller already
 // holds the tenant recurrence lock.
@@ -78,7 +82,16 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 			return err
 		}
 		phase = offeringPhase
-		wanted, err = s.wantedSourcedRosterTargets(ctx, offering, phase, in)
+		// The wanted windows are additionally bounded by the template's own
+		// schedule envelope: the tenant-wide resync also visits capped split
+		// predecessors, whose rows must never be extended past the segment end
+		// (#2147 review). Open envelopes leave the windows untouched.
+		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
+		if err != nil {
+			return fmt.Errorf("offering roster resync: load template schedules: %w", err)
+		}
+		envelopeFrom, envelopeUntil := scheduleValidityBounds(schedules)
+		wanted, err = s.wantedSourcedRosterTargets(ctx, offering, phase, in, envelopeFrom, envelopeUntil)
 		if err != nil {
 			return err
 		}
@@ -89,13 +102,23 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 		return err
 	}
 
+	// Students whose rows this resync creates, caps, deletes, or resizes. Their
+	// already-materialized future occurrences must be reconciled afterwards —
+	// scoped to exactly these students so per-occurrence hand edits of
+	// untouched children survive (#2147 review).
+	touchedStudents := make(map[int64]bool)
+
 	rows, err := s.StudentEnrollmentRepo.FindByGroupID(ctx, in.TemplateID)
 	if err != nil {
 		return fmt.Errorf("offering roster resync: load template enrollments: %w", err)
 	}
 	for _, row := range rows {
-		if err := s.reconcileSourcedRosterRow(ctx, row, wanted, protectedChildren, in.EffectiveFrom); err != nil {
+		changed, err := s.reconcileSourcedRosterRow(ctx, row, wanted, protectedChildren, in.EffectiveFrom)
+		if err != nil {
 			return err
+		}
+		if changed {
+			touchedStudents[row.StudentID] = true
 		}
 	}
 
@@ -119,9 +142,79 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 			if err := s.StudentEnrollmentRepo.Create(ctx, row); err != nil {
 				return fmt.Errorf("offering roster resync: create seeded enrollment: %w", err)
 			}
+			touchedStudents[target.studentID] = true
 		}
 	}
+	return s.reconcileSourcedInstanceRosters(ctx, in.TemplateID, touchedStudents, in.EffectiveFrom)
+}
+
+// reconcileSourcedInstanceRosters propagates the resync's enrollment changes
+// onto the template's already-materialized future occurrences (#2147 review).
+// The materializer is insert-only and never revisits an existing instance, so
+// without this pass schedule.instance_students — and every children/staffing
+// count derived from it — stays stale until a manual re-plan.
+func (s *decisionService) reconcileSourcedInstanceRosters(
+	ctx context.Context,
+	templateID int64,
+	students map[int64]bool,
+	effectiveFrom timezone.Date,
+) error {
+	if len(students) == 0 {
+		return nil
+	}
+	if s.InstanceRosters == nil {
+		// Mock-only wirings (unit tests) may omit the reconciler; production
+		// always injects it via the factory.
+		s.Logger.Warn("offering roster resync: instance roster reconciler not configured; materialized occurrences may be stale",
+			slog.Int64("template_id", templateID))
+		return nil
+	}
+	studentIDs := make([]int64, 0, len(students))
+	for studentID := range students {
+		studentIDs = append(studentIDs, studentID)
+	}
+	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
+	if _, _, err := s.InstanceRosters.ReconcileSourcedTemplateRosters(ctx, templateID, studentIDs, effectiveFrom); err != nil {
+		return fmt.Errorf("offering roster resync: reconcile materialized occurrences: %w", err)
+	}
 	return nil
+}
+
+// SourcedInstanceRosterReconciler propagates sourced-roster changes onto
+// already-materialized future timetable occurrences (#2147 review).
+// Implemented by services/schedule.RosterReconciler; injected here to avoid
+// widening the decision service's repo surface.
+type SourcedInstanceRosterReconciler interface {
+	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date) (int, int, error)
+}
+
+// scheduleValidityBounds returns the union recurrence envelope of a template's
+// schedule rows. A side is nil (open) when any row is open on that side;
+// otherwise the widest bound wins. Segment rows share one envelope per the
+// split-series invariant — the union keeps drifted rows honest instead of
+// trusting an arbitrary one.
+func scheduleValidityBounds(schedules []*activities.Schedule) (validFrom, validUntil *timezone.Date) {
+	fromOpen, untilOpen := false, false
+	for _, sch := range schedules {
+		if sch == nil {
+			continue
+		}
+		switch {
+		case sch.ValidFrom == nil:
+			fromOpen, validFrom = true, nil
+		case !fromOpen && (validFrom == nil || sch.ValidFrom.Before(*validFrom)):
+			cloned := *sch.ValidFrom
+			validFrom = &cloned
+		}
+		switch {
+		case sch.ValidUntil == nil:
+			untilOpen, validUntil = true, nil
+		case !untilOpen && (validUntil == nil || sch.ValidUntil.After(*validUntil)):
+			cloned := *sch.ValidUntil
+			validUntil = &cloned
+		}
+	}
+	return validFrom, validUntil
 }
 
 // ResyncOfferingSourcedTemplates re-reconciles EVERY offering-sourced
@@ -237,6 +330,7 @@ func (s *decisionService) wantedSourcedRosterTargets(
 	offering *enrollmentModels.CareOffering,
 	phase *enrollmentModels.Phase,
 	in scheduleService.OfferingRosterResyncInput,
+	envelopeFrom, envelopeUntil *timezone.Date,
 ) (map[int64][]*sourcedRosterTarget, error) {
 	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offering.ID}, in.EffectiveFrom)
 	if err != nil {
@@ -248,7 +342,7 @@ func (s *decisionService) wantedSourcedRosterTargets(
 		if !gradeFilterMatches(in.GradeLevels, grade) {
 			continue
 		}
-		validFrom, validUntil, ok := sourcedRosterWindow(child.Link, phase, in.EffectiveFrom)
+		validFrom, validUntil, ok := sourcedRosterWindow(child.Link, phase, in.EffectiveFrom, envelopeFrom, envelopeUntil)
 		if !ok {
 			// A link that only covers days before the template takes effect
 			// (or outside the phase) has nothing left to plan.
@@ -324,23 +418,31 @@ func sameSourcedDraftDays(left, right *careEnrollmentDraft) bool {
 	return true
 }
 
-// sourcedRosterWindow intersects three windows into the validity of one
+// sourcedRosterWindow intersects four windows into the validity of one
 // seeded roster row: the phase's service window, the template's effective
-// date (history is never rewritten), and the child's offering link. The link
-// bound is what keeps a dated switch honest — a selection starting in
-// September must not plan the child from the template's save date onward, and
-// one ending in September must not outlive it. ok is false when the
-// intersection is empty.
+// date (history is never rewritten), the template's own schedule envelope
+// (a capped split segment must not plan past its end nor before its start,
+// #2147 review), and the child's offering link. The link bound is what keeps
+// a dated switch honest — a selection starting in September must not plan the
+// child from the template's save date onward, and one ending in September
+// must not outlive it. ok is false when the intersection is empty.
 func sourcedRosterWindow(
 	link *enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 	effectiveFrom timezone.Date,
+	envelopeFrom, envelopeUntil *timezone.Date,
 ) (validFrom, validUntil timezone.Date, ok bool) {
 	validFrom = phase.ServiceStartDate
 	if effectiveFrom.After(validFrom) {
 		validFrom = effectiveFrom
 	}
+	if envelopeFrom != nil && envelopeFrom.After(validFrom) {
+		validFrom = *envelopeFrom
+	}
 	validUntil = phase.ServiceEndDate.AddDays(1)
+	if envelopeUntil != nil && envelopeUntil.Before(validUntil) {
+		validUntil = *envelopeUntil
+	}
 	if link != nil {
 		if link.ValidFrom != nil && link.ValidFrom.After(validFrom) {
 			validFrom = *link.ValidFrom
@@ -366,18 +468,22 @@ func sourcedRosterWindow(
 // row survive a source switch with a start or end outside the new offering
 // link's validity. The end is then set EXACTLY — shrinking is as necessary as
 // extending, because the child's offering window may have contracted.
+//
+// The returned bool reports whether the row was actually written (capped,
+// deleted, or resized) — the callers feed those students into the
+// materialized-instance reconcile (#2147 review).
 func (s *decisionService) reconcileSourcedRosterRow(
 	ctx context.Context,
 	row *activities.StudentEnrollment,
 	wanted map[int64][]*sourcedRosterTarget,
 	protectedChildren map[int64]bool,
 	effectiveFrom timezone.Date,
-) error {
+) (bool, error) {
 	if row == nil || row.EnrollmentRequestChildID == nil {
-		return nil
+		return false, nil
 	}
 	if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
-		return nil // history stays
+		return false, nil // history stays
 	}
 	childID := *row.EnrollmentRequestChildID
 	if idx := indexOfServableTarget(wanted[childID], row, effectiveFrom); idx >= 0 {
@@ -390,28 +496,29 @@ func (s *decisionService) reconcileSourcedRosterRow(
 			// The row is owned by the legacy CareOffering.ActivityGroupID feed:
 			// consuming the target avoids seeding a duplicate, but its window
 			// belongs to THAT offering's lifecycle and is never resized here.
-			return nil
+			return false, nil
 		}
 		if row.ValidUntil == nil || *row.ValidUntil != target.validUntil {
 			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, target.validUntil); err != nil {
-				return fmt.Errorf("offering roster resync: adjust retained enrollment: %w", err)
+				return false, fmt.Errorf("offering roster resync: adjust retained enrollment: %w", err)
 			}
+			return true, nil
 		}
-		return nil
+		return false, nil
 	}
 	if protectedChildren[childID] {
-		return nil
+		return false, nil
 	}
 	if !row.ValidFrom.Before(effectiveFrom) {
 		if err := s.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
-			return fmt.Errorf("offering roster resync: delete enrollment: %w", err)
+			return false, fmt.Errorf("offering roster resync: delete enrollment: %w", err)
 		}
-		return nil
+		return true, nil
 	}
 	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, effectiveFrom); err != nil {
-		return fmt.Errorf("offering roster resync: cap enrollment: %w", err)
+		return false, fmt.Errorf("offering roster resync: cap enrollment: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // indexOfServableTarget returns the first target the row can serve without

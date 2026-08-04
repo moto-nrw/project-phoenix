@@ -62,6 +62,27 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			wantErr:          "requires target group type 'angebot'",
 		},
 		{
+			name:             "out-of-range grade filter is rejected",
+			sourceOfferingID: &offeringID,
+			gradeLevels:      []int{0, 2},
+			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
+			wantErr:          "source_grade_levels entries must be between",
+		},
+		{
+			name:             "grade filter above the supported bound is rejected",
+			sourceOfferingID: &offeringID,
+			gradeLevels:      []int{14},
+			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
+			wantErr:          "source_grade_levels entries must be between",
+		},
+		{
+			name:             "duplicate grade filter entries are rejected",
+			sourceOfferingID: &offeringID,
+			gradeLevels:      []int{2, 2},
+			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
+			wantErr:          "source_grade_levels must not contain duplicates",
+		},
+		{
 			name:             "manual child list next to a source is rejected",
 			sourceOfferingID: &offeringID,
 			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
@@ -139,12 +160,16 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 
 // resyncUpdatedTemplateOfferingRoster decides whether an edit has to touch
 // the offering-sourced roster at all, and with which window.
+//
+// The fixture dates are today-relative on purpose: since the #2147 review the
+// boundary is clamped to today, so fixed calendar dates would flip these
+// assertions once real time passes them.
 func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	offeringID := int64(12)
 	previousID := int64(11)
 	periodID := int64(55)
-	rosterFrom := timezone.NewDate(2026, 8, 10)
-	scheduleFrom := timezone.NewDate(2026, 9, 1)
+	rosterFrom := timezone.TodayDate().AddDays(6)
+	scheduleFrom := timezone.TodayDate().AddDays(28)
 
 	baseInput := func() TemplateUpdateInput {
 		return TemplateUpdateInput{
@@ -204,6 +229,25 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 		assert.Equal(t, []int{1, 2}, got.GradeLevels)
 		assert.Equal(t, scheduleFrom, got.EffectiveFrom,
 			"#2135: the series start bounds the roster rewrite")
+	})
+
+	t.Run("an already-started series clamps the rewrite boundary to today", func(t *testing.T) {
+		var got OfferingRosterResyncInput
+		svc := NewTimetableDataService(TimetableDataDependencies{
+			ResyncOfferingRoster: func(_ context.Context, in OfferingRosterResyncInput) error {
+				got = in
+				return nil
+			},
+		})
+
+		in := baseInput()
+		in.Fields.SourceCareOfferingID = &offeringID
+		pastStart := timezone.TodayDate().AddDays(-30)
+
+		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, &pastStart))
+
+		assert.Equal(t, timezone.TodayDate(), got.EffectiveFrom,
+			"#2147 review: a past schedule start must not become the rewrite boundary — that would delete or cap roster rows that were already effective")
 	})
 
 	t.Run("a missing hook fails loudly instead of saving a dead rule", func(t *testing.T) {

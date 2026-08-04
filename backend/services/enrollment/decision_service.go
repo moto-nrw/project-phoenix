@@ -367,7 +367,12 @@ type DecisionServiceConfig struct {
 	// split/end/materialization. Production wires the schedule service's
 	// transaction-scoped tenant recurrence gate; tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
-	Logger                 *slog.Logger
+	// InstanceRosters propagates sourced-roster resync results onto already-
+	// materialized future occurrences (#2147 review). Production wires the
+	// schedule RosterReconciler; a nil value skips the pass with a warning
+	// (mock-only wirings).
+	InstanceRosters SourcedInstanceRosterReconciler
+	Logger          *slog.Logger
 }
 
 type decisionService struct {
@@ -2478,6 +2483,11 @@ func (s *decisionService) persistCareEnrollmentDrafts(
 	slices.Sort(groupIDs)
 	for _, groupID := range groupIDs {
 		row := studentEnrollmentFromCareDraft(requestChildID, studentID, phase, drafts[groupID], startFrom)
+		if row.ValidUntil != nil && !row.ValidFrom.Before(*row.ValidUntil) {
+			// The draft's segment ended before the row would begin (approval
+			// after a split): the capped predecessor has nothing left to plan.
+			continue
+		}
 		if err := row.Validate(); err != nil {
 			return fmt.Errorf("decision: validate enrollment: %w", err)
 		}
@@ -2501,6 +2511,16 @@ func studentEnrollmentFromCareDraft(
 	// before the phase window cannot widen it either.
 	if startFrom != nil && startFrom.After(validFrom) {
 		validFrom = *startFrom
+	}
+	// A sourced draft is additionally bounded by its segment's recurrence
+	// envelope (#2147 review): approving after a split must not give the capped
+	// predecessor coverage past its valid_until, nor the successor coverage
+	// before its start. Callers skip rows whose window collapses to empty.
+	if draft.scheduleValidFrom != nil && draft.scheduleValidFrom.After(validFrom) {
+		validFrom = *draft.scheduleValidFrom
+	}
+	if draft.scheduleValidUntil != nil && draft.scheduleValidUntil.Before(validUntil) {
+		validUntil = *draft.scheduleValidUntil
 	}
 	row := &activities.StudentEnrollment{
 		StudentID:                studentID,
@@ -2531,6 +2551,13 @@ type careEnrollmentDraft struct {
 	calendarPeriodID *int64
 	selectedWeekday  map[int]bool
 	allWeekdays      bool
+	// scheduleValidFrom/Until bound the draft's rows to the template segment's
+	// recurrence envelope (#2147 review): a split predecessor must not receive
+	// rows covering dates after its capped valid_until, nor a successor rows
+	// before its start. Only the sourced-template feed sets them; the legacy
+	// ActivityGroupID feed keeps its pre-#2137 phase-wide rows (nil = open).
+	scheduleValidFrom  *timezone.Date
+	scheduleValidUntil *timezone.Date
 }
 
 func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
@@ -2659,6 +2686,12 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
 			return err
 		}
+		// The legacy feed plans phase-wide rows on every overlapping segment
+		// (pre-#2137 behavior). When another link's sourced feed drafted this
+		// template first, its narrower segment bound must widen back out.
+		if draft := drafts[segment.group.ID]; draft != nil {
+			draft.scheduleValidFrom, draft.scheduleValidUntil = nil, nil
+		}
 	}
 	return nil
 }
@@ -2715,8 +2748,18 @@ func (s *decisionService) addSourcedTemplateDrafts(
 			continue
 		}
 		segment := linkedCareOfferingGroup{group: tmpl, period: period, schedules: schedules}
+		_, existed := drafts[tmpl.ID]
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
 			return err
+		}
+		if !existed {
+			// FindTemplatesBySourceOffering returns every segment of a split
+			// series, so the drafted rows must stop at each segment's schedule
+			// envelope — otherwise an approval after a split plans the capped
+			// predecessor for dates after it ended (#2147 review). A draft the
+			// legacy feed created first stays phase-wide (its pre-#2137 shape).
+			draft := drafts[tmpl.ID]
+			draft.scheduleValidFrom, draft.scheduleValidUntil = scheduleValidityBounds(schedules)
 		}
 	}
 	return nil

@@ -1549,7 +1549,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
-		Logger: logger.With("service", "enrollment-decision"),
+		// Sourced-roster resyncs must also refresh already-materialized future
+		// occurrences (#2147 review) — the materializer never revisits them.
+		InstanceRosters: rosterReconciler,
+		Logger:          logger.With("service", "enrollment-decision"),
 	})
 	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
 	if !ok {

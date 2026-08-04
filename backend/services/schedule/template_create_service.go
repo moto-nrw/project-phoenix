@@ -8,6 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -149,8 +150,11 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 
 // validateOfferingSourceInput enforces the offering-source request contract
 // shared by template create and update (#2137): a grade filter only together
-// with a source, a source only on 'angebot' templates, and no manual roster
-// next to a source (the roster is derived, a snapshot would silently drift).
+// with a source, a source only on 'angebot' templates, filter values within
+// the supported grade bounds and free of duplicates (mirroring
+// Group.ValidateTargetGroup, which direct service callers bypass), and no
+// manual roster next to a source (the roster is derived, a snapshot would
+// silently drift).
 func validateOfferingSourceInput(sourceOfferingID *int64, gradeLevels []int, targetGroupType string, studentIDs []int64, weekdayAssignments []WeekdayRosterAssignment) error {
 	if sourceOfferingID == nil {
 		if len(gradeLevels) > 0 {
@@ -163,6 +167,19 @@ func validateOfferingSourceInput(sourceOfferingID *int64, gradeLevels []int, tar
 	}
 	if targetGroupType != activitiesModel.TargetGroupTypeAngebot {
 		return fmt.Errorf("%w: source_care_offering_id requires target group type 'angebot'", ErrOfferingSourceInvalid)
+	}
+	seenGrades := make(map[int]bool, len(gradeLevels))
+	for _, level := range gradeLevels {
+		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+			return fmt.Errorf(
+				"%w: source_grade_levels entries must be between %d and %d",
+				ErrOfferingSourceInvalid, schoolclass.MinGradeLevel, schoolclass.MaxGradeLevel,
+			)
+		}
+		if seenGrades[level] {
+			return fmt.Errorf("%w: source_grade_levels must not contain duplicates", ErrOfferingSourceInvalid)
+		}
+		seenGrades[level] = true
 	}
 	if len(studentIDs) > 0 {
 		return fmt.Errorf("%w: student_ids must be empty when an offering source is set", ErrOfferingSourceInvalid)

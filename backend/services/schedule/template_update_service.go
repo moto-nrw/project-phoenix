@@ -210,6 +210,14 @@ func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
 	if scheduleValidFrom != nil {
 		effectiveFrom = *scheduleValidFrom
 	}
+	// An already-started series must not use its schedule start as the rewrite
+	// boundary: the resync deletes rows starting on or after EffectiveFrom and
+	// caps earlier ones AT it, so a past boundary would rewrite roster history
+	// that was already effective. Today is the earliest honest edit boundary; a
+	// future schedule start stays as-is (#2147 review).
+	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
+		effectiveFrom = today
+	}
 	if err := s.deps.ResyncOfferingRoster(ctx, OfferingRosterResyncInput{
 		TemplateID:         in.TemplateID,
 		PreviousOfferingID: previousSourceOfferingID,

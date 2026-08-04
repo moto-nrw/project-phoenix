@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -634,4 +635,213 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, degraded.SourceCareOfferingID)
 	assert.Empty(t, degraded.SourceGradeLevels)
+}
+
+// createBoundedTemplateSchedule mirrors createCareOfferingTemplateSchedule but
+// stamps a recurrence envelope onto the schedule row, standing in for one
+// segment of a split series (predecessor capped at the split date, successor
+// starting there).
+func createBoundedTemplateSchedule(
+	t *testing.T,
+	env *decisionTestEnv,
+	groupID int64,
+	weekday int,
+	periodID *int64,
+	validFrom, validUntil *timezone.Date,
+) {
+	t.Helper()
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, 1, "CareTemplate")
+	schedule := &activitiesModels.Schedule{
+		Weekday:          weekday,
+		TimeframeID:      &timeframe.ID,
+		ActivityGroupID:  groupID,
+		WeekPattern:      0,
+		CalendarPeriodID: periodID,
+		ValidFrom:        validFrom,
+		ValidUntil:       validUntil,
+	}
+	schedule.SetTenantID(1)
+	require.NoError(t, repositories.NewFactory(env.db).ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, env.db, "activities.schedules", schedule.ID)
+		testpkg.CleanupTableRecords(t, env.db, "schedule.timeframes", timeframe.ID)
+	})
+}
+
+// createSourcedTemplateSegment is createSourcedTemplate with an explicit
+// schedule envelope — one side of a split series.
+func createSourcedTemplateSegment(
+	t *testing.T,
+	env *decisionTestEnv,
+	name string,
+	offeringID int64,
+	gradeLevels []int,
+	period *scheduleModels.CalendarPeriod,
+	validFrom, validUntil *timezone.Date,
+) *activitiesModels.Group {
+	t.Helper()
+	group := createCareOfferingTemplateGroup(t, env.db, name)
+	group.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
+	group.SourceCareOfferingID = &offeringID
+	group.SourceGradeLevels = gradeLevels
+	group.CalendarPeriodID = &period.ID
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(testpkg.TenantContext(1), group))
+	createBoundedTemplateSchedule(t, env, group.ID, activitiesModels.WeekdayMonday, &period.ID, validFrom, validUntil)
+	return group
+}
+
+// FindTemplatesBySourceOffering returns both sides of a split. An approval
+// must bound each segment's rows by that segment's schedule envelope — the
+// capped predecessor must not receive coverage past its end, nor the
+// successor coverage before its start (#2147 review).
+func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "SplitQuelle", nil)
+	splitDate := env.sourcePhase.ServiceStartDate.AddDays(60)
+	predecessor := createSourcedTemplateSegment(t, env, "SplitVorher", offering.ID, []int{2}, period, nil, &splitDate)
+	successor := createSourcedTemplateSegment(t, env, "SplitNachher", offering.ID, []int{2}, period, &splitDate, nil)
+
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "split-fanout@example.com", "Spalt", 2)
+
+	predecessorRows := loadTemplateEnrollments(t, env, predecessor.ID)
+	require.Len(t, predecessorRows, 1)
+	assert.Equal(t, studentID, predecessorRows[0].StudentID)
+	assert.Equal(t, env.sourcePhase.ServiceStartDate, predecessorRows[0].ValidFrom)
+	require.NotNil(t, predecessorRows[0].ValidUntil)
+	assert.Equal(t, splitDate, *predecessorRows[0].ValidUntil,
+		"the capped predecessor must not be planned past its segment end")
+
+	successorRows := loadTemplateEnrollments(t, env, successor.ID)
+	require.Len(t, successorRows, 1)
+	assert.Equal(t, studentID, successorRows[0].StudentID)
+	assert.Equal(t, splitDate, successorRows[0].ValidFrom,
+		"the successor must not be planned before its segment start")
+	require.NotNil(t, successorRows[0].ValidUntil)
+	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *successorRows[0].ValidUntil)
+}
+
+// The tenant-wide resync (grade transitions) also visits capped split
+// predecessors. Its wanted windows must stop at the segment envelope, or a
+// re-reconcile would extend the capped rows back out to the phase end.
+func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "SegmentQuelle", nil)
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "segment-bound@example.com", "Seg", 2)
+
+	splitDate := env.sourcePhase.ServiceStartDate.AddDays(60)
+	template := createSourcedTemplateSegment(t, env, "SegmentTermin", offering.ID, []int{2}, period, nil, &splitDate)
+	input := scheduleService.OfferingRosterResyncInput{
+		TemplateID:       template.ID,
+		OfferingID:       &offering.ID,
+		GradeLevels:      []int{2},
+		CalendarPeriodID: &period.ID,
+		EffectiveFrom:    timezone.TodayDate(),
+	}
+	resyncer := offeringResyncer(t, env)
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, studentID, rows[0].StudentID)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, splitDate, *rows[0].ValidUntil,
+		"the seeded row must stop at the segment's schedule valid_until")
+
+	// Re-running must keep the capped row instead of extending it.
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, splitDate, *rows[0].ValidUntil)
+}
+
+// The materializer never revisits an existing instance, so the resync itself
+// must propagate roster changes onto already-materialized future occurrences:
+// children leaving the filter disappear, children entering it appear, and
+// rows carrying an observation or a hand decision survive (#2147 review).
+func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "InstanzQuelle", nil)
+	studentGrade1, _ := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-grade1@example.com", "Insa", 1)
+	studentGrade2, _ := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-grade2@example.com", "Ivo", 2)
+
+	template := createSourcedTemplate(t, env, "InstanzTermin", offering.ID, []int{1}, period)
+	input := scheduleService.OfferingRosterResyncInput{
+		TemplateID:       template.ID,
+		OfferingID:       &offering.ID,
+		GradeLevels:      []int{1},
+		CalendarPeriodID: &period.ID,
+		EffectiveFrom:    timezone.TodayDate(),
+	}
+	resyncer := offeringResyncer(t, env)
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+
+	// Stand in for the materializer: one planned occurrence on the first
+	// in-phase Monday, already carrying the grade-1 child, plus a second one
+	// where a human decided the child's slot by hand.
+	occurrenceDate := env.sourcePhase.ServiceStartDate
+	for occurrenceDate.Weekday() != time.Monday {
+		occurrenceDate = occurrenceDate.AddDays(1)
+	}
+	require.NotNil(t, template.PlannedRoomID)
+	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &template.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	decided := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate.AddDays(7), *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &template.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("schedule.instance_students").
+			Where("instance_id IN (?, ?)", planned.ID, decided.ID).
+			Exec(context.Background())
+		testpkg.CleanupTableRecords(t, env.db, "schedule.activity_instances", planned.ID, decided.ID)
+	})
+	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentGrade1, "expected")
+	manualAt := time.Now()
+	testpkg.CreateTestInstanceStudent(t, env.db, decided.ID, studentGrade1, "absent", testpkg.InstanceStudentOpts{
+		ManualStatusAt: &manualAt,
+	})
+
+	// Filter switch 1 → 2: the enrollment rows change AND the materialized
+	// occurrences must follow.
+	input.PreviousOfferingID = &offering.ID
+	input.GradeLevels = []int{2}
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+
+	loadInstanceStudents := func(instanceID int64) []scheduleModels.InstanceStudent {
+		var rows []scheduleModels.InstanceStudent
+		require.NoError(t, env.db.NewSelect().
+			Model(&rows).
+			ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+			Where(`"instance_student".instance_id = ?`, instanceID).
+			Order("student_id ASC").
+			Scan(ctx))
+		return rows
+	}
+
+	plannedRows := loadInstanceStudents(planned.ID)
+	require.Len(t, plannedRows, 1, "the occurrence must hold exactly the child matching the new filter")
+	assert.Equal(t, studentGrade2, plannedRows[0].StudentID,
+		"the grade-2 child must be added to the already-materialized occurrence")
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, plannedRows[0].Status)
+
+	decidedRows := loadInstanceStudents(decided.ID)
+	require.Len(t, decidedRows, 2, "a hand-decided row survives the resync next to the added child")
+	assert.Equal(t, studentGrade1, decidedRows[0].StudentID,
+		"a row a human decided by hand must never be removed by the resync")
+	assert.Equal(t, studentGrade2, decidedRows[1].StudentID)
 }
