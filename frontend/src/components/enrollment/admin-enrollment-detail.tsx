@@ -818,7 +818,7 @@ function getDecisionIcon(status: DecisionStatus): React.ReactNode {
   return <CalendarClock className="h-4 w-4" aria-hidden="true" />;
 }
 
-export function buildRestoreInfoMessage(result: {
+function buildRestoreInfoMessage(result: {
   restored_children: number;
   waitlisted_children: number;
 }): string {
