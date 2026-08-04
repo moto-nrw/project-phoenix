@@ -495,6 +495,11 @@ func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx c
 // onOrAfter, children without a resolved student row, and alumni are
 // excluded. Tenant isolation comes from RLS on the tenant transaction, like
 // every other query in this repository.
+//
+// Links that only start in the future (a dated switch into the offering) are
+// deliberately included — they are prospective enrollments the editor counts
+// and the roster resync seeds. Callers that write dated rows MUST honour each
+// link's ValidFrom/ValidUntil instead of assuming the link covers onOrAfter.
 func (r *RequestChildOfferingRepository) ListApprovedChildrenByCareOfferingIDs(
 	ctx context.Context,
 	careOfferingIDs []int64,

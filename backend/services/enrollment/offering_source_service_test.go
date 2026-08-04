@@ -313,6 +313,79 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID))
 }
 
+func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "SpaeterWechsel", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "future-link@example.com", "Fee", 2)
+
+	// The child only holds the offering from a future switch date onward.
+	require.NoError(t, env.repos.RequestChildOffering.ReplaceForRequestChild(ctx, childID, nil))
+	switchDate := env.sourcePhase.ServiceStartDate.AddDays(30)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+		ctx,
+		childID,
+		switchDate,
+		[]*enrollmentModels.RequestChildOffering{{CareOfferingID: offering.ID}},
+	))
+
+	template := createSourcedTemplate(t, env, "SpaeterWechselTermin", offering.ID, []int{2}, period)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &offering.ID,
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, switchDate, rows[0].ValidFrom,
+		"a future-dated offering link must not plan the child before the switch date")
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+}
+
+func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "EndetFrueher", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "ending-link@example.com", "Ende", 2)
+
+	// The child leaves the offering mid-phase: the link is closed at the
+	// switch date and nothing follows it.
+	switchDate := env.sourcePhase.ServiceStartDate.AddDays(60)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(ctx, childID, switchDate, nil))
+
+	template := createSourcedTemplate(t, env, "EndetFrueherTermin", offering.ID, []int{2}, period)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &offering.ID,
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, studentID, rows[0].StudentID)
+	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, switchDate, *rows[0].ValidUntil,
+		"a link ending mid-phase must not plan the child for the rest of the phase")
+}
+
 func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
