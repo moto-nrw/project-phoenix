@@ -12,6 +12,7 @@ export function mockSessionData(
       token: string;
       accessToken: string;
       refreshToken: string;
+      tenantId: number;
     }>;
     expires: string;
   }>,

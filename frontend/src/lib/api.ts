@@ -308,6 +308,29 @@ function buildStudentQueryParams(filters?: {
 }
 
 /**
+ * Current session token via the deduplicating session cache.
+ */
+async function getSessionToken(): Promise<string | undefined> {
+  const session = await getCachedSession();
+  return session?.user?.token;
+}
+
+/**
+ * Auth headers for the raw fetch() call sites in the services below.
+ * Undefined when unauthenticated, so the request goes out without an
+ * Authorization header.
+ */
+async function getAuthHeaders(): Promise<Record<string, string> | undefined> {
+  const token = await getSessionToken();
+  return token
+    ? {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      }
+    : undefined;
+}
+
+/**
  * Get new token from session (helper for fetchWithRetry).
  * Called after a 401 → token refresh, so the cached session is stale by
  * definition — drop it first, or this (and every concurrent caller for up to
@@ -315,8 +338,7 @@ function buildStudentQueryParams(filters?: {
  */
 async function getNewTokenFromSession(): Promise<string | undefined> {
   clearSessionCache();
-  const session = await getCachedSession();
-  return session?.user?.token;
+  return getSessionToken();
 }
 
 /**
@@ -990,8 +1012,7 @@ export const studentService = {
         // Use provided token or fall back to getSession()
         let authToken = filters?.token;
         if (!authToken) {
-          const session = await getCachedSession();
-          authToken = session?.user?.token;
+          authToken = await getSessionToken();
         }
 
         const { data } = await fetchWithRetry<unknown>(url, authToken, {
@@ -1029,8 +1050,7 @@ export const studentService = {
       if (useProxyApi) {
         let authToken = filters?.token;
         if (!authToken) {
-          const session = await getCachedSession();
-          authToken = session?.user?.token;
+          authToken = await getSessionToken();
         }
 
         const { data } = await fetchWithRetry<unknown>(url, authToken, {
@@ -1064,15 +1084,11 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
-        const session = await getCachedSession();
-        const { data } = await fetchWithRetry<unknown>(
-          url,
-          session?.user?.token,
-          {
-            onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+        const token = await getSessionToken();
+        const { data } = await fetchWithRetry<unknown>(url, token, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
 
         if (data === null) {
           throw new Error("Authentication failed");
@@ -1099,16 +1115,10 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify(student),
         });
 
@@ -1164,16 +1174,10 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
         // Send frontend format data - the API route will handle transformation
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify(student),
         });
 
@@ -1307,15 +1311,11 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getCachedSession();
-        const { response, data } = await fetchWithRetry<unknown>(
-          url,
-          session?.user?.token,
-          {
-            onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+        const token = await getSessionToken();
+        const { response, data } = await fetchWithRetry<unknown>(url, token, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
 
         // Handle errors: null response means auth failed or permission denied
         // Return empty array for graceful degradation
@@ -1349,15 +1349,11 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getCachedSession();
-        const { response, data } = await fetchWithRetry<unknown>(
-          url,
-          session?.user?.token,
-          {
-            onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+        const token = await getSessionToken();
+        const { response, data } = await fetchWithRetry<unknown>(url, token, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
 
         if (response === null) {
           throw new Error("Authentication failed");
@@ -1395,16 +1391,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify(backendGroup),
         });
 
@@ -1454,16 +1444,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1518,16 +1502,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
         });
 
         if (!response.ok) {
@@ -1571,15 +1549,9 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
         });
 
         if (!response.ok) {
@@ -1635,16 +1607,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify({
             supervisor_id: Number.parseInt(supervisorId, 10),
           }),
@@ -1690,16 +1656,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
         });
 
         if (!response.ok) {
@@ -1740,16 +1700,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify({
             representative_id: Number.parseInt(representativeId, 10),
           }),
@@ -1805,15 +1759,11 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getCachedSession();
-        const { data } = await fetchWithRetry<unknown>(
-          url,
-          session?.user?.token,
-          {
-            onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+        const token = await getSessionToken();
+        const { data } = await fetchWithRetry<unknown>(url, token, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
 
         const rooms = parseRoomsResponse(data);
         return mapRoomsResponse(rooms);
@@ -1841,15 +1791,11 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getCachedSession();
-        const { response, data } = await fetchWithRetry<unknown>(
-          url,
-          session?.user?.token,
-          {
-            onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+        const token = await getSessionToken();
+        const { response, data } = await fetchWithRetry<unknown>(url, token, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
 
         if (response === null) {
           throw new Error("Authentication failed");
@@ -1885,16 +1831,10 @@ export const roomService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify(backendRoom),
         });
 
@@ -1940,16 +1880,10 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
           body: JSON.stringify(backendUpdates),
         });
 
@@ -2002,16 +1936,10 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
         });
 
         if (!response.ok) {
@@ -2048,15 +1976,9 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getCachedSession();
         const response = await fetch(url, {
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: await getAuthHeaders(),
         });
 
         if (!response.ok) {

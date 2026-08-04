@@ -22,12 +22,6 @@ let inflight: Promise<Awaited<ReturnType<typeof getSession>>> | null = null;
 // which automatically invalidates the stale cache entry.
 let cachedTenantId: number | undefined;
 
-// Incremented on every clearSessionCache(). An in-flight getSession() that
-// started BEFORE a clear must not write its (potentially stale, pre-refresh)
-// result back into the cache after the clear — the retry after a 401/token
-// refresh would then read the dead token again.
-let generation = 0;
-
 const TTL_MS = 10_000; // 10 second cache window
 
 /**
@@ -38,7 +32,6 @@ export function clearSessionCache() {
   cached = null;
   cachedTenantId = undefined;
   inflight = null;
-  generation += 1;
 }
 
 export async function getCachedSession() {
@@ -58,13 +51,14 @@ export async function getCachedSession() {
   }
   if (inflight) return inflight;
 
-  const startedGeneration = generation;
-  const request = getSession()
+  // A request may only touch module state while it is still the current
+  // `inflight`. clearSessionCache() (token refresh, tenant switch) nulls
+  // `inflight`, so a lookup that was already in flight at that point must
+  // neither write its stale, pre-refresh result back into the cache nor
+  // clear a newer lookup that started after the invalidation.
+  const request: Promise<Awaited<ReturnType<typeof getSession>>> = getSession()
     .then((session) => {
-      // Only populate the cache if no clearSessionCache() happened while this
-      // request was in flight — otherwise this result predates a token
-      // refresh/tenant switch and must not be reused.
-      if (generation === startedGeneration) {
+      if (inflight === request) {
         cachedTenantId = (session?.user as { tenantId?: number } | undefined)
           ?.tenantId;
         cached = { session, expiry: Date.now() + TTL_MS };
@@ -72,7 +66,7 @@ export async function getCachedSession() {
       return session;
     })
     .finally(() => {
-      if (generation === startedGeneration) {
+      if (inflight === request) {
         inflight = null;
       }
     });

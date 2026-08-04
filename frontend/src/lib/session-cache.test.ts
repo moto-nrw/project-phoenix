@@ -3,11 +3,12 @@
  *
  * Every raw next-auth getSession() call is its own network round trip to
  * /api/auth/session; this cache collapses the parallel page-load fan-out into
- * one request. The generation guard is the safety net for token refreshes: a
+ * one request. The staleness guard is the safety net for token refreshes: a
  * lookup that was already in flight when clearSessionCache() ran must not
  * write its stale result back into the cache afterwards.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 const mockGetSession = vi.fn();
 vi.mock("next-auth/react", () => ({
@@ -22,7 +23,7 @@ async function freshModule(): Promise<SessionCacheModule> {
 }
 
 function session(token: string, tenantId = 1) {
-  return { user: { token, tenantId } };
+  return mockSessionData({ user: { token, tenantId } });
 }
 
 describe("getCachedSession", () => {
