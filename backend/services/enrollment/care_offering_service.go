@@ -15,6 +15,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ErrCareOfferingNotFound is the sentinel returned by GetByID when the
@@ -977,8 +978,11 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 // after an update (#2147 review): changed days or a moved phase change the
 // wanted roster, and the sourced enrollment rows plus already-materialized
 // occurrences must follow immediately, not at the next unrelated template
-// save. Runs under the recurrence lock the update already holds; history
-// before today stays untouched.
+// save. An edit that makes the source incompatible with a template's planning
+// period is rejected outright (#2147 review round 7): committing it would
+// leave that template's sourced rows and materialized occurrences stranded,
+// with every later resync skipping the template. Runs under the recurrence
+// lock the update already holds; history before today stays untouched.
 func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeringID int64) error {
 	if s.sourcedTemplateResyncer == nil {
 		// Focused service tests may run without the enrollment decision
@@ -988,6 +992,13 @@ func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeri
 		return nil
 	}
 	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+		if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+			// TenantTxMiddleware commits ordinary 4xx responses. Mark the
+			// ambient transaction so the already-written offering update is
+			// discarded together with the rejection.
+			tenant.MarkRollback(ctx)
+			return fmt.Errorf("%w: %w", ErrCareOfferingInvalid, err)
+		}
 		return fmt.Errorf("care offering update: resync sourced templates: %w", err)
 	}
 	return nil

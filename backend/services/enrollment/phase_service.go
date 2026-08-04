@@ -15,6 +15,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -502,11 +503,13 @@ func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phas
 // the phase's offerings after a service-window change (#2147 review): the
 // window bounds every sourced enrollment row and the reconciled materialized
 // occurrences, so extensions and shortenings must propagate immediately, not
-// at the next unrelated template save. Templates whose source has drifted
-// incompatible with their planning period are skipped with a warning inside
-// the resync, mirroring the care-offering update path. Runs under the
-// recurrence lock the update already holds; history before today stays
-// untouched.
+// at the next unrelated template save. A window change that makes a source
+// incompatible with its template's planning period is rejected as
+// ErrPhaseCareOfferingConflict (#2147 review round 7), mirroring the
+// care-offering update path: committing it would leave that template's
+// sourced rows and materialized occurrences stranded, with every later resync
+// skipping the template. Runs under the recurrence lock the update already
+// holds; history before today stays untouched.
 func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64) error {
 	if s.sourcedTemplateResyncer == nil {
 		// Focused service tests may run without the enrollment decision
@@ -525,6 +528,13 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 			continue
 		}
 		if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, today); err != nil {
+			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+				// TenantTxMiddleware commits ordinary 4xx responses. Mark the
+				// ambient transaction so the already-written phase update is
+				// discarded together with the rejection.
+				tenant.MarkRollback(ctx)
+				return fmt.Errorf("%w: %w", ErrPhaseCareOfferingConflict, err)
+			}
 			return fmt.Errorf("phase update: resync templates sourcing offering %d: %w", offering.ID, err)
 		}
 	}

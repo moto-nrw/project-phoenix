@@ -13,6 +13,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -209,15 +210,18 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 
 // recordingSourcedTemplateResyncer captures the offering IDs the phase
 // service hands to the sourced-template resync after a service-window change.
+// A non-nil err is returned after recording, simulating a resync that reports
+// the new window as incompatible with a sourced template.
 type recordingSourcedTemplateResyncer struct {
 	offeringIDs []int64
+	err         error
 }
 
 func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(
 	_ context.Context, offeringID int64, _ timezone.Date,
 ) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
-	return nil
+	return r.err
 }
 
 func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {
@@ -262,6 +266,58 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 	require.NoError(t, svc.Update(ctx, created))
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs,
 		"a service-window change must resync every template sourcing the phase's offerings")
+}
+
+// TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate pins
+// the #2147 round-7 review contract: when the sourced-template resync reports
+// ErrOfferingSourceInvalid — the new service window no longer fits a sourced
+// template's planning period — the update must surface as
+// ErrPhaseCareOfferingConflict and request rollback of the ambient tenant
+// transaction, instead of committing a phase whose sourced rosters and
+// materialized occurrences could never be resynced again.
+func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *testing.T) {
+	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := tenant.WithRollbackMarker(testpkg.TenantContext(1))
+
+	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:            created.ID,
+		Name:               "offering-" + t.Name(),
+		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:      []string{"mon"},
+		IsActive:           true,
+		AutoAddGradeLevels: []int{},
+		SelectionRule:      enrollmentModels.SelectionRuleOptional,
+	}
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	resyncer := &recordingSourcedTemplateResyncer{
+		err: fmt.Errorf("offering roster resync: template 7: %w", scheduleService.ErrOfferingSourceInvalid),
+	}
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:                   repoFactory.Phase,
+		RequestRepo:            repoFactory.Request,
+		RequestChildRepo:       repoFactory.RequestChild,
+		CareOfferingRepo:       repoFactory.CareOffering,
+		FormSchemaRepo:         repoFactory.FormSchema,
+		LockTemplateRecurrence: func(context.Context) error { return nil },
+		DB:                     db,
+		Logger:                 slog.Default(),
+	})
+	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
+	require.True(t, ok, "phase service must accept the sourced-template resyncer")
+	binder.SetSourcedTemplateResyncer(resyncer)
+
+	created.ServiceEndDate = created.ServiceEndDate.AddDays(7)
+	err = svc.Update(ctx, created)
+	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict,
+		"an incompatible sourced template must reject the window change, not be skipped")
+	require.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid)
+	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs)
+	assert.True(t, tenant.RollbackRequested(ctx),
+		"the rejected update must discard the already-written phase row via the ambient-transaction rollback marker")
 }
 
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {

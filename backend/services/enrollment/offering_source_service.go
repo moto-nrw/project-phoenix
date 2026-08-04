@@ -257,17 +257,20 @@ func (s *decisionService) ResyncOfferingSourcedTemplates(ctx context.Context, ef
 	if err != nil {
 		return fmt.Errorf("offering roster resync: list sourced templates: %w", err)
 	}
-	return s.resyncSourcedTemplateList(ctx, templates, effectiveFrom)
+	return s.resyncSourcedTemplateList(ctx, templates, effectiveFrom, true)
 }
 
 // ResyncTemplatesSourcedFromOffering re-reconciles every template sourcing
-// ONE offering. Care-offering updates call it (#2147 review): editing the
-// offering's days or phase changes the wanted roster of every template fed by
-// it, and without this resync the sourced rows and already-materialized
-// occurrences would keep the pre-edit shape until an unrelated template save.
-// Templates whose source has drifted invalid are skipped with a warning,
-// mirroring the tenant-wide resync. The caller must hold the tenant
-// recurrence lock.
+// ONE offering. Care-offering updates and phase service-window updates call
+// it (#2147 review): editing the offering's days or phase changes the wanted
+// roster of every template fed by it, and without this resync the sourced
+// rows and already-materialized occurrences would keep the pre-edit shape
+// until an unrelated template save. A template whose source the pending edit
+// makes incompatible with its planning period surfaces as
+// ErrOfferingSourceInvalid — the caller must reject the edit then (#2147
+// review round 7): swallowing it would commit a change whose sourced rows and
+// materialized occurrences can never be resynced again. The caller must hold
+// the tenant recurrence lock.
 func (s *decisionService) ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error {
 	if !s.hasEnrollmentMaterializationDependencies() {
 		s.Logger.Warn("offering roster resync: enrollment repositories not configured; skipping sourced-template resync")
@@ -277,10 +280,16 @@ func (s *decisionService) ResyncTemplatesSourcedFromOffering(ctx context.Context
 	if err != nil {
 		return fmt.Errorf("offering roster resync: list templates sourcing offering %d: %w", offeringID, err)
 	}
-	return s.resyncSourcedTemplateList(ctx, templates, effectiveFrom)
+	return s.resyncSourcedTemplateList(ctx, templates, effectiveFrom, false)
 }
 
-func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templates []*activities.Group, effectiveFrom timezone.Date) error {
+// resyncSourcedTemplateList reconciles each template's sourced roster.
+// skipInvalid controls what a drifted-invalid source does: the tenant-wide
+// resync skips the template with a warning (one broken template must not
+// block a whole grade transition), while the offering-scoped resync behind
+// phase/offering edits propagates ErrOfferingSourceInvalid so the caller can
+// reject the edit that would strand the template's rows (#2147 review).
+func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templates []*activities.Group, effectiveFrom timezone.Date, skipInvalid bool) error {
 	for _, tmpl := range templates {
 		if tmpl == nil || tmpl.SourceCareOfferingID == nil {
 			continue
@@ -295,8 +304,11 @@ func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templat
 		})
 		if err != nil {
 			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
-				s.logSkippedSourcedTemplate(tmpl.ID, *tmpl.SourceCareOfferingID, "tenant-wide resync: source invalid", err)
-				continue
+				if skipInvalid {
+					s.logSkippedSourcedTemplate(tmpl.ID, *tmpl.SourceCareOfferingID, "tenant-wide resync: source invalid", err)
+					continue
+				}
+				return fmt.Errorf("offering roster resync: template %d (%q) would lose its offering source: %w", tmpl.ID, tmpl.Name, err)
 			}
 			return fmt.Errorf("offering roster resync: template %d: %w", tmpl.ID, err)
 		}

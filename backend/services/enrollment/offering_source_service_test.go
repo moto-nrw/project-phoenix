@@ -15,6 +15,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1262,4 +1263,96 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	assert.Equal(t, studentID, rows[0].StudentID)
 	assert.Equal(t, []int{2}, rows[0].SelectedWeekdays,
 		"the sourced row follows the offering's new weekday immediately after the update")
+}
+
+// ---- drifted-invalid sources: skip vs reject ------------------------------
+
+// TestResyncSourcedTemplates_InvalidSourceSkipVsReject pins the #2147 round-7
+// review contract: the tenant-wide resync (grade transitions) still skips a
+// template whose source has drifted incompatible — one broken template must
+// not block a whole transition — while the offering-scoped resync backing
+// phase/offering edits surfaces ErrOfferingSourceInvalid so the caller
+// rejects the edit instead of committing it with stranded sourced rows.
+func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// The phase's service window (2026-09-01 .. 2027-07-31) reaches past this
+	// period's end, so the template's source fails the period-fit validation.
+	shortPeriod := createCareOfferingTestPeriod(t, env.db, "drift-short",
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2026, 12, 31))
+	offering := createSourceOffering(t, env, "DriftQuelle", nil)
+	createSourcedTemplate(t, env, "DriftTermin", offering.ID, nil, shortPeriod)
+
+	resyncAll, ok := env.decision.(interface {
+		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+	})
+	require.True(t, ok, "decision service must implement the tenant-wide resync")
+	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()),
+		"the tenant-wide resync must skip a drifted-invalid template with a warning")
+
+	scoped, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the offering-scoped resync")
+	err := scoped.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, timezone.TodayDate())
+	require.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid,
+		"the offering-scoped resync must surface the incompatibility so phase/offering edits are rejected")
+}
+
+// TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate: moving an
+// offering to a phase whose service window lies outside a sourced template's
+// planning period must fail the update as ErrCareOfferingInvalid (HTTP 400)
+// and request rollback of the ambient tenant transaction — instead of
+// committing an offering whose sourced rosters and materialized occurrences
+// every later resync would only skip (#2147 review round 7).
+func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := tenant.WithRollbackMarker(testpkg.TenantContext(1))
+
+	period := offeringSourcePeriod(t, env) // 2026-08-01 .. 2027-08-31
+	offering := createSourceOffering(t, env, "PhasenWechsel", nil)
+	createSourcedTemplate(t, env, "PhasenTermin", offering.ID, nil, period)
+
+	latePhase := &enrollmentModels.Phase{
+		Name:             uniqueSchemaName("late-phase-" + t.Name()),
+		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate: timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2028, 7, 31),
+		IsActive:         true,
+		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+	}
+	latePhase.SetTenantID(1)
+	require.NoError(t, env.repos.Phase.Create(ctx, latePhase))
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.phases").
+			Where("id = ?", latePhase.ID).
+			Exec(context.Background())
+	})
+
+	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
+		Repo:                     env.repos.CareOffering,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		ActivityGroupRepo:        env.repos.ActivityGroup,
+		ActivityScheduleRepo:     env.repos.ActivitySchedule,
+		CalendarPeriodRepo:       env.repos.CalendarPeriod,
+		TimeframeRepo:            env.repos.Timeframe,
+		ActivityExceptionRepo:    env.repos.ActivityException,
+		PhaseRepo:                env.repos.Phase,
+	})
+	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
+	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
+	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the offering-update resync")
+	binder.SetSourcedTemplateResyncer(sourcedResyncer)
+
+	offering.PhaseID = latePhase.ID
+	err := svc.Update(ctx, offering)
+	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid,
+		"an edit invalidating a sourced template must be rejected as client-correctable")
+	require.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid)
+	assert.True(t, tenant.RollbackRequested(ctx),
+		"the rejected update must discard the already-written offering row via the ambient-transaction rollback marker")
 }
