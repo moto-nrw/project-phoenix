@@ -1825,6 +1825,34 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("preserves an independent education group on an existing series", async () => {
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "none",
+        educationGroupId: "31",
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga aktualisiert" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          name: "Yoga aktualisiert",
+          target_group_type: "none",
+          education_group_id: 31,
+        }),
+      ),
+    );
+  });
+
   it("initializes and saves a direct series edit with its template-only period pin", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));

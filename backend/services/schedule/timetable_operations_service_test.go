@@ -480,19 +480,22 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	assert.Equal(t, actualGroupID, *roster.Rows[0].Warnings[1].CurrentEducationGroup)
 }
 
-func TestTimetableOperationsRosterSkipsSingleGroupMismatchForMultipleTargets(t *testing.T) {
+func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
 	instanceID := int64(363)
 	activeGroupID := int64(263)
 	activityGroupID := int64(273)
 	firstGroupID := int64(283)
 	secondGroupID := int64(284)
 	studentID := int64(534)
+	outsideStudentID := int64(535)
+	outsideGroupID := int64(285)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 653, 453, 243, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
 		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: outsideStudentID, Status: scheduleModel.AttendanceStatusExpected},
 	}
 	deps.activityGroups.byID[activityGroupID] = &activitiesModel.Group{EducationGroupID: &firstGroupID}
 	deps.activityGroups.targetsByGroup[activityGroupID] = []*activitiesModel.GroupTarget{
@@ -500,15 +503,33 @@ func TestTimetableOperationsRosterSkipsSingleGroupMismatchForMultipleTargets(t *
 		{TargetGroupType: activitiesModel.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
 	}
 	deps.students.byID[studentID] = &usersModel.Student{PersonID: 464, GroupID: &secondGroupID}
+	deps.students.byID[outsideStudentID] = &usersModel.Student{PersonID: 465, GroupID: &outsideGroupID}
 	deps.personService.people[464] = &usersModel.Person{FirstName: "Mia", LastName: "Mehrfach"}
+	deps.personService.people[465] = &usersModel.Person{FirstName: "Noah", LastName: "Außerhalb"}
 
 	roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
 
 	require.NoError(t, err)
-	require.Len(t, roster.Rows, 1)
-	for _, warning := range roster.Rows[0].Warnings {
+	require.Len(t, roster.Rows, 2)
+	rowsByStudent := make(map[int64]OperationRosterRow, len(roster.Rows))
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	for _, warning := range rowsByStudent[studentID].Warnings {
 		assert.NotEqual(t, "template_class_mismatch", warning.Kind)
 	}
+	var mismatch *OperationRosterWarning
+	outsideWarnings := rowsByStudent[outsideStudentID].Warnings
+	for i := range outsideWarnings {
+		if outsideWarnings[i].Kind == "template_class_mismatch" {
+			mismatch = &outsideWarnings[i]
+			break
+		}
+	}
+	require.NotNil(t, mismatch)
+	assert.Nil(t, mismatch.ExpectedGroupID)
+	assert.Nil(t, mismatch.ExpectedGroupName)
+	assert.Equal(t, outsideGroupID, *mismatch.CurrentEducationGroup)
 }
 
 func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {

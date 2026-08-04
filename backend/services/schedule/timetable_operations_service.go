@@ -831,16 +831,27 @@ func (s *timetableOperationsService) rosterWarnings(
 		appendArrivalWarnings(warnings, arrivals, inst)
 	}
 
-	if expectedGroupID := rosterMismatchExpectedGroupID(templateGroup); expectedGroupID != nil {
+	if expectedGroupIDs := rosterMismatchExpectedGroupIDs(templateGroup); len(expectedGroupIDs) > 0 {
+		var expectedGroupID *int64
 		var expectedGroupName *string
-		if group := groups[*expectedGroupID]; group != nil {
-			name := group.Name
-			expectedGroupName = &name
+		if len(expectedGroupIDs) == 1 {
+			for groupID := range expectedGroupIDs {
+				expectedGroupID = &groupID
+				if group := groups[groupID]; group != nil {
+					name := group.Name
+					expectedGroupName = &name
+				}
+			}
 		}
 		for _, studentID := range studentIDs {
 			st := students[studentID]
-			if st == nil || (st.GroupID != nil && *st.GroupID == *expectedGroupID) {
+			if st == nil {
 				continue
+			}
+			if st.GroupID != nil {
+				if _, matches := expectedGroupIDs[*st.GroupID]; matches {
+					continue
+				}
 			}
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
 				Kind:                  "template_class_mismatch",
@@ -855,22 +866,22 @@ func (s *timetableOperationsService) rosterWarnings(
 	return warnings
 }
 
-func rosterMismatchExpectedGroupID(group *rosterTemplateGroup) *int64 {
+func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct{} {
 	if group == nil {
 		return nil
 	}
 	if len(group.Targets) == 0 {
-		return group.EducationGroupID
+		if group.EducationGroupID == nil {
+			return nil
+		}
+		return map[int64]struct{}{*group.EducationGroupID: {}}
 	}
-	var expected *int64
+	expected := make(map[int64]struct{}, len(group.Targets))
 	for _, target := range group.Targets {
 		if target == nil || target.TargetGroupType != activitiesModel.TargetGroupTypeGruppe || target.EducationGroupID == nil {
 			continue
 		}
-		if expected != nil && *expected != *target.EducationGroupID {
-			return nil
-		}
-		expected = target.EducationGroupID
+		expected[*target.EducationGroupID] = struct{}{}
 	}
 	return expected
 }

@@ -1297,7 +1297,9 @@ export function useEventForm({
           : form.educationGroupId
             ? Number(form.educationGroupId)
             : undefined
-        : undefined,
+        : form.educationGroupId
+          ? Number(form.educationGroupId)
+          : undefined,
     target_group_type: form.targetGroupType,
     target_grade_level:
       form.targetGroupType === "jahrgang" && form.targetGradeLevels.length > 0
