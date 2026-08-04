@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	groupTargetsVersion     = "1.15.263"
+	groupTargetsVersion     = "1.15.264"
 	groupTargetsDescription = "Normalize multiple dynamic target groups for timetable templates (#2130)"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func groupTargetsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.263: Creating activities.group_targets...")
+	fmt.Println("Migration 1.15.264: Creating activities.group_targets...")
 	_, err := db.NewRaw(`
 		CREATE TABLE activities.group_targets (
 			id                  BIGSERIAL PRIMARY KEY,
@@ -108,7 +108,7 @@ func groupTargetsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func groupTargetsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.263: Dropping activities.group_targets...")
+	fmt.Println("Rolling back migration 1.15.264: Dropping activities.group_targets...")
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_students_tenant_school_class_normalized;
 		DROP TABLE IF EXISTS activities.group_targets CASCADE;
