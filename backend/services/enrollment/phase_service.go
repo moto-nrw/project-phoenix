@@ -541,6 +541,42 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 	return nil
 }
 
+// detachPhaseSourcedTemplates retires the sourced rosters of every template
+// sourcing one of the phase's offerings ahead of the phase delete (#2147
+// review round 11); see CareOfferingSourcedTemplateResyncer. Runs inside the
+// delete transaction under the tenant recurrence lock. Deliberately no
+// source validation is involved, so a drifted-invalid source never blocks
+// the delete.
+func (s *phaseService) detachPhaseSourcedTemplates(ctx context.Context, phaseID int64) error {
+	if s.sourcedTemplateResyncer == nil || s.careOfferingRepo == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.logger.Warn("phase delete: sourced-template resyncer not configured; sourced rosters may be orphaned",
+			slog.Int64("phase_id", phaseID))
+		return nil
+	}
+	if s.lockTemplateRecurrence == nil {
+		return errors.New("phase delete sourced-template detach requires the template recurrence lock")
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return fmt.Errorf("lock template recurrence for phase delete: %w", err)
+	}
+	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+	if err != nil {
+		return fmt.Errorf("phase delete: list care offerings for sourced-template detach: %w", err)
+	}
+	today := timezone.TodayDate()
+	for _, offering := range offerings {
+		if offering == nil {
+			continue
+		}
+		if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offering.ID, today); err != nil {
+			return fmt.Errorf("phase delete: detach templates sourcing offering %d: %w", offering.ID, err)
+		}
+	}
+	return nil
+}
+
 // DeleteImpact returns the blast radius of deleting the phase so the
 // admin UI can warn before the destructive action. Requests +
 // CareOfferings are deleted; StudentsKept survive.
@@ -605,6 +641,14 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 
 	deletedRequests := 0
 	run := func(txCtx context.Context) error {
+		// Retire sourced rosters FIRST, while request children and offering
+		// links still exist: the phase cascade SET-NULLs the templates'
+		// source and the rows' provenance, which would leave bounded
+		// offering-derived enrollment rows that keep materializing children
+		// yet are invisible to every later resync (#2147 review round 11).
+		if err := s.detachPhaseSourcedTemplates(txCtx, id); err != nil {
+			return err
+		}
 		if s.requestRepo != nil {
 			n, err := s.requestRepo.DeleteByPhaseID(txCtx, id)
 			if err != nil {

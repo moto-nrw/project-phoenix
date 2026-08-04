@@ -741,6 +741,37 @@ func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingNotFound))
 }
 
+// #2147 review round 11: deleting an offering must retire its sourced
+// templates' rosters BEFORE the row delete — the FK's ON DELETE SET NULL
+// alone only flips the templates to manual rosters and would leave their
+// offering-derived enrollment rows behind.
+func TestCareOfferingService_Delete_DetachesSourcedTemplates(t *testing.T) {
+	_, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        phase.ID,
+		Name:           "Detached-on-delete",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon"},
+		IsActive:       true,
+	}
+	offering.SetTenantID(1)
+	created, err := svc.Create(ctx, offering)
+	require.NoError(t, err)
+
+	resyncer := &recordingSourcedTemplateResyncer{}
+	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
+	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
+	binder.SetSourcedTemplateResyncer(resyncer)
+
+	require.NoError(t, svc.Delete(ctx, created.ID))
+
+	assert.Equal(t, []int64{created.ID}, resyncer.detachedOfferingIDs,
+		"the delete must retire sourced templates before the row is removed")
+}
+
 func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()

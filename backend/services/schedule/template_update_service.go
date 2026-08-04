@@ -311,11 +311,15 @@ func (s *TimetableDataService) reconcileManualRosterInstances(
 		return nil
 	}
 	reconciler := NewRosterReconciler(s.deps.ActivityInstanceRepo, s.deps.InstanceStudentRepo, s.deps.StudentEnrollmentRepo, s.deps.Logger)
+	// No prior-enrollment snapshot: both shapes re-establish coverage on
+	// purpose. A re-picked child's instance rows were just removed by the
+	// source resync and must come back; retired students only lose rows.
 	if _, _, err := reconciler.ReconcileSourcedTemplateRosters(
 		ctx,
 		in.TemplateID,
 		studentIDs,
 		offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
+		nil,
 	); err != nil {
 		return &ScheduleError{Op: "update template: reconcile manual roster occurrences", Err: err}
 	}

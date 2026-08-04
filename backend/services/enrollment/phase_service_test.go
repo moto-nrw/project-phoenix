@@ -213,8 +213,9 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 // A non-nil err is returned after recording, simulating a resync that reports
 // the new window as incompatible with a sourced template.
 type recordingSourcedTemplateResyncer struct {
-	offeringIDs []int64
-	err         error
+	offeringIDs         []int64
+	detachedOfferingIDs []int64
+	err                 error
 }
 
 func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(
@@ -222,6 +223,13 @@ func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(
 ) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
 	return r.err
+}
+
+func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(
+	_ context.Context, offeringID int64, _ timezone.Date,
+) error {
+	r.detachedOfferingIDs = append(r.detachedOfferingIDs, offeringID)
+	return nil
 }
 
 func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {

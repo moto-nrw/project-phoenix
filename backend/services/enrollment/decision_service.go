@@ -2467,7 +2467,10 @@ func (s *decisionService) reconcileEnrollmentInstanceRosters(
 	}
 	slices.Sort(ids)
 	for _, groupID := range ids {
-		if err := s.reconcileSourcedInstanceRosters(ctx, groupID, students, from); err != nil {
+		// No prior-enrollment snapshot: a decision/adjustment writes THIS
+		// student's coverage on purpose, so desired-but-missing rows are
+		// (re)created rather than read as per-occurrence hand removals.
+		if err := s.reconcileSourcedInstanceRosters(ctx, groupID, students, from, nil); err != nil {
 			return err
 		}
 	}

@@ -46,7 +46,14 @@ func templateOfferingSourceUp(ctx context.Context, db *bun.DB) error {
 	//
 	// ON DELETE SET NULL: deleting an offering degrades its sourced templates
 	// to plain manually-curated rosters instead of blocking the delete or
-	// dropping the templates. Already-materialized enrollment rows stay.
+	// dropping the templates. The referential action is only the flip of the
+	// column: the care-offering and phase delete flows retire the templates'
+	// offering-derived enrollment rows and reconcile their materialized
+	// occurrences BEFORE the row delete (DetachTemplatesSourcedFromOffering),
+	// while provenance tags still exist. Otherwise the bounded sourced rows
+	// would keep materializing children after the request-child cascade
+	// erased their enrollment_request_child_id, hiding them from every later
+	// resync (#2147 review round 11).
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			ADD COLUMN IF NOT EXISTS source_care_offering_id BIGINT

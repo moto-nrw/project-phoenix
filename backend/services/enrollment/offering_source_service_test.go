@@ -697,6 +697,67 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	assert.Empty(t, degraded.SourceGradeLevels)
 }
 
+// #2147 review round 11: deleting a phase cascades its care offerings away
+// (templates flip to manual via ON DELETE SET NULL) and erases the roster
+// rows' provenance with the request children. The delete flow must retire
+// the offering-derived enrollment rows and their materialized occurrence
+// rows FIRST — left behind, they would keep materializing children while
+// being invisible to every later resync.
+func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "PhasenLoeschQuelle", nil)
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "phase-delete@example.com", "Phia", 2)
+	template := createSourcedTemplate(t, env, "PhasenLoeschTermin", offering.ID, nil, period)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingID:       &offering.ID,
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		},
+	))
+	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 1)
+
+	occurrenceDate := firstInPhaseMondayOnOrAfter(env.sourcePhase.ServiceStartDate)
+	require.NotNil(t, template.PlannedRoomID)
+	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &template.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	registerSourcedInstanceCleanup(t, env, planned.ID)
+	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
+
+	repoFactory := repositories.NewFactory(env.db)
+	phaseSvc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:                   repoFactory.Phase,
+		RequestRepo:            repoFactory.Request,
+		RequestChildRepo:       repoFactory.RequestChild,
+		CareOfferingRepo:       repoFactory.CareOffering,
+		FormSchemaRepo:         repoFactory.FormSchema,
+		LockTemplateRecurrence: func(context.Context) error { return nil },
+		DB:                     env.db,
+	})
+	binder, ok := phaseSvc.(enrollmentService.CareOfferingSourceResyncBinder)
+	require.True(t, ok, "phase service must accept the sourced-template resyncer")
+	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the delete-side detach")
+	binder.SetSourcedTemplateResyncer(sourcedResyncer)
+
+	require.NoError(t, phaseSvc.Delete(ctx, env.sourcePhase.ID))
+
+	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
+		"the not-yet-effective sourced rows must be retired with the phase")
+	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
+		"the child's still-planned occurrence row must be removed with the phase")
+	degraded, err := repoFactory.ActivityGroup.FindByID(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Nil(t, degraded.SourceCareOfferingID, "the cascade flips the now source-less template to a manual roster")
+}
+
 // createBoundedTemplateSchedule mirrors createCareOfferingTemplateSchedule but
 // stamps a recurrence envelope onto the schedule row, standing in for one
 // segment of a split series (predecessor capped at the split date, successor
@@ -904,6 +965,55 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	assert.Equal(t, studentGrade1, decidedRows[0].StudentID,
 		"a row a human decided by hand must never be removed by the resync")
 	assert.Equal(t, studentGrade2, decidedRows[1].StudentID)
+}
+
+// #2147 review round 11: a resync that rewrites a still-covered child's
+// enrollment row (here: the child's link is capped mid-phase) must not
+// resurrect an occurrence row staff removed by hand — only newly gained
+// coverage may create instance rows.
+func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "HandEntfernt", nil)
+	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "hand-removed@example.com", "Hanna", 2)
+	template := createSourcedTemplate(t, env, "HandEntferntTermin", offering.ID, []int{2}, period)
+	input := scheduleService.OfferingRosterResyncInput{
+		TemplateID:       template.ID,
+		OfferingID:       &offering.ID,
+		GradeLevels:      []int{2},
+		CalendarPeriodID: &period.ID,
+		EffectiveFrom:    timezone.TodayDate(),
+	}
+	resyncer := offeringResyncer(t, env)
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+
+	// One materialized occurrence the child is deliberately NOT on: staff
+	// removed the child's row by hand after materialization.
+	occurrenceDate := firstInPhaseMondayOnOrAfter(env.sourcePhase.ServiceStartDate)
+	require.NotNil(t, template.PlannedRoomID)
+	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &template.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	registerSourcedInstanceCleanup(t, env, planned.ID)
+
+	// The child leaves the offering four weeks later: the resync resizes the
+	// enrollment row while the occurrence date stays covered.
+	switchDate := occurrenceDate.AddDays(28)
+	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(ctx, childID, switchDate, nil))
+	input.PreviousOfferingID = &offering.ID
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].ValidUntil)
+	require.Equal(t, switchDate, *rows[0].ValidUntil,
+		"sanity: the resync must have touched the child's enrollment row")
+	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
+		"a hand-removed occurrence row must not be recreated while the child's coverage there is unchanged")
 }
 
 // ---- review follow-ups, round 4 (#2147) -----------------------------------

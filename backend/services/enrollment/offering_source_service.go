@@ -164,7 +164,10 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 			touchedStudents[target.studentID] = true
 		}
 	}
-	return s.reconcileSourcedInstanceRosters(ctx, in.TemplateID, touchedStudents, in.EffectiveFrom)
+	// `rows` still holds the pre-write state (every write above goes by id):
+	// the reconciler uses it to tell newly gained coverage from occurrences a
+	// human removed a still-covered child from (#2147 review round 11).
+	return s.reconcileSourcedInstanceRosters(ctx, in.TemplateID, touchedStudents, in.EffectiveFrom, rows)
 }
 
 // reconcileSourcedInstanceRosters propagates the resync's enrollment changes
@@ -177,6 +180,7 @@ func (s *decisionService) reconcileSourcedInstanceRosters(
 	templateID int64,
 	students map[int64]bool,
 	effectiveFrom timezone.Date,
+	priorEnrollments []*activities.StudentEnrollment,
 ) error {
 	if len(students) == 0 {
 		return nil
@@ -193,7 +197,7 @@ func (s *decisionService) reconcileSourcedInstanceRosters(
 		studentIDs = append(studentIDs, studentID)
 	}
 	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
-	if _, _, err := s.InstanceRosters.ReconcileSourcedTemplateRosters(ctx, templateID, studentIDs, effectiveFrom); err != nil {
+	if _, _, err := s.InstanceRosters.ReconcileSourcedTemplateRosters(ctx, templateID, studentIDs, effectiveFrom, priorEnrollments); err != nil {
 		return fmt.Errorf("offering roster resync: reconcile materialized occurrences: %w", err)
 	}
 	return nil
@@ -202,9 +206,12 @@ func (s *decisionService) reconcileSourcedInstanceRosters(
 // SourcedInstanceRosterReconciler propagates sourced-roster changes onto
 // already-materialized future timetable occurrences (#2147 review).
 // Implemented by services/schedule.RosterReconciler; injected here to avoid
-// widening the decision service's repo surface.
+// widening the decision service's repo surface. priorEnrollments is the
+// template's enrollment state before the caller's writes (nil = coverage is
+// being established from scratch); see the implementation's doc for how it
+// preserves per-occurrence hand removals.
 type SourcedInstanceRosterReconciler interface {
-	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date) (int, int, error)
+	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date, priorEnrollments []*activities.StudentEnrollment) (int, int, error)
 }
 
 // scheduleValidityBounds returns the union recurrence envelope of a template's
@@ -281,6 +288,45 @@ func (s *decisionService) ResyncTemplatesSourcedFromOffering(ctx context.Context
 		return fmt.Errorf("offering roster resync: list templates sourcing offering %d: %w", offeringID, err)
 	}
 	return s.resyncSourcedTemplateList(ctx, templates, effectiveFrom, false)
+}
+
+// DetachTemplatesSourcedFromOffering retires the sourced rosters of every
+// template sourcing ONE offering: all offering-derived enrollment rows are
+// deleted (not yet effective) or capped at effectiveFrom (already started),
+// legacy-owned rows stay protected, and the affected students' already-
+// materialized future occurrences are reconciled. The care-offering and
+// phase delete flows call it BEFORE the row delete (#2147 review round 11):
+// the FK's ON DELETE SET NULL only flips the template to a manual roster —
+// left alone, its bounded sourced rows would keep materializing children
+// while the request-child cascade erases their provenance, hiding them from
+// every later resync. Passing no offering skips the source validation, so a
+// drifted-invalid source can never block the delete. The caller must hold
+// the tenant recurrence lock.
+func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error {
+	if !s.hasEnrollmentMaterializationDependencies() {
+		s.Logger.Warn("offering roster detach: enrollment repositories not configured; skipping sourced-template detach")
+		return nil
+	}
+	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offeringID)
+	if err != nil {
+		return fmt.Errorf("offering roster detach: list templates sourcing offering %d: %w", offeringID, err)
+	}
+	for _, tmpl := range templates {
+		if tmpl == nil {
+			continue
+		}
+		err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+			TemplateID:         tmpl.ID,
+			PreviousOfferingID: tmpl.SourceCareOfferingID,
+			OfferingID:         nil,
+			CalendarPeriodID:   tmpl.CalendarPeriodID,
+			EffectiveFrom:      effectiveFrom,
+		})
+		if err != nil {
+			return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
+		}
+	}
+	return nil
 }
 
 // resyncSourcedTemplateList reconciles each template's sourced roster.

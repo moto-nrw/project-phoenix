@@ -120,8 +120,14 @@ type CareOfferingServiceConfig struct {
 // template sourcing an offering (#2137/#2147 review). Implemented by the
 // enrollment decision service; injected via SetSourcedTemplateResyncer
 // because the decision service is constructed after this one.
+// DetachTemplatesSourcedFromOffering is the delete-side counterpart: it
+// retires all offering-derived roster rows and reconciled occurrences before
+// the offering row (or its phase) is deleted, so the FK's ON DELETE SET NULL
+// only ever flips an already-clean template to a manual roster (#2147 review
+// round 11).
 type CareOfferingSourcedTemplateResyncer interface {
 	ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
+	DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
 }
 
 // CareOfferingSourceResyncBinder is the factory-facing setter for the
@@ -1008,10 +1014,37 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return careOfferingInvalidf("id must be positive")
 	}
+	// Retire sourced rosters BEFORE the row delete: the FK's ON DELETE SET
+	// NULL only degrades the templates to manual rosters and would leave
+	// their bounded offering-derived enrollment rows and materialized
+	// occurrences behind (#2147 review round 11). The recurrence lock
+	// serializes the retirement with concurrent approvals/template saves.
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
+	}
+	if err := s.detachSourcedTemplates(ctx, id); err != nil {
+		return err
+	}
 	if err := s.Repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.Logger.Info("care offering deleted", slog.Int64("offering_id", id))
+	return nil
+}
+
+// detachSourcedTemplates retires the rosters of every template sourcing the
+// offering ahead of its deletion; see CareOfferingSourcedTemplateResyncer.
+func (s *careOfferingService) detachSourcedTemplates(ctx context.Context, offeringID int64) error {
+	if s.sourcedTemplateResyncer == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.Logger.Warn("care offering delete: sourced-template resyncer not configured; sourced rosters may be orphaned",
+			slog.Int64("offering_id", offeringID))
+		return nil
+	}
+	if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+		return fmt.Errorf("care offering delete: detach sourced templates: %w", err)
+	}
 	return nil
 }
 

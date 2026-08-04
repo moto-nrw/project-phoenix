@@ -316,10 +316,18 @@ type instanceStudentPair struct {
 //
 //   - occurrences the student's enrollments now cover gain an 'expected' row,
 //     followed by the materializer's status-day pass, so an active sickness /
-//     excusal / class trip lands as absent instead of expected
+//     excusal / class trip lands as absent instead of expected — but only for
+//     NEWLY gained coverage: when priorEnrollments already planned the student
+//     on the occurrence and the row is nevertheless missing, that absence is a
+//     hand removal by staff and stays (#2147 review round 11). A cap-and-reseed
+//     that leaves the student's coverage unchanged must not resurrect it.
 //   - occurrences no longer covered lose the student's row — but only while
 //     the row is still purely a plan (see instanceRowIsStillPlanned); rows
 //     recording an actual event or a hand decision stay
+//
+// priorEnrollments is the template's enrollment state as loaded BEFORE the
+// caller's writes; nil means the caller intends the students' coverage to be
+// (re)established from scratch, so every desired-but-missing row is created.
 //
 // Only planned, materializer-produced instances are visited (hand-created
 // blocks keep their planner-typed roster). `from` bounds the rewrite and is
@@ -327,6 +335,7 @@ type instanceStudentPair struct {
 // transaction. Returns the rows created and removed.
 func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 	ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date,
+	priorEnrollments []*activities.StudentEnrollment,
 ) (int, int, error) {
 	if templateID <= 0 || len(studentIDs) == 0 {
 		return 0, 0, nil
@@ -359,6 +368,10 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 	for _, e := range enrollments {
 		enrollmentsByStudent[e.StudentID] = append(enrollmentsByStudent[e.StudentID], e)
 	}
+	priorByStudent := make(map[int64][]*activities.StudentEnrollment, len(priorEnrollments))
+	for _, e := range priorEnrollments {
+		priorByStudent[e.StudentID] = append(priorByStudent[e.StudentID], e)
+	}
 
 	existingRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
@@ -377,17 +390,18 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 			periodID = *inst.CalendarPeriodID
 		}
 		for _, sid := range studentIDs {
-			desired := false
-			for _, e := range enrollmentsByStudent[sid] {
-				if isEnrollmentValidOn(e, inst.Date, periodID) && !enrollmentStudentIsAlumnus(e) {
-					desired = true
-					break
-				}
-			}
+			desired := enrollmentsPlanStudentOn(enrollmentsByStudent[sid], inst.Date, periodID)
 			key := instanceStudentPair{instanceID: inst.ID, studentID: sid}
 			row, exists := existing[key]
 			switch {
 			case desired && !exists:
+				if enrollmentsPlanStudentOn(priorByStudent[sid], inst.Date, periodID) {
+					// The pre-resync rows already planned this occurrence and
+					// the row is gone regardless — staff removed the child from
+					// this one occurrence by hand. Only newly gained coverage
+					// may create rows (#2147 review round 11).
+					continue
+				}
 				fresh := &schedule.InstanceStudent{
 					InstanceID: inst.ID,
 					StudentID:  sid,
@@ -427,6 +441,17 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 		)
 	}
 	return created, removed, nil
+}
+
+// enrollmentsPlanStudentOn reports whether any of the rows plans its student
+// on the occurrence date: valid on that date and not carried by an alumnus.
+func enrollmentsPlanStudentOn(rows []*activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
+	for _, e := range rows {
+		if isEnrollmentValidOn(e, date, periodID) && !enrollmentStudentIsAlumnus(e) {
+			return true
+		}
+	}
+	return false
 }
 
 // instanceRowIsStillPlanned reports whether an attendance row is still purely
