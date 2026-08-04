@@ -11,6 +11,7 @@ import {
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { buildPlanningTrackLegend } from "./betreuungsplan-view";
 import { InstanceBlock } from "./instance-block";
+import { MonthPlannerGrid } from "./month-planner-grid";
 
 function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
   return {
@@ -100,6 +101,24 @@ describe("planning track rendering", () => {
       /Planungsspur Mittag/,
     );
     expect(screen.getByText("Mittag")).toBeInTheDocument();
+  });
+
+  it("uses the neutral track color for unassigned month cards", () => {
+    const day = new Date(2026, 7, 3);
+
+    render(
+      <MonthPlannerGrid
+        days={[day]}
+        monthDate={day}
+        instances={[instance()]}
+        onDayClick={vi.fn()}
+        onInstanceClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Mensa" })).toHaveStyle({
+      borderLeftColor: "#D1D5DB",
+    });
   });
 
   it("orders simultaneous blocks by planning track before id", () => {

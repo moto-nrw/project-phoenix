@@ -149,7 +149,7 @@ export function MonthPlannerGrid({
                           style={{
                             borderLeftColor: isCancelled
                               ? "#FF3130"
-                              : inst.planningTrackColor,
+                              : (inst.planningTrackColor ?? "#D1D5DB"),
                           }}
                         >
                           <span
