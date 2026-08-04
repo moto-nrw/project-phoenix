@@ -802,6 +802,8 @@
     "withdrawModalBodyChild": "Nëse vazhdoni, regjistrimi për këtë fëmijë tërhiqet dhe nuk përpunohet më. Këtë hap nuk mund ta zhbëni vetë. Në atë rast, ju lutemi kontaktoni direkt OGS-në.",
     "withdrawModalBodyAll": "Nëse vazhdoni, regjistrimi tërhiqet për të gjithë fëmijët dhe nuk përpunohet më. Këtë hap nuk mund ta zhbëni vetë. Në atë rast, ju lutemi kontaktoni direkt OGS-në.",
     "withdrawModalConfirm": "Tërhiq përfundimisht",
+    "modalClose": "Mbyll dialogun",
+    "modalBackdropClose": "Sfondi. Kliko për ta mbyllur",
     "withdrawnChild": "Regjistrimi për këtë fëmijë u tërhoq.",
     "withdrawnAll": "Regjistrimi u tërhoq.",
     "submittedEyebrow": "Regjistrimi u pranua",

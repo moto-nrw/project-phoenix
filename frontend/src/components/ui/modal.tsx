@@ -326,6 +326,15 @@ interface ConfirmationModalProps {
    */
   readonly isDismissDisabled?: boolean;
   readonly confirmButtonClass?: string;
+  /**
+   * Text shown on the confirm button while isConfirmLoading. Defaults to
+   * German; pass a translated string on localized surfaces.
+   */
+  readonly loadingText?: string;
+  /** Forwarded to Modal — translated close-button aria-label. */
+  readonly closeLabel?: string;
+  /** Forwarded to Modal — translated backdrop aria-label. */
+  readonly backdropLabel?: string;
 }
 
 export function ConfirmationModal({
@@ -340,6 +349,9 @@ export function ConfirmationModal({
   isConfirmDisabled = false,
   isDismissDisabled = false,
   confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
+  loadingText = "Wird geladen...",
+  closeLabel,
+  backdropLabel,
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>
@@ -379,7 +391,7 @@ export function ConfirmationModal({
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
-            Wird geladen...
+            {loadingText}
           </span>
         ) : (
           confirmText
@@ -395,6 +407,8 @@ export function ConfirmationModal({
       title={title}
       footer={modalFooter}
       isDismissDisabled={isDismissDisabled}
+      closeLabel={closeLabel}
+      backdropLabel={backdropLabel}
     >
       {children}
     </Modal>

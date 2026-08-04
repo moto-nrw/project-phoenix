@@ -802,6 +802,8 @@
     "withdrawModalBodyChild": "Wenn Sie fortfahren, wird die Anmeldung für dieses Kind zurückgezogen und nicht weiter bearbeitet. Dieser Schritt kann nicht selbst rückgängig gemacht werden. Wenden Sie sich in dem Fall bitte direkt an die OGS.",
     "withdrawModalBodyAll": "Wenn Sie fortfahren, wird die Anmeldung für alle Kinder zurückgezogen und nicht weiter bearbeitet. Dieser Schritt kann nicht selbst rückgängig gemacht werden. Wenden Sie sich in dem Fall bitte direkt an die OGS.",
     "withdrawModalConfirm": "Endgültig zurückziehen",
+    "modalClose": "Dialog schließen",
+    "modalBackdropClose": "Hintergrund. Klicken zum Schließen",
     "withdrawnChild": "Anmeldung für dieses Kind zurückgezogen.",
     "withdrawnAll": "Anmeldung zurückgezogen.",
     "submittedEyebrow": "Anmeldung eingegangen",

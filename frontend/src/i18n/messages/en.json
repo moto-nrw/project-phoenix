@@ -802,6 +802,8 @@
     "withdrawModalBodyChild": "If you continue, the enrollment for this child will be withdrawn and no longer processed. You cannot undo this step yourself. In that case, please contact the OGS directly.",
     "withdrawModalBodyAll": "If you continue, the enrollment will be withdrawn for all children and no longer processed. You cannot undo this step yourself. In that case, please contact the OGS directly.",
     "withdrawModalConfirm": "Withdraw permanently",
+    "modalClose": "Close dialog",
+    "modalBackdropClose": "Backdrop. Click to close",
     "withdrawnChild": "Enrollment for this child withdrawn.",
     "withdrawnAll": "Enrollment withdrawn.",
     "submittedEyebrow": "Enrollment received",

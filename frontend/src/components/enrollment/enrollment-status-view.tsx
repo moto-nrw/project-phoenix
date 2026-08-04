@@ -302,6 +302,9 @@ export function EnrollmentStatusView({
         }
         confirmText={t("withdrawModalConfirm")}
         cancelText={t("cancel")}
+        loadingText={t("withdrawing")}
+        closeLabel={t("modalClose")}
+        backdropLabel={t("modalBackdropClose")}
         isConfirmLoading={withdrawingChild !== null}
         confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
       >
@@ -458,6 +461,7 @@ function EnrollmentStatusContent({
       <EnrollmentChildrenSection
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
+        justSubmitted={justSubmitted}
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
@@ -741,11 +745,13 @@ function EnrollmentChildRow({
 function EnrollmentChildrenSection({
   enrollments,
   hasMultipleChildren,
+  justSubmitted,
   withdrawingChild,
   onWithdraw,
 }: Readonly<{
   enrollments: StatusChild[];
   hasMultipleChildren: boolean;
+  justSubmitted: boolean;
   withdrawingChild: string | null;
   onWithdraw: (childId?: string) => void;
 }>) {
@@ -765,7 +771,9 @@ function EnrollmentChildrenSection({
       <ul className="space-y-3">
         {enrollments.map((child) => {
           const canWithdraw =
-            hasMultipleChildren && !TERMINAL_STATUSES.has(child.status);
+            hasMultipleChildren &&
+            !justSubmitted &&
+            !TERMINAL_STATUSES.has(child.status);
           return (
             <EnrollmentChildRow
               key={child.id}

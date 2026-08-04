@@ -360,6 +360,37 @@ describe("EnrollmentStatusView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("hides per-child withdraw buttons directly after submission", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "submitted",
+          },
+          {
+            id: "8",
+            first_name: "Noah",
+            last_name: "Muster",
+            status: "submitted",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" justSubmitted />);
+
+    expect(await screen.findByText("Noah Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dieses Kind zurückziehen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Gesamte Anmeldung zurückziehen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("withdraws everything only after confirming in the modal", async () => {
     mockFetchStatus.mockResolvedValueOnce(status()).mockResolvedValueOnce(
       status({
