@@ -35,6 +35,7 @@ const {
   mockCheckShiftCoverage,
   mockFetchStudents,
   mockGetAllStaff,
+  mockListPlanningTracks,
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -52,6 +53,7 @@ const {
   mockCheckShiftCoverage: vi.fn(),
   mockFetchStudents: vi.fn(),
   mockGetAllStaff: vi.fn(),
+  mockListPlanningTracks: vi.fn(),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -73,6 +75,12 @@ vi.mock("~/lib/student-api", () => ({
 vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: mockGetAllStaff,
+  },
+}));
+
+vi.mock("~/lib/planning-track-api", () => ({
+  planningTrackService: {
+    list: mockListPlanningTracks,
   },
 }));
 
@@ -438,6 +446,14 @@ describe("TimetableEventModal", () => {
       warnings: [],
     });
     mockCheckShiftCoverage.mockResolvedValue({ coverageWarnings: [] });
+    mockListPlanningTracks.mockResolvedValue([
+      {
+        id: "8",
+        name: "Mittag",
+        color: "#F78C10",
+        sortOrder: 1,
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -1320,6 +1336,7 @@ describe("TimetableEventModal", () => {
     await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await chooseFromSelect(screen.getByLabelText("Planungsspur"), "Mittag");
     await goToStep(2);
     await chooseFromSelect(
       screen.getByLabelText("Planungszeitraum*"),
@@ -1346,6 +1363,7 @@ describe("TimetableEventModal", () => {
           type: "activity",
           room_id: 3,
           category_id: 2,
+          planning_track_id: 8,
           calendar_period_id: 5,
           start_date: "2026-05-04",
           materialize_from: "2026-05-01",
@@ -1368,6 +1386,31 @@ describe("TimetableEventModal", () => {
       "Regeltermin angelegt: 6 Termine eingetragen",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  it("keeps an archived planning track visible on its existing series", async () => {
+    mockListPlanningTracks.mockResolvedValue([
+      {
+        id: "8",
+        name: "Alt",
+        color: "#F78C10",
+        sortOrder: 1,
+        archivedAt: "2026-08-03T12:00:00Z",
+      },
+    ]);
+    renderModal({
+      initialSeries: {
+        ...template,
+        planningTrackId: "8",
+        planningTrackName: "Alt",
+        planningTrackColor: "#F78C10",
+        planningTrackSortOrder: 1,
+      },
+    });
+
+    const trigger = await screen.findByLabelText("Planungsspur");
+    await chooseFromSelect(trigger, "Alt (archiviert)");
+    expect(trigger).toHaveTextContent("Alt (archiviert)");
   });
 
   // #2135: the picked Datum becomes the series start, so it must lie inside
@@ -3056,6 +3099,72 @@ describe("TimetableEventModal", () => {
     );
     expect(mockSplitTemplate).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  it.each([
+    { scope: /Alle Termine der Serie/, write: "update" },
+    { scope: /Ab jetzt dauerhaft/, write: "split" },
+  ])(
+    "applies the selected planning track for $write series edits",
+    async ({ scope, write }) => {
+      renderModal({
+        initialInstance: {
+          ...savedInstance,
+          activityGroupId: "7",
+          planningTrackId: "8",
+          planningTrackName: "Mittag",
+          planningTrackColor: "#F78C10",
+          planningTrackSortOrder: 1,
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(screen.getByRole("button", { name: scope }));
+
+      const expected = expect.objectContaining({ planning_track_id: 8 });
+      if (write === "split") {
+        await waitFor(() =>
+          expect(mockSplitTemplate).toHaveBeenCalledWith("7", expected),
+        );
+      } else {
+        await waitFor(() =>
+          expect(mockUpdateTemplate).toHaveBeenCalledWith("7", expected),
+        );
+      }
+    },
+  );
+
+  it("sends an explicit null when an all-series edit clears the planning track", async () => {
+    const trackedTemplate = {
+      ...template,
+      planningTrackId: "8",
+      planningTrackName: "Mittag",
+      planningTrackColor: "#F78C10",
+      planningTrackSortOrder: 1,
+    };
+    mockGetTemplate.mockResolvedValue(trackedTemplate);
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+      },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ planning_track_id: null }),
+      ),
+    );
   });
 
   it("preserves the fetched staffing override for an untouched all-series edit", async () => {

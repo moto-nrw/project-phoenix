@@ -19,7 +19,6 @@ import { CircleCheck, TriangleAlert } from "lucide-react";
 
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import { PlanBlock } from "~/components/ui/plan-block";
-import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 
@@ -103,7 +102,7 @@ export function InstanceBlock({
 
   const edgeColor = isUnderstaffedAck
     ? ACK_EDGE_COLOR
-    : getActivityColor(instance.activityType);
+    : instance.planningTrackColor;
 
   // Genau ein Status-Icon (PlanBlock erlaubt eines). Priorität:
   // cancelled (kein Icon, Cancelled-Rendering gewinnt) > offene Lücke >
@@ -201,6 +200,12 @@ export function InstanceBlock({
         </span>
       )}
 
+      {!isCompact && !isCancelled && instance.planningTrackName && (
+        <span className="truncate text-[10px] font-medium text-gray-600">
+          {instance.planningTrackName}
+        </span>
+      )}
+
       {!isCompact && instance.isSpontaneous && !isCancelled && (
         <span
           className="truncate text-[10px] font-semibold text-gray-600"
@@ -284,6 +289,9 @@ export function InstanceBlock({
       }}
       aria-label={[
         `${instance.title}, ${instance.startTime} bis ${instance.endTime}`,
+        ...(instance.planningTrackName
+          ? [`Planungsspur ${instance.planningTrackName}`]
+          : []),
         ...(showCompactStatus ? compactStatusDetails : []),
       ].join(", ")}
     />

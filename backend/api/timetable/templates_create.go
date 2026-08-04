@@ -49,6 +49,7 @@ type createTemplateRequest struct {
 	EndTime         string `json:"end_time"`   // HH:MM
 	RoomID          int64  `json:"room_id"`
 	CategoryID      int64  `json:"category_id"`
+	PlanningTrackID *int64 `json:"planning_track_id,omitempty"`
 	MaxParticipants *int   `json:"max_participants,omitempty"`
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// omitted/null = derive from the Betreuungsschlüssel.
@@ -322,6 +323,7 @@ func buildCreateTemplateInput(
 		EndTime:              parsed.endTime,
 		RoomID:               req.RoomID,
 		CategoryID:           req.CategoryID,
+		PlanningTrackID:      req.PlanningTrackID,
 		MaxParticipants:      parsed.maxParticipants,
 		RequiredStaff:        normalizeRequiredStaff(req.RequiredStaff),
 		WeekPattern:          parsed.weekPattern,
@@ -352,6 +354,8 @@ func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
+	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateEducationGroupError(w, r, err):

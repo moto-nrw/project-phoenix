@@ -93,16 +93,18 @@ func templateCareOfferingValidationError(ctx context.Context, op, action string,
 // provided StaffIDs roster; carried-over supervisors keep their own
 // is_primary flag.
 type TemplateSplitInput struct {
-	TemplateID      int64
-	EffectiveDate   timezone.Date
-	Name            string
-	Type            string // care | activity | external
-	Weekdays        []int  // ISO 8601, Mo=1 … Su=7
-	StartTime       time.Time
-	EndTime         time.Time
-	RoomID          int64
-	CategoryID      int64
-	MaxParticipants *int
+	TemplateID              int64
+	EffectiveDate           timezone.Date
+	Name                    string
+	Type                    string // care | activity | external
+	Weekdays                []int  // ISO 8601, Mo=1 … Su=7
+	StartTime               time.Time
+	EndTime                 time.Time
+	RoomID                  int64
+	CategoryID              int64
+	PlanningTrackID         *int64
+	PlanningTrackIDProvided bool
+	MaxParticipants         *int
 	// RequiredStaff is the manual Personalbedarf override (#1839) for the
 	// successor Group, already normalized (nil = clear/derive). It is only
 	// applied when RequiredStaffProvided is true; otherwise the successor
@@ -180,14 +182,15 @@ type TemplateEndResult struct {
 // TemplateSplitDependencies aggregates wiring. All fields are required;
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
-	GroupRepo       activitiesModel.GroupRepository
-	CategoryRepo    activitiesModel.CategoryRepository
-	ScheduleRepo    activitiesModel.ScheduleRepository
-	EnrollmentRepo  activitiesModel.StudentEnrollmentRepository
-	SupervisorRepo  activitiesModel.SupervisorPlannedRepository
-	InstanceRepo    scheduleModel.ActivityInstanceRepository
-	TimeframeRepo   scheduleModel.TimeframeRepository
-	Materialization MaterializationService
+	GroupRepo         activitiesModel.GroupRepository
+	CategoryRepo      activitiesModel.CategoryRepository
+	PlanningTrackRepo scheduleModel.PlanningTrackRepository
+	ScheduleRepo      activitiesModel.ScheduleRepository
+	EnrollmentRepo    activitiesModel.StudentEnrollmentRepository
+	SupervisorRepo    activitiesModel.SupervisorPlannedRepository
+	InstanceRepo      scheduleModel.ActivityInstanceRepository
+	TimeframeRepo     scheduleModel.TimeframeRepository
+	Materialization   MaterializationService
 	// InstanceService supplies the existing deviation snapshot/reapply machinery.
 	// The constructor narrows it to the package-private capability used by Split.
 	InstanceService InstanceService
@@ -344,6 +347,11 @@ func (s *TemplateSplitService) splitInTransaction(
 	}
 	if err := s.validateSuccessorOfferingSource(ctx, in, old); err != nil {
 		return nil, err
+	}
+	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
+		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, old.PlanningTrackID); err != nil {
+			return nil, err
+		}
 	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(
 		ctx, old, in, tenantID, sourceValidUntil, activeEnrollments, activeSupervisors,
@@ -1007,6 +1015,10 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.ListKindProvided {
 		listKind = in.ListKind
 	}
+	planningTrackID := old.PlanningTrackID
+	if in.PlanningTrackIDProvided {
+		planningTrackID = in.PlanningTrackID
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
@@ -1031,6 +1043,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		RequiredStaff:        requiredStaff,
 		IsOpen:               old.IsOpen,
 		CategoryID:           in.CategoryID,
+		PlanningTrackID:      planningTrackID,
 		PlannedRoomID:        &roomID,
 		CreatedBy:            old.CreatedBy,
 		Type:                 in.Type,

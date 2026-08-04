@@ -13,18 +13,29 @@ export type ActivityType = "care" | "activity" | "external";
 export type TimetableListKind =
   "edge_hours" | "learning_time" | "activity" | "mensa";
 
-type ConflictKind = "room" | "staff" | "student";
+type ConflictKind = "staff" | "student";
 
 /**
- * Soft warning surfaced by the backend when an instance has overlapping
- * rooms, double-booked staff, or double-booked students. Conflicts never
- * block an action; they are advisory and can always be overridden.
+ * Soft warning surfaced by the backend for a person double-booking (#2139):
+ * a child in two overlapping blocks, or staff planned in overlapping blocks
+ * that are not certainly in the same room. Conflicts never block an action;
+ * they are advisory and can always be overridden.
+ *
+ * The optional fields are set by the calendar's window-wide detection; the
+ * transient start-time warnings omit them. `fingerprint` is the conflict's
+ * stable identity — the per-user acknowledgement ("Konflikt ausblenden")
+ * keys on it.
  */
 interface ConflictWarning {
   kind: ConflictKind;
   resourceId: string;
   message: string;
   canOverride: boolean;
+  fingerprint?: string;
+  conflictingInstanceId?: string;
+  conflictingTitle?: string;
+  overlapStart?: string;
+  overlapEnd?: string;
 }
 
 /**
@@ -127,6 +138,10 @@ export interface EnrichedInstance {
   isSpontaneous: boolean;
   isLive: boolean;
   activityGroupId?: string;
+  planningTrackId?: string;
+  planningTrackName?: string;
+  planningTrackColor?: string;
+  planningTrackSortOrder?: number;
   listKind?: TimetableListKind;
   activityType: ActivityType;
   roomId: string;
@@ -211,6 +226,10 @@ export interface BackendEnrichedInstance {
   is_spontaneous: boolean;
   is_live: boolean;
   activity_group_id?: number;
+  planning_track_id?: number;
+  planning_track_name?: string;
+  planning_track_color?: string;
+  planning_track_sort_order?: number;
   list_kind?: TimetableListKind;
   activity_type: ActivityType;
   room_id: number;
@@ -234,6 +253,11 @@ export interface BackendEnrichedInstance {
     resource_id: number;
     message: string;
     can_override: boolean;
+    fingerprint?: string;
+    conflicting_instance_id?: number;
+    conflicting_title?: string;
+    overlap_start?: string;
+    overlap_end?: string;
   }>;
 }
 
@@ -385,6 +409,10 @@ export interface TimetableTemplate {
   listKind?: TimetableListKind;
   categoryId: string;
   categoryName: string;
+  planningTrackId?: string;
+  planningTrackName?: string;
+  planningTrackColor?: string;
+  planningTrackSortOrder?: number;
   roomId?: string;
   roomName?: string;
   educationGroupId?: string;
@@ -462,6 +490,10 @@ export interface BackendTimetableTemplate {
   list_kind?: TimetableListKind;
   category_id: number;
   category_name: string;
+  planning_track_id?: number;
+  planning_track_name?: string;
+  planning_track_color?: string;
+  planning_track_sort_order?: number;
   room_id?: number;
   room_name?: string;
   education_group_id?: number;
@@ -886,6 +918,7 @@ export interface CreateTemplateBody {
   end_time: string; // HH:MM
   room_id: number;
   category_id: number;
+  planning_track_id?: number | null;
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
   education_group_id?: number;

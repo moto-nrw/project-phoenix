@@ -71,32 +71,36 @@ type instanceStudentSummary struct {
 // "activity" | "care" | "external". Spontaneous instances without a template
 // fall back to "activity" so the frontend has a deterministic colour key.
 type enrichedInstance struct {
-	ID                    int64                    `json:"id"`
-	Date                  string                   `json:"date"`
-	StartTime             string                   `json:"start_time"`
-	EndTime               string                   `json:"end_time"`
-	Title                 string                   `json:"title"`
-	Description           *string                  `json:"description,omitempty"`
-	Notes                 *string                  `json:"notes,omitempty"`
-	SeriesNotes           *string                  `json:"series_notes,omitempty"`
-	Status                string                   `json:"status"`
-	IsSpontaneous         bool                     `json:"is_spontaneous"`
-	IsLive                bool                     `json:"is_live"`
-	ActivityGroupID       *int64                   `json:"activity_group_id,omitempty"`
-	ListKind              *string                  `json:"list_kind,omitempty"`
-	ActivityType          string                   `json:"activity_type"`
-	RoomID                int64                    `json:"room_id"`
-	RoomName              string                   `json:"room_name"`
-	Staff                 []instanceStaffSummary   `json:"staff"`
-	StudentIDs            []int64                  `json:"student_ids"`
-	Students              []instanceStudentSummary `json:"students"`
-	StaffCount            int                      `json:"staff_count"`
-	AbsentStaffCount      int                      `json:"absent_staff_count"`
-	UnderstaffedAck       bool                     `json:"understaffed_ack"`
-	UnderstaffedNote      *string                  `json:"understaffed_note,omitempty"`
-	CancelReason          *string                  `json:"cancel_reason,omitempty"`
-	ExpectedStudentsCount int                      `json:"expected_students_count"`
-	PresentStudentsCount  int                      `json:"present_students_count"`
+	ID                     int64                    `json:"id"`
+	Date                   string                   `json:"date"`
+	StartTime              string                   `json:"start_time"`
+	EndTime                string                   `json:"end_time"`
+	Title                  string                   `json:"title"`
+	Description            *string                  `json:"description,omitempty"`
+	Notes                  *string                  `json:"notes,omitempty"`
+	SeriesNotes            *string                  `json:"series_notes,omitempty"`
+	Status                 string                   `json:"status"`
+	IsSpontaneous          bool                     `json:"is_spontaneous"`
+	IsLive                 bool                     `json:"is_live"`
+	ActivityGroupID        *int64                   `json:"activity_group_id,omitempty"`
+	ListKind               *string                  `json:"list_kind,omitempty"`
+	ActivityType           string                   `json:"activity_type"`
+	PlanningTrackID        *int64                   `json:"planning_track_id,omitempty"`
+	PlanningTrackName      string                   `json:"planning_track_name,omitempty"`
+	PlanningTrackColor     string                   `json:"planning_track_color,omitempty"`
+	PlanningTrackSortOrder *int                     `json:"planning_track_sort_order,omitempty"`
+	RoomID                 int64                    `json:"room_id"`
+	RoomName               string                   `json:"room_name"`
+	Staff                  []instanceStaffSummary   `json:"staff"`
+	StudentIDs             []int64                  `json:"student_ids"`
+	Students               []instanceStudentSummary `json:"students"`
+	StaffCount             int                      `json:"staff_count"`
+	AbsentStaffCount       int                      `json:"absent_staff_count"`
+	UnderstaffedAck        bool                     `json:"understaffed_ack"`
+	UnderstaffedNote       *string                  `json:"understaffed_note,omitempty"`
+	CancelReason           *string                  `json:"cancel_reason,omitempty"`
+	ExpectedStudentsCount  int                      `json:"expected_students_count"`
+	PresentStudentsCount   int                      `json:"present_students_count"`
 	// NotScheduledCount is how many assigned children are not in care here on
 	// this day (#1747) — not booked on this weekday, or the day was cancelled.
 	// Excluded from ExpectedStudentsCount and from the staffing maths;
@@ -184,6 +188,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// rooms and templates per week — caching turns 30 lookups into ~10.
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
+	planningTrackCache := make(map[int64]*scheduleModel.PlanningTrack)
 
 	// Resolved once per request (not per instance) — the Betreuungsschlüssel
 	// setting is tenant-wide, not per-block.
@@ -197,14 +202,31 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := make([]enrichedInstance, 0, len(instances))
+	conflictInputs := make([]scheduleSvc.WindowConflictInput, 0, len(instances))
 	for _, inst := range instances {
-		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio, careDays)
+		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, planningTrackCache, ratio, careDays)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
 			return
 		}
 		enriched = append(enriched, item)
+		conflictInputs = append(conflictInputs, scheduleSvc.WindowConflictInput{
+			Instance: inst,
+			Staff:    staffRows,
+			Students: studentRows,
+		})
+	}
+
+	// Window-wide person double-bookings (#2139): the banner's "diese Woche" /
+	// "diesen Monat" claim holds because detection covers exactly the
+	// requested window, not just today. The rows were already loaded for
+	// enrichment, so this adds no queries.
+	conflictsByInstance := scheduleSvc.DetectWindowConflicts(conflictInputs)
+	for i := range enriched {
+		if warnings, ok := conflictsByInstance[enriched[i].ID]; ok {
+			enriched[i].ConflictWarnings = warnings
+		}
 	}
 
 	resp := weeklyInstancesResponse{
@@ -386,24 +408,28 @@ func summarizeInstanceStudents(
 	return out
 }
 
+// enrichInstance additionally returns the raw staff and student rows it
+// loaded so the caller can feed them into the window-wide conflict detection
+// (#2139) without a second round of queries.
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
+	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
-) (enrichedInstance, error) {
+) (enrichedInstance, []*scheduleModel.InstanceStaff, []*scheduleModel.InstanceStudent, error) {
 	if inst == nil {
-		return enrichedInstance{}, errors.New("nil instance")
+		return enrichedInstance{}, nil, nil, errors.New("nil instance")
 	}
 
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
-	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache)
+	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache, planningTrackCache)
 
 	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
 	if err != nil {
-		return enrichedInstance{}, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
+		return enrichedInstance{}, nil, nil, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
 	}
 	staff := make([]instanceStaffSummary, 0, len(staffRows))
 	absentCount := 0
@@ -422,62 +448,103 @@ func (rs *Resource) enrichInstance(
 
 	studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, inst.ID)
 	if err != nil {
-		return enrichedInstance{}, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
+		return enrichedInstance{}, nil, nil, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
 	attendance := summarizeInstanceStudents(inst, studentRows, careDays)
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
 
-	return enrichedInstance{
-		ID:                    inst.ID,
-		Date:                  inst.Date.Format(dateLayout),
-		StartTime:             inst.StartTime.Format("15:04"),
-		EndTime:               inst.EndTime.Format("15:04"),
-		Title:                 inst.Title,
-		Description:           inst.Description,
-		Notes:                 inst.Notes,
-		SeriesNotes:           meta.seriesNotes,
-		Status:                inst.Status,
-		IsSpontaneous:         inst.IsSpontaneous,
-		IsLive:                inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
-		ActivityGroupID:       inst.ActivityGroupID,
-		ListKind:              inst.ListKind,
-		ActivityType:          meta.activityType,
-		RoomID:                inst.RoomID,
-		RoomName:              roomName,
-		Staff:                 staff,
-		StudentIDs:            attendance.studentIDs,
-		Students:              attendance.students,
-		StaffCount:            len(staffRows),
-		AbsentStaffCount:      absentCount,
-		UnderstaffedAck:       inst.UnderstaffedAck,
-		UnderstaffedNote:      inst.UnderstaffedNote,
-		CancelReason:          inst.CancelReason,
-		ExpectedStudentsCount: attendance.expected,
-		PresentStudentsCount:  attendance.present,
-		NotScheduledCount:     attendance.notScheduled,
-		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
-		AssignedStaffCount:    assignedStaff,
-		RequiredStaffOverride: inst.RequiredStaff,
-		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
-	}, nil
+	item := enrichedInstance{
+		ID:                     inst.ID,
+		Date:                   inst.Date.Format(dateLayout),
+		StartTime:              inst.StartTime.Format("15:04"),
+		EndTime:                inst.EndTime.Format("15:04"),
+		Title:                  inst.Title,
+		Description:            inst.Description,
+		Notes:                  inst.Notes,
+		SeriesNotes:            meta.seriesNotes,
+		Status:                 inst.Status,
+		IsSpontaneous:          inst.IsSpontaneous,
+		IsLive:                 inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
+		ActivityGroupID:        inst.ActivityGroupID,
+		ListKind:               inst.ListKind,
+		ActivityType:           meta.activityType,
+		PlanningTrackID:        meta.planningTrackID,
+		PlanningTrackName:      meta.planningTrackName,
+		PlanningTrackColor:     meta.planningTrackColor,
+		PlanningTrackSortOrder: meta.planningTrackSortOrder,
+		RoomID:                 inst.RoomID,
+		RoomName:               roomName,
+		Staff:                  staff,
+		StudentIDs:             attendance.studentIDs,
+		Students:               attendance.students,
+		StaffCount:             len(staffRows),
+		AbsentStaffCount:       absentCount,
+		UnderstaffedAck:        inst.UnderstaffedAck,
+		UnderstaffedNote:       inst.UnderstaffedNote,
+		CancelReason:           inst.CancelReason,
+		ExpectedStudentsCount:  attendance.expected,
+		PresentStudentsCount:   attendance.present,
+		NotScheduledCount:      attendance.notScheduled,
+		RequiredStaffCount:     scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
+		AssignedStaffCount:     assignedStaff,
+		RequiredStaffOverride:  inst.RequiredStaff,
+		ConflictWarnings:       []scheduleSvc.InstanceConflictWarning{},
+	}
+	return item, staffRows, studentRows, nil
 }
 
-func (rs *Resource) instanceConflictWarnings(
+// dayConflictWarningsFor computes the #2139 window conflicts for ONE instance
+// against every other planned/active instance of its day. Used by the
+// create/update paths that re-enrich a single row; the list path batches the
+// same detection over its whole window instead. Degrades to an empty slice on
+// load errors — conflicts are advisory and must never fail a committed write.
+func (rs *Resource) dayConflictWarningsFor(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 ) []scheduleSvc.InstanceConflictWarning {
-	if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
-		return []scheduleSvc.InstanceConflictWarning{}
+	empty := []scheduleSvc.InstanceConflictWarning{}
+	if inst == nil || rs.TimetableData == nil {
+		return empty
 	}
-	if inst.Date != timezone.TodayDate() {
-		return []scheduleSvc.InstanceConflictWarning{}
+	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, inst.Date, inst.Date)
+	if err != nil {
+		rs.getLogger().Warn("day conflict detection: load day instances failed",
+			slog.Int64("instance_id", inst.ID),
+			slog.String("date", inst.Date.String()),
+			slog.String("error", err.Error()),
+		)
+		return empty
 	}
-	if rs.TimetableData == nil {
-		return []scheduleSvc.InstanceConflictWarning{}
+	inputs := make([]scheduleSvc.WindowConflictInput, 0, len(dayInstances))
+	for _, dayInst := range dayInstances {
+		staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, dayInst.ID)
+		if err != nil {
+			rs.getLogger().Warn("day conflict detection: load instance_staff failed",
+				slog.Int64("instance_id", dayInst.ID),
+				slog.String("error", err.Error()),
+			)
+			return empty
+		}
+		studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, dayInst.ID)
+		if err != nil {
+			rs.getLogger().Warn("day conflict detection: load instance_students failed",
+				slog.Int64("instance_id", dayInst.ID),
+				slog.String("error", err.Error()),
+			)
+			return empty
+		}
+		inputs = append(inputs, scheduleSvc.WindowConflictInput{
+			Instance: dayInst,
+			Staff:    staffRows,
+			Students: studentRows,
+		})
 	}
-	return rs.TimetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
+	if warnings, ok := scheduleSvc.DetectWindowConflicts(inputs)[inst.ID]; ok {
+		return warnings
+	}
+	return empty
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request
@@ -511,15 +578,24 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 // templateMeta caches the per-template fields enrichInstance needs so many
 // instances sharing a template (e.g. the daily Mensa) cost one group lookup.
 type templateMeta struct {
-	activityType  string
-	requiredStaff *int
+	activityType           string
+	requiredStaff          *int
+	planningTrackID        *int64
+	planningTrackName      string
+	planningTrackColor     string
+	planningTrackSortOrder *int
 	// seriesNotes is the template's durable Wochennotiz (#1837 follow-up),
 	// joined onto each materialized instance at read time so it shows on every
 	// occurrence and survives Re-Plan/Split without an instance column.
 	seriesNotes *string
 }
 
-func (rs *Resource) lookupTemplateMeta(ctx context.Context, activityGroupID *int64, cache map[int64]templateMeta) templateMeta {
+func (rs *Resource) lookupTemplateMeta(
+	ctx context.Context,
+	activityGroupID *int64,
+	cache map[int64]templateMeta,
+	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+) templateMeta {
 	fallback := templateMeta{activityType: activitiesModel.GroupTypeActivity}
 	if activityGroupID == nil {
 		return fallback
@@ -539,7 +615,26 @@ func (rs *Resource) lookupTemplateMeta(ctx context.Context, activityGroupID *int
 		cache[*activityGroupID] = fallback
 		return fallback
 	}
-	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff, seriesNotes: group.Notes}
+	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff, seriesNotes: group.Notes, planningTrackID: group.PlanningTrackID}
+	if group.PlanningTrackID != nil && rs.PlanningTrackService != nil {
+		track, cached := planningTrackCache[*group.PlanningTrackID]
+		if !cached {
+			var trackErr error
+			track, trackErr = rs.PlanningTrackService.GetPlanningTrack(ctx, *group.PlanningTrackID)
+			planningTrackCache[*group.PlanningTrackID] = track
+			if trackErr != nil {
+				rs.getLogger().Debug("instance list: planning track lookup failed",
+					slog.Int64("planning_track_id", *group.PlanningTrackID),
+				)
+			}
+		}
+		if track != nil {
+			meta.planningTrackName = track.Name
+			meta.planningTrackColor = track.Color
+			sortOrder := track.SortOrder
+			meta.planningTrackSortOrder = &sortOrder
+		}
+	}
 	cache[*activityGroupID] = meta
 	return meta
 }

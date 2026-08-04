@@ -85,13 +85,13 @@ func (s stubActivityGroups) FindByIDs(context.Context, []int64) ([]*activitiesMo
 	return s.groups, s.err
 }
 
-type stubCategories struct {
-	categories []*activitiesModel.Category
-	err        error
+type stubPlanningTracks struct {
+	tracks []*scheduleModel.PlanningTrack
+	err    error
 }
 
-func (s stubCategories) ListAll(context.Context) ([]*activitiesModel.Category, error) {
-	return s.categories, s.err
+func (s stubPlanningTracks) ListAll(context.Context) ([]*scheduleModel.PlanningTrack, error) {
+	return s.tracks, s.err
 }
 
 type stubHolidays struct {
@@ -112,16 +112,16 @@ func (failingClosingDays) ClosingDaysInRange(context.Context, timezone.Date, tim
 	return nil, errBoom
 }
 
-func activityGroup(id, categoryID int64) *activitiesModel.Group {
-	g := &activitiesModel.Group{CategoryID: categoryID}
+func activityGroup(id, planningTrackID int64) *activitiesModel.Group {
+	g := &activitiesModel.Group{PlanningTrackID: &planningTrackID}
 	g.ID = id
 	return g
 }
 
-func category(id int64, color string) *activitiesModel.Category {
-	c := &activitiesModel.Category{Color: color}
-	c.ID = id
-	return c
+func planningTrack(id int64, color string) *scheduleModel.PlanningTrack {
+	track := &scheduleModel.PlanningTrack{Color: color}
+	track.ID = id
+	return track
 }
 
 func withGroup(i *scheduleModel.ActivityInstance, groupID int64) *scheduleModel.ActivityInstance {
@@ -222,11 +222,11 @@ func TestBetreuungsplanSurvivesFailingOptionalLookups(t *testing.T) {
 	}
 }
 
-// The colour bar carries the Kategorie colour from the planner onto paper.
-// Each link in the chain (template, category, stored colour) is optional and
+// The colour bar carries the Planungsspur colour from the planner onto paper.
+// Each link in the chain (template, track, stored colour) is optional and
 // only ever costs the bar.
 func TestBetreuungsplanBlockColour(t *testing.T) {
-	build := func(groups ActivityGroupBatchReader, categories CategoryReader, grouped bool) *captureRenderer {
+	build := func(groups ActivityGroupBatchReader, tracks PlanningTrackReader, grouped bool) *captureRenderer {
 		block := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 		if grouped {
 			block = withGroup(block, 5)
@@ -236,7 +236,7 @@ func TestBetreuungsplanBlockColour(t *testing.T) {
 			Instances:      stubInstances{instances: []*scheduleModel.ActivityInstance{block}},
 			InstanceStaff:  stubInstanceStaff{},
 			ActivityGroups: groups,
-			Categories:     categories,
+			PlanningTracks: tracks,
 			Renderer:       renderer,
 		}, nil)
 		if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
@@ -246,26 +246,26 @@ func TestBetreuungsplanBlockColour(t *testing.T) {
 	}
 
 	groups := stubActivityGroups{groups: []*activitiesModel.Group{activityGroup(5, 9)}}
-	categories := stubCategories{categories: []*activitiesModel.Category{category(9, "#5080D8")}}
+	tracks := stubPlanningTracks{tracks: []*scheduleModel.PlanningTrack{planningTrack(9, "#5080D8")}}
 
-	renderer := build(groups, categories, true)
+	renderer := build(groups, tracks, true)
 	if got := cellLines(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)[0].Accent; got != "#5080D8" {
-		t.Fatalf("accent = %q, want the Kategorie colour", got)
+		t.Fatalf("accent = %q, want the Planungsspur colour", got)
 	}
 
 	for name, tc := range map[string]struct {
-		groups     ActivityGroupBatchReader
-		categories CategoryReader
-		grouped    bool
+		groups  ActivityGroupBatchReader
+		tracks  PlanningTrackReader
+		grouped bool
 	}{
-		"readers unwired":        {nil, nil, true},
-		"block has no template":  {groups, categories, false},
-		"template read fails":    {stubActivityGroups{err: errBoom}, categories, true},
-		"category read fails":    {groups, stubCategories{err: errBoom}, true},
-		"category has no colour": {groups, stubCategories{categories: []*activitiesModel.Category{category(9, "")}}, true},
+		"readers unwired":       {nil, nil, true},
+		"block has no template": {groups, tracks, false},
+		"template read fails":   {stubActivityGroups{err: errBoom}, tracks, true},
+		"track read fails":      {groups, stubPlanningTracks{err: errBoom}, true},
+		"track has no colour":   {groups, stubPlanningTracks{tracks: []*scheduleModel.PlanningTrack{planningTrack(9, "")}}, true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			renderer := build(tc.groups, tc.categories, tc.grouped)
+			renderer := build(tc.groups, tc.tracks, tc.grouped)
 			lines := cellLines(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)
 			if lines[0].Accent != "" {
 				t.Fatalf("accent = %q, want none", lines[0].Accent)
@@ -757,7 +757,7 @@ func TestBetreuungsplanColoursOnlyTheBlocksItCan(t *testing.T) {
 		}},
 		InstanceStaff:  stubInstanceStaff{},
 		ActivityGroups: stubActivityGroups{groups: []*activitiesModel.Group{activityGroup(5, 9), nil}},
-		Categories:     stubCategories{categories: []*activitiesModel.Category{category(9, "#5080D8"), nil}},
+		PlanningTracks: stubPlanningTracks{tracks: []*scheduleModel.PlanningTrack{planningTrack(9, "#5080D8"), nil}},
 		Renderer:       renderer,
 	}, nil)
 
@@ -765,7 +765,7 @@ func TestBetreuungsplanColoursOnlyTheBlocksItCan(t *testing.T) {
 		t.Fatalf("ExportBetreuungsplan: %v", err)
 	}
 	if got := cellLines(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)[0].Accent; got != "#5080D8" {
-		t.Fatalf("Mensa accent = %q, want the Kategorie colour", got)
+		t.Fatalf("Mensa accent = %q, want the Planungsspur colour", got)
 	}
 	if got := cellLines(t, renderer.doc, "Lernzeit", listexport.ColumnPlanMonday)[0].Accent; got != "" {
 		t.Fatalf("Lernzeit accent = %q, want none for a block without a template", got)

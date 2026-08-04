@@ -4,9 +4,68 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUpdateTemplatePlanningTrackThreeState(t *testing.T) {
+	cases := []struct {
+		name         string
+		fragment     string
+		wantProvided bool
+		wantValue    *int64
+	}{
+		{name: "omitted preserves", wantProvided: false},
+		{name: "null clears", fragment: `"planning_track_id": null`, wantProvided: true},
+		{name: "number assigns", fragment: `"planning_track_id": 42`, wantProvided: true, wantValue: testInt64Ptr(42)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &updateTemplateRequest{}
+			require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(tc.fragment)), req))
+
+			input := buildUpdateTemplateInput(
+				100,
+				&parsedUpdateTemplate{req: req},
+				200,
+				4,
+				timezone.Date{},
+			)
+
+			assert.Equal(t, tc.wantProvided, input.Fields.PlanningTrackIDProvided)
+			assert.Equal(t, tc.wantValue, input.Fields.PlanningTrackID)
+		})
+	}
+}
+
+func TestBuildTemplateSplitInputPlanningTrackThreeState(t *testing.T) {
+	cases := []struct {
+		name         string
+		fragment     string
+		wantProvided bool
+		wantValue    *int64
+	}{
+		{name: "omitted inherits", wantProvided: false},
+		{name: "null clears", fragment: `"planning_track_id": null`, wantProvided: true},
+		{name: "number assigns", fragment: `"planning_track_id": 42`, wantProvided: true, wantValue: testInt64Ptr(42)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &splitTemplateRequest{}
+			require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(tc.fragment)), req))
+
+			input, err := buildTemplateSplitInput(100, req)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantProvided, input.PlanningTrackIDProvided)
+			assert.Equal(t, tc.wantValue, input.PlanningTrackID)
+		})
+	}
+}
+
+func testInt64Ptr(value int64) *int64 {
+	return &value
+}
 
 // splitBodyJSON builds a minimal valid split request body; the required_staff
 // fragment is spliced in per-case so the three-state (omitted / null / value)

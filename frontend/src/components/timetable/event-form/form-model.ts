@@ -245,6 +245,7 @@ export interface EventFormState {
   roomId: string;
   type: ActivityType;
   categoryId: string;
+  planningTrackId: string;
   /**
    * Listenart (#1565) — classifies the slot for printable daily lists
    * (Randstunden, Lernzeit, AG-Angebote, Mensa). "" = no list kind.
@@ -341,6 +342,7 @@ export function emptyForm(
     roomId: "",
     type: "care",
     categoryId: "",
+    planningTrackId: "",
     listKind: "",
     educationGroupId: "",
     notes: "",
@@ -378,6 +380,7 @@ export function formFromInstance(
     roomId: instance.roomId,
     type: instance.activityType,
     categoryId: "",
+    planningTrackId: instance.planningTrackId ?? "",
     listKind: instance.listKind ?? "",
     educationGroupId: "",
     notes: instance.notes ?? "",
@@ -431,6 +434,7 @@ export function formFromSeries(
     roomId: series.roomId ?? "",
     type: series.type,
     categoryId: series.categoryId,
+    planningTrackId: series.planningTrackId ?? "",
     listKind: series.listKind ?? "",
     educationGroupId: series.educationGroupId ?? "",
     notes: "",

@@ -20,6 +20,7 @@ import (
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -915,4 +916,86 @@ func TestStaffImport_UploadValidation(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
 	})
+}
+
+// =============================================================================
+// IMPORT AUDIT REGRESSION TESTS (#2141)
+// =============================================================================
+// The detached RecordAudit goroutine used to run on context.Background(),
+// outside the tenant transaction, so the INSERT into audit.data_imports failed
+// with 42501 on the NOINHERIT phoenix_auth connection and every import left no
+// GDPR trace. These tests pin the fix: a successful preview/import response
+// implies a persisted audit row.
+
+// findImportAuditRecords loads audit.data_imports rows for a filename.
+func findImportAuditRecords(t *testing.T, db *bun.DB, filename string) []*auditModels.DataImport {
+	t.Helper()
+	var records []*auditModels.DataImport
+	require.NoError(t, db.NewSelect().
+		Model(&records).
+		ModelTableExpr(`audit.data_imports AS "data_import"`).
+		Where(`"data_import".filename = ?`, filename).
+		Scan(context.Background()))
+	return records
+}
+
+// cleanupImportAuditRecords removes audit rows created by a test.
+func cleanupImportAuditRecords(t *testing.T, db *bun.DB, filename string) {
+	t.Helper()
+	_, err := db.NewDelete().
+		Model((*auditModels.DataImport)(nil)).
+		ModelTableExpr(`audit.data_imports AS "data_import"`).
+		Where(`"data_import".filename = ?`, filename).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditPrev", "Regression")
+
+	filename := fmt.Sprintf("audit-preview-%d.csv", account.ID)
+	defer cleanupImportAuditRecords(t, tc.db, filename)
+
+	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
+	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", filename, csvContent,
+		adminBearer(t, account.ID),
+	)
+
+	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	records := findImportAuditRecords(t, tc.db, filename)
+	require.Len(t, records, 1, "preview must persist exactly one audit.data_imports row")
+	assert.Equal(t, "student", records[0].EntityType)
+	assert.True(t, records[0].DryRun, "preview audit row must be marked dry_run")
+	assert.Equal(t, account.ID, records[0].ImportedBy)
+}
+
+func TestImportStudents_PersistsAuditRecord(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditImp", "Regression")
+
+	filename := fmt.Sprintf("audit-import-%d.csv", account.ID)
+	defer cleanupImportAuditRecords(t, tc.db, filename)
+
+	firstName := fmt.Sprintf("AuditKind%d", account.ID)
+	csvContent := fmt.Sprintf("Vorname,Nachname,Klasse\n%s,Regression,1a", firstName)
+	req := testutil.NewMultipartRequest(t, "POST", "/students/import", "file", filename, csvContent,
+		adminBearer(t, account.ID),
+	)
+
+	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	records := findImportAuditRecords(t, tc.db, filename)
+	require.Len(t, records, 1, "import must persist exactly one audit.data_imports row")
+	assert.Equal(t, "student", records[0].EntityType)
+	assert.False(t, records[0].DryRun, "actual import audit row must not be dry_run")
+	assert.Equal(t, account.ID, records[0].ImportedBy)
+	assert.Equal(t, 1, records[0].CreatedCount)
 }
