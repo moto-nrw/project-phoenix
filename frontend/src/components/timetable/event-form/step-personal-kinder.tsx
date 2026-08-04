@@ -278,6 +278,12 @@ export function StepPersonalKinder({
                 <MultiCheckboxSelect
                   id="event_target_grade_level"
                   ariaLabel="Jahrgang"
+                  ariaInvalid={Boolean(fieldErrors.targetGradeLevel)}
+                  ariaDescribedBy={
+                    fieldErrors.targetGradeLevel
+                      ? "event_target_grade_level_error"
+                      : undefined
+                  }
                   value={form.targetGradeLevels}
                   options={targetGradeOptions}
                   onChange={(next) => update("targetGradeLevels", next)}
@@ -304,6 +310,12 @@ export function StepPersonalKinder({
                 <MultiCheckboxSelect
                   id="event_target_school_class"
                   ariaLabel="Klasse"
+                  ariaInvalid={Boolean(fieldErrors.targetSchoolClass)}
+                  ariaDescribedBy={
+                    fieldErrors.targetSchoolClass
+                      ? "event_target_school_class_error"
+                      : undefined
+                  }
                   value={form.targetSchoolClasses}
                   options={targetClassOptions.map((schoolClass) => ({
                     value: schoolClass,
@@ -340,6 +352,12 @@ export function StepPersonalKinder({
                 <MultiCheckboxSelect
                   id="event_target_gruppe"
                   ariaLabel="Gruppe"
+                  ariaInvalid={Boolean(fieldErrors.educationGroupId)}
+                  ariaDescribedBy={
+                    fieldErrors.educationGroupId
+                      ? "event_target_gruppe_error"
+                      : undefined
+                  }
                   value={form.educationGroupIds}
                   options={groups.map((group) => ({
                     value: group.id,

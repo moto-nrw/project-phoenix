@@ -1315,6 +1315,8 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		createCapacityEnrollment(t, s, templateID, s.studentA, start, &end, &period.ID, nil)
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 2, got.EnrollmentCount,
+			"the displayed child count must union explicit and dynamic students")
 		assert.Equal(t, 2, got.RequiredStaffCount,
 			"the explicit student must be counted once while both 3a students match case-insensitively")
 	})

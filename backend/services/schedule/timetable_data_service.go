@@ -394,14 +394,31 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 	if !ok {
 		return nil
 	}
-	targetsByGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, distinctTemplateIDs(rows))
+	templateIDs := distinctTemplateIDs(rows)
+	targetsByGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, templateIDs)
+	if err != nil {
+		return err
+	}
+	targetStudentsByGroup, err := targetRepo.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
 	if err != nil {
 		return err
 	}
 	for i := range rows {
 		rows[i].Targets = targetsByGroup[rows[i].TemplateID]
+		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
 	}
 	return nil
+}
+
+func unionCount(left, right []int64) int {
+	ids := make(map[int64]struct{}, len(left)+len(right))
+	for _, id := range left {
+		ids[id] = struct{}{}
+	}
+	for _, id := range right {
+		ids[id] = struct{}{}
+	}
+	return len(ids)
 }
 
 func setDisplayRosterCapacity(rows []activitiesModel.TemplateListRow) {

@@ -191,14 +191,29 @@ func (r *GroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []
 }
 
 func (r *GroupRepository) FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error) {
+	byGroup, err := r.FindTargetStudentIDsByGroupIDs(ctx, []int64{groupID})
+	if err != nil {
+		return nil, err
+	}
+	return byGroup[groupID], nil
+}
+
+func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	result := make(map[int64][]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
 	tenantID := tenant.FromContext(ctx)
-	studentIDs := make([]int64, 0)
+	var rows []struct {
+		GroupID   int64 `bun:"group_id"`
+		StudentID int64 `bun:"student_id"`
+	}
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT DISTINCT student.id
+		SELECT DISTINCT target.activity_group_id AS group_id, student.id AS student_id
 		FROM users.students AS student
 		INNER JOIN activities.group_targets AS target
 			ON target.tenant_id = student.tenant_id
-			AND target.activity_group_id = ?
+			AND target.activity_group_id IN (?)
 			AND (
 				(target.target_group_type = 'jahrgang'
 					AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
@@ -209,12 +224,15 @@ func (r *GroupRepository) FindTargetStudentIDs(ctx context.Context, groupID int6
 			)
 		WHERE student.tenant_id = ?
 			AND student.status <> 'alumnus'
-		ORDER BY student.id ASC
-	`, groupID, tenantID).Scan(ctx, &studentIDs)
+		ORDER BY target.activity_group_id ASC, student.id ASC
+	`, bun.List(groupIDs), tenantID).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find target students", Err: err}
 	}
-	return studentIDs, nil
+	for _, row := range rows {
+		result[row.GroupID] = append(result[row.GroupID], row.StudentID)
+	}
+	return result, nil
 }
 
 // FindByCategory finds all groups in a specific category

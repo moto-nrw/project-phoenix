@@ -143,6 +143,7 @@ type GroupTargetRepository interface {
 	ReplaceTargets(ctx context.Context, groupID int64, targets []*GroupTarget) error
 	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*GroupTarget, error)
 	FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error)
+	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
 }
 
 // TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time

@@ -20,6 +20,8 @@ interface MultiCheckboxSelectProps {
   readonly onChange: (value: string[]) => void;
   readonly id?: string;
   readonly ariaLabel?: string;
+  readonly ariaInvalid?: boolean;
+  readonly ariaDescribedBy?: string;
   readonly emptyLabel?: string;
   readonly unavailableLabel?: string;
   readonly multipleLabel?: (count: number) => string;
@@ -46,6 +48,8 @@ export function MultiCheckboxSelect({
   onChange,
   id,
   ariaLabel,
+  ariaInvalid,
+  ariaDescribedBy,
   emptyLabel = "Keine Auswahl",
   unavailableLabel = "Keine Optionen verfügbar",
   multipleLabel = defaultMultipleLabel,
@@ -141,7 +145,10 @@ export function MultiCheckboxSelect({
         ref={triggerRef}
         id={triggerId}
         type="button"
+        role="combobox"
         aria-label={ariaLabel}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

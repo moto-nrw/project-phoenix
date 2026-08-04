@@ -778,7 +778,12 @@ func applyRosterStudentIdentity(row *OperationRosterRow, studentID int64, studen
 	}
 }
 
-func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*activitiesModel.Group, error) {
+type rosterTemplateGroup struct {
+	*activitiesModel.Group
+	Targets []*activitiesModel.GroupTarget
+}
+
+func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*rosterTemplateGroup, error) {
 	if activityGroupID == nil || *activityGroupID <= 0 {
 		return nil, nil
 	}
@@ -789,7 +794,16 @@ func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context
 		}
 		return nil, err
 	}
-	return group, nil
+	if targetRepo, ok := s.deps.ActivityGroupRepo.(interface {
+		FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activitiesModel.GroupTarget, error)
+	}); ok {
+		targetsByGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, []int64{*activityGroupID})
+		if err != nil {
+			return nil, err
+		}
+		return &rosterTemplateGroup{Group: group, Targets: targetsByGroup[*activityGroupID]}, nil
+	}
+	return &rosterTemplateGroup{Group: group}, nil
 }
 
 func (s *timetableOperationsService) rosterWarnings(
@@ -798,7 +812,7 @@ func (s *timetableOperationsService) rosterWarnings(
 	studentIDs []int64,
 	students map[int64]*usersModel.Student,
 	groups map[int64]*educationModel.Group,
-	templateGroup *activitiesModel.Group,
+	templateGroup *rosterTemplateGroup,
 ) map[int64][]OperationRosterWarning {
 	warnings := make(map[int64][]OperationRosterWarning)
 	if len(studentIDs) == 0 {
@@ -817,22 +831,21 @@ func (s *timetableOperationsService) rosterWarnings(
 		appendArrivalWarnings(warnings, arrivals, inst)
 	}
 
-	if templateGroup != nil && templateGroup.EducationGroupID != nil {
-		expectedGroupID := *templateGroup.EducationGroupID
+	if expectedGroupID := rosterMismatchExpectedGroupID(templateGroup); expectedGroupID != nil {
 		var expectedGroupName *string
-		if group := groups[expectedGroupID]; group != nil {
+		if group := groups[*expectedGroupID]; group != nil {
 			name := group.Name
 			expectedGroupName = &name
 		}
 		for _, studentID := range studentIDs {
 			st := students[studentID]
-			if st == nil || (st.GroupID != nil && *st.GroupID == expectedGroupID) {
+			if st == nil || (st.GroupID != nil && *st.GroupID == *expectedGroupID) {
 				continue
 			}
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
 				Kind:                  "template_class_mismatch",
 				Message:               "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
-				ExpectedGroupID:       &expectedGroupID,
+				ExpectedGroupID:       expectedGroupID,
 				ExpectedGroupName:     expectedGroupName,
 				CurrentEducationGroup: st.GroupID,
 			})
@@ -840,6 +853,26 @@ func (s *timetableOperationsService) rosterWarnings(
 	}
 
 	return warnings
+}
+
+func rosterMismatchExpectedGroupID(group *rosterTemplateGroup) *int64 {
+	if group == nil {
+		return nil
+	}
+	if len(group.Targets) == 0 {
+		return group.EducationGroupID
+	}
+	var expected *int64
+	for _, target := range group.Targets {
+		if target == nil || target.TargetGroupType != activitiesModel.TargetGroupTypeGruppe || target.EducationGroupID == nil {
+			continue
+		}
+		if expected != nil && *expected != *target.EducationGroupID {
+			return nil
+		}
+		expected = target.EducationGroupID
+	}
+	return expected
 }
 
 func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals map[int64]*EffectiveArrivalTime, inst *scheduleModel.ActivityInstance) {

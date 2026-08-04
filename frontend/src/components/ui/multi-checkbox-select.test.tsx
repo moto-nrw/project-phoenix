@@ -11,10 +11,27 @@ const OPTIONS = [
 ];
 
 function openMenu() {
-  fireEvent.click(screen.getByRole("button", { name: "Auswahl" }));
+  fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
 }
 
 describe("MultiCheckboxSelect (searchable)", () => {
+  it("exposes validation state and its error description on the trigger", () => {
+    render(
+      <MultiCheckboxSelect
+        ariaLabel="Auswahl"
+        ariaInvalid
+        ariaDescribedBy="selection_error"
+        value={[]}
+        options={OPTIONS}
+        onChange={() => undefined}
+      />,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    expect(trigger).toHaveAttribute("aria-describedby", "selection_error");
+  });
+
   it("filters options by the search term", () => {
     render(
       <MultiCheckboxSelect
@@ -135,7 +152,7 @@ describe("MultiCheckboxSelect (searchable)", () => {
         searchable
       />,
     );
-    const trigger = screen.getByRole("button", { name: "Auswahl" });
+    const trigger = screen.getByRole("combobox", { name: "Auswahl" });
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog", { name: "Auswahl" })).toBeVisible();
     expect(screen.getByRole("checkbox", { name: "Bärengruppe" })).toBeChecked();
@@ -161,7 +178,7 @@ describe("MultiCheckboxSelect (searchable)", () => {
           onChange={() => undefined}
         />,
       );
-      const trigger = screen.getByRole("button", { name: "Auswahl" });
+      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
       trigger.focus();
       fireEvent.click(trigger);
 
