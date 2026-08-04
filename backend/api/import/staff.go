@@ -136,26 +136,32 @@ func (rs *Resource) PreviewStaffImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The preview owns its tenant transaction (no route-level withTx): the
+	// GDPR audit row must be committed before the success response is
+	// written — a middleware transaction commits only after the handler
+	// returns, when a commit failure can no longer be reported.
 	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.ClaimsFromCtx(r.Context()).Permissions)
-	request := importModels.ImportRequest[importModels.StaffImportRow]{
-		Rows:            uploadResult.Rows,
-		Mode:            importModels.ImportModeCreate,
-		DryRun:          true,
-		StopOnError:     false,
-		UserID:          accountID,
-		SkipInvalidRows: false,
-	}
+	tenantID := tenant.FromContext(ctx)
+	var result *importModels.ImportResult[importModels.StaffImportRow]
+	if err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		request := importModels.ImportRequest[importModels.StaffImportRow]{
+			Rows:            uploadResult.Rows,
+			Mode:            importModels.ImportModeCreate,
+			DryRun:          true,
+			StopOnError:     false,
+			UserID:          accountID,
+			SkipInvalidRows: false,
+		}
 
-	result, err := rs.staffImportService.Import(ctx, request)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error())))
-		return
-	}
-
-	// GDPR Compliance: Audit log for preview (Article 30). The route's tenant
-	// transaction supplies the RLS context required by the audit repository.
-	if err := rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, true, tenant.FromContext(ctx)); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau konnte nicht protokolliert werden: %w", err)))
+		var txErr error
+		result, txErr = rs.staffImportService.Import(ctx, request)
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for preview (Article 30).
+		return rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, true, tenantID)
+	}); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import-Vorschau fehlgeschlagen", err))
 		return
 	}
 
@@ -198,7 +204,7 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 		// once its audit record is persisted.
 		return rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, false, tenantID)
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
 		return
 	}
 

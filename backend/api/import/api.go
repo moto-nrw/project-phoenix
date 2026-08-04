@@ -98,7 +98,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.downloadStudentTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission(permUsersCreate), withTx).Post(routePreview, rs.previewStudentImport)
+			// Note: no withTx here — the handler owns its tenant transaction
+			// so the GDPR audit row is committed before the success response.
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
@@ -111,7 +113,10 @@ func (rs *Resource) Router() chi.Router {
 		// everything sits behind time_tracking:manage.
 		r.Route("/opening-balances", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permTimeTrackingManage), withTx).Get(routeTemplate, rs.DownloadOpeningBalanceTemplate)
-			r.With(authorize.RequiresPermission(permTimeTrackingManage), withTx).Post(routePreview, rs.PreviewOpeningBalanceImport)
+			// Note: no withTx on the preview either — the handler owns its
+			// tenant transaction so the GDPR audit row is committed before
+			// the success response.
+			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routePreview, rs.PreviewOpeningBalanceImport)
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
 			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
@@ -123,7 +128,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission(permUsersCreate), withTx).Post(routePreview, rs.PreviewStaffImport)
+			// Note: no withTx here — the handler owns its tenant transaction
+			// so the GDPR audit row is committed before the success response.
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
@@ -451,13 +458,6 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return // Error already handled by validateAndParseCSVFile
 	}
 
-	// Resolve staff ID from JWT (pickup schedule FK references users.staff, not auth.accounts)
-	staffID, err := rs.getStaffIDFromJWT(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
-		return
-	}
-
 	// Get account ID for audit logging (GDPR: audit tracks auth identity)
 	accountID, err := getAccountIDFromContext(r.Context())
 	if err != nil {
@@ -465,27 +465,43 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Run dry-run import (preview only, no database changes)
-	ctx := r.Context()
-	request := importModels.ImportRequest[importModels.StudentImportRow]{
-		Rows:            uploadResult.Rows,
-		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-		DryRun:          true,                          // PREVIEW ONLY
-		StopOnError:     false,                         // Collect all errors
-		UserID:          staffID,
-		SkipInvalidRows: false,
-	}
+	// The preview owns its tenant transaction (no route-level withTx): the
+	// GDPR audit row must be committed before the success response is
+	// written — a middleware transaction commits only after the handler
+	// returns, when a commit failure can no longer be reported. Staff ID
+	// resolution happens inside the TX because the lookup is RLS-scoped.
+	tenantID := tenant.FromContext(r.Context())
+	var result *importModels.ImportResult[importModels.StudentImportRow]
+	var staffResolutionErr error
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		staffID, staffErr := rs.getStaffIDFromJWT(ctx)
+		if staffErr != nil {
+			staffResolutionErr = staffErr
+			return staffErr
+		}
 
-	result, err := rs.studentImportService.Import(ctx, request)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error())))
-		return
-	}
+		request := importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows:            uploadResult.Rows,
+			Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
+			DryRun:          true,                          // PREVIEW ONLY
+			StopOnError:     false,                         // Collect all errors
+			UserID:          staffID,
+			SkipInvalidRows: false,
+		}
 
-	// GDPR Compliance: Audit log for preview (Article 30). The route's tenant
-	// transaction supplies the RLS context required by the audit repository.
-	if err := rs.studentImportService.RecordAuditInTransaction(r.Context(), "student", uploadResult.Filename, result, accountID, true, tenant.FromContext(r.Context())); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau konnte nicht protokolliert werden: %w", err)))
+		var txErr error
+		result, txErr = rs.studentImportService.Import(ctx, request)
+		if txErr != nil {
+			return txErr
+		}
+		// GDPR Compliance: Audit log for preview (Article 30).
+		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, true, tenantID)
+	}); err != nil {
+		if staffResolutionErr != nil {
+			common.RenderError(w, r, common.ErrorUnauthorized(staffResolutionErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import-Vorschau fehlgeschlagen", err))
 		return
 	}
 
@@ -537,7 +553,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		// once its audit record is persisted.
 		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, false, tenantID)
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
 		return
 	}
 
