@@ -2510,31 +2510,31 @@ export function useEventForm({
   }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSource]);
 
   const changeSourceOffering = (offeringId: string) => {
-    setForm((current) => {
-      // Selecting a source clears the manual roster (server-managed). Stash
-      // it so clearing the source restores the admin's picks — submitting the
-      // emptied array would wipe the shared manual assignments on save
-      // (#2147 review). Idempotent, so a re-run of the updater is safe.
-      if (offeringId && !current.sourceCareOfferingId) {
-        preSourceStudentIdsRef.current = current.studentIds;
-      }
-      return {
-        ...current,
-        sourceCareOfferingId: offeringId,
-        // A filter belongs to one offering; switching resets it.
-        sourceGradeLevels:
-          offeringId === current.sourceCareOfferingId
-            ? current.sourceGradeLevels
-            : [],
-        // The sourced roster is server-managed; clearing the source restores
-        // the manual roster picked before the source was set.
-        studentIds: offeringId
-          ? []
-          : current.sourceCareOfferingId
-            ? preSourceStudentIdsRef.current
-            : current.studentIds,
-      };
-    });
+    // Selecting a source clears the manual roster (server-managed). Stash it
+    // so clearing the source restores the admin's picks — submitting the
+    // emptied array would wipe the shared manual assignments on save
+    // (#2147 review). The ref is touched here, outside the updater, so the
+    // updater stays pure.
+    if (offeringId && !form.sourceCareOfferingId) {
+      preSourceStudentIdsRef.current = form.studentIds;
+    }
+    const restoredStudentIds = preSourceStudentIdsRef.current;
+    setForm((current) => ({
+      ...current,
+      sourceCareOfferingId: offeringId,
+      // A filter belongs to one offering; switching resets it.
+      sourceGradeLevels:
+        offeringId === current.sourceCareOfferingId
+          ? current.sourceGradeLevels
+          : [],
+      // The sourced roster is server-managed; clearing the source restores
+      // the manual roster picked before the source was set.
+      studentIds: offeringId
+        ? []
+        : current.sourceCareOfferingId
+          ? restoredStudentIds
+          : current.studentIds,
+    }));
     setValidationError(null);
   };
 
