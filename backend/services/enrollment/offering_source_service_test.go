@@ -416,6 +416,65 @@ func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 	assert.Equal(t, studentID, rows[0].StudentID)
 }
 
+// The legacy protection follows the linked template's split lineage: the
+// legacy fan-out writes rows on every overlapping series segment, so a
+// successor's resync — e.g. the dropped-source cleanup after a split away
+// from 'angebot' — must not treat carried legacy-fed rows as source-owned
+// leftovers and delete them (#2147 review).
+func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	period := offeringSourcePeriod(t, env)
+	predecessor := createCareOfferingTemplateGroup(t, env.db, "LineageVorgänger")
+	createCareOfferingTemplateSchedule(t, env.db, predecessor.ID, activitiesModels.WeekdayMonday, &period.ID)
+	legacyOffering := createSourceOffering(t, env, "LineageFeed", &predecessor.ID)
+	studentID, _ := submitAndApproveOfferingChild(t, env, legacyOffering.ID, "lineage-protect@example.com", "Lin", 2)
+	predecessorRows := loadTemplateEnrollments(t, env, predecessor.ID)
+	require.Len(t, predecessorRows, 1)
+
+	// A successor segment of the same series with the carried legacy-fed row —
+	// the shapes a split writes. The legacy link still points at the
+	// predecessor, only the lineage connects it to the successor.
+	repoFactory := repositories.NewFactory(env.db)
+	successor := createCareOfferingTemplateGroup(t, env.db, "LineageNachfolger")
+	successor.SeriesRootID = &predecessor.ID
+	require.NoError(t, repoFactory.ActivityGroup.Update(testpkg.TenantContext(1), successor))
+	createCareOfferingTemplateSchedule(t, env.db, successor.ID, activitiesModels.WeekdayMonday, &period.ID)
+
+	carried := predecessorRows[0]
+	carriedRow := &activitiesModels.StudentEnrollment{
+		StudentID:                carried.StudentID,
+		ActivityGroupID:          successor.ID,
+		ValidFrom:                carried.ValidFrom,
+		ValidUntil:               carried.ValidUntil,
+		CalendarPeriodID:         carried.CalendarPeriodID,
+		EnrollmentRequestChildID: carried.EnrollmentRequestChildID,
+		SelectedWeekdays:         carried.SelectedWeekdays,
+	}
+	carriedRow.SetTenantID(1)
+	require.NoError(t, repoFactory.StudentEnrollment.Create(testpkg.TenantContext(1), carriedRow))
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.student_enrollments").
+			Where("id = ?", carriedRow.ID).
+			Exec(context.Background())
+	})
+
+	// The dropped-source cleanup runs with OfferingID nil on the successor.
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
+		testpkg.TenantContext(1),
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:    successor.ID,
+			EffectiveFrom: timezone.TodayDate(),
+		},
+	))
+
+	rows := loadTemplateEnrollments(t, env, successor.ID)
+	require.Len(t, rows, 1, "the legacy-fed carried row must survive the successor's cleanup")
+	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
 func TestResyncTemplateOfferingRoster_UnknownOfferingIsInvalid(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

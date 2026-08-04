@@ -1561,6 +1561,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if !ok {
 		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
 	}
+	// A split that moves the Zielgruppe away from 'angebot' drops the
+	// successor's source rule; the carried roster must then shed its
+	// source-derived rows (#2147 review). Wired late because the decision
+	// service is constructed after the split service.
+	templateSplitService.SetOfferingRosterResync(offeringRosterResyncer.ResyncTemplateOfferingRoster)
 	// Grade transitions rewrite school classes, so they must re-reconcile the
 	// offering-sourced templates' Jahrgang-filtered rosters (#2137). Wired
 	// here because the decision service is constructed after the grade

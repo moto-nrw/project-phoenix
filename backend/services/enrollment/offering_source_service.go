@@ -799,12 +799,23 @@ func draftMinusLegacyWeekdays(draft *careEnrollmentDraft, coverage *legacyChildC
 // legacy CareOffering.ActivityGroupID feed (#1651) plans on this template.
 // The resync must never rewrite rows inside that footprint: their lifecycle
 // belongs to the decision/adjustment flows of THAT offering.
+//
+// The lookup follows the template's whole split lineage, not just the direct
+// link: the legacy fan-out writes rows on EVERY overlapping series segment
+// (addLegacyLinkedGroupDrafts), so a link pointing at a predecessor still
+// plans children on the successor being resynced. Matching only the direct
+// link would let a resync treat those rows as source-owned and delete them
+// (#2147 review).
 func (s *decisionService) legacyLinkedChildCoverage(
 	ctx context.Context,
 	templateID int64,
 	onOrAfter timezone.Date,
 ) (map[int64]*legacyChildCoverage, error) {
-	offerings, err := s.CareOfferingRepo.ListByActivityGroupIDs(ctx, []int64{templateID})
+	series, err := s.ActivityGroupRepo.FindTemplateSeries(ctx, templateID)
+	if err != nil {
+		return nil, fmt.Errorf("offering roster resync: load template series for legacy coverage: %w", err)
+	}
+	offerings, err := s.CareOfferingRepo.ListByActivityGroupIDs(ctx, careOfferingSeriesGroupIDs(templateID, series))
 	if err != nil {
 		return nil, fmt.Errorf("offering roster resync: list legacy-linked offerings: %w", err)
 	}

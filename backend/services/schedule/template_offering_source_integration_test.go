@@ -317,6 +317,99 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 	assert.Empty(t, successor.SourceGradeLevels)
 }
 
+// Dropping the source on a split away from 'angebot' must also shed the
+// source-derived roster rows the carry-over copies onto the successor: the
+// now-manual template would otherwise keep provenance-tagged children the
+// editor cannot replace (#2147 review). Manual rows carry over unchanged and
+// the predecessor's rows stay untouched.
+func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testing.T) {
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                 name,
+		Type:                 activitiesModels.GroupTypeCare,
+		Weekdays:             []int{activitiesModels.WeekdayMonday},
+		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:               s.roomID,
+		CategoryID:           s.categoryID,
+		MaxParticipants:      20,
+		CalendarPeriodID:     &s.period.ID,
+		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingID: &offering.ID,
+		RosterValidFrom:      monday.AddDays(-30),
+		GradeLevelMax:        schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	// One source-fed row (provenance-tagged, phase-bounded, the shape the
+	// decision fan-out writes) and one manual row.
+	repos := repositories.NewFactory(s.db)
+	childID := createSplitRequestChild(t, s, s.students[0])
+	sourcedUntil := s.period.EndDate.AddDays(1)
+	sourced := &activitiesModels.StudentEnrollment{
+		StudentID:                s.students[0],
+		ActivityGroupID:          result.TemplateID,
+		ValidFrom:                s.period.StartDate,
+		ValidUntil:               &sourcedUntil,
+		CalendarPeriodID:         &s.period.ID,
+		EnrollmentRequestChildID: &childID,
+		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
+	}
+	sourced.SetTenantID(s.tenantID)
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, sourced))
+	manual := &activitiesModels.StudentEnrollment{
+		StudentID:        s.students[1],
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		CalendarPeriodID: &s.period.ID,
+	}
+	manual.SetTenantID(s.tenantID)
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, manual))
+
+	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
+		TemplateID:       result.TemplateID,
+		EffectiveDate:    monday,
+		Name:             name,
+		Type:             activitiesModels.GroupTypeCare,
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		StartTime:        time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
+		RoomID:           s.roomID,
+		CategoryID:       s.categoryID,
+		CalendarPeriodID: &s.period.ID,
+		TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
+
+	successorRows := loadSplitEnrollments(t, s, split.NewTemplateID)
+	require.Len(t, successorRows, 1, "the successor must carry only the manual row")
+	assert.Equal(t, s.students[1], successorRows[0].StudentID)
+	assert.Nil(t, successorRows[0].EnrollmentRequestChildID)
+
+	// The predecessor keeps its rows: the bounded sourced row is history of
+	// the capped segment, the manual row is capped at the split date.
+	oldRows := loadSplitEnrollments(t, s, result.TemplateID)
+	require.Len(t, oldRows, 2)
+	byStudent := map[int64]*activitiesModels.StudentEnrollment{}
+	for _, row := range oldRows {
+		byStudent[row.StudentID] = row
+	}
+	require.NotNil(t, byStudent[s.students[0]])
+	assert.NotNil(t, byStudent[s.students[0]].EnrollmentRequestChildID)
+	require.NotNil(t, byStudent[s.students[1]])
+	require.NotNil(t, byStudent[s.students[1]].ValidUntil)
+	assert.Equal(t, monday, *byStudent[s.students[1]].ValidUntil)
+}
+
 // A source whose Anmeldephase reaches beyond the template's Kalenderzeitraum
 // could never materialize its children, so the template save rejects it
 // instead of persisting a dead rule (#2137).

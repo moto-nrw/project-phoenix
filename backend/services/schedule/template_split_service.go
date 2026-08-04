@@ -222,6 +222,18 @@ type TemplateSplitService struct {
 	deviations           splitDeviationPreserver
 	lockTenantRecurrence func(context.Context) error
 	runInTx              func(context.Context, func(context.Context) error) error
+	// resyncOfferingRoster clears the offering-derived roster rows the
+	// carry-over copies onto a successor whose split dropped the source rule
+	// (#2137, #2147 review). Late-bound via SetOfferingRosterResync because
+	// the enrollment decision service is constructed after this one.
+	resyncOfferingRoster func(context.Context, OfferingRosterResyncInput) error
+}
+
+// SetOfferingRosterResync wires the enrollment-side source resync used when a
+// split drops the successor's offering source. The factory binds it after
+// constructing the decision service.
+func (s *TemplateSplitService) SetOfferingRosterResync(fn func(context.Context, OfferingRosterResyncInput) error) {
+	s.resyncOfferingRoster = fn
 }
 
 // splitDeviationPreserver is the existing instance-service machinery the split
@@ -290,6 +302,37 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 		// provisional split writes that preceded the check.
 		tenant.MarkRollback(ctx)
 		return &ScheduleError{Op: "split template: validate offering source", Err: err}
+	}
+	return nil
+}
+
+// resyncDroppedOfferingSource runs when a split moves the Zielgruppe away
+// from 'angebot': createSuccessorGroup drops the source rule then, but
+// createStudentRoster still carries every provenance-tagged row — leaving the
+// now-manual successor with source-managed children the editor cannot replace
+// (#2147 review). The existing source resync with OfferingID=nil removes
+// exactly the source contribution; rows the legacy
+// CareOffering.ActivityGroupID feed still plans on this series segment are
+// protected by its lineage-wide legacy coverage. The successor has no
+// materialized occurrences yet, so the resync's instance pass is a no-op.
+func (s *TemplateSplitService) resyncDroppedOfferingSource(
+	ctx context.Context,
+	old, successor *activitiesModel.Group,
+	in TemplateSplitInput,
+) error {
+	if old.SourceCareOfferingID == nil || successor.SourceCareOfferingID != nil {
+		return nil
+	}
+	if s.resyncOfferingRoster == nil {
+		return &ScheduleError{Op: "split template: resync dropped offering source", Err: errors.New("offering roster resync is not configured")}
+	}
+	if err := s.resyncOfferingRoster(ctx, OfferingRosterResyncInput{
+		TemplateID:         successor.ID,
+		PreviousOfferingID: cloneOptionalInt64(old.SourceCareOfferingID),
+		CalendarPeriodID:   in.CalendarPeriodID,
+		EffectiveFrom:      in.EffectiveDate,
+	}); err != nil {
+		return &ScheduleError{Op: "split template: resync dropped offering source", Err: err}
 	}
 	return nil
 }
@@ -364,6 +407,9 @@ func (s *TemplateSplitService) splitInTransaction(
 		ctx, old, in, tenantID, sourceValidUntil, activeEnrollments, activeSupervisors,
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.resyncDroppedOfferingSource(ctx, old, newGroup, in); err != nil {
 		return nil, err
 	}
 	if err := s.validateCareOfferingSeries(ctx, newGroup.ID); err != nil {
