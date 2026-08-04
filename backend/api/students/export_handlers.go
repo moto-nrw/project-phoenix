@@ -225,12 +225,12 @@ func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []Stu
 	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
 		return common.ErrorInternalServer(err)
 	}
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+	planningTimes, err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot))
+	if err != nil {
 		return common.ErrorInternalServer(err)
 	}
-	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
-	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	applyPickupTimesFromMap(responses, planningTimes.pickups)
+	applyArrivalTimesFromMap(responses, planningTimes.arrivals)
 	return nil
 }
 
