@@ -20,6 +20,8 @@ interface RelationshipTypeSelectProps {
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly disabled?: boolean;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  readonly parentVisibleHint?: string;
 }
 
 // RelationshipTypeSelect renders the "Beziehung zum Kind" dropdown.
@@ -28,16 +30,24 @@ export function RelationshipTypeSelect({
   value,
   onChange,
   disabled = false,
+  parentVisibleHint,
 }: RelationshipTypeSelectProps) {
   return (
     <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-700"
-      >
-        Beziehung zum Kind
-      </label>
+      {/* The marker sits beside the label, never inside: the label is this
+          select's aria-labelledby target, so its text is the accessible name. */}
+      <div className="mb-1 flex items-center gap-1">
+        <label
+          id={`${id}-label`}
+          htmlFor={id}
+          className="block text-xs font-medium text-gray-700"
+        >
+          Beziehung zum Kind
+        </label>
+        {parentVisibleHint && (
+          <ParentVisibleBadge compact hint={parentVisibleHint} />
+        )}
+      </div>
       <CustomSelect
         id={id}
         ariaLabelledBy={`${id}-label`}

@@ -60,8 +60,6 @@ import {
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
-import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import type {
   StudentStatusDay,
   StudentStatusKind,
@@ -743,7 +741,6 @@ export function CareScheduleManager({
               <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600">
                 {weekRange}
               </span>
-              <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.careSchedule} />
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">

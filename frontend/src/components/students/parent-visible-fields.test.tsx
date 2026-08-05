@@ -52,9 +52,16 @@ describe("Für-Eltern-sichtbar Kennzeichnung", () => {
     ).toBeInTheDocument();
   });
 
-  it("says in the hint whether parents may change the value", () => {
-    expect(PARENT_VISIBLE_HINTS.healthInfo).toContain("selbst ändern");
-    expect(PARENT_VISIBLE_HINTS.name).toContain("beantragen");
-    expect(PARENT_VISIBLE_HINTS.schoolClass).toContain("nicht");
+  // Whether a parent may edit or request a change depends on their per-child
+  // guardian permission, on tenant settings, and per field on further state (an
+  // "accompanied" departure day blocks the request outright). A static marker
+  // cannot know any of that, so no hint may promise it.
+  it("promises visibility only, never that parents may change a value", () => {
+    for (const [key, hint] of Object.entries(PARENT_VISIBLE_HINTS)) {
+      expect(hint, `${key} darf keine Änderung zusagen`).not.toMatch(
+        /ändern|beantragen|anpassen|bearbeiten/i,
+      );
+      expect(hint, `${key} muss die Sichtbarkeit nennen`).toMatch(/sehen/i);
+    }
   });
 });
