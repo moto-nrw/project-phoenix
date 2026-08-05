@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ClipboardList, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type CareOffering,
@@ -855,7 +855,7 @@ function CareOfferingToolbar({
       <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <div className="grid gap-2 sm:grid-cols-4">
           <CareOfferingMetric
-            icon={<ClipboardList className="h-4 w-4" />}
+            icon={<MotoConceptIcon concept="carePlan" size={16} />}
             label="Angebote"
             value={offeringCount}
           />
@@ -940,14 +940,14 @@ function CareOfferingMetric({
 function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
     <div
-      className="flex flex-col gap-3 rounded-2xl border border-[#F3B63F]/50 bg-[#F3B63F]/10 p-4 text-sm text-[#805600] sm:flex-row sm:items-center sm:justify-between"
+      className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong flex flex-col gap-3 rounded-2xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
       role="status"
     >
       <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[#F3B63F]/60 bg-white px-3 text-sm font-medium text-[#805600] shadow-sm transition-colors hover:bg-[#F3B63F]/10 focus-visible:ring-2 focus-visible:ring-[#F3B63F] focus-visible:outline-none"
+        className="border-moto-amber/60 text-moto-amber-strong hover:bg-moto-amber/10 focus-visible:ring-moto-amber inline-flex h-9 shrink-0 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
       >
         Erneut laden
       </button>
@@ -984,7 +984,7 @@ function CareOfferingCatalogError({
 function NoPhaseState() {
   return (
     <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="bg-moto-orange/10 mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#C56F0D]">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
         <MotoConceptIcon concept="calendarPeriods" size={28} />
       </div>
       <h2 className="mt-4 text-base font-semibold text-gray-900">
@@ -1010,8 +1010,8 @@ function EmptyCareOfferingState({
 }: Readonly<{ onCreate: () => void }>) {
   return (
     <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="bg-moto-blue/10 text-moto-blue mx-auto flex h-12 w-12 items-center justify-center rounded-2xl">
-        <ClipboardList className="h-6 w-6" aria-hidden="true" />
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+        <MotoConceptIcon concept="carePlan" size={24} />
       </div>
       <h2 className="mt-4 text-base font-semibold text-gray-900">
         Noch kein Betreuungsangebot angelegt
@@ -1333,7 +1333,7 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {compatibilityUnknown ? (
-        <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#805600]">
+        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
           {unknownCompatibilityMessage(metadataStatus)}
         </p>
       ) : null}
@@ -1355,7 +1355,7 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {templateWarnings.length > 0 ? (
-        <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+        <ul className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 space-y-1 rounded-lg border px-3 py-2 text-xs">
           {templateWarnings.map((warning) => (
             <li key={warning}>{warning}</li>
           ))}
@@ -1406,7 +1406,7 @@ function CareOfferingWeekdayFields({
         })}
       </div>
       {nameMismatch ? (
-        <p className="mt-3 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border px-3 py-2 text-xs">
           {nameMismatch}
         </p>
       ) : null}
@@ -1507,7 +1507,7 @@ function CareOfferingAutomationFields({
           )}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
-            <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+            <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
               Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
             </p>
           ) : null}
