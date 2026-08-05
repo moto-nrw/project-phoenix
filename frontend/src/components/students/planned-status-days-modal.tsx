@@ -207,7 +207,7 @@ export function PlannedStatusDaysModal({
     >
       <div className="space-y-5">
         <div className="flex items-start gap-3">
-          <div className="moto-content-surface mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 shadow-sm">
+          <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
             <MotoConceptIcon
               concept={isClassTrip ? "classTrip" : isSick ? "sick" : "excused"}
               size={22}

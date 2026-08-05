@@ -318,7 +318,7 @@ describe("StudentCard", () => {
   });
 
   it("renders the 'anmelden' (+) action icon on the tap-strip for absent students", () => {
-    // Covers tapStrip.action === "anmelden" branch in the SVG path switch.
+    // Covers tapStrip.action === "anmelden" branch in the icon switch.
     const { container } = render(
       <StudentCard
         {...defaultProps}
@@ -329,12 +329,11 @@ describe("StudentCard", () => {
     );
     const strip = container.querySelector("[data-checkin-tap-strip='true']");
     expect(strip).not.toBeNull();
-    // The "anmelden" icon path is the plus sign (vertical + horizontal line).
-    expect(strip?.querySelector('path[d="M12 4v16m8-8H4"]')).not.toBeNull();
+    expect(strip?.querySelector("svg.lucide-plus")).not.toBeNull();
   });
 
   it("renders the 'abmelden' (−) action icon on the tap-strip for present students", () => {
-    // Covers tapStrip.action === "abmelden" branch in the SVG path switch.
+    // Covers tapStrip.action === "abmelden" branch in the icon switch.
     const { container } = render(
       <StudentCard
         {...defaultProps}
@@ -344,8 +343,7 @@ describe("StudentCard", () => {
       />,
     );
     const strip = container.querySelector("[data-checkin-tap-strip='true']");
-    // The "abmelden" icon path is the single horizontal line (minus sign).
-    expect(strip?.querySelector('path[d="M20 12H4"]')).not.toBeNull();
+    expect(strip?.querySelector("svg.lucide-minus")).not.toBeNull();
   });
 
   it("does not set the data-checkin-* attributes when checkinMode is off", () => {
@@ -379,13 +377,13 @@ describe("SchoolClassIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("has proper styling classes", () => {
+  it("renders the schools concept icon at meta-icon size", () => {
     const { container } = render(<SchoolClassIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg?.className).toContain("h-3.5");
-    expect(svg?.className).toContain("w-3.5");
-    expect(svg?.className).toContain("text-gray-400");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "gold");
+    expect(svg).toHaveAttribute("width", "14");
+    expect(svg).toHaveAttribute("height", "14");
   });
 });
 
@@ -396,13 +394,13 @@ describe("GroupIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("has proper styling classes", () => {
+  it("renders the groups concept icon at meta-icon size", () => {
     const { container } = render(<GroupIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg?.className).toContain("h-3.5");
-    expect(svg?.className).toContain("w-3.5");
-    expect(svg?.className).toContain("text-gray-400");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "greenDeep");
+    expect(svg).toHaveAttribute("width", "14");
+    expect(svg).toHaveAttribute("height", "14");
   });
 });
 
@@ -415,12 +413,12 @@ describe("PickupTimeIcon", () => {
 });
 
 describe("ExceptionIcon", () => {
-  it("renders an SVG icon with orange color", () => {
+  it("renders the pickup concept icon", () => {
     const { container } = render(<ExceptionIcon />);
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg?.className).toContain("text-moto-orange-strong");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "petrol");
   });
 });
 
@@ -488,8 +486,10 @@ describe("PickupTimeRow", () => {
       <PickupTimeRow pickupTime="14:00" isException={true} now={now} />,
     );
 
-    const orangeSvg = container.querySelector("svg.text-moto-orange-strong");
-    expect(orangeSvg).toBeInTheDocument();
+    const exceptionSvg = container.querySelector(
+      "svg[data-moto-duotone-tone='petrol']",
+    );
+    expect(exceptionSvg).toBeInTheDocument();
   });
 
   it("renders exception text when there is no pickup time", () => {
@@ -612,7 +612,7 @@ describe("ArrivalTimeRow", () => {
     );
 
     expect(
-      container.querySelector("svg.text-moto-orange-strong"),
+      container.querySelector("svg[data-moto-duotone-tone='petrol']"),
     ).toBeInTheDocument();
   });
 

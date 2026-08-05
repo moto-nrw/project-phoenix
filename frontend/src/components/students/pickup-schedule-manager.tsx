@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { mutate } from "swr";
 import {
-  Calendar,
   ChevronLeft,
   ChevronRight,
   SquarePen,
   Loader2,
   StickyNote,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionHeader } from "~/components/ui/concept-section-header";
 import { PickupScheduleFormModal } from "./pickup-schedule-form-modal";
 import { PickupDayEditModal } from "./pickup-day-edit-modal";
 import type {
@@ -272,7 +273,7 @@ export default function PickupScheduleManager({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-4 py-3">
         {error}
       </div>
     );
@@ -281,24 +282,22 @@ export default function PickupScheduleManager({
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="bg-moto-orange/10 text-moto-orange flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
-            <Calendar className="h-5 w-5" />
-          </div>
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Gehplan & Notizen
-          </h2>
-        </div>
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={() => setIsScheduleModalOpen(true)}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-          >
-            Bearbeiten
-          </button>
-        )}
+      <div className="mb-4">
+        <SectionHeader
+          title="Gehplan & Notizen"
+          icon={<MotoConceptIcon concept="pickup" size={22} />}
+          actions={
+            !readOnly ? (
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(true)}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                Bearbeiten
+              </button>
+            ) : undefined
+          }
+        />
       </div>
 
       {/* Mobile: Week nav + Vertical list */}
@@ -449,7 +448,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             {/* Exception indicator */}
             <div className="min-w-0 flex-1">
               {day.isException && (
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                <span className="bg-moto-orange/15 text-moto-orange inline-flex h-5 w-5 items-center justify-center rounded-full">
                   <svg
                     className="h-3 w-3"
                     viewBox="0 0 20 20"
@@ -529,7 +528,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
         </div>
         {day.isException && (
           <span
-            className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-100 text-orange-600"
+            className="bg-moto-orange/15 text-moto-orange flex h-4 w-4 items-center justify-center rounded-full"
             title="Abweichende Zeit"
           >
             <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, Search, Trash2, Clock } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
@@ -371,14 +371,14 @@ export function StudentCreateModal({
             groups={groups}
           />
 
-          {/* Guardian Information — add directly during creation. Styling
-              matches the other modal sections (border-gray-100 + blue tint,
-              blue heading icon) and reuses the guardian modal's own dashed
-              add-button and red remove patterns. */}
+          {/* Guardian Information: add directly during creation. Styling
+              matches the other modal sections (border-gray-100 + neutral
+              surface) and reuses the guardian modal's own dashed add-button
+              and red remove patterns. */}
           <section
             ref={guardianSectionRef}
             aria-label="Erziehungsberechtigte"
-            className="scroll-mt-4 rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4"
+            className="scroll-mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
           >
             <div className="mb-3 flex items-center justify-between md:mb-4">
               <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
@@ -472,11 +472,11 @@ export function StudentCreateModal({
               section above. Reuses the existing CareWeeklyPlanModal editor. */}
           <section
             aria-label="Betreuungszeiten"
-            className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4"
+            className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
           >
             <div className="mb-3 flex items-center justify-between md:mb-4">
               <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                <Clock className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" />
+                <MotoConceptIcon concept="careTimes" size={16} />
                 Betreuungszeiten
               </h3>
               <span className="text-xs text-gray-500">

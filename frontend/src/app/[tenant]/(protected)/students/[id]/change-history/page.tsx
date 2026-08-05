@@ -7,6 +7,10 @@ import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import {
+  ConceptPageHeader,
+  ConceptSectionHeader,
+} from "~/components/ui/concept-section-header";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -188,30 +192,27 @@ function StudentChangeHistoryPageContent() {
       />
 
       {student && (
-        <div className="mb-6 ml-6">
-          <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {displayName}
-          </h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-            <span>{student.school_class}</span>
-            {student.group_name && (
-              <>
-                <span className="text-gray-300">·</span>
-                <span>{student.group_name}</span>
-              </>
-            )}
-          </div>
-        </div>
+        <ConceptPageHeader
+          className="mb-6 ml-6"
+          title={displayName}
+          eyebrow="Änderungsverlauf"
+          concept="changeHistory"
+          subtitle={
+            <>
+              {student.school_class}
+              {student.group_name ? ` · ${student.group_name}` : null}
+            </>
+          }
+        />
       )}
 
       <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Änderungsverlauf
-          </h2>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Wer hat wann welche Angaben zu diesem Kind geändert
-          </p>
+          <ConceptSectionHeader
+            title="Änderungsverlauf"
+            concept="changeHistory"
+            subtitle="Wer hat wann welche Angaben zu diesem Kind geändert"
+          />
         </div>
 
         {!entries || entries.length === 0 ? (

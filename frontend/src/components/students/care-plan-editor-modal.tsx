@@ -19,7 +19,6 @@ import type {
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
 import { formatPickupTime } from "~/lib/pickup-schedule-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -379,7 +378,7 @@ export function CarePlanEditorModal({
               </p>
 
               {parentAuthored ? (
-                <div className="border-moto-blue/20 bg-moto-blue/10 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm text-[#3a63b0]">
+                <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
                   <MotoConceptIcon
                     concept="parents"
                     size={18}
@@ -397,7 +396,6 @@ export function CarePlanEditorModal({
                 <LegSection
                   label="Ankunft"
                   icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-                  color={LOCATION_COLORS.GROUP_ROOM}
                   regularLabel={`Regulär: ${formatRegularArrival(arrivalDay)}`}
                   mode={arrivalMode}
                   onModeChange={(mode) => setArrivalMode(mode as ArrivalMode)}
@@ -416,7 +414,6 @@ export function CarePlanEditorModal({
                 <LegSection
                   label="Abholung"
                   icon={<MotoConceptIcon concept="pickup" size={18} />}
-                  color={LOCATION_COLORS.SCHOOLYARD}
                   regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
                   mode={pickupMode}
                   onModeChange={(mode) => setPickupMode(mode as PickupMode)}
@@ -483,7 +480,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem überschreiben"
         cancelText="Abbrechen"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-moto-red-strong hover:bg-[#B91C1C]"
+        confirmButtonClass="bg-moto-red-strong hover:bg-moto-red-hover"
       >
         <p className="text-sm leading-6 text-gray-600">
           Du überschreibst eine von den Eltern gesetzte Zeit. Die ursprüngliche
@@ -500,7 +497,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem speichern"
         cancelText="Zurück"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-moto-red-strong hover:bg-[#B91C1C]"
+        confirmButtonClass="bg-moto-red-strong hover:bg-moto-red-hover"
       >
         <div className="space-y-2 text-sm leading-6 text-gray-600">
           <p>
@@ -521,7 +518,6 @@ export function CarePlanEditorModal({
 function LegSection({
   label,
   icon,
-  color,
   regularLabel,
   mode,
   onModeChange,
@@ -535,7 +531,6 @@ function LegSection({
 }: {
   readonly label: string;
   readonly icon: React.ReactNode;
-  readonly color: string;
   readonly regularLabel: string;
   readonly mode: string;
   readonly onModeChange: (mode: string) => void;
@@ -552,10 +547,7 @@ function LegSection({
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-          style={{ backgroundColor: `${color}14`, color }}
-        >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
           {icon}
         </span>
         <div>
@@ -913,7 +905,7 @@ function WeeklySection({
       </div>
 
       {removals.length > 0 ? (
-        <div className="border-moto-orange/25 bg-moto-orange/10 rounded-xl border px-4 py-3 text-sm text-[#9A5B08]">
+        <div className="border-moto-orange/25 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm">
           Wird beim Speichern entfernt: {removals.join(", ")}.
         </div>
       ) : null}

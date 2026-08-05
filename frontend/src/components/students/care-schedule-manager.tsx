@@ -3,16 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mutate } from "swr";
 import {
-  CalendarX,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Loader2,
   SquarePen,
   StickyNote,
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   type CareExceptionSubmit,
@@ -1151,24 +1150,23 @@ function AbsencePlaceholder({
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
 }) {
   if (!status) return null;
-  const isSick = status === "sick";
+  const concept: MotoConceptKey =
+    status === "class_trip"
+      ? "classTrip"
+      : status === "sick"
+        ? "sick"
+        : "excused";
   const label =
     status === "class_trip"
       ? "Ganztägig Klassenfahrt"
-      : isSick
+      : status === "sick"
         ? "Ganztägig krank gemeldet"
         : "Ganztägig entschuldigt";
   const isInteractive = !readOnly && statusDay !== null;
   const content = (
     <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ${
-          isSick
-            ? "bg-[#EAB308]/10 text-[#A16207]"
-            : "bg-[#7C3AED]/10 text-[#6D28D9]"
-        }`}
-      >
-        <CalendarX className="h-4.5 w-4.5" aria-hidden="true" />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 shadow-sm">
+        <MotoConceptIcon concept={concept} size={18} />
       </span>
       <div className="min-w-0">
         <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
@@ -1333,8 +1331,8 @@ function StatusPill({ status }: { readonly status: StudentStatusKind }) {
     <span
       className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
         isSick
-          ? "border-[#EAB308]/30 bg-[#EAB308]/10 text-[#854D0E]"
-          : "border-[#7C3AED]/25 bg-[#7C3AED]/10 text-[#5B21B6]"
+          ? "border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong"
+          : "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong"
       }`}
     >
       {getStatusLabel(status)}
@@ -1391,7 +1389,7 @@ function getCareBoundaries(
       description: getArrivalDescription(day.arrival),
       marker: getArrivalMarker(day.arrival),
       color: LOCATION_COLORS.GROUP_ROOM,
-      icon: <Clock className="h-4 w-4" aria-hidden="true" />,
+      icon: <MotoConceptIcon concept="careTimes" size={18} />,
       onEdit: actions.onEditArrival,
     },
     {

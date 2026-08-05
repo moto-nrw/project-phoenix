@@ -180,7 +180,7 @@ function FieldHistoryInfo({
         onClick={() => setOpen((v) => !v)}
         onBlur={() => setOpen(false)}
         aria-label="Änderungsinformation anzeigen"
-        className="text-moto-blue inline-flex transition-colors hover:text-[#3f66b8]"
+        className="text-moto-blue hover:text-moto-blue-hover inline-flex transition-colors"
       >
         <Info className="h-[18px] w-[18px]" />
       </button>
@@ -565,11 +565,11 @@ export function SupervisorsCard({
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center sm:h-10 sm:w-10">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
             <MotoDuotoneIcon
               icon={MOTO_CONCEPTS.staff.icon}
               tone={MOTO_CONCEPTS.staff.tone}
-              size={28}
+              size={22}
             />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
@@ -957,11 +957,11 @@ function HistoryButton({
       className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center sm:h-9 sm:w-9">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-9 sm:w-9">
           <MotoDuotoneIcon
             icon={conceptDefinition.icon}
             tone={conceptDefinition.tone}
-            size={24}
+            size={20}
           />
         </div>
         <div className="min-w-0 flex-1 text-left">

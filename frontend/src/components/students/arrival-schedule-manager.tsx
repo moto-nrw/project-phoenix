@@ -9,6 +9,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionHeader } from "~/components/ui/concept-section-header";
 import { ArrivalScheduleFormModal } from "./arrival-schedule-form-modal";
 import { ArrivalDayEditModal } from "./arrival-day-edit-modal";
 import {
@@ -247,24 +248,22 @@ export function ArrivalScheduleManager({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
-            <MotoConceptIcon concept="carePlan" size={22} />
-          </div>
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Ankunftsplan & Notizen
-          </h2>
-        </div>
-        {!readOnly ? (
-          <button
-            type="button"
-            onClick={() => setIsScheduleModalOpen(true)}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-          >
-            Bearbeiten
-          </button>
-        ) : null}
+      <div className="mb-4">
+        <SectionHeader
+          title="Ankunftsplan & Notizen"
+          icon={<MotoConceptIcon concept="carePlan" size={22} />}
+          actions={
+            !readOnly ? (
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(true)}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                Bearbeiten
+              </button>
+            ) : undefined
+          }
+        />
       </div>
 
       {/* Mobile */}
@@ -401,7 +400,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
               kommt nicht
             </span>
           ) : day.isAbsent ? (
-            <span className="text-moto-orange inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium">
+            <span className="text-moto-orange bg-moto-orange/10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
               kommt nicht
             </span>
           ) : day.isException ? (
@@ -487,7 +486,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           kommt nicht
         </div>
       ) : day.isAbsent ? (
-        <div className="text-moto-orange mt-1 inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium">
+        <div className="text-moto-orange bg-moto-orange/10 mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
           kommt nicht
         </div>
       ) : (
