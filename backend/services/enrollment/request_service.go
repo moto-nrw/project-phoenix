@@ -166,8 +166,9 @@ type SubmitRequest struct {
 	// all possible.
 	RemoteIP string
 
-	// LateInviteToken opens a closed phase only for the token-bound guardian
-	// email. It is validated and consumed inside Submit's write transaction.
+	// LateInviteToken opens a closed phase for its holder. It is phase-bound,
+	// validated, and consumed inside Submit's write transaction, but it does not
+	// bind the submitted guardian email to the invitation address (#2164).
 	LateInviteToken string
 
 	// Internal admin paths set these. Public HTTP callers never deserialize
@@ -553,8 +554,8 @@ type RequestServiceConfig struct {
 	// GuardianAuthorizer verifies per-child parent-portal permissions for every
 	// submit path that can pin an existing student. It gates existing_students
 	// re-enrollment (#1663): the matched student may be renewed only when the
-	// request's own guardian identity — the authenticated account, or the bound
-	// guardian email on the accountless late-invite path — holds
+	// request's own guardian identity — the authenticated account, or the
+	// submitted guardian email on the accountless late-invite path — holds
 	// parent_portal.enrollment.submit on ITS relationship to that student. The
 	// school-wide GuardianSubmitEligible flag and a late-invite token both admit
 	// the submitter to the phase but neither proves authority over one child. The
@@ -816,7 +817,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 
 		var lateInvite *enrollmentModels.LateInvite
 		if strings.TrimSpace(req.LateInviteToken) != "" {
-			invite, inviteErr := s.findLateInviteForSubmit(txCtx, req.LateInviteToken, phase.ID, emailLC, now)
+			invite, inviteErr := s.findLateInviteForSubmit(txCtx, req.LateInviteToken, phase.ID, now)
 			if inviteErr != nil {
 				return inviteErr
 			}
@@ -825,10 +826,10 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		}
 
 		// Identity the per-child re-enrollment gate below authorizes against.
-		// emailLC is the invite's own guardian email on the late-invite path —
-		// findLateInviteForSubmit rejects the submission when the two differ — so a
-		// token holder cannot shop for an email that happens to be an authorized
-		// guardian of the child they want to claim (#1663).
+		// Late-invite holders may correct or replace the address the school used
+		// for the invitation, so this deliberately uses the address submitted in
+		// the form. The existing-student gate still requires that address to hold
+		// the enrollment permission for the matched child (#1663, #2164).
 		reEnrollSubmitter := reEnrollmentSubmitterFor(submissionSource, req.GuardianAccountID, emailLC)
 
 		// Dedup check runs inside the lock so the result is stable for
@@ -1062,7 +1063,7 @@ func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateI
 	return &CreateLateInviteResult{Invite: invite, Token: token}, nil
 }
 
-func (s *requestService) findLateInviteForSubmit(ctx context.Context, token string, phaseID int64, guardianEmail string, now time.Time) (*enrollmentModels.LateInvite, error) {
+func (s *requestService) findLateInviteForSubmit(ctx context.Context, token string, phaseID int64, now time.Time) (*enrollmentModels.LateInvite, error) {
 	if s.LateInviteRepo == nil {
 		return nil, fmt.Errorf("%w: late invite support is not configured", ErrLateInviteInvalid)
 	}
@@ -1075,9 +1076,6 @@ func (s *requestService) findLateInviteForSubmit(ctx context.Context, token stri
 			return nil, ErrLateInviteInvalid
 		}
 		return nil, fmt.Errorf("submit: resolve late invite: %w", err)
-	}
-	if strings.ToLower(strings.TrimSpace(invite.GuardianEmail)) != guardianEmail {
-		return nil, ErrLateInviteInvalid
 	}
 	return invite, nil
 }
@@ -3919,8 +3917,9 @@ func assertExistingStudentMatchResolved(
 // is authorized against. Exactly one of the two identities decides, and which
 // one is a property of the flow, never of the payload: a parents-portal submit
 // carries the authenticated account, every other flow carries only the guardian
-// email the request is bound to (for a late invite, the email the school minted
-// the token for — findLateInviteForSubmit rejects any mismatch).
+// email submitted on the request. A late invite grants access to the phase but
+// does not bind the request identity to the address the school used when it
+// created the link (#2164).
 //
 // AdminManaged marks the staff-authorized manual-enrollment flow, the one path
 // that may deliberately pin a student the submitting guardian has no
@@ -3935,9 +3934,9 @@ type reEnrollmentSubmitter struct {
 
 // reEnrollmentSubmitterFor builds the identity from a submission's source and
 // guardian fields. Any source other than admin_manual is self-service as far as
-// this gate is concerned — a late invite proves the school invited THIS EMAIL
-// into a closed phase, which is not the same fact as authority over a specific
-// enrolled child.
+// this gate is concerned — a late invite proves that its token holder may enter
+// the phase, which is not the same fact as authority over a specific enrolled
+// child.
 func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64, guardianEmail string) reEnrollmentSubmitter {
 	return reEnrollmentSubmitter{
 		GuardianAccountID: guardianAccountID,

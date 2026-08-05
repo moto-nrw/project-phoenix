@@ -1517,6 +1517,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		PhaseRepo:                repos.Phase,

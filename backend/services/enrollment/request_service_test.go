@@ -232,6 +232,10 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 			Where("tenant_id = ?", 1).
 			Exec(bg)
 		_, _ = db.NewDelete().
+			TableExpr("enrollment.late_invites").
+			Where("phase_id = ?", phase.ID).
+			Exec(bg)
+		_, _ = db.NewDelete().
 			TableExpr("enrollment.requests").
 			Where("phase_id = ?", phase.ID).
 			Exec(bg)
@@ -278,6 +282,37 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 			},
 		},
 	}
+}
+
+func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repos := repositories.NewFactory(env.db)
+	config := env.config
+	config.LateInviteRepo = repos.LateInvite
+	svc := enrollmentService.NewRequestService(config)
+	created, err := svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
+		PhaseID:       env.phaseID,
+		GuardianEmail: "invited@example.test",
+		CreatedBy:     env.creatorID,
+	})
+	require.NoError(t, err)
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "submitted@example.test"
+	req.LateInviteToken = created.Token
+	result, err := svc.Submit(ctx, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.Request)
+	assert.Equal(t, "submitted@example.test", result.Request.GuardianEmail)
+	assert.Equal(t, enrollmentModels.RequestSourceLateInvite, result.Request.SubmissionSource)
+	assert.EqualValues(t, created.Invite.ID, result.Request.SourceMetadata["late_invite_id"])
+
+	used, err := repos.LateInvite.FindByUsedRequestID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "invited@example.test", used.GuardianEmail)
 }
 
 // --- Submit ---

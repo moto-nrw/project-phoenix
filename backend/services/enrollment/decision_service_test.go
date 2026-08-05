@@ -102,6 +102,7 @@ func newDecisionServiceForTest(
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
 		RequestGuardianRepo:      repoFactory.RequestGuardian,
+		LateInviteRepo:           repoFactory.LateInvite,
 		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
 		CareOfferingRepo:         repoFactory.CareOffering,
 		PhaseRepo:                repoFactory.Phase,
@@ -428,6 +429,43 @@ func TestDecisionService_Get_ReturnsRequestPhaseAndChildren(t *testing.T) {
 	assert.Equal(t, env.sourcePhase.ID, summary.Phase.ID)
 	require.Len(t, summary.Children, 1)
 	assert.Equal(t, "Lina", summary.Children[0].FirstName)
+}
+
+func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, _ := submitOneChild(t, env, "submitted@example.com", "Lina", "GetInvite")
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.Request)(nil)).
+		ModelTableExpr(`enrollment.requests AS "request"`).
+		Set("submission_source = ?", enrollmentModels.RequestSourceLateInvite).
+		Where(`"request".id = ?`, reqID).
+		Exec(ctx)
+	require.NoError(t, err)
+	invite := &enrollmentModels.LateInvite{
+		PhaseID:       env.sourcePhase.ID,
+		TokenHash:     "decision-get-late-invite-" + t.Name(),
+		GuardianEmail: "invited@example.com",
+		ExpiresAt:     time.Now().Add(time.Hour),
+		CreatedBy:     env.creatorID,
+	}
+	require.NoError(t, env.repos.LateInvite.Create(ctx, invite))
+	require.NoError(t, env.repos.LateInvite.MarkUsed(ctx, invite.ID, reqID, time.Now()))
+	defer func() {
+		_, _ = env.db.NewDelete().
+			Model((*enrollmentModels.LateInvite)(nil)).
+			Where("id = ?", invite.ID).
+			Exec(context.Background())
+	}()
+
+	summary, err := env.decision.Get(ctx, reqID)
+
+	require.NoError(t, err)
+	require.NotNil(t, summary.LateInvite)
+	assert.Equal(t, invite.ID, summary.LateInvite.ID)
+	assert.Equal(t, "invited@example.com", summary.LateInvite.GuardianEmail)
 }
 
 // ---- List ---------------------------------------------------------------

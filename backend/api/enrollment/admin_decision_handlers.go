@@ -59,7 +59,9 @@ type AdminRequestSummary struct {
 // detail UI exposes a direct link to the parent status page.
 type AdminRequestDetail struct {
 	AdminRequestSummary
-	StatusToken string `json:"status_token"`
+	StatusToken             string `json:"status_token"`
+	LateInviteGuardianEmail string `json:"late_invite_guardian_email,omitempty"`
+	LateInviteEmailMismatch bool   `json:"late_invite_email_mismatch,omitempty"`
 }
 
 // AdminRequestGuardian is one additional guardian (co-guardian) within an
@@ -302,6 +304,13 @@ func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmen
 		return detail
 	}
 	detail.StatusToken = summary.Request.StatusToken
+	if summary.LateInvite != nil {
+		detail.LateInviteGuardianEmail = summary.LateInvite.GuardianEmail
+		detail.LateInviteEmailMismatch = !strings.EqualFold(
+			strings.TrimSpace(summary.Request.GuardianEmail),
+			strings.TrimSpace(summary.LateInvite.GuardianEmail),
+		)
+	}
 	return detail
 }
 

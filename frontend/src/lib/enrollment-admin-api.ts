@@ -191,6 +191,8 @@ export interface AdminRequestSummary {
 
 export interface AdminRequestDetail extends AdminRequestSummary {
   status_token: string;
+  late_invite_guardian_email?: string;
+  late_invite_email_mismatch?: boolean;
 }
 
 interface AdminEnrollmentDeletionCounts {

@@ -1241,6 +1241,35 @@ describe("EnrollmentForm", () => {
     );
   });
 
+  it("prefills editable guardian fields from a late invite before the parent profile", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        lateInvite: {
+          guardian_first_name: "Eingeladen",
+          guardian_last_name: "Nachzuegler",
+          guardian_email: "invited@example.test",
+        },
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("Eingeladen");
+    expect(screen.getAllByLabelText("Nachname *")[0]).toHaveValue(
+      "Nachzuegler",
+    );
+    const email = screen.getByLabelText("E-Mail *");
+    expect(email).toHaveValue("invited@example.test");
+
+    fireEvent.change(email, { target: { value: "submitted@example.test" } });
+    expect(email).toHaveValue("submitted@example.test");
+  });
+
   it("drops an adopted child's grade when the phase does not accept it", async () => {
     // The reused child sits in grade 2 but the phase is restricted to grade 3
     // (#1663). Keeping the prefill would put a value in the draft that the

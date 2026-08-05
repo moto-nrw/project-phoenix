@@ -43,6 +43,7 @@ import { formatCalendarDate } from "~/lib/localized-date-format";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -254,6 +255,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               <div className="rounded-lg border border-[#83CD2D]/20 bg-[#83CD2D]/10 p-3 text-sm text-[#5A8B1F]">
                 {info}
               </div>
+            )}
+
+            {data.late_invite_email_mismatch === true && (
+              <Alert
+                type="warning"
+                announce="off"
+                message="Eingereicht mit anderer E-Mail-Adresse als der Nachzügler-Link."
+              />
             )}
 
             <EnrollmentSummary data={data} submittedAt={submittedAt} />

@@ -169,10 +169,11 @@ type PendingGuardianInvite struct {
 // per-child counts so the admin can scan the queue without expanding
 // every detail page.
 type RequestSummary struct {
-	Request   *enrollmentModels.Request
-	Phase     *enrollmentModels.Phase
-	Children  []*enrollmentModels.RequestChild
-	Guardians []*enrollmentModels.RequestGuardian
+	Request    *enrollmentModels.Request
+	Phase      *enrollmentModels.Phase
+	Children   []*enrollmentModels.RequestChild
+	Guardians  []*enrollmentModels.RequestGuardian
+	LateInvite *enrollmentModels.LateInvite
 }
 
 // RequestFilters narrows the admin list. Zero-value fields are
@@ -334,6 +335,7 @@ type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
 	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
+	LateInviteRepo           enrollmentModels.LateInviteRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
@@ -457,7 +459,22 @@ func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSum
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	return s.assemble(ctx, req)
+	summary, err := s.assemble(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if s.LateInviteRepo == nil || normalizedSubmissionSource(req.SubmissionSource) != enrollmentModels.RequestSourceLateInvite {
+		return summary, nil
+	}
+	invite, err := s.LateInviteRepo.FindByUsedRequestID(ctx, requestID)
+	if err != nil {
+		if errors.Is(err, enrollmentModels.ErrLateInviteNotFound) {
+			return summary, nil
+		}
+		return nil, fmt.Errorf("decision: load late invite for request %d: %w", requestID, err)
+	}
+	summary.LateInvite = invite
+	return summary, nil
 }
 
 func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Request) (*RequestSummary, error) {
