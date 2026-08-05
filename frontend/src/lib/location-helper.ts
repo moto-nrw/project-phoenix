@@ -87,6 +87,145 @@ export const GROUP_ROOM_SHADES = {
   bgActive: "#e4f3d3", // slightly darker tint for ghost-button :active
 } as const;
 
+/**
+ * Text shades of the palette above, dark enough to carry a label on a white or
+ * gray-50 surface. The raw brand hexes are fills: on white #83CD2D reaches
+ * 2.0:1, #F78C10 2.4:1 and #EAB308 1.9:1, all under the 4.5:1 WCAG minimum for
+ * normal text. These keep the hue and darken until the ratio holds at any font
+ * size (measured contrast on white in the comments).
+ *
+ * Keyed by the lowercased base hex, so a component only knows its brand color
+ * and asks `getAccessibleTextColor()` for the matching label color. Colors that
+ * are not part of the palette (per-room hexes, the Homeoffice blue in
+ * staff-helpers) are darkened arithmetically by the same function.
+ *
+ * These are NOT the StatusBadge label colors: those are darkened further to sit
+ * on a tinted pill, which reads muddy on a large figure on white (#8A5600 turns
+ * brown). Both tables exist on purpose.
+ */
+const ACCESSIBLE_TEXT_COLORS: Record<string, string> = {
+  "#83cd2d": GROUP_ROOM_SHADES.text, // 5.1:1 — #4a7a15
+  "#5080d8": "#3d6ab8", // 5.3:1
+  "#ff3130": "#c62826", // 5.6:1
+  "#f78c10": "#ad6100", // 4.7:1
+  "#d946ef": "#af39c1", // 5.0:1
+  "#eab308": "#8b6a05", // 5.1:1
+  "#6b7280": "#374151", // 10.3:1 — neutral figures read as gray-700, not gray-500
+  // EXCUSED #7C3AED is absent on purpose: at 5.7:1 the raw purple already
+  // clears the target and is returned unchanged.
+};
+
+/** WCAG AA for normal text; holds for large text too, so one target covers both. */
+const TEXT_CONTRAST_TARGET = 4.5;
+
+/** Used when there is no usable color to darken. */
+const NEUTRAL_TEXT_COLOR = "#374151";
+
+const accessibleTextCache = new Map<string, string>();
+
+/**
+ * Returns a text color for `color` that clears {@link TEXT_CONTRAST_TARGET}
+ * against white. Palette colors resolve through {@link ACCESSIBLE_TEXT_COLORS};
+ * anything else (a per-room hex, a status color outside the palette) is scaled
+ * down channel-wise until the ratio holds, which keeps the hue and only takes
+ * brightness away. Colors that already pass are returned unchanged.
+ *
+ * Use it for the LABEL only. Dots, bars, and other fills keep the raw color —
+ * they carry no text and contrast rules do not apply the same way.
+ *
+ * Accepts a missing color: an indexed palette lookup is `string | undefined`
+ * under `noUncheckedIndexedAccess`, and a status the backend adds before the
+ * frontend knows it must not blow up a badge. It falls back to neutral gray.
+ */
+export function getAccessibleTextColor(
+  color: string | null | undefined,
+): string {
+  if (color === null || color === undefined || color.trim() === "") {
+    return NEUTRAL_TEXT_COLOR;
+  }
+
+  const key = color.trim().toLowerCase();
+
+  const cached = accessibleTextCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const resolved = resolveAccessibleTextColor(key, color);
+  accessibleTextCache.set(key, resolved);
+  return resolved;
+}
+
+function resolveAccessibleTextColor(key: string, color: string): string {
+  const curated = ACCESSIBLE_TEXT_COLORS[key];
+  if (curated) {
+    return curated;
+  }
+
+  const rgb = hexToRgb(color);
+  if (!rgb) {
+    // Non-hex input (a CSS keyword, a var()): darkening it is not possible, so
+    // fall back to the neutral text color rather than passing it through.
+    return NEUTRAL_TEXT_COLOR;
+  }
+
+  if (contrastOnWhite(rgb) >= TEXT_CONTRAST_TARGET) {
+    return color;
+  }
+
+  return rgbToHex(darkenToContrast(rgb, TEXT_CONTRAST_TARGET));
+}
+
+/**
+ * Largest brightness factor that still clears `target`, found by bisection.
+ * The rounding to integer channels happens inside the predicate — rounding
+ * afterwards can push a borderline result back below the target.
+ */
+function darkenToContrast(rgb: RgbColor, target: number): RgbColor {
+  let tooDark = 0;
+  let tooBright = 1;
+
+  for (let i = 0; i < 24; i++) {
+    const factor = (tooDark + tooBright) / 2;
+    if (contrastOnWhite(scaleChannels(rgb, factor)) >= target) {
+      tooDark = factor;
+    } else {
+      tooBright = factor;
+    }
+  }
+
+  return scaleChannels(rgb, tooDark);
+}
+
+function scaleChannels(rgb: RgbColor, factor: number): RgbColor {
+  return {
+    r: Math.round(rgb.r * factor),
+    g: Math.round(rgb.g * factor),
+    b: Math.round(rgb.b * factor),
+  };
+}
+
+/** WCAG relative luminance (sRGB). */
+function relativeLuminance({ r, g, b }: RgbColor): number {
+  const channel = (value: number): number => {
+    const srgb = value / 255;
+    return srgb <= 0.03928
+      ? srgb / 12.92
+      : Math.pow((srgb + 0.055) / 1.055, 2.4);
+  };
+
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio against #FFFFFF (luminance 1). */
+function contrastOnWhite(rgb: RgbColor): number {
+  return 1.05 / (relativeLuminance(rgb) + 0.05);
+}
+
+function rgbToHex({ r, g, b }: RgbColor): string {
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 const LOCATION_SEPARATOR = "-";
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
 

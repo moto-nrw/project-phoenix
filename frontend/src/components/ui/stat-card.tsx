@@ -7,35 +7,22 @@
 // Tones use the StatusBadge vocabulary. Callers holding the older "amber"
 // spelling (getDeltaStatus) map it to "orange" at the boundary.
 //
-// The VALUE colors are their own table, because a figure and a pill have
-// different jobs. The raw brand hexes are made for fills, not for text on
-// white: #F78C10 reaches 2.4:1 and #83CD2D/#70b525 2.5:1, both under the 3:1
-// WCAG minimum even at this size. StatusBadge's label colors clear it but are
-// darkened for a tinted pill, and on a large figure on white #8A5600 reads
-// brown. So these sit between the two: same hue as the brand color, dark
-// enough to clear 4.5:1 (contrast on white in the comments), which holds at
-// any size. Green is GROUP_ROOM_SHADES.text, the shade already centralised
-// for exactly this. The progress bar keeps the brand hex below — a bar is a
-// fill and carries no text.
+// A tone is one brand color, used twice: the progress bar takes it raw (a bar
+// is a fill), the figure takes its accessible shade from location-helper (a
+// figure is text — the raw hexes miss the contrast minimum on white, brand
+// green by a factor of two). Both come from LOCATION_COLORS, so this component
+// holds no palette values of its own and cannot go stale when the palette moves.
 
-import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 
 export type StatCardTone = "blue" | "green" | "orange" | "red" | "gray";
 
-const TONE_VALUE_COLOR: Record<StatCardTone, string> = {
-  blue: "#3D6AB8", // 5.3:1 — OTHER_ROOM #5080D8 darkened
-  green: GROUP_ROOM_SHADES.text, // 5.1:1 — #4a7a15
-  orange: "#AD6100", // 4.7:1 — SCHOOLYARD #F78C10 darkened
-  red: "#C62826", // 5.6:1 — HOME #FF3130 darkened
-  gray: "#374151", // 10.3:1
-};
-
-const TONE_BAR_COLOR: Record<StatCardTone, string> = {
-  blue: "#5080D8",
-  green: "#83CD2D",
-  orange: "#F78C10",
-  red: "#FF3130",
-  gray: "#9CA3AF",
+const TONE_COLOR: Record<StatCardTone, string> = {
+  blue: LOCATION_COLORS.OTHER_ROOM,
+  green: LOCATION_COLORS.GROUP_ROOM,
+  orange: LOCATION_COLORS.SCHOOLYARD,
+  red: LOCATION_COLORS.HOME,
+  gray: LOCATION_COLORS.UNKNOWN,
 };
 
 export function StatCard({
@@ -75,7 +62,7 @@ export function StatCard({
         className={`mt-2 font-bold ${
           compactValue ? "text-xl whitespace-nowrap" : "text-2xl"
         }`}
-        style={{ color: TONE_VALUE_COLOR[tone] }}
+        style={{ color: getAccessibleTextColor(TONE_COLOR[tone]) }}
       >
         {value}
       </p>
@@ -88,7 +75,7 @@ export function StatCard({
             className="h-full rounded-full transition-all"
             style={{
               width: `${Math.min(100, Math.max(0, progressPct))}%`,
-              backgroundColor: TONE_BAR_COLOR[tone],
+              backgroundColor: TONE_COLOR[tone],
             }}
           />
         </div>

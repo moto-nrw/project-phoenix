@@ -5,6 +5,7 @@ import {
   parseLocation,
   normalizeLocation,
   getLocationColor,
+  getAccessibleTextColor,
   getLocationDisplay,
   getLocationGlowEffect,
   canSeeDetailedLocation,
@@ -378,5 +379,60 @@ describe("StudentLocationContext with sick fields", () => {
     };
     expect(student.sick).toBeUndefined();
     expect(student.sick_since).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// ACCESSIBLE TEXT COLOR TESTS
+// =============================================================================
+
+describe("getAccessibleTextColor", () => {
+  // Independent WCAG implementation: the test must not agree with the helper
+  // by sharing its arithmetic.
+  function contrastOnWhite(hex: string): number {
+    const value = hex.replace("#", "");
+    const channels = [0, 2, 4].map((offset) => {
+      const srgb = Number.parseInt(value.slice(offset, offset + 2), 16) / 255;
+      return srgb <= 0.03928
+        ? srgb / 12.92
+        : Math.pow((srgb + 0.055) / 1.055, 2.4);
+    });
+    const luminance =
+      0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+    return 1.05 / (luminance + 0.05);
+  }
+
+  it("every palette color resolves to a shade that clears 4.5:1 on white", () => {
+    for (const color of Object.values(LOCATION_COLORS)) {
+      const text = getAccessibleTextColor(color);
+      expect(contrastOnWhite(text)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("darkens a color outside the palette instead of passing it through", () => {
+    // Homeoffice-Blau aus staff-helpers und eine helle Raumfarbe.
+    for (const color of ["#0EA5E9", "#FFD166"]) {
+      const text = getAccessibleTextColor(color);
+      expect(text).not.toBe(color);
+      expect(contrastOnWhite(text)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("leaves a color that already passes untouched", () => {
+    expect(getAccessibleTextColor(LOCATION_COLORS.EXCUSED)).toBe(
+      LOCATION_COLORS.EXCUSED,
+    );
+  });
+
+  it("is case insensitive", () => {
+    expect(getAccessibleTextColor("#83cd2d")).toBe(
+      getAccessibleTextColor("#83CD2D"),
+    );
+  });
+
+  it("falls back to neutral gray for a missing or unusable color", () => {
+    for (const color of [undefined, null, "", "  ", "currentColor"]) {
+      expect(getAccessibleTextColor(color)).toBe("#374151");
+    }
   });
 });
