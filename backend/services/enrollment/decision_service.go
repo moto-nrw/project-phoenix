@@ -194,6 +194,14 @@ type DecisionService interface {
 	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+
+	// RestoreWithdrawn undoes a parent-initiated withdraw: withdrawn
+	// children go back to submitted, review metadata and withdrawn_at are
+	// cleared, and an append-only audit row records the restore (#2157).
+	// Guards: phase must be active, and the submit-time duplicate checks
+	// re-run under the submit advisory locks. Must run inside the
+	// handler-provided tenant transaction, like Decide.
+	RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*RestoreOutcome, error)
 	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
@@ -332,6 +340,7 @@ type DecisionServiceConfig struct {
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
 	DataAccessLogRepo        auditModels.DataAccessLogRepository   // append-only GDPR audit row written on phase export
 	OfferingAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
+	RestorationAuditRepo     auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
 	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
 	StaffRepo                users.StaffRepository

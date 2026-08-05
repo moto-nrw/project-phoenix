@@ -832,6 +832,10 @@ func (f *fakeApproveDecisionService) RecordPhaseExportAudit(_ context.Context, _
 	return nil
 }
 
+func (f *fakeApproveDecisionService) RestoreWithdrawn(_ context.Context, _, _ int64) (*enrollmentService.RestoreOutcome, error) {
+	return nil, nil
+}
+
 func (f *fakeApproveDecisionService) Decide(ctx context.Context, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
 	f.calls++
 	if err := f.repo.UpdateStatus(ctx, input.ChildID, string(input.Status), nil, 0); err != nil {

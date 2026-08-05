@@ -107,6 +107,7 @@ func newDecisionServiceForTest(
 		PhaseRepo:                repoFactory.Phase,
 		FormSchemaRepo:           repoFactory.FormSchema,
 		OfferingAdjustmentRepo:   repoFactory.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:     repoFactory.EnrollmentRestorationAudit,
 		PersonRepo:               repoFactory.Person,
 		StaffRepo:                repoFactory.Staff,
 		StudentRepo:              repoFactory.Student,

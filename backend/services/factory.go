@@ -1523,6 +1523,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FormSchemaRepo:           repos.FormSchema,
 		DataAccessLogRepo:        repos.DataAccessLog,
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:     repos.EnrollmentRestorationAudit,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
 		StaffRepo:                repos.Staff,

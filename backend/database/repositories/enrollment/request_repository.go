@@ -467,3 +467,20 @@ func (r *RequestRepository) MarkWithdrawn(ctx context.Context, requestID int64, 
 	}
 	return nil
 }
+
+// ClearWithdrawn is the inverse of MarkWithdrawn: it nulls withdrawn_at and
+// bumps updated_at. Used by the admin restore flow (#2157) after every
+// withdrawn child of the request was flipped back to submitted.
+func (r *RequestRepository) ClearWithdrawn(ctx context.Context, requestID int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Set("withdrawn_at = NULL").
+		Set("updated_at = NOW()").
+		Where(`"request".id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to clear request withdrawn state: %w", err)
+	}
+	return nil
+}

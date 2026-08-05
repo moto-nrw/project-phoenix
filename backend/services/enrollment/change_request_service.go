@@ -1469,7 +1469,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 		CareOfferingRepo:         s.CareOfferingRepo,
 		Settings:                 s.Settings,
 	}}
-	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, openByID, preservedChildIDs)
+	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, preservedChildIDs)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
 	}
