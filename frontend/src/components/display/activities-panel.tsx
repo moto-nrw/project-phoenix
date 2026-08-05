@@ -5,6 +5,7 @@ import type {
   DashboardUpcomingActivity,
 } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface ActivitiesPanelProps {
   readonly running: DashboardRunningActivity[];
@@ -14,7 +15,12 @@ interface ActivitiesPanelProps {
 export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
   return (
     <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
-      <h2 className="mb-5 text-3xl font-bold text-gray-900">Aktivitäten</h2>
+      <div className="mb-5 flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+          <MotoConceptIcon concept="activities" size={32} />
+        </div>
+        <h2 className="text-3xl font-bold text-gray-900">Aktivitäten</h2>
+      </div>
 
       {running.length === 0 && upcoming.length === 0 ? (
         <p className="py-8 text-center text-2xl text-gray-400">

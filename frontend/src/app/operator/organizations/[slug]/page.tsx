@@ -471,6 +471,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
       <EntityHeaderCard
         title={organization.name}
+        concept="organizations"
         subdomain={organization.slug}
         active={organization.active}
         createdAt={organization.createdAt}

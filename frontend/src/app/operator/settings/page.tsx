@@ -210,12 +210,12 @@ function OperatorSettingsContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Profil" />
+      <PageHeaderWithSearch title="Profil" concept="settings" />
 
       <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
         {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
-          <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-xl">
+          <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gray-800 text-white shadow-xl">
             <span className="text-3xl font-bold">{initials}</span>
           </div>
         </div>
@@ -261,7 +261,7 @@ function OperatorSettingsContent() {
                 <button
                   type="button"
                   onClick={() => setShowEmailChangeDialog(true)}
-                  className="text-moto-blue mt-2 text-sm font-medium transition-colors hover:text-[#3060B8]"
+                  className="text-moto-blue hover:text-moto-blue-hover mt-2 text-sm font-medium transition-colors"
                 >
                   E-Mail ändern
                 </button>

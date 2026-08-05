@@ -450,6 +450,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
       <EntityHeaderCard
         title={school.name}
+        concept="schools"
         subdomain={school.subdomain}
         active={school.active}
         createdAt={school.createdAt}
@@ -463,7 +464,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               </span>
             </span>
             {school.hidden && (
-              <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
+              <span className="bg-moto-amber/15 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
                 Verborgen
               </span>
             )}

@@ -19,6 +19,12 @@ import type {
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
+import {
+  ConceptPageHeader,
+  SectionHeader,
+} from "~/components/ui/concept-section-header";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { DataTableStatusBadge } from "~/components/ui/data-table";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -38,17 +44,16 @@ export default function OperatorOperatorsPage() {
 
   return (
     <div className="space-y-8 p-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Operatoren</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Neue Operatoren einladen und bestehende anzeigen.
-        </p>
-      </div>
+      <ConceptPageHeader
+        title="Operatoren"
+        concept="operators"
+        subtitle="Neue Operatoren einladen und bestehende anzeigen."
+      />
 
       <InviteForm onCreated={() => void mutate()} />
 
       {fetchError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-lg border p-4 text-sm">
           {isOperatorApiError(fetchError)
             ? fetchError.message
             : "Daten konnten nicht geladen werden."}
@@ -119,9 +124,11 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">
-        Neuen Operator einladen
-      </h2>
+      <SectionHeader
+        title="Neuen Operator einladen"
+        icon={<MotoConceptIcon concept="operators" size={22} />}
+        className="mb-4"
+      />
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -138,7 +145,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="operator@example.com"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none"
+              className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
           </div>
           <div>
@@ -154,7 +161,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Max Mustermann"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none"
+              className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
           </div>
         </div>
@@ -231,9 +238,11 @@ function PendingInvitationsList({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">
-        Offene Einladungen
-      </h2>
+      <SectionHeader
+        title="Offene Einladungen"
+        icon={<MotoConceptIcon concept="operators" size={22} />}
+        className="mb-4"
+      />
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
@@ -266,7 +275,7 @@ function PendingInvitationsList({
                 type="button"
                 disabled={actionLoading === inv.id}
                 onClick={() => void handleResend(inv.id)}
-                className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-200 disabled:opacity-50"
+                className="bg-moto-purple/15 text-moto-purple-strong hover:bg-moto-purple/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Erneut senden
               </button>
@@ -274,7 +283,7 @@ function PendingInvitationsList({
                 type="button"
                 disabled={actionLoading === inv.id}
                 onClick={() => setRevokeTarget(inv)}
-                className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50"
+                className="bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Widerrufen
               </button>
@@ -305,9 +314,11 @@ function PendingInvitationsList({
 function OperatorsList({ operators }: { readonly operators: OperatorInfo[] }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">
-        Bestehende Operatoren
-      </h2>
+      <SectionHeader
+        title="Bestehende Operatoren"
+        icon={<MotoConceptIcon concept="operators" size={22} />}
+        className="mb-4"
+      />
 
       {operators.length === 0 ? (
         <p className="text-sm text-gray-500">Keine Operatoren vorhanden.</p>
@@ -338,15 +349,9 @@ function OperatorsList({ operators }: { readonly operators: OperatorInfo[] }) {
                 ) : (
                   <p className="text-xs text-gray-400">Noch nicht angemeldet</p>
                 )}
-                <span
-                  className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                    op.active
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {op.active ? "Aktiv" : "Inaktiv"}
-                </span>
+                <div className="mt-1 flex justify-end">
+                  <DataTableStatusBadge active={op.active} />
+                </div>
               </div>
             </div>
           ))}

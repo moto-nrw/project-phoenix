@@ -2,6 +2,7 @@
 
 import type { DashboardRoomOccupancy } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface RoomOccupancyPanelProps {
   readonly rooms: DashboardRoomOccupancy[];
@@ -30,7 +31,12 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
   return (
     <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-3xl font-bold text-gray-900">Räume</h2>
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <MotoConceptIcon concept="rooms" size={32} />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900">Räume</h2>
+        </div>
         {totals && (
           <p className="text-2xl text-gray-500">
             <span className="font-bold text-gray-900">

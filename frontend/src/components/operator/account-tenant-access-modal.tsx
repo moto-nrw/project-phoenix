@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -337,9 +338,7 @@ export function AccountTenantAccessModal({
             </p>
 
             <section className="space-y-2">
-              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Aktive Zugänge
-              </h3>
+              <ConceptSectionHeader title="Aktive Zugänge" concept="schools" />
               {activeEntries.length === 0 ? (
                 <EmptyState
                   icon={<MotoConceptIcon concept="schools" size={22} />}
@@ -517,9 +516,10 @@ export function AccountTenantAccessModal({
 
             {formerEntries.length > 0 && (
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Frühere Zugänge
-                </h3>
+                <ConceptSectionHeader
+                  title="Frühere Zugänge"
+                  concept="changeHistory"
+                />
                 <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
                   {formerEntries.map((entry) => (
                     <li
@@ -556,14 +556,14 @@ export function AccountTenantAccessModal({
         title="Schulzugang entziehen"
         confirmText="Zugang entziehen"
         isConfirmLoading={saving}
-        confirmButtonClass="bg-moto-red hover:bg-[#e02b2a]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
       >
         <p className="text-sm text-gray-600">
           {`${accountLabel} verliert den Zugang zu ${revokeTarget?.schoolName ?? ""} und alle dort vergebenen Rollen. Vorhandene Personaldaten bleiben für die Historie erhalten und werden von der Schule über "Personal löschen" entfernt.`}
         </p>
         {revokeTarget &&
           access.filter((e) => e.status === "active").length === 1 && (
-            <p className="mt-3 text-sm text-[#C56F0D]">
+            <p className="text-moto-orange-strong mt-3 text-sm">
               Das ist der letzte aktive Schulzugang. Das Konto wird dadurch
               deaktiviert und kann sich nirgendwo mehr anmelden.
             </p>

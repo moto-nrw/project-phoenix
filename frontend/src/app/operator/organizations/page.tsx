@@ -203,6 +203,7 @@ export default function OperatorOrganizationsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Träger"
+        concept="organizations"
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}

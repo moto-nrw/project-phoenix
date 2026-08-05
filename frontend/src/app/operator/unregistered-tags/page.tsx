@@ -144,6 +144,7 @@ function OperatorUnregisteredTagsPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Unbekannte RFID"
+        concept="rfid"
         tabs={tabs}
         filters={filters}
       />
@@ -239,7 +240,7 @@ function UnregisteredTagsTable({
                       Erledigt
                     </span>
                   ) : (
-                    <span className="inline-flex rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
+                    <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
                       Offen
                     </span>
                   )}

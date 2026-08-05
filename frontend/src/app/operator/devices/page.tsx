@@ -179,6 +179,7 @@ function OperatorDevicesPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Geräte"
+        concept="devices"
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}
