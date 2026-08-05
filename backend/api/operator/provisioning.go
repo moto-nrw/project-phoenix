@@ -23,6 +23,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	internalErrorMessage   = "An error occurred"
+	invalidDeviceIDMessage = "invalid device ID"
+)
+
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
 	service                    platformSvc.OperatorProvisioningService
@@ -631,7 +636,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 			authErr.Op == "create invitation" && !errors.As(authErr.Err, &dbErr):
 			return ErrInvalidRequest(authErr.Err)
 		default:
-			return ErrInternal("An error occurred")
+			return ErrInternal(internalErrorMessage)
 		}
 	}
 
@@ -673,7 +678,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		case platformSvc.DeviceTransferBlockedActiveSession:
 			return ErrConflict("Device has an active session and cannot be transferred")
 		default:
-			return ErrInternal("An error occurred")
+			return ErrInternal(internalErrorMessage)
 		}
 	case errors.As(err, &deviceTransferOrganizationMismatch):
 		return ErrForbidden("Device can only be transferred within its organization")
@@ -684,7 +689,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	case errors.As(err, &personActiveSupervisors):
 		return ErrConflict("Person has active supervisions and cannot be deleted")
 	default:
-		return ErrInternal("An error occurred")
+		return ErrInternal(internalErrorMessage)
 	}
 }
 
@@ -817,7 +822,7 @@ func (rs *ProvisioningResource) CreateDevice(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.Request) {
-	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", invalidDeviceIDMessage)
 	if !ok {
 		return
 	}
@@ -840,7 +845,7 @@ func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.R
 }
 
 func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Request) {
-	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", invalidDeviceIDMessage)
 	if !ok {
 		return
 	}
@@ -854,7 +859,7 @@ func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *ProvisioningResource) GetDeviceTransferStatus(w http.ResponseWriter, r *http.Request) {
-	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", invalidDeviceIDMessage)
 	if !ok {
 		return
 	}
@@ -867,7 +872,7 @@ func (rs *ProvisioningResource) GetDeviceTransferStatus(w http.ResponseWriter, r
 }
 
 func (rs *ProvisioningResource) TransferDevice(w http.ResponseWriter, r *http.Request) {
-	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", invalidDeviceIDMessage)
 	if !ok {
 		return
 	}

@@ -15,6 +15,7 @@ import (
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -3693,6 +3694,118 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsBlockers(t *
 	assert.Equal(t, int64(300), status.ActiveSession.ID)
 }
 
+func TestOperatorProvisioningService_GetDeviceTransferStatus_RejectsInvalidID(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), 0)
+
+	require.Nil(t, status)
+	var invalidData *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidData)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsProtectedDevice(t *testing.T) {
+	device := &iotModels.Device{
+		Model:    base.Model{ID: 200},
+		DeviceID: iotModels.WebManualDeviceID,
+	}
+	device.SetTenantID(10)
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return device, nil
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), device.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.True(t, status.IsProtected)
+	assert.False(t, status.CanTransfer)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionNames(t *testing.T) {
+	startedAt := time.Now().Add(-time.Hour)
+	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	device.SetTenantID(10)
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return device, nil
+		}},
+		ActiveGroupRepo: &mockActiveDeviceSessionRepo{findFn: func(context.Context, int64) (*activeModels.Group, error) {
+			return &activeModels.Group{
+				Model:       base.Model{ID: 300},
+				StartTime:   startedAt,
+				ActualGroup: &activityModels.Group{Name: "Mensa"},
+				Room:        &facilitiesModels.Room{Name: "Speisesaal"},
+			}, nil
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), device.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	require.NotNil(t, status.ActiveSession)
+	require.NotNil(t, status.ActiveSession.ActivityName)
+	assert.Equal(t, "Mensa", *status.ActiveSession.ActivityName)
+	require.NotNil(t, status.ActiveSession.RoomName)
+	assert.Equal(t, "Speisesaal", *status.ActiveSession.RoomName)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_NotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return nil, sql.ErrNoRows
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), 200)
+
+	require.Nil(t, status)
+	var notFound *platformSvc.OperatorDeviceNotFoundError
+	require.ErrorAs(t, err, &notFound)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_NilDeviceIsNotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return nil, nil
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), 200)
+
+	require.Nil(t, status)
+	var notFound *platformSvc.OperatorDeviceNotFoundError
+	require.ErrorAs(t, err, &notFound)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_SessionLookupFailure(t *testing.T) {
+	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	device.SetTenantID(10)
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return device, nil
+		}},
+		ActiveGroupRepo: &mockActiveDeviceSessionRepo{findFn: func(context.Context, int64) (*activeModels.Group, error) {
+			return nil, assert.AnError
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), device.ID)
+
+	require.Nil(t, status)
+	require.ErrorIs(t, err, assert.AnError)
+}
+
 func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesIdentity(t *testing.T) {
 	apiKey := "dev_existing-key"
 	deviceName := "Burbach 2"
@@ -3820,6 +3933,86 @@ func TestOperatorProvisioningService_TransferDevice_OnlineDeviceDoesNotWrite(t *
 	var blocked *platformSvc.DeviceTransferBlockedError
 	require.ErrorAs(t, err, &blocked)
 	assert.Equal(t, platformSvc.DeviceTransferBlockedOnline, blocked.Reason)
+	assert.Zero(t, writes)
+}
+
+func TestOperatorProvisioningService_TransferDevice_RejectsSameSchool(t *testing.T) {
+	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	source.SetTenantID(10)
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepo{findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) {
+			return source, nil
+		}},
+	})
+
+	result, err := service.TransferDevice(context.Background(), source.ID, source.TenantID, 7, nil)
+
+	require.Nil(t, result)
+	var sameSchool *platformSvc.DeviceTransferSameSchoolError
+	require.ErrorAs(t, err, &sameSchool)
+}
+
+func TestOperatorProvisioningService_TransferDevice_RejectsProtectedDevice(t *testing.T) {
+	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: iotModels.WebManualDeviceID}
+	source.SetTenantID(10)
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepo{findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) {
+			return source, nil
+		}},
+	})
+
+	result, err := service.TransferDevice(context.Background(), source.ID, 20, 7, nil)
+
+	require.Nil(t, result)
+	var protected *platformSvc.DeviceTransferProtectedError
+	require.ErrorAs(t, err, &protected)
+}
+
+func TestOperatorProvisioningService_TransferDevice_RejectsInvalidIDs(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+	})
+
+	result, err := service.TransferDevice(context.Background(), 0, 20, 7, nil)
+
+	require.Nil(t, result)
+	var invalidData *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidData)
+}
+
+func TestOperatorProvisioningService_TransferDevice_ActiveSessionDoesNotWrite(t *testing.T) {
+	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	source.SetTenantID(10)
+	writes := 0
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepo{
+			findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) { return source, nil },
+			updateFn: func(context.Context, *iotModels.Device) error {
+				writes++
+				return nil
+			},
+			createFn: func(context.Context, *iotModels.Device) error {
+				writes++
+				return nil
+			},
+		},
+		SchoolRepo: &testpkg.SchoolRepoMock{FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+			return &platformModels.School{Model: base.Model{ID: id}, OrganizationID: 1, Name: "School", Slug: fmt.Sprintf("school-%d", id), Subdomain: fmt.Sprintf("school-%d", id), Active: true}, nil
+		}},
+		ActiveGroupRepo: &mockActiveDeviceSessionRepo{findFn: func(context.Context, int64) (*activeModels.Group, error) {
+			return &activeModels.Group{Model: base.Model{ID: 300}, StartTime: time.Now().Add(-time.Hour)}, nil
+		}},
+	})
+
+	result, err := service.TransferDevice(context.Background(), source.ID, 20, 7, nil)
+
+	require.Nil(t, result)
+	var blocked *platformSvc.DeviceTransferBlockedError
+	require.ErrorAs(t, err, &blocked)
+	assert.Equal(t, platformSvc.DeviceTransferBlockedActiveSession, blocked.Reason)
 	assert.Zero(t, writes)
 }
 

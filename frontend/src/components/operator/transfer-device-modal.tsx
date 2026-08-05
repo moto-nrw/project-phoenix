@@ -29,6 +29,18 @@ interface TransferDeviceModalProps {
   readonly onTransferred: (device: OperatorDevice) => Promise<void> | void;
 }
 
+interface TransferDeviceContentProps {
+  readonly device: OperatorDevice;
+  readonly destinations: readonly School[];
+  readonly targetSchoolId: string;
+  readonly status: DeviceTransferStatus | null;
+  readonly statusLoading: boolean;
+  readonly error: string;
+  readonly schoolLabelId: string;
+  readonly onTargetSchoolChange: (schoolId: string) => void;
+  readonly onRefreshStatus: () => Promise<void>;
+}
+
 function formatTimestamp(value: string): string {
   return new Intl.DateTimeFormat("de-DE", {
     dateStyle: "short",
@@ -36,35 +48,48 @@ function formatTimestamp(value: string): string {
   }).format(new Date(value));
 }
 
-export function TransferDeviceModal({
-  device,
-  schools,
-  onClose,
-  onTransferred,
-}: TransferDeviceModalProps) {
-  const [targetSchoolId, setTargetSchoolId] = useState("");
+function getTransferDestinations(
+  device: OperatorDevice | null,
+  schools: readonly School[],
+): School[] {
+  const organizationId = device?.organizationId;
+  const sourceSchoolId = device?.schoolId;
+  if (organizationId == null || sourceSchoolId == null) return [];
+
+  return schools
+    .filter(
+      (school) =>
+        school.organizationId === organizationId &&
+        school.id !== sourceSchoolId &&
+        school.active &&
+        school.deletedAt == null,
+    )
+    .sort((left, right) => left.name.localeCompare(right.name, "de"));
+}
+
+function formatOnlineMessage(status: DeviceTransferStatus): string {
+  const lastSeen = status.lastSeen
+    ? ` (zuletzt gesehen ${formatTimestamp(status.lastSeen)})`
+    : "";
+  return `Das Gerät ist online${lastSeen}. Schalte es aus und warte mindestens fünf Minuten.`;
+}
+
+function formatSessionMessage(
+  session: NonNullable<DeviceTransferStatus["activeSession"]>,
+): string {
+  const activity = session.activityName ? ` · ${session.activityName}` : "";
+  const room = session.roomName ? ` · ${session.roomName}` : "";
+  return `Offene Sitzung seit ${formatTimestamp(session.startedAt)}${activity}${room}. Beende die Sitzung vor dem Verschieben.`;
+}
+
+function useDeviceTransferStatus(
+  device: OperatorDevice | null,
+  resetTargetSchool: () => void,
+) {
   const [status, setStatus] = useState<DeviceTransferStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const statusRequestId = useRef(0);
-  const schoolLabelId = useId();
-  const { success: toastSuccess } = useToast();
-
-  const destinations = useMemo(
-    () =>
-      [...schools]
-        .filter(
-          (school) =>
-            device != null &&
-            school.organizationId === device.organizationId &&
-            school.id !== device.schoolId &&
-            school.active &&
-            school.deletedAt == null,
-        )
-        .sort((left, right) => left.name.localeCompare(right.name, "de")),
-    [device, schools],
-  );
 
   const refreshStatus = useCallback(async () => {
     if (!device) return;
@@ -90,18 +115,150 @@ export function TransferDeviceModal({
   }, [device]);
 
   useEffect(() => {
-    if (!device) {
-      statusRequestId.current += 1;
-      setTargetSchoolId("");
-      setStatus(null);
-      setError("");
-      return;
-    }
-    setTargetSchoolId("");
+    resetTargetSchool();
     setStatus(null);
     setError("");
+    if (!device) {
+      statusRequestId.current += 1;
+      return;
+    }
     void refreshStatus();
-  }, [device, refreshStatus]);
+  }, [device, refreshStatus, resetTargetSchool]);
+
+  return {
+    status,
+    statusLoading,
+    error,
+    setError,
+    refreshStatus,
+  };
+}
+
+function TransferDeviceContent({
+  device,
+  destinations,
+  targetSchoolId,
+  status,
+  statusLoading,
+  error,
+  schoolLabelId,
+  onTargetSchoolChange,
+  onRefreshStatus,
+}: TransferDeviceContentProps) {
+  const statusRetry = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="compact"
+      onClick={() => void onRefreshStatus()}
+      disabled={statusLoading}
+    >
+      Erneut prüfen
+    </Button>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm text-gray-600">Aktuelle Schule</p>
+        <p className="mt-1 font-medium text-gray-900">{device.schoolName}</p>
+        <p className="mt-1 font-mono text-xs text-gray-500">
+          {device.deviceId}
+          {device.name ? ` · ${device.name}` : ""}
+        </p>
+      </div>
+
+      <Alert
+        type="info"
+        message="Geräte-ID und API-Key bleiben erhalten. Die Raumzuordnung wird entfernt; bisherige Anwesenheiten und Sitzungen bleiben bei der aktuellen Schule."
+      />
+
+      {statusLoading && status == null ? (
+        <output className="block text-sm text-gray-500">
+          Gerätestatus wird geprüft…
+        </output>
+      ) : null}
+
+      {status?.isOnline ? (
+        <Alert
+          type="warning"
+          message={formatOnlineMessage(status)}
+          action={statusRetry}
+        />
+      ) : null}
+
+      {status?.activeSession ? (
+        <Alert
+          type="warning"
+          message={formatSessionMessage(status.activeSession)}
+          action={statusRetry}
+        />
+      ) : null}
+
+      {status?.isProtected ? (
+        <Alert
+          type="warning"
+          message="Dieses Systemgerät wird für manuelle Web-Buchungen benötigt und kann nicht verschoben werden."
+        />
+      ) : null}
+
+      {status?.canTransfer ? (
+        <Alert
+          type="success"
+          message="Das Gerät ist offline und hat keine offene Sitzung."
+        />
+      ) : null}
+
+      {destinations.length > 0 ? (
+        <div className="space-y-2">
+          <span
+            id={schoolLabelId}
+            className="block text-sm font-medium text-gray-700"
+          >
+            Zielschule
+          </span>
+          <CustomSelect
+            value={targetSchoolId}
+            options={destinations.map((school) => ({
+              value: school.id,
+              label: school.name,
+            }))}
+            onChange={onTargetSchoolChange}
+            ariaLabelledBy={schoolLabelId}
+            placeholder="Zielschule wählen"
+            disabled={status?.canTransfer !== true || statusLoading}
+          />
+        </div>
+      ) : (
+        <Alert
+          type="warning"
+          message="Für diesen Träger gibt es keine weitere aktive Schule als Ziel."
+        />
+      )}
+
+      {error ? <Alert type="error" message={error} /> : null}
+    </div>
+  );
+}
+
+export function TransferDeviceModal({
+  device,
+  schools,
+  onClose,
+  onTransferred,
+}: TransferDeviceModalProps) {
+  const [targetSchoolId, setTargetSchoolId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const schoolLabelId = useId();
+  const { success: toastSuccess } = useToast();
+  const resetTargetSchool = useCallback(() => setTargetSchoolId(""), []);
+  const { status, statusLoading, error, setError, refreshStatus } =
+    useDeviceTransferStatus(device, resetTargetSchool);
+
+  const destinations = useMemo(
+    () => getTransferDestinations(device, schools),
+    [device, schools],
+  );
 
   const handleTransfer = useCallback(async () => {
     if (!device || !targetSchoolId || !status?.canTransfer) return;
@@ -138,22 +295,11 @@ export function TransferDeviceModal({
     onClose,
     onTransferred,
     refreshStatus,
+    setError,
     status?.canTransfer,
     targetSchoolId,
     toastSuccess,
   ]);
-
-  const statusRetry = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="compact"
-      onClick={() => void refreshStatus()}
-      disabled={statusLoading}
-    >
-      Erneut prüfen
-    </Button>
-  );
 
   return (
     <FormModal
@@ -185,88 +331,17 @@ export function TransferDeviceModal({
       }
     >
       {device ? (
-        <div className="space-y-5">
-          <div>
-            <p className="text-sm text-gray-600">Aktuelle Schule</p>
-            <p className="mt-1 font-medium text-gray-900">
-              {device.schoolName}
-            </p>
-            <p className="mt-1 font-mono text-xs text-gray-500">
-              {device.deviceId}
-              {device.name ? ` · ${device.name}` : ""}
-            </p>
-          </div>
-
-          <Alert
-            type="info"
-            message="Geräte-ID und API-Key bleiben erhalten. Die Raumzuordnung wird entfernt; bisherige Anwesenheiten und Sitzungen bleiben bei der aktuellen Schule."
-          />
-
-          {statusLoading && status == null ? (
-            <p role="status" className="text-sm text-gray-500">
-              Gerätestatus wird geprüft…
-            </p>
-          ) : null}
-
-          {status?.isOnline ? (
-            <Alert
-              type="warning"
-              message={`Das Gerät ist online${status.lastSeen ? ` (zuletzt gesehen ${formatTimestamp(status.lastSeen)})` : ""}. Schalte es aus und warte mindestens fünf Minuten.`}
-              action={statusRetry}
-            />
-          ) : null}
-
-          {status?.activeSession ? (
-            <Alert
-              type="warning"
-              message={`Offene Sitzung seit ${formatTimestamp(status.activeSession.startedAt)}${status.activeSession.activityName ? ` · ${status.activeSession.activityName}` : ""}${status.activeSession.roomName ? ` · ${status.activeSession.roomName}` : ""}. Beende die Sitzung vor dem Verschieben.`}
-              action={statusRetry}
-            />
-          ) : null}
-
-          {status?.isProtected ? (
-            <Alert
-              type="warning"
-              message="Dieses Systemgerät wird für manuelle Web-Buchungen benötigt und kann nicht verschoben werden."
-            />
-          ) : null}
-
-          {status?.canTransfer ? (
-            <Alert
-              type="success"
-              message="Das Gerät ist offline und hat keine offene Sitzung."
-            />
-          ) : null}
-
-          {destinations.length > 0 ? (
-            <div className="space-y-2">
-              <span
-                id={schoolLabelId}
-                className="block text-sm font-medium text-gray-700"
-              >
-                Zielschule
-              </span>
-              <CustomSelect
-                value={targetSchoolId}
-                options={destinations.map((school) => ({
-                  value: school.id,
-                  label: school.name,
-                }))}
-                onChange={setTargetSchoolId}
-                ariaLabelledBy={schoolLabelId}
-                placeholder="Zielschule wählen"
-                disabled={status?.canTransfer !== true || statusLoading}
-              />
-            </div>
-          ) : (
-            <Alert
-              type="warning"
-              message="Für diesen Träger gibt es keine weitere aktive Schule als Ziel."
-            />
-          )}
-
-          {error ? <Alert type="error" message={error} /> : null}
-        </div>
+        <TransferDeviceContent
+          device={device}
+          destinations={destinations}
+          targetSchoolId={targetSchoolId}
+          status={status}
+          statusLoading={statusLoading}
+          error={error}
+          schoolLabelId={schoolLabelId}
+          onTargetSchoolChange={setTargetSchoolId}
+          onRefreshStatus={refreshStatus}
+        />
       ) : null}
     </FormModal>
   );

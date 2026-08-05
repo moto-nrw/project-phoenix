@@ -79,8 +79,8 @@ type DeviceTransferStatus struct {
 	ActiveSession *DeviceTransferSession `json:"active_session,omitempty"`
 }
 
-// ActiveDeviceSessionRepository is the narrow device-transfer session lookup dependency.
-type ActiveDeviceSessionRepository interface {
+// ActiveDeviceSessionFinder is the narrow device-transfer session lookup dependency.
+type ActiveDeviceSessionFinder interface {
 	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
 }
 
@@ -178,7 +178,7 @@ type OperatorProvisioningServiceConfig struct {
 	AccountRepo           authModels.AccountRepository
 	TeacherRepo           userModels.TeacherRepository
 	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
-	ActiveGroupRepo       ActiveDeviceSessionRepository
+	ActiveGroupRepo       ActiveDeviceSessionFinder
 	InvitationService     authSvc.InvitationService
 	AuthService           authSvc.AuthService
 	AuditLogRepo          platform.OperatorAuditLogRepository
@@ -1083,6 +1083,114 @@ func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Contex
 	return result, err
 }
 
+func (s *operatorProvisioningService) loadTransferSource(adminCtx context.Context, id, targetSchoolID int64) (*iotModels.Device, error) {
+	source, err := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
+	if err != nil {
+		if isDeviceLookupNotFound(err) {
+			return nil, &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+		return nil, err
+	}
+	if source == nil {
+		return nil, &OperatorDeviceNotFoundError{DeviceID: id}
+	}
+	if source.DeviceID == iotModels.WebManualDeviceID {
+		return nil, &DeviceTransferProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
+	}
+	if source.TenantID == targetSchoolID {
+		return nil, &DeviceTransferSameSchoolError{SchoolID: targetSchoolID}
+	}
+	return source, nil
+}
+
+func (s *operatorProvisioningService) validateTransferDestination(adminCtx context.Context, source *iotModels.Device, targetSchoolID int64) error {
+	sourceSchool, err := s.SchoolRepo.FindByID(adminCtx, source.TenantID)
+	if err != nil {
+		return fmt.Errorf("TransferDevice: lookup source school: %w", err)
+	}
+	if sourceSchool == nil {
+		return &SchoolNotFoundError{SchoolID: source.TenantID}
+	}
+
+	targetSchool, err := s.SchoolRepo.FindByID(adminCtx, targetSchoolID)
+	if err != nil {
+		if isSchoolLookupNotFound(err) {
+			return &SchoolNotFoundError{SchoolID: targetSchoolID}
+		}
+		return fmt.Errorf("TransferDevice: lookup target school: %w", err)
+	}
+	if targetSchool == nil {
+		return &SchoolNotFoundError{SchoolID: targetSchoolID}
+	}
+	if targetSchool.IsDeleted() {
+		return &SchoolAlreadyDeletedError{SchoolID: targetSchoolID}
+	}
+	if !targetSchool.Active {
+		return &SchoolInactiveError{SchoolID: targetSchoolID}
+	}
+	if sourceSchool.OrganizationID != targetSchool.OrganizationID {
+		return &DeviceTransferOrganizationMismatchError{SourceSchoolID: source.TenantID, TargetSchoolID: targetSchoolID}
+	}
+	return nil
+}
+
+func (s *operatorProvisioningService) ensureDeviceTransferable(adminCtx context.Context, source *iotModels.Device) error {
+	status, err := s.transferStatus(adminCtx, source)
+	if err != nil {
+		return err
+	}
+	if status.IsOnline {
+		return &DeviceTransferBlockedError{DeviceID: source.ID, Reason: DeviceTransferBlockedOnline}
+	}
+	if status.ActiveSession != nil {
+		return &DeviceTransferBlockedError{DeviceID: source.ID, Reason: DeviceTransferBlockedActiveSession}
+	}
+	return nil
+}
+
+func (s *operatorProvisioningService) archiveAndCreateTransferredDevice(adminCtx context.Context, source *iotModels.Device, targetSchoolID int64) (*iotModels.Device, error) {
+	originalStatus := source.Status
+	var transferredAPIKey *string
+	if source.APIKey != nil {
+		key := *source.APIKey
+		transferredAPIKey = &key
+	}
+
+	now := time.Now()
+	source.ArchivedAt = &now
+	source.APIKey = nil
+	source.Status = iotModels.DeviceStatusInactive
+	source.RoomID = nil
+	source.RegisteredByID = nil
+	if err := s.DeviceRepo.Update(adminCtx, source); err != nil {
+		return nil, fmt.Errorf("TransferDevice: archive source: %w", err)
+	}
+
+	target := &iotModels.Device{
+		DeviceID:   source.DeviceID,
+		DeviceType: source.DeviceType,
+		Name:       source.Name,
+		Status:     originalStatus,
+		APIKey:     transferredAPIKey,
+	}
+	target.SetTenantID(targetSchoolID)
+	if err := s.DeviceRepo.Create(tenant.WithTenantID(adminCtx, targetSchoolID), target); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			if isAPIKeyConstraintViolation(err) {
+				return nil, &ConflictError{Err: fmt.Errorf("api_key already in use")}
+			}
+			return nil, &ConflictError{Err: fmt.Errorf("device_id already exists for target school")}
+		}
+		return nil, fmt.Errorf("TransferDevice: create target: %w", err)
+	}
+
+	source.TransferredToDeviceID = &target.ID
+	if err := s.DeviceRepo.Update(adminCtx, source); err != nil {
+		return nil, fmt.Errorf("TransferDevice: link source history: %w", err)
+	}
+	return target, nil
+}
+
 // TransferDevice moves the current device identity and API key to another school
 // while retaining the archived source row for historical foreign keys.
 func (s *operatorProvisioningService) TransferDevice(ctx context.Context, id, targetSchoolID, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error) {
@@ -1092,98 +1200,19 @@ func (s *operatorProvisioningService) TransferDevice(ctx context.Context, id, ta
 
 	var result *OperatorDeviceInfo
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		source, findErr := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
-		if findErr != nil {
-			if isDeviceLookupNotFound(findErr) {
-				return &OperatorDeviceNotFoundError{DeviceID: id}
-			}
-			return findErr
+		source, err := s.loadTransferSource(adminCtx, id, targetSchoolID)
+		if err != nil {
+			return err
 		}
-		if source == nil {
-			return &OperatorDeviceNotFoundError{DeviceID: id}
+		if err := s.validateTransferDestination(adminCtx, source, targetSchoolID); err != nil {
+			return err
 		}
-		if source.DeviceID == iotModels.WebManualDeviceID {
-			return &DeviceTransferProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
+		if err := s.ensureDeviceTransferable(adminCtx, source); err != nil {
+			return err
 		}
-		if source.TenantID == targetSchoolID {
-			return &DeviceTransferSameSchoolError{SchoolID: targetSchoolID}
-		}
-
-		sourceSchool, sourceSchoolErr := s.SchoolRepo.FindByID(adminCtx, source.TenantID)
-		if sourceSchoolErr != nil {
-			return fmt.Errorf("TransferDevice: lookup source school: %w", sourceSchoolErr)
-		}
-		if sourceSchool == nil {
-			return &SchoolNotFoundError{SchoolID: source.TenantID}
-		}
-		targetSchool, targetSchoolErr := s.SchoolRepo.FindByID(adminCtx, targetSchoolID)
-		if targetSchoolErr != nil {
-			if isSchoolLookupNotFound(targetSchoolErr) {
-				return &SchoolNotFoundError{SchoolID: targetSchoolID}
-			}
-			return fmt.Errorf("TransferDevice: lookup target school: %w", targetSchoolErr)
-		}
-		if targetSchool == nil {
-			return &SchoolNotFoundError{SchoolID: targetSchoolID}
-		}
-		if targetSchool.IsDeleted() {
-			return &SchoolAlreadyDeletedError{SchoolID: targetSchoolID}
-		}
-		if !targetSchool.Active {
-			return &SchoolInactiveError{SchoolID: targetSchoolID}
-		}
-		if sourceSchool.OrganizationID != targetSchool.OrganizationID {
-			return &DeviceTransferOrganizationMismatchError{SourceSchoolID: source.TenantID, TargetSchoolID: targetSchoolID}
-		}
-
-		status, statusErr := s.transferStatus(adminCtx, source)
-		if statusErr != nil {
-			return statusErr
-		}
-		if status.IsOnline {
-			return &DeviceTransferBlockedError{DeviceID: id, Reason: DeviceTransferBlockedOnline}
-		}
-		if status.ActiveSession != nil {
-			return &DeviceTransferBlockedError{DeviceID: id, Reason: DeviceTransferBlockedActiveSession}
-		}
-
-		originalStatus := source.Status
-		var transferredAPIKey *string
-		if source.APIKey != nil {
-			key := *source.APIKey
-			transferredAPIKey = &key
-		}
-		now := time.Now()
-		source.ArchivedAt = &now
-		source.APIKey = nil
-		source.Status = iotModels.DeviceStatusInactive
-		source.RoomID = nil
-		source.RegisteredByID = nil
-		if updateErr := s.DeviceRepo.Update(adminCtx, source); updateErr != nil {
-			return fmt.Errorf("TransferDevice: archive source: %w", updateErr)
-		}
-
-		target := &iotModels.Device{
-			DeviceID:   source.DeviceID,
-			DeviceType: source.DeviceType,
-			Name:       source.Name,
-			Status:     originalStatus,
-			APIKey:     transferredAPIKey,
-		}
-		target.SetTenantID(targetSchoolID)
-		if createErr := s.DeviceRepo.Create(tenant.WithTenantID(adminCtx, targetSchoolID), target); createErr != nil {
-			if modelBase.IsUniqueViolation(createErr) {
-				if isAPIKeyConstraintViolation(createErr) {
-					return &ConflictError{Err: fmt.Errorf("api_key already in use")}
-				}
-				return &ConflictError{Err: fmt.Errorf("device_id already exists for target school")}
-			}
-			return fmt.Errorf("TransferDevice: create target: %w", createErr)
-		}
-
-		source.TransferredToDeviceID = &target.ID
-		if updateErr := s.DeviceRepo.Update(adminCtx, source); updateErr != nil {
-			return fmt.Errorf("TransferDevice: link source history: %w", updateErr)
+		target, err := s.archiveAndCreateTransferredDevice(adminCtx, source, targetSchoolID)
+		if err != nil {
+			return err
 		}
 
 		s.logAction(adminCtx, operatorID, platform.ActionTransfer, platform.ResourceDevice, &id, clientIP, map[string]any{
