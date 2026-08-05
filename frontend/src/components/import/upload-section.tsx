@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { Check, FileText, Upload } from "lucide-react";
 
 interface UploadSectionProps {
   readonly isDragging: boolean;
@@ -36,19 +37,7 @@ export function UploadSection({
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-6">
       <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-        <svg
-          className="h-5 w-5 text-green-600"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-          />
-        </svg>
+        <Upload className="text-moto-green-hover h-5 w-5" aria-hidden="true" />
         Schritt 2: Datei hochladen
       </h3>
 
@@ -70,7 +59,7 @@ export function UploadSection({
       <fieldset
         className={`relative m-0 rounded-xl border-2 border-dashed p-12 text-center transition-all duration-300 ${
           isDragging
-            ? "border-green-500 bg-green-50"
+            ? "border-moto-green-hover bg-moto-green-soft"
             : "border-gray-300 bg-gray-50 hover:border-gray-400"
         }`}
         onDragEnter={onDragEnter}
@@ -87,30 +76,21 @@ export function UploadSection({
           onClick={handleZoneClick}
           onKeyDown={handleKeyDown}
           aria-label="Datei hochladen - ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen"
-          className="absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
+          className="focus:ring-moto-green-hover absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-offset-2 focus:outline-none"
         />
 
         {/* Visual content - non-interactive, pointer-events handled by button above */}
         {isLoading ? (
           <div className="pointer-events-none flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
+            <div className="border-t-moto-green-hover h-12 w-12 animate-spin rounded-full border-4 border-gray-300"></div>
             <p className="text-sm text-gray-600">Datei wird analysiert...</p>
           </div>
         ) : (
           <div className="pointer-events-none flex flex-col items-center gap-4">
-            <svg
-              className={`h-16 w-16 transition-colors ${isDragging ? "text-green-500" : "text-gray-400"}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              />
-            </svg>
+            <Upload
+              className={`h-16 w-16 transition-colors ${isDragging ? "text-moto-green-hover" : "text-gray-400"}`}
+              aria-hidden="true"
+            />
             <div>
               <p className="mb-1 text-lg font-medium text-gray-900">
                 {isDragging ? "Datei hier ablegen..." : "Datei hierher ziehen"}
@@ -118,36 +98,15 @@ export function UploadSection({
               <p className="text-sm text-gray-500">oder</p>
             </div>
             <span className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-6 py-3 text-white">
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                />
-              </svg>
+              <FileText className="h-5 w-5" aria-hidden="true" />
               Datei auswählen
             </span>
             {uploadedFile && (
               <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600">
-                <svg
-                  className="h-4 w-4 text-green-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                <Check
+                  className="text-moto-green-hover h-4 w-4"
+                  aria-hidden="true"
+                />
                 {uploadedFile.name}
               </div>
             )}
