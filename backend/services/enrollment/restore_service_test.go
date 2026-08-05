@@ -10,6 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -277,6 +278,67 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	require.NoError(t, err)
 	require.Len(t, outcome.RestoredChildIDs, 1)
 	assert.Empty(t, outcome.WaitlistedChildIDs)
+
+	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
+}
+
+// setOfferingInterval stamps a dated validity interval on a child's
+// offering selections, the state an approved dated offering switch leaves
+// behind (ValidUntil exclusive).
+func setOfferingInterval(t *testing.T, db *bun.DB, requestChildID int64, validFrom, validUntil *timezone.Date) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		Model((*enrollmentModels.RequestChildOffering)(nil)).
+		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		Set(`valid_from = ?`, validFrom).
+		Set(`valid_until = ?`, validUntil).
+		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
+}
+
+// TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted pins
+// the capacity gate to each claim's own validity interval (review #2159):
+// family A's claim ends (exclusively) on the split date, family B's only
+// starts there. The intervals never overlap, so B's full slot must not
+// waitlist A's restore even though the offering's whole-window peak sits at
+// capacity.
+func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	splitDate := timezone.NewDate(2027, 2, 1)
+
+	// Family A holds the slot only until the split date, then withdraws.
+	first := validSubmission(env.phaseID)
+	first.GuardianEmail = "restore-dated-a@example.com"
+	first.Children[0].OfferingIDs = []int64{offering.ID}
+	resA, err := env.svc.Submit(ctx, first)
+	require.NoError(t, err)
+	setOfferingInterval(t, env.db, resA.Children[0].ID, nil, &splitDate)
+	require.NoError(t, env.svc.Withdraw(ctx, resA.Request.StatusToken, 0))
+
+	// Family B claims the offering from the split date onwards.
+	second := validSubmission(env.phaseID)
+	second.GuardianEmail = "restore-dated-b@example.com"
+	second.Children[0].FirstName = "Bela"
+	second.Children[0].OfferingIDs = []int64{offering.ID}
+	resB, err := env.svc.Submit(ctx, second)
+	require.NoError(t, err)
+	setOfferingInterval(t, env.db, resB.Children[0].ID, &splitDate, nil)
+
+	decision := newRestoreDecisionServiceForRequestEnv(t, env)
+	cleanupRestorationAuditRows(t, env.db, resA.Request.ID)
+	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
+	require.NoError(t, err)
+	require.Len(t, outcome.RestoredChildIDs, 1)
+	assert.Empty(t, outcome.WaitlistedChildIDs,
+		"the claims never overlap, so the restore must come back submitted")
 
 	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
 	require.NoError(t, err)

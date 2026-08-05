@@ -209,16 +209,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const childStats = summarizeChildren(data.children);
   const phaseHref = tenantPath(`/admin/enrollments/phases/${data.phase_id}`);
   const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
-  // The restore action only shows on an effectively withdrawn request:
-  // withdrawn_at is stamped on a full parent withdraw; the every()-check
-  // additionally covers children withdrawn one by one (no stamp).
-  const requestWithdrawn =
-    Boolean(data.withdrawn_at) ||
-    (data.children.length > 0 &&
-      data.children.every((child) => child.status === "withdrawn"));
+  // The restore action shows whenever at least one child is withdrawn —
+  // exactly the backend's restore precondition. Individual child withdraws
+  // never stamp withdrawn_at, and RestoreWithdrawn restores the withdrawn
+  // subset even while siblings stay active or terminal.
   const withdrawnChildCount = data.children.filter(
     (child) => child.status === "withdrawn",
   ).length;
+  const hasRestorableChildren = withdrawnChildCount > 0;
 
   return (
     <div className="space-y-5">
@@ -311,7 +309,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               submittedAt={submittedAt}
               onDeleteRequest={() => setDeletionTarget({ type: "request" })}
               onRestoreRequest={
-                requestWithdrawn ? () => setRestoreOpen(true) : undefined
+                hasRestorableChildren ? () => setRestoreOpen(true) : undefined
               }
             />
           </aside>

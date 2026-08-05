@@ -180,9 +180,11 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 // waitlisted because an offering is meanwhile full. The claims are the
 // children's surviving request_child_offerings rows, reduced to those that
 // still cover a day of the phase's remaining capacity window (a dated
-// switch whose interval already ended holds no future slot). Reject-mode
-// phases surface ErrCareOfferingFull instead; a meanwhile-deactivated
-// offering fails closed with ErrCareOfferingClosed.
+// switch whose interval already ended holds no future slot); each claim
+// keeps its ValidFrom/ValidUntil so it is only checked against occupancy
+// inside its own interval, never against capacity pressure it doesn't
+// overlap. Reject-mode phases surface ErrCareOfferingFull instead; a
+// meanwhile-deactivated offering fails closed with ErrCareOfferingClosed.
 func (s *decisionService) restoreCapacityWaitlist(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
@@ -211,7 +213,7 @@ func (s *decisionService) restoreCapacityWaitlist(
 	if phase.ServiceStartDate.After(capacityFrom) {
 		capacityFrom = phase.ServiceStartDate
 	}
-	claimsByChild := make(map[int64][]int64)
+	claimsByChild := make(map[int64][]OfferingClaim)
 	anyClaim := false
 	for _, row := range rows {
 		// ValidUntil is exclusive: an interval ending on or before the
@@ -219,22 +221,26 @@ func (s *decisionService) restoreCapacityWaitlist(
 		if row.ValidUntil != nil && !row.ValidUntil.After(capacityFrom) {
 			continue
 		}
-		claimsByChild[row.RequestChildID] = append(claimsByChild[row.RequestChildID], row.CareOfferingID)
+		claimsByChild[row.RequestChildID] = append(claimsByChild[row.RequestChildID], OfferingClaim{
+			OfferingID: row.CareOfferingID,
+			ValidFrom:  row.ValidFrom,
+			ValidUntil: row.ValidUntil,
+		})
 		anyClaim = true
 	}
 	if !anyClaim {
 		return nil, nil
 	}
 
-	children := make([]SubmitChild, len(withdrawn))
+	claims := make([][]OfferingClaim, len(withdrawn))
 	for i, child := range withdrawn {
-		children[i] = SubmitChild{OfferingIDs: claimsByChild[child.ID]}
+		claims[i] = claimsByChild[child.ID]
 	}
 	overrides, err := applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.RequestChildOfferingRepo,
 		func(ctx context.Context) (bool, error) {
 			return s.resolveDecisionBool(ctx, configModel.KeyEnrollmentWaitlistEnabled, true)
 		},
-		phase, children, nil, nil, childIDs)
+		phase, claims, nil, nil, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: capacity gate: %w", err)
 	}

@@ -290,6 +290,30 @@ describe("AdminEnrollmentDetail restore (#2157)", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the restore action when only one of several children is withdrawn", async () => {
+    // A partial withdraw leaves siblings active; the restore targets
+    // exactly the withdrawn subset, so the action must stay visible.
+    mocks.getAdminRequest.mockResolvedValueOnce({
+      ...withdrawnRequest,
+      withdrawn_at: null,
+      children: [
+        withdrawnChild,
+        {
+          ...withdrawnChild,
+          id: "child-2",
+          first_name: "Ben",
+          status: "submitted",
+        },
+      ],
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung wiederherstellen" }),
+    ).toBeInTheDocument();
+  });
+
   it("surfaces the error message when the restore fails", async () => {
     mocks.getAdminRequest.mockResolvedValueOnce(withdrawnRequest);
     mocks.restoreAdminRequest.mockRejectedValue(

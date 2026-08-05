@@ -246,6 +246,31 @@ type SubmitOfferingDays struct {
 	SelectedDays []string
 }
 
+// OfferingClaim is one capacity claim a child brings to the capacity gate:
+// an offering plus the selection's validity interval (ValidUntil exclusive,
+// matching RequestChildOffering). Submit-time selections span the whole
+// phase (nil bounds); the restore path passes the surviving dated intervals
+// so a claim is only checked against occupancy inside its own window.
+type OfferingClaim struct {
+	OfferingID int64
+	ValidFrom  *timezone.Date
+	ValidUntil *timezone.Date
+}
+
+// fullWindowClaims converts submit-time selections into capacity claims
+// spanning the whole phase window — the shape every Submit variant uses.
+func fullWindowClaims(children []SubmitChild) [][]OfferingClaim {
+	claims := make([][]OfferingClaim, len(children))
+	for i, child := range children {
+		childClaims := make([]OfferingClaim, 0, len(child.OfferingIDs))
+		for _, offeringID := range child.OfferingIDs {
+			childClaims = append(childClaims, OfferingClaim{OfferingID: offeringID})
+		}
+		claims[i] = childClaims
+	}
+	return claims
+}
+
 // SubmitResult bundles what the handler needs after Submit returns.
 type SubmitResult struct {
 	Request   *enrollmentModels.Request
@@ -4305,7 +4330,7 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 		}
 	}
 	return applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.RequestChildOfferingRepo,
-		resolveWaitlistEnabled, phase, children, openByID, preservedClaims, replacedRequestChildIDs)
+		resolveWaitlistEnabled, phase, fullWindowClaims(children), openByID, preservedClaims, replacedRequestChildIDs)
 }
 
 // applyCapacityOverflowCore is the shared capacity gate behind every path
@@ -4315,21 +4340,24 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 // ascending id — the same order the offering-change approval takes — counts
 // active claims in the phase's remaining capacity window, and flags
 // over-capacity children per the phase's overflow mode (waitlist/reject/
-// allow). Extracted to a package-level function so the decision service can
-// run the identical machinery without reaching into requestService.
+// allow). A claim carrying its own validity interval is checked only
+// against the peak occupancy inside that interval, so a dated switch never
+// competes with capacity pressure it doesn't overlap. Extracted to a
+// package-level function so the decision service can run the identical
+// machinery without reaching into requestService.
 func applyCapacityOverflowCore(
 	ctx context.Context,
 	careOfferingRepo enrollmentModels.CareOfferingRepository,
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository,
 	resolveWaitlistEnabled func(context.Context) (bool, error),
 	phase *enrollmentModels.Phase,
-	children []SubmitChild,
+	claimsPerChild [][]OfferingClaim,
 	openByID map[int64]*enrollmentModels.CareOffering,
 	preservedClaims map[int64]int,
 	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
 	overrides := make(map[int]string)
-	if requestChildOfferingRepo == nil || len(children) == 0 {
+	if requestChildOfferingRepo == nil || len(claimsPerChild) == 0 {
 		return overrides, nil
 	}
 	// Historical manual approvals and late invites can legitimately target a
@@ -4346,11 +4374,11 @@ func applyCapacityOverflowCore(
 	}
 	selectedIDs := make([]int64, 0)
 	seen := make(map[int64]bool)
-	for _, child := range children {
-		for _, offeringID := range child.OfferingIDs {
-			if offeringID > 0 && !seen[offeringID] {
-				seen[offeringID] = true
-				selectedIDs = append(selectedIDs, offeringID)
+	for _, childClaims := range claimsPerChild {
+		for _, claim := range childClaims {
+			if claim.OfferingID > 0 && !seen[claim.OfferingID] {
+				seen[claim.OfferingID] = true
+				selectedIDs = append(selectedIDs, claim.OfferingID)
 			}
 		}
 	}
@@ -4389,49 +4417,73 @@ func applyCapacityOverflowCore(
 		}
 	}
 
-	// Cache per-offering current count + capacity. Avoid hitting the DB
-	// once per (child, offering) pair when one offering is shared.
+	// The phase's remaining capacity window; every claim interval is
+	// clamped into it before counting.
+	capacityFrom := timezone.TodayDate()
+	if phase.ServiceStartDate.After(capacityFrom) {
+		capacityFrom = phase.ServiceStartDate
+	}
+	capacityUntil := phase.ServiceEndDate.AddDays(1)
+
+	// Cache current count + capacity per (offering, clamped window). Claims
+	// with the same window share a slot and queue against each other;
+	// disjoint dated intervals on the same offering count independently.
+	type slotKey struct {
+		offeringID  int64
+		from, until timezone.Date
+	}
 	type slot struct {
 		capacity  *int // nil = unlimited
 		current   int  // pre-existing claimants (DB)
 		preserved int  // selections the editable request already held
 		queued    int  // count from earlier children in this submission
 	}
-	slots := make(map[int64]*slot)
+	slots := make(map[slotKey]*slot)
 
-	getSlot := func(offeringID int64) (*slot, error) {
-		if cached, ok := slots[offeringID]; ok {
+	// getSlot returns nil (no error) for a claim whose interval holds no
+	// day of the remaining capacity window — it claims no future slot.
+	getSlot := func(claim OfferingClaim) (*slot, error) {
+		from, until := capacityFrom, capacityUntil
+		if claim.ValidFrom != nil && claim.ValidFrom.After(from) {
+			from = *claim.ValidFrom
+		}
+		if claim.ValidUntil != nil && claim.ValidUntil.Before(until) {
+			until = *claim.ValidUntil
+		}
+		if !from.Before(until) {
+			return nil, nil
+		}
+		key := slotKey{offeringID: claim.OfferingID, from: from, until: until}
+		if cached, ok := slots[key]; ok {
 			return cached, nil
 		}
-		offering, ok := openByID[offeringID]
+		offering, ok := openByID[claim.OfferingID]
 		if !ok {
 			// Should be impossible (validateOfferingSelections ran first).
-			return nil, fmt.Errorf("submit: offering %d not in open catalog", offeringID)
+			return nil, fmt.Errorf("submit: offering %d not in open catalog", claim.OfferingID)
 		}
-		capacityFrom := timezone.TodayDate()
-		if phase.ServiceStartDate.After(capacityFrom) {
-			capacityFrom = phase.ServiceStartDate
-		}
-		capacityUntil := phase.ServiceEndDate.AddDays(1)
-		count, err := requestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, capacityFrom, capacityUntil)
+		count, err := requestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, claim.OfferingID, replacedRequestChildIDs, from, until)
 		if err != nil {
-			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
+			return nil, fmt.Errorf("submit: count offering %d: %w", claim.OfferingID, err)
 		}
 		entry := &slot{
 			capacity:  offering.Capacity,
-			current:   max(count-preservedClaims[offeringID], 0),
-			preserved: preservedClaims[offeringID],
+			current:   max(count-preservedClaims[claim.OfferingID], 0),
+			preserved: preservedClaims[claim.OfferingID],
 		}
-		slots[offeringID] = entry
+		slots[key] = entry
 		return entry, nil
 	}
 
-	for childIdx, child := range children {
+	for childIdx, childClaims := range claimsPerChild {
 		childOver := false
-		for _, offeringID := range child.OfferingIDs {
-			sl, err := getSlot(offeringID)
+		for _, claim := range childClaims {
+			sl, err := getSlot(claim)
 			if err != nil {
 				return nil, err
+			}
+			if sl == nil {
+				continue
 			}
 			if sl.capacity == nil {
 				sl.queued++
@@ -4445,7 +4497,7 @@ func applyCapacityOverflowCore(
 			if sl.current+sl.queued+1 > *sl.capacity {
 				childOver = true
 				if mode == enrollmentModels.PhaseCareOverflowReject {
-					return nil, fmt.Errorf("%w: offering %d", ErrCareOfferingFull, offeringID)
+					return nil, fmt.Errorf("%w: offering %d", ErrCareOfferingFull, claim.OfferingID)
 				}
 			}
 			sl.queued++
