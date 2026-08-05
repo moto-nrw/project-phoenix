@@ -22,6 +22,8 @@ import {
   defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
+import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
+import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianForm" });
@@ -587,6 +589,7 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Persönliche Daten
+                <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.guardianName} />
               </h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div>
@@ -665,6 +668,9 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Kontaktdaten
+                <ParentVisibleBadge
+                  hint={PARENT_VISIBLE_HINTS.guardianContact}
+                />
               </h3>
 
               {/* Email */}
@@ -848,6 +854,9 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Adresse
+                <ParentVisibleBadge
+                  hint={PARENT_VISIBLE_HINTS.guardianContact}
+                />
               </h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div className="md:col-span-2">
