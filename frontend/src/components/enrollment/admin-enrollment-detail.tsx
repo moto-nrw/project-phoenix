@@ -9,13 +9,11 @@ import {
   Check,
   ClipboardList,
   ExternalLink,
-  History,
   type LucideIcon,
   Mail,
   Pencil,
   Phone,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -312,8 +310,8 @@ function EnrollmentSummary({
   return (
     <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-          <UserRound className="h-4 w-4" aria-hidden="true" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+          <MotoConceptIcon concept="parents" size={16} />
         </span>
         <div>
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -818,7 +816,9 @@ export function RequestExtraSection({
                   className="inline-block h-2 w-2 rounded-full"
                   style={{
                     backgroundColor:
-                      val === true ? MOTO_COLOR_PALETTE.green.base : "#6B7280",
+                      val === true
+                        ? MOTO_COLOR_PALETTE.green.base
+                        : MOTO_COLOR_PALETTE.neutral.base,
                   }}
                 />
                 <span className="text-gray-700">
@@ -1119,7 +1119,7 @@ export function ChildOfferingAdjustment({
           }
         >
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-            <History className="h-3.5 w-3.5" aria-hidden />
+            <MotoConceptIcon concept="changeHistory" size={14} />
             Änderungshistorie
           </div>
           <ul className="mt-2 space-y-2">
