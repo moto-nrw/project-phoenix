@@ -191,6 +191,8 @@ export interface AdminRequestSummary {
 
 export interface AdminRequestDetail extends AdminRequestSummary {
   status_token: string;
+  late_invite_guardian_email?: string;
+  late_invite_email_mismatch?: boolean;
 }
 
 interface AdminEnrollmentDeletionCounts {
@@ -343,6 +345,38 @@ export async function deleteAdminRequest(
     throw await readError(response, "Anmeldung konnte nicht gelöscht werden");
   }
   return readJSON<AdminEnrollmentDeletionImpact>(response);
+}
+
+export interface AdminRestoreResult {
+  restored_children: number;
+  /**
+   * Subset of restored_children that came back as "waitlisted" because an
+   * offering is meanwhile full (the capacity gate re-runs on restore).
+   */
+  waitlisted_children: number;
+}
+
+/**
+ * Restores a withdrawn request: every withdrawn child goes back to
+ * "submitted" — or "waitlisted" when its offering is meanwhile full —
+ * and withdrawn_at is cleared (#2157). Fails with a coded 409 when the
+ * phase is inactive, an active duplicate request exists, or a reject-mode
+ * phase's offering is full.
+ */
+export async function restoreAdminRequest(
+  requestId: string,
+): Promise<AdminRestoreResult> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(requestId)}/restore`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Anmeldung konnte nicht wiederhergestellt werden",
+    );
+  }
+  return readJSON<AdminRestoreResult>(response);
 }
 
 export async function deleteAdminChild(

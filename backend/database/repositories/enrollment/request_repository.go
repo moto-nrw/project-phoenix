@@ -82,7 +82,10 @@ func (r *RequestRepository) findByID(ctx context.Context, id int64, lockClause s
 	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("enrollment request %d not found", id)
+			// Keep sql.ErrNoRows in the chain so services can tell a
+			// missing row from a query failure (same contract as the
+			// form schema repository).
+			return nil, fmt.Errorf("enrollment request %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find enrollment request: %w", err)
 	}
@@ -464,6 +467,23 @@ func (r *RequestRepository) MarkWithdrawn(ctx context.Context, requestID int64, 
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to mark request withdrawn: %w", err)
+	}
+	return nil
+}
+
+// ClearWithdrawn is the inverse of MarkWithdrawn: it nulls withdrawn_at and
+// bumps updated_at. Used by the admin restore flow (#2157) after every
+// withdrawn child of the request was flipped back to submitted.
+func (r *RequestRepository) ClearWithdrawn(ctx context.Context, requestID int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Set("withdrawn_at = NULL").
+		Set("updated_at = NOW()").
+		Where(`"request".id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to clear request withdrawn state: %w", err)
 	}
 	return nil
 }

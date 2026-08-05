@@ -78,20 +78,26 @@ export function Modal({
   const onCloseRef = useLatest(onClose);
   const isDismissDisabledRef = useLatest(isDismissDisabled);
 
+  // Pending dismissal (exit-animation delay before onClose). Tracked so a
+  // confirmation that starts during the 250ms window can cancel it —
+  // otherwise the queued onClose would hide the modal while the confirmed
+  // operation is still running.
+  const dismissTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
   // Enhanced close handler with exit animation (stable — no deps on onClose)
   const handleClose = useCallback(() => {
     if (isDismissDisabledRef.current) return;
+    if (dismissTimerRef.current !== null) return;
     setIsExiting(true);
     setIsAnimating(false);
 
-    // Delay actual close to allow exit animation. The lock is checked AGAIN
-    // when the timer fires: a dismissal started while unlocked must not tear
-    // the dialog down when an operation takes the lock inside that 250ms
-    // window (e.g. a backdrop tap immediately followed by "Bestätigen").
-    // Cancelling only the onClose is not enough — the exit animation already
-    // ran, so the dialog would stay mounted but invisible; reverse it back to
-    // the entered state.
-    setTimeout(() => {
+    // Delay actual close to allow exit animation
+    dismissTimerRef.current = setTimeout(() => {
+      dismissTimerRef.current = null;
+      // Backstop for a confirmation that started during the exit animation
+      // but whose isDismissDisabled prop hasn't reached the effect below yet.
       if (isDismissDisabledRef.current) {
         setIsExiting(false);
         setIsAnimating(true);
@@ -100,6 +106,25 @@ export function Modal({
       onCloseRef.current();
     }, 250);
   }, [isDismissDisabledRef, onCloseRef]);
+
+  // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
+  // the dialog back from its exit animation.
+  useEffect(() => {
+    if (isDismissDisabled && dismissTimerRef.current !== null) {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = null;
+      setIsExiting(false);
+      setIsAnimating(true);
+    }
+  }, [isDismissDisabled]);
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, []);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
@@ -337,6 +362,15 @@ interface ConfirmationModalProps {
    */
   readonly isDismissDisabled?: boolean;
   readonly confirmButtonClass?: string;
+  /**
+   * Text shown on the confirm button while isConfirmLoading. Defaults to
+   * German; pass a translated string on localized surfaces.
+   */
+  readonly loadingText?: string;
+  /** Forwarded to Modal — translated close-button aria-label. */
+  readonly closeLabel?: string;
+  /** Forwarded to Modal — translated backdrop aria-label. */
+  readonly backdropLabel?: string;
 }
 
 export function ConfirmationModal({
@@ -351,6 +385,9 @@ export function ConfirmationModal({
   isConfirmDisabled = false,
   isDismissDisabled = false,
   confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
+  loadingText = "Wird geladen...",
+  closeLabel,
+  backdropLabel,
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>
@@ -390,7 +427,7 @@ export function ConfirmationModal({
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
-            Wird geladen...
+            {loadingText}
           </span>
         ) : (
           confirmText
@@ -406,6 +443,8 @@ export function ConfirmationModal({
       title={title}
       footer={modalFooter}
       isDismissDisabled={isDismissDisabled}
+      closeLabel={closeLabel}
+      backdropLabel={backdropLabel}
     >
       {children}
     </Modal>

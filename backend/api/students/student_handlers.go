@@ -147,7 +147,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+	planningTimes, err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot))
+	if err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -164,7 +165,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	rs.enrichPaginatedPlanningTimes(r, responses, params, dataSnapshot, planningDate, isToday)
+	enrichPaginatedPlanningTimes(responses, params, dataSnapshot, planningTimes, isToday)
 
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
 	// grouping is per weekday, so a list rendered for another planning date must
@@ -188,9 +189,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 // enrichPaginatedPlanningTimes layers the planning-date time data onto the final
 // paginated slice: today's live check-in/out times (kept off any other day so
 // current presence is never read as a plan), and, when requested, the effective
-// pickup/arrival times for the date via a single bulk query per kind. Both skip
-// redacted students — only rows the caller has full access to are enriched.
-func (rs *Resource) enrichPaginatedPlanningTimes(r *http.Request, responses []StudentResponse, params *studentListParams, dataSnapshot *common.StudentDataSnapshot, planningDate timezone.Date, isToday bool) {
+// pickup/arrival times from the maps enrichWithDayPlanning already bulk-loaded
+// for the pre-pagination superset (#2098 — no second round of the same
+// queries). Both skip redacted students — only rows the caller has full access
+// to are enriched.
+func enrichPaginatedPlanningTimes(responses []StudentResponse, params *studentListParams, dataSnapshot *common.StudentDataSnapshot, planningTimes dayPlanningTimes, isToday bool) {
 	if isToday {
 		for i := range responses {
 			if !responses[i].HasFullAccess {
@@ -200,15 +203,11 @@ func (rs *Resource) enrichPaginatedPlanningTimes(r *http.Request, responses []St
 		}
 	}
 
-	if !params.includePickupTimes && !params.includeArrivalTimes {
-		return
-	}
-	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if params.includePickupTimes {
-		rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+		applyPickupTimesFromMap(responses, planningTimes.pickups)
 	}
 	if params.includeArrivalTimes {
-		rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+		applyArrivalTimesFromMap(responses, planningTimes.arrivals)
 	}
 }
 
@@ -437,7 +436,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		single := []StudentResponse{response.StudentResponse}
-		if err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
+		if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
 			student.ID: attendanceStatus,
 		}); err != nil {
 			renderError(w, r, common.ErrorInternalServer(err))

@@ -145,6 +145,60 @@ func (r *RequestChildRepository) UpdateStatus(ctx context.Context, id int64, new
 	return nil
 }
 
+// RestoreWithdrawnByRequestID flips every withdrawn child of the request
+// out of withdrawn and clears the review metadata the withdraw path
+// stamped (status_reason, reviewed_at, reviewed_by). UpdateStatus cannot
+// express this: it always bumps reviewed_at, but a restored child must
+// look un-reviewed again. Children in waitlistedChildIDs come back as
+// waitlisted (the capacity gate flagged their offering as full — same
+// outcome Submit would have produced), everyone else as submitted.
+// Returns the ids of all restored rows; an empty result means the request
+// had no withdrawn children.
+func (r *RequestChildRepository) RestoreWithdrawnByRequestID(ctx context.Context, requestID int64, waitlistedChildIDs []int64) ([]int64, error) {
+	if requestID <= 0 {
+		return nil, fmt.Errorf("request id is required")
+	}
+	restored := make([]int64, 0)
+	if len(waitlistedChildIDs) > 0 {
+		var waitlisted []int64
+		err := base.GetDB(ctx, r.db).NewUpdate().
+			Model((*enrollment.RequestChild)(nil)).
+			ModelTableExpr(requestChildTableExpr).
+			Set("status = ?", enrollment.ChildStatusWaitlisted).
+			Set("status_reason = NULL").
+			Set("reviewed_at = NULL").
+			Set("reviewed_by = NULL").
+			Set("updated_at = NOW()").
+			Where(`"request_child".request_id = ?`, requestID).
+			Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn).
+			Where(`"request_child".id IN (?)`, bun.List(waitlistedChildIDs)).
+			Returning(`"request_child".id`).
+			Scan(ctx, &waitlisted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to restore withdrawn request children to waitlist: %w", err)
+		}
+		restored = append(restored, waitlisted...)
+	}
+	var submitted []int64
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("status = ?", enrollment.ChildStatusSubmitted).
+		Set("status_reason = NULL").
+		Set("reviewed_at = NULL").
+		Set("reviewed_by = NULL").
+		Set("updated_at = NOW()").
+		Where(`"request_child".request_id = ?`, requestID).
+		Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn)
+	if len(waitlistedChildIDs) > 0 {
+		q = q.Where(`"request_child".id NOT IN (?)`, bun.List(waitlistedChildIDs))
+	}
+	if err := q.Returning(`"request_child".id`).Scan(ctx, &submitted); err != nil {
+		return nil, fmt.Errorf("failed to restore withdrawn request children: %w", err)
+	}
+	return append(restored, submitted...), nil
+}
+
 // UpdateData updates the parent-supplied child fields without changing
 // status, review metadata, rollover metadata, or created_student_id.
 func (r *RequestChildRepository) UpdateData(ctx context.Context, child *enrollment.RequestChild) error {

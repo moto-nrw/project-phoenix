@@ -60,6 +60,64 @@ func (s *stubGuardianProfileRepo) Update(_ context.Context, _ *usersModels.Guard
 
 func int64Ptr(v int64) *int64 { return &v }
 
+type stubLateInviteRepo struct {
+	enrollmentModels.LateInviteRepository
+	invite  *enrollmentModels.LateInvite
+	err     error
+	lookups int
+}
+
+func (s *stubLateInviteRepo) FindByUsedRequestID(_ context.Context, _ int64) (*enrollmentModels.LateInvite, error) {
+	s.lookups++
+	return s.invite, s.err
+}
+
+func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
+	repo := &stubLateInviteRepo{invite: &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
+	request := &enrollmentModels.Request{
+		SubmissionSource: enrollmentModels.RequestSourceLateInvite,
+		GuardianEmail:    "corrected@example.test",
+	}
+	request.ID = 42
+
+	identity, err := svc.guardianIdentityRequest(context.Background(), request)
+
+	require.NoError(t, err)
+	assert.Equal(t, "invited@example.test", identity.GuardianEmail)
+	assert.Equal(t, "corrected@example.test", request.GuardianEmail, "the editable contact address must remain unchanged")
+	assert.Equal(t, 1, repo.lookups)
+}
+
+func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *testing.T) {
+	repo := &stubLateInviteRepo{invite: &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
+	request := &enrollmentModels.Request{
+		SubmissionSource:  enrollmentModels.RequestSourceLateInvite,
+		GuardianAccountID: int64Ptr(23),
+		GuardianEmail:     "corrected@example.test",
+	}
+
+	identity, err := svc.guardianIdentityRequest(context.Background(), request)
+
+	require.NoError(t, err)
+	assert.Same(t, request, identity)
+	assert.Zero(t, repo.lookups)
+}
+
+func TestGuardianIdentityRequest_MissingLateInviteFailsClosed(t *testing.T) {
+	svc := &decisionService{}
+	request := &enrollmentModels.Request{
+		SubmissionSource: enrollmentModels.RequestSourceLateInvite,
+		GuardianEmail:    "corrected@example.test",
+	}
+
+	identity, err := svc.guardianIdentityRequest(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, identity)
+}
+
 // #1663: an authenticated submit whose email resolves to a DIFFERENT account's
 // guardian profile must be rejected, not silently linked to that other account.
 func TestResolveGuardianProfile_RejectsCrossAccountEmail(t *testing.T) {

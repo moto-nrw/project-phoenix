@@ -554,6 +554,7 @@ POST /api/enrollment/admin/reports/care-usage/export
 POST /api/enrollment/admin/reports/class-roster/export
 POST /api/enrollment/admin/request-children/{id}/rollover-review
 POST /api/enrollment/admin/requests/{id}/children/{childId}/decide
+POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
 POST /api/enrollment/care-offerings/
 POST /api/enrollment/care-offerings/{id}/clone

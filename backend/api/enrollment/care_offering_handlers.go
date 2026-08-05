@@ -519,6 +519,16 @@ type PublicEnrollmentFormBootstrapResponse struct {
 	CareOfferingsEnabled      bool                        `json:"care_offerings_enabled"`
 	CaptchaConfig             PublicCaptchaConfigResponse `json:"captcha_config"`
 	LegalTexts                PublicLegalTextsResponse    `json:"legal_texts"`
+	LateInvite                *PublicLateInvitePrefill    `json:"late_invite,omitempty"`
+}
+
+// PublicLateInvitePrefill exposes only the recipient fields the parent form
+// may prefill. The token remains the authorization boundary and is never
+// returned in the response.
+type PublicLateInvitePrefill struct {
+	GuardianEmail     string  `json:"guardian_email"`
+	GuardianFirstName *string `json:"guardian_first_name,omitempty"`
+	GuardianLastName  *string `json:"guardian_last_name,omitempty"`
 }
 
 // PublicSchoolClassConfig is the parent-facing concrete-class config for
@@ -696,6 +706,14 @@ func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFo
 	phase := data.Phase
 	texts := data.LegalTexts
 	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
+	var lateInvite *PublicLateInvitePrefill
+	if data.LateInvite != nil {
+		lateInvite = &PublicLateInvitePrefill{
+			GuardianEmail:     data.LateInvite.GuardianEmail,
+			GuardianFirstName: data.LateInvite.GuardianFirstName,
+			GuardianLastName:  data.LateInvite.GuardianLastName,
+		}
+	}
 	return PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(data.Schema),
@@ -706,6 +724,7 @@ func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFo
 		CollectGradeLevel:         capabilities.CollectGradeLevel,
 		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
 		CaptchaConfig:             captcha,
+		LateInvite:                lateInvite,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 texts.AGB,
 			DSGVO:               texts.DSGVO,

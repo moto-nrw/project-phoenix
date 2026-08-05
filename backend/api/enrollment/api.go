@@ -207,6 +207,7 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/restore", rs.restoreAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/children/{childId}", rs.deleteAdminChild)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)

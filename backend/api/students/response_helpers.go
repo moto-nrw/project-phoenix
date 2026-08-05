@@ -476,6 +476,13 @@ func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []Stude
 		return
 	}
 
+	applyPickupTimesFromMap(responses, pickupTimes)
+}
+
+// applyPickupTimesFromMap writes already-loaded effective pickup times onto the
+// responses without touching the database, so a pipeline stage that has the
+// bulk map in hand does not re-run the three pickup SELECTs (#2098).
+func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*schedule.EffectivePickupTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -505,6 +512,13 @@ func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []Stud
 		return
 	}
 
+	applyArrivalTimesFromMap(responses, arrivalTimes)
+}
+
+// applyArrivalTimesFromMap writes already-loaded effective arrival times onto
+// the responses without touching the database, so a pipeline stage that has the
+// bulk map in hand does not re-run the three arrival SELECTs (#2098).
+func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*schedule.EffectiveArrivalTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue

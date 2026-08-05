@@ -244,6 +244,10 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	// /operator, /parent, public enrollment) dedupe their settings lookups
 	// too. Idempotent with the group-wide attachment in api/common.
 	router.Use(apiCommon.RequestSettingsCacheMiddleware)
+	// Request-scoped identity memo cache (issue #2099). Router-wide so routes
+	// outside ProtectedTenantGroup (notably /api/sse, which builds its own JWT
+	// chain) dedupe their identity-chain lookups too.
+	router.Use(apiCommon.RequestIdentityCacheMiddleware)
 }
 
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {

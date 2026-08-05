@@ -36,6 +36,11 @@ import {
   isCompanionsChanged,
 } from "~/lib/api";
 import type { AllowedDepartureModes } from "~/lib/student-helpers";
+import {
+  ParentVisibleBadge,
+  ParentVisibilityLegend,
+} from "~/components/ui/parent-visible-badge";
+import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
@@ -506,29 +511,34 @@ export function PersonalInfoFormModal({
             </div>
           </div>
         ) : null}
+        <ParentVisibilityLegend />
         <TextInput
           id="modal-student-first-name"
           label="Vorname"
           value={editedStudent.first_name ?? ""}
           onChange={(value) => updateField("first_name", value)}
+          parentVisibleHint={PARENT_VISIBLE_HINTS.name}
         />
         <TextInput
           id="modal-student-last-name"
           label="Nachname"
           value={editedStudent.second_name ?? ""}
           onChange={(value) => updateField("second_name", value)}
+          parentVisibleHint={PARENT_VISIBLE_HINTS.name}
         />
         <TextInput
           id="modal-student-school-class"
           label="Klasse"
           value={editedStudent.school_class}
           onChange={(value) => updateField("school_class", value)}
+          parentVisibleHint={PARENT_VISIBLE_HINTS.schoolClass}
         />
         <DateInput
           id="modal-student-birthday"
           label="Geburtsdatum"
           value={editedStudent.birthday}
           onChange={(value) => updateField("birthday", value)}
+          parentVisibleHint={PARENT_VISIBLE_HINTS.birthday}
         />
         <TextInput
           id="modal-student-address-street"
@@ -606,6 +616,7 @@ export function PersonalInfoFormModal({
           onChange={(value) => updateField("health_info", value)}
           placeholder="Allergien, Medikamente, wichtige medizinische Informationen"
           rows={3}
+          parentVisibleHint={PARENT_VISIBLE_HINTS.healthInfo}
         />
         <TextAreaInput
           id="modal-student-supervisor-notes"
@@ -637,14 +648,27 @@ interface TextInputProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  parentVisibleHint?: string;
 }
 
-function TextInput({ id, label, value, onChange }: Readonly<TextInputProps>) {
+function TextInput({
+  id,
+  label,
+  value,
+  onChange,
+  parentVisibleHint,
+}: Readonly<TextInputProps>) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
-        {label}
-      </label>
+      <div className="mb-1 flex items-center gap-1">
+        <label htmlFor={id} className="block text-xs text-gray-500">
+          {label}
+        </label>
+        {parentVisibleHint && (
+          <ParentVisibleBadge compact hint={parentVisibleHint} />
+        )}
+      </div>
       <input
         id={id}
         type="text"
@@ -662,14 +686,27 @@ interface DateInputProps {
   label: string;
   value?: string;
   onChange: (value: string) => void;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  parentVisibleHint?: string;
 }
 
-function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
+function DateInput({
+  id,
+  label,
+  value,
+  onChange,
+  parentVisibleHint,
+}: Readonly<DateInputProps>) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
-        {label}
-      </label>
+      <div className="mb-1 flex items-center gap-1">
+        <label htmlFor={id} className="block text-xs text-gray-500">
+          {label}
+        </label>
+        {parentVisibleHint && (
+          <ParentVisibleBadge compact hint={parentVisibleHint} />
+        )}
+      </div>
       <ISODatePicker
         id={id}
         controlSize="md"
@@ -692,6 +729,8 @@ interface TextAreaInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  parentVisibleHint?: string;
 }
 
 function TextAreaInput({
@@ -701,12 +740,18 @@ function TextAreaInput({
   onChange,
   placeholder,
   rows = 3,
+  parentVisibleHint,
 }: Readonly<TextAreaInputProps>) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
-        {label}
-      </label>
+      <div className="mb-1 flex items-center gap-1">
+        <label htmlFor={id} className="block text-xs text-gray-500">
+          {label}
+        </label>
+        {parentVisibleHint && (
+          <ParentVisibleBadge compact hint={parentVisibleHint} />
+        )}
+      </div>
       <textarea
         id={id}
         value={value}

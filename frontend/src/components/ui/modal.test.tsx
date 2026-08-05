@@ -209,6 +209,47 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("cancels a pending dismissal when isDismissDisabled becomes true during the exit animation", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={onClose} title="Test">
+          <p>Content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Dismissal starts (backdrop) and queues onClose behind the exit animation
+    fireEvent.click(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    );
+
+    // Confirmation begins during the 250ms window and locks dismissal
+    rerender(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          isDismissDisabled={true}
+        >
+          <p>Content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Content")).toBeInTheDocument();
+  });
+
   it("should render footer when provided", async () => {
     render(
       <TestWrapper>
