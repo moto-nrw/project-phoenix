@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptPageHeader } from "~/components/ui/concept-section-header";
 import { useLocale, useTranslations } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
@@ -89,12 +90,11 @@ export function ParentEnrollPicker() {
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="p-5 sm:p-6 lg:p-8">
-          <h1 className="text-3xl font-semibold text-gray-900 sm:text-4xl">
-            {t("title")}
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 sm:text-base">
-            {t("description")}
-          </p>
+          <ConceptPageHeader
+            title={t("title")}
+            concept="enrollments"
+            subtitle={t("description")}
+          />
         </div>
       </section>
 
@@ -154,7 +154,7 @@ function SchoolCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-        <span className="bg-moto-green/15 text-moto-green-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
           <MotoConceptIcon concept="schools" size={22} />
         </span>
         <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
@@ -219,7 +219,7 @@ function PhaseRow({
             {kindLabel}
           </span>
           {audienceLabel && (
-            <span className="bg-moto-blue/10 rounded-full px-2 py-0.5 text-[11px] font-semibold text-[#3558A8]">
+            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
               {audienceLabel}
             </span>
           )}
@@ -246,7 +246,7 @@ function EmptyPhases() {
   const t = useTranslations("parentEnroll");
   return (
     <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         <MotoConceptIcon concept="schools" size={22} />
       </span>
       <p className="mt-3 text-sm leading-6 text-gray-600">{t("empty")}</p>

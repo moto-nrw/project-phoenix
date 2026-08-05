@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
@@ -290,7 +291,7 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
   const tone = statusTone[item.status] ?? statusTone.submitted;
   const content = (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="bg-moto-green/15 text-moto-green-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
         <MotoConceptIcon concept="children" size={22} />
       </span>
       <div className="min-w-0 flex-1">
@@ -398,12 +399,13 @@ function StartNewsPanel() {
         eyebrow={t("newsEyebrow")}
         title={t("newsTitle")}
         description={t("newsDescription")}
+        concept="news"
       />
 
       {loaded && items.length === 0 ? (
         <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
               <MotoConceptIcon concept="news" size={22} />
             </span>
             <div className="min-w-0">
@@ -454,20 +456,29 @@ function PanelHeader({
   eyebrow,
   title,
   description,
+  concept,
 }: Readonly<{
   eyebrow: string;
   title: string;
   description: string;
+  concept?: MotoConceptKey;
 }>) {
   return (
-    <header>
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {eyebrow}
-      </p>
-      <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
-        {title}
-      </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+    <header className={concept ? "flex min-w-0 items-start gap-3" : undefined}>
+      {concept ? (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+          <MotoConceptIcon concept={concept} size={20} />
+        </span>
+      ) : null}
+      <div className="min-w-0">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {eyebrow}
+        </p>
+        <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+      </div>
     </header>
   );
 }

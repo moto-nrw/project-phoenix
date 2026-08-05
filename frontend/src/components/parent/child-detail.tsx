@@ -61,12 +61,12 @@ function isActionEnabled(actionKey: string, care: ChildCare): boolean {
 
 const logger = createLogger({ component: "ChildDetail" });
 
-// Neutral icon tile shared with the parent-facing enrollment flow
-// (PublicInfoCard in public-enrollment-shell.tsx): white surface, subtle
-// border, gray icon. Keeps the parents portal calm and consistent instead of
-// the old per-action pastel tiles. Add size + radius per call site.
+// Neutral icon tile shared across the quick actions and the "Heute" panel:
+// gray-100 surface, no border/shadow. Keeps the parents portal calm and
+// consistent with the app-wide gray-tile pattern instead of the old
+// per-action pastel/white tiles. Add size + radius per call site.
 const ACTION_TILE_CLASS =
-  "moto-content-surface flex shrink-0 items-center justify-center border text-gray-600 shadow-sm";
+  "flex shrink-0 items-center justify-center bg-gray-100";
 
 const CHILD_ACTIONS = [
   { key: "sick", concept: "sick" },
@@ -785,7 +785,7 @@ function CompactInfoRow({
 function OpenRequestBadge() {
   const tMd = useTranslations("parentMasterData");
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+    <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
       <Clock className="h-3 w-3" aria-hidden="true" />
       {tMd("careSchedule.pendingBadge")}
     </span>
@@ -824,20 +824,29 @@ function PanelHeader({
   eyebrow,
   title,
   description,
+  concept,
 }: Readonly<{
   eyebrow: string;
   title: string;
   description: string;
+  concept?: MotoConceptKey;
 }>) {
   return (
-    <header>
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {eyebrow}
-      </p>
-      <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
-        {title}
-      </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+    <header className={concept ? "flex min-w-0 items-start gap-3" : undefined}>
+      {concept ? (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+          <MotoConceptIcon concept={concept} size={20} />
+        </span>
+      ) : null}
+      <div className="min-w-0">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {eyebrow}
+        </p>
+        <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+      </div>
     </header>
   );
 }

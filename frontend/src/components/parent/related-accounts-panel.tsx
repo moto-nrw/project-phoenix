@@ -11,6 +11,7 @@ import {
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 
 const logger = createLogger({ component: "RelatedAccountsPanel" });
 
@@ -133,34 +134,28 @@ export default function RelatedAccountsPanel({
           : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
       }
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-            Familie
-          </p>
-          <h2 className="text-lg font-semibold text-gray-900">
-            Verbundene Konten
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Wer Zugriff auf dieses Kind in der Eltern-App hat.
-          </p>
-        </div>
-        {canInvite && (
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="shrink-0 gap-2"
-            onClick={() => {
-              setInviteOpen((v) => !v);
-              setMessage(null);
-            }}
-          >
-            <UserPlus className="h-4 w-4" aria-hidden="true" />
-            Einladen
-          </Button>
-        )}
-      </div>
+      <ConceptSectionHeader
+        title="Verbundene Konten"
+        concept="parents"
+        subtitle="Wer Zugriff auf dieses Kind in der Eltern-App hat."
+        actions={
+          canInvite ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="shrink-0 gap-2"
+              onClick={() => {
+                setInviteOpen((v) => !v);
+                setMessage(null);
+              }}
+            >
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Einladen
+            </Button>
+          ) : undefined
+        }
+      />
 
       {message && (
         <div

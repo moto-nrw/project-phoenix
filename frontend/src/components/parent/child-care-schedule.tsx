@@ -144,7 +144,11 @@ export function ChildCareScheduleSection({
 
   if (error || !data) {
     return (
-      <Section title={t("sections.careSchedule")} hint={t("careSchedule.hint")}>
+      <Section
+        title={t("sections.careSchedule")}
+        hint={t("careSchedule.hint")}
+        concept="careTimes"
+      >
         <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-xl border p-3 text-sm">
           {t("careSchedule.loadError")}
         </p>
@@ -173,7 +177,11 @@ export function ChildCareScheduleSection({
   };
 
   return (
-    <Section title={t("sections.careSchedule")} hint={t("careSchedule.hint")}>
+    <Section
+      title={t("sections.careSchedule")}
+      hint={t("careSchedule.hint")}
+      concept="careTimes"
+    >
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {WEEKDAYS.map((num) => {
           const w = byWeekday.get(num);
@@ -207,7 +215,7 @@ export function ChildCareScheduleSection({
       {pending && (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+            <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
               <Clock className="h-3 w-3" aria-hidden="true" />
               {t("careSchedule.pendingBadge")}
             </p>

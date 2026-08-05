@@ -2,8 +2,16 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Phone, Mail, MapPin, StickyNote, Plus, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
+import {
+  PhoneIcon,
+  EnvelopeSimpleIcon,
+  MapPinIcon,
+  NoteIcon,
+} from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   type ChildGuardian,
   type GuardianContactPayload,
@@ -157,19 +165,11 @@ export default function GuardiansPanel({
           : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
       }
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-            {t("guardians.eyebrow")}
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-gray-900">
-            {t("guardians.title")}
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-gray-600">
-            {t("guardians.description")}
-          </p>
-        </div>
-      </div>
+      <ConceptSectionHeader
+        title={t("guardians.title")}
+        concept="parents"
+        subtitle={t("guardians.description")}
+      />
 
       {message && (
         <div
@@ -253,7 +253,7 @@ function GuardianRow({
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
-        <span className="bg-moto-green/15 text-moto-green-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="bg-moto-teal/15 text-moto-teal-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
           {initials(g.first_name, g.last_name)}
         </span>
         <div className="min-w-0 flex-1">
@@ -296,7 +296,11 @@ function GuardianRow({
                     <ContactLine
                       key={`${p.phone_number}-${p.phone_type}`}
                       icon={
-                        <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                        <MotoDuotoneIcon
+                          icon={PhoneIcon}
+                          tone="neutral"
+                          size={14}
+                        />
                       }
                       text={[
                         p.phone_number,
@@ -313,7 +317,13 @@ function GuardianRow({
                   ))}
                   {g.email && (
                     <ContactLine
-                      icon={<Mail className="h-3.5 w-3.5" aria-hidden="true" />}
+                      icon={
+                        <MotoDuotoneIcon
+                          icon={EnvelopeSimpleIcon}
+                          tone="neutral"
+                          size={14}
+                        />
+                      }
                       text={g.email}
                     />
                   )}
@@ -322,7 +332,11 @@ function GuardianRow({
                     g.address_postal_code) && (
                     <ContactLine
                       icon={
-                        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                        <MotoDuotoneIcon
+                          icon={MapPinIcon}
+                          tone="neutral"
+                          size={14}
+                        />
                       }
                       text={[
                         g.address_street,
@@ -389,7 +403,7 @@ function GuardianRow({
                 {g.can_manage_pickup ? (
                   <MotoConceptIcon concept="permissions" size={18} />
                 ) : (
-                  <StickyNote className="h-4 w-4" aria-hidden="true" />
+                  <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={16} />
                 )}
               </Button>
             )}

@@ -385,7 +385,11 @@ function IdentitySection({
   }, [changes, data, studentId, onApplied, t]);
 
   return (
-    <Section title={t("sections.child")} hint={t("requestHint")}>
+    <Section
+      title={t("sections.child")}
+      hint={t("requestHint")}
+      concept="children"
+    >
       <RequestField
         label={t("fields.firstName")}
         value={firstName}
@@ -542,7 +546,7 @@ function DepartureSection({
     <Section title={t("sections.departure")} hint={t("requestHint")}>
       <DepartureSummary modes={data.allowed_departure_modes} />
       {pending && (
-        <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+        <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
           <Clock className="h-3 w-3" aria-hidden="true" />
           {t("pendingBadge")}
         </p>
@@ -871,7 +875,7 @@ function RequestField({
           {label}
         </span>
         {pending && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+          <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <Clock className="h-3 w-3" aria-hidden="true" />
             {t("pendingBadge")}
           </span>

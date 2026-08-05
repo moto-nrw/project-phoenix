@@ -15,6 +15,7 @@ import {
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { ConceptPageHeader } from "~/components/ui/concept-section-header";
 
 const logger = createLogger({ component: "ParentMealPlanPage" });
 
@@ -243,8 +244,11 @@ export function ParentMealPlanPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-        <p className="mt-1 text-sm text-gray-500">{t("subtitle")}</p>
+        <ConceptPageHeader
+          title={t("title")}
+          concept="mealPlan"
+          subtitle={t("subtitle")}
+        />
       </section>
 
       {schoolsError ? (
