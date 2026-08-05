@@ -224,7 +224,7 @@ export function ArrivalDayEditModal({
     >
       <div className="space-y-5">
         {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-4 py-3 text-sm">
             {error}
           </div>
         ) : null}
@@ -280,7 +280,7 @@ export function ArrivalDayEditModal({
                       type="button"
                       onClick={handleRemoveException}
                       disabled={isDeletingException}
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="text-moto-red hover:bg-moto-red/10 inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
                     >
                       {isDeletingException ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -422,7 +422,7 @@ export function ArrivalDayEditModal({
                           type="button"
                           onClick={() => handleDeleteNote(note.id)}
                           disabled={deletingNoteId === note.id}
-                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          className="hover:bg-moto-red/10 hover:text-moto-red rounded p-1 text-gray-400 disabled:opacity-50"
                           title="Löschen"
                         >
                           {deletingNoteId === note.id ? (

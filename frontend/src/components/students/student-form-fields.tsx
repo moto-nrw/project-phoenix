@@ -73,7 +73,7 @@ export function PersonalInfoSection({
   };
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
           icon={MOTO_CONCEPTS.children.icon}
@@ -279,7 +279,7 @@ function TextareaField({
   iconPath: string;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
           className={`h-3.5 w-3.5 text-${iconColor} md:h-4 md:w-4`}
@@ -390,7 +390,7 @@ export function PrivacyConsentSection({
   errors: Record<string, string>;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
           icon={MOTO_CONCEPTS.permissions.icon}
@@ -472,7 +472,7 @@ export function BusStatusSection({
   const normalized = normalizeBusDays(days);
   const anySelected = busDaysHaveAny(normalized) || Boolean(value);
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <MotoConceptIcon concept="transport" size={18} />
@@ -588,7 +588,7 @@ export function EnrollmentConsentsSection({
                 style={{
                   backgroundColor: stamped
                     ? MOTO_COLOR_PALETTE.green.base
-                    : "#6B7280",
+                    : MOTO_COLOR_PALETTE.neutral.base,
                 }}
                 aria-hidden
               />
@@ -626,7 +626,7 @@ export function PickupStatusSection({
   const normalized = normalizePickupDays(days);
   const anySelected = pickupDaysHaveAny(normalized);
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <svg
@@ -760,7 +760,7 @@ export function DepartureSection({
   );
   const companionNoteId = useId();
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <MotoConceptIcon concept="transport" size={18} />

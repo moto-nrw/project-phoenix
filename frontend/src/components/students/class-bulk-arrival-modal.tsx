@@ -162,7 +162,7 @@ export function ClassBulkArrivalModal({
           Leere Felder bleiben unverändert.
         </p>
         {collisionCount !== null && collisionCount > 0 ? (
-          <div className="border-moto-orange flex items-start gap-2 rounded-lg border bg-[#FFF8ED] p-3 text-sm">
+          <div className="border-moto-orange bg-moto-orange/5 flex items-start gap-2 rounded-lg border p-3 text-sm">
             <AlertTriangle
               className="text-moto-orange mt-0.5 h-4 w-4 shrink-0"
               aria-hidden
@@ -172,7 +172,7 @@ export function ClassBulkArrivalModal({
                 {childCountLabel(collisionCount)}{" "}
                 {collisionCount === 1 ? "hat" : "haben"} bereits Ankunftszeiten
               </div>
-              <div className="text-[#8B5016]">
+              <div className="text-moto-orange-strong">
                 Existierende Zeiten werden an den gesetzten Tagen überschrieben.
               </div>
             </div>

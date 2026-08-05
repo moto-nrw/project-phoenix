@@ -1057,13 +1057,15 @@ export function StudentStammdatenTab({
         </div>
       ) : null}
       {errors.submit ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">{errors.submit}</p>
+        <div className="border-moto-red/20 bg-moto-red/10 rounded-lg border p-3">
+          <p className="text-moto-red-strong text-sm">{errors.submit}</p>
         </div>
       ) : null}
       {privacyConsentLoadError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">{privacyConsentLoadError}</p>
+        <div className="border-moto-red/20 bg-moto-red/10 rounded-lg border p-3">
+          <p className="text-moto-red-strong text-sm">
+            {privacyConsentLoadError}
+          </p>
         </div>
       ) : null}
       {companionsStale ? (

@@ -244,7 +244,7 @@ export function PickupDayEditModal({
                 type="time"
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
-                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="focus:border-moto-blue focus:ring-moto-blue min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                 autoFocus
               />
               <button
@@ -339,7 +339,7 @@ export function PickupDayEditModal({
                         aria-label="Abholnotiz bearbeiten"
                         value={editingNoteContent}
                         onChange={(e) => setEditingNoteContent(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        className="focus:border-moto-blue focus:ring-moto-blue w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                         rows={2}
                         maxLength={500}
                         autoFocus
@@ -422,7 +422,7 @@ export function PickupDayEditModal({
                 value={newNoteContent}
                 onChange={(e) => setNewNoteContent(e.target.value)}
                 placeholder="Notiz eingeben..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="focus:border-moto-blue focus:ring-moto-blue w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                 rows={2}
                 maxLength={500}
                 autoFocus

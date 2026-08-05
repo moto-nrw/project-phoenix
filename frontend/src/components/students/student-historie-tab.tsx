@@ -175,7 +175,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
 
   if (state.status === "forbidden") {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-800">
+      <div className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-xl border p-6 text-center text-sm">
         Du hast keine Berechtigung, diese Historie zu sehen.
       </div>
     );
@@ -183,7 +183,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
 
   if (state.status === "error") {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-4 text-sm">
         Historie konnte nicht geladen werden. {state.message}
       </div>
     );

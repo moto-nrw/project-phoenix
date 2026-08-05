@@ -164,7 +164,7 @@ export function StudentPhotoSection({
               Foto ausgewählt — wird beim Speichern hochgeladen.
             </p>
           ) : pendingPhotoRemoved ? (
-            <p className="font-medium text-[#B82A29]">
+            <p className="text-moto-red-hover font-medium">
               Foto wird beim Speichern entfernt.
             </p>
           ) : displayUrl ? (
@@ -248,7 +248,7 @@ export function StudentPhotoSection({
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-xs text-[#B82A29]" role="alert">
+        <p className="text-moto-red-hover mt-2 text-xs" role="alert">
           {error}
         </p>
       ) : null}
