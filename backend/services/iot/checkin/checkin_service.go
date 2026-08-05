@@ -481,8 +481,14 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 		return nil, newInternalError(checkinErrFindActiveGroups)
 	}
 
-	now := timeNow()
+	// The same-day filter is limited to the special rooms that auto-create
+	// sessions: only there does endPreviousDayActiveGroups close the stale
+	// session that the filter hides. For regular rooms no such cleanup runs
+	// here — a prior-day session that outlived the session-end cutoff must
+	// stay reusable, or scans would 404 until the next EndDailySessions run.
+	currentGroups := activeGroups
 	if room.Name == constants.SchulhofRoomName || constants.IsWCRoomName(room.Name) {
+		now := timeNow()
 		if err := s.endPreviousDayActiveGroups(ctx, activeGroups, now); err != nil {
 			s.getLogger().ErrorContext(ctx, "failed to end stale special-room session",
 				slog.Int64("room_id", room.ID),
@@ -491,9 +497,8 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 			)
 			return nil, specialRoomCreationError(room.Name)
 		}
+		currentGroups = activeGroupsStartedToday(activeGroups, now)
 	}
-
-	currentGroups := activeGroupsStartedToday(activeGroups, now)
 	if len(currentGroups) > 0 {
 		return s.useExistingActiveGroup(ctx, currentGroups, room, deviceID), nil
 	}

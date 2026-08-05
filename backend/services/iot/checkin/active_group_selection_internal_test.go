@@ -120,6 +120,31 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T)
 	assert.Equal(t, activity.ID, *selection.Group.GroupID)
 }
 
+func TestFindOrCreateRegularRoomReusesPreviousDayGroup(t *testing.T) {
+	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
+	room := &facilities.Room{Model: base.Model{ID: 42}, Name: "Klassenraum 1a"}
+	stale := &active.Group{
+		Model:     base.Model{ID: 100},
+		RoomID:    room.ID,
+		StartTime: now.AddDate(0, 0, -1),
+	}
+	activeStub := &rolloverActiveService{groups: []*active.Group{stale}}
+	service := &CheckinService{
+		active: activeStub,
+		logger: slog.New(slog.DiscardHandler),
+	}
+	originalTimeNow := timeNow
+	timeNow = func() time.Time { return now }
+	t.Cleanup(func() { timeNow = originalTimeNow })
+
+	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	assert.Empty(t, activeStub.endedGroupIDs, "regular rooms must not end sessions on scan")
+	assert.Equal(t, stale.ID, selection.Group.ID)
+}
+
 func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *testing.T) {
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.SchulhofRoomName}
