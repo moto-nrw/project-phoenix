@@ -650,8 +650,8 @@ func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) 
 // validateActiveGroupOpenForUpdate locks the target group and rejects ended
 // sessions. Tenant HTTP requests and scheduler operations already run inside a
 // tenant transaction, so the lock remains held through the subsequent visit
-// INSERT. This prevents a check-in selected before a concurrent absorption
-// from attaching its visit to the group after that absorption ends it.
+// or supervisor INSERT. This prevents a row selected before a concurrent
+// absorption from attaching to the group after that absorption ends it.
 func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID int64) error {
 	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
@@ -1238,8 +1238,11 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
 
-	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateActiveGroupExists(ctx, supervisor.GroupID); err != nil {
+	// Lock the group and reject ended sessions before INSERT. The same
+	// active.groups row lock serializes this write with session absorption
+	// (absorbUnsupervisedOpenGroups) and ClaimActiveGroup, so a supervisor
+	// cannot attach to a group that a concurrent absorption is ending.
+	if err := s.validateActiveGroupOpenForUpdate(ctx, supervisor.GroupID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
 

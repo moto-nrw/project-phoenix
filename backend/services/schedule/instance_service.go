@@ -484,10 +484,10 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 		}
 
 		// Serialize the "still open and unsupervised" decision with generic
-		// supervision claims. ClaimActiveGroup takes the same row lock before it
-		// checks EndTime and inserts its supervisor row, so either the claim wins
-		// and this re-check sees a supervisor, or absorption wins and the claimant
-		// sees the ended session after waiting.
+		// supervision claims. ClaimActiveGroup and CreateGroupSupervisor take the
+		// same row lock before they check EndTime and insert their supervisor row,
+		// so either the claim wins and this re-check sees a supervisor, or
+		// absorption wins and the claimant sees the ended session after waiting.
 		lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, group.ID)
 		if err != nil {
 			return fmt.Errorf("lock open group %d: %w", group.ID, err)
