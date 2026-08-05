@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Loading } from "~/components/ui/loading";
 import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
@@ -268,18 +270,20 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
       <KpiCards metrics={metrics} />
 
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-            Zeiterfassung
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <ViewToggle value={viewMode} onChange={setViewMode} />
-            <StaffExportButton
-              staffId={staffId}
-              yearStart={startOfYear(today)}
-            />
-          </div>
-        </div>
+        <ConceptSectionHeader
+          className="mb-5"
+          title="Zeiterfassung"
+          concept="timeTracking"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <ViewToggle value={viewMode} onChange={setViewMode} />
+              <StaffExportButton
+                staffId={staffId}
+                yearStart={startOfYear(today)}
+              />
+            </div>
+          }
+        />
 
         <RangeNav
           label={formatRangeLabel(viewMode, monthAnchor, weekAnchor)}
@@ -412,19 +416,7 @@ function RangeNav({
           aria-label="Zurück"
           className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
+          <ChevronLeft className="h-4 w-4" strokeWidth={2} />
         </button>
         <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
           {label}
@@ -435,19 +427,7 @@ function RangeNav({
           aria-label="Vor"
           className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
+          <ChevronRight className="h-4 w-4" strokeWidth={2} />
         </button>
       </div>
       <div className="flex justify-center sm:justify-end">

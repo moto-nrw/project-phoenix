@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowRightLeft,
-  CalendarOff,
-  Clock,
-  MapPin,
-  Repeat,
-  TriangleAlert,
-} from "lucide-react";
+import { ArrowRightLeft, Repeat, TriangleAlert } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -41,6 +34,8 @@ import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   formatColumnDate,
   formatPlannedHours,
@@ -220,7 +215,12 @@ function AssignmentCard({
         {assignment.activityTitle}
       </span>
       <span className="flex items-center gap-1 truncate text-xs text-gray-500">
-        <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+        <MotoDuotoneIcon
+          icon={MOTO_CONCEPTS.rooms.icon}
+          tone="neutral"
+          size={12}
+          className="shrink-0"
+        />
         {assignment.roomName}
       </span>
       {assignmentStatus}
@@ -433,12 +433,12 @@ export function DienstplanResourceGrid({
     if (!reducedPath) {
       items.push({
         label: "Für heute abwesend melden",
-        icon: <CalendarOff className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="notArrival" size={18} />,
         onClick: () => router.push(`/vertretung?d=${absenceEntryDate}`),
       });
       items.push({
         label: "Zeiterfassung öffnen",
-        icon: <Clock className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="timeTracking" size={18} />,
         onClick: () => router.push(timeTrackingHref(member)),
       });
     }
@@ -504,7 +504,7 @@ export function DienstplanResourceGrid({
             ? "Serie, für diese Woche angepasst"
             : "Teil einer Serie"
         }
-        className={shift.detached ? "text-[#EAB308]" : "text-gray-400"}
+        className={shift.detached ? "text-moto-amber" : "text-gray-400"}
       />
     ) : undefined;
 

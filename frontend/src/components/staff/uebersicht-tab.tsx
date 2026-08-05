@@ -29,6 +29,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 import {
   staffAbsenceService,
@@ -384,18 +385,20 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {/* B1 — Tagesvergleich Ist/Soll */}
         <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-              Tagesvergleich Ist / Soll
-            </h3>
-            <DateRangePicker
-              value={clampedDailyRange}
-              onChange={setDailyRange}
-              presets={buildDefaultPresets(accountAnchor, today)}
-              fromMin={accountAnchor}
-              toMax={today}
-            />
-          </div>
+          <ConceptSectionHeader
+            className="mb-4"
+            title="Tagesvergleich Ist / Soll"
+            concept="timeTracking"
+            actions={
+              <DateRangePicker
+                value={clampedDailyRange}
+                onChange={setDailyRange}
+                presets={buildDefaultPresets(accountAnchor, today)}
+                fromMin={accountAnchor}
+                toMax={today}
+              />
+            }
+          />
           {!hasTimeTrendData || dailyTrendData.length < 2 ? (
             <p className="py-10 text-center text-sm text-gray-400">
               {hasTimeTrendData
@@ -469,18 +472,20 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
 
         {/* B2 — Saldo-Verlauf kumulativ */}
         <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-              Saldo-Verlauf
-            </h3>
-            <DateRangePicker
-              value={clampedSaldoRange}
-              onChange={setSaldoRange}
-              presets={buildDefaultPresets(accountAnchor, today)}
-              fromMin={accountAnchor}
-              toMax={today}
-            />
-          </div>
+          <ConceptSectionHeader
+            className="mb-4"
+            title="Saldo-Verlauf"
+            concept="timeTracking"
+            actions={
+              <DateRangePicker
+                value={clampedSaldoRange}
+                onChange={setSaldoRange}
+                presets={buildDefaultPresets(accountAnchor, today)}
+                fromMin={accountAnchor}
+                toMax={today}
+              />
+            }
+          />
           {!hasBalanceTrendData || weeklyTrendData.length < 2 ? (
             <p className="py-10 text-center text-sm text-gray-400">
               {hasBalanceTrendData
@@ -529,7 +534,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                 />
                 <ReferenceLine
                   y={0}
-                  stroke="#9CA3AF"
+                  stroke={MOTO_COLOR_PALETTE.neutral.light}
                   strokeDasharray="3 3"
                   strokeWidth={1}
                 />
@@ -557,18 +562,20 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
 
       {/* C — Zeitverteilung (shadcn Donut + vollständige Legende rechts) */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-            Zeitverteilung
-          </h3>
-          <DateRangePicker
-            value={clampedDonutRange}
-            onChange={setDonutRange}
-            presets={buildDefaultPresets(accountAnchor, today)}
-            fromMin={accountAnchor}
-            toMax={today}
-          />
-        </div>
+        <ConceptSectionHeader
+          className="mb-4"
+          title="Zeitverteilung"
+          concept="timeTracking"
+          actions={
+            <DateRangePicker
+              value={clampedDonutRange}
+              onChange={setDonutRange}
+              presets={buildDefaultPresets(accountAnchor, today)}
+              fromMin={accountAnchor}
+              toMax={today}
+            />
+          }
+        />
         {distributionTotal === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">
             Noch keine Tage erfasst.
@@ -671,20 +678,24 @@ const trendConfig = {
 
 const dailyConfig = {
   ist: { label: "Ist", color: MOTO_COLOR_PALETTE.green.base },
-  soll: { label: "Soll", color: "#9CA3AF" },
+  soll: { label: "Soll", color: MOTO_COLOR_PALETTE.neutral.light },
 } satisfies ChartConfig;
 
 // Categories aligned to LOCATION_COLORS where the semantics match. Absence
 // types pick distinct hues from the rest of the brand palette so the donut
-// stays readable even when 5+ segments are visible.
+// stays readable even when 5+ segments are visible. Krank folgt der
+// verbindlichen Ton-Zuordnung (Krank = rot), nicht der Bernstein-Optik.
 const distributionConfig = {
   ogs: { label: "OGS", color: MOTO_COLOR_PALETTE.green.base },
   homeoffice: { label: "Homeoffice", color: MOTO_COLOR_PALETTE.blue.base },
   urlaub: { label: "Urlaub", color: MOTO_COLOR_PALETTE.orange.base },
-  krank: { label: "Krank", color: "#EAB308" },
-  fortbildung: { label: "Fortbildung", color: "#7C3AED" },
-  freizeitausgleich: { label: "Freizeitausgleich", color: "#D946EF" },
-  sonstige: { label: "Sonstige", color: "#6B7280" },
+  krank: { label: "Krank", color: MOTO_COLOR_PALETTE.red.base },
+  fortbildung: { label: "Fortbildung", color: MOTO_COLOR_PALETTE.purple.base },
+  freizeitausgleich: {
+    label: "Freizeitausgleich",
+    color: MOTO_COLOR_PALETTE.magenta.base,
+  },
+  sonstige: { label: "Sonstige", color: MOTO_COLOR_PALETTE.neutral.base },
 } satisfies ChartConfig;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -816,24 +827,29 @@ function buildDistribution(
       value: absenceDays.vacation,
       color: MOTO_COLOR_PALETTE.orange.base,
     },
-    { key: "krank", label: "Krank", value: absenceDays.sick, color: "#EAB308" },
+    {
+      key: "krank",
+      label: "Krank",
+      value: absenceDays.sick,
+      color: MOTO_COLOR_PALETTE.red.base,
+    },
     {
       key: "fortbildung",
       label: "Fortbildung",
       value: absenceDays.training,
-      color: "#7C3AED",
+      color: MOTO_COLOR_PALETTE.purple.base,
     },
     {
       key: "freizeitausgleich",
       label: "Freizeitausgleich",
       value: absenceDays.compTime,
-      color: "#D946EF",
+      color: MOTO_COLOR_PALETTE.magenta.base,
     },
     {
       key: "sonstige",
       label: "Sonstige",
       value: absenceDays.other,
-      color: "#6B7280",
+      color: MOTO_COLOR_PALETTE.neutral.base,
     },
   ];
 }

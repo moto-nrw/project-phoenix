@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { useSWRConfig } from "swr";
-import { Clock3, Trash2 } from "lucide-react";
+import { Check, Pencil, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import {
@@ -320,7 +320,11 @@ export function AbwesenheitenTab({
                 setSickStaff(staff);
               }}
             >
-              <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
+              <MotoConceptIcon
+                concept="timeTracking"
+                size={18}
+                className="mr-1.5"
+              />
               Freizeitausgleich eintragen
             </Button>
           </div>
@@ -498,20 +502,8 @@ function PendingAbsences({
   if (rows.length === 0) {
     return (
       <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
-        <span className="bg-moto-green/15 inline-flex h-7 w-7 items-center justify-center rounded-full text-[#4a7a15]">
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
+        <span className="bg-moto-green/15 text-moto-green-strong inline-flex h-7 w-7 items-center justify-center rounded-full">
+          <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
         </span>
         <div>
           <p className="text-sm font-medium text-gray-700">
@@ -567,8 +559,8 @@ function QuotaTile({
 }) {
   const valueClass = {
     primary: "text-gray-900",
-    success: "text-[#70b525]",
-    amber: "text-amber-600",
+    success: "text-moto-green-hover",
+    amber: "text-moto-amber-strong",
     muted: "text-gray-400",
   }[tone];
   return (
@@ -588,19 +580,7 @@ function QuotaTile({
           title="Urlaubsanspruch bearbeiten"
           className="absolute top-2 right-2 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
         >
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-            />
-          </svg>
+          <Pencil className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
         </button>
       )}
     </div>

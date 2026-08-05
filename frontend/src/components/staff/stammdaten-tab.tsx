@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { useSWRAuth } from "~/lib/swr";
 import { staffPayrollNumberService } from "~/lib/staff-api";
 
@@ -63,27 +64,24 @@ export function StammdatenTab({
   return (
     <div className="space-y-5">
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-              Abrechnung
-            </h3>
-            <p className="mt-1 text-xs text-gray-500">
-              Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der
-              spätere DATEV-Export diese Person keiner Abrechnung zuordnen.
-            </p>
-          </div>
-          {canManagePayroll && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => setEditorOpen(true)}
-            >
-              Bearbeiten
-            </Button>
-          )}
-        </div>
+        <ConceptSectionHeader
+          className="mb-4"
+          title="Abrechnung"
+          concept="payroll"
+          subtitle="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
+          actions={
+            canManagePayroll ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setEditorOpen(true)}
+              >
+                Bearbeiten
+              </Button>
+            ) : undefined
+          }
+        />
 
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

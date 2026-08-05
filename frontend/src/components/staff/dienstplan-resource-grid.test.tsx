@@ -312,7 +312,7 @@ describe("DienstplanResourceGrid status mapping", () => {
     });
     expect(
       screen.getByLabelText("Serie, für diese Woche angepasst"),
-    ).toHaveClass("text-[#EAB308]");
+    ).toHaveClass("text-moto-amber");
   });
 });
 

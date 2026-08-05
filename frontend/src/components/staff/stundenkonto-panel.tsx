@@ -7,12 +7,14 @@
 // Monatskarten-Kette ein.
 
 import { useState } from "react";
-import { Banknote, Clock4, RotateCcw, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
@@ -74,46 +76,48 @@ export function StundenkontoPanel({
 
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-          Stundenkonto-Verwaltung
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={() => setActiveModal("payout")}
-          >
-            <Banknote className="h-3.5 w-3.5" aria-hidden />
-            Auszahlung
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={() => setActiveModal("comp_time")}
-          >
-            <Clock4 className="h-3.5 w-3.5" aria-hidden />
-            Freizeitausgleich
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => setActiveModal("reset")}
-            disabled={!canResetClosedPeriod}
-            title={
-              canResetClosedPeriod
-                ? undefined
-                : "Ein Reset ist erst nach dem ersten abgeschlossenen Kontotag möglich."
-            }
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            Zurücksetzen
-          </Button>
-        </div>
-      </div>
+      <ConceptSectionHeader
+        className="mb-4"
+        title="Stundenkonto-Verwaltung"
+        concept="timeTracking"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={() => setActiveModal("payout")}
+            >
+              <MotoConceptIcon concept="payroll" size={14} />
+              Auszahlung
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={() => setActiveModal("comp_time")}
+            >
+              <MotoConceptIcon concept="timeTracking" size={14} />
+              Freizeitausgleich
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setActiveModal("reset")}
+              disabled={!canResetClosedPeriod}
+              title={
+                canResetClosedPeriod
+                  ? undefined
+                  : "Ein Reset ist erst nach dem ersten abgeschlossenen Kontotag möglich."
+              }
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              Zurücksetzen
+            </Button>
+          </div>
+        }
+      />
 
       {adjustments.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-400">
@@ -151,7 +155,7 @@ export function StundenkontoPanel({
                   onClick={() => setDeleteTarget(adjustment)}
                   aria-label={`Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)} löschen`}
                   title="Buchung löschen"
-                  className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  className="hover:bg-moto-red-soft hover:text-moto-red-strong rounded-md p-1.5 text-gray-400 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>

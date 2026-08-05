@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
+import { ClockIcon } from "@phosphor-icons/react";
 
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  ConceptSectionHeader,
+  SectionHeader,
+} from "~/components/ui/concept-section-header";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -110,31 +116,35 @@ export function ArbeitszeitmodellTab({
   return (
     <div className="space-y-5">
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-              Aktuelles Modell
-            </h3>
-            <p className="mt-1 text-base font-semibold text-gray-800">
-              {schedule.mode === "template" && schedule.model
-                ? schedule.model.name
-                : "Eigenes Modell"}
-            </p>
-            <p className="text-xs text-gray-500">
-              {weeksLabel} · Schnitt{" "}
-              {formatDuration(Math.round(averagePerWeek))} / Woche
-            </p>
-          </div>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setEditorOpen(true)}
-              className="rounded-full bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800"
-            >
-              Bearbeiten
-            </button>
-          )}
-        </div>
+        <SectionHeader
+          className="mb-5"
+          title="Aktuelles Modell"
+          icon={<MotoDuotoneIcon icon={ClockIcon} tone="neutral" size={22} />}
+          subtitle={
+            <>
+              <p className="text-base font-semibold text-gray-800">
+                {schedule.mode === "template" && schedule.model
+                  ? schedule.model.name
+                  : "Eigenes Modell"}
+              </p>
+              <p className="text-xs text-gray-500">
+                {weeksLabel} · Schnitt{" "}
+                {formatDuration(Math.round(averagePerWeek))} / Woche
+              </p>
+            </>
+          }
+          actions={
+            canEdit ? (
+              <button
+                type="button"
+                onClick={() => setEditorOpen(true)}
+                className="rounded-full bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800"
+              >
+                Bearbeiten
+              </button>
+            ) : undefined
+          }
+        />
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {schedule.weeklyTotals.map((total, idx) => (
@@ -237,9 +247,11 @@ function FourWeekPreview({
 
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <h3 className="mb-4 text-sm font-semibold tracking-wide text-gray-400 uppercase">
-        Vorschau (nächste 4 Wochen)
-      </h3>
+      <ConceptSectionHeader
+        className="mb-4"
+        title="Vorschau (nächste 4 Wochen)"
+        concept="calendar"
+      />
       <div className="space-y-2">
         {weeks.map((week) => {
           const badge = WEEK_BADGE_LETTERS[week.weekIndex] ?? "?";
@@ -248,7 +260,7 @@ function FourWeekPreview({
               key={toDateKey(week.monday)}
               className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${
                 week.isCurrent
-                  ? "border-amber-200 bg-amber-50/60"
+                  ? "border-moto-amber/30 bg-moto-amber/10"
                   : "border-gray-100 bg-white"
               }`}
             >

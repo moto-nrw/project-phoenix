@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -464,21 +466,7 @@ function StaffPageContent() {
       <PageHeaderWithSearch
         title={isMobile ? "Mitarbeiter" : ""}
         badge={{
-          icon: (
-            <svg
-              className="h-5 w-5 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-              />
-            </svg>
-          ),
+          icon: <MotoConceptIcon concept="staff" size={20} />,
           count:
             view === "accounts" ? accountRows.length : filteredStaff.length,
         }}
@@ -613,7 +601,7 @@ function StaffPageContent() {
 
       {/* Error Display */}
       {view === "status" && error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-4">
           {error}
         </div>
       )}
@@ -623,19 +611,7 @@ function StaffPageContent() {
         (filteredStaff.length === 0 ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                />
-              </svg>
+              <MotoConceptIcon concept="staff" size={48} />
               <div>
                 <h3 className="text-lg font-medium text-gray-900">
                   Kein Personal gefunden
@@ -690,19 +666,10 @@ function StaffPageContent() {
                                 {staffMember.firstName} {staffMember.lastName}
                               </h3>
                               {userIsAdmin && (
-                                <svg
+                                <ChevronRight
                                   className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M9 5l7 7-7 7"
-                                  />
-                                </svg>
+                                  strokeWidth={2}
+                                />
                               )}
                             </div>
                             <p className="mt-0.5 truncate text-xs text-gray-500">
