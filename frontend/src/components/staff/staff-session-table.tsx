@@ -421,7 +421,7 @@ export function StaffSessionTable({
                         isExpanded
                           ? "bg-gray-50"
                           : isToday
-                            ? "bg-amber-50/40"
+                            ? "bg-moto-amber/10"
                             : isWeekend
                               ? "bg-gray-50/60"
                               : ""
@@ -458,7 +458,7 @@ export function StaffSessionTable({
                         {session?.check_out_time ? (
                           formatTimeOnly(session.check_out_time)
                         ) : session ? (
-                          <span className="bg-moto-green/10 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-[#70b525]">
+                          <span className="bg-moto-green/10 text-moto-green-hover inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
                             <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
                             eingestempelt
                           </span>
@@ -764,7 +764,7 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
   }
   if (status.kind === "present") {
     return (
-      <span className="bg-moto-green/10 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-[#70b525]">
+      <span className="bg-moto-green/10 text-moto-green-hover inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
         OGS
       </span>
     );
@@ -773,7 +773,7 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
     return (
       <span
         title={status.name}
-        className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+        className="bg-moto-amber/20 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
       >
         Feiertag
       </span>
@@ -859,7 +859,7 @@ function HintBadges({
       key: "holiday-work",
       label: "Feiertagsarbeit",
       title: `Arbeitszeit an ${holidayName}: nach §9 ArbZG nur ausnahmsweise zulässig (ggf. Sondergenehmigung erforderlich).`,
-      tone: "bg-red-50 text-red-700",
+      tone: "bg-moto-red-soft text-moto-red-strong",
     });
   }
   if ((session.edit_count ?? 0) > 0) {
@@ -878,7 +878,7 @@ function HintBadges({
           key={pill.key}
           title={pill.title}
           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-            pill.tone ?? "bg-amber-50 text-amber-700"
+            pill.tone ?? "bg-moto-amber/10 text-moto-amber-strong"
           }`}
         >
           {pill.label}
@@ -889,10 +889,10 @@ function HintBadges({
 }
 
 function deltaClass(delta: number): string {
-  if (delta > 0) return "font-medium text-amber-600";
-  if (delta < -15) return "font-medium text-red-600";
+  if (delta > 0) return "text-moto-amber-strong font-medium";
+  if (delta < -15) return "text-moto-red-strong font-medium";
   if (delta < 0) return "font-medium text-gray-500";
-  return "font-medium text-green-600";
+  return "text-moto-green-strong font-medium";
 }
 
 function toDateKey(d: Date): string {

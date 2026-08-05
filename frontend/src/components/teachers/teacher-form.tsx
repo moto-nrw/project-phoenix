@@ -239,7 +239,7 @@ export function TeacherForm({
       {submitError && (
         <div
           ref={errorRef}
-          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm"
+          className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-3 text-xs md:mb-6 md:p-4 md:text-sm"
         >
           {submitError}
         </div>
@@ -251,10 +251,10 @@ export function TeacherForm({
         className="space-y-4 md:space-y-6"
       >
         {/* Personal Information Section */}
-        <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
+        <div className="bg-moto-orange/10 rounded-xl border border-gray-100 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
             <svg
-              className="h-3.5 w-3.5 text-orange-600 md:h-4 md:w-4"
+              className="text-moto-orange h-3.5 w-3.5 md:h-4 md:w-4"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -275,7 +275,7 @@ export function TeacherForm({
                 htmlFor="firstName"
                 className="mb-1 block text-xs font-medium text-gray-700"
               >
-                Vorname <span className="text-red-500">*</span>
+                Vorname <span className="text-moto-red">*</span>
               </label>
               <input
                 type="text"
@@ -285,7 +285,7 @@ export function TeacherForm({
                 onChange={(e) => setFirstName(e.target.value)}
                 className={`w-full rounded-lg border ${
                   errors.firstName
-                    ? "border-red-300 bg-red-50"
+                    ? "border-moto-red/40 bg-moto-red-soft"
                     : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
@@ -293,7 +293,9 @@ export function TeacherForm({
                 maxLength={255}
               />
               {errors.firstName && (
-                <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
+                <p className="text-moto-red-strong mt-1 text-xs">
+                  {errors.firstName}
+                </p>
               )}
             </div>
 
@@ -303,7 +305,7 @@ export function TeacherForm({
                 htmlFor="lastName"
                 className="mb-1 block text-xs font-medium text-gray-700"
               >
-                Nachname <span className="text-red-500">*</span>
+                Nachname <span className="text-moto-red">*</span>
               </label>
               <input
                 type="text"
@@ -313,7 +315,7 @@ export function TeacherForm({
                 onChange={(e) => setLastName(e.target.value)}
                 className={`w-full rounded-lg border ${
                   errors.lastName
-                    ? "border-red-300 bg-red-50"
+                    ? "border-moto-red/40 bg-moto-red-soft"
                     : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
@@ -321,7 +323,9 @@ export function TeacherForm({
                 maxLength={255}
               />
               {errors.lastName && (
-                <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+                <p className="text-moto-red-strong mt-1 text-xs">
+                  {errors.lastName}
+                </p>
               )}
             </div>
 
@@ -332,7 +336,7 @@ export function TeacherForm({
                   htmlFor="email"
                   className="mb-1 block text-xs font-medium text-gray-700"
                 >
-                  E-Mail <span className="text-red-500">*</span>
+                  E-Mail <span className="text-moto-red">*</span>
                 </label>
                 <input
                   type="email"
@@ -341,14 +345,16 @@ export function TeacherForm({
                   onChange={(e) => setEmail(e.target.value)}
                   className={`w-full rounded-lg border ${
                     errors.email
-                      ? "border-red-300 bg-red-50"
+                      ? "border-moto-red/40 bg-moto-red-soft"
                       : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                   } px-3 py-2 text-sm transition-colors`}
                   disabled={isLoading}
                   maxLength={255}
                 />
                 {errors.email && (
-                  <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                  <p className="text-moto-red-strong mt-1 text-xs">
+                    {errors.email}
+                  </p>
                 )}
               </div>
             )}
@@ -361,7 +367,7 @@ export function TeacherForm({
                   htmlFor="role-select"
                   className="mb-1 block text-xs font-medium text-gray-700"
                 >
-                  System-Rolle <span className="text-red-500">*</span>
+                  System-Rolle <span className="text-moto-red">*</span>
                 </label>
                 <CustomSelect
                   id="role-select"
@@ -381,7 +387,9 @@ export function TeacherForm({
                   invalid={Boolean(errors.roleId)}
                 />
                 {errors.roleId && (
-                  <p className="mt-1 text-xs text-red-600">{errors.roleId}</p>
+                  <p className="text-moto-red-strong mt-1 text-xs">
+                    {errors.roleId}
+                  </p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
                   {roleId
@@ -423,7 +431,7 @@ export function TeacherForm({
                     htmlFor="password"
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Passwort <span className="text-red-500">*</span>
+                    Passwort <span className="text-moto-red">*</span>
                   </label>
                   <input
                     type="password"
@@ -432,13 +440,13 @@ export function TeacherForm({
                     onChange={(e) => setPassword(e.target.value)}
                     className={`w-full rounded-lg border ${
                       errors.password
-                        ? "border-red-300 bg-red-50"
+                        ? "border-moto-red/40 bg-moto-red-soft"
                         : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                     } px-3 py-2 text-sm transition-colors`}
                     disabled={isLoading}
                   />
                   {errors.password && (
-                    <p className="mt-1 text-xs text-red-600">
+                    <p className="text-moto-red-strong mt-1 text-xs">
                       {errors.password}
                     </p>
                   )}
@@ -449,7 +457,7 @@ export function TeacherForm({
                     htmlFor="confirmPassword"
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Passwort bestätigen <span className="text-red-500">*</span>
+                    Passwort bestätigen <span className="text-moto-red">*</span>
                   </label>
                   <input
                     type="password"
@@ -458,13 +466,13 @@ export function TeacherForm({
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`w-full rounded-lg border ${
                       errors.confirmPassword
-                        ? "border-red-300 bg-red-50"
+                        ? "border-moto-red/40 bg-moto-red-soft"
                         : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                     } px-3 py-2 text-sm transition-colors`}
                     disabled={isLoading}
                   />
                   {errors.confirmPassword && (
-                    <p className="mt-1 text-xs text-red-600">
+                    <p className="text-moto-red-strong mt-1 text-xs">
                       {errors.confirmPassword}
                     </p>
                   )}
@@ -475,10 +483,10 @@ export function TeacherForm({
         </div>
 
         {/* Professional Information Section */}
-        <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
+        <div className="bg-moto-orange/10 rounded-xl border border-gray-100 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
             <svg
-              className="h-3.5 w-3.5 text-orange-600 md:h-4 md:w-4"
+              className="text-moto-orange h-3.5 w-3.5 md:h-4 md:w-4"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

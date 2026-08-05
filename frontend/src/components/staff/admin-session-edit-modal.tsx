@@ -173,7 +173,7 @@ export function AdminSessionEditModal({
         type="button"
         onClick={handleSubmit}
         disabled={isSaving || !notesValid || !timesValid || !breakValid}
-        className="bg-moto-green rounded-md px-4 py-2 text-sm font-medium text-gray-950 transition-colors hover:bg-[#70b525] disabled:cursor-not-allowed disabled:opacity-50"
+        className="bg-moto-green hover:bg-moto-green-hover rounded-md px-4 py-2 text-sm font-medium text-gray-950 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving
           ? "Speichern…"
@@ -188,7 +188,7 @@ export function AdminSessionEditModal({
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer}>
       <div className="space-y-4 text-sm">
         {mode === "edit" && session?.auto_checked_out && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
             Diese Sitzung wurde automatisch zum geplanten Dienstende
             ausgestempelt. Bitte die tatsächliche Endzeit prüfen.
           </p>
@@ -245,7 +245,7 @@ export function AdminSessionEditModal({
           />
         </Field>
         {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
             {error}
           </p>
         )}

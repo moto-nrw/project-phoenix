@@ -57,15 +57,15 @@ const deltaExplanations: Record<DashboardPeriod, string> = {
 type StatTone = "green" | "amber" | "gray" | "red";
 
 const valueTone: Record<StatTone, string> = {
-  green: "text-[#4a7a15]",
-  amber: "text-amber-600",
+  green: "text-moto-green-strong",
+  amber: "text-moto-amber-strong",
   gray: "text-gray-900",
   red: "text-moto-red",
 };
 
 const barTone: Record<StatTone, string> = {
   green: "bg-moto-green",
-  amber: "bg-amber-500",
+  amber: "bg-moto-amber",
   gray: "bg-gray-300",
   red: "bg-moto-red",
 };

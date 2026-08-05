@@ -42,8 +42,8 @@ function formatDays(days: number): string {
 }
 
 function deltaClass(minutes: number): string {
-  if (minutes > 0) return "text-[#70b525]";
-  if (minutes < 0) return "text-red-600";
+  if (minutes > 0) return "text-moto-green-hover";
+  if (minutes < 0) return "text-moto-red-strong";
   return "text-gray-700";
 }
 
@@ -140,7 +140,7 @@ export function Monatskarte({
   if (error) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-moto-red-strong text-sm">{error}</p>
       </div>
     );
   }
@@ -295,7 +295,7 @@ export function Monatskarte({
       </div>
 
       {summary.isClosed && summary.driftMinutes !== 0 && (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        <div className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-xl border p-3 text-xs">
           <p className="font-semibold">
             Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
           </p>

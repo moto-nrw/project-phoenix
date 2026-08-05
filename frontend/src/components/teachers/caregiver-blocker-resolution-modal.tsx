@@ -402,7 +402,7 @@ export function CaregiverBlockerResolutionModal({
                       type="button"
                       onClick={() => void handleEndSupervision(item)}
                       disabled={processing[key]}
-                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
                     >
                       {processing[key] ? "..." : "Beenden"}
                     </button>
@@ -449,7 +449,7 @@ export function CaregiverBlockerResolutionModal({
                       type="button"
                       onClick={() => void handleEndSubstitution(item)}
                       disabled={processing[key]}
-                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
                     >
                       {processing[key] ? "..." : "Entfernen"}
                     </button>
@@ -486,7 +486,7 @@ export function CaregiverBlockerResolutionModal({
                         {item.activityName}
                       </span>
                       {item.isPrimary ? (
-                        <span className="ml-2 inline-flex rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        <span className="bg-moto-orange/20 text-moto-orange-hover ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
                           Hauptleitung
                         </span>
                       ) : null}
@@ -514,7 +514,7 @@ export function CaregiverBlockerResolutionModal({
                         type="button"
                         onClick={() => void handleResolveActivity(item)}
                         disabled={processing[key]}
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium whitespace-nowrap text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
                       >
                         {processing[key]
                           ? "..."
@@ -577,7 +577,7 @@ export function CaregiverBlockerResolutionModal({
                         type="button"
                         onClick={() => void handleResolveGroup(item)}
                         disabled={processing[key]}
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium whitespace-nowrap text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
                       >
                         {processing[key]
                           ? "..."

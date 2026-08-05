@@ -125,7 +125,7 @@ function AssignmentRow({ block }: { readonly block: OwnAssignment }) {
 const TONE_CLASS: Record<"blue" | "red" | "amber" | "orange", string> = {
   blue: "bg-moto-blue/10 text-moto-blue",
   red: "bg-moto-red/10 text-moto-red",
-  amber: "bg-[#EAB308]/10 text-[#A16207]",
+  amber: "bg-moto-amber/10 text-moto-amber-strong",
   orange: "bg-moto-orange/10 text-moto-orange",
 };
 

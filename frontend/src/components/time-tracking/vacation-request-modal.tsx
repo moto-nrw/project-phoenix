@@ -334,7 +334,9 @@ export function VacationRequestModal({
                 </span>
                 {" beantragt · "}
                 <span
-                  className={exceedsBalance ? "text-red-600" : "text-gray-500"}
+                  className={
+                    exceedsBalance ? "text-moto-red-strong" : "text-gray-500"
+                  }
                 >
                   {remainingDays} Tage verfügbar
                 </span>
@@ -395,22 +397,22 @@ export function VacationRequestModal({
               modifiers={calendarModifiers}
               modifiersClassNames={{
                 requestedVacation:
-                  "[&>button]:!bg-amber-50 [&>button]:!text-amber-700 [&>button]:!ring-1 [&>button]:!ring-amber-200",
+                  "[&>button]:!bg-moto-amber/10 [&>button]:!text-moto-amber-strong [&>button]:!ring-1 [&>button]:!ring-moto-amber/30",
                 questionVacation:
-                  "[&>button]:!bg-[#7C3AED]/15 [&>button]:!text-[#7C3AED] [&>button]:!ring-1 [&>button]:!ring-[#7C3AED]/40",
+                  "[&>button]:!bg-moto-purple/15 [&>button]:!text-moto-purple [&>button]:!ring-1 [&>button]:!ring-moto-purple/40",
                 approvedVacation:
-                  "[&>button]:!bg-moto-green/15 [&>button]:!text-[#4a7a15] [&>button]:!ring-1 [&>button]:!ring-moto-green/40",
+                  "[&>button]:!bg-moto-green/15 [&>button]:!text-moto-green-strong [&>button]:!ring-1 [&>button]:!ring-moto-green/40",
               }}
             />
           </div>
           {blockingVacations.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-amber-200" />
+                <span className="bg-moto-amber/40 h-2 w-2 rounded-full" />
                 Beantragt
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-[#7C3AED]/50" />
+                <span className="bg-moto-purple/50 h-2 w-2 rounded-full" />
                 {"Rückfrage"}
               </span>
               <span className="inline-flex items-center gap-1">
@@ -483,7 +485,7 @@ export function VacationRequestModal({
           ))}
 
         {exceedsBalance && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          <div className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-xl border px-4 py-3 text-xs">
             <p className="font-medium">
               Dieser Antrag liegt {overBalanceDays}{" "}
               {overBalanceDays === 1 ? "Tag" : "Tage"} über deinem Resturlaub.
@@ -518,7 +520,7 @@ export function VacationRequestModal({
         </div>
 
         {(overlapMessage || serverError) && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+          <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border px-4 py-3 text-xs">
             {overlapMessage ?? serverError}
           </div>
         )}

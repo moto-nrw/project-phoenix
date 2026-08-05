@@ -35,16 +35,16 @@ export function KpiCard({
   readonly compactPrimary?: boolean;
 }) {
   const primaryColor = {
-    green: "text-[#70b525]",
-    amber: "text-amber-600",
+    green: "text-moto-green-hover",
+    amber: "text-moto-amber-strong",
     gray: "text-gray-700",
-    red: "text-red-600",
+    red: "text-moto-red-strong",
   }[color ?? "gray"];
   const barColor = {
     green: "bg-moto-green",
-    amber: "bg-amber-500",
+    amber: "bg-moto-amber",
     gray: "bg-gray-400",
-    red: "bg-red-500",
+    red: "bg-moto-red",
   }[color ?? "gray"];
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">

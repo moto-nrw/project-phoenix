@@ -371,7 +371,7 @@ function StaffStammdatenTab({
             <button
               type="button"
               onClick={onManageRole}
-              className="rounded-lg border border-[#7C3AED]/30 px-3 py-2 text-xs font-medium text-[#7C3AED] transition-all duration-200 hover:bg-[#7C3AED]/10 md:text-sm"
+              className="border-moto-purple/30 text-moto-purple hover:bg-moto-purple/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
             >
               Rolle verwalten
             </button>
