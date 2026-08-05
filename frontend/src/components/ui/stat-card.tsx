@@ -4,22 +4,30 @@
 // different surface every time (#2165). InfoCard stays the answer for the
 // icon + heading + content card; this one is for a single number.
 //
-// Tones use the StatusBadge vocabulary. The COLORS, though, are the ones the
-// Zeiterfassung applies to a standalone figure: the brand hexes themselves
-// (LOCATION_COLORS) plus #70b525 for green, not StatusBadge's darkened label
-// colors. Those darkened tones exist to sit legibly on a tinted pill; on a
-// large bold number on white they read brown rather than orange. Callers
-// holding the older "amber" spelling (getDeltaStatus) map it to "orange" at
-// the boundary.
+// Tones use the StatusBadge vocabulary. Callers holding the older "amber"
+// spelling (getDeltaStatus) map it to "orange" at the boundary.
+//
+// The VALUE colors are their own table, because a figure and a pill have
+// different jobs. The raw brand hexes are made for fills, not for text on
+// white: #F78C10 reaches 2.4:1 and #83CD2D/#70b525 2.5:1, both under the 3:1
+// WCAG minimum even at this size. StatusBadge's label colors clear it but are
+// darkened for a tinted pill, and on a large figure on white #8A5600 reads
+// brown. So these sit between the two: same hue as the brand color, dark
+// enough to clear 4.5:1 (contrast on white in the comments), which holds at
+// any size. Green is GROUP_ROOM_SHADES.text, the shade already centralised
+// for exactly this. The progress bar keeps the brand hex below — a bar is a
+// fill and carries no text.
+
+import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 
 export type StatCardTone = "blue" | "green" | "orange" | "red" | "gray";
 
 const TONE_VALUE_COLOR: Record<StatCardTone, string> = {
-  blue: "#5080D8",
-  green: "#70b525",
-  orange: "#F78C10",
-  red: "#FF3130",
-  gray: "#374151",
+  blue: "#3D6AB8", // 5.3:1 — OTHER_ROOM #5080D8 darkened
+  green: GROUP_ROOM_SHADES.text, // 5.1:1 — #4a7a15
+  orange: "#AD6100", // 4.7:1 — SCHOOLYARD #F78C10 darkened
+  red: "#C62826", // 5.6:1 — HOME #FF3130 darkened
+  gray: "#374151", // 10.3:1
 };
 
 const TONE_BAR_COLOR: Record<StatCardTone, string> = {
