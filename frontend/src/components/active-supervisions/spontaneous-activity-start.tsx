@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, Search, UserPlus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -551,7 +552,7 @@ export function SpontaneousActivityStart({
                   key={activity.id}
                   type="button"
                   onClick={() => setActivityInput(activity.name)}
-                  className="hover:border-moto-blue rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:text-[#315EA8]"
+                  className="hover:border-moto-blue hover:text-moto-blue-strong rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700"
                 >
                   {activity.name}
                 </button>
@@ -574,7 +575,7 @@ export function SpontaneousActivityStart({
               placeholder={isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
             />
             {isSelectedRoomOccupied ? (
-              <span className="mt-1 block text-xs text-[#A32020]">
+              <span className="text-moto-red-hover mt-1 block text-xs">
                 Dieser Raum ist bereits belegt.
               </span>
             ) : null}
@@ -590,7 +591,7 @@ export function SpontaneousActivityStart({
           {!isSchulhofSelected && staff.length > 0 ? (
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
-                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                <MotoConceptIcon concept="staff" size={16} />
                 Weitere Betreuer
               </div>
               <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">

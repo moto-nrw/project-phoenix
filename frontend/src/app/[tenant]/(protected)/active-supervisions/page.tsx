@@ -8,7 +8,8 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { CheckCircle2, UserPlus } from "lucide-react";
+import { LogOut, UserPlus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -301,7 +302,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
           <button
             type="button"
             onClick={() => runAction("excused")}
-            className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
+            className="border-moto-purple text-moto-purple-strong rounded-md border px-3 py-2 text-sm font-medium"
           >
             Entschuldigt
           </button>
@@ -357,7 +358,9 @@ function TimetableRosterStudentRow({
           {rosterStudentMeta(row, instanceIsSpontaneous)}
         </div>
         {attendanceDetail ? (
-          <div className="mt-1 text-sm text-[#D89A16]">{attendanceDetail}</div>
+          <div className="text-moto-amber-strong mt-1 text-sm">
+            {attendanceDetail}
+          </div>
         ) : null}
       </div>
       {attendanceWebEnabled ? (
@@ -458,11 +461,11 @@ function TimetableRosterHeader({
   );
 
   return (
-    <div className="moto-content-surface border-moto-green/30 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-      <div className="border-moto-green/20 bg-moto-green/10 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border border-gray-200 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="bg-moto-green/20 text-moto-green-strong flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <MotoConceptIcon concept="present" size={18} />
           </span>
           <div className="min-w-0">
             <p className="text-moto-green-strong text-xs font-semibold tracking-wide uppercase">
@@ -483,7 +486,7 @@ function TimetableRosterHeader({
               onClick={handleConfirmExpectedClick}
               className="bg-moto-green hover:bg-moto-green-hover focus-visible:ring-moto-green/30 inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-gray-950 shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              <MotoConceptIcon concept="present" size={16} />
               {confirmLabel}
             </button>
           ) : null}
@@ -544,7 +547,10 @@ function AddUnplannedStudentForm({
       onSubmit={handleSubmit}
     >
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-        <UserPlus className="h-4 w-4 text-gray-400" aria-hidden="true" />
+        <UserPlus
+          className="text-moto-green-vivid h-4 w-4"
+          aria-hidden="true"
+        />
         Kind ungeplant hinzufügen
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -2050,19 +2056,7 @@ function MeinRaumPageContent() {
       return (
         <div className="py-8 text-center">
           <div className="flex flex-col items-center gap-3">
-            <svg
-              className="h-10 w-10 text-gray-300"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
+            <MotoConceptIcon concept="children" size={40} />
             <div>
               <h3 className="text-sm font-medium text-gray-600">
                 Keine Kinder in diesem Raum
@@ -2255,21 +2249,7 @@ function MeinRaumPageContent() {
                 : ""
             }
             badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                  />
-                </svg>
-              ),
+              icon: <MotoConceptIcon concept="children" size={20} />,
               count: isSchulhofActive
                 ? (schulhofStatus?.studentCount ?? 0)
                 : (currentRoom?.student_count ?? 0),
@@ -2350,19 +2330,7 @@ function MeinRaumPageContent() {
                   className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
                   aria-label="Aufsicht abgeben"
                 >
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
+                  <LogOut className="h-5 w-5" aria-hidden="true" />
                   <span className="text-sm font-medium">Aufsicht abgeben</span>
                 </button>
               ) : undefined
@@ -2376,19 +2344,7 @@ function MeinRaumPageContent() {
                   className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
                   aria-label="Aufsicht abgeben"
                 >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                 </button>
               ) : undefined
             }

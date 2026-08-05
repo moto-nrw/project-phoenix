@@ -160,19 +160,19 @@ vi.mock("~/components/ui/empty-student-results", () => ({
 }));
 
 // Mock location-helper
-vi.mock("~/lib/location-helper", () => ({
-  LOCATION_COLORS: {
-    UNKNOWN: "#6B7280",
-    SCHOOLYARD: "#F78C10",
-    HOME: "#DC2626",
-    GROUP_ROOM: "#83CD2D",
-  },
-  LOCATION_STATUSES: { PRESENT: "Anwesend" },
-  isHomeLocation: vi.fn(() => false),
-  isSchoolyardLocation: vi.fn(() => false),
-  isTransitLocation: vi.fn(() => false),
-  parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
-}));
+// Partial mock: keep the real MOTO_COLOR_PALETTE/LOCATION_COLORS/gradient
+// exports (moto-duotone-icon.tsx reads MOTO_COLOR_PALETTE at module scope)
+// and only stub the location-parsing predicates used by this test file.
+vi.mock("~/lib/location-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/location-helper")>();
+  return {
+    ...actual,
+    isHomeLocation: vi.fn(() => false),
+    isSchoolyardLocation: vi.fn(() => false),
+    isTransitLocation: vi.fn(() => false),
+    parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+  };
+});
 
 // Mock pickup-helpers
 vi.mock("~/lib/pickup-helpers", () => ({

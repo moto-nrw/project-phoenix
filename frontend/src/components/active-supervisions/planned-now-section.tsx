@@ -1,13 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  ChevronDown,
-  CircleAlert,
-  Clock,
-  type LucideIcon,
-  Play,
-} from "lucide-react";
+import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -137,7 +131,7 @@ export function PlannedNowSection({
           className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
           aria-expanded={isSectionExpanded}
         >
-          <span className="bg-moto-blue/10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#4070C8]">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
             <MotoConceptIcon concept="carePlan" size={20} />
           </span>
           <span className="min-w-0">
@@ -163,14 +157,10 @@ export function PlannedNowSection({
             <SummaryPill concept="children" label={`${expectedCount} Kinder`} />
           )}
           {overdueCount > 0 ? (
-            <SummaryPill
-              icon={CircleAlert}
-              label={`${overdueCount} überfällig`}
-              tone="warning"
-            />
+            <SummaryPill label={`${overdueCount} überfällig`} tone="warning" />
           ) : soonCount > 0 ? (
             <SummaryPill
-              icon={Clock}
+              concept="careTimes"
               label={`${soonCount} startet gleich`}
               tone="success"
             />
@@ -208,10 +198,7 @@ export function PlannedNowSection({
                         </div>
                         <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                           <span className="inline-flex items-center gap-1.5">
-                            <Clock
-                              className="h-4 w-4 text-gray-400"
-                              aria-hidden="true"
-                            />
+                            <MotoConceptIcon concept="careTimes" size={16} />
                             {instance.startTime}-{instance.endTime}
                           </span>
                           <span className="inline-flex items-center gap-1.5">
@@ -297,7 +284,7 @@ export function PlannedNowSection({
                           <button
                             type="button"
                             onClick={() => toggleExpanded(instance.id)}
-                            className="focus-visible:ring-moto-blue/30 text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:outline-none"
+                            className="focus-visible:ring-moto-blue/30 text-moto-blue-hover hover:text-moto-blue-strong text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
                           >
                             {showTimetableCounts
                               ? `${hiddenCount} weitere anzeigen`
@@ -322,7 +309,7 @@ function SlotStatusBadge({
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
   if (instance.isOverdue) {
     return (
-      <span className="rounded-full bg-[#F3B63F]/20 px-2 py-0.5 text-xs font-medium text-[#A66F00]">
+      <span className="bg-moto-amber/20 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
         Überfällig
       </span>
     );
@@ -352,7 +339,7 @@ function ResponsibilityBadge({
         ? "Zugewiesen"
         : "Info";
   const className = instance.isAssigned
-    ? "bg-moto-blue/10 text-[#4070C8]"
+    ? "bg-moto-blue/10 text-moto-blue-hover"
     : "bg-gray-100 text-gray-500";
   return (
     <span
@@ -380,7 +367,7 @@ function SlotStat({
     tone === "success"
       ? "bg-moto-green/10 text-moto-green-strong"
       : tone === "info"
-        ? "bg-moto-blue/10 text-[#4070C8]"
+        ? "bg-moto-blue/10 text-moto-blue-hover"
         : "bg-gray-50 text-gray-900";
   return (
     <div className={`rounded-lg px-3 py-2 ${className}`}>
@@ -393,33 +380,27 @@ function SlotStat({
 }
 
 function SummaryPill({
-  icon: Icon,
   concept,
   label,
   tone = "neutral",
 }: Readonly<{
-  icon?: LucideIcon;
   concept?: MotoConceptKey;
   label: string;
   tone?: "neutral" | "info" | "success" | "warning";
 }>) {
   const className =
     tone === "info"
-      ? "bg-moto-blue/10 text-[#4070C8]"
+      ? "bg-moto-blue/10 text-moto-blue-hover"
       : tone === "success"
         ? "bg-moto-green/10 text-moto-green-strong"
         : tone === "warning"
-          ? "bg-[#F3B63F]/20 text-[#A66F00]"
+          ? "bg-moto-amber/20 text-moto-amber-strong"
           : "bg-gray-100 text-gray-600";
   return (
     <span
       className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium ${className}`}
     >
-      {concept ? (
-        <MotoConceptIcon concept={concept} size={18} />
-      ) : Icon ? (
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      ) : null}
+      {concept ? <MotoConceptIcon concept={concept} size={18} /> : null}
       {label}
     </span>
   );
@@ -457,7 +438,7 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
         <div className="flex shrink-0 items-center gap-2">
           {warningLabel ? (
             <span
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F3B63F]/20 text-[#A66F00]"
+              className="bg-moto-amber/20 text-moto-amber-strong inline-flex h-7 w-7 items-center justify-center rounded-full"
               title={warningLabel}
               aria-label={`${warnings.length} Planungs-Hinweis`}
             >
@@ -475,7 +456,9 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
         </div>
       </div>
       {warnings.length > 0 ? (
-        <p className="mt-2 text-xs text-[#A66F00]">{warnings[0]?.message}</p>
+        <p className="text-moto-amber-strong mt-2 text-xs">
+          {warnings[0]?.message}
+        </p>
       ) : null}
     </div>
   );
@@ -494,7 +477,7 @@ function rosterDotColor(row: TimetableRosterRow) {
   if (row.status === "absent") {
     return LOCATION_COLORS.DANGER;
   }
-  return "#D1D5DB";
+  return LOCATION_COLORS.UNKNOWN;
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {
