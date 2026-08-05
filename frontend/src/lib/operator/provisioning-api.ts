@@ -29,6 +29,8 @@ import type {
   CreateAccountRequest,
   UpdateOrganizationRequest,
   UpdateSchoolRequest,
+  BackendDeviceTransferStatus,
+  DeviceTransferStatus,
 } from "./provisioning-helpers";
 import {
   mapOrganization,
@@ -42,6 +44,7 @@ import {
   mapOperatorDevice,
   mapOperatorPerson,
   mapUnregisteredTagScan,
+  mapDeviceTransferStatus,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -190,6 +193,29 @@ class OperatorProvisioningService {
     const result = await operatorFetch<BackendOperatorDevice>(
       `/api/operator/provisioning/devices/${encodeURIComponent(deviceId)}/set-api-key`,
       { method: "POST", body: apiKey ? { api_key: apiKey } : {} },
+    );
+    return mapOperatorDevice(result);
+  }
+
+  async getDeviceTransferStatus(
+    deviceId: string,
+  ): Promise<DeviceTransferStatus> {
+    const result = await operatorFetch<BackendDeviceTransferStatus>(
+      `/api/operator/provisioning/devices/${encodeURIComponent(deviceId)}/transfer-status`,
+    );
+    return mapDeviceTransferStatus(result);
+  }
+
+  async transferDevice(
+    deviceId: string,
+    targetSchoolId: string,
+  ): Promise<OperatorDevice> {
+    const result = await operatorFetch<BackendOperatorDevice>(
+      `/api/operator/provisioning/devices/${encodeURIComponent(deviceId)}/transfer`,
+      {
+        method: "POST",
+        body: { target_school_id: Number(targetSchoolId) },
+      },
     );
     return mapOperatorDevice(result);
   }

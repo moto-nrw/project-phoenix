@@ -60,6 +60,30 @@ type UpdateSchoolRequest struct {
 	Hidden         bool
 }
 
+const deviceTransferOnlineThreshold = 5 * time.Minute
+
+// DeviceTransferSession describes the open kiosk session blocking a transfer.
+type DeviceTransferSession struct {
+	ID           int64     `json:"id"`
+	StartedAt    time.Time `json:"started_at"`
+	ActivityName *string   `json:"activity_name,omitempty"`
+	RoomName     *string   `json:"room_name,omitempty"`
+}
+
+// DeviceTransferStatus is the operator-facing preflight result.
+type DeviceTransferStatus struct {
+	CanTransfer   bool                   `json:"can_transfer"`
+	IsOnline      bool                   `json:"is_online"`
+	IsProtected   bool                   `json:"is_protected"`
+	LastSeen      *time.Time             `json:"last_seen,omitempty"`
+	ActiveSession *DeviceTransferSession `json:"active_session,omitempty"`
+}
+
+// ActiveDeviceSessionRepository is the narrow device-transfer session lookup dependency.
+type ActiveDeviceSessionRepository interface {
+	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+}
+
 // OperatorProvisioningService handles operator-led tenant provisioning.
 type OperatorProvisioningService interface {
 	CreateOrganization(ctx context.Context, organization *platform.Organization, operatorID int64, clientIP net.IP) (*platform.Organization, error)
@@ -79,6 +103,8 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	GetDeviceTransferStatus(ctx context.Context, id int64) (*DeviceTransferStatus, error)
+	TransferDevice(ctx context.Context, id, targetSchoolID, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
@@ -152,6 +178,7 @@ type OperatorProvisioningServiceConfig struct {
 	AccountRepo           authModels.AccountRepository
 	TeacherRepo           userModels.TeacherRepository
 	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
+	ActiveGroupRepo       ActiveDeviceSessionRepository
 	InvitationService     authSvc.InvitationService
 	AuthService           authSvc.AuthService
 	AuditLogRepo          platform.OperatorAuditLogRepository
@@ -992,6 +1019,186 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 
 		return nil
 	})
+}
+
+func isDeviceLookupNotFound(err error) bool {
+	if errors.Is(err, sql.ErrNoRows) {
+		return true
+	}
+	var dbErr *modelBase.DatabaseError
+	return errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows)
+}
+
+func (s *operatorProvisioningService) transferStatus(adminCtx context.Context, device *iotModels.Device) (*DeviceTransferStatus, error) {
+	status := &DeviceTransferStatus{LastSeen: device.LastSeen}
+	if device.DeviceID == iotModels.WebManualDeviceID {
+		status.IsProtected = true
+		return status, nil
+	}
+	if device.LastSeen != nil {
+		status.IsOnline = time.Since(*device.LastSeen) <= deviceTransferOnlineThreshold
+	}
+	if s.ActiveGroupRepo == nil {
+		return nil, fmt.Errorf("device transfer: active group repository is not configured")
+	}
+	group, err := s.ActiveGroupRepo.FindActiveByDeviceIDWithNames(adminCtx, device.ID)
+	if err != nil {
+		return nil, fmt.Errorf("device transfer: find active session: %w", err)
+	}
+	if group != nil {
+		session := &DeviceTransferSession{ID: group.ID, StartedAt: group.StartTime}
+		if group.ActualGroup != nil {
+			session.ActivityName = &group.ActualGroup.Name
+		}
+		if group.Room != nil {
+			session.RoomName = &group.Room.Name
+		}
+		status.ActiveSession = session
+	}
+	status.CanTransfer = !status.IsOnline && status.ActiveSession == nil
+	return status, nil
+}
+
+// GetDeviceTransferStatus returns current blockers without mutating the device.
+func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Context, id int64) (*DeviceTransferStatus, error) {
+	if id <= 0 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("device id is required")}
+	}
+	var result *DeviceTransferStatus
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
+		if findErr != nil {
+			if isDeviceLookupNotFound(findErr) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			return findErr
+		}
+		if device == nil {
+			return &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+		var statusErr error
+		result, statusErr = s.transferStatus(adminCtx, device)
+		return statusErr
+	})
+	return result, err
+}
+
+// TransferDevice moves the current device identity and API key to another school
+// while retaining the archived source row for historical foreign keys.
+func (s *operatorProvisioningService) TransferDevice(ctx context.Context, id, targetSchoolID, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error) {
+	if id <= 0 || targetSchoolID <= 0 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("device id and target_school_id are required")}
+	}
+
+	var result *OperatorDeviceInfo
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+		source, findErr := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
+		if findErr != nil {
+			if isDeviceLookupNotFound(findErr) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			return findErr
+		}
+		if source == nil {
+			return &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+		if source.DeviceID == iotModels.WebManualDeviceID {
+			return &DeviceTransferProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
+		}
+		if source.TenantID == targetSchoolID {
+			return &DeviceTransferSameSchoolError{SchoolID: targetSchoolID}
+		}
+
+		sourceSchool, sourceSchoolErr := s.SchoolRepo.FindByID(adminCtx, source.TenantID)
+		if sourceSchoolErr != nil {
+			return fmt.Errorf("TransferDevice: lookup source school: %w", sourceSchoolErr)
+		}
+		if sourceSchool == nil {
+			return &SchoolNotFoundError{SchoolID: source.TenantID}
+		}
+		targetSchool, targetSchoolErr := s.SchoolRepo.FindByID(adminCtx, targetSchoolID)
+		if targetSchoolErr != nil {
+			if isSchoolLookupNotFound(targetSchoolErr) {
+				return &SchoolNotFoundError{SchoolID: targetSchoolID}
+			}
+			return fmt.Errorf("TransferDevice: lookup target school: %w", targetSchoolErr)
+		}
+		if targetSchool == nil {
+			return &SchoolNotFoundError{SchoolID: targetSchoolID}
+		}
+		if targetSchool.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: targetSchoolID}
+		}
+		if !targetSchool.Active {
+			return &SchoolInactiveError{SchoolID: targetSchoolID}
+		}
+		if sourceSchool.OrganizationID != targetSchool.OrganizationID {
+			return &DeviceTransferOrganizationMismatchError{SourceSchoolID: source.TenantID, TargetSchoolID: targetSchoolID}
+		}
+
+		status, statusErr := s.transferStatus(adminCtx, source)
+		if statusErr != nil {
+			return statusErr
+		}
+		if status.IsOnline {
+			return &DeviceTransferBlockedError{DeviceID: id, Reason: DeviceTransferBlockedOnline}
+		}
+		if status.ActiveSession != nil {
+			return &DeviceTransferBlockedError{DeviceID: id, Reason: DeviceTransferBlockedActiveSession}
+		}
+
+		originalStatus := source.Status
+		var transferredAPIKey *string
+		if source.APIKey != nil {
+			key := *source.APIKey
+			transferredAPIKey = &key
+		}
+		now := time.Now()
+		source.ArchivedAt = &now
+		source.APIKey = nil
+		source.Status = iotModels.DeviceStatusInactive
+		source.RoomID = nil
+		source.RegisteredByID = nil
+		if updateErr := s.DeviceRepo.Update(adminCtx, source); updateErr != nil {
+			return fmt.Errorf("TransferDevice: archive source: %w", updateErr)
+		}
+
+		target := &iotModels.Device{
+			DeviceID:   source.DeviceID,
+			DeviceType: source.DeviceType,
+			Name:       source.Name,
+			Status:     originalStatus,
+			APIKey:     transferredAPIKey,
+		}
+		target.SetTenantID(targetSchoolID)
+		if createErr := s.DeviceRepo.Create(tenant.WithTenantID(adminCtx, targetSchoolID), target); createErr != nil {
+			if modelBase.IsUniqueViolation(createErr) {
+				if isAPIKeyConstraintViolation(createErr) {
+					return &ConflictError{Err: fmt.Errorf("api_key already in use")}
+				}
+				return &ConflictError{Err: fmt.Errorf("device_id already exists for target school")}
+			}
+			return fmt.Errorf("TransferDevice: create target: %w", createErr)
+		}
+
+		source.TransferredToDeviceID = &target.ID
+		if updateErr := s.DeviceRepo.Update(adminCtx, source); updateErr != nil {
+			return fmt.Errorf("TransferDevice: link source history: %w", updateErr)
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionTransfer, platform.ResourceDevice, &id, clientIP, map[string]any{
+			"device_id":        source.DeviceID,
+			"source_device_id": id,
+			"target_device_id": target.ID,
+			"source_school_id": source.TenantID,
+			"target_school_id": targetSchoolID,
+		})
+
+		var queryErr error
+		result, queryErr = s.queryDeviceSingle(adminCtx, "TransferDevice", target.ID)
+		return queryErr
+	})
+	return result, err
 }
 
 func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {

@@ -7,6 +7,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("~/components/operator/transfer-device-modal", () => ({
+  TransferDeviceModal: () => null,
+}));
+
 const {
   mockUseSession,
   mockUseSWR,
@@ -506,7 +510,8 @@ describe("OperatorDevicesPage", () => {
 
     render(<OperatorDevicesPage />);
 
-    fireEvent.click(screen.getByTitle("Gerät löschen"));
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(screen.getByText("Gerät löschen")).toBeInTheDocument();
@@ -549,12 +554,22 @@ describe("OperatorDevicesPage", () => {
     expect(screen.getByText("Neues Gerät")).toBeInTheDocument();
   });
 
-  it("shows Key ändern button for each device", () => {
+  it("shows device actions for each device", () => {
     withDefaultSWR({ allDevices: [mockDevice] });
 
     render(<OperatorDevicesPage />);
 
-    expect(screen.getByText("Key ändern")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für/ }));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Schule wechseln" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "API-Key ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Löschen" }),
+    ).toBeInTheDocument();
   });
 
   it("opens the set api key modal from the devices table", async () => {
@@ -562,7 +577,8 @@ describe("OperatorDevicesPage", () => {
 
     render(<OperatorDevicesPage />);
 
-    fireEvent.click(screen.getByText("Key ändern"));
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "API-Key ändern" }));
 
     await waitFor(() => {
       expect(screen.getByText("API-Key ändern")).toBeInTheDocument();

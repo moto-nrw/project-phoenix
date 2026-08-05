@@ -227,6 +227,51 @@ type DeviceProtectedError struct {
 	Reason   string
 }
 
+// DeviceTransferProtectedError is returned when a system-managed device must
+// remain assigned to its original school.
+type DeviceTransferProtectedError struct {
+	DeviceID int64
+	Reason   string
+}
+
+func (e *DeviceTransferProtectedError) Error() string {
+	return fmt.Sprintf("device with ID %d cannot be transferred: %s", e.DeviceID, e.Reason)
+}
+
+const (
+	DeviceTransferBlockedOnline        = "device_online"
+	DeviceTransferBlockedActiveSession = "active_session"
+)
+
+// DeviceTransferBlockedError reports live device state that must end before a transfer.
+type DeviceTransferBlockedError struct {
+	DeviceID int64
+	Reason   string
+}
+
+func (e *DeviceTransferBlockedError) Error() string {
+	return fmt.Sprintf("device with ID %d cannot be transferred: %s", e.DeviceID, e.Reason)
+}
+
+// DeviceTransferOrganizationMismatchError prevents moving devices across organization boundaries.
+type DeviceTransferOrganizationMismatchError struct {
+	SourceSchoolID int64
+	TargetSchoolID int64
+}
+
+func (e *DeviceTransferOrganizationMismatchError) Error() string {
+	return fmt.Sprintf("schools %d and %d belong to different organizations", e.SourceSchoolID, e.TargetSchoolID)
+}
+
+// DeviceTransferSameSchoolError reports a no-op transfer request.
+type DeviceTransferSameSchoolError struct {
+	SchoolID int64
+}
+
+func (e *DeviceTransferSameSchoolError) Error() string {
+	return fmt.Sprintf("device already belongs to school %d", e.SchoolID)
+}
+
 func (e *DeviceProtectedError) Error() string {
 	return fmt.Sprintf("device with ID %d is protected: %s", e.DeviceID, e.Reason)
 }

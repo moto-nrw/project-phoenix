@@ -242,7 +242,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	_, err := db.NewInsert().
 		Model(device).
 		ModelTableExpr(`iot.devices`).
-		On("CONFLICT (tenant_id, device_id) DO NOTHING").
+		On("CONFLICT (tenant_id, device_id) WHERE archived_at IS NULL DO NOTHING").
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to ensure web manual device")
 

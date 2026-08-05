@@ -112,6 +112,9 @@ func (s *internalDeviceRepoStub) FindByID(ctx context.Context, id interface{}) (
 	}
 	return nil, nil
 }
+func (s *internalDeviceRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*iotModels.Device, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalDeviceRepoStub) Update(ctx context.Context, device *iotModels.Device) error {
 	if s.updateFn != nil {
 		return s.updateFn(ctx, device)
