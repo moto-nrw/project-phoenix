@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Newspaper } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useTranslations } from "next-intl";
 
 import {
@@ -17,6 +17,7 @@ import {
 } from "~/components/parent/news/news-components";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
+import { ConceptPageHeader } from "~/components/ui/concept-section-header";
 import { createLogger } from "~/lib/logger";
 import { type ParentAnnouncement, listAnnouncements } from "~/lib/parent-api";
 
@@ -75,15 +76,12 @@ export default function ParentNewsPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("newsEyebrow")}
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-balance text-gray-900">
-          {t("newsTitle")}
-        </h1>
-        <p className="mt-1 text-sm leading-6 text-gray-600">
-          {t("newsDescription")}
-        </p>
+        <ConceptPageHeader
+          title={t("newsTitle")}
+          eyebrow={t("newsEyebrow")}
+          concept="news"
+          subtitle={t("newsDescription")}
+        />
       </header>
 
       {!loaded ? (
@@ -98,7 +96,7 @@ export default function ParentNewsPage() {
         <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
-              <Newspaper className="h-5 w-5" aria-hidden="true" />
+              <MotoConceptIcon concept="news" size={22} />
             </span>
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-gray-900">

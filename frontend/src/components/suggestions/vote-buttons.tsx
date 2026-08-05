@@ -121,7 +121,7 @@ export function VoteButtons({
 
   const upClasses =
     userVote === "up"
-      ? "text-[#83CD2D] hover:text-[#70b525]"
+      ? "text-moto-green hover:text-[#70b525]"
       : "text-gray-400 hover:text-gray-600";
 
   const downClasses =
@@ -145,7 +145,7 @@ export function VoteButtons({
           fill={userVote === "up" ? "currentColor" : "none"}
         />
         <span
-          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "up" ? "text-[#83CD2D]" : "text-gray-500"}`}
+          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "up" ? "text-moto-green" : "text-gray-500"}`}
         >
           {upvotes}
         </span>

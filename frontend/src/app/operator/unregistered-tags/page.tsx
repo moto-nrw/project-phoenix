@@ -235,7 +235,7 @@ function UnregisteredTagsTable({
                 </td>
                 <td className="px-4 py-3">
                   {scan.resolvedAt ? (
-                    <span className="inline-flex rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
+                    <span className="bg-moto-green/15 text-moto-green-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
                       Erledigt
                     </span>
                   ) : (
@@ -301,7 +301,7 @@ function ResolveScanModal({
           onChange={(event) => onNoteChange(event.target.value)}
           className="mt-1 min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-100 focus:outline-none"
         />
-        {error && <p className="mt-3 text-sm text-[#CC2626]">{error}</p>}
+        {error && <p className="text-moto-red-strong mt-3 text-sm">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"

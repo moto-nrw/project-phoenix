@@ -177,7 +177,7 @@ export function OperatorBrand() {
     <div className="flex flex-col items-center gap-3">
       <div className="relative flex h-24 w-24 items-center justify-center rounded-2xl border border-gray-800 bg-gray-950 text-white shadow-lg shadow-gray-200">
         <Hammer className="h-12 w-12" aria-hidden="true" strokeWidth={2.25} />
-        <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full border-2 border-white bg-[#83CD2D]" />
+        <span className="bg-moto-green absolute -right-1 -bottom-1 h-4 w-4 rounded-full border-2 border-white" />
       </div>
       <div className="text-center">
         <p className="text-sm font-semibold text-gray-950">Operator Console</p>
@@ -230,7 +230,7 @@ export function AuthShell({
             <div className="mb-9 text-center">
               <p
                 className={cn(
-                  "mb-3 text-xs font-semibold tracking-[0.16em] text-[#5080D8] uppercase",
+                  "text-moto-blue mb-3 text-xs font-semibold tracking-[0.16em] uppercase",
                   eyebrowClassName,
                 )}
               >
@@ -305,11 +305,11 @@ function AuthTestimonialPanel({
     <aside className="moto-dotted-background moto-dotted-background--split relative z-0 hidden min-h-screen overflow-hidden border-l border-gray-200 px-8 py-10 lg:flex lg:flex-col lg:justify-between xl:px-14">
       <div className="relative z-10 flex items-center justify-between">
         <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur-sm">
-          <UsersRound className="h-4 w-4 text-[#83CD2D]" aria-hidden="true" />
+          <UsersRound className="text-moto-green h-4 w-4" aria-hidden="true" />
           {items.badges.audience}
         </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur-sm">
-          <ShieldCheck className="h-4 w-4 text-[#5080D8]" aria-hidden="true" />
+          <ShieldCheck className="text-moto-blue h-4 w-4" aria-hidden="true" />
           {items.badges.hosting}
         </div>
       </div>

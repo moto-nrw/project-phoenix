@@ -256,7 +256,7 @@ export default function OperatorSuggestionDetailPage() {
             >
               <Trash2 className="h-4.5 w-4.5" />
             </button>
-            <span className="flex items-center gap-1 text-[#83CD2D]">
+            <span className="text-moto-green flex items-center gap-1">
               <ThumbsUp className="h-4.5 w-4.5" fill="currentColor" />
               <span className="text-sm font-bold">{suggestion.upvotes}</span>
             </span>

@@ -327,7 +327,7 @@ function AdjustmentModal({
             value={hours}
             onChange={(e) => setHours(e.target.value)}
             placeholder="z. B. 8"
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <div>
@@ -481,7 +481,7 @@ function ResetModal({
             step="0.25"
             value={carryoverHours}
             onChange={(e) => setCarryoverHours(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <NoteField note={note} onChange={setNote} />
@@ -548,7 +548,7 @@ function NoteField({
         onChange={(e) => onChange(e.target.value)}
         rows={2}
         placeholder="z. B. Auszahlung mit Juligehalt"
-        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+        className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
       />
     </div>
   );

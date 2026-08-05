@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, ExternalLink, Footprints } from "lucide-react";
+import { Check, ChevronDown, ExternalLink } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -245,10 +246,7 @@ export function TransitStudentsSection({
             style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
             aria-hidden="true"
           >
-            <Footprints
-              className="h-4 w-4"
-              style={{ color: LOCATION_COLORS.TRANSIT }}
-            />
+            <MotoConceptIcon concept="transit" size={18} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">

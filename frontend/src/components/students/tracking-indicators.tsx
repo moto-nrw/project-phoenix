@@ -28,7 +28,7 @@ export function TrackingIndicators({
             <span className="text-xs font-medium text-gray-500">{label}</span>
             {matched ? (
               <svg
-                className="h-4 w-4 text-[#83CD2D]"
+                className="text-moto-green h-4 w-4"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"

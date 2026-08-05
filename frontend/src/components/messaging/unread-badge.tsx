@@ -11,7 +11,7 @@ export function UnreadBadge({
   if (count <= 0) return null;
   return (
     <span
-      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF3130] px-1.5 text-xs font-bold text-white ${className ?? ""}`}
+      className={`bg-moto-red inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white ${className ?? ""}`}
       aria-label={`${count} ungelesene Nachrichten`}
     >
       {count > 99 ? "99+" : count}

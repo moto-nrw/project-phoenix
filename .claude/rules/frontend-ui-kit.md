@@ -108,12 +108,13 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 |---|---|---|
 | Brand green (primary) | `#83CD2D` | `GROUP_ROOM` |
 | Brand blue | `#5080D8` | `OTHER_ROOM` |
-| Red | `#FF3130` | `HOME` |
+| Neutral gray | `#6B7280` | `HOME` |
 | Orange | `#F78C10` | `SCHOOLYARD` |
 | Magenta | `#D946EF` | `TRANSIT` |
 | Amber | `#EAB308` | `SICK` |
 | Blue (class trip) | `#5080D8` | `CLASS_TRIP` |
 | Purple | `#7C3AED` | `EXCUSED` |
+| Red | `#DC2626` | `SICK` / `DANGER` |
 | Gray (neutral) | `#6B7280` | `UNKNOWN` / `NOT_ARRIVAL` |
 
 Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74b827`, active `#669f21`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use these hexes via arbitrary-value classes.

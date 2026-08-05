@@ -495,3 +495,8 @@ docs/logs_*/
 
 # Local QA/review screenshots (kept on disk, never tracked)
 tmp-screens-1841/
+
+# Local generated documents, screenshots, and tool caches
+/output/
+/outputs/
+/tmp/

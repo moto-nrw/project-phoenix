@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Newspaper, Plus, Users } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
@@ -181,7 +182,7 @@ export function ParentDashboard() {
   if (error) {
     return (
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
           {t("loadError")}
         </div>
       </div>
@@ -218,7 +219,7 @@ export function ParentDashboard() {
               <HeroChildrenList items={childOverviewItems} />
               <Link
                 href="/parents/enroll"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827] focus-visible:ring-2 focus-visible:ring-[#83CD2D] focus-visible:ring-offset-2 focus-visible:outline-none"
+                className="bg-moto-green hover:bg-moto-green-hover focus-visible:ring-moto-green inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 {t("newEnrollment")}
@@ -289,8 +290,8 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
   const tone = statusTone[item.status] ?? statusTone.submitted;
   const content = (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#5A8E1F]">
-        <Users className="h-5 w-5" aria-hidden="true" />
+      <span className="bg-moto-green/15 text-moto-green-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+        <MotoConceptIcon concept="children" size={22} />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">
@@ -403,7 +404,7 @@ function StartNewsPanel() {
         <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
-              <Newspaper className="h-5 w-5" aria-hidden="true" />
+              <MotoConceptIcon concept="news" size={22} />
             </span>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-gray-900">

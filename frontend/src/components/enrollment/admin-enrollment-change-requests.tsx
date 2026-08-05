@@ -103,7 +103,7 @@ export function AdminEnrollmentChangeRequestsList() {
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Anmeldungen
             </p>
             <h1 className="mt-1 text-xl font-semibold text-gray-900">
@@ -144,7 +144,7 @@ export function AdminEnrollmentChangeRequestsList() {
       </section>
 
       {error ? (
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
           {error}
         </div>
       ) : null}
@@ -174,7 +174,7 @@ export function AdminEnrollmentChangeRequestsList() {
                       <div className="flex flex-wrap items-center gap-2">
                         <ChangeRequestStatusBadge status={row.status} />
                         {row.origin === "admin" ? (
-                          <span className="rounded-full bg-[#5080D8]/10 px-2.5 py-1 text-xs font-medium text-[#355A9A]">
+                          <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2.5 py-1 text-xs font-medium">
                             OGS-Korrektur
                           </span>
                         ) : null}
@@ -307,7 +307,7 @@ export function AdminEnrollmentChangeRequestDetail({
 
   if (!data) {
     return (
-      <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
         {error ?? "Änderungsanfrage nicht gefunden."}
       </div>
     );
@@ -354,12 +354,12 @@ export function AdminEnrollmentChangeRequestDetail({
             </header>
 
             {error ? (
-              <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
                 {error}
               </div>
             ) : null}
             {info ? (
-              <div className="rounded-lg border border-[#83CD2D]/20 bg-[#83CD2D]/10 p-3 text-sm text-[#5A8B1F]">
+              <div className="border-moto-green/20 bg-moto-green/10 text-moto-green-strong rounded-lg border p-3 text-sm">
                 {info}
               </div>
             ) : null}
@@ -460,7 +460,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       disabled={
                         !canReview || busy !== null || !reviewNote.trim()
                       }
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#83CD2D]/60 hover:bg-[#83CD2D]/10 hover:text-[#5A8B1F] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                      className="hover:border-moto-green/60 hover:bg-moto-green/10 hover:text-moto-green-strong inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                     >
                       <Check className="h-4 w-4" aria-hidden="true" />
                       {busy === "approve" ? "Speichert..." : "Freigeben"}
@@ -471,7 +471,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       disabled={
                         !canReview || busy !== null || !reviewNote.trim()
                       }
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FF3130]/20 bg-white px-3 text-sm font-semibold text-[#CC2626] shadow-sm hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 inline-flex h-9 items-center justify-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
                       {busy === "reject" ? "Speichert..." : "Ablehnen"}
@@ -501,7 +501,7 @@ function ChangeSummary({
   return (
     <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
       <div>
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Änderungen
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -544,7 +544,7 @@ function MessageThread({
   return (
     <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
       <div>
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Verlauf
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">

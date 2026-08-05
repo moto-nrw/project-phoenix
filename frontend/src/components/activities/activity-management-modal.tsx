@@ -390,7 +390,7 @@ export function ActivityManagementModal({
                 value={form.name}
                 onChange={handleInputChange}
                 placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                className="block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
                 required
                 disabled={readOnly}
                 maxLength={255}
@@ -462,7 +462,7 @@ export function ActivityManagementModal({
                       }));
                     }
                   }}
-                  className="absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-[#5080D8] focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
+                  className="focus:ring-moto-blue absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
                   disabled={
                     Number.parseInt(form.max_participants, 10) <= 1 || readOnly
                   }
@@ -491,7 +491,7 @@ export function ActivityManagementModal({
                   onChange={handleInputChange}
                   min="1"
                   max="50"
-                  className="block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   required
                   disabled={readOnly}
                 />
@@ -507,7 +507,7 @@ export function ActivityManagementModal({
                       }));
                     }
                   }}
-                  className="absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-[#5080D8] focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
+                  className="focus:ring-moto-blue absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
                   disabled={
                     Number.parseInt(form.max_participants, 10) >= 50 || readOnly
                   }
@@ -587,7 +587,7 @@ function ModalLoadingMessage({ message }: Readonly<{ message: string }>) {
   return (
     <div className="flex items-center justify-center py-12">
       <div className="flex flex-col items-center gap-4">
-        <SpinnerIcon className="h-12 w-12 text-[#5080D8]" />
+        <SpinnerIcon className="text-moto-blue h-12 w-12" />
         <p className="text-gray-600">{message}</p>
       </div>
     </div>

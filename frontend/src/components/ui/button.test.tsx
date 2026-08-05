@@ -76,16 +76,17 @@ describe("Button", () => {
     render(<Button variant="outline_danger">Danger Outline</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-[#FF3130]/10");
-    expect(button.className).toContain("text-[#CC2626]");
+    expect(button.className).toContain("bg-moto-red-soft");
+    expect(button.className).toContain("text-moto-red-strong");
   });
 
   it("applies danger variant styles", () => {
     render(<Button variant="danger">Danger</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-[#FF3130]");
-    expect(button.className).toContain("text-gray-900");
+    expect(button.className).toContain("bg-moto-red");
+    expect(button.className).toContain("text-gray-950");
+    expect(button.className).toContain("hover:bg-moto-red-strong");
     expect(button.className).toContain("hover:text-white");
   });
 
@@ -93,8 +94,8 @@ describe("Button", () => {
     render(<Button variant="success">Success</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-[#83CD2D]");
-    expect(button.className).toContain("text-gray-900");
+    expect(button.className).toContain("bg-moto-green");
+    expect(button.className).toContain("text-gray-950");
   });
 
   it("applies sm size styles", () => {

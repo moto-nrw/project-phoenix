@@ -217,7 +217,7 @@ export function PasswordResetModal({
         {isSuccess ? (
           <>
             {/* Success State */}
-            <CheckIcon className="mx-auto mb-4 h-12 w-12 text-[#83cd2d]" />
+            <CheckIcon className="text-moto-green-strong mx-auto mb-4 h-12 w-12" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               {copy.successTitle}
             </h1>

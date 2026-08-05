@@ -61,7 +61,7 @@ export default function StartPage() {
       <section className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center">
         <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
-            <p className="text-xs font-semibold tracking-[0.16em] text-[#83CD2D] uppercase">
+            <p className="text-moto-green text-xs font-semibold tracking-[0.16em] uppercase">
               Los geht&apos;s
             </p>
             <h1 className="mt-4 max-w-2xl text-4xl font-semibold tracking-normal text-gray-950 sm:text-5xl">
@@ -79,7 +79,7 @@ export default function StartPage() {
                 {intakeFields.map((field) => (
                   <li key={field} className="flex gap-3 text-sm text-gray-700">
                     <CheckCircle2
-                      className="mt-0.5 h-5 w-5 shrink-0 text-[#83CD2D]"
+                      className="text-moto-green mt-0.5 h-5 w-5 shrink-0"
                       aria-hidden="true"
                     />
                     <span>{field}</span>

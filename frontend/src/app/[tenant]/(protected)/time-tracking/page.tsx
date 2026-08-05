@@ -237,7 +237,7 @@ function PlannedShiftsInfo({
             {shift.startTime}–{shift.endTime}
           </span>
           {shift.originShiftId && (
-            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+            <span className="bg-moto-blue/10 text-moto-blue rounded-full px-2 py-0.5 text-xs font-medium">
               Vertretung
             </span>
           )}
@@ -341,11 +341,11 @@ function getSessionStatusBadge(
   }
   if (status === "home_office") {
     return {
-      className: "bg-[#5080D8]/10 text-[#5080D8]",
+      className: "bg-moto-blue/10 text-moto-blue",
       label: "Homeoffice",
     };
   }
-  return { className: "bg-[#83CD2D]/10 text-[#70b525]", label: "In der OGS" };
+  return { className: "bg-moto-green/10 text-[#70b525]", label: "In der OGS" };
 }
 
 // Returns className for mode toggle button. `currentMode` is null before the
@@ -362,12 +362,12 @@ function getModeToggleClassName(
   // Brand colors from LOCATION_COLORS (lib/location-helper.ts):
   //   present     → GROUP_ROOM #83CD2D (green)
   //   home_office → OTHER_ROOM #5080D8 (blue)
-  //   absent      → HOME       #FF3130 (red)
+  //   absent      → DANGER     #DC2626 (red)
   if (buttonMode === "present")
-    return `${base} bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40`;
+    return `${base} bg-moto-green/10 text-[#70b525] ring-1 ring-moto-green/40`;
   if (buttonMode === "home_office")
-    return `${base} bg-[#5080D8]/10 text-[#5080D8] ring-1 ring-[#5080D8]/40`;
-  return `${base} bg-[#FF3130]/10 text-[#FF3130] ring-1 ring-[#FF3130]/40`;
+    return `${base} bg-moto-blue/10 text-moto-blue ring-1 ring-moto-blue/40`;
+  return `${base} bg-moto-red/10 text-moto-red ring-1 ring-moto-red/40`;
 }
 
 // Returns className for check-in button. When `mode` is null the button is
@@ -379,8 +379,8 @@ function getCheckInButtonClassName(mode: WorkMode | null): string {
   if (mode === null)
     return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
   if (mode === "home_office")
-    return `${base} border-[#5080D8] text-[#5080D8] hover:bg-[#5080D8]/5`;
-  return `${base} border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5`;
+    return `${base} border-moto-blue text-moto-blue hover:bg-moto-blue/5`;
+  return `${base} border-moto-green text-moto-green hover:bg-moto-green/5`;
 }
 
 // Returns className for break/pause button
@@ -1387,7 +1387,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "work" && seg.isActive) return "text-[#83CD2D]";
+    if (seg.type === "work" && seg.isActive) return "text-moto-green";
     if (seg.type === "work") return "text-gray-600";
     return "";
   };
@@ -1484,13 +1484,13 @@ function BreakActivityLog({
 type StatusTone = "green" | "amber" | "gray";
 
 const STATUS_TEXT: Record<StatusTone, string> = {
-  green: "text-[#83CD2D]",
+  green: "text-moto-green",
   amber: "text-amber-600",
   gray: "text-gray-700",
 };
 
 const STATUS_BAR: Record<StatusTone, string> = {
-  green: "bg-[#83CD2D]",
+  green: "bg-moto-green",
   amber: "bg-amber-500",
   gray: "bg-gray-400",
 };

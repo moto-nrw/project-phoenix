@@ -7,6 +7,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -320,19 +322,11 @@ function ActivitiesPageContent() {
           title={isMobile ? "Aktivitäten" : ""}
           badge={{
             icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.activities.icon}
+                tone={MOTO_CONCEPTS.activities.tone}
+                size={20}
+              />
             ),
             count: filteredActivities.length,
             label: "Aktivitäten",
@@ -381,19 +375,12 @@ function ActivitiesPageContent() {
       ) : !loading ? (
         <DatabaseEmptyState
           icon={
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.activities.icon}
+              tone={MOTO_CONCEPTS.activities.tone}
+              size={48}
+              className="mx-auto"
+            />
           }
           title={
             searchTerm || categoryFilter !== "all"

@@ -532,7 +532,7 @@ function BulkMoveToolbar({
       </div>
 
       {state.type === "error" ? (
-        <p role="alert" className="mt-2 text-sm text-[#FF3130]">
+        <p role="alert" className="text-moto-red mt-2 text-sm">
           {state.message}
         </p>
       ) : null}

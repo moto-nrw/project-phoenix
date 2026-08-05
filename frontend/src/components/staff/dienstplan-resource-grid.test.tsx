@@ -415,7 +415,7 @@ describe("DienstplanResourceGrid weekly summary", () => {
     renderGrid({ summaryByStaff: new Map([[member.id, summary()]]) });
 
     const label = screen.getByText("18/20,25 h");
-    expect(label).toHaveStyle({ color: "#FF3130" });
+    expect(label).toHaveStyle({ color: "#DC2626" });
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Geplant 18 h · Soll 20,25 h (aus Arbeitszeitmodell)",
     );

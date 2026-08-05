@@ -148,7 +148,7 @@ export function AdminChildDataCorrection({
           </p>
           {error ? (
             <p
-              className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]"
+              className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
               role="alert"
             >
               {error}

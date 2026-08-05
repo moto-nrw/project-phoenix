@@ -78,10 +78,10 @@ export function EnrollmentLinkPanel({ tab }: Props) {
   };
 
   return (
-    <section className="rounded-2xl border border-[#83CD2D]/40 bg-[#83CD2D]/5 p-4 sm:p-6">
+    <section className="border-moto-green/40 bg-moto-green/5 rounded-2xl border p-4 sm:p-6">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-[#83CD2D]/15 p-1.5">
+          <div className="bg-moto-green/15 rounded-lg p-1.5">
             <svg
               className="h-4 w-4 text-[#5a8e1f]"
               fill="none"
@@ -114,9 +114,9 @@ export function EnrollmentLinkPanel({ tab }: Props) {
             onClick={() => void handleCopy()}
             className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
               copyState === "copied"
-                ? "bg-[#83CD2D] text-white"
+                ? "bg-moto-green text-gray-950"
                 : copyState === "error"
-                  ? "bg-[#FF3130] text-white"
+                  ? "bg-moto-red text-white"
                   : "bg-gray-900 text-white hover:bg-gray-800"
             }`}
           >

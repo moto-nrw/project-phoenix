@@ -18,9 +18,10 @@ import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import {
   DataField,
   DataGrid,
-  DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   formatRelativeLastSeen,
   getDeviceStatusColor,
@@ -47,11 +48,6 @@ function getDeviceTitle(device: Device): string {
   return device.name?.trim() || device.device_id;
 }
 
-function getDeviceInitial(device: Device): string {
-  const source = device.name?.trim() || device.device_id;
-  return source.charAt(0).toUpperCase() || "D";
-}
-
 function buildDeviceSubtitle(device: Device): string {
   const parts: string[] = [getDeviceTypeDisplayName(device.device_type)];
   if (device.room_name) parts.push(device.room_name);
@@ -75,7 +71,7 @@ export function DevicesMasterDetail({
       trailingAccessory={
         <span
           aria-label={device.is_online ? "Online" : "Offline"}
-          className={`mr-1 h-2 w-2 shrink-0 rounded-full ${device.is_online ? "bg-[#83CD2D]" : "bg-gray-400"}`}
+          className={`mr-1 h-2 w-2 shrink-0 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
         />
       }
     />
@@ -160,7 +156,13 @@ function DeviceDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={getDeviceInitial(device)}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.devices.icon}
+              tone={MOTO_CONCEPTS.devices.tone}
+              size={36}
+            />
+          }
           title={getDeviceTitle(device)}
           subtitle={buildDeviceSubtitle(device)}
           actions={headerActions}
@@ -178,8 +180,14 @@ function DeviceStammdatenTab({ device }: { device: Device }) {
     <div className="space-y-4">
       <InfoSection
         title="Gerätedetails"
-        icon={DetailIcons.document}
-        accentColor="amber"
+        icon={
+          <MotoDuotoneIcon
+            icon={MOTO_CONCEPTS.devices.icon}
+            tone={MOTO_CONCEPTS.devices.tone}
+            size={18}
+          />
+        }
+        accentColor="gray"
       >
         <DataGrid>
           <DataField label="Geräte-ID" mono>
@@ -188,7 +196,7 @@ function DeviceStammdatenTab({ device }: { device: Device }) {
           <DataField label="Verbindung">
             <span className="inline-flex items-center gap-1.5">
               <span
-                className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-[#83CD2D]" : "bg-gray-400"}`}
+                className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
               />
               {device.is_online ? "Online" : "Offline"}
               {!device.is_online ? (
@@ -221,8 +229,14 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
   return (
     <InfoSection
       title="API-Schlüssel (nur einmal sichtbar)"
-      icon={DetailIcons.document}
-      accentColor="amber"
+      icon={
+        <MotoDuotoneIcon
+          icon={MOTO_CONCEPTS.permissions.icon}
+          tone={MOTO_CONCEPTS.permissions.tone}
+          size={18}
+        />
+      }
+      accentColor="purple"
     >
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -242,7 +256,7 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
           <button
             type="button"
             onClick={() => setRevealed((current) => !current)}
-            className="rounded bg-[#F78C10] px-2 py-1 text-xs text-white hover:bg-[#e57a00]"
+            className="bg-moto-orange rounded px-2 py-1 text-xs text-white hover:bg-[#e57a00]"
           >
             {revealed ? "Verbergen" : "Anzeigen"}
           </button>

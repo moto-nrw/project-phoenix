@@ -145,7 +145,7 @@ export function ChildCareScheduleSection({
   if (error || !data) {
     return (
       <Section title={t("sections.careSchedule")} hint={t("careSchedule.hint")}>
-        <p className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+        <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-xl border p-3 text-sm">
           {t("careSchedule.loadError")}
         </p>
       </Section>
@@ -238,7 +238,9 @@ export function ChildCareScheduleSection({
                 {t("careSchedule.withdraw")}
               </Button>
               {withdrawError && (
-                <p className="mt-1 text-sm text-[#CC2626]">{withdrawError}</p>
+                <p className="text-moto-red-strong mt-1 text-sm">
+                  {withdrawError}
+                </p>
               )}
             </div>
           )}
@@ -276,7 +278,7 @@ export function ChildCareScheduleSection({
         confirmText={t("careSchedule.withdraw")}
         cancelText={t("back")}
         isConfirmLoading={withdrawing}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
       >
         <p className="text-sm text-gray-600">
           {t("careSchedule.withdrawConfirmBody")}

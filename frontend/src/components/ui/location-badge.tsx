@@ -1,15 +1,14 @@
 import type {
   DisplayMode,
-  LocationStyle,
   StudentLocationContext,
 } from "@/lib/location-helper";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
   canSeeDetailedLocation,
+  getLocationBadgeTone,
   getLocationColor,
   getLocationDisplay,
-  getLocationGlowEffect,
   isHomeLocation,
   parseLocation,
 } from "@/lib/location-helper";
@@ -114,8 +113,7 @@ interface LocationBadgeProps {
   readonly showLocationSince?: boolean;
 }
 
-const MODERN_BASE_CLASS =
-  "inline-flex items-center rounded-full font-bold text-white backdrop-blur-sm";
+const MODERN_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
 const SIMPLE_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
 
 const SIZE_MAP = {
@@ -197,7 +195,7 @@ export function LocationBadge({
     } else {
       // Foreign students - user sees limited info (only status, no room)
       // Use the filtered label (e.g., "Anwesend") to determine color
-      // This ensures: Anwesend=Green, Zuhause=Red (never Blue/Orange/Purple)
+      // This ensures: Anwesend=Green, Zuhause=Gray (never Blue/Orange/Purple)
       color = getLocationColor(label, false, []);
     }
   } else {
@@ -225,19 +223,11 @@ export function LocationBadge({
     label = LOCATION_STATUSES.NOT_ARRIVAL;
   }
 
-  const glowEffect = getLocationGlowEffect(color);
-  const sickGlowEffect = getLocationGlowEffect(LOCATION_COLORS.SICK);
-  const classTripGlowEffect = getLocationGlowEffect(LOCATION_COLORS.CLASS_TRIP);
-  const excusedGlowEffect = getLocationGlowEffect(LOCATION_COLORS.EXCUSED);
-  const notArrivalGlowEffect = getLocationGlowEffect(
-    LOCATION_COLORS.NOT_ARRIVAL,
-  );
-
-  const locationStyle: LocationStyle = {
-    color,
-    glowEffect,
-    label,
-  };
+  const locationTone = getLocationBadgeTone(color);
+  const sickTone = getLocationBadgeTone(LOCATION_COLORS.SICK);
+  const classTripTone = getLocationBadgeTone(LOCATION_COLORS.CLASS_TRIP);
+  const excusedTone = getLocationBadgeTone(LOCATION_COLORS.EXCUSED);
+  const notArrivalTone = getLocationBadgeTone(LOCATION_COLORS.NOT_ARRIVAL);
 
   const sizeKey = size ?? DEFAULT_SIZE;
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
@@ -270,13 +260,14 @@ export function LocationBadge({
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
-        backgroundColor: LOCATION_COLORS.SICK,
-        boxShadow: sickGlowEffect,
+        backgroundColor: sickTone.backgroundColor,
+        color: sickTone.textColor,
       }}
       data-sick-indicator="true"
     >
       <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        className={`${sizeConfig.dot} rounded-full`}
+        style={{ backgroundColor: sickTone.dotColor }}
       />
       {LOCATION_STATUSES.SICK}
     </span>
@@ -286,13 +277,14 @@ export function LocationBadge({
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
-        backgroundColor: LOCATION_COLORS.EXCUSED,
-        boxShadow: excusedGlowEffect,
+        backgroundColor: excusedTone.backgroundColor,
+        color: excusedTone.textColor,
       }}
       data-excused-indicator="true"
     >
       <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        className={`${sizeConfig.dot} rounded-full`}
+        style={{ backgroundColor: excusedTone.dotColor }}
       />
       {LOCATION_STATUSES.EXCUSED}
     </span>
@@ -302,13 +294,14 @@ export function LocationBadge({
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
-        backgroundColor: LOCATION_COLORS.CLASS_TRIP,
-        boxShadow: classTripGlowEffect,
+        backgroundColor: classTripTone.backgroundColor,
+        color: classTripTone.textColor,
       }}
       data-class-trip-indicator="true"
     >
       <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        className={`${sizeConfig.dot} rounded-full`}
+        style={{ backgroundColor: classTripTone.dotColor }}
       />
       {LOCATION_STATUSES.CLASS_TRIP}
     </span>
@@ -318,14 +311,15 @@ export function LocationBadge({
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
-        backgroundColor: LOCATION_COLORS.NOT_ARRIVAL,
-        boxShadow: notArrivalGlowEffect,
+        backgroundColor: notArrivalTone.backgroundColor,
+        color: notArrivalTone.textColor,
       }}
       data-not-arrival-indicator="true"
       title={student.not_arrival_reason ?? undefined}
     >
       <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        className={`${sizeConfig.dot} rounded-full`}
+        style={{ backgroundColor: notArrivalTone.dotColor }}
       />
       {LOCATION_STATUSES.NOT_ARRIVAL}
     </span>
@@ -337,8 +331,8 @@ export function LocationBadge({
         <span
           className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
           style={{
-            backgroundColor: locationStyle.color,
-            color: "#fff",
+            backgroundColor: locationTone.backgroundColor,
+            color: locationTone.textColor,
           }}
           data-location-status={parsed.status}
           title={
@@ -347,7 +341,7 @@ export function LocationBadge({
               : undefined
           }
         >
-          {locationStyle.label}
+          {label}
         </span>
         {showSinceTime && (
           <span className="mt-0.5 text-[10px] text-gray-500">
@@ -367,8 +361,8 @@ export function LocationBadge({
       <span
         className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
         style={{
-          backgroundColor: locationStyle.color,
-          boxShadow: locationStyle.glowEffect,
+          backgroundColor: locationTone.backgroundColor,
+          color: locationTone.textColor,
         }}
         data-location-status={parsed.status}
         title={
@@ -378,9 +372,10 @@ export function LocationBadge({
         }
       >
         <span
-          className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+          className={`${sizeConfig.dot} rounded-full`}
+          style={{ backgroundColor: locationTone.dotColor }}
         />
-        {locationStyle.label}
+        {label}
       </span>
       {showSinceTime && (
         <span className="mt-0.5 text-[10px] text-gray-500">

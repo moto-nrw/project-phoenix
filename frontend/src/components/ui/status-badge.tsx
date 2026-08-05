@@ -9,10 +9,26 @@ const TONES: Record<
   StatusBadgeTone,
   { bg: string; dot: string; text: string }
 > = {
-  blue: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
-  green: { bg: "#83CD2D1A", dot: "#83CD2D", text: "#5A8B1F" },
-  orange: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
-  red: { bg: "#FF31301A", dot: "#FF3130", text: "#9F1F1E" },
+  blue: {
+    bg: MOTO_COLOR_PALETTE.blue.soft,
+    dot: MOTO_COLOR_PALETTE.blue.base,
+    text: MOTO_COLOR_PALETTE.blue.strong,
+  },
+  green: {
+    bg: MOTO_COLOR_PALETTE.green.soft,
+    dot: MOTO_COLOR_PALETTE.green.base,
+    text: MOTO_COLOR_PALETTE.green.strong,
+  },
+  orange: {
+    bg: MOTO_COLOR_PALETTE.orange.soft,
+    dot: MOTO_COLOR_PALETTE.orange.base,
+    text: MOTO_COLOR_PALETTE.orange.strong,
+  },
+  red: {
+    bg: MOTO_COLOR_PALETTE.red.soft,
+    dot: MOTO_COLOR_PALETTE.red.base,
+    text: MOTO_COLOR_PALETTE.red.strong,
+  },
   gray: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
 };
 
@@ -38,3 +54,4 @@ export function StatusBadge({
     </span>
   );
 }
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
-import { ArrowLeft, User } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
@@ -270,7 +271,8 @@ function MessageThreadContent() {
             }
             className="flex-shrink-0"
           >
-            <User className="mr-1.5 h-4 w-4" /> Zum Kinderprofil
+            <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
+            Zum Kinderprofil
           </Button>
         </div>
 

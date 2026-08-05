@@ -314,7 +314,7 @@ export function ParentMealPlanPage() {
                           <div className="text-sm font-semibold text-gray-900">
                             {weekdayLabel(today)}
                           </div>
-                          <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5A8E1F]">
+                          <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
                             {t("today")}
                           </span>
                         </div>
@@ -389,7 +389,7 @@ export function ParentMealPlanPage() {
                       <div
                         key={date}
                         className={`flex flex-col ${
-                          isToday ? "bg-[#83CD2D]/[0.04]" : ""
+                          isToday ? "bg-moto-green/[0.04]" : ""
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
@@ -402,7 +402,7 @@ export function ParentMealPlanPage() {
                             </div>
                           </div>
                           {isToday && (
-                            <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5A8E1F]">
+                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
                               {t("today")}
                             </span>
                           )}

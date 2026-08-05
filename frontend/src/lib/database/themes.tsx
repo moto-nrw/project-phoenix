@@ -203,7 +203,7 @@ export const databaseThemes = {
     border: "red-200",
     textAccent: "red-800",
     icon: <CalendarIcon />,
-    avatarGradient: "from-[#FF3130] to-[#e02020]",
+    avatarGradient: "from-moto-red to-[#e02020]",
   },
   groups: {
     primary: "green-500",

@@ -13,15 +13,8 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import {
-  Building2,
-  CalendarClock,
-  CircleDot,
-  Layers,
-  Tag,
-  UserCog,
-  Users,
-} from "lucide-react";
+import { Building2, CircleDot, Layers, Tag } from "lucide-react";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useSWRAuth } from "~/lib/swr";
 import {
   formatDate,
@@ -35,6 +28,7 @@ import {
   ROOM_HISTORY_STATUS_FEATURE_DISABLED,
 } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentsInRoomSection } from "./students-in-room-section";
 
@@ -144,13 +138,13 @@ function StatusBadge({ isOccupied }: Readonly<{ isOccupied: boolean }>) {
     <span
       className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold ${
         isOccupied
-          ? "bg-[#FF3130]/15 text-[#FF3130]"
-          : "bg-[#83CD2D]/15 text-[#4a7a15]"
+          ? "bg-moto-red/15 text-moto-red"
+          : "bg-moto-green/15 text-[#4a7a15]"
       }`}
     >
       <span
         className={`mr-2 h-2 w-2 rounded-full ${
-          isOccupied ? "animate-pulse bg-[#FF3130]" : "bg-[#83CD2D]"
+          isOccupied ? "bg-moto-red animate-pulse" : "bg-moto-green"
         }`}
       />
       {isOccupied ? "Belegt" : "Frei"}
@@ -384,6 +378,11 @@ export function RoomDetailContent({
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.rooms.icon}
+              tone={MOTO_CONCEPTS.rooms.tone}
+              size={32}
+            />
             <h1
               ref={titleRef}
               tabIndex={isModalContext ? -1 : undefined}
@@ -461,7 +460,13 @@ export function RoomDetailContent({
             />
             {room.isOccupied && room.groupName && (
               <IconDetailRow
-                icon={<CalendarClock className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.activities.icon}
+                    tone={MOTO_CONCEPTS.activities.tone}
+                    size={18}
+                  />
+                }
                 label="Aktuelle Aktivität"
                 value={room.groupName}
               />
@@ -470,7 +475,13 @@ export function RoomDetailContent({
               room.studentCount !== undefined &&
               room.studentCount > 0 && (
                 <IconDetailRow
-                  icon={<Users className="h-4 w-4" />}
+                  icon={
+                    <MotoDuotoneIcon
+                      icon={MOTO_CONCEPTS.children.icon}
+                      tone={MOTO_CONCEPTS.children.tone}
+                      size={18}
+                    />
+                  }
                   label="Aktuell anwesend"
                   value={`${room.studentCount} ${
                     room.studentCount === 1 ? "Kind" : "Kinder"
@@ -479,7 +490,13 @@ export function RoomDetailContent({
               )}
             {room.isOccupied && room.supervisorName && (
               <IconDetailRow
-                icon={<UserCog className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.supervision.icon}
+                    tone={MOTO_CONCEPTS.supervision.tone}
+                    size={18}
+                  />
+                }
                 label="Aktuelle Aufsicht"
                 value={room.supervisorName}
               />
@@ -716,7 +733,7 @@ export function RoomDetailLoader({
   if (error || !room) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <div className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red rounded-lg border p-4">
           {error ?? "Raum nicht gefunden"}
         </div>
         {emptyAction}

@@ -47,7 +47,7 @@ interface CoverageIndicatorProps {
 
 const DOT_COLOR: Record<CoverageState, string> = {
   covered: "#9CA3AF",
-  gap: "#F78C10",
+  gap: MOTO_COLOR_PALETTE.orange.base,
   acknowledged: "#6B7280",
 };
 
@@ -68,11 +68,11 @@ const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
 };
 
 /** Understaffing-red for the "Ist" figure — only ever used as text color. */
-const UNDERSTAFFED_TEXT_COLOR = "#FF3130";
+const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
 
 /** Delta tint of the free-form label — text color only, never a fill. */
 const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
-  under: "#FF3130",
+  under: MOTO_COLOR_PALETTE.red.base,
   over: "#EAB308",
 };
 
@@ -165,3 +165,4 @@ export function CoverageIndicator({
     </span>
   );
 }
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";

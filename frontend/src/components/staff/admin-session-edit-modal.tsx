@@ -173,7 +173,7 @@ export function AdminSessionEditModal({
         type="button"
         onClick={handleSubmit}
         disabled={isSaving || !notesValid || !timesValid || !breakValid}
-        className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#70b525] disabled:cursor-not-allowed disabled:opacity-50"
+        className="bg-moto-green rounded-md px-4 py-2 text-sm font-medium text-gray-950 transition-colors hover:bg-[#70b525] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving
           ? "Speichern…"
@@ -199,7 +199,7 @@ export function AdminSessionEditModal({
               type="time"
               value={checkIn}
               onChange={(e) => setCheckIn(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
           <Field label="Check-out">
@@ -207,7 +207,7 @@ export function AdminSessionEditModal({
               type="time"
               value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
         </div>
@@ -220,7 +220,7 @@ export function AdminSessionEditModal({
               inputMode="numeric"
               value={breakMinutesStr}
               onChange={(e) => setBreakMinutesStr(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
           <Field label="Status">
@@ -241,7 +241,7 @@ export function AdminSessionEditModal({
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="z. B. Mitarbeiter hatte vergessen einzustempeln"
-            className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
           />
         </Field>
         {error && (

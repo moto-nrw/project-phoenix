@@ -348,7 +348,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               schoolDelete.setDeleteTarget(school);
             }
           }}
-          className="rounded-lg bg-[#FF3130]/10 px-3 py-1.5 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/15"
+          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
         </button>
@@ -473,7 +473,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       />
 
       {schoolToggleError && (
-        <p className="mt-3 text-sm text-[#CC2626]">{schoolToggleError}</p>
+        <p className="text-moto-red-strong mt-3 text-sm">{schoolToggleError}</p>
       )}
 
       <div className="mt-6">

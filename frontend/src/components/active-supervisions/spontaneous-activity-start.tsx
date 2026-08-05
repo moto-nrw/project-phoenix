@@ -351,9 +351,9 @@ export function SpontaneousActivityStart({
           type="button"
           disabled={disabled || isStarting}
           onClick={() => setIsOpen(true)}
-          className="flex min-h-14 w-full items-center gap-3 rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/10 px-3 py-2 text-left transition hover:border-[#83CD2D] hover:bg-[#83CD2D]/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="border-moto-green/40 bg-moto-green/10 hover:border-moto-green hover:bg-moto-green/15 flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#83CD2D] text-white">
+          <span className="bg-moto-green flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-950">
             <Plus className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
@@ -551,7 +551,7 @@ export function SpontaneousActivityStart({
                   key={activity.id}
                   type="button"
                   onClick={() => setActivityInput(activity.name)}
-                  className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:border-[#5080D8] hover:text-[#315EA8]"
+                  className="hover:border-moto-blue rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:text-[#315EA8]"
                 >
                   {activity.name}
                 </button>

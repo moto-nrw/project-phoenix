@@ -34,6 +34,10 @@ export interface DashboardAnalytics {
   lastUpdated: Date;
 }
 
+export interface DashboardAnalyticsWithHome extends DashboardAnalytics {
+  studentsHome: number;
+}
+
 interface RecentActivity {
   type: "check_in" | "check_out" | "group_start" | "group_end";
   groupName: string;

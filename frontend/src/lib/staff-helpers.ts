@@ -1,6 +1,7 @@
 // Helper functions for staff data transformation and status determination
 
 import type { Staff } from "./staff-api";
+import { MOTO_COLOR_PALETTE } from "./location-helper";
 
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {
@@ -18,8 +19,16 @@ const BADGE_COLOR = "text-white backdrop-blur-sm";
 type LocationColorConfig = [string, string, string];
 
 const LOCATION_COLORS: Record<string, LocationColorConfig> = {
-  Abwesend: ["from-red-50/80 to-rose-100/80", "#FF3130", "255, 49, 48"],
-  Anwesend: ["from-green-50/80 to-emerald-100/80", "#83CD2D", "131, 205, 45"],
+  Abwesend: [
+    "from-moto-red-soft to-white",
+    MOTO_COLOR_PALETTE.red.base,
+    "255, 49, 48",
+  ],
+  Anwesend: [
+    "from-moto-green-soft to-white",
+    MOTO_COLOR_PALETTE.green.base,
+    "131, 205, 45",
+  ],
   Homeoffice: ["from-sky-50/80 to-sky-100/80", "#0EA5E9", "14, 165, 233"],
 };
 

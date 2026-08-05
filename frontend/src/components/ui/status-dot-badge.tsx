@@ -1,7 +1,5 @@
-// Generic label+color status pill following the DataTableStatusBadge recipe
-// (gray-50 pill, colored dot, label tinted via inline style). Use it whenever
-// a status/type chip's color is data-driven from LOCATION_COLORS instead of
-// hand-rolling tinted Tailwind pills.
+import { getLocationBadgeTone } from "@/lib/location-helper";
+
 export function StatusDotBadge({
   label,
   color,
@@ -9,14 +7,22 @@ export function StatusDotBadge({
   readonly label: string;
   readonly color: string;
 }) {
+  const tone = getLocationBadgeTone(color);
+
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+      style={{
+        backgroundColor: tone.backgroundColor,
+        color: tone.textColor,
+      }}
+    >
       <span
         aria-hidden
         className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
+        style={{ backgroundColor: tone.dotColor }}
       />
-      <span style={{ color }}>{label}</span>
+      <span>{label}</span>
     </span>
   );
 }

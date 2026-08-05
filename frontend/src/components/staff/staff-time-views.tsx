@@ -41,7 +41,7 @@ export function KpiCard({
     red: "text-red-600",
   }[color ?? "gray"];
   const barColor = {
-    green: "bg-[#83CD2D]",
+    green: "bg-moto-green",
     amber: "bg-amber-500",
     gray: "bg-gray-400",
     red: "bg-red-500",

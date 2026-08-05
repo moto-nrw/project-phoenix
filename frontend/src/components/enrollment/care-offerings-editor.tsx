@@ -2,16 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  CalendarDays,
-  Check,
-  ClipboardList,
-  Copy,
-  Pencil,
-  Plus,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { Check, ClipboardList, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type CareOffering,
   type CareOfferingInput,
@@ -743,7 +735,7 @@ export function CareOfferingsEditor() {
     <div className="space-y-4">
       {error && (
         <div
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
           role="alert"
           aria-live="polite"
         >
@@ -873,12 +865,12 @@ function CareOfferingToolbar({
             value={activeOfferingCount}
           />
           <CareOfferingMetric
-            icon={<CalendarDays className="h-4 w-4" />}
+            icon={<MotoConceptIcon concept="calendar" size={18} />}
             label="Tage"
             value={selectableDaysCount}
           />
           <CareOfferingMetric
-            icon={<Users className="h-4 w-4" />}
+            icon={<MotoConceptIcon concept="children" size={18} />}
             label="Kapazität"
             value={totalCapacity || "frei"}
           />
@@ -969,13 +961,13 @@ function CareOfferingCatalogError({
 }: Readonly<{ message: string; onRetry: () => void }>) {
   return (
     <section
-      className="moto-content-surface rounded-2xl border border-[#FF3130]/20 px-6 py-10 text-center shadow-sm"
+      className="moto-content-surface border-moto-red/20 rounded-2xl border px-6 py-10 text-center shadow-sm"
       role="alert"
     >
       <h2 className="text-base font-semibold text-gray-900">
         Betreuungsangebote konnten nicht geladen werden
       </h2>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#CC2626]">
+      <p className="text-moto-red-strong mx-auto mt-2 max-w-xl text-sm leading-6">
         {message}
       </p>
       <button
@@ -992,8 +984,8 @@ function CareOfferingCatalogError({
 function NoPhaseState() {
   return (
     <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F78C10]/10 text-[#C56F0D]">
-        <CalendarDays className="h-6 w-6" aria-hidden="true" />
+      <div className="bg-moto-orange/10 mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#C56F0D]">
+        <MotoConceptIcon concept="calendarPeriods" size={28} />
       </div>
       <h2 className="mt-4 text-base font-semibold text-gray-900">
         Erst eine Anmeldephase anlegen
@@ -1006,7 +998,7 @@ function NoPhaseState() {
         href="/enrollment-phases"
         className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
-        <CalendarDays className="h-4 w-4" aria-hidden="true" />
+        <MotoConceptIcon concept="calendarPeriods" size={18} />
         Anmeldephase anlegen
       </Link>
     </section>
@@ -1018,7 +1010,7 @@ function EmptyCareOfferingState({
 }: Readonly<{ onCreate: () => void }>) {
   return (
     <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5080D8]/10 text-[#5080D8]">
+      <div className="bg-moto-blue/10 text-moto-blue mx-auto flex h-12 w-12 items-center justify-center rounded-2xl">
         <ClipboardList className="h-6 w-6" aria-hidden="true" />
       </div>
       <h2 className="mt-4 text-base font-semibold text-gray-900">
@@ -1332,7 +1324,7 @@ function CareOfferingTemplateField({
       </p>
       {periodMismatch ? (
         <p
-          className="mt-2 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-xs"
           role="alert"
         >
           {inactivePeriodMismatch
@@ -1347,7 +1339,7 @@ function CareOfferingTemplateField({
       ) : null}
       {weekdayError ? (
         <p
-          className="mt-2 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-xs"
           role="alert"
         >
           {weekdayError}
@@ -1697,7 +1689,7 @@ function CareOfferingAvailabilityFields({
                         },
                       })
                     }
-                    className="rounded border border-[#FF3130]/30 bg-white px-2 py-1 text-xs text-[#CC2626]"
+                    className="border-moto-red/30 text-moto-red-strong rounded border bg-white px-2 py-1 text-xs"
                     aria-label={`Bedingung ${index + 1} löschen`}
                   >
                     Löschen
@@ -1800,7 +1792,7 @@ function CareOfferingAvailabilityFields({
           {error ? (
             <p
               role="alert"
-              className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+              className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-xs"
             >
               {error}
             </p>
@@ -2006,7 +1998,7 @@ function CareOfferingForm({
       className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Betreuungsangebot
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -2079,7 +2071,7 @@ function CareOfferingForm({
 
       {unverifiableTemplateChange ? (
         <p
-          className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-xs"
           role="alert"
         >
           {UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE}
@@ -2209,7 +2201,7 @@ function CareOfferingCheckbox({
     <label
       className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
         checked
-          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+          ? "border-moto-green/40 bg-moto-green/10"
           : "border-gray-200 bg-white hover:bg-gray-50"
       }`}
     >
@@ -2222,7 +2214,7 @@ function CareOfferingCheckbox({
       <span
         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
           checked
-            ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+            ? "border-moto-green bg-moto-green text-gray-950"
             : "border-gray-300 bg-white"
         }`}
         aria-hidden="true"
@@ -2265,7 +2257,7 @@ function CloneOfferingForm({
       className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Duplizieren
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">

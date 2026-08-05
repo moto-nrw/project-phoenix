@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Users, Plus, Search, Trash2, Clock } from "lucide-react";
+import { Plus, Search, Trash2, Clock } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import type { Student } from "@/lib/api";
@@ -381,7 +382,7 @@ export function StudentCreateModal({
           >
             <div className="mb-3 flex items-center justify-between md:mb-4">
               <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                <Users className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" />
+                <MotoConceptIcon concept="groups" size={18} />
                 Erziehungsberechtigte
               </h3>
               <span className="text-xs text-gray-500">

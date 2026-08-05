@@ -373,7 +373,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               orgDelete.setDeleteTarget(organization);
             }
           }}
-          className="rounded-lg bg-[#FF3130]/10 px-3 py-1.5 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/15"
+          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
         </button>
@@ -399,7 +399,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 schoolDelete.showTrash
-                  ? "bg-[#FF3130]/15 text-[#CC2626] hover:bg-[#FF3130]/20"
+                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
@@ -479,7 +479,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       />
 
       {orgToggleError && (
-        <p className="mt-3 text-sm text-[#CC2626]">{orgToggleError}</p>
+        <p className="text-moto-red-strong mt-3 text-sm">{orgToggleError}</p>
       )}
 
       <div className="mt-6">

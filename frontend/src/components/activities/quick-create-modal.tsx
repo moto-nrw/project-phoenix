@@ -403,7 +403,7 @@ function ModalLoadingMessage({ message }: Readonly<{ message: string }>) {
   return (
     <div className="flex items-center justify-center py-12">
       <div className="flex flex-col items-center gap-4">
-        <SpinnerIcon className="h-12 w-12 text-[#5080D8]" />
+        <SpinnerIcon className="text-moto-blue h-12 w-12" />
         <p className="text-gray-600">{message}</p>
       </div>
     </div>

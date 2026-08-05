@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 /**
  * PlanningContextBar is the shared header of all three planning surfaces
@@ -223,7 +224,7 @@ interface PlanningDayChipProps {
 }
 
 /** Punktfarbe des Zählers: dieselbe Lückenfarbe wie im CoverageIndicator. */
-const COUNT_DOT_COLOR = "#F78C10";
+const COUNT_DOT_COLOR = MOTO_COLOR_PALETTE.orange.base;
 
 /**
  * PlanningDayChip is the building block of a week strip in the context row

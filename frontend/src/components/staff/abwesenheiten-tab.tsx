@@ -8,7 +8,8 @@ import {
   useState,
 } from "react";
 import { useSWRConfig } from "swr";
-import { Clock3, Thermometer, Trash2 } from "lucide-react";
+import { Clock3, Trash2 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import {
   DenyAbsenceModal,
@@ -307,7 +308,7 @@ export function AbwesenheitenTab({
                 setSickStaff(staff);
               }}
             >
-              <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+              <MotoConceptIcon concept="sick" size={18} className="mr-1.5" />
               Krank melden
             </Button>
             <Button
@@ -497,7 +498,7 @@ function PendingAbsences({
   if (rows.length === 0) {
     return (
       <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
+        <span className="bg-moto-green/15 inline-flex h-7 w-7 items-center justify-center rounded-full text-[#4a7a15]">
           <svg
             className="h-4 w-4"
             fill="none"
@@ -528,7 +529,7 @@ function PendingAbsences({
         <h3 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
           Eingehende Anfragen
         </h3>
-        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+        <span className="bg-moto-red inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white">
           {rows.length}
         </span>
       </div>
@@ -671,7 +672,7 @@ function AbsenceRow({
             onClick={onDelete}
             aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
             title={`${absenceTypeLabel(row.absence_type)} löschen`}
-            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            className="hover:bg-moto-red-soft hover:text-moto-red-strong rounded-md p-1.5 text-gray-400 transition-colors"
           >
             <Trash2 className="h-4 w-4" aria-hidden />
           </button>
@@ -770,7 +771,7 @@ function EditQuotaModal({
             step="0.5"
             value={entitled}
             onChange={(e) => setEntitled(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <div>
@@ -788,7 +789,7 @@ function EditQuotaModal({
             step="0.5"
             value={carryover}
             onChange={(e) => setCarryover(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
       </div>

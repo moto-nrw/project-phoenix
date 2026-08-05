@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, Download, Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   exportEmergencySnapshot,
   type EmergencySnapshotExportMode,
@@ -45,8 +46,12 @@ export default function EmergencyPage() {
   return (
     <main className="flex w-full items-center justify-center px-4 py-6 sm:min-h-[calc(100dvh-11rem)] sm:px-6 sm:py-10 lg:px-8">
       <section className="w-full max-w-3xl rounded-[32px] border border-gray-200 bg-white p-6 text-center shadow-[0_20px_70px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.06)] sm:p-10 lg:p-12">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FF3130]/10 text-[#FF3130] ring-8 ring-[#FF3130]/5 sm:h-16 sm:w-16">
-          <AlertTriangle className="h-7 w-7 sm:h-8 sm:w-8" aria-hidden />
+        <div className="bg-moto-red/10 text-moto-red ring-moto-red/5 mx-auto flex h-14 w-14 items-center justify-center rounded-full ring-8 sm:h-16 sm:w-16">
+          <MotoConceptIcon
+            concept="emergency"
+            size={32}
+            className="h-7 w-7 sm:h-8 sm:w-8"
+          />
         </div>
 
         <div className="mx-auto mt-4 max-w-2xl sm:mt-6">
@@ -60,7 +65,7 @@ export default function EmergencyPage() {
         </div>
 
         {error ? (
-          <div className="mt-8 rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-left text-[#FF3130]">
+          <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mt-8 rounded-xl border p-4 text-left">
             {error}
           </div>
         ) : null}

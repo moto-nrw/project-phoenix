@@ -81,7 +81,7 @@ export function StatsCards({
         title="Neu"
         value={newCount}
         icon="M12 4v16m8-8H4"
-        colorClass="from-[#83CD2D] to-[#70b525]"
+        colorClass="from-moto-green to-[#70b525]"
         overlayClass="from-green-50/80 to-lime-100/80"
       />
 
@@ -90,7 +90,7 @@ export function StatsCards({
         title="Vorhanden"
         value={existing}
         icon="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-        colorClass="from-[#5080D8] to-[#4070c8]"
+        colorClass="from-moto-blue to-[#4070c8]"
         overlayClass="from-blue-50/80 to-cyan-100/80"
       />
 
@@ -99,7 +99,7 @@ export function StatsCards({
         title="Fehler"
         value={errors}
         icon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-        colorClass="from-[#FF3130] to-[#e02020]"
+        colorClass="from-moto-red to-[#e02020]"
         overlayClass="from-red-50/80 to-rose-100/80"
       />
     </div>

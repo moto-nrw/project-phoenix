@@ -2,16 +2,8 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import {
-  Pencil,
-  Phone,
-  Mail,
-  MapPin,
-  ShieldCheck,
-  StickyNote,
-  Plus,
-  X,
-} from "lucide-react";
+import { Pencil, Phone, Mail, MapPin, StickyNote, Plus, X } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type ChildGuardian,
   type GuardianContactPayload,
@@ -183,8 +175,8 @@ export default function GuardiansPanel({
         <div
           className={`mt-4 rounded-xl border p-3 text-sm ${
             message.kind === "success"
-              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#5A8E1F]"
-              : "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]"
+              ? "border-moto-green/30 bg-moto-green/10 text-moto-green-strong"
+              : "border-moto-red/20 bg-moto-red/10 text-moto-red-strong"
           }`}
         >
           {message.text}
@@ -261,7 +253,7 @@ function GuardianRow({
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#83CD2D]/15 text-sm font-semibold text-[#5A8E1F]">
+        <span className="bg-moto-green/15 text-moto-green-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
           {initials(g.first_name, g.last_name)}
         </span>
         <div className="min-w-0 flex-1">
@@ -346,9 +338,7 @@ function GuardianRow({
               )}
               {g.pickup_notes && (
                 <ContactLine
-                  icon={
-                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                  }
+                  icon={<MotoConceptIcon concept="permissions" size={16} />}
                   text={g.pickup_notes}
                 />
               )}
@@ -397,7 +387,7 @@ function GuardianRow({
                 className="text-gray-400"
               >
                 {g.can_manage_pickup ? (
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  <MotoConceptIcon concept="permissions" size={18} />
                 ) : (
                   <StickyNote className="h-4 w-4" aria-hidden="true" />
                 )}
@@ -540,7 +530,7 @@ function ContactModal({
     >
       <div className="space-y-4">
         {error && (
-          <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
             {error}
           </div>
         )}
@@ -756,7 +746,7 @@ function PickupModal({
     >
       <div className="space-y-4">
         {error && (
-          <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
             {error}
           </div>
         )}

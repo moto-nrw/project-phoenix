@@ -67,7 +67,7 @@ export function RefreshButton() {
           onAnimationIteration={handleAnimationIteration}
         />
         <Check
-          className={`absolute inset-0 h-5 w-5 text-[#83CD2D] transition-[opacity,scale] duration-200 ${
+          className={`text-moto-green absolute inset-0 h-5 w-5 transition-[opacity,scale] duration-200 ${
             state === "success" ? "scale-100 opacity-100" : "scale-50 opacity-0"
           }`}
         />

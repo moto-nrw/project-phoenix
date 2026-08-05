@@ -1055,10 +1055,12 @@ describe("MobileBottomNav", () => {
       const svgs = document.querySelectorAll("svg");
       expect(svgs.length).toBeGreaterThan(0);
 
-      // Each should have proper attributes
+      // Legacy utility icons use a 24px viewBox, Phosphor concept icons use 256px.
       svgs.forEach((svg) => {
-        expect(svg).toHaveAttribute("viewBox", "0 0 24 24");
-        expect(svg).toHaveAttribute("stroke", "currentColor");
+        expect(["0 0 24 24", "0 0 256 256"]).toContain(
+          svg.getAttribute("viewBox"),
+        );
+        expect(svg).toHaveAttribute("aria-hidden", "true");
       });
     });
   });

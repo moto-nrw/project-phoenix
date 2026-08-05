@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Building2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
@@ -27,12 +26,8 @@ import {
 } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
-import {
-  ArrowRight,
-  FileSpreadsheet,
-  FileText,
-  Footprints,
-} from "lucide-react";
+import { ArrowRight, FileSpreadsheet, FileText } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
@@ -87,10 +82,7 @@ function TransitAssignmentCard({
           style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
           aria-hidden="true"
         >
-          <Footprints
-            className="h-5 w-5"
-            style={{ color: LOCATION_COLORS.TRANSIT }}
-          />
+          <MotoConceptIcon concept="transit" size={22} />
         </span>
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
@@ -554,13 +546,13 @@ function RoomsPageContent() {
       />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
           {error}
         </div>
       )}
 
       {exportError && (
-        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
           {exportError}
         </div>
       )}
@@ -592,7 +584,7 @@ function RoomsPageContent() {
 
           {filteredRooms.length === 0 && !showTransitAssignment ? (
             <EmptyState
-              icon={<Building2 className="h-12 w-12" strokeWidth={1.5} />}
+              icon={<MotoConceptIcon concept="rooms" size={48} />}
               title="Keine Räume gefunden"
               description="Versuchen Sie Ihre Suchkriterien anzupassen."
             />
@@ -666,15 +658,15 @@ function RoomsPageContent() {
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
                               room.isOccupied
-                                ? "bg-[#FF3130]/15 text-[#FF3130]"
-                                : "bg-[#83CD2D]/15 text-[#4a7a15]"
+                                ? "bg-moto-red/15 text-moto-red"
+                                : "bg-moto-green/15 text-[#4a7a15]"
                             }`}
                           >
                             <span
                               className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
                                 room.isOccupied
-                                  ? "animate-pulse bg-[#FF3130]"
-                                  : "bg-[#83CD2D]"
+                                  ? "bg-moto-red animate-pulse"
+                                  : "bg-moto-green"
                               }`}
                             ></span>
                             {room.isOccupied ? "Belegt" : "Frei"}

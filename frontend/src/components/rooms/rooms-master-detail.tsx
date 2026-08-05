@@ -15,6 +15,8 @@ import {
 } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { DatabaseForm } from "~/components/ui/database/database-form";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, isSystemRoom, type Room } from "@/lib/room-helpers";
 import { buildRoomFormSections } from "./room-form-sections";
@@ -71,7 +73,9 @@ export function RoomsMasterDetail({
       title={room.name}
       subtitle={
         <span
-          className={room.isOccupied ? "font-medium text-[#F78C10]" : undefined}
+          className={
+            room.isOccupied ? "text-moto-orange font-medium" : undefined
+          }
         >
           {buildRoomSubtitle(room)}
         </span>
@@ -162,7 +166,13 @@ function RoomDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={room.name?.charAt(0)?.toUpperCase() || "R"}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.rooms.icon}
+              tone={MOTO_CONCEPTS.rooms.tone}
+              size={36}
+            />
+          }
           title={room.name}
           subtitle={buildRoomLocation(room)}
           actions={headerActions}
@@ -216,8 +226,8 @@ function RoomStatusSummary({ room }: { room: Room }) {
         <span
           className={
             isOccupied
-              ? "rounded-full bg-[#F78C10]/15 px-2.5 py-1 text-xs font-medium text-[#F78C10]"
-              : "rounded-full bg-[#83CD2D]/15 px-2.5 py-1 text-xs font-medium text-[#83CD2D]"
+              ? "bg-moto-orange/15 text-moto-orange rounded-full px-2.5 py-1 text-xs font-medium"
+              : "bg-moto-green/15 text-moto-green rounded-full px-2.5 py-1 text-xs font-medium"
           }
         >
           {isOccupied ? "Belegt" : "Frei"}

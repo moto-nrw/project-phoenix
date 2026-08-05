@@ -170,7 +170,7 @@ export function StepWiederholung({
           </Tabs>
           <p className="text-xs text-gray-500">{abWeekHint}</p>
           {fieldErrors.weekPattern && (
-            <p role="alert" className="mt-1 text-xs text-[#FF3130]">
+            <p role="alert" className="text-moto-red mt-1 text-xs">
               {fieldErrors.weekPattern}
             </p>
           )}
@@ -221,7 +221,7 @@ export function StepWiederholung({
               </p>
             )}
             {fieldErrors.weekdays && (
-              <p role="alert" className="mt-1 text-xs text-[#FF3130]">
+              <p role="alert" className="text-moto-red mt-1 text-xs">
                 {fieldErrors.weekdays}
               </p>
             )}
@@ -273,7 +273,7 @@ export function StepWiederholung({
                   </span>
                 </div>
                 {fieldErrors.calendarPeriodId && (
-                  <p role="alert" className="mt-1 text-xs text-[#FF3130]">
+                  <p role="alert" className="text-moto-red mt-1 text-xs">
                     {fieldErrors.calendarPeriodId}
                   </p>
                 )}

@@ -14,7 +14,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Lightbulb, MessageSquareHeart } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
@@ -24,6 +23,9 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { ConceptPageHeader } from "~/components/ui/concept-section-header";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { Suggestion, SortOption } from "~/lib/suggestions-helpers";
@@ -189,36 +191,36 @@ export default function ParentFeedbackPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("kicker")}
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-balance text-gray-900">
-          {t("title")}
-        </h1>
-        <p className="mt-1 text-sm leading-6 text-gray-600">
-          {t("productTeamNotice")}
-        </p>
-        <p className="mt-1 text-sm leading-6 text-gray-500">
-          {t("pseudonymNotice")}
-        </p>
+        <ConceptPageHeader
+          title={t("title")}
+          eyebrow={t("kicker")}
+          concept="feedback"
+          subtitle={
+            <>
+              <p>{t("productTeamNotice")}</p>
+              <p className="text-gray-500">{t("pseudonymNotice")}</p>
+            </>
+          }
+        />
       </header>
 
       {loadError && (
         <div className="flex flex-wrap items-center gap-3">
           <Alert type="error" message={t("loadError")} />
-          <button
+          <Button
             type="button"
             onClick={() => void loadSchools()}
-            className="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            variant="outline"
+            size="compact"
           >
             {t("retry")}
-          </button>
+          </Button>
         </div>
       )}
 
       {noSchools && (
         <EmptyState
-          icon={<MessageSquareHeart className="h-12 w-12" strokeWidth={1.5} />}
+          icon={<MotoConceptIcon concept="feedback" size={48} />}
           title={t("noSchoolsTitle")}
           description={t("noSchoolsDescription")}
         />
@@ -268,16 +270,17 @@ export default function ParentFeedbackPage() {
               />
             </div>
             {boardReady && (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setEditPost(null);
                   setFormOpen(true);
                 }}
-                className="ml-auto h-9 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+                className="ml-auto"
+                size="compact"
               >
                 {t("newEntry")}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -290,17 +293,17 @@ export default function ParentFeedbackPage() {
 
           {boardReady && posts.length === 0 && (
             <EmptyState
-              icon={<Lightbulb className="h-12 w-12" strokeWidth={1.5} />}
+              icon={<MotoConceptIcon concept="feedback" size={48} />}
               title={t("emptyTitle")}
               description={t("emptyDescription")}
               action={
-                <button
+                <Button
                   type="button"
                   onClick={() => setFormOpen(true)}
-                  className="h-9 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+                  size="compact"
                 >
                   {t("newEntry")}
-                </button>
+                </Button>
               }
             />
           )}
@@ -355,7 +358,7 @@ export default function ParentFeedbackPage() {
         }}
         title={t("deleteTitle")}
         confirmText={t("delete")}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#e02b2a]"
+        confirmButtonClass="bg-moto-red hover:bg-[#e02b2a]"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">{t("deleteBody")}</p>

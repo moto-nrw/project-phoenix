@@ -761,14 +761,14 @@ export default function OperatorAnnouncementsPage() {
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
                       isChecked
-                        ? "border-[#83CD2D] bg-[#83CD2D]/10 text-gray-900"
+                        ? "border-moto-green bg-moto-green/10 text-gray-900"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
                     <span
                       className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                         isChecked
-                          ? "border-[#83CD2D] bg-[#83CD2D]"
+                          ? "border-moto-green bg-moto-green"
                           : "border-gray-300 bg-white"
                       }`}
                     >
@@ -929,14 +929,14 @@ export default function OperatorAnnouncementsPage() {
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
                       isChecked
-                        ? "border-[#83CD2D] bg-[#83CD2D]/10 text-gray-900"
+                        ? "border-moto-green bg-moto-green/10 text-gray-900"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
                     <span
                       className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                         isChecked
-                          ? "border-[#83CD2D] bg-[#83CD2D]"
+                          ? "border-moto-green bg-moto-green"
                           : "border-gray-300 bg-white"
                       }`}
                     >
@@ -994,14 +994,14 @@ export default function OperatorAnnouncementsPage() {
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
                       isChecked
-                        ? "border-[#83CD2D] bg-[#83CD2D]/10 text-gray-900"
+                        ? "border-moto-green bg-moto-green/10 text-gray-900"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
                     <span
                       className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                         isChecked
-                          ? "border-[#83CD2D] bg-[#83CD2D]"
+                          ? "border-moto-green bg-moto-green"
                           : "border-gray-300 bg-white"
                       }`}
                     >
@@ -1046,7 +1046,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handlePublish()}
         title="Ankündigung veröffentlichen?"
         confirmText="Veröffentlichen"
-        confirmButtonClass="bg-gradient-to-br from-[#83CD2D] to-[#70b525] hover:shadow-lg"
+        confirmButtonClass="bg-gradient-to-br from-moto-green to-[#70b525] hover:shadow-lg"
         isConfirmLoading={isPublishing}
       >
         <p className="text-sm text-gray-600">
@@ -1241,7 +1241,7 @@ function AnnouncementCard({
           <button
             type="button"
             onClick={() => onPublish(announcement)}
-            className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#83CD2D] to-[#6db823] px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:brightness-105 active:scale-[0.98]"
+            className="group from-moto-green flex items-center gap-2 rounded-xl bg-gradient-to-r to-[#6db823] px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:brightness-105 active:scale-[0.98]"
           >
             <span>Veröffentlichen</span>
             <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

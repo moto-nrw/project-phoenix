@@ -399,7 +399,7 @@ export function VacationRequestModal({
                 questionVacation:
                   "[&>button]:!bg-[#7C3AED]/15 [&>button]:!text-[#7C3AED] [&>button]:!ring-1 [&>button]:!ring-[#7C3AED]/40",
                 approvedVacation:
-                  "[&>button]:!bg-[#83CD2D]/15 [&>button]:!text-[#4a7a15] [&>button]:!ring-1 [&>button]:!ring-[#83CD2D]/40",
+                  "[&>button]:!bg-moto-green/15 [&>button]:!text-[#4a7a15] [&>button]:!ring-1 [&>button]:!ring-moto-green/40",
               }}
             />
           </div>
@@ -414,7 +414,7 @@ export function VacationRequestModal({
                 {"Rückfrage"}
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-[#83CD2D]/50" />
+                <span className="bg-moto-green/50 h-2 w-2 rounded-full" />
                 Genehmigt oder eingetragen
               </span>
             </div>

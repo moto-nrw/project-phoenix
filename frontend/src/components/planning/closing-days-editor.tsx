@@ -8,7 +8,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarOff, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
 import { Button } from "~/components/ui/button";
@@ -158,7 +159,7 @@ export function ClosingDaysEditor() {
               type="button"
               variant="ghost"
               size="compact"
-              className="text-[#FF3130] hover:text-[#CC2626]"
+              className="text-moto-red hover:text-moto-red-strong"
               onClick={() => setDeleting(day)}
             >
               Löschen
@@ -182,7 +183,7 @@ export function ClosingDaysEditor() {
     <div className="space-y-4">
       {error && (
         <div
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
           role="alert"
           aria-live="polite"
         >
@@ -212,8 +213,8 @@ export function ClosingDaysEditor() {
 
       {closingDays.length === 0 ? (
         <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#83CD2D]/10 text-[#669f21]">
-            <CalendarOff className="h-6 w-6" aria-hidden="true" />
+          <div className="bg-moto-green/10 mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#669f21]">
+            <MotoConceptIcon concept="closingDays" size={28} />
           </div>
           <h2 className="mt-4 text-base font-semibold text-gray-900">
             Noch keine Schließtage
@@ -257,7 +258,7 @@ export function ClosingDaysEditor() {
         title="Schließtag löschen"
         confirmText="Löschen"
         isConfirmLoading={deleteLoading}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
       >
         {deleting && (
           <p>

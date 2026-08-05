@@ -21,9 +21,9 @@ export const timetableTextAreaClass =
   "w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset transition-colors hover:ring-gray-300 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400";
 
 export const timetableDangerPanel =
-  "rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/5 p-3";
+  "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
 
-export const timetableRequiredMark = "ml-0.5 text-[#FF3130]";
+export const timetableRequiredMark = "ml-0.5 text-moto-red";
 
 /** Readable dark-amber text pairing with white/gray-50 backgrounds. */
 export const timetableWarningText = "text-[#92400E]";
@@ -44,5 +44,5 @@ export const timetableToneColors: Record<TimetableTone, string> = {
   success: LOCATION_COLORS.GROUP_ROOM,
   info: LOCATION_COLORS.OTHER_ROOM,
   warning: LOCATION_COLORS.SICK,
-  danger: LOCATION_COLORS.HOME,
+  danger: LOCATION_COLORS.DANGER,
 } as const;

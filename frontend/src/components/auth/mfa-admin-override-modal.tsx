@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   adminGetMFAState,
   adminResetMFA,
@@ -18,7 +19,7 @@ import {
 
 const logger = createLogger({ component: "MFAAdminOverrideModal" });
 
-const DANGER_RED = "#FF3130";
+const DANGER_RED = MOTO_COLOR_PALETTE.red.base;
 const MIN_REASON_LENGTH = 3;
 
 type View = { kind: "form" } | { kind: "reset-done" };
@@ -376,7 +377,7 @@ export function MFAAdminOverrideModal({
                     maxLength={500}
                     placeholder="z. B. „Mitarbeiter hat keinen Zugriff mehr auf sein E-Mail-Postfach"
                     disabled={isWorking}
-                    className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50"
+                    className="focus-visible:ring-moto-blue block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50"
                   />
                 </div>
                 {error && (
@@ -449,7 +450,7 @@ export function MFAAdminOverrideModal({
                       aria-label={opt.title}
                       className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
                         selectedOverride === opt.value
-                          ? "border-[#5080D8] bg-[#5080D8]/5"
+                          ? "border-moto-blue bg-moto-blue/5"
                           : "border-gray-200 hover:bg-gray-50"
                       }`}
                     >
@@ -495,7 +496,7 @@ export function MFAAdminOverrideModal({
                       maxLength={500}
                       placeholder="z. B. „Mitarbeiter im Urlaub, Postfach gesperrt"
                       disabled={overrideWorking}
-                      className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50"
+                      className="focus-visible:ring-moto-blue block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50"
                     />
                   </div>
                 )}
@@ -615,7 +616,7 @@ export function MFAAdminOverrideModal({
                       maxLength={500}
                       placeholder="z. B. „Mitarbeiter hat dauerhaft keinen E-Mail-Zugriff mehr — Account-weite Notfall-Freischaltung"
                       disabled={globalWorking}
-                      className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF3130] disabled:bg-gray-50"
+                      className="focus-visible:ring-moto-red block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50"
                     />
                   </div>
                 )}

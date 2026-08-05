@@ -1361,7 +1361,7 @@ export function EnrollmentForm({
       {error && (
         <div
           ref={errorRef}
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm font-medium text-[#CC2626]"
+          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm font-medium"
           role="alert"
           aria-live="polite"
         >
@@ -1444,7 +1444,7 @@ export function EnrollmentForm({
               <button
                 type="button"
                 onClick={() => removeGuardian(i)}
-                className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+                className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 {tr("actions.remove")}
               </button>
@@ -1545,7 +1545,7 @@ export function EnrollmentForm({
           profile.children.length > 0 &&
           !lockChildStructure &&
           isNewStudentsPhase && (
-            <p className="rounded-lg border border-[#F78C10]/30 bg-[#F78C10]/5 px-4 py-3 text-sm text-gray-700">
+            <p className="border-moto-orange/30 bg-moto-orange/5 rounded-lg border px-4 py-3 text-sm text-gray-700">
               {tr("sections.newStudentsOnlyNotice")}
             </p>
           )}
@@ -1648,7 +1648,7 @@ export function EnrollmentForm({
                   <button
                     type="button"
                     onClick={() => removeChild(i)}
-                    className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+                    className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   >
                     {tr("actions.remove")}
                   </button>
@@ -1842,7 +1842,7 @@ export function EnrollmentForm({
                           ? tr("care.additional")
                           : tr("care.offers")}
                         {careOfferingSelectionMode !== "optional" && (
-                          <span className="ml-1 text-[#FF3130]">*</span>
+                          <span className="text-moto-red ml-1">*</span>
                         )}
                       </p>
                       <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -1857,7 +1857,7 @@ export function EnrollmentForm({
                         aria-invalid={childOfferingErrors[i] ? true : undefined}
                         className={`mt-2 space-y-2 ${
                           childOfferingErrors[i]
-                            ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
+                            ? "border-moto-red bg-moto-red/5 rounded-md border p-2"
                             : ""
                         }`}
                       >
@@ -1919,7 +1919,7 @@ export function EnrollmentForm({
                                   {bucket.group}
                                 </span>
                                 {offeringRuleHint(bucket.rule, tr) && (
-                                  <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                                  <span className="bg-moto-blue/10 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
                                     {offeringRuleHint(bucket.rule, tr)}
                                   </span>
                                 )}
@@ -1969,7 +1969,7 @@ export function EnrollmentForm({
                         )}
                       </div>
                       {childOfferingErrors[i] && (
-                        <p className="mt-1 text-xs text-[#FF3130]">
+                        <p className="text-moto-red mt-1 text-xs">
                           {careOfferingSelectionMode === "exactly_one"
                             ? tr("care.chooseExactlyOne")
                             : tr("care.chooseAtLeastOne")}
@@ -2132,7 +2132,7 @@ export function EnrollmentForm({
       {!skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key && (
         <div
           role="alert"
-          className="rounded-md border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-[#CC2626]"
+          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-md border p-3 text-sm"
         >
           {tr("captchaMisconfigured")}
         </div>
@@ -2448,7 +2448,7 @@ function InfoBlock({
   readonly field: PublicFormSchema["fields"][number];
 }) {
   return (
-    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+    <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border p-3">
       {field.label && (
         <p className="text-sm font-semibold text-gray-900">{field.label}</p>
       )}
@@ -2499,9 +2499,9 @@ function OfferingCard({
     offering.available_days.some((day) => automaticDays?.has(day) ?? false);
   let stateClass = "border-gray-200 bg-white hover:border-gray-300";
   if (dayError) {
-    stateClass = "border-[#FF3130] bg-[#FF3130]/5";
+    stateClass = "border-moto-red bg-moto-red/5";
   } else if (autoIncluded || checked) {
-    stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
+    stateClass = "border-moto-green/40 bg-moto-green/10";
   } else if (required || toggleLocked) {
     stateClass = "border-gray-200 bg-gray-50";
   }
@@ -2533,7 +2533,7 @@ function OfferingCard({
           {inputLocked ? (
             <span
               className={`flex h-5 w-5 items-center justify-center rounded-md text-white ${
-                autoIncluded ? "bg-[#83CD2D]" : "bg-gray-400"
+                autoIncluded ? "bg-moto-green" : "bg-gray-400"
               }`}
             >
               {autoIncluded ? (
@@ -2544,7 +2544,7 @@ function OfferingCard({
             </span>
           ) : (
             checked && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+              <span className="bg-moto-green flex h-5 w-5 items-center justify-center rounded-md text-gray-950">
                 <Check className="h-3.5 w-3.5" />
               </span>
             )
@@ -2597,7 +2597,7 @@ function OfferingCard({
                 disabled={automatic}
                 className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                   selected
-                    ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                    ? "border-moto-green bg-moto-green text-gray-950"
                     : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                 }`}
                 aria-pressed={selected}
@@ -2609,7 +2609,7 @@ function OfferingCard({
         </div>
       )}
       {dayError && (
-        <p className="mt-1 ml-8 text-xs text-[#FF3130]">
+        <p className="text-moto-red mt-1 ml-8 text-xs">
           {tr("errors.dayInline")}
         </p>
       )}
@@ -2658,13 +2658,13 @@ function Input({
         spellCheck={type === "email" ? false : undefined}
         className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           error
-            ? "border-[#FF3130] bg-[#FF3130]/5"
+            ? "border-moto-red bg-moto-red/5"
             : readOnly
               ? "border-gray-200 bg-gray-50 text-gray-500"
               : "moto-content-surface hover:border-gray-300"
         }`}
       />
-      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </label>
   );
 }
@@ -2715,7 +2715,7 @@ function GradeLevelSelect({
           })),
         ]}
       />
-      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </label>
   );
 }
@@ -2827,7 +2827,7 @@ function SchoolClassSelect({
           ...classes.map((c) => ({ value: c, label: c })),
         ]}
       />
-      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </label>
   );
 }
@@ -2843,7 +2843,7 @@ function SectionHeading({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
         {kicker}
       </p>
       <h2 className="mt-1 text-lg font-semibold text-gray-900">{title}</h2>
@@ -2901,7 +2901,7 @@ const LEGAL_MARKDOWN_COMPONENTS: Components = {
   ),
   a: ({ node: _node, children, ...props }) => (
     <a
-      className="font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
+      className="text-moto-blue font-medium underline underline-offset-2 hover:text-[#3F66AE]"
       target="_blank"
       rel="noopener noreferrer"
       {...props}
@@ -3036,9 +3036,9 @@ function Consent({
       <label
         className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors ${
           checked
-            ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+            ? "border-moto-green/40 bg-moto-green/10"
             : error
-              ? "border-[#FF3130] bg-[#FF3130]/5"
+              ? "border-moto-red bg-moto-red/5"
               : "border-gray-200 bg-white hover:border-gray-300"
         }`}
       >
@@ -3053,13 +3053,13 @@ function Consent({
             className="absolute inset-0 cursor-pointer opacity-0"
           />
           {checked && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+            <span className="bg-moto-green flex h-5 w-5 items-center justify-center rounded-md text-gray-950">
               <Check className="h-3.5 w-3.5" />
             </span>
           )}
         </span>
         <span className="min-w-0 flex-1 leading-6 font-medium text-gray-700">
-          {label} {required && <span className="text-[#FF3130]">*</span>}
+          {label} {required && <span className="text-moto-red">*</span>}
         </span>
         {hasLink && (
           <LegalDetailsButton
@@ -3073,7 +3073,7 @@ function Consent({
           />
         )}
       </label>
-      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </div>
   );
 }
@@ -3098,13 +3098,13 @@ function EmailContactNotice({
   readonly detailsAriaLabel: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-[#5080D8]/25 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-700">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[#5080D8]/30 bg-white text-[#5080D8]">
+    <div className="border-moto-blue/25 bg-moto-blue/5 flex items-center gap-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
+      <span className="border-moto-blue/30 text-moto-blue flex h-5 w-5 shrink-0 items-center justify-center rounded-md border bg-white">
         <Info className="h-3.5 w-3.5" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <span className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Hinweis
           </span>
         </div>
@@ -3320,7 +3320,7 @@ function CustomFieldInput({
     <>
       <span className="block text-sm font-semibold text-gray-700">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </span>
       {field.help_text && (
         <span className="mt-1 block text-xs leading-5 text-gray-500">
@@ -3361,7 +3361,7 @@ function CustomFieldInput({
             </label>
           ))}
         </div>
-        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
       </fieldset>
     );
   }
@@ -3374,11 +3374,11 @@ function CustomFieldInput({
           onChange={(e) => onChange(e.target.value)}
           rows={3}
           name={field.key}
-          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
+          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red" : ""}`}
           aria-required={field.required}
           aria-invalid={error ? "true" : undefined}
         />
-        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
       </label>
     );
   }
@@ -3402,7 +3402,7 @@ function CustomFieldInput({
             })),
           ]}
         />
-        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
       </label>
     );
   }
@@ -3498,7 +3498,7 @@ function CustomFieldInput({
           // bound is imposed.
           monthYearNavigation
         />
-        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
       </div>
     );
   }
@@ -3514,9 +3514,9 @@ function CustomFieldInput({
         onChange={(e) => onChange(e.target.value)}
         aria-required={field.required}
         aria-invalid={error ? "true" : undefined}
-        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
+        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red" : ""}`}
       />
-      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </label>
   );
 }
@@ -3562,12 +3562,12 @@ function PhoneListInput({
     );
   return (
     <fieldset
-      className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </legend>
       {field.help_text && (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -3642,7 +3642,7 @@ function PhoneListInput({
             <button
               type="button"
               onClick={() => update(phones.filter((_, i) => i !== idx))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
               aria-label={tr("structured.removeNumber")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -3663,7 +3663,7 @@ function PhoneListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addPhone")}
       </button>
-      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
     </fieldset>
   );
 }
@@ -3986,12 +3986,12 @@ function WeekdayScheduleInput({
   const allowedTimes = field.allowed_times ?? [];
   return (
     <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </legend>
       {field.help_text && (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -4075,7 +4075,7 @@ function WeekdayScheduleInput({
           </div>
         </>
       )}
-      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
     </fieldset>
   );
 }
@@ -4091,12 +4091,12 @@ function WeekdayBooleanInput({
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   return (
     <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </legend>
       {field.help_text && (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -4131,7 +4131,7 @@ function WeekdayBooleanInput({
           );
         })}
       </div>
-      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
     </fieldset>
   );
 }
@@ -4152,12 +4152,12 @@ function WeekdayModeInput({
   };
   return (
     <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </legend>
       {field.help_text && (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -4204,7 +4204,7 @@ function WeekdayModeInput({
           );
         })}
       </div>
-      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
     </fieldset>
   );
 }
@@ -4352,12 +4352,12 @@ function WeekdayMultiModeInput({
     : daysToRender.some((day) => (modes[day] ?? []).includes("accompanied"));
   return (
     <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </legend>
       {field.help_text && (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -4486,18 +4486,16 @@ function WeekdayMultiModeInput({
               maxLength={255}
               aria-invalid={companionNoteError ? "true" : undefined}
               className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${
-                companionNoteError ? "border-[#FF3130]" : "border-gray-200"
+                companionNoteError ? "border-moto-red" : "border-gray-200"
               }`}
             />
             {companionNoteError && (
-              <p className="mt-1 text-xs text-[#FF3130]">
-                {companionNoteError}
-              </p>
+              <p className="text-moto-red mt-1 text-xs">{companionNoteError}</p>
             )}
           </div>
         )}
       </div>
-      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
       <ConfirmationModal
         isOpen={confirmUniformOpen}
         onClose={() => setConfirmUniformOpen(false)}
@@ -4508,7 +4506,7 @@ function WeekdayMultiModeInput({
         title={tr("structured.weekdayMultiModeUniformConfirmTitle")}
         confirmText={tr("structured.weekdayMultiModeUniformConfirmCta")}
         cancelText={tr("structured.weekdayMultiModeUniformConfirmCancel")}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#FF3130]/90"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
       >
         {tr("structured.weekdayMultiModeUniformConfirmBody")}
       </ConfirmationModal>
@@ -4566,12 +4564,12 @@ function ContactListInput({
     );
   return (
     <fieldset
-      className={`rounded-2xl border bg-white p-4 shadow-sm ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      className={`rounded-2xl border bg-white p-4 shadow-sm ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
-        {field.required && <span className="text-[#FF3130]"> *</span>}
+        {field.required && <span className="text-moto-red"> *</span>}
       </legend>
       {field.help_text && (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -4675,7 +4673,7 @@ function ContactListInput({
               <button
                 type="button"
                 onClick={() => update(contacts.filter((_, i) => i !== idx))}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FF3130]/20 bg-white px-3 text-sm font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+                className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-9 items-center justify-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 {tr("structured.removeContact")}
@@ -4692,7 +4690,7 @@ function ContactListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addContact")}
       </button>
-      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
     </fieldset>
   );
 }
@@ -4714,7 +4712,7 @@ function StructuredToggle({
     <label
       className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
         checked
-          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10 text-gray-900"
+          ? "border-moto-green/40 bg-moto-green/10 text-gray-900"
           : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
       }`}
     >
@@ -4730,7 +4728,7 @@ function StructuredToggle({
           type === "radio" ? "rounded-full" : "rounded-md"
         } ${
           checked
-            ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+            ? "border-moto-green bg-moto-green text-gray-950"
             : "border-gray-300 bg-white"
         }`}
         aria-hidden="true"
@@ -4763,7 +4761,7 @@ function ExistingChildrenPanel({
   tr,
 }: ExistingChildrenPanelProps) {
   return (
-    <div className="rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/5 p-4">
+    <div className="border-moto-green/40 bg-moto-green/5 rounded-lg border p-4">
       <h3 className="text-sm font-semibold text-gray-900">
         {tr("structured.existingTitle")}
       </h3>
@@ -4930,7 +4928,7 @@ function DateOfBirthPicker({
           ]}
         />
       </div>
-      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </>
   );
 }

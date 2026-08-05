@@ -562,7 +562,7 @@ export function SubstitutionSlideOver({
                               key={row.staffId}
                               className={`rounded-xl border shadow-sm ${
                                 p.absent
-                                  ? "border-[#FF3130]/25 bg-[#FF3130]/5"
+                                  ? "border-moto-red/25 bg-moto-red/5"
                                   : "border-gray-200 bg-white"
                               }`}
                             >
@@ -580,7 +580,7 @@ export function SubstitutionSlideOver({
                                   </div>
                                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
                                     {p.absent ? (
-                                      <span className="font-semibold text-[#CC2626]">
+                                      <span className="text-moto-red-strong font-semibold">
                                         Abwesend
                                       </span>
                                     ) : (
@@ -640,7 +640,7 @@ export function SubstitutionSlideOver({
 
                               {/* Absent detail: clearly-labelled Vertretung + optional reason */}
                               {p.absent && (
-                                <div className="space-y-2 rounded-b-xl border-t border-[#FF3130]/15 bg-white/60 p-3">
+                                <div className="border-moto-red/15 space-y-2 rounded-b-xl border-t bg-white/60 p-3">
                                   <div>
                                     <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
                                       Vertretung für {name}
@@ -679,7 +679,7 @@ export function SubstitutionSlideOver({
                                       </p>
                                     ) : staffLoadError &&
                                       substituteOptions.length === 0 ? (
-                                      <p className="mt-1 text-[11px] text-[#CC2626]">
+                                      <p className="text-moto-red-strong mt-1 text-[11px]">
                                         Personalliste konnte nicht geladen
                                         werden. Bitte die Seite neu laden.
                                       </p>
@@ -745,7 +745,7 @@ export function SubstitutionSlideOver({
                               <li
                                 key={row.staffId}
                                 className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 ${
-                                  inactive ? "bg-gray-100" : "bg-[#83CD2D]/10"
+                                  inactive ? "bg-gray-100" : "bg-moto-green/10"
                                 }`}
                               >
                                 <span
@@ -759,7 +759,7 @@ export function SubstitutionSlideOver({
                                 </span>
                                 <div className="flex shrink-0 items-center gap-2">
                                   {row.isAbsent && !restored ? (
-                                    <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
+                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
                                       Abwesend
                                     </span>
                                   ) : removed ? (
@@ -767,11 +767,11 @@ export function SubstitutionSlideOver({
                                       Wird entfernt
                                     </span>
                                   ) : restored ? (
-                                    <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
+                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
                                       Wird wiederhergestellt
                                     </span>
                                   ) : (
-                                    <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
+                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
                                       Ersatz
                                     </span>
                                   )}
@@ -877,7 +877,7 @@ export function SubstitutionSlideOver({
                             Eine geplante Position bleibt absichtlich unbesetzt
                             und zählt nicht als offene Lücke.
                             {!isUnderstaffed && (
-                              <span className="mt-0.5 block text-[#CC2626]">
+                              <span className="text-moto-red-strong mt-0.5 block">
                                 Nur möglich, wenn mindestens eine geplante
                                 Position unbesetzt bleibt (weniger Personal als
                                 geplant).

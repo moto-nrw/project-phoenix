@@ -1140,7 +1140,7 @@ export function ShiftEditModal({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                 />
               </Field>
               <Field label="Ende">
@@ -1148,7 +1148,7 @@ export function ShiftEditModal({
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                 />
               </Field>
             </div>
@@ -1161,7 +1161,7 @@ export function ShiftEditModal({
                   inputMode="numeric"
                   value={breakMinutesStr}
                   onChange={(e) => setBreakMinutesStr(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                 />
               </Field>
             </div>
@@ -1184,7 +1184,7 @@ export function ShiftEditModal({
                   maxLength={200}
                   onChange={(e) => setChangeReason(e.target.value)}
                   placeholder="z. B. Krankheit, Fortbildung, Tausch"
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
                 />
                 {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
                     series and carries no per-day reason, so be honest that the
@@ -1349,7 +1349,7 @@ export function ShiftEditModal({
                                     startTime: e.target.value,
                                   })
                                 }
-                                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                                className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                               />
                             </Field>
                             <Field label="Ende">
@@ -1362,7 +1362,7 @@ export function ShiftEditModal({
                                     endTime: e.target.value,
                                   })
                                 }
-                                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                                className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                               />
                             </Field>
                           </div>

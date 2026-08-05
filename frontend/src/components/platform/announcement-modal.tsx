@@ -128,7 +128,7 @@ export function AnnouncementModal() {
       <button
         type="button"
         onClick={() => void handleDismiss()}
-        className="rounded-xl bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
+        className="from-moto-green rounded-xl bg-gradient-to-br to-[#70b525] px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
       >
         {currentIndex < totalCount - 1 ? "Weiter" : "Verstanden"}
       </button>
@@ -140,7 +140,7 @@ export function AnnouncementModal() {
       {/* Header section with icon and titles */}
       <div className="mb-5">
         <div className="flex items-start gap-3">
-          <Icon className="mt-0.5 h-7 w-7 flex-shrink-0 text-[#83CD2D]" />
+          <Icon className="text-moto-green mt-0.5 h-7 w-7 flex-shrink-0" />
           <div>
             <h2 className="text-xl font-bold text-gray-900">
               {header.subtitle}

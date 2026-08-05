@@ -1,11 +1,12 @@
 "use client";
 
-import { CalendarDays, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface TemplateListProps {
   templates: TimetableTemplate[];
@@ -28,7 +29,7 @@ export function TemplateList({
         className={`${timetableSurface} flex flex-col items-center justify-center gap-3 border-dashed px-6 py-16 text-center`}
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-          <CalendarDays className="h-6 w-6 text-gray-400" aria-hidden />
+          <MotoConceptIcon concept="carePlan" size={28} />
         </div>
         <div className="flex flex-col gap-1">
           <h3 className="text-base font-semibold text-gray-900">

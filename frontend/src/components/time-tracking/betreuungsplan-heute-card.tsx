@@ -1,9 +1,8 @@
 "use client";
 
-import { CalendarClock, MapPin } from "lucide-react";
-
 import { Alert } from "~/components/ui/alert";
 import { InfoCard } from "~/components/ui/info-card";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
@@ -34,7 +33,7 @@ export function BetreuungsplanHeuteCard() {
     return (
       <InfoCard
         title="Heute geplant"
-        icon={<CalendarClock className="h-5 w-5" />}
+        icon={<MotoConceptIcon concept="carePlan" size={20} />}
       >
         <Alert
           type="error"
@@ -54,7 +53,7 @@ export function BetreuungsplanHeuteCard() {
   return (
     <InfoCard
       title="Heute geplant"
-      icon={<CalendarClock className="h-5 w-5" />}
+      icon={<MotoConceptIcon concept="carePlan" size={20} />}
     >
       <ul className="divide-y divide-gray-100">
         {blocks.map((block) => (
@@ -92,7 +91,7 @@ function AssignmentRow({ block }: { readonly block: OwnAssignment }) {
         </p>
         {block.roomName && (
           <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
-            <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+            <MotoConceptIcon concept="rooms" size={16} />
             {block.roomName}
           </p>
         )}
@@ -124,10 +123,10 @@ function AssignmentRow({ block }: { readonly block: OwnAssignment }) {
 // Tone maps to the brand palette (LOCATION_COLORS) via arbitrary-value hex, so
 // the badges read like the rest of the app rather than generic Tailwind hues.
 const TONE_CLASS: Record<"blue" | "red" | "amber" | "orange", string> = {
-  blue: "bg-[#5080D8]/10 text-[#5080D8]",
-  red: "bg-[#FF3130]/10 text-[#FF3130]",
+  blue: "bg-moto-blue/10 text-moto-blue",
+  red: "bg-moto-red/10 text-moto-red",
   amber: "bg-[#EAB308]/10 text-[#A16207]",
-  orange: "bg-[#F78C10]/10 text-[#F78C10]",
+  orange: "bg-moto-orange/10 text-moto-orange",
 };
 
 function Badge({

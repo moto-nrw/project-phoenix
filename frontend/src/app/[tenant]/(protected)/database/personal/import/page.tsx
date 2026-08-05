@@ -651,7 +651,7 @@ export default function StaffImportPage() {
               type="button"
               onClick={() => void handleImport()}
               disabled={stats.errors > 0 || isImporting}
-              className="flex-1 rounded-lg bg-[#83cd2d] px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-[#75b828] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
+              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
               {isImporting
                 ? "Importiere..."

@@ -10,9 +10,9 @@ import {
   Mail,
   MessageSquare,
   Pencil,
-  ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import {
   confirmRenewal,
@@ -29,6 +29,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -36,14 +37,42 @@ const STATUS_STYLES: Record<
   StatusChild["status"],
   { dot: string; text: string; bg: string }
 > = {
-  submitted: { dot: "#5080D8", text: "#374151", bg: "#F3F4F6" },
-  under_review: { dot: "#5080D8", text: "#374151", bg: "#F3F4F6" },
-  approved: { dot: "#83CD2D", text: "#5A8E1F", bg: "#83CD2D1A" },
-  waitlisted: { dot: "#F78C10", text: "#7C4A03", bg: "#F78C101A" },
-  rejected: { dot: "#FF3130", text: "#9F1F1E", bg: "#FF31301A" },
+  submitted: {
+    dot: MOTO_COLOR_PALETTE.blue.base,
+    text: "#374151",
+    bg: "#F3F4F6",
+  },
+  under_review: {
+    dot: MOTO_COLOR_PALETTE.blue.base,
+    text: "#374151",
+    bg: "#F3F4F6",
+  },
+  approved: {
+    dot: MOTO_COLOR_PALETTE.green.base,
+    text: MOTO_COLOR_PALETTE.green.strong,
+    bg: MOTO_COLOR_PALETTE.green.soft,
+  },
+  waitlisted: {
+    dot: MOTO_COLOR_PALETTE.orange.base,
+    text: MOTO_COLOR_PALETTE.orange.strong,
+    bg: MOTO_COLOR_PALETTE.orange.soft,
+  },
+  rejected: {
+    dot: MOTO_COLOR_PALETTE.red.base,
+    text: MOTO_COLOR_PALETTE.red.strong,
+    bg: MOTO_COLOR_PALETTE.red.soft,
+  },
   withdrawn: { dot: "#6B7280", text: "#374151", bg: "#F3F4F6" },
-  pending_renewal: { dot: "#F78C10", text: "#7C4A03", bg: "#F78C101A" },
-  auto_renewed: { dot: "#5080D8", text: "#374151", bg: "#F3F4F6" },
+  pending_renewal: {
+    dot: MOTO_COLOR_PALETTE.orange.base,
+    text: MOTO_COLOR_PALETTE.orange.strong,
+    bg: MOTO_COLOR_PALETTE.orange.soft,
+  },
+  auto_renewed: {
+    dot: MOTO_COLOR_PALETTE.blue.base,
+    text: "#374151",
+    bg: "#F3F4F6",
+  },
   pending_admin_review: { dot: "#6B7280", text: "#374151", bg: "#F3F4F6" },
 };
 
@@ -57,10 +86,26 @@ const CHANGE_REQUEST_STYLES: Record<
   EnrollmentChangeRequest["status"],
   { bg: string; dot: string; text: string }
 > = {
-  pending_review: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
-  needs_parent_response: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
-  approved: { bg: "#83CD2D1A", dot: "#83CD2D", text: "#5A8B1F" },
-  rejected: { bg: "#FF31301A", dot: "#FF3130", text: "#9F1F1E" },
+  pending_review: {
+    bg: MOTO_COLOR_PALETTE.blue.soft,
+    dot: MOTO_COLOR_PALETTE.blue.base,
+    text: MOTO_COLOR_PALETTE.blue.strong,
+  },
+  needs_parent_response: {
+    bg: MOTO_COLOR_PALETTE.orange.soft,
+    dot: MOTO_COLOR_PALETTE.orange.base,
+    text: MOTO_COLOR_PALETTE.orange.strong,
+  },
+  approved: {
+    bg: MOTO_COLOR_PALETTE.green.soft,
+    dot: MOTO_COLOR_PALETTE.green.base,
+    text: MOTO_COLOR_PALETTE.green.strong,
+  },
+  rejected: {
+    bg: MOTO_COLOR_PALETTE.red.soft,
+    dot: MOTO_COLOR_PALETTE.red.base,
+    text: MOTO_COLOR_PALETTE.red.strong,
+  },
   cancelled: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
 };
 
@@ -237,18 +282,20 @@ export function EnrollmentStatusView({
 
   if (notFound) {
     return (
-      <div className="moto-content-surface rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-center shadow-sm sm:p-6">
-        <h1 className="text-xl font-semibold text-[#CC2626]">
+      <div className="moto-content-surface border-moto-red/30 bg-moto-red/5 rounded-xl border p-5 text-center shadow-sm sm:p-6">
+        <h1 className="text-moto-red-strong text-xl font-semibold">
           {t("invalidTitle")}
         </h1>
-        <p className="mt-2 text-sm text-[#CC2626]">{t("invalidDescription")}</p>
+        <p className="text-moto-red-strong mt-2 text-sm">
+          {t("invalidDescription")}
+        </p>
       </div>
     );
   }
 
   if (!status) {
     return (
-      <div className="moto-content-surface rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-sm text-[#CC2626] shadow-sm sm:p-6">
+      <div className="moto-content-surface border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-xl border p-5 text-sm shadow-sm sm:p-6">
         {error ?? t("loadFallback")}
       </div>
     );
@@ -379,7 +426,7 @@ function EnrollmentStatusContent({
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       {duplicateWarning ? (
-        <div className="rounded-xl border border-[#F78C10]/30 bg-[#F78C10]/10 px-4 py-3 text-sm leading-6 text-[#7C4A03]">
+        <div className="border-moto-orange/30 bg-moto-orange/10 rounded-xl border px-4 py-3 text-sm leading-6 text-[#7C4A03]">
           {t("duplicateWarning")}
         </div>
       ) : null}
@@ -393,12 +440,12 @@ function EnrollmentStatusContent({
       <EnrollmentStatusSummary status={status} submittedDate={submittedDate} />
 
       {error ? (
-        <div className="rounded-2xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-2xl border p-4 text-sm">
           {error}
         </div>
       ) : null}
       {info ? (
-        <div className="rounded-2xl border border-[#83CD2D]/30 bg-[#83CD2D]/5 p-4 text-sm text-[#5BA01F]">
+        <div className="border-moto-green/30 bg-moto-green/5 rounded-2xl border p-4 text-sm text-[#5BA01F]">
           {info}
         </div>
       ) : null}
@@ -473,7 +520,7 @@ function EnrollmentStatusHero({
 }: EnrollmentStatusHeroProps) {
   const t = useTranslations("enrollmentStatus");
   const statusIconClass = justSubmitted
-    ? "bg-[#83CD2D]/15 text-[#5A8E1F]"
+    ? "bg-moto-green/15 text-moto-green-strong"
     : "moto-content-surface border text-gray-600 shadow-sm";
 
   return (
@@ -489,7 +536,7 @@ function EnrollmentStatusHero({
               <Clock className="h-7 w-7" aria-hidden="true" />
             )}
           </div>
-          <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
             {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
           </p>
           <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
@@ -551,7 +598,7 @@ function EnrollmentStatusSummary({
         value={submittedDate}
       />
       <StatusSummaryCard
-        icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+        icon={<MotoConceptIcon concept="children" size={22} />}
         label={t("childrenLabel")}
         value={String(status.children.length)}
       />
@@ -986,7 +1033,7 @@ function WithdrawAllSection({
           type="button"
           onClick={handleWithdraw}
           disabled={withdrawingAll}
-          className="h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+          className="hover:border-moto-red/40 hover:bg-moto-red/5 hover:text-moto-red-strong h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
         >
           {t(withdrawButtonLabelKey(withdrawingAll, hasMultipleChildren))}
         </button>

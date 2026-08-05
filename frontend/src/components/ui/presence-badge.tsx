@@ -4,7 +4,7 @@ import type { StudentLocationContext } from "@/lib/location-helper";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
-  getLocationGlowEffect,
+  getLocationBadgeTone,
   isHomeLocation,
   isSchoolyardLocation,
   parseLocation,
@@ -68,8 +68,7 @@ interface PresenceBadgeProps {
   readonly showLocationSince?: boolean;
 }
 
-const MODERN_BASE_CLASS =
-  "inline-flex items-center rounded-full font-bold text-white backdrop-blur-sm";
+const MODERN_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
 const SIMPLE_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
 
 const SIZE_MAP = {
@@ -103,17 +102,20 @@ function renderOverlayBadge({
   dataAttr: string;
   sizeConfig: (typeof SIZE_MAP)[keyof typeof SIZE_MAP];
 }) {
+  const tone = getLocationBadgeTone(overlayColor);
+
   return (
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
-        backgroundColor: overlayColor,
-        boxShadow: getLocationGlowEffect(overlayColor),
+        backgroundColor: tone.backgroundColor,
+        color: tone.textColor,
       }}
       {...{ [dataAttr]: "true" }}
     >
       <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        className={`${sizeConfig.dot} rounded-full`}
+        style={{ backgroundColor: tone.dotColor }}
       />
       {overlayLabel}
     </span>
@@ -167,7 +169,7 @@ export function PresenceBadge({
 
   const sizeKey = size ?? DEFAULT_SIZE;
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
-  const glowEffect = getLocationGlowEffect(color);
+  const tone = getLocationBadgeTone(color);
 
   // "Additional" sick/excused overlays — only when the student is present
   // (not already shown as Krank/Entschuldigt via the replace path above).
@@ -201,7 +203,10 @@ export function PresenceBadge({
     variant === "simple" ? (
       <span
         className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
-        style={{ backgroundColor: color, color: "#fff" }}
+        style={{
+          backgroundColor: tone.backgroundColor,
+          color: tone.textColor,
+        }}
         data-location-status={dataStatus}
         data-presence-state={state}
       >
@@ -210,12 +215,16 @@ export function PresenceBadge({
     ) : (
       <span
         className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-        style={{ backgroundColor: color, boxShadow: glowEffect }}
+        style={{
+          backgroundColor: tone.backgroundColor,
+          color: tone.textColor,
+        }}
         data-location-status={dataStatus}
         data-presence-state={state}
       >
         <span
-          className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+          className={`${sizeConfig.dot} rounded-full`}
+          style={{ backgroundColor: tone.dotColor }}
         />
         {label}
       </span>

@@ -634,7 +634,7 @@ export function SettingsField({
       id={settingsFieldId(setting.key)}
       className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:flex-row sm:justify-between sm:gap-4 ${fieldAlignment} ${
         showHighlight
-          ? "border-[#83CD2D]/35 bg-[#83CD2D]/10 shadow-sm duration-500"
+          ? "border-moto-green/35 bg-moto-green/10 shadow-sm duration-500"
           : "border-transparent"
       }`}
     >
@@ -740,7 +740,7 @@ export function SettingsField({
           cancelText="Abbrechen"
           confirmButtonClass={
             pendingValueRef.current === false
-              ? "bg-[#FF3130] hover:bg-[#CC2626]"
+              ? "bg-moto-red hover:bg-moto-red-strong"
               : "bg-gray-900 hover:bg-gray-700"
           }
         >
@@ -1037,8 +1037,8 @@ function renderAGBSourceEditor({
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT)}
           className={`rounded-xl border p-4 text-left transition-colors ${
             mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT
-              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
-              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
+              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
           }`}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
@@ -1059,8 +1059,8 @@ function renderAGBSourceEditor({
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF)}
           className={`rounded-xl border p-4 text-left transition-colors ${
             mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF
-              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
-              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
+              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
           }`}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
@@ -1096,7 +1096,7 @@ function renderAGBSourceEditor({
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+        <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
@@ -1109,7 +1109,7 @@ function renderAGBSourceEditor({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
                 <label
-                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors hover:bg-[#5080D8]/10 ${
+                  className={`border-moto-blue/25 hover:bg-moto-blue/10 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors ${
                     !canManageDocument || documentSaving
                       ? "pointer-events-none opacity-50"
                       : ""
@@ -1147,7 +1147,7 @@ function renderAGBSourceEditor({
                     type="button"
                     onClick={onDocumentDelete}
                     disabled={documentSaving}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 bg-white px-2.5 py-1.5 font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/5 inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Entfernen</span>

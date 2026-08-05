@@ -18,12 +18,12 @@ function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
   return (
     <div className="flex flex-wrap gap-1">
       {person.isStaff && (
-        <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#4070C8]">
+        <span className="bg-moto-blue/10 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-[#4070C8]">
           Mitarbeiter
         </span>
       )}
       {person.isStudent && (
-        <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
+        <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
           Kinder
         </span>
       )}
@@ -107,7 +107,7 @@ export function PersonsTable({
             <button
               type="button"
               onClick={() => onDelete(row)}
-              className="rounded-lg border border-[#FF3130]/20 px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 hover:text-[#FF3130]"
+              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red rounded-lg border px-2 py-1 text-xs font-medium transition-colors"
               title="Person löschen"
             >
               Löschen

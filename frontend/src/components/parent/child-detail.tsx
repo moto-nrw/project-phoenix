@@ -3,17 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  CalendarClock,
-  Clock,
-  HeartPulse,
-  MessageCircle,
-  Newspaper,
-  ShieldCheck,
-  UserRound,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
@@ -39,6 +29,8 @@ import { Button } from "~/components/ui/button";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
@@ -77,12 +69,12 @@ const ACTION_TILE_CLASS =
   "moto-content-surface flex shrink-0 items-center justify-center border text-gray-600 shadow-sm";
 
 const CHILD_ACTIONS = [
-  { key: "sick", icon: HeartPulse },
-  { key: "pickupTime", icon: CalendarClock },
-  { key: "message", icon: MessageCircle },
-  { key: "pickupPermission", icon: ShieldCheck },
-  { key: "people", icon: Users },
-  { key: "news", icon: Newspaper },
+  { key: "sick", concept: "sick" },
+  { key: "pickupTime", concept: "pickup" },
+  { key: "message", concept: "messages" },
+  { key: "pickupPermission", concept: "permissions" },
+  { key: "people", concept: "parents" },
+  { key: "news", concept: "news" },
 ] as const;
 
 interface Props {
@@ -155,7 +147,7 @@ export function ChildDetail({ studentId }: Props) {
   if (error) {
     return (
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
           {t("loadError")}
         </div>
       </div>
@@ -288,9 +280,9 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             <BackBar />
             <div className="p-5 sm:p-6 lg:p-8">
               <div className="flex min-w-0 items-start gap-4">
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
+                <span className="bg-moto-green/15 text-moto-green-strong flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-lg font-semibold">
                   {getInitials(child) || (
-                    <UserRound className="h-7 w-7" aria-hidden="true" />
+                    <MotoConceptIcon concept="children" size={30} />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -349,7 +341,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
           <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
             <Link
               href={`/parents/children/${child.student_id}/stammdaten`}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827]"
+              className="bg-moto-green hover:bg-moto-green-hover inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 shadow-sm transition-colors"
             >
               {tMd("openLink")}
             </Link>
@@ -417,9 +409,9 @@ function MobileChildAppView({
         <BackBar />
         <div className="p-5">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
+            <span className="bg-moto-green/15 text-moto-green-strong flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl text-lg font-semibold">
               {getInitials(child) || (
-                <UserRound className="h-6 w-6" aria-hidden="true" />
+                <MotoConceptIcon concept="children" size={26} />
               )}
             </span>
             <div className="min-w-0">
@@ -430,7 +422,7 @@ function MobileChildAppView({
                 {child.school_name}
                 {child.school_class ? `, ${child.school_class}` : ""}
               </p>
-              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#5A8E1F]">
+              <span className="bg-moto-green/15 text-moto-green-strong mt-3 inline-flex max-w-full rounded-full px-3 py-1 text-xs font-semibold">
                 {t("careRecorded")}
               </span>
             </div>
@@ -501,7 +493,7 @@ function MobileChildAppView({
         </dl>
         <Link
           href={`/parents/children/${child.student_id}/stammdaten`}
-          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827]"
+          className="bg-moto-green hover:bg-moto-green-hover mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-gray-950 shadow-sm transition-colors"
         >
           {tMd("openLink")}
         </Link>
@@ -515,7 +507,6 @@ function MobileQuickAction({
   onClick,
 }: Readonly<{ action: ChildAction; onClick?: () => void }>) {
   const t = useTranslations("parentChildDetail");
-  const Icon = action.icon;
   const enabled = Boolean(onClick);
   return (
     <button
@@ -529,7 +520,7 @@ function MobileQuickAction({
       }`}
     >
       <span className={`${ACTION_TILE_CLASS} h-11 w-11 rounded-xl`}>
-        <Icon className="h-6 w-6" aria-hidden="true" />
+        <MotoConceptIcon concept={action.concept as MotoConceptKey} size={26} />
       </span>
       <span className="text-xs leading-4 font-semibold text-gray-900">
         {t(`actions.${action.key}.label`)}
@@ -543,7 +534,6 @@ function DesktopQuickAction({
   onClick,
 }: Readonly<{ action: ChildAction; onClick?: () => void }>) {
   const t = useTranslations("parentChildDetail");
-  const Icon = action.icon;
   const label = t(`actions.${action.key}.label`);
   const enabled = Boolean(onClick);
   return (
@@ -559,7 +549,7 @@ function DesktopQuickAction({
       aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
       <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-        <Icon className="h-5 w-5" aria-hidden="true" />
+        <MotoConceptIcon concept={action.concept as MotoConceptKey} size={22} />
       </span>
       <span className="min-w-0 [overflow-wrap:anywhere]">
         <span className="block text-sm font-semibold text-gray-900">
@@ -621,7 +611,7 @@ function TodayPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
           <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <HeartPulse className="h-5 w-5" aria-hidden="true" />
+            <MotoConceptIcon concept="sick" size={22} />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -638,7 +628,7 @@ function TodayPanel({
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
           <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <CalendarClock className="h-5 w-5" aria-hidden="true" />
+            <MotoConceptIcon concept="pickup" size={22} />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -651,7 +641,7 @@ function TodayPanel({
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
           <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <MessageCircle className="h-5 w-5" aria-hidden="true" />
+            <MotoConceptIcon concept="messages" size={22} />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -729,7 +719,7 @@ function ChildMessagesPanel({
             onClick={onCompose}
             className="shrink-0"
           >
-            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            <MotoConceptIcon concept="messages" size={18} className="mr-1.5" />
             {t("messages.compose")}
           </Button>
         )}

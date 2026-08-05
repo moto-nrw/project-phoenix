@@ -50,7 +50,7 @@ describe("PageHeader", () => {
       />,
     );
 
-    const indicator = container.querySelector(".bg-\\[\\#83CD2D\\]");
+    const indicator = container.querySelector(".bg-moto-green");
     expect(indicator).toBeInTheDocument();
     expect(indicator).toHaveClass("animate-pulse");
   });
@@ -68,7 +68,7 @@ describe("PageHeader", () => {
       <PageHeader title="Test" statusIndicator={{ color: "red" }} />,
     );
 
-    expect(container.querySelector(".bg-\\[\\#FF3130\\]")).toBeInTheDocument();
+    expect(container.querySelector(".bg-moto-red")).toBeInTheDocument();
   });
 
   it("renders status indicator with gray color", () => {
@@ -87,7 +87,7 @@ describe("PageHeader", () => {
       />,
     );
 
-    const indicator = container.querySelector(".bg-\\[\\#83CD2D\\]");
+    const indicator = container.querySelector(".bg-moto-green");
     expect(indicator).toHaveAttribute("title", "System Active");
   });
 
@@ -121,7 +121,7 @@ describe("PageHeader", () => {
     );
 
     expect(screen.getByText("10")).toBeInTheDocument();
-    expect(container.querySelector(".bg-\\[\\#83CD2D\\]")).toBeInTheDocument();
+    expect(container.querySelector(".bg-moto-green")).toBeInTheDocument();
   });
 
   it("applies custom className", () => {

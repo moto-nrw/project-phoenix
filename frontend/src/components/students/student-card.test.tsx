@@ -11,6 +11,7 @@ import {
   StudentAbsenceRow,
   StudentCard,
   StudentInfoRow,
+  StudentPendingExcusedRow,
 } from "./student-card";
 
 // Default the photos feature flag to off so the original test suite (which
@@ -419,7 +420,7 @@ describe("ExceptionIcon", () => {
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg?.className).toContain("text-orange-500");
+    expect(svg?.className).toContain("text-moto-orange-strong");
   });
 });
 
@@ -430,7 +431,7 @@ describe("AbsenceIcon", () => {
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
     expect(svg?.className).toContain("text-gray-400");
-    expect(svg?.className).not.toContain("text-orange-500");
+    expect(svg?.className).not.toContain("text-moto-orange-strong");
   });
 });
 
@@ -487,7 +488,7 @@ describe("PickupTimeRow", () => {
       <PickupTimeRow pickupTime="14:00" isException={true} now={now} />,
     );
 
-    const orangeSvg = container.querySelector("svg.text-orange-500");
+    const orangeSvg = container.querySelector("svg.text-moto-orange-strong");
     expect(orangeSvg).toBeInTheDocument();
   });
 
@@ -610,7 +611,9 @@ describe("ArrivalTimeRow", () => {
       />,
     );
 
-    expect(container.querySelector("svg.text-orange-500")).toBeInTheDocument();
+    expect(
+      container.querySelector("svg.text-moto-orange-strong"),
+    ).toBeInTheDocument();
   });
 
   it("renders the exception fallback when exception has no time", () => {
@@ -637,7 +640,7 @@ describe("StudentAbsenceRow", () => {
     // the amber exception triangle, never the red overdue warning.
     expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
     expect(
-      container.querySelector("svg.text-orange-500"),
+      container.querySelector("svg.text-moto-orange-strong"),
     ).not.toBeInTheDocument();
     expect(
       container.querySelector("svg.lucide-triangle-alert"),
@@ -650,6 +653,17 @@ describe("StudentAbsenceRow", () => {
     expect(
       screen.getByText("Kommt heute nicht (entschuldigt)"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("StudentPendingExcusedRow", () => {
+  it("uses the shared amber status tone", () => {
+    render(<StudentPendingExcusedRow note="Noch offen" />);
+
+    expect(screen.getByText("Freigabe ausstehend")).toHaveStyle({
+      backgroundColor: "#FEF3C7",
+      color: "#92400E",
+    });
   });
 });
 

@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   LOCATION_STATUSES,
   LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
   parseLocation,
   normalizeLocation,
   getLocationColor,
+  getLocationBadgeTone,
   getLocationDisplay,
   getLocationGlowEffect,
   canSeeDetailedLocation,
@@ -39,16 +41,166 @@ describe("LOCATION_COLORS", () => {
   it("contains all expected color values", () => {
     expect(LOCATION_COLORS.GROUP_ROOM).toBe("#83CD2D");
     expect(LOCATION_COLORS.OTHER_ROOM).toBe("#5080D8");
-    expect(LOCATION_COLORS.HOME).toBe("#FF3130");
-    expect(LOCATION_COLORS.SCHOOLYARD).toBe("#F78C10");
+    expect(LOCATION_COLORS.HOME).toBe("#6B7280");
+    expect(LOCATION_COLORS.SCHOOLYARD).toBe("#EAB308");
     expect(LOCATION_COLORS.TRANSIT).toBe("#D946EF");
-    expect(LOCATION_COLORS.UNKNOWN).toBe("#6B7280");
-    expect(LOCATION_COLORS.SICK).toBe("#EAB308");
+    expect(LOCATION_COLORS.UNKNOWN).toBe("#78716C");
+    expect(LOCATION_COLORS.SICK).toBe("#DC2626");
+    expect(LOCATION_COLORS.CLASS_TRIP).toBe("#0891B2");
+    expect(LOCATION_COLORS.NOT_ARRIVAL).toBe("#365D83");
+    expect(LOCATION_COLORS.DANGER).toBe("#DC2626");
+    const statusColors = Object.entries(LOCATION_COLORS)
+      .filter(([key]) => key !== "DANGER")
+      .map(([, color]) => color);
+    expect(new Set(statusColors).size).toBe(statusColors.length);
   });
 
-  it("has SICK color (amber) for medical indication", () => {
+  it("uses the notification red for medical indication", () => {
     expect(LOCATION_COLORS.SICK).toBeDefined();
-    expect(LOCATION_COLORS.SICK).toBe("#EAB308");
+    expect(LOCATION_COLORS.SICK).toBe("#DC2626");
+  });
+});
+
+describe("MOTO_COLOR_PALETTE", () => {
+  it("matches the shared brand color roles", () => {
+    expect(MOTO_COLOR_PALETTE).toEqual({
+      green: {
+        soft: "#EEF9E1",
+        muted: "#D7E8C3",
+        light: "#92D63C",
+        base: "#83CD2D",
+        vivid: "#5F9F1B",
+        hover: "#74B825",
+        active: "#6DB118",
+        strong: "#3F6F12",
+      },
+      blue: {
+        soft: "#EDF3FC",
+        light: "#6B95E0",
+        base: "#5080D8",
+        hover: "#3B68C0",
+        strong: "#315C9B",
+      },
+      orange: {
+        soft: "#FFF3E5",
+        base: "#F78C10",
+        hover: "#E07400",
+        strong: "#9B5609",
+      },
+      red: {
+        soft: "#FEF2F2",
+        base: "#DC2626",
+        hover: "#B91C1C",
+        strong: "#B91C1C",
+      },
+      teal: {
+        soft: "#E8F8F5",
+        light: "#5CC8BA",
+        base: "#159E90",
+        strong: "#0F766E",
+      },
+      amber: {
+        soft: "#FEF3C7",
+        light: "#FACC15",
+        base: "#EAB308",
+        strong: "#92400E",
+      },
+      purple: {
+        soft: "#F3E8FF",
+        light: "#A78BFA",
+        base: "#7C3AED",
+        strong: "#6B21A8",
+      },
+      magenta: {
+        soft: "#FAE8FF",
+        light: "#E879F9",
+        base: "#D946EF",
+        strong: "#86198F",
+      },
+      indigo: {
+        soft: "#EEF2FF",
+        light: "#818CF8",
+        base: "#4F46E5",
+        strong: "#3730A3",
+      },
+      coral: {
+        soft: "#FFF0ED",
+        light: "#F29A8D",
+        base: "#E85D4A",
+        strong: "#A83A2E",
+      },
+      cyan: {
+        soft: "#ECFEFF",
+        light: "#67E8F9",
+        base: "#0891B2",
+        strong: "#155E75",
+      },
+      navy: {
+        soft: "#EEF4F8",
+        light: "#7FA6C9",
+        base: "#365D83",
+        strong: "#1E3A5F",
+      },
+      mint: {
+        soft: "#EAF9F3",
+        light: "#8AD9BB",
+        base: "#3BAF83",
+        strong: "#187255",
+      },
+      wine: {
+        soft: "#FBECEF",
+        light: "#CF7180",
+        base: "#8F2535",
+        strong: "#681A27",
+      },
+      gold: {
+        soft: "#FFF7E6",
+        light: "#E6B85C",
+        base: "#B7791F",
+        strong: "#7A4A0B",
+      },
+      petrol: {
+        soft: "#E9F7F6",
+        light: "#72BDB8",
+        base: "#217A78",
+        strong: "#155A59",
+      },
+      neutral: {
+        soft: "#F3F4F6",
+        light: "#9CA3AF",
+        base: "#6B7280",
+        strong: "#374151",
+      },
+      stone: {
+        soft: "#F5F5F4",
+        light: "#A8A29E",
+        base: "#78716C",
+        strong: "#44403C",
+      },
+    });
+  });
+});
+
+describe("getLocationBadgeTone", () => {
+  it("maps brand colors to soft surfaces and strong text colors", () => {
+    expect(getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM)).toEqual({
+      backgroundColor: MOTO_COLOR_PALETTE.green.soft,
+      dotColor: MOTO_COLOR_PALETTE.green.base,
+      textColor: MOTO_COLOR_PALETTE.green.strong,
+    });
+    expect(getLocationBadgeTone(LOCATION_COLORS.HOME)).toEqual({
+      backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
+      dotColor: MOTO_COLOR_PALETTE.neutral.light,
+      textColor: "#4B5563",
+    });
+  });
+
+  it("keeps custom room colors on a neutral readable badge", () => {
+    expect(getLocationBadgeTone("#A3D977")).toEqual({
+      backgroundColor: "#F9FAFB",
+      dotColor: "#A3D977",
+      textColor: "#374151",
+    });
   });
 });
 
@@ -341,12 +493,12 @@ describe("getLocationGlowEffect", () => {
 
   it("returns gray glow for invalid color", () => {
     const result = getLocationGlowEffect("invalid");
-    expect(result).toContain("rgba(107, 114, 128,"); // Gray fallback
+    expect(result).toContain("rgba(120, 113, 108,"); // Stone-gray fallback
   });
 
   it("handles SICK color correctly", () => {
     const result = getLocationGlowEffect(LOCATION_COLORS.SICK);
-    expect(result).toContain("rgba(234, 179, 8,"); // #EAB308 RGB values
+    expect(result).toContain("rgba(220, 38, 38,");
   });
 });
 

@@ -192,7 +192,7 @@ export function BrandTenantSwitcher({
             >
               <span className="truncate">{currentTenant.name}</span>
               <svg
-                className="ml-auto h-4 w-4 shrink-0 text-[#83CD2D]"
+                className="text-moto-green ml-auto h-4 w-4 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"

@@ -19,19 +19,19 @@ interface GroupHeaderProps {
 const HEADER_BG: Record<GroupHeaderVariant, string> = {
   neutral: "bg-gray-50",
   warning: "bg-[#FFF8ED]",
-  success: "bg-[#DCF5C1]/40",
+  success: "bg-moto-green-soft/40",
 };
 
 const CHEVRON_COLOR: Record<GroupHeaderVariant, string> = {
   neutral: "text-gray-500",
-  warning: "text-[#F78C10]",
-  success: "text-[#83CD2D]",
+  warning: "text-moto-orange",
+  success: "text-moto-green",
 };
 
 const BADGE_STYLES: Record<GroupHeaderVariant, string> = {
   neutral: "bg-gray-200 text-gray-700",
-  warning: "bg-[#FFE8D0] text-[#F78C10]",
-  success: "bg-[#DCF5C1] text-[#83CD2D]",
+  warning: "bg-[#FFE8D0] text-moto-orange",
+  success: "bg-moto-green-soft text-moto-green",
 };
 
 export function GroupHeader({

@@ -14,7 +14,7 @@ const TRAILING_PUNCTUATION = /[.,;:!?)\]']+$/;
 
 export function LinkifiedText({
   text,
-  linkClassName = "font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3f68b5]",
+  linkClassName = "text-moto-blue-strong hover:text-moto-blue font-medium underline underline-offset-2",
 }: Readonly<{
   text: string;
   linkClassName?: string;

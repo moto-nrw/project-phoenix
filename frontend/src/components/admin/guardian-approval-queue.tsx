@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, X, Settings, UserCheck } from "lucide-react";
+import { Check, X, Settings } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   listPendingApprovals,
   approveGuardianInvitation,
@@ -90,7 +91,7 @@ function ApprovalsEmptyState({
             {configuredAway ? (
               <Settings className="h-6 w-6" />
             ) : (
-              <UserCheck className="h-6 w-6" />
+              <MotoConceptIcon concept="accounts" size={28} />
             )}
           </span>
         }

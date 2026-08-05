@@ -70,10 +70,10 @@ describe("RemindersPage", () => {
     expect(screen.getByText("Schach")).toBeInTheDocument();
 
     expect(screen.getByText("5 Min überfällig").className).toContain(
-      "text-[#FF3130]",
+      "text-moto-red",
     );
     expect(screen.getByText("in 10 Min").className).not.toContain(
-      "text-[#FF3130]",
+      "text-moto-red",
     );
   });
 

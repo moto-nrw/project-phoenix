@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { getSession } from "next-auth/react";
 import {
   formatAttendanceSlotStatus,
@@ -155,9 +156,10 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   if (state.status === "disabled") {
     return (
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center">
-        <CalendarDays
-          className="mx-auto mb-2 h-8 w-8 text-gray-400"
-          aria-hidden
+        <MotoConceptIcon
+          concept="changeHistory"
+          size={34}
+          className="mx-auto mb-2"
         />
         <h3 className="text-sm font-semibold text-gray-900">
           Historie ist deaktiviert

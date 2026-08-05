@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Plus, ShieldCheck } from "lucide-react";
+import { Plus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -341,7 +342,7 @@ export function AccountTenantAccessModal({
               </h3>
               {activeEntries.length === 0 ? (
                 <EmptyState
-                  icon={<Building2 className="h-5 w-5" />}
+                  icon={<MotoConceptIcon concept="schools" size={22} />}
                   title="Kein aktiver Schulzugang"
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
@@ -492,7 +493,11 @@ export function AccountTenantAccessModal({
               )}
 
               <p className="flex items-start gap-2 text-xs text-gray-500">
-                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <MotoConceptIcon
+                  concept="permissions"
+                  size={16}
+                  className="mt-0.5"
+                />
                 Die Betreuungsrolle bleibt beim Rollenwechsel erhalten. Sie wird
                 über &quot;Betreuung verwalten&quot; vergeben und entfernt.
               </p>
@@ -551,7 +556,7 @@ export function AccountTenantAccessModal({
         title="Schulzugang entziehen"
         confirmText="Zugang entziehen"
         isConfirmLoading={saving}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#e02b2a]"
+        confirmButtonClass="bg-moto-red hover:bg-[#e02b2a]"
       >
         <p className="text-sm text-gray-600">
           {`${accountLabel} verliert den Zugang zu ${revokeTarget?.schoolName ?? ""} und alle dort vergebenen Rollen. Vorhandene Personaldaten bleiben für die Historie erhalten und werden von der Schule über "Personal löschen" entfernt.`}

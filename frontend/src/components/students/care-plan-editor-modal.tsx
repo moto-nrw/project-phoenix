@@ -1,14 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  CalendarDays,
-  ChevronDown,
-  Clock,
-  Loader2,
-  StickyNote,
-  Users,
-} from "lucide-react";
+import { ChevronDown, Clock, Loader2, StickyNote } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
@@ -372,7 +366,7 @@ export function CarePlanEditorModal({
           className="space-y-5"
         >
           {error ? (
-            <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-3 text-sm text-[#CC2626]">
+            <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-xl border px-4 py-3 text-sm">
               {error}
             </div>
           ) : null}
@@ -385,10 +379,11 @@ export function CarePlanEditorModal({
               </p>
 
               {parentAuthored ? (
-                <div className="flex items-start gap-2.5 rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/10 px-4 py-3 text-sm text-[#3a63b0]">
-                  <Users
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    aria-hidden="true"
+                <div className="border-moto-blue/20 bg-moto-blue/10 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm text-[#3a63b0]">
+                  <MotoConceptIcon
+                    concept="parents"
+                    size={18}
+                    className="mt-0.5"
                   />
                   <span>
                     Diese Zeiten wurden von den Eltern über das Elternportal
@@ -420,7 +415,7 @@ export function CarePlanEditorModal({
                 />
                 <LegSection
                   label="Abholung"
-                  icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+                  icon={<MotoConceptIcon concept="pickup" size={18} />}
                   color={LOCATION_COLORS.SCHOOLYARD}
                   regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
                   mode={pickupMode}
@@ -488,7 +483,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem überschreiben"
         cancelText="Abbrechen"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-[#CC2626] hover:bg-[#B91C1C]"
+        confirmButtonClass="bg-moto-red-strong hover:bg-[#B91C1C]"
       >
         <p className="text-sm leading-6 text-gray-600">
           Du überschreibst eine von den Eltern gesetzte Zeit. Die ursprüngliche
@@ -505,7 +500,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem speichern"
         cancelText="Zurück"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-[#CC2626] hover:bg-[#B91C1C]"
+        confirmButtonClass="bg-moto-red-strong hover:bg-[#B91C1C]"
       >
         <div className="space-y-2 text-sm leading-6 text-gray-600">
           <p>
@@ -918,7 +913,7 @@ function WeeklySection({
       </div>
 
       {removals.length > 0 ? (
-        <div className="rounded-xl border border-[#F78C10]/25 bg-[#F78C10]/10 px-4 py-3 text-sm text-[#9A5B08]">
+        <div className="border-moto-orange/25 bg-moto-orange/10 rounded-xl border px-4 py-3 text-sm text-[#9A5B08]">
           Wird beim Speichern entfernt: {removals.join(", ")}.
         </div>
       ) : null}

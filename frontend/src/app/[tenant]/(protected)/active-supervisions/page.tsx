@@ -272,7 +272,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
         <button
           type="button"
           onClick={() => runAction("check-in")}
-          className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+          className="bg-moto-green rounded-md px-3 py-2 text-sm font-medium text-gray-950"
         >
           Einchecken
         </button>
@@ -281,7 +281,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
         <button
           type="button"
           onClick={() => runAction("check-in")}
-          className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+          className="bg-moto-green rounded-md px-3 py-2 text-sm font-medium text-gray-950"
         >
           Wieder einchecken
         </button>
@@ -459,14 +459,14 @@ function TimetableRosterHeader({
   );
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
-      <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="moto-content-surface border-moto-green/30 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <div className="border-moto-green/20 bg-moto-green/10 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
+          <span className="bg-moto-green/20 text-moto-green-strong flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
+            <p className="text-moto-green-strong text-xs font-semibold tracking-wide uppercase">
               Aktiv
             </p>
             <h2 className="truncate text-base font-semibold text-gray-900">
@@ -482,7 +482,7 @@ function TimetableRosterHeader({
                 isConfirmingExpected || confirmableExpectedRows.length === 0
               }
               onClick={handleConfirmExpectedClick}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-moto-green hover:bg-moto-green-hover focus-visible:ring-moto-green/30 inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-gray-950 shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               {confirmLabel}
@@ -556,12 +556,12 @@ function AddUnplannedStudentForm({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Weiteres Kind suchen..."
-          className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
+          className="focus:border-moto-green focus:ring-moto-green/20 min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:ring-2 focus:outline-none"
         />
         <button
           type="submit"
           disabled={isAddingStudent || results.length !== 1}
-          className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
+          className="bg-moto-green hover:bg-moto-green-hover rounded-lg px-4 py-2 text-sm font-medium text-gray-950 shadow-sm transition-colors disabled:opacity-50"
         >
           Hinzufügen
         </button>
@@ -574,7 +574,7 @@ function AddUnplannedStudentForm({
               type="button"
               disabled={isAddingStudent}
               onClick={() => addStudent(student.id.toString())}
-              className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
+              className="hover:border-moto-green rounded-md border border-gray-200 px-3 py-2 text-left text-sm disabled:opacity-50"
             >
               <span className="font-medium text-gray-900">
                 {student.name ||

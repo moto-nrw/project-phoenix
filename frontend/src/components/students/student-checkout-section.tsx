@@ -1,17 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Home,
-  LogIn,
-  Thermometer,
-  Heart,
-  CalendarX,
-  CalendarCheck,
-  Bus,
-  MoreVertical,
-} from "lucide-react";
+import { LogIn, MoreVertical } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -31,8 +23,8 @@ export function StudentCheckoutSection({
       onClick={onCheckoutClick}
       className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#FF3130] text-[#FF3130] sm:h-14 sm:w-14">
-        <Home className="h-5 w-5 sm:h-6 sm:w-6" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-200 sm:h-14 sm:w-14">
+        <MotoConceptIcon concept="home" size={26} />
       </div>
       <div className="text-center">
         <p className="text-base font-semibold text-gray-900">Abmelden</p>
@@ -60,7 +52,7 @@ export function StudentCheckinSection({
       onClick={onCheckinClick}
       className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#83CD2D] text-[#83CD2D] sm:h-14 sm:w-14">
+      <div className="border-moto-green text-moto-green flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14">
         <LogIn className="h-5 w-5 sm:h-6 sm:w-6" />
       </div>
       <div className="text-center">
@@ -102,10 +94,7 @@ export function StudentSickReportSection({
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
       );
     }
-    if (isSick) {
-      return <Heart className="h-5 w-5 sm:h-6 sm:w-6" />;
-    }
-    return <Thermometer className="h-5 w-5 sm:h-6 sm:w-6" />;
+    return <MotoConceptIcon concept="sick" size={26} />;
   };
 
   return (
@@ -117,9 +106,7 @@ export function StudentSickReportSection({
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
-          isSick
-            ? "border-[#83CD2D] text-[#83CD2D]"
-            : "border-amber-500 text-amber-500"
+          isSick ? "border-moto-green" : "border-moto-red/30"
         }`}
       >
         {renderSickIcon()}
@@ -167,10 +154,7 @@ export function StudentExcusedReportSection({
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
       );
     }
-    if (isExcused) {
-      return <CalendarCheck className="h-5 w-5 sm:h-6 sm:w-6" />;
-    }
-    return <CalendarX className="h-5 w-5 sm:h-6 sm:w-6" />;
+    return <MotoConceptIcon concept="excused" size={26} />;
   };
 
   return (
@@ -182,9 +166,7 @@ export function StudentExcusedReportSection({
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
-          isExcused
-            ? "border-[#83CD2D] text-[#83CD2D]"
-            : "border-[#7C3AED] text-[#7C3AED]"
+          isExcused ? "border-moto-green" : "border-moto-purple/30"
         }`}
       >
         {renderExcusedIcon()}
@@ -273,12 +255,7 @@ export function StudentStatusActionsMenu({
             }}
             className="flex w-full items-start gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
           >
-            <Bus
-              className={`mt-0.5 h-4 w-4 shrink-0 ${
-                isClassTrip ? "text-[#83CD2D]" : "text-[#5080D8]"
-              }`}
-              aria-hidden
-            />
+            <MotoConceptIcon concept="classTrip" size={18} className="mt-0.5" />
             <span>
               <span className="block font-medium">
                 {isClassTrip

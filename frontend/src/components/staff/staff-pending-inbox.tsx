@@ -126,7 +126,7 @@ export function StaffPendingInbox({
           <h2 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
             Eingehende Anfragen
           </h2>
-          <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          <span className="bg-moto-red inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white">
             {rows.length}
           </span>
         </div>

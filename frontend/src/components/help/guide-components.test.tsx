@@ -124,6 +124,9 @@ describe("EntryPointCard", () => {
     expect(screen.getByText("Punkt eins")).toBeInTheDocument();
     expect(screen.getByText("Punkt zwei")).toBeInTheDocument();
     expect(container.querySelector("a")).toHaveAttribute("href", "/help/setup");
+    expect(screen.getByTestId("entry-point-icon").className).not.toMatch(
+      /\b(?:bg-|rounded)/,
+    );
   });
 
   it("does not crash when two bullet points are identical (stable keys)", () => {

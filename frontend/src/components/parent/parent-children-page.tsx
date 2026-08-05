@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import { type Child, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
@@ -69,7 +70,7 @@ export function ParentChildrenPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
           {t("loadError")}
         </div>
       </div>
@@ -119,9 +120,9 @@ function ChildCard({
       className="group rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
       <div className="flex items-center gap-4">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-base font-semibold text-[#5A8E1F]">
+        <span className="bg-moto-green/15 text-moto-green-strong flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-base font-semibold">
           {getInitials(child) || (
-            <Users className="h-6 w-6" aria-hidden="true" />
+            <MotoConceptIcon concept="children" size={26} />
           )}
         </span>
         <div className="min-w-0 flex-1">
@@ -161,7 +162,7 @@ function EmptyChildren() {
   return (
     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-        <Users className="h-5 w-5" aria-hidden="true" />
+        <MotoConceptIcon concept="children" size={22} />
       </span>
       <h2 className="mt-3 text-sm font-semibold text-gray-900">
         {t("emptyTitle")}

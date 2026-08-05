@@ -3,7 +3,8 @@
 import { Suspense, use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
+import { Check, Mail } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import {
   EnrollmentForm,
@@ -139,7 +140,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
             <PublicEnrollmentBackLink href="/enroll">
               {t("backToPicker")}
             </PublicEnrollmentBackLink>
-            <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
               {t("formEyebrow")}
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
@@ -155,7 +156,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
               {t("detailsLoading")}
             </div>
           ) : error || gradeLevelMax === null ? (
-            <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
+            <div className="moto-content-surface border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-3xl border p-6 text-sm font-medium shadow-sm">
               {error ?? t("detailsLoadFailed")}
             </div>
           ) : (
@@ -208,7 +209,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
           </section>
 
           <PublicInfoCard
-            icon={<CalendarDays className="h-5 w-5" />}
+            icon={<MotoConceptIcon concept="calendar" size={22} />}
             title={t("oneFormTitle")}
           >
             {t("oneFormText")}
@@ -220,7 +221,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
             {t("emailText")}
           </PublicInfoCard>
           <PublicInfoCard
-            icon={<ShieldCheck className="h-5 w-5" />}
+            icon={<MotoConceptIcon concept="permissions" size={22} />}
             title={t("reviewTitle")}
           >
             {t("reviewText")}

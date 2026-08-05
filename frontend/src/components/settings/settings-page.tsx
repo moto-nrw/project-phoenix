@@ -201,7 +201,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   if (fetchError && !schema) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <p className="text-sm text-[#CC2626]">
+        <p className="text-moto-red-strong text-sm">
           {fetchError instanceof Error
             ? fetchError.message
             : "Einstellungen konnten nicht geladen werden"}
@@ -240,7 +240,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
           <button
             type="button"
             onClick={() => setSaveError(null)}
-            className="absolute top-1/2 right-4 -translate-y-1/2 text-[#CC2626] hover:text-[#9F1F1E]"
+            className="text-moto-red-strong hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <svg

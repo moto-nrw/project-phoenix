@@ -9,9 +9,9 @@
 
 import type { Reminder, ReminderType } from "~/lib/reminders-api";
 
-// Color discipline: the only accent is brand red (LOCATION_COLORS.HOME,
-// #FF3130) and only for "überfällig" — applied via arbitrary-value Tailwind
-// classes (text-[#FF3130] below, bg-[#FF3130] on the bell badge), never a
+// Color discipline: the only accent is brand red (LOCATION_COLORS.DANGER,
+// #DC2626) and only for "überfällig" — applied via arbitrary-value Tailwind
+// classes (text-moto-red below, bg-moto-red on the bell badge), never a
 // generic Tailwind red.
 
 // Order = display order, most urgent first (overdue → upcoming → activities).
@@ -42,7 +42,7 @@ export function reminderRelativeLabel(reminder: Reminder): string {
 // Tailwind text-color class for the relative-time label: red only when
 // overdue, neutral gray otherwise.
 export function reminderToneClass(reminder: Reminder): string {
-  return isReminderOverdue(reminder) ? "text-[#FF3130]" : "text-gray-500";
+  return isReminderOverdue(reminder) ? "text-moto-red" : "text-gray-500";
 }
 
 /** Stable React key backed by the domain entity that produced the reminder. */

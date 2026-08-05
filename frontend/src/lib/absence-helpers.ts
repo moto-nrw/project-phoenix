@@ -139,7 +139,7 @@ export function absenceStatusMeta(
     case "approved":
       return { label: "Genehmigt", color: LOCATION_COLORS.GROUP_ROOM };
     case "declined":
-      return { label: "Abgelehnt", color: LOCATION_COLORS.HOME };
+      return { label: "Abgelehnt", color: LOCATION_COLORS.DANGER };
     case "canceled":
       return { label: "Storniert", color: LOCATION_COLORS.UNKNOWN };
     case "reported":

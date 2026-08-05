@@ -65,6 +65,7 @@ const mockDashboardData = {
   studentsOnPlayground: 10,
   studentsSick: 4,
   studentsExcused: 3,
+  studentsHome: 33,
   activeOGSGroups: 8,
   activeActivities: 5,
   freeRooms: 12,
@@ -208,6 +209,7 @@ describe("DashboardPage", () => {
       expect(screen.getByText("20")).toBeInTheDocument(); // studentsInTransit
       expect(screen.getByText("4")).toBeInTheDocument(); // studentsSick
       expect(screen.getByText("3")).toBeInTheDocument(); // studentsExcused
+      expect(screen.getByText("33")).toBeInTheDocument(); // studentsHome
       // 10 appears multiple times (studentsOnPlayground and supervisorsToday)
       expect(screen.getAllByText("10")).toHaveLength(2);
     });
@@ -223,10 +225,10 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Schulhof")).toBeInTheDocument();
       expect(screen.getByText("Krank")).toBeInTheDocument();
       expect(screen.getByText("Entschuldigt")).toBeInTheDocument();
-      // "Aktive Gruppen" appears both as stat card title and info card title
-      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Zuhause")).toBeInTheDocument();
+      expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktive Aktivitäten")).toBeInTheDocument();
-      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
+      expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
       expect(screen.getByText("Auslastung")).toBeInTheDocument();
     });
   });
@@ -245,9 +247,14 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Letzte Bewegungen")).toBeInTheDocument();
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
-      // "Aktive Gruppen" appears both as stat card title and info card title
-      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-stats-grid")).toHaveClass(
+        "xl:grid-cols-4",
+      );
+      expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
+        "xl:grid-cols-4",
+      );
     });
   });
 
@@ -279,9 +286,12 @@ describe("DashboardPage", () => {
       expect(
         screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
       ).not.toBeInTheDocument();
-      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
-      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
+      expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
+      expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
+        "xl:grid-cols-3",
+      );
     });
   });
 
@@ -304,8 +314,11 @@ describe("DashboardPage", () => {
       expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
       expect(screen.queryByText("Auslastung")).not.toBeInTheDocument();
       expect(screen.queryByText("Letzte Bewegungen")).not.toBeInTheDocument();
-      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
+        "xl:grid-cols-2",
+      );
     });
   });
 
@@ -390,49 +403,6 @@ describe("getTimeBasedGreeting", () => {
     expect(getGreeting(16)).toBe("Guten Tag");
     expect(getGreeting(17)).toBe("Guten Abend");
     expect(getGreeting(22)).toBe("Guten Abend");
-  });
-});
-
-describe("getColorTheme", () => {
-  it("returns correct theme for known colors", () => {
-    const COLOR_THEMES: Record<string, { overlay: string; ring: string }> = {
-      "[#5080D8]": {
-        overlay: "from-blue-50/80 to-cyan-100/80",
-        ring: "ring-blue-200/60",
-      },
-      "[#83CD2D]": {
-        overlay: "from-green-50/80 to-lime-100/80",
-        ring: "ring-green-200/60",
-      },
-      "[#FF3130]": {
-        overlay: "from-red-50/80 to-rose-100/80",
-        ring: "ring-red-200/60",
-      },
-    };
-
-    const DEFAULT_THEME = {
-      overlay: "from-gray-50/80 to-slate-100/80",
-      ring: "ring-gray-200/60",
-    };
-
-    const getColorTheme = (
-      color: string,
-    ): { overlay: string; ring: string } => {
-      const matchedKey = Object.keys(COLOR_THEMES).find((key) =>
-        color.includes(key),
-      );
-      return matchedKey ? COLOR_THEMES[matchedKey]! : DEFAULT_THEME;
-    };
-
-    expect(getColorTheme("from-[#5080D8] to-[#4070c8]").overlay).toBe(
-      "from-blue-50/80 to-cyan-100/80",
-    );
-    expect(getColorTheme("from-[#83CD2D] to-green").overlay).toBe(
-      "from-green-50/80 to-lime-100/80",
-    );
-    expect(getColorTheme("unknown-color").overlay).toBe(
-      "from-gray-50/80 to-slate-100/80",
-    );
   });
 });
 
@@ -685,6 +655,56 @@ describe("StatCard component behavior", () => {
     });
   });
 
+  it("renders website-style Phosphor duotone icons", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
+
+    render(<DashboardPage />);
+
+    const studentsLink = await screen.findByRole("link", {
+      name: /Kinder anwesend/i,
+    });
+    const icon = studentsLink.querySelector("svg");
+    const iconWrapper = icon?.parentElement;
+
+    expect(icon).toHaveAttribute("data-moto-duotone-tone", "greenDeep");
+    expect(icon).toHaveStyle({ color: "#3F6F12" });
+    expect(icon?.querySelector('[opacity="0.2"]')).toBeInTheDocument();
+    expect(iconWrapper).not.toHaveClass("bg-gradient-to-br");
+  });
+
+  it("uses distinct semantic dashboard colors", async () => {
+    render(<DashboardPage />);
+
+    const rooms = await screen.findByRole("link", { name: /In Räumen/i });
+    const schoolyard = screen.getByRole("link", { name: /Schulhof/i });
+    const sick = screen.getByRole("link", { name: /Krank/i });
+    const excused = screen.getByRole("link", { name: /Entschuldigt/i });
+    const utilization = screen
+      .getByText("Auslastung")
+      .closest(".moto-content-surface");
+
+    expect(rooms.querySelector("svg")).toHaveAttribute(
+      "data-moto-duotone-tone",
+      "blue",
+    );
+    expect(schoolyard.querySelector("svg")).toHaveAttribute(
+      "data-moto-duotone-tone",
+      "amber",
+    );
+    expect(sick.querySelector("svg")).toHaveAttribute(
+      "data-moto-duotone-tone",
+      "red",
+    );
+    expect(excused.querySelector("svg")).toHaveAttribute(
+      "data-moto-duotone-tone",
+      "purple",
+    );
+    expect(utilization?.querySelector("svg")).toHaveAttribute(
+      "data-moto-duotone-tone",
+      "orange",
+    );
+  });
+
   it("renders stat cards with loading state showing dots", async () => {
     vi.mocked(useSWRAuth).mockReturnValue(
       mockSWR(undefined, { isLoading: true }),
@@ -725,6 +745,27 @@ describe("InfoCard component behavior", () => {
     });
   });
 
+  it("uses Phosphor concept icons for dashboard info cards", async () => {
+    render(<DashboardPage />);
+
+    const expectedTones = [
+      ["Letzte Bewegungen", "stone"],
+      ["Laufende Aktivitäten", "coral"],
+      ["Aktive Gruppen", "greenDeep"],
+      ["Personal heute", "orange"],
+    ] as const;
+
+    for (const [title, tone] of expectedTones) {
+      const card = (await screen.findByText(title)).closest(
+        ".moto-content-surface",
+      );
+      expect(card?.querySelector("svg")).toHaveAttribute(
+        "data-moto-duotone-tone",
+        tone,
+      );
+    }
+  });
+
   it("renders staff info card with link to staff page", async () => {
     render(<DashboardPage />);
 
@@ -732,76 +773,6 @@ describe("InfoCard component behavior", () => {
       const staffLink = screen.getByRole("link", { name: /Personal heute/i });
       expect(staffLink).toHaveAttribute("href", "/staff");
     });
-  });
-});
-
-describe("COLOR_THEMES coverage", () => {
-  it("maps all predefined color themes correctly", () => {
-    const COLOR_THEMES: Record<string, { overlay: string; ring: string }> = {
-      "[#5080D8]": {
-        overlay: "from-blue-50/80 to-cyan-100/80",
-        ring: "ring-blue-200/60",
-      },
-      "[#83CD2D]": {
-        overlay: "from-green-50/80 to-lime-100/80",
-        ring: "ring-green-200/60",
-      },
-      "[#FF3130]": {
-        overlay: "from-red-50/80 to-rose-100/80",
-        ring: "ring-red-200/60",
-      },
-      "orange-500": {
-        overlay: "from-orange-50/80 to-orange-100/80",
-        ring: "ring-orange-200/60",
-      },
-      "yellow-400": {
-        overlay: "from-yellow-50/80 to-yellow-100/80",
-        ring: "ring-yellow-200/60",
-      },
-      emerald: {
-        overlay: "from-emerald-50/80 to-green-100/80",
-        ring: "ring-emerald-200/60",
-      },
-      purple: {
-        overlay: "from-purple-50/80 to-violet-100/80",
-        ring: "ring-purple-200/60",
-      },
-      indigo: {
-        overlay: "from-indigo-50/80 to-blue-100/80",
-        ring: "ring-indigo-200/60",
-      },
-    };
-
-    const DEFAULT_THEME = {
-      overlay: "from-gray-50/80 to-slate-100/80",
-      ring: "ring-gray-200/60",
-    };
-
-    const getColorTheme = (
-      color: string,
-    ): { overlay: string; ring: string } => {
-      const matchedKey = Object.keys(COLOR_THEMES).find((key) =>
-        color.includes(key),
-      );
-      return matchedKey ? COLOR_THEMES[matchedKey]! : DEFAULT_THEME;
-    };
-
-    // Test all themes
-    expect(getColorTheme("from-orange-500 to-orange-600").overlay).toBe(
-      "from-orange-50/80 to-orange-100/80",
-    );
-    expect(getColorTheme("from-yellow-400 to-yellow-500").overlay).toBe(
-      "from-yellow-50/80 to-yellow-100/80",
-    );
-    expect(getColorTheme("from-emerald-500 to-green-600").overlay).toBe(
-      "from-emerald-50/80 to-green-100/80",
-    );
-    expect(getColorTheme("from-purple-500 to-purple-600").overlay).toBe(
-      "from-purple-50/80 to-violet-100/80",
-    );
-    expect(getColorTheme("from-indigo-500 to-indigo-600").overlay).toBe(
-      "from-indigo-50/80 to-blue-100/80",
-    );
   });
 });
 

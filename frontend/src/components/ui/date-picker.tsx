@@ -351,7 +351,7 @@ export function DatePicker({
             (isMultiple ? undefined : props.controlSize) ?? "sm"
           ]
         } ${
-          !isMultiple && props.invalid ? "border-[#FF3130]" : "border-gray-200"
+          !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
         } ${
           isDisabled
             ? "cursor-not-allowed bg-gray-50 text-gray-400"
@@ -706,7 +706,7 @@ export function ISODatePicker({
       )}
       {picker}
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-[#FF3130]">
+        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
           {error}
         </p>
       )}

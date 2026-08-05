@@ -4,9 +4,11 @@
  */
 
 import { useId } from "react";
-import { Bus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Student } from "@/lib/api";
-import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -73,19 +75,11 @@ export function PersonalInfoSection({
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-        <svg
-          className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-          />
-        </svg>
+        <MotoDuotoneIcon
+          icon={MOTO_CONCEPTS.children.icon}
+          tone={MOTO_CONCEPTS.children.tone}
+          size={18}
+        />
         Persönliche Daten
       </h3>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
@@ -184,7 +178,7 @@ function TextInput({
         className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
           error
             ? "border-red-300 bg-red-50"
-            : "border-gray-200 bg-white focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+            : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
         }`}
         placeholder={placeholder}
         maxLength={255}
@@ -306,7 +300,7 @@ function TextareaField({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="moto-content-surface block w-full resize-none rounded-lg border px-3 py-2 text-xs transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] md:text-sm"
+        className="moto-content-surface focus:border-moto-blue focus:ring-moto-blue block w-full resize-none rounded-lg border px-3 py-2 text-xs transition-colors focus:ring-1 md:text-sm"
         placeholder={placeholder}
         maxLength={2000}
       />
@@ -398,19 +392,11 @@ export function PrivacyConsentSection({
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-        <svg
-          className="h-3.5 w-3.5 text-gray-600 md:h-4 md:w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-          />
-        </svg>
+        <MotoDuotoneIcon
+          icon={MOTO_CONCEPTS.permissions.icon}
+          tone={MOTO_CONCEPTS.permissions.tone}
+          size={18}
+        />
         Datenschutz
       </h3>
       <div className="space-y-4">
@@ -421,7 +407,7 @@ export function PrivacyConsentSection({
             onChange={(e) =>
               onChange("privacy_consent_accepted", e.target.checked)
             }
-            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
+            className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
           />
           <span className="text-sm text-gray-700 transition-colors group-hover:text-gray-900">
             Einwilligung zur Datenverarbeitung erteilt
@@ -453,7 +439,7 @@ export function PrivacyConsentSection({
             className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
               errors.data_retention_days
                 ? "border-red-300 bg-red-50"
-                : "border-gray-200 bg-white focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
             }`}
             placeholder="30"
           />
@@ -489,14 +475,11 @@ export function BusStatusSection({
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-          <Bus
-            className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
-            style={{ color: GROUP_ROOM_SHADES.text }}
-          />
+          <MotoConceptIcon concept="transport" size={18} />
           Buskind
         </h3>
         {anySelected && (
-          <span className="shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15]">
+          <span className="bg-moto-green-soft text-moto-green-strong shrink-0 rounded-full px-2.5 py-1 text-xs font-medium">
             {formatBusDays(normalized)}
           </span>
         )}
@@ -514,7 +497,7 @@ export function BusStatusSection({
               key={day.key}
               className={`flex h-9 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
                 checked
-                  ? "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]"
+                  ? "border-moto-green bg-moto-green-soft text-moto-green-strong"
                   : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -602,7 +585,11 @@ export function EnrollmentConsentsSection({
             <li key={r.label} className="flex items-start gap-2">
               <span
                 className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: stamped ? "#83CD2D" : "#6B7280" }}
+                style={{
+                  backgroundColor: stamped
+                    ? MOTO_COLOR_PALETTE.green.base
+                    : "#6B7280",
+                }}
                 aria-hidden
               />
               <span className="flex-1 text-gray-700">{r.label}</span>
@@ -643,7 +630,7 @@ export function PickupStatusSection({
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <svg
-            className="h-3.5 w-3.5 shrink-0 text-[#83CD2D] md:h-4 md:w-4"
+            className="text-moto-green h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -658,7 +645,7 @@ export function PickupStatusSection({
           Abholregelung
         </h3>
         {anySelected && (
-          <span className="shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15]">
+          <span className="bg-moto-green-soft text-moto-green-strong shrink-0 rounded-full px-2.5 py-1 text-xs font-medium">
             {formatPickupDays(normalized)}
           </span>
         )}
@@ -676,7 +663,7 @@ export function PickupStatusSection({
               key={day.key}
               className={`flex h-9 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
                 checked
-                  ? "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]"
+                  ? "border-moto-green bg-moto-green-soft text-moto-green-strong"
                   : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -776,14 +763,11 @@ export function DepartureSection({
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-          <Bus
-            className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
-            style={{ color: GROUP_ROOM_SHADES.text }}
-          />
+          <MotoConceptIcon concept="transport" size={18} />
           Erlaubte Heimwege
         </h3>
         {anySelected && (
-          <span className="hidden shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15] sm:inline">
+          <span className="bg-moto-green-soft text-moto-green-strong hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline">
             {formatAllowedDepartureDays(normalized)}
           </span>
         )}
@@ -895,12 +879,12 @@ export function DepartureSection({
             aria-invalid={companionNoteError ? true : undefined}
             className={`moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-1 ${
               companionNoteError
-                ? "border-[#FF3130] focus:border-[#FF3130] focus:ring-[#FF3130]"
-                : "focus:border-[#5080D8] focus:ring-[#5080D8]"
+                ? "border-moto-red focus:border-moto-red focus:ring-moto-red"
+                : "focus:border-moto-blue focus:ring-moto-blue"
             }`}
           />
           {companionNoteError ? (
-            <p className="mt-1 text-xs text-[#FF3130]">{companionNoteError}</p>
+            <p className="text-moto-red mt-1 text-xs">{companionNoteError}</p>
           ) : (
             <p className="mt-1 text-xs text-gray-500">
               {onCompanionsChange

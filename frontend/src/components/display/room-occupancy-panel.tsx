@@ -21,7 +21,7 @@ function occupancyColor(
     return LOCATION_COLORS.UNKNOWN;
   }
   const ratio = studentCount / capacity;
-  if (ratio >= 1) return LOCATION_COLORS.HOME;
+  if (ratio >= 1) return LOCATION_COLORS.DANGER;
   if (ratio >= 0.8) return LOCATION_COLORS.SCHOOLYARD;
   return LOCATION_COLORS.GROUP_ROOM;
 }

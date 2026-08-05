@@ -10,6 +10,8 @@ import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -380,6 +382,13 @@ function StudentsPageContent() {
         <PageHeaderWithSearch
           title={isMobile ? "Kinder" : ""}
           badge={{
+            icon: (
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.children.icon}
+                tone={MOTO_CONCEPTS.children.tone}
+                size={20}
+              />
+            ),
             count: filteredStudents.length,
             label: "Kinder",
           }}
@@ -453,7 +462,14 @@ function StudentsPageContent() {
         </div>
       ) : !loading ? (
         <DatabaseEmptyState
-          icon={null}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.children.icon}
+              tone={MOTO_CONCEPTS.children.tone}
+              size={48}
+              className="mx-auto"
+            />
+          }
           title={
             searchTerm || groupFilter !== "all"
               ? "Keine Kinder gefunden"

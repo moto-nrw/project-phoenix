@@ -322,7 +322,7 @@ export function DataTableStatusBadge({
     ? LOCATION_COLORS.UNKNOWN
     : active
       ? LOCATION_COLORS.GROUP_ROOM
-      : LOCATION_COLORS.HOME;
+      : LOCATION_COLORS.UNKNOWN;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span

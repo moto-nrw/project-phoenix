@@ -12,6 +12,8 @@ import {
   type Grouper,
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -349,19 +351,11 @@ function RoomsPageContent() {
           title={isMobile ? "Räume" : ""}
           badge={{
             icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.rooms.icon}
+                tone={MOTO_CONCEPTS.rooms.tone}
+                size={20}
+              />
             ),
             count: filteredRooms.length,
             label: "Räume",
@@ -416,19 +410,12 @@ function RoomsPageContent() {
       ) : !loading ? (
         <DatabaseEmptyState
           icon={
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.rooms.icon}
+              tone={MOTO_CONCEPTS.rooms.tone}
+              size={48}
+              className="mx-auto"
+            />
           }
           title={
             searchTerm || categoryFilter !== "all"

@@ -115,7 +115,7 @@ const responseLabel: Record<string, string> = {
 const responseTone: Record<CalendarResponseStatus, string> = {
   pending: "bg-gray-100 text-gray-700",
   accepted: "bg-[#ECF7DA] text-gray-800",
-  declined: "bg-[#FF3130]/10 text-[#CC2626]",
+  declined: "bg-moto-red/10 text-moto-red-strong",
   info: "bg-[#EBF0FB] text-gray-800",
 };
 
@@ -556,7 +556,7 @@ export function PersonalCalendar({
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-4 text-sm">
           {error}
         </div>
       ) : null}
@@ -1018,7 +1018,7 @@ function AgendaRow({
   // Positionierung, nicht die Darstellung).
   const allDay = event.all_day;
   const badge = cancelled
-    ? { label: "Abgesagt", cls: "bg-[#FF3130]/10 text-[#CC2626]" }
+    ? { label: "Abgesagt", cls: "bg-moto-red/10 text-moto-red-strong" }
     : event.response_status
       ? {
           label: responseLabel[event.response_status] ?? event.response_status,
@@ -1208,7 +1208,7 @@ function CalendarEventDetail({
           {tone.label}
         </span>
         {cancelled ? (
-          <span className="rounded-md bg-[#FF3130]/10 px-2 py-0.5 text-[11px] font-semibold text-[#CC2626]">
+          <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-[11px] font-semibold">
             Abgesagt
           </span>
         ) : event.response_status ? (
@@ -1348,7 +1348,7 @@ function CalendarEventDetail({
                   type="button"
                   variant="ghost"
                   size="md"
-                  className="gap-2 text-[#CC2626]"
+                  className="text-moto-red-strong gap-2"
                   disabled={managing}
                   onClick={() => {
                     onCancel(event);
@@ -1364,7 +1364,7 @@ function CalendarEventDetail({
                   type="button"
                   variant="ghost"
                   size="md"
-                  className="gap-2 text-[#CC2626]"
+                  className="text-moto-red-strong gap-2"
                   disabled={managing}
                   onClick={() => {
                     onDelete(event);
@@ -1404,7 +1404,7 @@ export function CalendarOverviewList({
             <div className="font-semibold">{accepted}</div>
             <div>Zugesagt</div>
           </div>
-          <div className="rounded-lg bg-[#FF3130]/10 px-2 py-2 text-[#CC2626]">
+          <div className="bg-moto-red/10 text-moto-red-strong rounded-lg px-2 py-2">
             <div className="font-semibold">{declined}</div>
             <div>Abgesagt</div>
           </div>

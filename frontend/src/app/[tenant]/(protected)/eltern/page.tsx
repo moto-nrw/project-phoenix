@@ -2,14 +2,6 @@
 
 import { Suspense } from "react";
 import { useSession } from "next-auth/react";
-import {
-  ChefHat,
-  ClipboardList,
-  Megaphone,
-  MessagesSquare,
-  UserCheck,
-  type LucideIcon,
-} from "lucide-react";
 
 import { EntryPointCard } from "~/components/help/guide-components";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -19,12 +11,13 @@ import { hasPermission, hasRole } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 interface ElternCard {
   readonly href: string;
   readonly title: string;
   readonly body: string;
-  readonly icon: LucideIcon;
+  readonly concept: MotoConceptKey;
   readonly points: readonly string[];
   readonly show: boolean;
 }
@@ -64,7 +57,7 @@ function ElternContent() {
       href: "/messages",
       title: "Nachrichten",
       body: "Unterhaltungen mit Eltern lesen und beantworten.",
-      icon: MessagesSquare,
+      concept: "messages",
       points: ["Ein Verlauf pro Kind", "Rückfragen direkt klären"],
       show: true,
     },
@@ -72,7 +65,7 @@ function ElternContent() {
       href: "/admin/guardian-approvals",
       title: "Konto-Anfragen",
       body: "Zugänge von Eltern zum Elternportal freigeben.",
-      icon: UserCheck,
+      concept: "accounts",
       points: ["Neue Anfragen prüfen", "Konten bestätigen"],
       show: userIsAdmin,
     },
@@ -80,7 +73,7 @@ function ElternContent() {
       href: "/admin/change-requests",
       title: "Änderungsanfragen",
       body: "Wünsche der Eltern zu Betreuungszeiten und Stammdaten bearbeiten.",
-      icon: ClipboardList,
+      concept: "changeHistory",
       points: ["Betreuungszeiten anpassen", "Stammdaten aktualisieren"],
       show: userIsAdmin || hasPermission(session, "users:update"),
     },
@@ -88,7 +81,7 @@ function ElternContent() {
       href: "/parent-announcements",
       title: "Elternmitteilungen",
       body: "Neuigkeiten an alle Eltern senden.",
-      icon: Megaphone,
+      concept: "parentMessages",
       points: ["Mitteilungen verfassen", "Benachrichtigung per E-Mail"],
       show: canAnnounce && parentNewsEnabled,
     },
@@ -96,7 +89,7 @@ function ElternContent() {
       href: "/meal-plan",
       title: "Essensplan",
       body: "Den Speiseplan pflegen, den Eltern im Portal sehen.",
-      icon: ChefHat,
+      concept: "mealPlan",
       points: ["Gerichte je Woche", "Für Eltern sichtbar"],
       show:
         mealPlanEnabled &&
@@ -114,7 +107,7 @@ function ElternContent() {
         {/* Intro — carries the Anleitung/Help-Guide design language (green
             eyebrow + short lead) into the in-app overview. */}
         <div className="mb-8 hidden max-w-2xl lg:block">
-          <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
+          <p className="text-moto-green-strong text-sm font-bold tracking-[0.08em] uppercase">
             Elternbereich
           </p>
           <p className="mt-3 text-base leading-7 text-gray-600">
@@ -130,7 +123,7 @@ function ElternContent() {
               href={tenantPath(card.href)}
               title={card.title}
               body={card.body}
-              icon={card.icon}
+              concept={card.concept}
               points={card.points}
             />
           ))}

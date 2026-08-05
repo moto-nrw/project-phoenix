@@ -50,7 +50,7 @@ describe("GroupHeader", () => {
   it.each([
     ["neutral", "bg-gray-50"],
     ["warning", "bg-[#FFF8ED]"],
-    ["success", "bg-[#DCF5C1]/40"],
+    ["success", "bg-moto-green-soft/40"],
   ] as const)("applies %s variant classes", (variant, expected) => {
     const { container } = render(
       <GroupHeader {...baseProps()} variant={variant} />,

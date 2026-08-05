@@ -189,14 +189,14 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       {error && (
         <div
           ref={errorRef}
-          className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4"
+          className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4"
         >
           <div className="flex items-start gap-3">
             <AlertCircle
-              className="mt-0.5 h-5 w-5 shrink-0 text-[#CC2626]"
+              className="text-moto-red-strong mt-0.5 h-5 w-5 shrink-0"
               aria-hidden="true"
             />
-            <p className="text-sm text-[#CC2626]">{error}</p>
+            <p className="text-moto-red-strong text-sm">{error}</p>
           </div>
         </div>
       )}
@@ -216,7 +216,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       <div>
         <label
           htmlFor="password"
-          className={`mb-2 block text-sm font-medium ${errorFieldName === "password" ? "text-[#CC2626]" : "text-gray-700"}`}
+          className={`mb-2 block text-sm font-medium ${errorFieldName === "password" ? "text-moto-red-strong" : "text-gray-700"}`}
         >
           {t("passwordLabel")}
         </label>
@@ -229,7 +229,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-12 ${errorFieldName === "password" ? "ring-2 ring-[#FF3130]/35" : ""}`}
+            className={`${authInputClassName} pr-12 ${errorFieldName === "password" ? "ring-moto-red/35 ring-2" : ""}`}
             required
           />
           <PasswordToggleButton
@@ -244,7 +244,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       <div>
         <label
           htmlFor="confirmPassword"
-          className={`mb-2 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-[#CC2626]" : "text-gray-700"}`}
+          className={`mb-2 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-moto-red-strong" : "text-gray-700"}`}
         >
           {t("confirmPasswordLabel")}
         </label>
@@ -257,7 +257,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-12 ${errorFieldName === "confirmPassword" ? "ring-2 ring-[#FF3130]/35" : ""}`}
+            className={`${authInputClassName} pr-12 ${errorFieldName === "confirmPassword" ? "ring-moto-red/35 ring-2" : ""}`}
             required
           />
           <PasswordToggleButton
@@ -282,7 +282,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
               <span
                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                   requirement.met
-                    ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5A8B1F]"
+                    ? "border-moto-green bg-moto-green/10 text-moto-green-strong"
                     : "border-gray-300 bg-white text-gray-400"
                 }`}
                 aria-hidden="true"

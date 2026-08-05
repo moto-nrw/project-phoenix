@@ -104,7 +104,7 @@ export function InvitationPageContent({ token }: { token: string | null }) {
     return (
       <AuthShell
         eyebrow="Einladung"
-        eyebrowClassName="text-[#83CD2D]"
+        eyebrowClassName="text-moto-green"
         title="Konto einrichten"
         subtitle="Wir prüfen deine Einladung."
         variant="tenant"
@@ -119,7 +119,7 @@ export function InvitationPageContent({ token }: { token: string | null }) {
   return (
     <AuthShell
       eyebrow="Einladung"
-      eyebrowClassName="text-[#83CD2D]"
+      eyebrowClassName="text-moto-green"
       title="Konto einrichten"
       subtitle="Bestätige deine Einladung und lege dein persönliches Passwort fest."
       variant="tenant"

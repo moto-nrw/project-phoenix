@@ -14,7 +14,6 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  CalendarClock,
   Check,
   ChevronDown,
   Eye,
@@ -28,10 +27,10 @@ import {
   Lock,
   Pencil,
   Plus,
-  ShieldCheck,
   TextCursorInput,
   Trash2,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { FormModal } from "~/components/ui/form-modal";
@@ -997,7 +996,7 @@ export function EnrollmentFormEditor() {
             <section className="space-y-4">
               <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                     Zusatzfragen
                   </p>
                   <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -1032,7 +1031,7 @@ export function EnrollmentFormEditor() {
               </div>
 
               {error ? (
-                <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+                <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
                   {error}
                 </div>
               ) : null}
@@ -1154,7 +1153,7 @@ function EnrollmentFormsOverview({
           <div className="space-y-6 p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                   Formularübersicht
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-gray-900">
@@ -1177,7 +1176,7 @@ function EnrollmentFormsOverview({
             </div>
 
             {error ? (
-              <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
                 {error}
               </div>
             ) : null}
@@ -1400,7 +1399,7 @@ function UsageLine({
       textClassName: "text-gray-700",
     },
     assigned: {
-      dotClassName: "bg-[#83CD2D]",
+      dotClassName: "bg-moto-green",
       textClassName: "text-[#5F9F20]",
     },
     ready: {
@@ -1451,7 +1450,7 @@ function OverviewGuide({
         </h3>
         <div className="mt-4 space-y-3">
           <GuideStep
-            icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+            icon={<MotoConceptIcon concept="permissions" size={18} />}
             title="Basisformular prüfen"
             done
           />
@@ -1461,7 +1460,7 @@ function OverviewGuide({
             done={templateCount > 0}
           />
           <GuideStep
-            icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
+            icon={<MotoConceptIcon concept="calendarPeriods" size={18} />}
             title="Vorlage in Anmeldephase wählen"
             done={assignedTemplateCount > 0}
           />
@@ -1513,7 +1512,7 @@ function FormTemplateDetail({
             <div className="space-y-5 p-5 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                     Formular prüfen
                   </p>
                   <h2 className="mt-1 text-xl font-semibold text-gray-900">
@@ -1598,7 +1597,7 @@ function FormTemplateDetail({
                 }
                 className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
-                <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                <MotoConceptIcon concept="calendarPeriods" size={18} />
                 {assignedPhases.length > 0
                   ? "Anmeldephasen öffnen"
                   : "In Anmeldephase auswählen"}
@@ -1638,7 +1637,7 @@ function FormTemplateDetail({
                   />
                   <GuideStep
                     icon={
-                      <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                      <MotoConceptIcon concept="calendarPeriods" size={18} />
                     }
                     title="In Anmeldephase auswählen"
                     done={assignedPhases.length > 0}
@@ -1662,7 +1661,7 @@ function GuideStep({
     <div className="flex items-center gap-3">
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-          done ? "bg-[#83CD2D]/15 text-[#5F9F20]" : "bg-gray-100 text-gray-500"
+          done ? "bg-moto-green/15 text-[#5F9F20]" : "bg-gray-100 text-gray-500"
         }`}
       >
         {icon}
@@ -1672,7 +1671,7 @@ function GuideStep({
       </span>
       <span
         className={`h-2 w-2 rounded-full ${
-          done ? "bg-[#83CD2D]" : "bg-gray-300"
+          done ? "bg-moto-green" : "bg-gray-300"
         }`}
         aria-hidden="true"
       />
@@ -1700,7 +1699,7 @@ function DeleteSchemaDialog({
       confirmText="Löschen"
       cancelText="Abbrechen"
       isConfirmLoading={deleting}
-      confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+      confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
     >
       <div className="space-y-3 text-sm leading-6 text-gray-600">
         <p>
@@ -1885,7 +1884,7 @@ function UnsavedChangesDialog({
           : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
       </p>
       {saveBlockedMessage ? (
-        <div className="mt-4 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm font-medium text-[#9F1F1E]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-4 rounded-lg border px-3 py-2 text-sm font-medium">
           {saveBlockedMessage}
         </div>
       ) : null}
@@ -1896,7 +1895,7 @@ function UnsavedChangesDialog({
 function FormBuilderIntro() {
   return (
     <header>
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
         Formular-Konfigurator
       </p>
       <h2 className="mt-1 text-xl font-semibold text-gray-900">
@@ -2039,7 +2038,7 @@ function CoreFieldsSection({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Basisformular
           </p>
           <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -2269,7 +2268,7 @@ function LegalBlocksSection({
               type="button"
               onClick={onRemove}
               disabled={disabled}
-              className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-[#CC2626] hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-moto-red-strong hover:bg-moto-red/10 inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Entfernen
@@ -2368,7 +2367,7 @@ function LegalBlocksSection({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Zustimmungen
           </p>
           <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -2547,8 +2546,8 @@ function AGBTemplateSourceEditor({
           disabled={disabled}
           className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT
-              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
-              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
+              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
           }`}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
@@ -2570,8 +2569,8 @@ function AGBTemplateSourceEditor({
           disabled={disabled}
           className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
-              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
-              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
+              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
           }`}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
@@ -2603,7 +2602,7 @@ function AGBTemplateSourceEditor({
           />
         </label>
       ) : (
-        <div className="rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+        <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
@@ -2615,7 +2614,7 @@ function AGBTemplateSourceEditor({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <label
-                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors hover:bg-[#5080D8]/10 ${
+                className={`border-moto-blue/25 hover:bg-moto-blue/10 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors ${
                   disabled || documentSaving
                     ? "pointer-events-none opacity-50"
                     : ""
@@ -2650,7 +2649,7 @@ function AGBTemplateSourceEditor({
                   type="button"
                   onClick={onDocumentRemove}
                   disabled={disabled || documentSaving}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 bg-white px-2.5 py-1.5 font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Entfernen</span>
@@ -3123,7 +3122,7 @@ function FieldEditorRow({
                   {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
                 {isInfo ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                  <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
                     <Info className="h-3 w-3" aria-hidden="true" />
                     Hinweis
                   </span>
@@ -3165,7 +3164,7 @@ function FieldEditorRow({
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-[#FF3130]/30 hover:bg-[#FF3130]/10 hover:text-[#CC2626] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                className="hover:border-moto-red/30 hover:bg-moto-red/10 hover:text-moto-red-strong inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Frage entfernen"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -3174,7 +3173,7 @@ function FieldEditorRow({
           </div>
 
           {isInfo ? (
-            <div className="rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/5 px-3 py-2 text-xs leading-5 text-gray-600">
+            <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border px-3 py-2 text-xs leading-5 text-gray-600">
               <p className="font-medium text-[#3D63B0]">
                 Wird Eltern als Hinweis angezeigt.
               </p>
@@ -3382,7 +3381,7 @@ function FieldEditorRow({
                             type="button"
                             onClick={() => removeAllowedTime(index)}
                             disabled={disabled}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                             aria-label={`Auswahlzeit ${index + 1} entfernen`}
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -3450,14 +3449,14 @@ function FormChoice({
       disabled={disabled}
       className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
         checked
-          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+          ? "border-moto-green/40 bg-moto-green/10"
           : "border-gray-200 bg-white hover:bg-gray-50"
       } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
     >
       <span
         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
           checked
-            ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+            ? "border-moto-green bg-moto-green text-gray-950"
             : "border-gray-300 bg-white"
         }`}
         aria-hidden="true"
@@ -3973,7 +3972,7 @@ function FormPreview({
 
       <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-4">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Online-Anmeldung
           </p>
           <h3 className="mt-1 text-lg font-semibold text-gray-900">
@@ -4054,13 +4053,13 @@ function FormPreview({
                         <span
                           className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
                             block.kind === "notice"
-                              ? "border-[#5080D8]/30 bg-[#5080D8]/10"
+                              ? "border-moto-blue/30 bg-moto-blue/10"
                               : "border-gray-300 bg-white"
                           }`}
                           aria-hidden="true"
                         >
                           {block.kind === "notice" ? (
-                            <Info className="h-3 w-3 text-[#5080D8]" />
+                            <Info className="text-moto-blue h-3 w-3" />
                           ) : null}
                         </span>
                         <div className="min-w-0 flex-1">
@@ -4132,7 +4131,7 @@ function PreviewSection({
 function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
   if (!field.visible_when) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[10px] font-medium text-[#3D63B0]">
+    <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-[#3D63B0]">
       bedingt
     </span>
   );
@@ -4141,7 +4140,7 @@ function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
 function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
   if (field.type === "information") {
     return (
-      <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 px-3 py-2">
+      <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border px-3 py-2">
         <div className="flex items-start justify-between gap-3">
           {field.label.trim() ? (
             <span className="text-sm font-semibold text-gray-900">
@@ -4241,8 +4240,8 @@ function getPreviewStatus({
     return {
       label: "In Phase verwendet",
       hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-      className: "bg-[#83CD2D]/10 text-[#5F9F20]",
-      dotClassName: "bg-[#83CD2D]",
+      className: "bg-moto-green/10 text-[#5F9F20]",
+      dotClassName: "bg-moto-green",
     };
   }
 
@@ -4250,8 +4249,8 @@ function getPreviewStatus({
     return {
       label: "Bereit zur Zuordnung",
       hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
-      className: "bg-[#83CD2D]/10 text-[#5F9F20]",
-      dotClassName: "bg-[#83CD2D]",
+      className: "bg-moto-green/10 text-[#5F9F20]",
+      dotClassName: "bg-moto-green",
     };
   }
 

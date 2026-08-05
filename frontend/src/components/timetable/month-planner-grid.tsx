@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, CalendarDays } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import {
@@ -10,6 +11,7 @@ import {
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
 
@@ -119,7 +121,7 @@ export function MonthPlannerGrid({
                 {dayInstances.length === 0 ? (
                   closingReason === undefined && (
                     <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
-                      <CalendarDays className="h-3 w-3" />
+                      <MotoConceptIcon concept="calendar" size={14} />
                       Leer
                     </div>
                   )
@@ -141,12 +143,12 @@ export function MonthPlannerGrid({
                             : {})}
                           className={`pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
                             isCancelled
-                              ? "border-dashed border-[#FF3130] text-gray-400 line-through"
+                              ? "border-moto-red border-dashed text-gray-400 line-through"
                               : "border-gray-200 text-gray-700"
                           }`}
                           style={{
                             borderLeftColor: isCancelled
-                              ? "#FF3130"
+                              ? MOTO_COLOR_PALETTE.red.base
                               : getActivityColor(inst.activityType),
                           }}
                         >
@@ -154,7 +156,7 @@ export function MonthPlannerGrid({
                             className="h-1.5 w-1.5 shrink-0 rounded-full"
                             style={{
                               backgroundColor: isCancelled
-                                ? "#FF3130"
+                                ? MOTO_COLOR_PALETTE.red.base
                                 : getActivityColor(inst.activityType),
                             }}
                             aria-hidden
@@ -172,7 +174,7 @@ export function MonthPlannerGrid({
                           )}
                           {isActive && !isCancelled && (
                             <span
-                              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"
+                              className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full"
                               aria-label="läuft"
                             />
                           )}

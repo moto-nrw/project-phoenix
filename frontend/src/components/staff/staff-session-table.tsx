@@ -458,8 +458,8 @@ export function StaffSessionTable({
                         {session?.check_out_time ? (
                           formatTimeOnly(session.check_out_time)
                         ) : session ? (
-                          <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
-                            <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#83CD2D]" />
+                          <span className="bg-moto-green/10 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-[#70b525]">
+                            <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
                             eingestempelt
                           </span>
                         ) : (
@@ -757,14 +757,14 @@ function computeRowStatus(
 function StatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
     return (
-      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+      <span className="bg-moto-blue/10 text-moto-blue inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
         Homeoffice
       </span>
     );
   }
   if (status.kind === "present") {
     return (
-      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+      <span className="bg-moto-green/10 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-[#70b525]">
         OGS
       </span>
     );
@@ -820,7 +820,7 @@ function SourceBadge({
   }
   if (session.source === "nfc") {
     return (
-      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+      <span className="bg-moto-blue/10 text-moto-blue inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
         NFC
       </span>
     );

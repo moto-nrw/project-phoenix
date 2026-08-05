@@ -92,7 +92,7 @@ export function CalendarSubscribePanel() {
             <div className="mt-4 space-y-4">
               <a
                 href={feed.webcal_url}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-[#83CD2D] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#74b827]"
+                className="bg-moto-green inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold text-gray-950 transition-colors hover:bg-[#74b827]"
               >
                 <CalendarCheck className="h-4 w-4" aria-hidden />
                 Im Kalender abonnieren
@@ -132,9 +132,9 @@ export function CalendarSubscribePanel() {
               <div className="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600">
                 <p className="font-semibold text-gray-700">So geht&apos;s:</p>
                 <p className="mt-1">
-                  <span className="font-medium">iPhone/iPad:</span> Einstellungen
-                  → Kalender → Accounts → Account hinzufügen → Andere →
-                  Kalenderabo hinzufügen, dann den Link einfügen.
+                  <span className="font-medium">iPhone/iPad:</span>{" "}
+                  Einstellungen → Kalender → Accounts → Account hinzufügen →
+                  Andere → Kalenderabo hinzufügen, dann den Link einfügen.
                 </p>
                 <p className="mt-1">
                   <span className="font-medium">Android:</span> In Google

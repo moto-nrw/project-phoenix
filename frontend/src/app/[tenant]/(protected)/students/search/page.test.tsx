@@ -180,7 +180,7 @@ vi.mock("~/lib/location-helper", () => ({
   LOCATION_COLORS: {
     GROUP_ROOM: "#83CD2D",
     OTHER_ROOM: "#5080D8",
-    HOME: "#FF3130",
+    HOME: "#DC2626",
     SCHOOLYARD: "#F78C10",
     TRANSIT: "#D946EF",
     UNKNOWN: "#6B7280",

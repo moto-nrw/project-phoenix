@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CalendarClock,
   ChevronLeft,
   ChevronRight,
   Loader2,
   SquarePen,
   StickyNote,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ArrivalScheduleFormModal } from "./arrival-schedule-form-modal";
 import { ArrivalDayEditModal } from "./arrival-day-edit-modal";
 import {
@@ -249,8 +249,8 @@ export function ArrivalScheduleManager({
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
-            <CalendarClock className="h-5 w-5" />
+          <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
+            <MotoConceptIcon concept="carePlan" size={22} />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
             Ankunftsplan & Notizen
@@ -369,7 +369,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
     <div
       className={
         day.isToday
-          ? "rounded-lg border border-[#83CD2D] bg-[#83CD2D]/5 px-3 py-2"
+          ? "border-moto-green bg-moto-green/5 rounded-lg border px-3 py-2"
           : "moto-content-surface rounded-lg border px-3 py-2"
       }
     >
@@ -378,14 +378,14 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
           <div
             className={
               day.isToday
-                ? "text-sm font-medium text-[#83CD2D]"
+                ? "text-moto-green text-sm font-medium"
                 : "text-sm font-medium text-gray-700"
             }
           >
             {weekdayInfo?.shortLabel} {formatShortDate(day.date)}
           </div>
           {day.isToday ? (
-            <div className="text-[10px] text-[#83CD2D]">heute</div>
+            <div className="text-moto-green text-[10px]">heute</div>
           ) : null}
         </div>
         <div className="w-16 flex-shrink-0 text-sm font-semibold text-gray-900">
@@ -401,7 +401,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
               kommt nicht
             </span>
           ) : day.isAbsent ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium text-[#F78C10]">
+            <span className="text-moto-orange inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium">
               kommt nicht
             </span>
           ) : day.isException ? (
@@ -452,7 +452,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
     <div
       className={
         day.isToday
-          ? "group relative rounded-lg border border-[#83CD2D] bg-[#83CD2D]/5 p-2 text-center"
+          ? "group border-moto-green bg-moto-green/5 relative rounded-lg border p-2 text-center"
           : "group moto-content-surface relative rounded-lg border p-2 text-center"
       }
     >
@@ -460,7 +460,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
         <div
           className={
             day.isToday
-              ? "text-xs font-medium text-[#83CD2D]"
+              ? "text-moto-green text-xs font-medium"
               : "text-xs font-medium text-gray-500"
           }
         >
@@ -479,7 +479,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
       </div>
       <div className="text-xs text-gray-500">{formatShortDate(day.date)}</div>
       {day.isToday ? (
-        <div className="text-[10px] text-[#83CD2D]">heute</div>
+        <div className="text-moto-green text-[10px]">heute</div>
       ) : null}
 
       {day.showSick || day.showExcused ? (
@@ -487,7 +487,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           kommt nicht
         </div>
       ) : day.isAbsent ? (
-        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium text-[#F78C10]">
+        <div className="text-moto-orange mt-1 inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium">
           kommt nicht
         </div>
       ) : (

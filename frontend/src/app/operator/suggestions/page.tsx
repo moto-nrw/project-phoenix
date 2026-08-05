@@ -337,7 +337,7 @@ function OperatorSuggestionCard({
           </h3>
           <div className="flex shrink-0 items-center gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[#83CD2D]">
+              <span className="text-moto-green flex items-center gap-1">
                 <ThumbsUp className="h-4 w-4" fill="currentColor" />
                 <span className="text-xs font-bold">{suggestion.upvotes}</span>
               </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Bus, CalendarClock, MoreVertical } from "lucide-react";
+import { AlertCircle, MoreVertical } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import {
   DetailPanel,
@@ -202,7 +204,7 @@ export function StudentsMasterDetail({
     }
     const subtitleText = subtitleParts.join(" · ") || "—";
     const subtitle = !hasArrival ? (
-      <span className="font-medium text-[#F78C10]">{subtitleText}</span>
+      <span className="text-moto-orange font-medium">{subtitleText}</span>
     ) : (
       subtitleText
     );
@@ -216,7 +218,7 @@ export function StudentsMasterDetail({
         trailingAccessory={
           !hasArrival ? (
             <AlertCircle
-              className="h-4 w-4 shrink-0 text-[#F78C10]"
+              className="text-moto-orange h-4 w-4 shrink-0"
               aria-label="Ankunft fehlt"
             />
           ) : null
@@ -455,7 +457,11 @@ function GroupActionsMenu({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
             >
-              <CalendarClock className="h-4 w-4 text-gray-500" aria-hidden />
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.carePlan.icon}
+                tone={MOTO_CONCEPTS.carePlan.tone}
+                size={18}
+              />
               Ankunftszeit bearbeiten
             </button>
           ) : null}
@@ -470,7 +476,11 @@ function GroupActionsMenu({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
             >
-              <Bus className="h-4 w-4 text-gray-500" aria-hidden />
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.classTrip.icon}
+                tone={MOTO_CONCEPTS.classTrip.tone}
+                size={18}
+              />
               Klassenfahrt planen
             </button>
           ) : null}

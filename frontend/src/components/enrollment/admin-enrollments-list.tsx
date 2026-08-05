@@ -187,7 +187,7 @@ export function AdminEnrollmentsList() {
       />
 
       {error && (
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
           {error}
         </div>
       )}
@@ -225,7 +225,7 @@ function ChangeRequestsOverview({
             <MessageSquare className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Änderungen
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -344,7 +344,7 @@ function EnrollmentPhaseOverview({
   if (phases.length === 0) {
     return (
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Überblick
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -371,7 +371,7 @@ function EnrollmentPhaseOverview({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Überblick
           </p>
           <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -650,7 +650,7 @@ function EnrollmentSetupGuide({
         >
           <span className="flex min-w-0 items-center gap-3.5">
             <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#83CD2D]"
+              className="bg-moto-green h-2.5 w-2.5 shrink-0 rounded-full"
               aria-hidden="true"
             />
             <span className="min-w-0">
@@ -864,13 +864,13 @@ function isStepComplete(status: SetupStepStatus) {
 
 function getStepIconClass(status: SetupStepStatus) {
   if (status === "done") {
-    return "border-[#83CD2D]/30 bg-[#83CD2D]/15 text-[#5A8B1F]";
+    return "border-moto-green/30 bg-moto-green/15 text-moto-green-strong";
   }
   return "border-gray-200 bg-white text-gray-500";
 }
 
 function getStepDotClass(status: SetupStepStatus) {
-  if (isStepComplete(status)) return "bg-[#83CD2D]";
+  if (isStepComplete(status)) return "bg-moto-green";
   return "bg-gray-300";
 }
 
@@ -883,9 +883,9 @@ function StatusPill({
 }>) {
   const className =
     tone === "success"
-      ? "bg-[#83CD2D]/15 text-[#5A8B1F]"
+      ? "bg-moto-green/15 text-moto-green-strong"
       : tone === "info"
-        ? "bg-[#5080D8]/10 text-[#4070C8]"
+        ? "bg-moto-blue/10 text-[#4070C8]"
         : "bg-gray-100 text-gray-600";
   return (
     <span
@@ -902,7 +902,7 @@ function StepMeta({
 }: Readonly<{ label: string; status: SetupStepStatus }>) {
   const className =
     status === "done"
-      ? "text-[#5A8B1F]"
+      ? "text-moto-green-strong"
       : status === "blocked"
         ? "text-gray-400"
         : "text-gray-500";

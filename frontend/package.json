@@ -10,7 +10,7 @@
     "check": "node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "generate:guides": "playwright test -c playwright.guides.config.ts",
@@ -28,9 +28,9 @@
     "knip": "knip"
   },
   "dependencies": {
-    "@fontsource/geist-sans": "^5.2.5",
     "@marsidev/react-turnstile": "^1.5.3",
     "@moto-nrw/design-system": "^0.5.2",
+    "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-focus-scope": "^1.1.12",
     "@radix-ui/react-tabs": "^1.1.17",
     "@sentry/nextjs": "^10.65.0",

@@ -6,7 +6,6 @@ import {
   Clock,
   MapPin,
   Repeat,
-  Thermometer,
   TriangleAlert,
 } from "lucide-react";
 import {
@@ -41,6 +40,7 @@ import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   formatColumnDate,
   formatPlannedHours,
@@ -161,7 +161,7 @@ function absenceNoteForStaff(
 // Ported 1:1 from the retired per-cell week grid (pure, prop-only) — the accent color
 // of a read-only Betreuungsplan assignment card.
 function assignmentAccentColor(assignment: StaffScheduleAssignment): string {
-  if (assignment.isAbsent) return LOCATION_COLORS.HOME;
+  if (assignment.isAbsent) return LOCATION_COLORS.DANGER;
   if (assignment.coverageStatus === "uncovered") return LOCATION_COLORS.SICK;
   if (assignment.isSubstitute) return LOCATION_COLORS.OTHER_ROOM;
   return LOCATION_COLORS.UNKNOWN;
@@ -181,7 +181,7 @@ function AssignmentCard({
     assignmentStatus = (
       <span
         className="mt-1 block text-xs font-semibold"
-        style={{ color: LOCATION_COLORS.HOME }}
+        style={{ color: LOCATION_COLORS.DANGER }}
       >
         Abwesend
         {assignment.absenceReason ? ` · ${assignment.absenceReason}` : ""}
@@ -426,7 +426,7 @@ export function DienstplanResourceGrid({
     if (onSickReport) {
       items.push({
         label: "Krank melden",
-        icon: <Thermometer className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="sick" size={18} />,
         onClick: () => onSickReport(member),
       });
     }
@@ -557,7 +557,7 @@ export function DienstplanResourceGrid({
         {shift.cancelled ? (
           <p
             className="text-[11px] font-medium"
-            style={{ color: LOCATION_COLORS.HOME }}
+            style={{ color: LOCATION_COLORS.DANGER }}
           >
             Fällt aus{shift.changeReason ? ` · ${shift.changeReason}` : ""}
           </p>
@@ -719,7 +719,7 @@ export function DienstplanResourceGrid({
                     {column.isCurrent && !isSelected && (
                       <span
                         aria-hidden
-                        className="h-1 w-1 rounded-full bg-[#FF3130]"
+                        className="bg-moto-red h-1 w-1 rounded-full"
                       />
                     )}
                   </button>

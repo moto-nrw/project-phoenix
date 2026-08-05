@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LocationBadge } from "./location-badge";
-import { LOCATION_STATUSES, LOCATION_COLORS } from "@/lib/location-helper";
+import {
+  LOCATION_STATUSES,
+  LOCATION_COLORS,
+  getLocationBadgeTone,
+} from "@/lib/location-helper";
 import type { StudentLocationContext } from "@/lib/location-helper";
 
 // =============================================================================
@@ -119,7 +123,8 @@ describe("LocationBadge", () => {
         const badge = screen.getByText(LOCATION_STATUSES.SICK);
         const badgeContainer = badge.closest("span");
         expect(badgeContainer).toHaveStyle({
-          backgroundColor: LOCATION_COLORS.SICK,
+          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.SICK)
+            .backgroundColor,
         });
       });
 
@@ -214,7 +219,8 @@ describe("LocationBadge", () => {
 
         const sickIndicator = screen.getByText(LOCATION_STATUSES.SICK);
         expect(sickIndicator.closest("span")).toHaveStyle({
-          backgroundColor: LOCATION_COLORS.SICK,
+          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.SICK)
+            .backgroundColor,
         });
       });
 
@@ -355,7 +361,8 @@ describe("LocationBadge", () => {
 
         const badge = screen.getByText(LOCATION_STATUSES.EXCUSED);
         expect(badge.closest("span")).toHaveStyle({
-          backgroundColor: LOCATION_COLORS.EXCUSED,
+          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.EXCUSED)
+            .backgroundColor,
         });
       });
 
@@ -418,7 +425,8 @@ describe("LocationBadge", () => {
           "true",
         );
         expect(ind.closest("span")).toHaveStyle({
-          backgroundColor: LOCATION_COLORS.EXCUSED,
+          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.EXCUSED)
+            .backgroundColor,
         });
       });
     });
@@ -609,9 +617,7 @@ describe("LocationBadge", () => {
       });
       render(<LocationBadge student={student} displayMode="roomName" />);
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
-      // Tailwind keeps style serialized as the literal value we pass in;
-      // jsdom compares colors as written, so the assertion is exact.
-      expect(badgeContainer).toHaveStyle({ backgroundColor: "#A3D977" });
+      expect(badgeContainer).toHaveStyle({ backgroundColor: "#F9FAFB" });
     });
 
     it("falls back to OTHER_ROOM blue when no per-room color is set", () => {
@@ -622,7 +628,8 @@ describe("LocationBadge", () => {
       render(<LocationBadge student={student} displayMode="roomName" />);
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: LOCATION_COLORS.OTHER_ROOM,
+        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.OTHER_ROOM)
+          .backgroundColor,
       });
     });
 
@@ -642,7 +649,8 @@ describe("LocationBadge", () => {
       );
       const badgeContainer = screen.getByText("Raum A").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: LOCATION_COLORS.GROUP_ROOM,
+        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM)
+          .backgroundColor,
       });
     });
 
@@ -660,7 +668,8 @@ describe("LocationBadge", () => {
       render(<LocationBadge student={student} displayMode="roomName" />);
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: LOCATION_COLORS.OTHER_ROOM,
+        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.OTHER_ROOM)
+          .backgroundColor,
       });
     });
   });

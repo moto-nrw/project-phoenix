@@ -88,7 +88,7 @@ export function ChildMasterDataView({ studentId }: Props) {
     return (
       <div className="mx-auto w-full max-w-7xl">
         <BackBar studentId={studentId} />
-        <div className="mt-4 rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-4 rounded-2xl border p-5 text-sm shadow-sm">
           {t("loadError")}
         </div>
       </div>
@@ -428,8 +428,8 @@ function IdentitySection({
             <span
               className={
                 status === "error"
-                  ? "text-sm text-[#CC2626]"
-                  : "text-sm text-[#4A7A15]"
+                  ? "text-moto-red-strong text-sm"
+                  : "text-moto-green-strong text-sm"
               }
             >
               {message}
@@ -578,7 +578,7 @@ function DepartureSection({
                       checked={(modes[day] ?? []).includes(mode)}
                       disabled={!requestable}
                       onChange={() => toggle(day, mode)}
-                      className="h-4 w-4 rounded border-gray-300 text-[#4A7A15] focus:ring-[#4A7A15]"
+                      className="text-moto-green-strong focus:ring-moto-green-strong h-4 w-4 rounded border-gray-300"
                     />
                   </td>
                 ))}
@@ -602,8 +602,8 @@ function DepartureSection({
             <span
               className={
                 status === "error"
-                  ? "text-sm text-[#CC2626]"
-                  : "text-sm text-[#4A7A15]"
+                  ? "text-moto-red-strong text-sm"
+                  : "text-moto-green-strong text-sm"
               }
             >
               {message}
@@ -1050,7 +1050,7 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#4A7A15]">
+      <span className="text-moto-green-strong inline-flex items-center gap-1 text-xs font-medium">
         <Check className="h-3 w-3" aria-hidden="true" />
         {t("saved")}
       </span>
@@ -1058,7 +1058,7 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
   }
   if (status === "error") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#CC2626]">
+      <span className="text-moto-red-strong inline-flex items-center gap-1 text-xs font-medium">
         <AlertCircle className="h-3 w-3" aria-hidden="true" />
         {t("saveError")}
       </span>

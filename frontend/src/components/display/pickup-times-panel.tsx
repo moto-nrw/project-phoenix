@@ -31,7 +31,7 @@ export function PickupTimesPanel({ buckets }: PickupTimesPanelProps) {
             >
               <p
                 className="text-3xl font-bold tabular-nums"
-                style={{ color: LOCATION_COLORS.HOME }}
+                style={{ color: LOCATION_COLORS.DANGER }}
               >
                 {bucket.time} Uhr
               </p>

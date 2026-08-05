@@ -421,7 +421,7 @@ export function PersonalInfoFormModal({
     >
       <div className="space-y-4">
         {companionsStale ? (
-          <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+          <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
             <p className="text-sm text-gray-900">
               Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an
               anderer Stelle geändert. Speichern ist gesperrt, damit die fremde
@@ -443,7 +443,7 @@ export function PersonalInfoFormModal({
           </div>
         ) : null}
         {companionsStatus === "error" ? (
-          <div className="rounded-lg border border-[#FF3130] bg-[#FF3130]/5 p-3">
+          <div className="border-moto-red bg-moto-red/5 rounded-lg border p-3">
             <p className="text-sm text-gray-900">
               Die Laufgemeinschaft konnte nicht geladen werden und wird unten
               nicht angezeigt. Andere Angaben lassen sich speichern, die
@@ -461,7 +461,7 @@ export function PersonalInfoFormModal({
           </div>
         ) : null}
         {planConflict ? (
-          <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+          <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
             <p className="text-sm text-gray-900">{planConflict}</p>
             <p className="mt-1 text-xs text-gray-600">
               Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt

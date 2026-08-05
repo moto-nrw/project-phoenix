@@ -34,7 +34,7 @@ describe("getStaffLocationStatus", () => {
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Abwesend");
-    expect(result.customBgColor).toBe("#FF3130");
+    expect(result.customBgColor).toBe("#DC2626");
     expect(result.customShadow).toContain("255, 49, 48");
   });
 
@@ -104,7 +104,7 @@ describe("getStaffLocationStatus", () => {
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Abwesend");
-    expect(result.customBgColor).toBe("#FF3130");
+    expect(result.customBgColor).toBe("#DC2626");
   });
 
   it("handles supervising staff in multiple rooms as Anwesend", () => {

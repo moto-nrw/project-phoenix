@@ -286,7 +286,7 @@ export function TeacherForm({
                 className={`w-full rounded-lg border ${
                   errors.firstName
                     ? "border-red-300 bg-red-50"
-                    : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                    : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="given-name"
@@ -314,7 +314,7 @@ export function TeacherForm({
                 className={`w-full rounded-lg border ${
                   errors.lastName
                     ? "border-red-300 bg-red-50"
-                    : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                    : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="family-name"
@@ -342,7 +342,7 @@ export function TeacherForm({
                   className={`w-full rounded-lg border ${
                     errors.email
                       ? "border-red-300 bg-red-50"
-                      : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                      : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                   } px-3 py-2 text-sm transition-colors`}
                   disabled={isLoading}
                   maxLength={255}
@@ -433,7 +433,7 @@ export function TeacherForm({
                     className={`w-full rounded-lg border ${
                       errors.password
                         ? "border-red-300 bg-red-50"
-                        : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                        : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                     } px-3 py-2 text-sm transition-colors`}
                     disabled={isLoading}
                   />
@@ -459,7 +459,7 @@ export function TeacherForm({
                     className={`w-full rounded-lg border ${
                       errors.confirmPassword
                         ? "border-red-300 bg-red-50"
-                        : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                        : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                     } px-3 py-2 text-sm transition-colors`}
                     disabled={isLoading}
                   />
@@ -507,7 +507,7 @@ export function TeacherForm({
                 list="teacher-position-suggestions"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                className="focus:border-moto-orange focus:ring-moto-orange w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                 placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
                 disabled={isLoading}
               />

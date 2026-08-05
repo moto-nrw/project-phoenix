@@ -9,6 +9,9 @@ import createNextIntlPlugin from "next-intl/plugin";
 /** @type {import("next").NextConfig} */
 const config = {
   output: "standalone",
+  experimental: {
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
   async redirects() {
     // :tenant must exclude the literal "api" segment: next.config redirects
     // run before route handlers, so an unguarded /:tenant/... source would

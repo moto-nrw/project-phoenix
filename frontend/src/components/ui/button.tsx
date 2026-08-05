@@ -65,11 +65,11 @@ export function Button({
     outline:
       "bg-transparent text-gray-700 ring-1 ring-gray-300 shadow-md hover:bg-gray-50 hover:ring-gray-400",
     outline_danger:
-      "bg-[#FF3130]/10 text-[#CC2626] ring-1 ring-[#FF3130]/30 shadow-md hover:bg-[#FF3130]/20 hover:ring-[#FF3130]/50",
+      "bg-moto-red-soft text-moto-red-strong ring-moto-red/30 shadow-md ring-1 hover:bg-moto-red/20 hover:ring-moto-red/50",
     danger:
-      "bg-[#FF3130] text-gray-900 shadow-md hover:bg-[#CC2626] hover:text-white hover:shadow-lg",
+      "bg-moto-red text-gray-950 shadow-md hover:bg-moto-red-strong hover:text-white hover:shadow-lg",
     success:
-      "bg-[#83CD2D] text-gray-900 shadow-md hover:bg-[#74b827] hover:shadow-lg active:scale-95",
+      "bg-moto-green text-gray-950 shadow-md hover:bg-moto-green-hover hover:shadow-lg active:scale-95",
     // Flat, no shadow — for dense toolbar/menu/icon chrome. Pair with size
     // "compact" or "icon" and pass type="button" outside forms.
     ghost: "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900",

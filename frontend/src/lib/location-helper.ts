@@ -9,12 +9,6 @@ interface ParsedLocation {
 
 export type DisplayMode = "groupName" | "roomName" | "contextAware";
 
-export interface LocationStyle {
-  color: string;
-  glowEffect: string;
-  label: string;
-}
-
 export interface StudentLocationContext {
   current_location?: string | null;
   location_since?: string | null;
@@ -59,17 +53,209 @@ export const LOCATION_STATUSES = {
   NOT_ARRIVAL: "Kommt heute nicht",
 } as const;
 
+/** Shared brand palette. Red follows Phoenix notifications and hours accounts. */
+export const MOTO_COLOR_PALETTE = {
+  green: {
+    soft: "#EEF9E1",
+    muted: "#D7E8C3",
+    light: "#92D63C",
+    base: "#83CD2D",
+    vivid: "#5F9F1B",
+    hover: "#74B825",
+    active: "#6DB118",
+    strong: "#3F6F12",
+  },
+  blue: {
+    soft: "#EDF3FC",
+    light: "#6B95E0",
+    base: "#5080D8",
+    hover: "#3B68C0",
+    strong: "#315C9B",
+  },
+  orange: {
+    soft: "#FFF3E5",
+    base: "#F78C10",
+    hover: "#E07400",
+    strong: "#9B5609",
+  },
+  red: {
+    soft: "#FEF2F2",
+    base: "#DC2626",
+    hover: "#B91C1C",
+    strong: "#B91C1C",
+  },
+  teal: {
+    soft: "#E8F8F5",
+    light: "#5CC8BA",
+    base: "#159E90",
+    strong: "#0F766E",
+  },
+  amber: {
+    soft: "#FEF3C7",
+    light: "#FACC15",
+    base: "#EAB308",
+    strong: "#92400E",
+  },
+  purple: {
+    soft: "#F3E8FF",
+    light: "#A78BFA",
+    base: "#7C3AED",
+    strong: "#6B21A8",
+  },
+  magenta: {
+    soft: "#FAE8FF",
+    light: "#E879F9",
+    base: "#D946EF",
+    strong: "#86198F",
+  },
+  indigo: {
+    soft: "#EEF2FF",
+    light: "#818CF8",
+    base: "#4F46E5",
+    strong: "#3730A3",
+  },
+  coral: {
+    soft: "#FFF0ED",
+    light: "#F29A8D",
+    base: "#E85D4A",
+    strong: "#A83A2E",
+  },
+  cyan: {
+    soft: "#ECFEFF",
+    light: "#67E8F9",
+    base: "#0891B2",
+    strong: "#155E75",
+  },
+  navy: {
+    soft: "#EEF4F8",
+    light: "#7FA6C9",
+    base: "#365D83",
+    strong: "#1E3A5F",
+  },
+  mint: {
+    soft: "#EAF9F3",
+    light: "#8AD9BB",
+    base: "#3BAF83",
+    strong: "#187255",
+  },
+  wine: {
+    soft: "#FBECEF",
+    light: "#CF7180",
+    base: "#8F2535",
+    strong: "#681A27",
+  },
+  gold: {
+    soft: "#FFF7E6",
+    light: "#E6B85C",
+    base: "#B7791F",
+    strong: "#7A4A0B",
+  },
+  petrol: {
+    soft: "#E9F7F6",
+    light: "#72BDB8",
+    base: "#217A78",
+    strong: "#155A59",
+  },
+  neutral: {
+    soft: "#F3F4F6",
+    light: "#9CA3AF",
+    base: "#6B7280",
+    strong: "#374151",
+  },
+  stone: {
+    soft: "#F5F5F4",
+    light: "#A8A29E",
+    base: "#78716C",
+    strong: "#44403C",
+  },
+} as const;
+
+export interface LocationBadgeTone {
+  backgroundColor: string;
+  dotColor: string;
+  textColor: string;
+}
+
+const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
+  [MOTO_COLOR_PALETTE.green.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.green.soft,
+    dotColor: MOTO_COLOR_PALETTE.green.base,
+    textColor: MOTO_COLOR_PALETTE.green.strong,
+  },
+  [MOTO_COLOR_PALETTE.blue.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.blue.soft,
+    dotColor: MOTO_COLOR_PALETTE.blue.base,
+    textColor: MOTO_COLOR_PALETTE.blue.strong,
+  },
+  [MOTO_COLOR_PALETTE.orange.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.orange.soft,
+    dotColor: MOTO_COLOR_PALETTE.orange.base,
+    textColor: MOTO_COLOR_PALETTE.orange.strong,
+  },
+  [MOTO_COLOR_PALETTE.red.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.red.soft,
+    dotColor: MOTO_COLOR_PALETTE.red.base,
+    textColor: MOTO_COLOR_PALETTE.red.strong,
+  },
+  [MOTO_COLOR_PALETTE.navy.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.navy.soft,
+    dotColor: MOTO_COLOR_PALETTE.navy.base,
+    textColor: MOTO_COLOR_PALETTE.navy.strong,
+  },
+  [MOTO_COLOR_PALETTE.cyan.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.cyan.soft,
+    dotColor: MOTO_COLOR_PALETTE.cyan.base,
+    textColor: MOTO_COLOR_PALETTE.cyan.strong,
+  },
+  [MOTO_COLOR_PALETTE.stone.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.stone.soft,
+    dotColor: MOTO_COLOR_PALETTE.stone.base,
+    textColor: MOTO_COLOR_PALETTE.stone.strong,
+  },
+  "#EAB308": {
+    backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
+    dotColor: MOTO_COLOR_PALETTE.amber.base,
+    textColor: MOTO_COLOR_PALETTE.amber.strong,
+  },
+  "#7C3AED": {
+    backgroundColor: MOTO_COLOR_PALETTE.purple.soft,
+    dotColor: MOTO_COLOR_PALETTE.purple.base,
+    textColor: MOTO_COLOR_PALETTE.purple.strong,
+  },
+  "#D946EF": {
+    backgroundColor: MOTO_COLOR_PALETTE.magenta.soft,
+    dotColor: MOTO_COLOR_PALETTE.magenta.base,
+    textColor: MOTO_COLOR_PALETTE.magenta.strong,
+  },
+  "#6B7280": {
+    backgroundColor: "#F3F4F6",
+    dotColor: "#9CA3AF",
+    textColor: "#4B5563",
+  },
+};
+
+export function getLocationBadgeTone(color: string): LocationBadgeTone {
+  return (
+    LOCATION_BADGE_TONES[color.toUpperCase()] ?? {
+      backgroundColor: "#F9FAFB",
+      dotColor: color,
+      textColor: "#374151",
+    }
+  );
+}
+
 export const LOCATION_COLORS = {
-  GROUP_ROOM: "#83CD2D", // Green - student in their group's assigned room
-  OTHER_ROOM: "#5080D8", // Blue - student in external/other room
-  HOME: "#FF3130",
-  SCHOOLYARD: "#F78C10",
-  TRANSIT: "#D946EF",
-  UNKNOWN: "#6B7280",
-  SICK: "#EAB308", // Amber - medical/sick status
-  EXCUSED: "#7C3AED", // Purple - excused absence (kind is not attending today)
-  CLASS_TRIP: "#5080D8", // Blue - known absence for class trips
-  NOT_ARRIVAL: "#6B7280", // Gray - planned absence via arrival-schedule exception
+  GROUP_ROOM: MOTO_COLOR_PALETTE.green.base,
+  OTHER_ROOM: MOTO_COLOR_PALETTE.blue.base,
+  HOME: MOTO_COLOR_PALETTE.neutral.base,
+  SCHOOLYARD: MOTO_COLOR_PALETTE.amber.base,
+  TRANSIT: MOTO_COLOR_PALETTE.magenta.base,
+  UNKNOWN: MOTO_COLOR_PALETTE.stone.base,
+  SICK: MOTO_COLOR_PALETTE.red.base,
+  EXCUSED: MOTO_COLOR_PALETTE.purple.base, // Purple - excused absence (kind is not attending today)
+  CLASS_TRIP: MOTO_COLOR_PALETTE.cyan.base,
+  NOT_ARRIVAL: MOTO_COLOR_PALETTE.navy.base,
+  DANGER: MOTO_COLOR_PALETTE.red.base,
 } as const;
 
 /**
@@ -79,12 +265,12 @@ export const LOCATION_COLORS = {
  * CLAUDE.md §0 (route every brand color through LOCATION_COLORS).
  */
 export const GROUP_ROOM_SHADES = {
-  base: LOCATION_COLORS.GROUP_ROOM, // #83CD2D
-  hover: "#74b827", // darker green for primary-button hover
-  active: "#669f21", // even darker for :active
-  text: "#4a7a15", // accessible text-on-white
-  bgHover: "#f0f9e4", // tinted background for ghost-button hover
-  bgActive: "#e4f3d3", // slightly darker tint for ghost-button :active
+  base: MOTO_COLOR_PALETTE.green.base,
+  hover: MOTO_COLOR_PALETTE.green.hover,
+  active: MOTO_COLOR_PALETTE.green.active,
+  text: MOTO_COLOR_PALETTE.green.strong,
+  bgHover: MOTO_COLOR_PALETTE.green.soft,
+  bgActive: "#D7E8C3",
 } as const;
 
 const LOCATION_SEPARATOR = "-";
@@ -235,7 +421,7 @@ function getColorForPresentWithRoom(
  * Color rules:
  * - GREEN: Student in their OGS group's room OR "Anwesend" without room details
  * - BLUE: Student in any other room (external room or supervised room)
- * - RED/ORANGE/MAGENTA: Status-based (Home, Schoolyard, Transit)
+ * - GRAY/ORANGE/MAGENTA: Status-based (Home, Schoolyard, Transit)
  */
 export function getLocationColor(
   location?: string | null,

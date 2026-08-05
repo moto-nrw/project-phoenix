@@ -12,7 +12,7 @@
  * bar that ties the card back to the activity type.
  */
 
-import { Archive, Clock, DoorOpen, ShieldCheck, Users } from "lucide-react";
+import { Archive, Clock } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -22,6 +22,7 @@ import {
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -135,11 +136,11 @@ export function TemplateCard({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <DoorOpen className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+            <MotoConceptIcon concept="rooms" size={16} />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Users className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+            <MotoConceptIcon concept="children" size={16} />
             <span>
               {template.enrollmentCount}{" "}
               {template.enrollmentCount === 1 ? "Kind" : "Kinder"}
@@ -149,9 +150,9 @@ export function TemplateCard({
           </div>
           {template.requiredStaffCount > 0 && (
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+              <MotoConceptIcon concept="supervision" size={16} />
               <TimetableRatioPill
-                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                icon={<MotoConceptIcon concept="supervision" size={16} />}
                 label="Besetzung"
                 value={`${template.assignedStaffCount}/${template.requiredStaffCount}`}
                 tone={capacityTone(

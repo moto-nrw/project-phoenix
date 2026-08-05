@@ -7,7 +7,11 @@ import {
   getStudentTimeStatus,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import {
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+  getLocationBadgeTone,
+} from "~/lib/location-helper";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -67,22 +71,22 @@ const TAP_STRIP_STYLES: Record<
 > = {
   anwesend: {
     // Currently present → tap to check out (red accent communicates the destination state)
-    background: `${LOCATION_COLORS.HOME}26`, // ~15% alpha
-    text: "#B82A29", // accessible darker red on tinted bg
+    background: MOTO_COLOR_PALETTE.red.soft,
+    text: MOTO_COLOR_PALETTE.red.strong,
     copy: "Tippen zum Abmelden",
     action: "abmelden",
   },
   schulhof: {
     // On schoolyard counts as present → tap also checks out
-    background: `${LOCATION_COLORS.HOME}26`,
-    text: "#B82A29",
+    background: MOTO_COLOR_PALETTE.red.soft,
+    text: MOTO_COLOR_PALETTE.red.strong,
     copy: "Tippen zum Abmelden",
     action: "abmelden",
   },
   abwesend: {
     // Currently absent → tap to check in (green accent for the destination state)
-    background: `${LOCATION_COLORS.GROUP_ROOM}26`, // ~15% alpha
-    text: "#5A8B1F", // mirrors GROUP_ROOM_SHADES.text equivalent for darker green
+    background: MOTO_COLOR_PALETTE.green.soft,
+    text: MOTO_COLOR_PALETTE.green.strong,
     copy: "Tippen zum Anmelden",
     action: "anmelden",
   },
@@ -355,7 +359,7 @@ export function PickupTimeIcon() {
 export function ExceptionIcon() {
   return (
     <svg
-      className="h-3.5 w-3.5 text-orange-500"
+      className="text-moto-orange-strong h-3.5 w-3.5"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -553,6 +557,8 @@ export function StudentAbsenceRow({
 export function StudentPendingExcusedRow({
   note,
 }: Readonly<{ note?: string }>) {
+  const tone = getLocationBadgeTone(LOCATION_COLORS.SICK);
+
   // Leading icon at the row's left edge (aligned with the other StudentInfoRow
   // icons) and the amber pill in the text column, so this line sits in the same
   // rhythm as the sibling rows instead of looking offset.
@@ -562,7 +568,11 @@ export function StudentPendingExcusedRow({
         <AbsenceIcon />
       </span>
       <span
-        className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]"
+        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+        style={{
+          backgroundColor: tone.backgroundColor,
+          color: tone.textColor,
+        }}
         title={note ?? undefined}
       >
         Freigabe ausstehend

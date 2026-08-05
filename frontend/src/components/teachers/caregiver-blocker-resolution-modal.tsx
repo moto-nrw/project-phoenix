@@ -4,10 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
-import {
-  DetailIcons,
-  InfoSection,
-} from "~/components/ui/detail-modal-components";
+import { InfoSection } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useToast } from "~/contexts/ToastContext";
 import type {
   BlockerActivity,
@@ -21,6 +19,7 @@ import {
   type StaffWithRole,
 } from "~/lib/group-transfer-api";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "CaregiverBlockerResolution" });
 
@@ -374,8 +373,14 @@ export function CaregiverBlockerResolutionModal({
         {supervisions.length > 0 ? (
           <InfoSection
             title={`Aktive Gruppenaufsichten (${supervisions.length})`}
-            icon={DetailIcons.group}
-            accentColor="blue"
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.supervision.icon}
+                tone={MOTO_CONCEPTS.supervision.tone}
+                size={18}
+              />
+            }
+            accentColor="purple"
           >
             <div className="space-y-2">
               {supervisions.map((item) => {
@@ -412,8 +417,14 @@ export function CaregiverBlockerResolutionModal({
         {substitutions.length > 0 ? (
           <InfoSection
             title={`Aktive Vertretungen (${substitutions.length})`}
-            icon={DetailIcons.bus}
-            accentColor="purple"
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.substitution.icon}
+                tone={MOTO_CONCEPTS.substitution.tone}
+                size={18}
+              />
+            }
+            accentColor="indigo"
           >
             <div className="space-y-2">
               {substitutions.map((item) => {
@@ -453,7 +464,13 @@ export function CaregiverBlockerResolutionModal({
         {activities.length > 0 ? (
           <InfoSection
             title={`Aktivitätsleitungen (${activities.length})`}
-            icon={DetailIcons.heart}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.activities.icon}
+                tone={MOTO_CONCEPTS.activities.tone}
+                size={18}
+              />
+            }
             accentColor="orange"
           >
             <div className="space-y-2">
@@ -517,7 +534,13 @@ export function CaregiverBlockerResolutionModal({
         {groups.length > 0 ? (
           <InfoSection
             title={`Stammgruppen-Zuordnungen (${groups.length})`}
-            icon={DetailIcons.home}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.groups.icon}
+                tone={MOTO_CONCEPTS.groups.tone}
+                size={18}
+              />
+            }
             accentColor="green"
           >
             <div className="space-y-2">

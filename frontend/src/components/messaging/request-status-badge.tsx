@@ -13,7 +13,7 @@ export function RequestStatusBadge({
 }: Readonly<{ label: string; className?: string }>) {
   return (
     <span
-      className={`inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8] ${className ?? ""}`}
+      className={`bg-moto-blue/10 text-moto-blue inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className ?? ""}`}
     >
       {label}
     </span>

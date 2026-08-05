@@ -162,13 +162,13 @@ export function ClassBulkArrivalModal({
           Leere Felder bleiben unverändert.
         </p>
         {collisionCount !== null && collisionCount > 0 ? (
-          <div className="flex items-start gap-2 rounded-lg border border-[#F78C10] bg-[#FFF8ED] p-3 text-sm">
+          <div className="border-moto-orange flex items-start gap-2 rounded-lg border bg-[#FFF8ED] p-3 text-sm">
             <AlertTriangle
-              className="mt-0.5 h-4 w-4 shrink-0 text-[#F78C10]"
+              className="text-moto-orange mt-0.5 h-4 w-4 shrink-0"
               aria-hidden
             />
             <div>
-              <div className="font-semibold text-[#F78C10]">
+              <div className="text-moto-orange font-semibold">
                 {childCountLabel(collisionCount)}{" "}
                 {collisionCount === 1 ? "hat" : "haben"} bereits Ankunftszeiten
               </div>
@@ -206,7 +206,7 @@ export function ClassBulkArrivalModal({
                       [day.value]: event.target.value.slice(0, 5),
                     }))
                   }
-                  className="w-32 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/30 focus:outline-none"
+                  className="focus:border-moto-green focus:ring-moto-green/30 w-32 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none"
                 />
                 {invalid ? (
                   <span className="text-xs text-red-600">Format HH:MM</span>

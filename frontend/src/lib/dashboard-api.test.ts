@@ -20,6 +20,27 @@ vi.mock("./fetch-with-auth", () => ({
   fetchWithAuth: vi.fn(),
 }));
 
+function mockDashboardResponses(
+  dashboardResponse: { data: unknown },
+  studentsHome = 33,
+) {
+  vi.mocked(apiGet).mockImplementation((endpoint) => {
+    if (endpoint.includes("location_state=present")) {
+      return Promise.resolve({
+        data: [],
+        pagination: { total_records: 17 },
+      });
+    }
+    if (endpoint.startsWith("/api/students?")) {
+      return Promise.resolve({
+        data: [],
+        pagination: { total_records: studentsHome + 17 },
+      });
+    }
+    return Promise.resolve(dashboardResponse);
+  });
+}
+
 describe("fetchDashboardAnalytics", () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
@@ -43,7 +64,7 @@ describe("fetchDashboardAnalytics", () => {
       data: mockBackendData,
     };
 
-    vi.mocked(apiGet).mockResolvedValue(mockResponse);
+    mockDashboardResponses(mockResponse);
 
     const token = "test-jwt-token";
     const result = await fetchDashboardAnalytics(token);
@@ -53,7 +74,11 @@ describe("fetchDashboardAnalytics", () => {
       token,
     );
     expect(mapDashboardAnalyticsResponse).toHaveBeenCalledWith(mockBackendData);
-    expect(result).toEqual({ ...mockBackendData, mapped: true });
+    expect(result).toEqual({
+      ...mockBackendData,
+      mapped: true,
+      studentsHome: 33,
+    });
   });
 
   it("calls apiGet with correct endpoint and token", async () => {
@@ -67,7 +92,7 @@ describe("fetchDashboardAnalytics", () => {
       },
     };
 
-    vi.mocked(apiGet).mockResolvedValue(mockResponse);
+    mockDashboardResponses(mockResponse);
 
     const token = "my-secret-token";
     await fetchDashboardAnalytics(token);
@@ -76,7 +101,15 @@ describe("fetchDashboardAnalytics", () => {
       "/api/active/analytics/dashboard",
       token,
     );
-    expect(apiGet).toHaveBeenCalledTimes(1);
+    expect(apiGet).toHaveBeenCalledWith(
+      "/api/students?page=1&page_size=1",
+      token,
+    );
+    expect(apiGet).toHaveBeenCalledWith(
+      "/api/students?location_state=present&page=1&page_size=1",
+      token,
+    );
+    expect(apiGet).toHaveBeenCalledTimes(3);
   });
 
   it("extracts data from response wrapper", async () => {
@@ -92,7 +125,7 @@ describe("fetchDashboardAnalytics", () => {
       data: innerData,
     };
 
-    vi.mocked(apiGet).mockResolvedValue(mockResponse);
+    mockDashboardResponses(mockResponse);
 
     await fetchDashboardAnalytics("token");
 
@@ -154,7 +187,7 @@ describe("fetchDashboardAnalytics", () => {
       rooms_occupied: 6,
     };
 
-    vi.mocked(apiGet).mockResolvedValue({ data: expectedData });
+    mockDashboardResponses({ data: expectedData });
 
     await fetchDashboardAnalytics("token");
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Database, ShieldCheck, Trash2 } from "lucide-react";
+import { Database, Trash2 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
@@ -302,7 +303,7 @@ export function StudentDeletionModal({
 
             <InfoSection
               title="Was bleibt erhalten?"
-              icon={<ShieldCheck className="h-full w-full" strokeWidth={2} />}
+              icon={<MotoConceptIcon concept="permissions" size="100%" />}
               accentColor="gray"
             >
               <InfoText>
@@ -336,7 +337,7 @@ export function StudentDeletionModal({
 
             <label
               htmlFor="student-deletion-acknowledgement"
-              className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#FF3130]/20 bg-white p-4 text-sm text-gray-700"
+              className="border-moto-red/20 flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-4 text-sm text-gray-700"
             >
               <Checkbox
                 id="student-deletion-acknowledgement"
@@ -359,7 +360,7 @@ export function StudentDeletionModal({
             </p>
             <InfoSection
               title="Name des Kindes"
-              icon={<ShieldCheck className="h-full w-full" strokeWidth={2} />}
+              icon={<MotoConceptIcon concept="permissions" size="100%" />}
               accentColor="gray"
             >
               <InfoText>{impact.confirmation_name}</InfoText>

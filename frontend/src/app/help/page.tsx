@@ -16,7 +16,7 @@ export default function HelpLandingPage() {
 
         <section className="py-12 sm:py-16">
           <div className="max-w-2xl">
-            <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
+            <p className="text-moto-green-strong text-sm font-bold tracking-[0.08em] uppercase">
               moto Handbuch
             </p>
             <h1 className="mt-3 text-4xl leading-tight font-semibold tracking-normal text-gray-950 sm:text-5xl">

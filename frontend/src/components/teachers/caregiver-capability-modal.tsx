@@ -11,6 +11,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { useToast } from "~/contexts/ToastContext";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   caregiverCapabilityService,
   CaregiverCapabilityApiError,
@@ -18,6 +19,7 @@ import {
 } from "~/lib/caregiver-capability-api";
 import { CaregiverBlockerResolutionModal } from "~/components/teachers/caregiver-blocker-resolution-modal";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "CaregiverCapabilityModal" });
 
@@ -299,7 +301,13 @@ export function CaregiverCapabilityModal({
           {/* Current role overview */}
           <InfoSection
             title="Aktuelle Rolle"
-            icon={DetailIcons.person}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.roles.icon}
+                tone={MOTO_CONCEPTS.roles.tone}
+                size={18}
+              />
+            }
             accentColor={state.isActiveCaregiver ? "green" : "gray"}
           >
             <DataGrid>
@@ -317,7 +325,13 @@ export function CaregiverCapabilityModal({
           {needsNames ? (
             <InfoSection
               title="Personaldaten anlegen"
-              icon={DetailIcons.briefcase}
+              icon={
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.staff.icon}
+                  tone={MOTO_CONCEPTS.staff.tone}
+                  size={18}
+                />
+              }
               accentColor="orange"
             >
               <p className="mb-3 text-xs text-gray-600">
@@ -356,7 +370,13 @@ export function CaregiverCapabilityModal({
           {state.isActiveCaregiver && state.disableBlockers.length > 0 ? (
             <InfoSection
               title="Offene Zuordnungen"
-              icon={DetailIcons.group}
+              icon={
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.groups.icon}
+                  tone={MOTO_CONCEPTS.groups.tone}
+                  size={18}
+                />
+              }
               accentColor="amber"
             >
               <p className="mb-2 text-xs text-gray-600">

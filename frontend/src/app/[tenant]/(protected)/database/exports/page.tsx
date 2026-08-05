@@ -6,22 +6,12 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   ArrowRight,
-  Cake,
-  CalendarClock,
-  CalendarDays,
-  Car,
-  ClipboardList,
-  Clock,
   Download,
-  DoorOpen,
   FileSpreadsheet,
   FileText,
-  GraduationCap,
-  LayoutList,
-  ListChecks,
   Printer,
-  UserCheck,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -70,14 +60,14 @@ interface StudentModalConfig {
  * template picker inside the modal only appears in the Kindersuche.
  */
 const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
-  ogs_weekly: <CalendarDays className="h-5 w-5" />,
-  ogs_compact: <LayoutList className="h-5 w-5" />,
-  class_roster: <GraduationCap className="h-5 w-5" />,
-  daily_planning: <CalendarClock className="h-5 w-5" />,
-  attendance_snapshot: <UserCheck className="h-5 w-5" />,
-  pickup_list: <Car className="h-5 w-5" />,
-  blank_checklist: <ListChecks className="h-5 w-5" />,
-  birthday_list: <Cake className="h-5 w-5" />,
+  ogs_weekly: <MotoConceptIcon concept="calendar" size={20} />,
+  ogs_compact: <MotoConceptIcon concept="lists" size={20} />,
+  class_roster: <MotoConceptIcon concept="children" size={20} />,
+  daily_planning: <MotoConceptIcon concept="carePlan" size={20} />,
+  attendance_snapshot: <MotoConceptIcon concept="present" size={20} />,
+  pickup_list: <MotoConceptIcon concept="pickup" size={20} />,
+  blank_checklist: <MotoConceptIcon concept="activities" size={20} />,
+  birthday_list: <MotoConceptIcon concept="birthdays" size={20} />,
 };
 
 /**
@@ -183,7 +173,7 @@ export default function DatabaseExportsPage() {
         <ExportSection title="Momentaufnahmen">
           <InfoCard
             title="Notfallliste"
-            icon={<ClipboardList className="h-5 w-5" />}
+            icon={<MotoConceptIcon concept="emergency" size={20} />}
           >
             <ExportDescription>
               Alle aktuell anwesenden Kinder mit Kontaktdaten der
@@ -224,7 +214,7 @@ export default function DatabaseExportsPage() {
           {canReadRooms && (
             <InfoCard
               title="Wer ist wo"
-              icon={<DoorOpen className="h-5 w-5" />}
+              icon={<MotoConceptIcon concept="rooms" size={20} />}
             >
               <ExportDescription>
                 Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl.
@@ -264,7 +254,7 @@ export default function DatabaseExportsPage() {
           {canUseSlotLists && !timetableDisabled && (
             <InfoCard
               title="Tageslisten"
-              icon={<CalendarClock className="h-5 w-5" />}
+              icon={<MotoConceptIcon concept="lists" size={20} />}
             >
               <ExportDescription>
                 Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
@@ -279,7 +269,7 @@ export default function DatabaseExportsPage() {
           {isAdmin(session) && (
             <InfoCard
               title="Anmeldungen"
-              icon={<FileText className="h-5 w-5" />}
+              icon={<MotoConceptIcon concept="enrollments" size={20} />}
             >
               <ExportDescription>
                 Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört
@@ -291,7 +281,10 @@ export default function DatabaseExportsPage() {
             </InfoCard>
           )}
 
-          <InfoCard title="Zeitnachweis" icon={<Clock className="h-5 w-5" />}>
+          <InfoCard
+            title="Zeitnachweis"
+            icon={<MotoConceptIcon concept="timeTracking" size={20} />}
+          >
             <ExportDescription>
               Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört
               zum jeweiligen Profil.

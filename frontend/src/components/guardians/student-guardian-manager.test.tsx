@@ -476,6 +476,13 @@ describe("StudentGuardianManager", () => {
       await waitFor(() => {
         expect(screen.getByText("Erziehungsberechtigte")).toBeInTheDocument();
       });
+
+      const iconSurface = screen.getByText("Erziehungsberechtigte")
+        .parentElement?.previousElementSibling;
+      expect(iconSurface).toHaveClass("bg-gray-100", "rounded-xl");
+      expect(
+        iconSurface?.querySelector('[data-moto-duotone-tone="teal"]'),
+      ).toBeInTheDocument();
     });
 
     it("shows add button when not readOnly", async () => {

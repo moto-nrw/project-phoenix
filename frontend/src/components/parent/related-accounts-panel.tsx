@@ -166,8 +166,8 @@ export default function RelatedAccountsPanel({
         <div
           className={`mt-4 rounded-xl border p-3 text-sm ${
             message.kind === "success"
-              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#5A8E1F]"
-              : "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]"
+              ? "border-moto-green/30 bg-moto-green/10 text-moto-green-strong"
+              : "border-moto-red/20 bg-moto-red/10 text-moto-red-strong"
           }`}
         >
           {message.text}

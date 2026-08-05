@@ -37,6 +37,7 @@ import {
   staffMonthSummaryService,
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   endOfWeek,
   getDeltaStatus,
@@ -665,11 +666,11 @@ function formatHoursCompact(minutes: number): string {
 }
 
 const trendConfig = {
-  balance: { label: "Saldo", color: "#83CD2D" },
+  balance: { label: "Saldo", color: MOTO_COLOR_PALETTE.green.base },
 } satisfies ChartConfig;
 
 const dailyConfig = {
-  ist: { label: "Ist", color: "#83CD2D" },
+  ist: { label: "Ist", color: MOTO_COLOR_PALETTE.green.base },
   soll: { label: "Soll", color: "#9CA3AF" },
 } satisfies ChartConfig;
 
@@ -677,9 +678,9 @@ const dailyConfig = {
 // types pick distinct hues from the rest of the brand palette so the donut
 // stays readable even when 5+ segments are visible.
 const distributionConfig = {
-  ogs: { label: "OGS", color: "#83CD2D" },
-  homeoffice: { label: "Homeoffice", color: "#5080D8" },
-  urlaub: { label: "Urlaub", color: "#F78C10" },
+  ogs: { label: "OGS", color: MOTO_COLOR_PALETTE.green.base },
+  homeoffice: { label: "Homeoffice", color: MOTO_COLOR_PALETTE.blue.base },
+  urlaub: { label: "Urlaub", color: MOTO_COLOR_PALETTE.orange.base },
   krank: { label: "Krank", color: "#EAB308" },
   fortbildung: { label: "Fortbildung", color: "#7C3AED" },
   freizeitausgleich: { label: "Freizeitausgleich", color: "#D946EF" },
@@ -797,18 +798,23 @@ function buildDistribution(
   absenceDays: AbsenceDayCounts,
 ): DistributionBucket[] {
   return [
-    { key: "ogs", label: "OGS", value: sessionDays.present, color: "#83CD2D" },
+    {
+      key: "ogs",
+      label: "OGS",
+      value: sessionDays.present,
+      color: MOTO_COLOR_PALETTE.green.base,
+    },
     {
       key: "homeoffice",
       label: "Homeoffice",
       value: sessionDays.homeOffice,
-      color: "#5080D8",
+      color: MOTO_COLOR_PALETTE.blue.base,
     },
     {
       key: "urlaub",
       label: "Urlaub",
       value: absenceDays.vacation,
-      color: "#F78C10",
+      color: MOTO_COLOR_PALETTE.orange.base,
     },
     { key: "krank", label: "Krank", value: absenceDays.sick, color: "#EAB308" },
     {

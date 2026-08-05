@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowRight, MessageSquare } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { Alert } from "~/components/ui/alert";
@@ -18,6 +18,8 @@ import {
 import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { ConceptPageHeader } from "~/components/ui/concept-section-header";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 const logger = createLogger({ component: "ParentMessagesPage" });
 
@@ -240,16 +242,12 @@ function Hero() {
   return (
     <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="p-5 sm:p-6 lg:p-8">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-          Austausch mit der OGS
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold text-gray-900 sm:text-4xl">
-          Nachrichten
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 sm:text-base">
-          Schreiben Sie der OGS und lesen Sie die Antworten des Teams. Pro Kind
-          gibt es eine Unterhaltung.
-        </p>
+        <ConceptPageHeader
+          title="Nachrichten"
+          eyebrow="Austausch mit der OGS"
+          concept="parentConversations"
+          subtitle="Schreiben Sie der OGS und lesen Sie die Antworten des Teams. Pro Kind gibt es eine Unterhaltung."
+        />
       </div>
     </section>
   );
@@ -278,8 +276,8 @@ function ChildRow({ row }: Readonly<{ row: ChildConversation }>) {
         href={`/parents/messages/${row.studentId}`}
         className="group flex items-start gap-4 px-1 py-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:rounded-xl sm:px-3"
       >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#669f21]">
-          <MessageSquare className="h-5 w-5" aria-hidden="true" />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+          <MotoConceptIcon concept="parentConversations" size={22} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-2">
@@ -324,7 +322,7 @@ function EmptyMessages() {
   return (
     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-        <MessageSquare className="h-5 w-5" aria-hidden="true" />
+        <MotoConceptIcon concept="parentConversations" size={22} />
       </span>
       <h2 className="mt-3 text-sm font-semibold text-gray-900">
         Für Ihr Konto ist noch kein Kind hinterlegt

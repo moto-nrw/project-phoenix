@@ -147,7 +147,7 @@ export default function NfcQuickstartPage() {
                     </span>
                     <div
                       className={[
-                        "flex h-16 w-16 items-center justify-center rounded-3xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-12 print:w-12 print:rounded-2xl",
+                        "bg-moto-green/16 text-moto-green-strong flex h-16 w-16 items-center justify-center rounded-3xl print:h-12 print:w-12 print:rounded-2xl",
                         isRight ? "order-1" : "order-2",
                       ].join(" ")}
                     >
@@ -170,7 +170,7 @@ export default function NfcQuickstartPage() {
                   >
                     <div
                       className={[
-                        "absolute top-8 hidden h-3 w-3 items-center justify-center rounded-full bg-[#83CD2D] md:flex print:flex",
+                        "bg-moto-green absolute top-8 hidden h-3 w-3 items-center justify-center rounded-full md:flex print:flex",
                         isRight
                           ? "left-1/2 -translate-x-[calc(100%+2px)]"
                           : "left-1/2 translate-x-2",
@@ -228,7 +228,7 @@ export default function NfcQuickstartPage() {
                     className="rounded-2xl border border-gray-200 bg-[#F9FAFB] p-4 print:rounded-xl print:p-3"
                   >
                     <Icon
-                      className="h-5 w-5 text-[#3F6F12]"
+                      className="text-moto-green-strong h-5 w-5"
                       aria-hidden="true"
                     />
                     <p className="mt-3 text-xs leading-5 font-medium text-gray-700 print:mt-2 print:text-[11px] print:leading-4">
@@ -241,7 +241,7 @@ export default function NfcQuickstartPage() {
 
             <section className="mt-6 rounded-3xl border border-gray-200 bg-[#F9FAFB] p-5 print:mt-4 print:rounded-2xl print:p-4">
               <div className="flex items-start gap-4 print:gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-10 print:w-10 print:rounded-xl">
+                <span className="bg-moto-green/16 text-moto-green-strong flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl print:h-10 print:w-10 print:rounded-xl">
                   <BookOpen
                     className="h-6 w-6 print:h-5 print:w-5"
                     aria-hidden="true"
@@ -259,7 +259,7 @@ export default function NfcQuickstartPage() {
                   </p>
                   <Link
                     href="/help/nfc"
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#74b827] active:bg-[#669f21] print:hidden"
+                    className="bg-moto-green mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-gray-950 transition-colors hover:bg-[#74b827] active:bg-[#669f21] print:hidden"
                   >
                     NFC-Betriebsbuch öffnen
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
