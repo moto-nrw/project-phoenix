@@ -715,6 +715,65 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 	assert.Equal(t, studentID, rows[0].StudentID)
 }
 
+// A re-enrollment approval (existing_students match) and the annual rollover
+// share the attachApprovalToExistingStudent tail, which rewrites school_class.
+// When that moves the child into another Jahrgang, the Jahrgang-filtered
+// sourced Regeltermine must follow within the approval, exactly like a direct
+// school_class edit or a confirmed Änderungsanmeldung (#2147 review round 17).
+func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "RenewalQuelle", nil)
+	templateGrade2 := createSourcedTemplate(t, env, "RenewalJg2", offering.ID, []int{2}, period)
+	templateGrade3 := createSourcedTemplate(t, env, "RenewalJg3", offering.ID, []int{3}, period)
+
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "renewal-jg@example.com", "Runa", 2)
+	require.Len(t, loadTemplateEnrollments(t, env, templateGrade2.ID), 1)
+	require.Empty(t, loadTemplateEnrollments(t, env, templateGrade3.ID))
+
+	// The renewal form carries the next Jahrgang and selects no offerings, so
+	// only the approval's class-change resync can move the sourced rows.
+	// Matching pins the child to the already-created student, the way an
+	// existing_students phase does at submission time.
+	grade := int16(3)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Erneuerung",
+		GuardianEmail:     "renewal-jg-neu@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Runa-Neu",
+			LastName:         "Erneuerung",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	matchChildToExistingStudent(t, env, submitted.Children[0].ID, studentID)
+
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Empty(t, loadTemplateEnrollments(t, env, templateGrade2.ID),
+		"the promoted child must leave the Jahrgang-2 Termin")
+	rows := loadTemplateEnrollments(t, env, templateGrade3.ID)
+	require.Len(t, rows, 1, "the promoted child must enter the Jahrgang-3 Termin")
+	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
 // Deleting an offering must degrade its sourced templates to plain rosters:
 // the FK nulls the source and the DB trigger clears the grade filter, so the
 // CHECK constraint cannot fail the delete.

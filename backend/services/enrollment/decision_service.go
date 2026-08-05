@@ -1540,6 +1540,20 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	reviewedBy int64,
 	syncTargetedFields bool,
 ) (*PendingGuardianInvite, error) {
+	// Tenant-wide gates BEFORE the first student row lock, in the project-wide
+	// class-change order (shared class-writes gate first, recurrence gate
+	// second, row locks last) — the same order the direct school_class PUT and
+	// the approved-child sync take (#2147 review rounds 12/15). This tail
+	// rewrites school_class below, and the class-change resync needs the
+	// recurrence gate; acquiring both up front keeps the approval deadlock-free
+	// against a concurrent direct PUT or grade transition on the same student.
+	if err := s.StudentRepo.LockStudentClassWritesShared(ctx); err != nil {
+		return nil, fmt.Errorf("decision: lock class writes for existing-student approval: %w", err)
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
+	}
+
 	existing, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
@@ -1548,6 +1562,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		return nil, fmt.Errorf("decision: existing student %d not found", studentID)
 	}
 	beforeStatus := existing.Status
+	previousSchoolClass := existing.SchoolClass
 
 	activationPlan := s.approvalActivationPlan(ctx, phase)
 
@@ -1592,6 +1607,19 @@ func (s *decisionService) attachApprovalToExistingStudent(
 			existing.Status,
 		); err != nil {
 			return nil, fmt.Errorf("decision: audit rollover student status: %w", err)
+		}
+	}
+
+	// A re-enrollment or rollover approval can move the child into another
+	// Jahrgang, exactly like a direct school_class edit or a confirmed
+	// Änderungsanmeldung, so the Jahrgang-filtered offering-sourced
+	// Regeltermine — including their already-materialized future occurrences —
+	// must follow in the same transaction (#2147 review round 17). The
+	// recurrence gate is already held — taken with the shared class-writes
+	// gate before the row write above.
+	if existing.SchoolClass != previousSchoolClass {
+		if err := s.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+			return nil, fmt.Errorf("decision: resync sourced templates after approval class change: %w", err)
 		}
 	}
 
