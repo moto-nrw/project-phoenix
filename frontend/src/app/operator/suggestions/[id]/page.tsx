@@ -179,7 +179,7 @@ export default function OperatorSuggestionDetailPage() {
         <button
           type="button"
           onClick={() => router.push(operatorPath("/operator/suggestions"))}
-          className="mt-4 text-sm text-blue-600 hover:underline"
+          className="text-moto-blue mt-4 text-sm hover:underline"
         >
           Zurück zur Übersicht
         </button>
@@ -213,7 +213,7 @@ export default function OperatorSuggestionDetailPage() {
 
       {/* Hidden banner */}
       {suggestion.isHidden && (
-        <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+        <div className="border-moto-amber/30 bg-moto-amber-soft text-moto-amber-strong rounded-xl border px-4 py-3 text-sm">
           Dieser Beitrag ist für Benutzer ausgeblendet.
         </div>
       )}
@@ -303,12 +303,12 @@ export default function OperatorSuggestionDetailPage() {
             {suggestion.operatorComments.map((comment) => {
               const isOperator = comment.authorType === "operator";
               const borderClass = isOperator
-                ? "border-blue-200"
-                : "border-green-200";
-              const bgClass = isOperator ? "bg-blue-50" : "bg-green-50";
+                ? "border-moto-blue/20"
+                : "border-moto-green/20";
+              const bgClass = isOperator ? "bg-moto-blue/5" : "bg-moto-green/5";
               const badgeClass = isOperator
-                ? "bg-blue-200 text-blue-800"
-                : "bg-green-200 text-green-800";
+                ? "bg-moto-blue/15 text-moto-blue-strong"
+                : "bg-moto-green/15 text-moto-green-strong";
               const badgeText = isOperator ? "moto Team" : "OGS-Benutzer";
 
               return (

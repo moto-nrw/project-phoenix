@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Check, ChevronDown } from "lucide-react";
 import {
   OPERATOR_STATUS_LABELS,
   OPERATOR_STATUS_STYLES,
@@ -139,19 +140,10 @@ export function StatusDropdown({
             />
             <span className="flex-1">{label}</span>
             {isSelected && (
-              <svg
+              <Check
                 className="h-4 w-4 flex-shrink-0 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+                aria-hidden="true"
+              />
             )}
           </button>
         );
@@ -169,22 +161,13 @@ export function StatusDropdown({
           if (!disabled) setIsOpen(!isOpen);
         }}
         disabled={disabled}
-        className={`flex items-center gap-1 rounded-full font-medium outline-none ${sizeClasses} ${OPERATOR_STATUS_STYLES[value]} transition-all disabled:opacity-50 ${isOpen ? "ring-2 ring-blue-500 ring-offset-1" : ""}`}
+        className={`flex items-center gap-1 rounded-full font-medium outline-none ${sizeClasses} ${OPERATOR_STATUS_STYLES[value]} transition-all disabled:opacity-50 ${isOpen ? "ring-moto-blue ring-2 ring-offset-1" : ""}`}
       >
         <span>{OPERATOR_STATUS_LABELS[value]}</span>
-        <svg
+        <ChevronDown
           className={`h-3.5 w-3.5 flex-shrink-0 opacity-60 transition-transform ${isOpen ? "rotate-180" : ""}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+          aria-hidden="true"
+        />
       </button>
 
       {mounted && createPortal(dropdownMenu, document.body)}

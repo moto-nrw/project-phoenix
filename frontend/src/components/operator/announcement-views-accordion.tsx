@@ -103,7 +103,7 @@ export function AnnouncementViewsAccordion({
                     className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
                   >
                     {/* Initials avatar */}
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-600">
+                    <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                       {getInitial(detail.userName)}
                     </div>
 

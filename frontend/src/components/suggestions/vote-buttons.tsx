@@ -121,7 +121,7 @@ export function VoteButtons({
 
   const upClasses =
     userVote === "up"
-      ? "text-moto-green hover:text-[#70b525]"
+      ? "text-moto-green hover:text-moto-green-hover"
       : "text-gray-400 hover:text-gray-600";
 
   const downClasses =

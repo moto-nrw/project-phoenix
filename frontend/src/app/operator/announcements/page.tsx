@@ -393,6 +393,7 @@ export default function OperatorAnnouncementsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Ankündigungen"
+        concept="announcements"
         badge={
           announcements
             ? { count: announcements.length, label: "Gesamt" }
@@ -551,7 +552,7 @@ export default function OperatorAnnouncementsPage() {
                 setFormData((prev) => ({ ...prev, title: e.target.value }))
               }
               maxLength={200}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               required
             />
           </div>
@@ -572,7 +573,7 @@ export default function OperatorAnnouncementsPage() {
               }
               rows={5}
               maxLength={5000}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               required
             />
           </div>
@@ -697,7 +698,7 @@ export default function OperatorAnnouncementsPage() {
                 }
                 placeholder="z.B. 2.1.0"
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               />
             </div>
           )}
@@ -789,7 +790,7 @@ export default function OperatorAnnouncementsPage() {
           {hasStaleTargets && (
             <div
               role="alert"
-              className="rounded-lg border border-[#F49038]/40 bg-[#F49038]/10 p-3 text-sm text-gray-800"
+              className="border-moto-orange/40 bg-moto-orange/10 rounded-lg border p-3 text-sm text-gray-800"
             >
               <p className="font-medium">
                 Diese Ankündigung enthält gelöschte Ziele
@@ -822,7 +823,7 @@ export default function OperatorAnnouncementsPage() {
                               ),
                             }))
                           }
-                          className="rounded px-2 py-0.5 text-xs font-medium text-[#F49038] hover:bg-[#F49038]/20"
+                          className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
                           aria-label={`${t.name} aus Zielen entfernen`}
                         >
                           Entfernen
@@ -852,7 +853,7 @@ export default function OperatorAnnouncementsPage() {
                               ),
                             }))
                           }
-                          className="rounded px-2 py-0.5 text-xs font-medium text-[#F49038] hover:bg-[#F49038]/20"
+                          className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
                           aria-label={`${t.name} aus Zielen entfernen`}
                         >
                           Entfernen
@@ -1046,7 +1047,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handlePublish()}
         title="Ankündigung veröffentlichen?"
         confirmText="Veröffentlichen"
-        confirmButtonClass="bg-gradient-to-br from-moto-green to-[#70b525] hover:shadow-lg"
+        confirmButtonClass="bg-moto-green hover:bg-moto-green-hover hover:shadow-lg"
         isConfirmLoading={isPublishing}
       >
         <p className="text-sm text-gray-600">
@@ -1123,7 +1124,7 @@ function AnnouncementCard({
           {announcement.title}
         </h3>
         {announcement.status === "draft" && (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+          <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
             Entwurf
           </span>
         )}
@@ -1241,7 +1242,7 @@ function AnnouncementCard({
           <button
             type="button"
             onClick={() => onPublish(announcement)}
-            className="group from-moto-green flex items-center gap-2 rounded-xl bg-gradient-to-r to-[#6db823] px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:brightness-105 active:scale-[0.98]"
+            className="group bg-moto-green hover:bg-moto-green-hover flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg active:scale-[0.98]"
           >
             <span>Veröffentlichen</span>
             <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
