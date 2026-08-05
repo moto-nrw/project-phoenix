@@ -475,9 +475,21 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 		return nil, newInternalError(checkinErrFindActiveGroups)
 	}
 
-	currentGroups := activeGroupsStartedToday(activeGroups, timeNow())
+	now := timeNow()
+	currentGroups := activeGroupsStartedToday(activeGroups, now)
 	if len(currentGroups) > 0 {
 		return s.useExistingActiveGroup(ctx, currentGroups, room, deviceID), nil
+	}
+
+	if room.Name == constants.SchulhofRoomName || constants.IsWCRoomName(room.Name) {
+		if err := s.endPreviousDayActiveGroups(ctx, activeGroups, now); err != nil {
+			s.getLogger().ErrorContext(ctx, "failed to end stale special-room session",
+				slog.Int64("room_id", room.ID),
+				slog.String("room_name", room.Name),
+				slog.String("error", err.Error()),
+			)
+			return nil, specialRoomCreationError(room.Name)
+		}
 	}
 
 	return s.createSpecialRoomActiveGroupIfNeeded(ctx, room, deviceID)
@@ -493,6 +505,24 @@ func activeGroupsStartedToday(groups []*active.Group, now time.Time) []*active.G
 		current = append(current, group)
 	}
 	return current
+}
+
+func (s *CheckinService) endPreviousDayActiveGroups(ctx context.Context, groups []*active.Group, now time.Time) error {
+	today := timezone.DateFromTime(now)
+	for _, group := range groups {
+		if group == nil || group.EndTime != nil {
+			continue
+		}
+		if groupDate := timezone.DateFromTime(group.StartTime); !groupDate.Before(today) {
+			continue
+		}
+
+		err := s.active.EndActiveGroupSession(ctx, group.ID)
+		if err != nil && !errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded) {
+			return fmt.Errorf("end stale active group %d: %w", group.ID, err)
+		}
+	}
+	return nil
 }
 
 // useExistingActiveGroup selects an active group in the room, preferring one
@@ -589,14 +619,7 @@ func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Contex
 			slog.String("room_name", room.Name),
 			slog.String("error", err.Error()),
 		)
-		switch {
-		case room.Name == constants.SchulhofRoomName:
-			return nil, newInternalError(checkinErrCreateSchulhof)
-		case constants.IsWCRoomName(room.Name):
-			return nil, newInternalError(checkinErrCreateWC)
-		default:
-			return nil, newInternalError(checkinErrCreateSession)
-		}
+		return nil, specialRoomCreationError(room.Name)
 	}
 
 	newActiveGroup.Room = room
@@ -610,6 +633,17 @@ func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Contex
 		RoomName:     room.Name,
 		DeviceScoped: false,
 	}, nil
+}
+
+func specialRoomCreationError(roomName string) *CheckinError {
+	switch {
+	case roomName == constants.SchulhofRoomName:
+		return newInternalError(checkinErrCreateSchulhof)
+	case constants.IsWCRoomName(roomName):
+		return newInternalError(checkinErrCreateWC)
+	default:
+		return newInternalError(checkinErrCreateSession)
+	}
 }
 
 // roomNameByID resolves the room name from a room object or by ID lookup.

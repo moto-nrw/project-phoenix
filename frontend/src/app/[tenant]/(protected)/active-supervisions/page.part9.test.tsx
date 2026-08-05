@@ -731,6 +731,107 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     });
   });
 
+  it("shows the selected parallel Schulhof group's student count", async () => {
+    const { activeService } = await import("~/lib/active-api");
+
+    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue([
+      {
+        studentId: "s10",
+        studentName: "Parallel Student A",
+        schoolClass: "4a",
+        groupName: "Gruppe A",
+        activeGroupId: "yard-parallel",
+        checkInTime: new Date(),
+        isActive: true,
+      },
+      {
+        studentId: "s11",
+        studentName: "Parallel Student B",
+        schoolClass: "4b",
+        groupName: "Gruppe B",
+        activeGroupId: "yard-parallel",
+        checkInTime: new Date(),
+        isActive: true,
+      },
+    ] as never);
+
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "yard-primary",
+          name: "Schulhof",
+          room_id: "yard-room",
+          room: { id: "yard-room", name: "Schulhof" },
+        },
+        {
+          id: "yard-parallel",
+          name: "Schulhof",
+          room_id: "yard-room",
+          room: { id: "yard-room", name: "Schulhof" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "yard-primary",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: {
+        exists: true,
+        roomId: "yard-room",
+        roomName: "Schulhof",
+        activityGroupId: "yard-activity",
+        activeGroupId: "yard-primary",
+        isUserSupervising: true,
+        supervisionId: "sup-primary",
+        supervisorCount: 1,
+        studentCount: 9,
+        supervisors: [
+          {
+            id: "sup-primary",
+            staffId: "staff-1",
+            name: "Test Teacher",
+            isCurrentUser: true,
+          },
+        ],
+      },
+    };
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    const parallelTab = await screen.findByTestId("tab-yard-parallel");
+    fireEvent.click(parallelTab);
+
+    await waitFor(() => {
+      expect(
+        activeService.getActiveGroupVisitsWithDisplay,
+      ).toHaveBeenCalledWith("yard-parallel");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toHaveAttribute(
+        "data-count",
+        "2",
+      );
+    });
+  });
+
   it("handles 403 error from loadRoomVisits gracefully when switching rooms", async () => {
     const { activeService } = await import("~/lib/active-api");
 

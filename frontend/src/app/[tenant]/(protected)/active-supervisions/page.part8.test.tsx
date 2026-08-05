@@ -1199,34 +1199,48 @@ describe("Page header title logic", () => {
 });
 
 describe("Student badge count logic", () => {
-  it("shows Schulhof student count when Schulhof is active", () => {
-    const isSchulhofActive = true;
+  it("shows Schulhof status count when the permanent Schulhof tab is selected", () => {
+    const isSchulhofTabSelected = true;
     const schulhofStudentCount = 15;
     const currentRoomStudentCount = 8;
 
-    const count = isSchulhofActive
+    const count = isSchulhofTabSelected
       ? schulhofStudentCount
       : currentRoomStudentCount;
     expect(count).toBe(15);
   });
 
-  it("shows room student count when regular room is active", () => {
-    const isSchulhofActive = false;
+  it("shows current room count for a regular tab", () => {
+    const isSchulhofTabSelected = false;
     const schulhofStudentCount = 15;
     const currentRoomStudentCount = 8;
 
-    const count = isSchulhofActive
+    const count = isSchulhofTabSelected
       ? schulhofStudentCount
       : currentRoomStudentCount;
     expect(count).toBe(8);
   });
 
-  it("defaults to 0 when counts are undefined", () => {
+  it("shows the selected parallel Schulhof group's count", () => {
+    const isSchulhofTabSelected = false;
     const isSchulhofActive = true;
+    const schulhofStudentCount = 15;
+    const currentRoomStudentCount = 8;
+
+    const count = isSchulhofTabSelected
+      ? schulhofStudentCount
+      : currentRoomStudentCount;
+
+    expect(isSchulhofActive).toBe(true);
+    expect(count).toBe(8);
+  });
+
+  it("defaults to 0 when counts are undefined", () => {
+    const isSchulhofTabSelected = true;
     const schulhofStudentCount: number | undefined = undefined;
     const currentRoomStudentCount: number | undefined = undefined;
 
-    const count = isSchulhofActive
+    const count = isSchulhofTabSelected
       ? (schulhofStudentCount ?? 0)
       : (currentRoomStudentCount ?? 0);
     expect(count).toBe(0);

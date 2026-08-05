@@ -2328,7 +2328,7 @@ function MeinRaumPageContent() {
                   />
                 </svg>
               ),
-              count: isSchulhofActive
+              count: isSchulhofTabSelected
                 ? (schulhofStatus?.studentCount ?? 0)
                 : (currentRoom?.student_count ?? 0),
               label: "Kinder",
