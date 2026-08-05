@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import {
@@ -369,7 +369,7 @@ export function CalendarPeriodsEditor() {
               onClick={beginCreateSemester}
               className="shrink-0 gap-2"
             >
-              <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+              <MotoConceptIcon concept="calendarPeriods" size={16} />
               Halbjahr anlegen
             </Button>
             <Button
@@ -388,7 +388,7 @@ export function CalendarPeriodsEditor() {
 
       {periods.length === 0 ? (
         <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-          <div className="bg-moto-green/10 mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#669f21]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
             <MotoConceptIcon concept="calendarPeriods" size={28} />
           </div>
           <h2 className="mt-4 text-base font-semibold text-gray-900">
@@ -405,7 +405,7 @@ export function CalendarPeriodsEditor() {
             onClick={beginCreateSemester}
             className="mt-5 gap-2"
           >
-            <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+            <MotoConceptIcon concept="calendarPeriods" size={16} />
             Halbjahr anlegen
           </Button>
         </section>

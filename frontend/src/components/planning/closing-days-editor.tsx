@@ -213,7 +213,7 @@ export function ClosingDaysEditor() {
 
       {closingDays.length === 0 ? (
         <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-          <div className="bg-moto-green/10 mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#669f21]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
             <MotoConceptIcon concept="closingDays" size={28} />
           </div>
           <h2 className="mt-4 text-base font-semibold text-gray-900">
