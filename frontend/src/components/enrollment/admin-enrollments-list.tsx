@@ -12,10 +12,10 @@ import {
   ExternalLink,
   FileText,
   LockKeyhole,
-  MessageSquare,
   type LucideIcon,
   Settings2,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminEnrollmentChangeRequest,
   type AdminRequestSummary,
@@ -221,8 +221,8 @@ function ChangeRequestsOverview({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
-            <MessageSquare className="h-5 w-5" aria-hidden="true" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+            <MotoConceptIcon concept="parentConversations" size={20} />
           </span>
           <div>
             <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
@@ -885,7 +885,7 @@ function StatusPill({
     tone === "success"
       ? "bg-moto-green/15 text-moto-green-strong"
       : tone === "info"
-        ? "bg-moto-blue/10 text-[#4070C8]"
+        ? "bg-moto-blue/10 text-moto-blue-hover"
         : "bg-gray-100 text-gray-600";
   return (
     <span

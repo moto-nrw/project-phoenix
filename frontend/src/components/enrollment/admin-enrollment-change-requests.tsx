@@ -7,11 +7,11 @@ import {
   ArrowRight,
   Check,
   Mail,
-  MessageSquare,
   type LucideIcon,
   UserRound,
   X,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   approveEnrollmentChangeRequest,
   askEnrollmentChangeRequestQuestion,
@@ -429,7 +429,7 @@ export function AdminEnrollmentChangeRequestDetail({
                     disabled={!canReview || busy !== null || !question.trim()}
                     className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                   >
-                    <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                    <MotoConceptIcon concept="parentConversations" size={16} />
                     {busy === "question" ? "Sendet..." : "Rückfrage senden"}
                   </button>
                 </section>
