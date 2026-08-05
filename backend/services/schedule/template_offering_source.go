@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"context"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -13,6 +14,29 @@ import (
 // enrollment-side resync implementation wraps its validation failures with
 // this sentinel so the schedule layer stays free of enrollment imports.
 var ErrOfferingSourceInvalid = errors.New("offering source is invalid")
+
+// validateOfferingSourceReference guards the offering-source reference BEFORE
+// the group row carrying it is written (#2147 review round 18). Without this
+// pre-check an unknown source_care_offering_id fails on the FK during the
+// insert/update, which surfaces as a 500 — the offering-source validation
+// inside the roster resync never gets to classify it as
+// ErrOfferingSourceInvalid (400). The resync stays the authoritative guard;
+// this call only pulls the same verdict forward. Read-only test facades may
+// leave the hook nil, in which case the resync remains the only check.
+func (s *TimetableDataService) validateOfferingSourceReference(
+	ctx context.Context,
+	offeringID *int64,
+	calendarPeriodID *int64,
+	op string,
+) error {
+	if offeringID == nil || s.deps.ValidateOfferingSource == nil {
+		return nil
+	}
+	if err := s.deps.ValidateOfferingSource(ctx, *offeringID, calendarPeriodID); err != nil {
+		return &ScheduleError{Op: op, Err: err}
+	}
+	return nil
+}
 
 // OfferingRosterResyncInput describes one template's offering-source rule for
 // the roster resync hook (#2137). The hook reconciles the template's

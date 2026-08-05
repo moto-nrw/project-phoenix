@@ -3,6 +3,7 @@ package schedule
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -398,5 +399,61 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 		require.ErrorIs(t, err, sentinel)
 		assert.ErrorContains(t, err, "update template: resync offering roster")
+	})
+}
+
+// validateOfferingSourceReference is the pre-write guard that keeps an unknown
+// or period-incompatible source from reaching the group insert/update, where
+// the FK would turn a client mistake into a 500 (#2147 review round 18).
+func TestValidateOfferingSourceReference(t *testing.T) {
+	offeringID := int64(12)
+	periodID := int64(55)
+
+	t.Run("no source skips the hook", func(t *testing.T) {
+		called := false
+		svc := NewTimetableDataService(TimetableDataDependencies{
+			ValidateOfferingSource: func(context.Context, int64, *int64) error {
+				called = true
+				return nil
+			},
+		})
+
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), nil, &periodID, "create template: validate offering source"))
+		assert.False(t, called, "a template without a source must not resolve an offering")
+	})
+
+	t.Run("the source is checked against the template period", func(t *testing.T) {
+		var gotOffering int64
+		var gotPeriod *int64
+		svc := NewTimetableDataService(TimetableDataDependencies{
+			ValidateOfferingSource: func(_ context.Context, id int64, period *int64) error {
+				gotOffering, gotPeriod = id, period
+				return nil
+			},
+		})
+
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), &offeringID, &periodID, "create template: validate offering source"))
+		assert.Equal(t, offeringID, gotOffering)
+		assert.Equal(t, &periodID, gotPeriod)
+	})
+
+	t.Run("an unknown source surfaces as ErrOfferingSourceInvalid before any write", func(t *testing.T) {
+		svc := NewTimetableDataService(TimetableDataDependencies{
+			ValidateOfferingSource: func(context.Context, int64, *int64) error {
+				return fmt.Errorf("%w: care offering %d not found", ErrOfferingSourceInvalid, offeringID)
+			},
+		})
+
+		err := svc.validateOfferingSourceReference(t.Context(), &offeringID, nil, "update template: validate offering source")
+
+		require.ErrorIs(t, err, ErrOfferingSourceInvalid,
+			"the handler maps this sentinel to 400 — an FK violation during the write would render 500 instead")
+		assert.ErrorContains(t, err, "update template: validate offering source")
+	})
+
+	t.Run("an unwired hook leaves the resync as the only guard", func(t *testing.T) {
+		svc := NewTimetableDataService(TimetableDataDependencies{})
+
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), &offeringID, &periodID, "create template: validate offering source"))
 	})
 }

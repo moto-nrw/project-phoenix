@@ -236,6 +236,12 @@ func (s *TimetableDataService) createTemplateLocked(
 		return err
 	}
 	applyTargetMirrorToCreateInput(&in, targets)
+	// Before any write: an unknown or period-incompatible source would
+	// otherwise only fail on the group insert's FK (500) instead of the
+	// client-correctable 400 the resync produces (#2147 review round 18).
+	if err := s.validateOfferingSourceReference(ctx, in.SourceCareOfferingID, in.CalendarPeriodID, "create template: validate offering source"); err != nil {
+		return err
+	}
 
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
 	if err != nil {

@@ -2153,6 +2153,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
 			ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
+			ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 			DeviationEventRepo:         repos.DeviationEvent,
 			ConflictAckRepo:            repos.TimetableConflictAck,
 			Broadcaster:                realtimeHub,

@@ -177,6 +177,13 @@ func (s *TimetableDataService) updateTemplateLocked(
 	previousListKind := existing.ListKind
 	previousSourceOfferingID := cloneOptionalInt64(existing.SourceCareOfferingID)
 	previousCalendarPeriodID := cloneOptionalInt64(existing.CalendarPeriodID)
+	// Same pre-write guard as on create: the merged source must resolve before
+	// the field write stamps it onto the group row, otherwise an unknown
+	// offering trips the FK (500) before the resync can classify it as
+	// ErrOfferingSourceInvalid (400) (#2147 review round 18).
+	if err := s.validateOfferingSourceReference(ctx, in.Fields.SourceCareOfferingID, in.CalendarPeriodID, "update template: validate offering source"); err != nil {
+		return err
+	}
 	if err := s.updateTemplateFields(ctx, in); err != nil {
 		return err
 	}
