@@ -183,8 +183,11 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 // switch whose interval already ended holds no future slot); each claim
 // keeps its ValidFrom/ValidUntil so it is only checked against occupancy
 // inside its own interval, never against capacity pressure it doesn't
-// overlap. Reject-mode phases surface ErrCareOfferingFull instead; a
-// meanwhile-deactivated offering fails closed with ErrCareOfferingClosed.
+// overlap — while restored siblings whose intervals do overlap queue
+// against each other, so a partially overlapping pair cannot jointly
+// overbook a slot both fit into alone. Reject-mode phases surface
+// ErrCareOfferingFull instead; a meanwhile-deactivated offering fails
+// closed with ErrCareOfferingClosed.
 func (s *decisionService) restoreCapacityWaitlist(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
@@ -240,7 +243,7 @@ func (s *decisionService) restoreCapacityWaitlist(
 		func(ctx context.Context) (bool, error) {
 			return s.resolveDecisionBool(ctx, configModel.KeyEnrollmentWaitlistEnabled, true)
 		},
-		phase, claims, nil, nil, childIDs)
+		phase, claims, nil, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: capacity gate: %w", err)
 	}

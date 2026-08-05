@@ -346,6 +346,67 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
 }
 
+// TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity pins
+// the follow-up from review #2159: two restored siblings whose validity
+// intervals only partially overlap must queue against each other on the
+// overlap. Each claim alone fits the free slot, so a gate that keys queued
+// counts by identical windows would restore both and overbook the offering
+// where the intervals meet — the second child must come back waitlisted.
+func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 2)
+	overlapFrom := timezone.NewDate(2027, 1, 1)
+	overlapUntil := timezone.NewDate(2027, 3, 1)
+
+	// One family, two children on the same offering; their dated intervals
+	// overlap only in [overlapFrom, overlapUntil).
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "restore-overlap@example.com"
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	req.Children = append(req.Children, enrollmentService.SubmitChild{
+		FirstName:        "Bela",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 5, 20),
+		TargetGradeLevel: testpkg.Int16Ptr(1),
+		OfferingIDs:      []int64{offering.ID},
+	})
+	res, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, res.Children, 2)
+	setOfferingInterval(t, env.db, res.Children[0].ID, nil, &overlapUntil)
+	setOfferingInterval(t, env.db, res.Children[1].ID, &overlapFrom, nil)
+	require.NoError(t, env.svc.Withdraw(ctx, res.Request.StatusToken, 0))
+
+	// The admin lowered the capacity in the meantime: one slot left, which
+	// either interval fits alone but the overlap cannot.
+	one := 1
+	offering.Capacity = &one
+	require.NoError(t, repositories.NewFactory(env.db).CareOffering.Update(ctx, offering))
+
+	decision := newRestoreDecisionServiceForRequestEnv(t, env)
+	cleanupRestorationAuditRows(t, env.db, res.Request.ID)
+	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)
+	require.NoError(t, err)
+	require.Len(t, outcome.RestoredChildIDs, 2)
+	require.Len(t, outcome.WaitlistedChildIDs, 1,
+		"the overlapping restored claims share the single slot, so exactly one child must be waitlisted")
+
+	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, res.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 2)
+	statuses := map[string]int{}
+	for _, child := range children {
+		statuses[child.Status]++
+	}
+	assert.Equal(t, map[string]int{
+		enrollmentModels.ChildStatusSubmitted:  1,
+		enrollmentModels.ChildStatusWaitlisted: 1,
+	}, statuses)
+}
+
 func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
