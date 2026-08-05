@@ -23,7 +23,6 @@ import {
   GripVertical,
   HelpCircle,
   Info,
-  ListPlus,
   Lock,
   Pencil,
   Plus,
@@ -1321,8 +1320,8 @@ function TemplateOverviewRow({
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-            <FileText className="h-4 w-4" aria-hidden="true" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+            <MotoConceptIcon concept="enrollments" size={16} />
           </span>
           <h4 className="truncate text-sm font-semibold text-gray-900">
             {schema.name}
@@ -1400,7 +1399,7 @@ function UsageLine({
     },
     assigned: {
       dotClassName: "bg-moto-green",
-      textClassName: "text-[#5F9F20]",
+      textClassName: "text-moto-green-vivid",
     },
     ready: {
       dotClassName: "bg-gray-300",
@@ -1455,7 +1454,7 @@ function OverviewGuide({
             done
           />
           <GuideStep
-            icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
+            icon={<MotoConceptIcon concept="enrollments" size={18} />}
             title="Vorlage nur bei Bedarf"
             done={templateCount > 0}
           />
@@ -1541,7 +1540,7 @@ function FormTemplateDetail({
                   label="Zuletzt gespeichert"
                 />
                 <FormMetric
-                  icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
+                  icon={<MotoConceptIcon concept="enrollments" size={16} />}
                   value={schema.fields.length.toString()}
                   label="Zusatzfragen"
                 />
@@ -1551,7 +1550,7 @@ function FormTemplateDetail({
                   label="Pflicht-Zusatzfragen"
                 />
                 <FormMetric
-                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+                  icon={<MotoConceptIcon concept="children" size={16} />}
                   value={childFieldCount.toString()}
                   label="Pro Kind"
                 />
@@ -1661,7 +1660,9 @@ function GuideStep({
     <div className="flex items-center gap-3">
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-          done ? "bg-moto-green/15 text-[#5F9F20]" : "bg-gray-100 text-gray-500"
+          done
+            ? "bg-moto-green/15 text-moto-green-vivid"
+            : "bg-gray-100 text-gray-500"
         }`}
       >
         {icon}
@@ -2386,7 +2387,7 @@ function LegalBlocksSection({
       !blocks.some(
         (block) => block.key === "data_processing" && block.enabled,
       ) ? (
-        <p className="mt-3 rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm leading-6 text-gray-700">
+        <p className="border-moto-amber/30 bg-moto-amber/10 mt-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
           Hinweis: Die Datenschutzinformation ist in dieser Vorlage deaktiviert.
           Stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg
           erhalten, zum Beispiel über den Elternbrief.
@@ -2424,7 +2425,7 @@ function LegalBlocksSection({
                       Aus Einstellungen übernommen
                     </span>
                     {hasOverride ? (
-                      <span className="rounded-full bg-[#EAB308]/10 px-2 py-0.5 text-xs font-medium text-[#92400E]">
+                      <span className="bg-moto-amber/10 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
                         Abweichung aktiv
                       </span>
                     ) : null}
@@ -2614,7 +2615,7 @@ function AGBTemplateSourceEditor({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <label
-                className={`border-moto-blue/25 hover:bg-moto-blue/10 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors ${
+                className={`border-moto-blue/25 hover:bg-moto-blue/10 text-moto-blue-hover inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors ${
                   disabled || documentSaving
                     ? "pointer-events-none opacity-50"
                     : ""
@@ -3122,7 +3123,7 @@ function FieldEditorRow({
                   {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
                 {isInfo ? (
-                  <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                  <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
                     <Info className="h-3 w-3" aria-hidden="true" />
                     Hinweis
                   </span>
@@ -3174,7 +3175,7 @@ function FieldEditorRow({
 
           {isInfo ? (
             <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border px-3 py-2 text-xs leading-5 text-gray-600">
-              <p className="font-medium text-[#3D63B0]">
+              <p className="text-moto-blue-hover font-medium">
                 Wird Eltern als Hinweis angezeigt.
               </p>
               <p className="mt-0.5">
@@ -4131,7 +4132,7 @@ function PreviewSection({
 function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
   if (!field.visible_when) return null;
   return (
-    <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-[#3D63B0]">
+    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium">
       bedingt
     </span>
   );
@@ -4147,7 +4148,9 @@ function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
               {field.label}
             </span>
           ) : (
-            <span className="text-xs font-medium text-[#3D63B0]">Infotext</span>
+            <span className="text-moto-blue-hover text-xs font-medium">
+              Infotext
+            </span>
           )}
           <ConditionalBadge field={field} />
         </div>
@@ -4240,7 +4243,7 @@ function getPreviewStatus({
     return {
       label: "In Phase verwendet",
       hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-      className: "bg-moto-green/10 text-[#5F9F20]",
+      className: "bg-moto-green/10 text-moto-green-vivid",
       dotClassName: "bg-moto-green",
     };
   }
@@ -4249,7 +4252,7 @@ function getPreviewStatus({
     return {
       label: "Bereit zur Zuordnung",
       hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
-      className: "bg-moto-green/10 text-[#5F9F20]",
+      className: "bg-moto-green/10 text-moto-green-vivid",
       dotClassName: "bg-moto-green",
     };
   }
