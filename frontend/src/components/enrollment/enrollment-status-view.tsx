@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import {
-  AlertTriangle,
-  Check,
-  Clock,
-  Mail,
-  MessageSquare,
-  Pencil,
-  UserRound,
-} from "lucide-react";
+import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -39,13 +31,13 @@ const STATUS_STYLES: Record<
 > = {
   submitted: {
     dot: MOTO_COLOR_PALETTE.blue.base,
-    text: "#374151",
-    bg: "#F3F4F6",
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
   },
   under_review: {
     dot: MOTO_COLOR_PALETTE.blue.base,
-    text: "#374151",
-    bg: "#F3F4F6",
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
   },
   approved: {
     dot: MOTO_COLOR_PALETTE.green.base,
@@ -62,7 +54,11 @@ const STATUS_STYLES: Record<
     text: MOTO_COLOR_PALETTE.red.strong,
     bg: MOTO_COLOR_PALETTE.red.soft,
   },
-  withdrawn: { dot: "#6B7280", text: "#374151", bg: "#F3F4F6" },
+  withdrawn: {
+    dot: MOTO_COLOR_PALETTE.neutral.base,
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
+  },
   pending_renewal: {
     dot: MOTO_COLOR_PALETTE.orange.base,
     text: MOTO_COLOR_PALETTE.orange.strong,
@@ -70,10 +66,14 @@ const STATUS_STYLES: Record<
   },
   auto_renewed: {
     dot: MOTO_COLOR_PALETTE.blue.base,
-    text: "#374151",
-    bg: "#F3F4F6",
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
   },
-  pending_admin_review: { dot: "#6B7280", text: "#374151", bg: "#F3F4F6" },
+  pending_admin_review: {
+    dot: MOTO_COLOR_PALETTE.neutral.base,
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
+  },
 };
 
 const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
@@ -106,7 +106,11 @@ const CHANGE_REQUEST_STYLES: Record<
     dot: MOTO_COLOR_PALETTE.red.base,
     text: MOTO_COLOR_PALETTE.red.strong,
   },
-  cancelled: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
+  cancelled: {
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
+    dot: MOTO_COLOR_PALETTE.neutral.light,
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+  },
 };
 
 const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
@@ -603,7 +607,7 @@ function EnrollmentStatusSummary({
         value={String(status.children.length)}
       />
       <StatusSummaryCard
-        icon={<Mail className="h-5 w-5" aria-hidden="true" />}
+        icon={<MotoConceptIcon concept="parentConversations" size={20} />}
         label={t("contactLabel")}
         value={status.guardian_email}
       />
@@ -719,8 +723,8 @@ function EnrollmentChildRow({
     <li className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
-            <UserRound className="h-5 w-5" aria-hidden="true" />
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
+            <MotoConceptIcon concept="children" size={20} />
           </span>
           <div className="min-w-0">
             <p className="font-semibold break-words text-gray-900">
@@ -1125,8 +1129,8 @@ function ChangeRequestsPanel({
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
-            <MessageSquare className="h-5 w-5" aria-hidden="true" />
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
+            <MotoConceptIcon concept="parentConversations" size={20} />
           </span>
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

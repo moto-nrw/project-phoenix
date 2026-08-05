@@ -1786,7 +1786,7 @@ export function EnrollmentForm({
               {availabilityNotices[child.clientId] ? (
                 <p
                   role="status"
-                  className="rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-sm text-[#805600]"
+                  className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm"
                 >
                   {tr("care.availabilitySelectionRemoved")}
                 </p>
