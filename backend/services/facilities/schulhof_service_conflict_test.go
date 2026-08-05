@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -273,25 +274,28 @@ func TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate(t *testing.T) {
 		PlannedRoomID: &roomID,
 		IsSystem:      true,
 	}
-	now := time.Now()
+	// Anchor to today's Berlin midnight: the status filter drops groups from
+	// other calendar days, and now-relative offsets would cross the boundary
+	// when the test runs shortly after midnight.
+	dayStart := timezone.TodayDate().BerlinMidnight()
 	older := &active.Group{
 		Model:     base.Model{ID: 88},
 		GroupID:   &activityGroup.ID,
 		RoomID:    room.ID,
-		StartTime: now.Add(-2 * time.Hour),
+		StartTime: dayStart.Add(1 * time.Minute),
 	}
 	plannedBlockTemplateID := int64(500)
 	newer := &active.Group{
 		Model:     base.Model{ID: 89},
 		GroupID:   &plannedBlockTemplateID,
 		RoomID:    room.ID,
-		StartTime: now.Add(-10 * time.Minute),
+		StartTime: dayStart.Add(10 * time.Minute),
 	}
-	endedAt := now
+	endedAt := dayStart.Add(30 * time.Minute)
 	ended := &active.Group{
 		Model:     base.Model{ID: 90},
 		RoomID:    room.ID,
-		StartTime: now,
+		StartTime: dayStart.Add(20 * time.Minute),
 		EndTime:   &endedAt,
 	}
 	activeService := &schulhofConflictActiveService{
@@ -325,16 +329,18 @@ func TestSchulhofStatusPrefersCurrentUsersSupervisedOpenGroup(t *testing.T) {
 		PlannedRoomID: &roomID,
 		IsSystem:      true,
 	}
-	now := time.Now()
+	// Anchored to today's Berlin midnight — see
+	// TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate.
+	dayStart := timezone.TodayDate().BerlinMidnight()
 	owned := &active.Group{
 		Model:     base.Model{ID: 88},
 		RoomID:    room.ID,
-		StartTime: now.Add(-time.Hour),
+		StartTime: dayStart.Add(1 * time.Minute),
 	}
 	newer := &active.Group{
 		Model:     base.Model{ID: 89},
 		RoomID:    room.ID,
-		StartTime: now,
+		StartTime: dayStart.Add(10 * time.Minute),
 	}
 	ownedSupervision := &active.GroupSupervisor{
 		Model:   base.Model{ID: 99},
