@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface StatsCardsProps {
@@ -47,12 +47,12 @@ export function StatsCards({
       <StatCard
         title="Neu"
         value={newCount}
-        icon={<MotoConceptIcon concept="enrollments" size={20} />}
+        icon={<Plus className="h-5 w-5 text-gray-700" aria-hidden="true" />}
       />
       <StatCard
         title="Vorhanden"
         value={existing}
-        icon={<MotoConceptIcon concept="accounts" size={20} />}
+        icon={<Check className="h-5 w-5 text-gray-700" aria-hidden="true" />}
       />
       <StatCard
         title="Fehler"
