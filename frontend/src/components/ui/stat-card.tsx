@@ -4,17 +4,21 @@
 // different surface every time (#2165). InfoCard stays the answer for the
 // icon + heading + content card; this one is for a single number.
 //
-// Tones reuse the StatusBadge vocabulary so a figure tinted "orange" here is the
-// same orange as the badge next to it. Callers holding the older
-// "amber" spelling (getDeltaStatus) map it to "orange" at the boundary.
+// Tones use the StatusBadge vocabulary. The COLORS, though, are the ones the
+// Zeiterfassung applies to a standalone figure: the brand hexes themselves
+// (LOCATION_COLORS) plus #70b525 for green, not StatusBadge's darkened label
+// colors. Those darkened tones exist to sit legibly on a tinted pill; on a
+// large bold number on white they read brown rather than orange. Callers
+// holding the older "amber" spelling (getDeltaStatus) map it to "orange" at
+// the boundary.
 
 export type StatCardTone = "blue" | "green" | "orange" | "red" | "gray";
 
 const TONE_VALUE_COLOR: Record<StatCardTone, string> = {
-  blue: "#355A9A",
-  green: "#5A8B1F",
-  orange: "#8A5600",
-  red: "#9F1F1E",
+  blue: "#5080D8",
+  green: "#70b525",
+  orange: "#F78C10",
+  red: "#FF3130",
   gray: "#374151",
 };
 
