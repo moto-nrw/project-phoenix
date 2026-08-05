@@ -181,23 +181,30 @@ vi.mock("~/lib/api", () => ({
   },
 }));
 
-// Mock location helpers
-vi.mock("~/lib/location-helper", () => ({
-  LOCATION_COLORS: {
-    UNKNOWN: "#6B7280",
-    SCHOOLYARD: "#F78C10",
-    HOME: "#DC2626",
-    GROUP_ROOM: "#83CD2D",
-  },
-  LOCATION_STATUSES: { PRESENT: "Anwesend" },
-  isPresentLocation: vi.fn((location?: string | null) =>
-    (location ?? "").startsWith("Anwesend"),
-  ),
-  isHomeLocation: vi.fn(() => false),
-  isSchoolyardLocation: vi.fn(() => false),
-  isTransitLocation: vi.fn(() => false),
-  parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
-}));
+// Mock location helpers. Partial mock via importOriginal — MotoConceptIcon
+// (rendered for the substitution badge) pulls in MOTO_COLOR_PALETTE and
+// getCardGradient uses the real getPresenceCardGradient, both of which must
+// stay real; only the location predicates below are deliberately stubbed.
+vi.mock("~/lib/location-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/location-helper")>();
+  return {
+    ...actual,
+    LOCATION_COLORS: {
+      UNKNOWN: "#6B7280",
+      SCHOOLYARD: "#F78C10",
+      HOME: "#DC2626",
+      GROUP_ROOM: "#83CD2D",
+    },
+    LOCATION_STATUSES: { PRESENT: "Anwesend" },
+    isPresentLocation: vi.fn((location?: string | null) =>
+      (location ?? "").startsWith("Anwesend"),
+    ),
+    isHomeLocation: vi.fn(() => false),
+    isSchoolyardLocation: vi.fn(() => false),
+    isTransitLocation: vi.fn(() => false),
+    parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+  };
+});
 
 // Mock student-helpers
 vi.mock("~/lib/student-helpers", () => ({

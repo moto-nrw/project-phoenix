@@ -1196,7 +1196,7 @@ function OGSGroupPageContent() {
 
     if (variant === "desktop") {
       return (
-        <div className="flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white px-4">
+        <div className="flex h-10 items-center gap-2 px-4">
           <MotoConceptIcon concept="substitution" size={18} />
           <span className="text-sm font-medium text-gray-900">
             In Vertretung
