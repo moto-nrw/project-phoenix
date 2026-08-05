@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Shared destructive-confirmation shell for the operator drill-in modals.
 // Two gate modes capture both flows we need today:
@@ -93,7 +94,7 @@ export function ConfirmDeleteModal({
   const confirmDisabled =
     gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
-  return (
+  const modalContent = (
     // z-[9999] matches the kit Modal/FormModal overlays: expanded
     // moto-content-surface cards carry z-index 60 (globals.css :has rule),
     // which painted over the old z-50 overlay when the modal sat next to a
@@ -170,4 +171,16 @@ export function ConfirmDeleteModal({
       </div>
     </div>
   );
+
+  // Rendered into the body like the kit Modal/FormModal. A `fixed` overlay left
+  // inside the tree is positioned against the nearest ancestor carrying a
+  // filter, transform or backdrop-filter — and `moto-content-surface` (every
+  // SectionCard, InfoCard and StatCard) carries `backdrop-filter`. Nested in a
+  // card the dialog would be laid out inside that card and clipped by its
+  // `overflow-hidden`, with the page behind it still interactive.
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }
