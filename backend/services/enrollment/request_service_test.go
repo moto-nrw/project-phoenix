@@ -108,6 +108,20 @@ type recordingOutbox struct {
 	err     error
 }
 
+type recordingGuardianAuthorizer struct {
+	email        string
+	grantedEmail string
+}
+
+func (a *recordingGuardianAuthorizer) AccountHasStudentPermission(_ context.Context, _, _, _ int64, _ string) (bool, error) {
+	return false, nil
+}
+
+func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ context.Context, email string, _, _ int64, _ string) (bool, error) {
+	a.email = email
+	return email == a.grantedEmail, nil
+}
+
 func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -313,6 +327,51 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 	used, err := repos.LateInvite.FindByUsedRequestID(ctx, result.Request.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "invited@example.test", used.GuardianEmail)
+}
+
+func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repos := repositories.NewFactory(env.db)
+
+	req := validSubmission(env.phaseID)
+	student := testpkg.CreateTestStudent(t, env.db, req.Children[0].FirstName, req.Children[0].LastName, "1a")
+	defer testpkg.CleanupTableRecords(t, env.db, "users.persons", student.PersonID)
+	defer testpkg.CleanupTableRecords(t, env.db, "users.students", student.ID)
+	_, err := env.db.NewUpdate().
+		TableExpr(`users.persons`).
+		Set("birthday = ?", req.Children[0].DateOfBirth).
+		Where("id = ?", student.PersonID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		TableExpr(`enrollment.phases`).
+		Set("audience = ?", enrollmentModels.PhaseAudienceExistingStudents).
+		Where("id = ?", env.phaseID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	authorizer := &recordingGuardianAuthorizer{grantedEmail: "submitted@example.test"}
+	config := env.config
+	config.LateInviteRepo = repos.LateInvite
+	config.StudentRepo = repos.Student
+	config.GuardianAuthorizer = authorizer
+	svc := enrollmentService.NewRequestService(config)
+	created, err := svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
+		PhaseID:       env.phaseID,
+		GuardianEmail: "invited@example.test",
+		CreatedBy:     env.creatorID,
+	})
+	require.NoError(t, err)
+
+	req.GuardianEmail = authorizer.grantedEmail
+	req.LateInviteToken = created.Token
+	_, err = svc.Submit(ctx, req)
+
+	require.ErrorIs(t, err, enrollmentService.ErrChildEnrollmentNotPermitted)
+	assert.Equal(t, "invited@example.test", authorizer.email,
+		"an edited contact email must not borrow another guardian's renewal permission")
 }
 
 // --- Submit ---

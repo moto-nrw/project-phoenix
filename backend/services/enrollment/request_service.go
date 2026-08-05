@@ -528,7 +528,7 @@ type RequestSettingsResolver interface {
 // only place Submit resolves a concrete existing student a submission could
 // renew. Two probes, one per identity the enrollment flows can carry: the
 // authenticated portal account, and (for the accountless late-invite path) the
-// guardian email the request is bound to.
+// guardian email the invite was issued to.
 type GuardianStudentAuthorizer interface {
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
@@ -555,7 +555,7 @@ type RequestServiceConfig struct {
 	// submit path that can pin an existing student. It gates existing_students
 	// re-enrollment (#1663): the matched student may be renewed only when the
 	// request's own guardian identity — the authenticated account, or the
-	// submitted guardian email on the accountless late-invite path — holds
+	// invite email on the accountless late-invite path — holds
 	// parent_portal.enrollment.submit on ITS relationship to that student. The
 	// school-wide GuardianSubmitEligible flag and a late-invite token both admit
 	// the submitter to the phase but neither proves authority over one child. The
@@ -826,11 +826,15 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		}
 
 		// Identity the per-child re-enrollment gate below authorizes against.
-		// Late-invite holders may correct or replace the address the school used
-		// for the invitation, so this deliberately uses the address submitted in
-		// the form. The existing-student gate still requires that address to hold
-		// the enrollment permission for the matched child (#1663, #2164).
-		reEnrollSubmitter := reEnrollmentSubmitterFor(submissionSource, req.GuardianAccountID, emailLC)
+		// Late-invite holders may correct the request's contact address, but an
+		// accountless renewal stays authorized as the guardian the school invited.
+		// Otherwise a token holder could name another permitted guardian's email
+		// and claim that guardian's authority over an existing child (#1663, #2164).
+		reEnrollEmail := emailLC
+		if lateInvite != nil && req.GuardianAccountID == nil {
+			reEnrollEmail = lateInvite.GuardianEmail
+		}
+		reEnrollSubmitter := reEnrollmentSubmitterFor(submissionSource, req.GuardianAccountID, reEnrollEmail)
 
 		// Dedup check runs inside the lock so the result is stable for
 		// the rest of the tx. Different parents or different child
@@ -3916,10 +3920,10 @@ func assertExistingStudentMatchResolved(
 // reEnrollmentSubmitter is the identity a pinned existing-student re-enrollment
 // is authorized against. Exactly one of the two identities decides, and which
 // one is a property of the flow, never of the payload: a parents-portal submit
-// carries the authenticated account, every other flow carries only the guardian
-// email submitted on the request. A late invite grants access to the phase but
-// does not bind the request identity to the address the school used when it
-// created the link (#2164).
+// carries the authenticated account, while an accountless late invite carries
+// the email the school issued it to. The request may store a corrected contact
+// email, but that unverified replacement never grants authority over an existing
+// child (#2164).
 //
 // AdminManaged marks the staff-authorized manual-enrollment flow, the one path
 // that may deliberately pin a student the submitting guardian has no
@@ -3934,9 +3938,9 @@ type reEnrollmentSubmitter struct {
 
 // reEnrollmentSubmitterFor builds the identity from a submission's source and
 // guardian fields. Any source other than admin_manual is self-service as far as
-// this gate is concerned — a late invite proves that its token holder may enter
+// this gate is concerned — a late invite proves that its recipient may enter
 // the phase, which is not the same fact as authority over a specific enrolled
-// child.
+// child. Submit passes the invite email here, not an edited contact email.
 func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64, guardianEmail string) reEnrollmentSubmitter {
 	return reEnrollmentSubmitter{
 		GuardianAccountID: guardianAccountID,
@@ -3950,12 +3954,13 @@ func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64,
 // concrete already-enrolled student that approval would RENEW and attach the
 // submitting guardian to. The invariant this gate holds is therefore:
 //
-//	a request may renew student S only if the guardian identity ON THAT REQUEST
-//	already holds parent_portal.enrollment.submit on its own relationship to S.
+//	a request may renew student S only if its authenticated account, or the
+//	guardian email its late invite was issued to, already holds
+//	parent_portal.enrollment.submit on its own relationship to S.
 //
-// Because approval attaches that same identity (account ID when present, else
-// guardian email — see decision_service), an approved renewal can never widen
-// anyone's access: whoever gets attached already had authority over S.
+// A late-invite request may store a corrected contact email for later approval,
+// but that address is data supplied under the invite recipient's authority; it
+// does not become the identity used by this gate.
 //
 // Both identities are checked, never mixed:
 //
@@ -3964,12 +3969,13 @@ func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64,
 //     phase but would otherwise let a parent permitted for child A renew — and
 //     bind themselves to — child B.
 //   - Accountless submit (a late invite, whose recipient typically has no portal
-//     account): the request's guardian email must resolve to a guardian profile at
+//     account): the invite's guardian email must resolve to a guardian profile at
 //     the school whose relationship to S grants the permission. A late-invite
 //     token is minted per phase and email and says nothing about WHICH child, so
 //     without this probe an invited parent could type a stranger's enrolled child's
 //     name and birthday — both readable off a class list — and be attached to that
-//     child on approval.
+//     child on approval. An edited request email must not substitute another
+//     guardian's permission.
 //
 // The single deliberate bypass is AdminManaged: staff act with their own
 // authorization and must be able to re-enroll a child whose guardian is not yet
