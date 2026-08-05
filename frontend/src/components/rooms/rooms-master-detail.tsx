@@ -17,7 +17,6 @@ import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
-import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, isSystemRoom, type Room } from "@/lib/room-helpers";
 import { buildRoomFormSections } from "./room-form-sections";
 
@@ -205,7 +204,6 @@ function RoomStammdatenTab({
       <RoomStatusSummary room={room} />
       <DatabaseForm
         key={formResetKey}
-        theme={roomsConfig.theme}
         sections={sections}
         initialData={room}
         onSubmit={onSaveRoom}

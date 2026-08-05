@@ -1,7 +1,6 @@
 // Teacher Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
 import { createLogger } from "~/lib/logger";
@@ -111,7 +110,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     plural: "Personal",
   },
 
-  theme: databaseThemes.teachers,
+  concept: "staff",
 
   backUrl: "/database",
 
@@ -123,7 +122,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     sections: [
       {
         title: "Persönliche Daten",
-        backgroundColor: "bg-blue-50",
         columns: 2,
         fields: [
           {
@@ -176,7 +174,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       },
       {
         title: "Berufliche Informationen",
-        backgroundColor: "bg-indigo-50",
         columns: 2,
         fields: [
           {
@@ -210,7 +207,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       },
       {
         title: "Zugangsdaten",
-        backgroundColor: "bg-green-50",
         fields: [
           {
             name: "password",
@@ -405,12 +401,11 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             `${teacher.first_name?.[0] ?? ""}${teacher.last_name?.[0] ?? ""}`.toUpperCase();
           return initials || "L";
         },
-        backgroundColor: databaseThemes.teachers.primary,
       },
       badges: [
         {
           label: (teacher: Teacher) => teacher.role ?? "",
-          color: "bg-purple-100 text-purple-800",
+          color: "bg-moto-purple-soft text-moto-purple-strong",
           showWhen: (teacher: Teacher) => !!teacher.role,
         },
       ],

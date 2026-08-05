@@ -1,7 +1,6 @@
 // Student Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import { GroupSelect } from "@/components/ui/database/database-select";
 import type { Student } from "@/lib/api";
 import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";
@@ -31,7 +30,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     plural: "Kinder",
   },
 
-  theme: databaseThemes.students,
+  concept: "children",
 
   backUrl: "/database",
 
@@ -44,7 +43,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     sections: [
       {
         title: "Persönliche Daten",
-        backgroundColor: "bg-blue-50",
+        concept: "children",
         columns: 2,
         fields: [
           {
@@ -88,7 +87,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Erziehungsberechtigte",
-        backgroundColor: "bg-purple-50",
+        concept: "parents",
         columns: 2,
         fields: [
           {
@@ -109,7 +108,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Busfahrer",
-        backgroundColor: "bg-green-50",
+        concept: "transport",
         columns: 1,
         fields: [
           {
@@ -122,7 +121,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Zusätzliche Informationen",
-        backgroundColor: "bg-gray-50",
         columns: 1,
         fields: [
           {
@@ -138,7 +136,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Datenschutz",
-        backgroundColor: "bg-yellow-50",
         columns: 2,
         fields: [
           {
@@ -285,7 +282,7 @@ export const studentsConfig = defineEntityConfig<Student>({
               <div
                 className={`rounded-lg p-2 text-sm md:p-3 ${
                   isPresentLocation(student.current_location)
-                    ? "bg-green-100 text-green-800"
+                    ? "bg-moto-green-soft text-moto-green-strong"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
@@ -293,7 +290,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                   <span
                     className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
                       isPresentLocation(student.current_location)
-                        ? "bg-green-500"
+                        ? "bg-moto-green-strong"
                         : "bg-gray-300"
                     }`}
                   />
@@ -308,7 +305,7 @@ export const studentsConfig = defineEntityConfig<Student>({
               <div
                 className={`rounded-lg p-2 text-sm md:p-3 ${
                   isTransitLocation(student.current_location)
-                    ? "bg-fuchsia-100 text-fuchsia-800"
+                    ? "bg-moto-magenta-soft text-moto-magenta-strong"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
@@ -316,7 +313,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                   <span
                     className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
                       isTransitLocation(student.current_location)
-                        ? "bg-fuchsia-500"
+                        ? "bg-moto-magenta"
                         : "bg-gray-300"
                     }`}
                   />
@@ -331,7 +328,7 @@ export const studentsConfig = defineEntityConfig<Student>({
               <div
                 className={`rounded-lg p-2 text-sm md:p-3 ${
                   isSchoolyardLocation(student.current_location)
-                    ? "bg-yellow-100 text-yellow-800"
+                    ? "bg-moto-amber-soft text-moto-amber-strong"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
@@ -339,7 +336,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                   <span
                     className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
                       isSchoolyardLocation(student.current_location)
-                        ? "bg-yellow-500"
+                        ? "bg-moto-amber"
                         : "bg-gray-300"
                     }`}
                   />
@@ -354,14 +351,14 @@ export const studentsConfig = defineEntityConfig<Student>({
               <div
                 className={`rounded-lg p-2 text-sm md:p-3 ${
                   student.bus
-                    ? "bg-orange-100 text-orange-800"
+                    ? "bg-moto-orange-soft text-moto-orange-strong"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
                 <span className="flex items-center">
                   <span
                     className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
-                      student.bus ? "bg-orange-500" : "bg-gray-300"
+                      student.bus ? "bg-moto-orange" : "bg-gray-300"
                     }`}
                   />
                   <span className="truncate">
@@ -441,18 +438,18 @@ export const studentsConfig = defineEntityConfig<Student>({
       badges: [
         {
           label: (student: Student) => student.school_class ?? "Keine Klasse",
-          color: "bg-blue-100 text-blue-700",
+          color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: (student: Student) => !!student.school_class,
         },
         {
           label: (student: Student) => student.group_name ?? "Keine Gruppe",
-          color: "bg-purple-100 text-purple-700",
+          color: "bg-moto-purple-soft text-moto-purple-strong",
           showWhen: (student: Student) => !!student.group_name,
         },
         {
           field: "bus",
           label: "Bus",
-          color: "bg-orange-100 text-orange-700",
+          color: "bg-moto-orange-soft text-moto-orange-strong",
           showWhen: (student: Student) => !!student.bus,
         },
       ],

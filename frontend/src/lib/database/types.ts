@@ -1,7 +1,7 @@
 // Database Entity Configuration Types
 
 import type { ReactNode } from "react";
-import type { DatabaseTheme } from "@/lib/database/themes";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 // Field types supported by the database forms
 type FieldType =
@@ -95,8 +95,8 @@ interface FormSection {
   subtitle?: string;
   fields: FormField[];
   columns?: 1 | 2;
-  backgroundColor?: string;
-  iconPath?: string;
+  /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
+  concept?: MotoConceptKey;
 }
 
 // Section configuration for forms
@@ -105,8 +105,8 @@ export interface SectionConfig {
   subtitle?: string;
   fields: FieldConfig[];
   columns?: 1 | 2;
-  backgroundColor?: string;
-  iconPath?: string;
+  /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
+  concept?: MotoConceptKey;
 }
 
 // Detail view item configuration
@@ -175,8 +175,9 @@ export interface EntityConfig<T = Record<string, unknown>> {
     plural: string;
   };
 
-  // Theme
-  theme: DatabaseTheme;
+  // Concept driving the entity's icon/tone across the database area (see
+  // MOTO_CONCEPTS). Replaces the former hand-rolled per-entity theme object.
+  concept: MotoConceptKey;
 
   // Navigation
   backUrl?: string;
@@ -328,8 +329,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
       maxLength: field.maxLength,
     })),
     columns: section.columns,
-    backgroundColor: section.backgroundColor,
-    iconPath: section.iconPath,
+    concept: section.concept,
   };
 }
 

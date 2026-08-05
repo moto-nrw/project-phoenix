@@ -5,10 +5,7 @@ import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { configToFormSection, type EntityConfig } from "@/lib/database/types";
 
-type DatabaseFormModalConfig<T> = Pick<
-  EntityConfig<T>,
-  "form" | "theme" | "labels"
->;
+type DatabaseFormModalConfig<T> = Pick<EntityConfig<T>, "form" | "labels">;
 
 interface DatabaseFormModalProps<T> {
   readonly isOpen: boolean;
@@ -54,7 +51,6 @@ export function DatabaseFormModal<T>({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <DatabaseForm<Partial<T>>
-        theme={config.theme}
         sections={sections}
         initialData={initialData ?? config.form.defaultValues}
         onSubmit={onSubmit}

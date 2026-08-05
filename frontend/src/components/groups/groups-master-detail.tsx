@@ -177,7 +177,6 @@ function GroupStammdatenTab({
       <GroupSummary group={group} />
       <DatabaseForm
         key={formResetKey}
-        theme={groupsConfig.theme}
         sections={sections}
         initialData={group}
         onSubmit={onSaveGroup}

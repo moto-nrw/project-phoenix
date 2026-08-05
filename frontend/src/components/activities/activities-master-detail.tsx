@@ -16,7 +16,6 @@ import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
-import { activitiesConfig } from "@/components/database/configs/activities.config";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
 
@@ -200,7 +199,6 @@ function ActivityStammdatenTab({
       <ActivitySummary activity={activity} />
       <DatabaseForm
         key={formResetKey}
-        theme={activitiesConfig.theme}
         sections={sections}
         initialData={activity}
         onSubmit={onSaveActivity}
