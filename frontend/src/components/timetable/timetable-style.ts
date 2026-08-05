@@ -26,7 +26,7 @@ export const timetableDangerPanel =
 export const timetableRequiredMark = "ml-0.5 text-moto-red";
 
 /** Readable dark-amber text pairing with white/gray-50 backgrounds. */
-export const timetableWarningText = "text-[#92400E]";
+export const timetableWarningText = "text-moto-amber-strong";
 
 /**
  * Shared 5-tone palette for small status/ratio indicators across the

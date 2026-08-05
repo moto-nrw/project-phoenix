@@ -12,7 +12,7 @@
  * bar that ties the card back to the activity type.
  */
 
-import { Archive, Clock } from "lucide-react";
+import { Archive } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -130,7 +130,7 @@ export function TemplateCard({
 
         <dl className="space-y-1.5 text-xs text-gray-600">
           <div className="flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+            <MotoConceptIcon concept="careTimes" size={14} />
             <span className="tabular-nums">
               {timeRange ?? "Keine Zeiten hinterlegt"}
             </span>
@@ -168,7 +168,7 @@ export function TemplateCard({
         {!template.roomId && (
           <p className="flex items-center gap-1.5 text-xs text-gray-600">
             <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#EAB308]"
+              className="bg-moto-amber h-1.5 w-1.5 shrink-0 rounded-full"
               aria-hidden
             />
             Raum fehlt – wird nicht eingeplant

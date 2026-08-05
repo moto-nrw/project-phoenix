@@ -19,7 +19,6 @@ import {
   Repeat,
   RotateCcw,
   StickyNote,
-  Timer,
   Trash2,
   TriangleAlert,
   UserPlus,
@@ -810,7 +809,10 @@ export function InstanceDetailModal({
           <StatsRow instance={instance} />
 
           <Section title="Details">
-            <Row icon={<Timer className="h-4 w-4" />} label="Zeit">
+            <Row
+              icon={<MotoConceptIcon concept="careTimes" size={18} />}
+              label="Zeit"
+            >
               {instance.startTime} – {instance.endTime}
             </Row>
             <Row

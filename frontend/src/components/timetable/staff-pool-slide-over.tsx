@@ -17,14 +17,7 @@
  */
 
 import { Fragment, useMemo, useState } from "react";
-import {
-  ArrowLeftRight,
-  CalendarOff,
-  Clock,
-  TriangleAlert,
-  UserPlus,
-  UserX,
-} from "lucide-react";
+import { TriangleAlert, UserPlus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -177,7 +170,7 @@ export function StaffPoolSlideOver({
               <Fragment key={instanceId ?? "none"}>
                 <PoolSection
                   title="Auf anderen Blöcken"
-                  icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="substitution" size={14} />}
                   emptyText="Niemand ist zeitgleich auf einem anderen Block eingeplant."
                   entries={grouped.assignedElsewhere}
                   renderActions={
@@ -195,7 +188,10 @@ export function StaffPoolSlideOver({
                               }
                             >
                               <span className="inline-flex items-center gap-1.5">
-                                <ArrowLeftRight className="h-3.5 w-3.5" />
+                                <MotoConceptIcon
+                                  concept="substitution"
+                                  size={14}
+                                />
                                 Hierher verschieben
                               </span>
                             </Button>
@@ -205,7 +201,7 @@ export function StaffPoolSlideOver({
                 />
                 <PoolSection
                   title="Im Dienst, frei"
-                  icon={<UserPlus className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="staff" size={14} />}
                   emptyText="Niemand ist im Zeitfenster frei im Dienst."
                   entries={grouped.onShiftFree}
                   renderActions={
@@ -235,13 +231,13 @@ export function StaffPoolSlideOver({
                 />
                 <PoolSection
                   title="Abwesend"
-                  icon={<UserX className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="staff" size={14} />}
                   emptyText="Keine Abwesenheiten."
                   entries={grouped.absent}
                 />
                 <PoolSection
                   title="Kein Dienst im Zeitfenster"
-                  icon={<CalendarOff className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="closingDays" size={14} />}
                   emptyText="Alle übrigen Personen haben Dienst."
                   entries={grouped.notOnShift}
                   collapsedByDefault
@@ -453,7 +449,11 @@ function PoolEntryRow({
                 danger ? "text-moto-red-strong" : "text-gray-500"
               }`}
             >
-              <Clock className="h-3 w-3 shrink-0" />
+              <MotoConceptIcon
+                concept="careTimes"
+                size={12}
+                className="shrink-0"
+              />
               <span className="truncate">{metaParts.join(" • ")}</span>
             </div>
           )}

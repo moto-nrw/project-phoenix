@@ -18,7 +18,7 @@
  * is a radio branch, not a checkbox that silently disables the rest.
  */
 
-import { Plus, RotateCcw, UserMinus } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
@@ -43,6 +43,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
@@ -608,7 +609,11 @@ export function SubstitutionSlideOver({
                                           })
                                         }
                                       >
-                                        <UserMinus className="mr-1.5 h-4 w-4" />
+                                        <MotoConceptIcon
+                                          concept="substitution"
+                                          size={16}
+                                          className="mr-1.5"
+                                        />
                                         Abwesend
                                       </Button>
                                     ) : (
@@ -791,7 +796,11 @@ export function SubstitutionSlideOver({
                                       >
                                         {restored ? (
                                           <>
-                                            <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                            <MotoConceptIcon
+                                              concept="substitution"
+                                              size={14}
+                                              className="mr-1"
+                                            />
                                             Rückgängig
                                           </>
                                         ) : (
@@ -817,7 +826,11 @@ export function SubstitutionSlideOver({
                                           </>
                                         ) : (
                                           <>
-                                            <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                            <MotoConceptIcon
+                                              concept="substitution"
+                                              size={14}
+                                              className="mr-1"
+                                            />
                                             Entfernen
                                           </>
                                         )}
