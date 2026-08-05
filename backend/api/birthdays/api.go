@@ -19,26 +19,39 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
 // Resource is the birthdays API resource.
 type Resource struct {
-	BirthdayService   usersSvc.BirthdayService
-	ListExportService *listexport.RendererService
-	db                *bun.DB
-	logger            *slog.Logger
+	BirthdayService    usersSvc.BirthdayService
+	ListExportService  *listexport.RendererService
+	UserContextService usercontext.UserContextService
+	SettingsService    configSvc.SettingsService
+	db                 *bun.DB
+	logger             *slog.Logger
 }
 
 // NewResource creates the birthdays resource.
-func NewResource(birthdayService usersSvc.BirthdayService, listExportService *listexport.RendererService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(
+	birthdayService usersSvc.BirthdayService,
+	listExportService *listexport.RendererService,
+	userContextService usercontext.UserContextService,
+	settingsService configSvc.SettingsService,
+	db *bun.DB,
+	logger *slog.Logger,
+) *Resource {
 	return &Resource{
-		BirthdayService:   birthdayService,
-		ListExportService: listExportService,
-		db:                db,
-		logger:            logger,
+		BirthdayService:    birthdayService,
+		ListExportService:  listExportService,
+		UserContextService: userContextService,
+		SettingsService:    settingsService,
+		db:                 db,
+		logger:             logger,
 	}
 }
 
@@ -49,9 +62,11 @@ func (rs *Resource) Router() chi.Router {
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 		// users:read is the permission that already grants the child directory
-		// this list is a narrow slice of. Staff entries are additionally gated
-		// by the school setting and the personal opt-out, both applied in the
-		// service, so this route never widens what a colleague may see.
+		// this list is a narrow slice of, and the handler additionally applies
+		// the caller's student data scope so the list never reaches past that
+		// directory's own boundary. Staff entries are gated by the school
+		// setting and the personal opt-out, both applied in the service, so
+		// this route never widens what a colleague may see.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.getOverview)
 
 		// The opt-out is self-service: it acts on the caller's own staff row,
@@ -97,7 +112,12 @@ type optOutRequest struct {
 }
 
 func (rs *Resource) getOverview(w http.ResponseWriter, r *http.Request) {
-	overview, err := rs.BirthdayService.Overview(r.Context())
+	// The same policy every other child list uses: admin wildcard, the
+	// gdpr.student_data_scope=all_staff opt-in, or the groups this person
+	// actually supervises.
+	access := common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.logger)
+
+	overview, err := rs.BirthdayService.Overview(r.Context(), access)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

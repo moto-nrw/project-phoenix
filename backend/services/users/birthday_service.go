@@ -22,10 +22,16 @@ import (
 // by every open dashboard. Keeping that policy in one place is what stops the
 // next caller from querying the tables directly and skipping the opt-out.
 type BirthdayService interface {
-	// Overview returns the birthdays the dashboard may show for the tenant in
-	// context, already filtered by the school's settings and the personal
-	// opt-outs. It is safe to render as-is.
-	Overview(ctx context.Context) (*BirthdayOverview, error)
+	// Overview returns the birthdays the dashboard may show for the caller,
+	// already filtered by the school's settings, the personal opt-outs, and the
+	// caller's student data scope. It is safe to render as-is.
+	//
+	// visibility carries the caller's student-data decision (gdpr.student_data_scope
+	// plus the groups they supervise), resolved by the handler via
+	// common.DetermineStudentAccess. A nil visibility means "no child is
+	// visible": the display must fail closed rather than publish the whole
+	// school to a caller nobody classified.
+	Overview(ctx context.Context, visibility StudentVisibility) (*BirthdayOverview, error)
 
 	// GetOptOut reports whether the staff member behind the given account has
 	// removed themselves from the display.
@@ -40,6 +46,15 @@ type BirthdayService interface {
 	// restricted to the given birth months (empty = all months), sorted as a
 	// calendar. Backs the administrative Geburtstagsliste export.
 	ListStaffBirthdays(ctx context.Context, months map[time.Month]bool) ([]userModels.BirthdayEntry, error)
+}
+
+// StudentVisibility decides whether the caller may see a child of a given
+// education group. It is the method set of usercontext.StudentAccessContext,
+// declared here as a local interface because services/usercontext transitively
+// imports this package — the policy still lives in exactly one place, this is
+// only how it travels.
+type StudentVisibility interface {
+	HasFullAccessByGroupID(groupID *int64) bool
 }
 
 // BirthdayCelebration is one person celebrating on one concrete calendar day.
@@ -108,7 +123,7 @@ func (s *birthdayService) logger() *slog.Logger {
 	return slog.Default()
 }
 
-func (s *birthdayService) Overview(ctx context.Context) (*BirthdayOverview, error) {
+func (s *birthdayService) Overview(ctx context.Context, visibility StudentVisibility) (*BirthdayOverview, error) {
 	today := timezone.DateFromTime(s.now())
 	overview := &BirthdayOverview{Today: today}
 
@@ -144,7 +159,11 @@ func (s *birthdayService) Overview(ctx context.Context) (*BirthdayOverview, erro
 	if err != nil {
 		return nil, &UsersError{Op: "find student birthdays", Err: err}
 	}
-	entries := students
+	// A birthday row is student data: name, group, class and the age reached.
+	// It therefore obeys the same read boundary as every other child list —
+	// gdpr.student_data_scope plus the caller's supervised groups — instead of
+	// handing the whole school to anyone holding users:read.
+	entries := visibleStudents(students, visibility)
 
 	if includeStaff {
 		staff, err := s.StaffRepo.FindBirthdaysOn(ctx, days)
@@ -163,6 +182,22 @@ func (s *birthdayService) Overview(ctx context.Context) (*BirthdayOverview, erro
 	)
 
 	return overview, nil
+}
+
+// visibleStudents drops every child the caller may not see. A nil visibility
+// removes all of them: an unclassified caller gets an empty card, never the
+// whole school.
+func visibleStudents(entries []userModels.BirthdayEntry, visibility StudentVisibility) []userModels.BirthdayEntry {
+	visible := make([]userModels.BirthdayEntry, 0, len(entries))
+	if visibility == nil {
+		return visible
+	}
+	for _, entry := range entries {
+		if visibility.HasFullAccessByGroupID(entry.GroupID) {
+			visible = append(visible, entry)
+		}
+	}
+	return visible
 }
 
 // celebrationDates are the calendar days one dashboard view speaks for.

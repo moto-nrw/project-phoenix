@@ -18,6 +18,7 @@ import (
 // structs, so this is the reviewer's checkpoint, not the compiler's.
 type birthdayRow struct {
 	ID          int64         `bun:"id"`
+	GroupID     *int64        `bun:"group_id"`
 	FirstName   string        `bun:"first_name"`
 	LastName    string        `bun:"last_name"`
 	Birthday    timezone.Date `bun:"birthday"`
@@ -73,6 +74,7 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 		ColumnExpr(`"student".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).
+		ColumnExpr(`"student".group_id AS group_id`).
 		ColumnExpr(`COALESCE("group".name, '') AS group_name`).
 		ColumnExpr(`"student".school_class AS school_class`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
@@ -115,7 +117,7 @@ func (r *StaffRepository) FindBirthdaysOn(ctx context.Context, days []users.Mont
 		ColumnExpr(`"staff".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).
-		ColumnExpr(`'' AS group_name, '' AS school_class`).
+		ColumnExpr(`NULL::bigint AS group_id, '' AS group_name, '' AS school_class`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Where(`"person".birthday IS NOT NULL`).
 		Where(`"staff".deleted_at IS NULL`).
@@ -148,7 +150,7 @@ func (r *StaffRepository) ListBirthdaysForExport(ctx context.Context) ([]users.B
 		ColumnExpr(`"staff".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).
-		ColumnExpr(`'' AS group_name, '' AS school_class`).
+		ColumnExpr(`NULL::bigint AS group_id, '' AS group_name, '' AS school_class`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Where(`"person".birthday IS NOT NULL`).
 		Where(`"staff".deleted_at IS NULL`).
@@ -192,6 +194,7 @@ func mapBirthdayRows(rows []birthdayRow, kind users.BirthdayKind) []users.Birthd
 			FirstName:   row.FirstName,
 			LastName:    row.LastName,
 			Birthday:    row.Birthday,
+			GroupID:     row.GroupID,
 			GroupName:   row.GroupName,
 			SchoolClass: row.SchoolClass,
 		})

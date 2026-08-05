@@ -124,10 +124,13 @@ export default function DatabaseExportsPage() {
   // Die Personal-Geburtstagsliste zeigt volle Geburtsdaten und hängt deshalb
   // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542) —
   // users:read reicht bewusst nicht.
+  // Die Berechtigung heisst backendseitig `time_tracking:manage` mit
+  // Unterstrich (permissions.ResourceTimeTracking); die Bindestrich-Variante
+  // trifft niemanden und haette die Karte fuer Leitungsrollen verschluckt.
   const canExportStaffBirthdays =
     isAdmin(session) ||
     hasPermission(session, "users:update") ||
-    hasPermission(session, "time-tracking:manage");
+    hasPermission(session, "time_tracking:manage");
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );

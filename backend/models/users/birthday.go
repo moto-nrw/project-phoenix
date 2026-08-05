@@ -34,13 +34,17 @@ func MonthDayOf(d timezone.Date) MonthDay {
 // children (an OGS wants to know a child turns seven, not that "someone has a
 // birthday"); staff-facing consumers drop the year before it reaches a screen.
 type BirthdayEntry struct {
-	Kind        BirthdayKind  `json:"kind"`
-	ID          int64         `json:"id"`
-	FirstName   string        `json:"first_name"`
-	LastName    string        `json:"last_name"`
-	Birthday    timezone.Date `json:"birthday"`
-	GroupName   string        `json:"group_name,omitempty"`
-	SchoolClass string        `json:"school_class,omitempty"`
+	Kind      BirthdayKind  `json:"kind"`
+	ID        int64         `json:"id"`
+	FirstName string        `json:"first_name"`
+	LastName  string        `json:"last_name"`
+	Birthday  timezone.Date `json:"birthday"`
+	// GroupID is the child's education group, carried so the caller's student
+	// data scope (gdpr.student_data_scope) can be applied before a name ever
+	// reaches a screen. Nil for staff and for children without a group.
+	GroupID     *int64 `json:"-"`
+	GroupName   string `json:"group_name,omitempty"`
+	SchoolClass string `json:"school_class,omitempty"`
 }
 
 // FullName is the display name of the person having the birthday.

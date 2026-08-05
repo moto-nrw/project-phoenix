@@ -44,7 +44,9 @@ func setupTestContext(t *testing.T) *testContext {
 	return &testContext{
 		db:       db,
 		services: svc,
-		resource: birthdaysAPI.NewResource(svc.Birthdays, svc.ListExport, db, slog.Default()),
+		resource: birthdaysAPI.NewResource(
+			svc.Birthdays, svc.ListExport, svc.UserContext, svc.Settings, db, slog.Default(),
+		),
 	}
 }
 
@@ -90,6 +92,13 @@ func setSetting(t *testing.T, tc *testContext, key string, value any) {
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, key, nil, nil)
 	})
+}
+
+// adminPermissions mints the admin wildcard: children are student data, so a
+// caller only sees beyond their own groups with admin rights or the
+// gdpr.student_data_scope=all_staff opt-in.
+func adminPermissions() []string {
+	return []string{permissions.UsersRead, "admin:*"}
 }
 
 func getOverview(t *testing.T, tc *testContext, accountID int64, perms []string) *httptest.ResponseRecorder {
@@ -179,7 +188,7 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 
 	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year-7, today.Month, today.Day))
 
-	rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
+	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	payload := decodeOverview(t, rr)
@@ -212,7 +221,7 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-6, today.Month, today.Day))
 
-	rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
+	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	payload := decodeOverview(t, rr)
@@ -247,7 +256,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("hidden while the school has not opted in", func(t *testing.T) {
-		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
+		rr := getOverview(t, tc, account.ID, adminPermissions())
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 		payload := decodeOverview(t, rr)
@@ -258,7 +267,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	t.Run("shown once the school opted in, except for the opt-out", func(t *testing.T) {
 		setSetting(t, tc, configModel.KeyBirthdayDisplayIncludeStaff, true)
 
-		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
+		rr := getOverview(t, tc, account.ID, adminPermissions())
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 		payload := decodeOverview(t, rr)
@@ -361,4 +370,50 @@ func TestStaffExportRejectsInvalidMonth(t *testing.T) {
 
 	rr := authExec(t, tc, req, claimsFor(account.ID), []string{permissions.UsersUpdate})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
+// Datenschutz-Blocker aus dem Review: a birthday row carries a child's name,
+// group, class and age. users:read alone must therefore not hand out the whole
+// school — the route applies the same student data scope as every other child
+// list, and a caller who supervises nothing sees nothing.
+func TestOverviewAppliesStudentDataScope(t *testing.T) {
+	tc := setupTestContext(t)
+	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
+
+	account := testpkg.CreateTestAccount(t, tc.db, "birthday-scope@example.com")
+	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+
+	today := timezone.TodayDate()
+	student := testpkg.CreateTestStudent(t, tc.db, "Fremdes", "Scopekind", "4a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-9, today.Month, today.Day))
+
+	t.Run("plain users:read sees no child", func(t *testing.T) {
+		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		assert.NotContains(t, decodeOverview(t, rr).names(), "Fremdes Scopekind")
+	})
+
+	t.Run("admin sees the child", func(t *testing.T) {
+		rr := getOverview(t, tc, account.ID, adminPermissions())
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		assert.Contains(t, decodeOverview(t, rr).names(), "Fremdes Scopekind")
+	})
+
+	// The school-wide opt-in is the other way in: all_staff scope means every
+	// verified staff member may read the directory, so the card follows.
+	t.Run("all_staff scope opens it for staff", func(t *testing.T) {
+		staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Sara", "Scopekraft")
+		defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
+		defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
+
+		setSetting(t, tc, configModel.KeyStudentDataScope, configModel.StudentDataScopeAllStaff)
+
+		rr := getOverview(t, tc, staffAccount.ID, []string{permissions.UsersRead})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		assert.Contains(t, decodeOverview(t, rr).names(), "Fremdes Scopekind")
+	})
 }

@@ -20,13 +20,20 @@ export const GET = createGetHandler(
   },
 );
 
-export const PUT = createPutHandler<unknown, { opt_out?: boolean }>(
+export const PUT = createPutHandler<unknown, { opt_out?: unknown }>(
   async (
     _request: NextRequest,
-    body: { opt_out?: boolean },
+    body: { opt_out?: unknown },
     token: string,
     _params: Record<string, unknown>,
   ) => {
-    return await updateBirthdayOptOut(token, body.opt_out === true);
+    // Reject anything that is not a boolean instead of coercing it. A missing
+    // or malformed field used to read as `false`, which silently CLEARED an
+    // existing opt-out and put the person's name back on the shared dashboard
+    // — the one outcome this setting exists to prevent.
+    if (typeof body.opt_out !== "boolean") {
+      throw new Error("API error (400): opt_out must be a boolean");
+    }
+    return await updateBirthdayOptOut(token, body.opt_out);
   },
 );
