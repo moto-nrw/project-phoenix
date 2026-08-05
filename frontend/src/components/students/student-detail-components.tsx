@@ -36,6 +36,7 @@ import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 
@@ -943,7 +944,6 @@ function HistoryButton({
   disabled = false,
   onClick,
 }: Readonly<HistoryButtonProps>) {
-  const conceptDefinition = MOTO_CONCEPTS[concept];
   const baseClasses = "flex items-center justify-between rounded-lg border p-3";
   const stateClasses = disabled
     ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
@@ -957,13 +957,7 @@ function HistoryButton({
       className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-9 sm:w-9">
-          <MotoDuotoneIcon
-            icon={conceptDefinition.icon}
-            tone={conceptDefinition.tone}
-            size={20}
-          />
-        </div>
+        <ConceptIconTile concept={concept} variant="section" />
         <div className="min-w-0 flex-1 text-left">
           <p
             className={`text-sm font-medium sm:text-base ${

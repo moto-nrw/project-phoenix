@@ -1,6 +1,6 @@
 "use client";
 
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { OverflowMenu } from "./OverflowMenu";
 import { StatusIndicator } from "./StatusIndicator";
 import type { PageHeaderProps } from "./types";
@@ -27,9 +27,7 @@ export function PageHeader({
         {/* Title, optionally preceded by a concept icon tile */}
         <div className="flex min-w-0 items-center gap-3">
           {concept ? (
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-12 sm:w-12">
-              <MotoConceptIcon concept={concept} size={26} />
-            </div>
+            <ConceptIconTile concept={concept} variant="page" />
           ) : null}
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         </div>

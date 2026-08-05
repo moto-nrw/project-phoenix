@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 interface EntityHeaderStat {
@@ -60,9 +60,7 @@ export function EntityHeaderCard({
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
           {concept ? (
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-12 sm:w-12">
-              <MotoConceptIcon concept={concept} size={26} />
-            </div>
+            <ConceptIconTile concept={concept} variant="page" />
           ) : null}
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">{title}</h1>

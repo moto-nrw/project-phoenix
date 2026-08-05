@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
 
@@ -27,13 +27,21 @@ interface SectionHeaderProps {
   readonly className?: string;
 }
 
-export function SectionHeader({
+interface SectionHeaderShellProps {
+  readonly iconTile: ReactNode;
+  readonly title: string;
+  readonly subtitle?: ReactNode;
+  readonly actions?: ReactNode;
+  readonly className?: string;
+}
+
+function SectionHeaderShell({
+  iconTile,
   title,
-  icon,
   subtitle,
   actions,
   className,
-}: SectionHeaderProps) {
+}: SectionHeaderShellProps) {
   return (
     <div
       className={cn(
@@ -42,9 +50,7 @@ export function SectionHeader({
       )}
     >
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          {icon}
-        </div>
+        {iconTile}
         <div className="min-w-0 pt-0.5">
           <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
             {title}
@@ -59,6 +65,28 @@ export function SectionHeader({
   );
 }
 
+export function SectionHeader({
+  title,
+  icon,
+  subtitle,
+  actions,
+  className,
+}: SectionHeaderProps) {
+  return (
+    <SectionHeaderShell
+      iconTile={
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+          {icon}
+        </div>
+      }
+      title={title}
+      subtitle={subtitle}
+      actions={actions}
+      className={className}
+    />
+  );
+}
+
 export function ConceptSectionHeader({
   title,
   concept,
@@ -67,9 +95,9 @@ export function ConceptSectionHeader({
   className,
 }: ConceptSectionHeaderProps) {
   return (
-    <SectionHeader
+    <SectionHeaderShell
+      iconTile={<ConceptIconTile concept={concept} variant="section" />}
       title={title}
-      icon={<MotoConceptIcon concept={concept} size={22} />}
       subtitle={subtitle}
       actions={actions}
       className={className}
@@ -86,9 +114,7 @@ export function ConceptPageHeader({
 }: ConceptPageHeaderProps) {
   return (
     <div className={cn("flex min-w-0 items-start gap-3 sm:gap-4", className)}>
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-12 sm:w-12">
-        <MotoConceptIcon concept={concept} size={26} />
-      </div>
+      <ConceptIconTile concept={concept} variant="page" />
       <div className="min-w-0">
         {eyebrow ? (
           <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

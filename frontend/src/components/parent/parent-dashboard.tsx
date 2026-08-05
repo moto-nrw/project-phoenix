@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -465,11 +466,7 @@ function PanelHeader({
 }>) {
   return (
     <header className={concept ? "flex min-w-0 items-start gap-3" : undefined}>
-      {concept ? (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          <MotoConceptIcon concept={concept} size={20} />
-        </span>
-      ) : null}
+      {concept ? <ConceptIconTile concept={concept} variant="section" /> : null}
       <div className="min-w-0">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {eyebrow}
