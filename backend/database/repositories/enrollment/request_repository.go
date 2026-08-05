@@ -82,7 +82,10 @@ func (r *RequestRepository) findByID(ctx context.Context, id int64, lockClause s
 	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("enrollment request %d not found", id)
+			// Keep sql.ErrNoRows in the chain so services can tell a
+			// missing row from a query failure (same contract as the
+			// form schema repository).
+			return nil, fmt.Errorf("enrollment request %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find enrollment request: %w", err)
 	}

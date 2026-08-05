@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -63,7 +64,13 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 	// them without lock inversion.
 	request, err := s.RequestRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {
-		return nil, ErrDecisionRequestNotFound
+		// Only a genuinely missing row becomes the 404 sentinel;
+		// connection and query failures keep flowing so the handler's
+		// transient-503/default-500 mapping still sees them.
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrDecisionRequestNotFound
+		}
+		return nil, fmt.Errorf("restore: load request: %w", err)
 	}
 	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, requestID)
 	if err != nil {
