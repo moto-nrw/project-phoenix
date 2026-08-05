@@ -84,8 +84,19 @@ export function Modal({
     setIsExiting(true);
     setIsAnimating(false);
 
-    // Delay actual close to allow exit animation
+    // Delay actual close to allow exit animation. The lock is checked AGAIN
+    // when the timer fires: a dismissal started while unlocked must not tear
+    // the dialog down when an operation takes the lock inside that 250ms
+    // window (e.g. a backdrop tap immediately followed by "Bestätigen").
+    // Cancelling only the onClose is not enough — the exit animation already
+    // ran, so the dialog would stay mounted but invisible; reverse it back to
+    // the entered state.
     setTimeout(() => {
+      if (isDismissDisabledRef.current) {
+        setIsExiting(false);
+        setIsAnimating(true);
+        return;
+      }
       onCloseRef.current();
     }, 250);
   }, [isDismissDisabledRef, onCloseRef]);
