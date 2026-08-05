@@ -160,7 +160,7 @@ describe("AdminEnrollmentDetail late-invite email warning", () => {
 
     expect(
       await screen.findByText(
-        "Eingereicht mit anderer E-Mail-Adresse als der Nachzügler-Link.",
+        "Der Nachzügler-Link wurde für invited@example.test erstellt. Im Antrag wurde submitted@example.test angegeben. Der Elternportal-Zugang bleibt mit der eingeladenen Adresse verknüpft.",
       ),
     ).toBeInTheDocument();
   });
@@ -177,9 +177,7 @@ describe("AdminEnrollmentDetail late-invite email warning", () => {
 
     expect(await screen.findAllByText("Mara Beispiel")).not.toHaveLength(0);
     expect(
-      screen.queryByText(
-        "Eingereicht mit anderer E-Mail-Adresse als der Nachzügler-Link.",
-      ),
+      screen.queryByText(/Der Nachzügler-Link wurde für/),
     ).not.toBeInTheDocument();
   });
 });

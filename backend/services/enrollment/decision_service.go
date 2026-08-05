@@ -1249,8 +1249,14 @@ func (s *decisionService) applyApproval(
 		return s.attachApprovalToExistingStudent(ctx, request, child, phase, *child.MatchedStudentID, reviewedBy, true)
 	}
 
-	// 1. Resolve or create the guardian profile (per-tenant).
-	guardian, profileWasNew, err := s.resolveGuardianProfile(ctx, request)
+	// 1. Resolve or create the guardian profile (per-tenant). For an
+	// accountless late-invite submission, the invite recipient remains the
+	// access identity even when the submitted contact email was corrected.
+	guardianRequest, err := s.guardianIdentityRequest(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	guardian, profileWasNew, err := s.resolveGuardianProfile(ctx, guardianRequest)
 	if err != nil {
 		return nil, fmt.Errorf("decision: resolve guardian: %w", err)
 	}
@@ -1269,7 +1275,7 @@ func (s *decisionService) applyApproval(
 	// otherwise miss the attach step and trigger an invitation that
 	// overwrites their existing password. The by-ID path is also
 	// strictly cheaper - no platform-wide email index hit.
-	if err := s.attachGuardianAccountIfPresent(ctx, request, guardian, profileWasNew); err != nil {
+	if err := s.attachGuardianAccountIfPresent(ctx, guardianRequest, guardian, profileWasNew); err != nil {
 		return nil, err
 	}
 
@@ -1627,7 +1633,11 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// reconcilePrimaryGuardianLink (#1663).
 	var guardian *users.GuardianProfile
 	if syncTargetedFields {
-		resolved, err := s.reconcilePrimaryGuardianLink(ctx, request, studentID, false)
+		guardianRequest, err := s.guardianIdentityRequest(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+		resolved, err := s.reconcilePrimaryGuardianLink(ctx, guardianRequest, studentID, false)
 		if err != nil {
 			return nil, err
 		}
@@ -1636,7 +1646,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		// parent who already has a portal account (this school or another) gets
 		// the tenant + profile attached directly instead of an invitation that
 		// would overwrite their password.
-		if err := s.attachGuardianAccountIfPresent(ctx, request, guardian, false); err != nil {
+		if err := s.attachGuardianAccountIfPresent(ctx, guardianRequest, guardian, false); err != nil {
 			return nil, err
 		}
 	}
@@ -1849,6 +1859,35 @@ func (s *decisionService) resolveGuardianProfile(
 		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
 	}
 	return profile, true, nil
+}
+
+// guardianIdentityRequest returns the request identity that may receive the
+// primary guardian relationship and parent-portal access. The contact email on
+// an accountless late-invite request is editable, but no verification promotes
+// that replacement address to an access identity. The address the school
+// invited therefore remains authoritative. Missing invite state fails closed
+// instead of granting access to the editable request address.
+func (s *decisionService) guardianIdentityRequest(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+) (*enrollmentModels.Request, error) {
+	if request == nil {
+		return nil, errors.New("decision: guardian identity request is required")
+	}
+	if (request.GuardianAccountID != nil && *request.GuardianAccountID > 0) ||
+		normalizedSubmissionSource(request.SubmissionSource) != enrollmentModels.RequestSourceLateInvite {
+		return request, nil
+	}
+	if s.LateInviteRepo == nil {
+		return nil, errors.New("decision: late invite repository is not configured")
+	}
+	invite, err := s.LateInviteRepo.FindByUsedRequestID(ctx, request.ID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load late invite guardian identity for request %d: %w", request.ID, err)
+	}
+	identityRequest := *request
+	identityRequest.GuardianEmail = invite.GuardianEmail
+	return &identityRequest, nil
 }
 
 // submitterOwnsEmail reports whether the submitted guardian email is the

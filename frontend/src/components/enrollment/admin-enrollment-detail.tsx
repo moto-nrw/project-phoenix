@@ -257,13 +257,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               </div>
             )}
 
-            {data.late_invite_email_mismatch === true && (
-              <Alert
-                type="warning"
-                announce="off"
-                message="Eingereicht mit anderer E-Mail-Adresse als der Nachzügler-Link."
-              />
-            )}
+            {data.late_invite_email_mismatch === true &&
+              data.late_invite_guardian_email && (
+                <Alert
+                  type="warning"
+                  announce="off"
+                  message={`Der Nachzügler-Link wurde für ${data.late_invite_guardian_email} erstellt. Im Antrag wurde ${data.guardian_email} angegeben. Der Elternportal-Zugang bleibt mit der eingeladenen Adresse verknüpft.`}
+                />
+              )}
 
             <EnrollmentSummary data={data} submittedAt={submittedAt} />
 

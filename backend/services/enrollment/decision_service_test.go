@@ -2619,6 +2619,40 @@ func submitReEnrollment(
 	return res.Request.ID, res.Children[0].ID
 }
 
+func markRequestAsUsedLateInvite(
+	t *testing.T,
+	env *decisionTestEnv,
+	requestID int64,
+	guardianEmail string,
+) func() {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.Request)(nil)).
+		ModelTableExpr(`enrollment.requests AS "request"`).
+		Set("submission_source = ?", enrollmentModels.RequestSourceLateInvite).
+		Where(`"request".id = ?`, requestID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	invite := &enrollmentModels.LateInvite{
+		PhaseID:       env.sourcePhase.ID,
+		TokenHash:     "decision-access-identity-" + t.Name(),
+		GuardianEmail: guardianEmail,
+		ExpiresAt:     time.Now().Add(time.Hour),
+		CreatedBy:     env.creatorID,
+	}
+	require.NoError(t, env.repos.LateInvite.Create(ctx, invite))
+	require.NoError(t, env.repos.LateInvite.MarkUsed(ctx, invite.ID, requestID, time.Now()))
+
+	return func() {
+		_, _ = env.db.NewDelete().
+			Model((*enrollmentModels.LateInvite)(nil)).
+			Where("id = ?", invite.ID).
+			Exec(context.Background())
+	}
+}
+
 // cleanupExistingStudentApproval removes the guardian/student rows an
 // existing-student approval touches. The rollover env's cleanup is phase-scoped
 // and never sees them, so without this they leak into the shared test DB.
@@ -2756,6 +2790,52 @@ func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing
 	assert.Equal(t, guardianEmail, *student.GuardianEmail, "the renewal restates the guardian contact data")
 	require.NotNil(t, student.GuardianPhone)
 	assert.Equal(t, guardianPhone, *student.GuardianPhone)
+}
+
+func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	unrelatedParent := testpkg.CreateTestParentGuardianChain(t, env.db)
+	defer testpkg.CleanupParentGuardianChain(t, env.db, unrelatedParent)
+	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Nachzuegler", "3b")
+	defer cleanupExistingStudentApproval(t, env, existing)
+
+	invitedEmail := "invited-renewal@example.test"
+	reqID, childID := submitReEnrollment(t, env, "Mara", "Nachzuegler", unrelatedParent.Email, nil,
+		"Milo", "Nachzuegler", map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		})
+	cleanupInvite := markRequestAsUsedLateInvite(t, env, reqID, invitedEmail)
+	defer cleanupInvite()
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.NotEqual(t, unrelatedParent.GuardianProfileID, links[0].GuardianProfileID,
+		"the editable contact address must not grant an unrelated account access")
+	profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile.Email)
+	assert.Equal(t, invitedEmail, *profile.Email)
+
+	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.NotNil(t, student.GuardianEmail)
+	assert.Equal(t, unrelatedParent.Email, *student.GuardianEmail,
+		"the corrected address must remain available as contact data")
+	require.NotNil(t, outcome.PendingInvite)
+	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
 }
 
 // TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink is

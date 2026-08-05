@@ -410,9 +410,17 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
 	}
 
+	guardianRequest := req
+	if s.GuardianProfileRepo != nil {
+		guardianRequest, err = s.guardianIdentityRequest(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var guardian *users.GuardianProfile
 	if input.ReplaceTargetedData && s.GuardianProfileRepo != nil {
-		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID, true)
+		guardian, err = s.reconcilePrimaryGuardianLink(ctx, guardianRequest, student.ID, true)
 		if err != nil {
 			return nil, err
 		}
@@ -429,7 +437,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 
 	if s.GuardianProfileRepo != nil {
 		if guardian == nil {
-			resolved, _, gerr := s.resolveGuardianProfile(ctx, req)
+			resolved, _, gerr := s.resolveGuardianProfile(ctx, guardianRequest)
 			if gerr == nil {
 				guardian = resolved
 			}
