@@ -418,7 +418,9 @@ func TestActivityReminders(t *testing.T) {
 		assert.Equal(t, "Schach", out[0].Title)
 	})
 
-	t.Run("Schulhof keeps upcoming reminder but never becomes overdue", func(t *testing.T) {
+	t.Run("Schulhof becomes overdue like any other room", func(t *testing.T) {
+		// Since #2161 the Schulhof is a regular plannable room: planned yard
+		// blocks produce overdue reminders exactly like indoor blocks.
 		instances := []*scheduleModel.ActivityInstance{
 			plannedInstance("Lernzeit", 1, 590, 650),
 			plannedInstance("Schulhof-Block", 2, 590, 640),
@@ -435,23 +437,10 @@ func TestActivityReminders(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		require.Len(t, overdueOnly, 1)
-		assert.Equal(t, "Lernzeit", overdueOnly[0].Title)
-		assert.Equal(t, 650, next, "Schulhof end time must not schedule an overdue refetch")
-
-		upcomingSvc := &service{Dependencies: Dependencies{
-			Instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
-				plannedInstance("Schulhof gleich", 2, 605, 700),
-			}},
-			Room: rooms,
-		}}
-		upcomingOnly, _, err := upcomingSvc.activityReminders(
-			context.Background(), adminScope, nil, timezone.TodayDate(), nowMin,
-			lead, overdueThreshold, true, true,
-		)
-		require.NoError(t, err)
-		require.Len(t, upcomingOnly, 1)
-		assert.Equal(t, TypeActivityStart, upcomingOnly[0].Type)
+		require.Len(t, overdueOnly, 2)
+		titles := []string{overdueOnly[0].Title, overdueOnly[1].Title}
+		assert.ElementsMatch(t, []string{"Lernzeit", "Schulhof-Block"}, titles)
+		assert.Equal(t, 640, next, "the earlier Schulhof end time schedules the next overdue refetch")
 	})
 
 	t.Run("room resolution failures suppress activity reminders", func(t *testing.T) {

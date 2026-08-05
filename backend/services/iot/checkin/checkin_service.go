@@ -482,15 +482,24 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 }
 
 // useExistingActiveGroup selects an active group in the room, preferring one
-// linked to deviceID and falling back to the first group.
+// linked to deviceID and falling back to the group with the newest start_time.
+// The newest-wins fallback is deliberate: since Schulhof became a regular
+// plannable room (#2161) several open groups can coexist in one room (planned
+// block + spontaneous/IoT fallback session), and the repository query carries
+// no ORDER BY — picking the first row would make the scan target a coin flip.
+// Newest-wins lands kiosk scans in the just-started planned block and matches
+// the Schulhof status read model's selection.
 func (s *CheckinService) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, room *facilities.Room, deviceID int64) *SelectedActiveGroup {
-	selected := activeGroups[0] // default fallback
+	selected := activeGroups[0]
 	deviceMatched := false
 	for _, g := range activeGroups {
 		if g.DeviceID != nil && *g.DeviceID == deviceID {
 			selected = g
 			deviceMatched = true
 			break
+		}
+		if g.StartTime.After(selected.StartTime) {
+			selected = g
 		}
 	}
 

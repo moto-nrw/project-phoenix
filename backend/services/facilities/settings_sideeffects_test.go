@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
@@ -29,14 +28,6 @@ func (f *fakeSchulhofService) EnsureInfrastructure(_ context.Context, createdBy 
 }
 
 func (f *fakeSchulhofService) GetSchulhofStatus(_ context.Context, _ int64) (*SchulhofStatus, error) {
-	panic("unused")
-}
-
-func (f *fakeSchulhofService) ToggleSupervision(_ context.Context, _ int64, _ string) (*SupervisionResult, error) {
-	panic("unused")
-}
-
-func (f *fakeSchulhofService) GetOrCreateActiveGroup(_ context.Context, _ int64) (*active.Group, error) {
 	panic("unused")
 }
 

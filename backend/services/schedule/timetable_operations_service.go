@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -221,9 +220,6 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 			continue
 		}
 		roomName := roomNames[inst.RoomID]
-		if roomName != nil && *roomName == constants.SchulhofRoomName {
-			continue
-		}
 		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
 			return nil, err

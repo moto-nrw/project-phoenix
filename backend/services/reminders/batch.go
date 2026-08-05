@@ -59,7 +59,6 @@ type batchInputs struct {
 	roomsByStaff    map[int64][]int64
 	groupsByStaff   map[int64]map[int64]struct{}
 	instances       []*scheduleModel.ActivityInstance
-	schulhofRoomIDs map[int64]struct{}
 	students        map[int64]*userModel.Student
 	pickupTimes     map[int64]*scheduleService.EffectivePickupTime
 	presenceByStaff map[int64][]int64
@@ -153,7 +152,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 		var activityPart []Reminder
 		if cfg.anyActivity() {
 			roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
-			part, next := buildActivityReminders(in.instances, in.schulhofRoomIDs,
+			part, next := buildActivityReminders(in.instances,
 				activityScopeFilter(roomFilter, nil), activityWindow{
 					nowMin:           in.nowMin,
 					lead:             cfg.activityLead,
@@ -164,7 +163,6 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 			if sc.IncludeAssignedActivityStart {
 				assignedPart, assignedNext := buildActivityReminders(
 					in.instances,
-					in.schulhofRoomIDs,
 					assignedUpcomingFilter(
 						in.assignedInstances[sc.StaffID],
 						roomFilter,
@@ -332,7 +330,6 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		visitsByRoom:      map[int64][]int64{},
 		roomsByStaff:      map[int64][]int64{},
 		groupsByStaff:     map[int64]map[int64]struct{}{},
-		schulhofRoomIDs:   map[int64]struct{}{},
 		students:          map[int64]*userModel.Student{},
 		pickupTimes:       map[int64]*scheduleService.EffectivePickupTime{},
 		presenceByStaff:   map[int64][]int64{},
@@ -452,11 +449,9 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 			if roomErr != nil {
 				return nil, fmt.Errorf("load activity reminder rooms: %w", roomErr)
 			}
-			schulhof, resolveErr := resolveActivityRooms(rooms, wanted)
-			if resolveErr != nil {
+			if resolveErr := resolveActivityRooms(rooms, wanted); resolveErr != nil {
 				return nil, resolveErr
 			}
-			in.schulhofRoomIDs = schulhof
 		}
 
 		// Planned assignments, one query for the whole day. Absent rows are

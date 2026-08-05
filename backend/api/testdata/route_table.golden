@@ -518,7 +518,6 @@ POST /api/active/groups/{id}/claim
 POST /api/active/groups/{id}/end
 POST /api/active/mappings/add
 POST /api/active/mappings/remove
-POST /api/active/schulhof/supervise
 POST /api/active/supervisors/
 POST /api/active/supervisors/{id}/end
 POST /api/active/tracking-indicators

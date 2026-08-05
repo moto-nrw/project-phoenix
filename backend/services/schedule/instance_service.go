@@ -29,7 +29,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -81,11 +80,6 @@ var (
 	// contradictory state (the block reads as unstaffed yet /gaps never lists it
 	// because it is staffed). Handlers map this to 409.
 	ErrUnderstaffedAckStillStaffed = errors.New("cannot acknowledge understaffing while the block is fully staffed")
-
-	// ErrSchulhofSupervisionRequired prevents timetable instances from
-	// creating a second active group in the permanent Schulhof room. Staff
-	// must use the dedicated Schulhof supervision flow instead.
-	ErrSchulhofSupervisionRequired = errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")
 
 	// ErrInstanceMoved is returned when a lifecycle transition (start, complete,
 	// cancel, update) reloads the instance under its (tenant, date) day lock and
@@ -330,25 +324,6 @@ func (s *instanceService) notScheduledStudentIDs(
 	return notScheduled, nil
 }
 
-// rejectSchulhofRoom returns ErrSchulhofSupervisionRequired when the given room
-// is the permanent Schulhof room, and a ScheduleError when the room can't be
-// loaded. Timetable instances must never spin up a second active group in
-// Schulhof — staff use the dedicated Schulhof supervision flow instead. Shared
-// by Start's pre-lock fast-fail and its authoritative post-reload re-check.
-func (s *instanceService) rejectSchulhofRoom(ctx context.Context, roomID int64) error {
-	room, err := s.deps.RoomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return &ScheduleError{Op: "start instance: load room", Err: err}
-	}
-	if room == nil {
-		return &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
-	}
-	if room.Name == constants.SchulhofRoomName {
-		return ErrSchulhofSupervisionRequired
-	}
-	return nil
-}
-
 // Start implements planned → active. Runs inside the caller's tenant tx
 // (TenantTxMiddleware); any failure rolls back the whole thing — no dangling
 // active.group, no half-linked instance, no stale supervisors.
@@ -359,15 +334,6 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
-	}
-
-	// Reject the permanent Schulhof room before taking any lock — timetable
-	// instances must not spin up a second active group there; staff use the
-	// dedicated Schulhof supervision flow instead. This is a fast-fail on the
-	// pre-lock read; it is re-checked authoritatively after the locked reload
-	// below (a concurrent PUT can MOVE the block into Schulhof while we wait).
-	if err := s.rejectSchulhofRoom(ctx, instance.RoomID); err != nil {
-		return nil, err
 	}
 
 	// Serialize against concurrent day-wide staffing saves (/substitute,
@@ -397,15 +363,6 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
-	}
-
-	// Re-validate the room against the reloaded instance. PUT /instances/{id}
-	// takes the same (tenant, date) day lock and can MOVE the block into the
-	// permanent Schulhof room while Start is waiting on that lock; only the
-	// post-lock room_id is authoritative, so the pre-lock check above is not
-	// enough on its own (#1840, review follow-up).
-	if err := s.rejectSchulhofRoom(ctx, instance.RoomID); err != nil {
-		return nil, err
 	}
 
 	// Conflict detection is read-only + advisory. Warnings reflect state
@@ -466,6 +423,13 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		}
 	}
 
+	// Fold open, supervisor-less sessions in this room into the fresh bridge
+	// group before announcing it — same tenant tx, so a failure rolls back the
+	// whole transition.
+	if err := s.absorbUnsupervisedOpenGroups(ctx, instance.RoomID, newGroup.ID); err != nil {
+		return nil, &ScheduleError{Op: "start instance: absorb unsupervised sessions", Err: err}
+	}
+
 	// Targeted UPDATE: only the columns affected by the transition. A full-row
 	// Update via the repo would re-marshal StartTime/EndTime (TIME columns)
 	// that bun decodes as year 0000 on read — Postgres rejects year 0000 on
@@ -490,6 +454,63 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		ActiveGroupID: newGroup.ID,
 		Warnings:      warnings,
 	}, nil
+}
+
+// absorbUnsupervisedOpenGroups folds open sessions without any active
+// supervisor in the given room into the freshly started bridge group: their
+// open visits move over, then the orphan session is ended. Typical case: a
+// kiosk scan into the room auto-created an unsupervised fallback session
+// (e.g. Schulhof, #2161) before the planned block started — without
+// absorption those children would sit in a session nobody supervises while
+// staff run the planned block next to it. Supervised sessions are left
+// alone: parallel supervised groups in one room are a sanctioned pattern
+// (#2139). No per-student SSE fires here; the EventInstanceStarted broadcast
+// that follows makes clients refetch.
+func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, roomID, newGroupID int64) error {
+	openGroups, err := s.deps.ActiveGroupRepo.FindActiveByRoomID(ctx, roomID)
+	if err != nil {
+		return fmt.Errorf("find open groups in room %d: %w", roomID, err)
+	}
+
+	for _, group := range openGroups {
+		if group.ID == newGroupID {
+			continue
+		}
+		supervisors, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
+		if err != nil {
+			return fmt.Errorf("load supervisors of group %d: %w", group.ID, err)
+		}
+		if len(supervisors) > 0 {
+			continue
+		}
+
+		visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, group.ID)
+		if err != nil {
+			return fmt.Errorf("load visits of group %d: %w", group.ID, err)
+		}
+		moved := 0
+		for _, visit := range visits {
+			if visit.ExitTime != nil {
+				continue
+			}
+			visit.ActiveGroupID = newGroupID
+			if err := s.deps.VisitRepo.Update(ctx, visit); err != nil {
+				return fmt.Errorf("move visit %d to group %d: %w", visit.ID, newGroupID, err)
+			}
+			moved++
+		}
+
+		if err := s.deps.ActiveGroupRepo.EndSession(ctx, group.ID); err != nil {
+			return fmt.Errorf("end absorbed group %d: %w", group.ID, err)
+		}
+		s.getLogger().Info("absorbed unsupervised session into started instance",
+			slog.Int64("absorbed_group_id", group.ID),
+			slog.Int64("new_group_id", newGroupID),
+			slog.Int("moved_visits", moved),
+		)
+	}
+
+	return nil
 }
 
 // Complete implements active → completed. The bridge active.group is ended

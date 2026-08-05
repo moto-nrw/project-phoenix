@@ -7,31 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestInstanceStart_SchulhofRequiresDedicatedSupervision(t *testing.T) {
-	inst := deleteUnitInstance(100, nil, timezone.NewDate(2026, 7, 5), scheduleModel.InstanceStatusPlanned, false)
-	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
-	roomRepo := &startGuardRoomRepo{room: &facilitiesModel.Room{Name: constants.SchulhofRoomName}}
-	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo: instanceRepo,
-		RoomRepo:     roomRepo,
-		Logger:       slog.New(slog.DiscardHandler),
-	}}
-
-	result, err := svc.Start(context.Background(), inst.ID, 0)
-
-	require.ErrorIs(t, err, ErrSchulhofSupervisionRequired)
-	assert.Nil(t, result)
-	assert.Equal(t, 1, roomRepo.findCalls)
-}
 
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 	saturday := timezone.NewDate(2026, time.May, 9)
@@ -41,34 +22,6 @@ func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 	assert.NoError(t, validateLegacyWeekendInstanceDate(saturday, saturday), "legacy weekend rows may retain their original date")
 	assert.ErrorIs(t, validateLegacyWeekendInstanceDate(monday, saturday), ErrInstanceWeekend,
 		"new weekend dates must be rejected")
-}
-
-func TestInstanceStart_RoomLookupFailuresAreInternal(t *testing.T) {
-	inst := deleteUnitInstance(99, nil, timezone.NewDate(2026, 7, 4), scheduleModel.InstanceStatusPlanned, false)
-	tests := []struct {
-		name     string
-		roomRepo *startGuardRoomRepo
-	}{
-		{name: "repository error", roomRepo: &startGuardRoomRepo{err: errors.New("room lookup failed")}},
-		{name: "missing room", roomRepo: &startGuardRoomRepo{}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &instanceService{deps: InstanceServiceDependencies{
-				InstanceRepo: &deleteUnitInstanceRepo{instance: inst},
-				RoomRepo:     tt.roomRepo,
-				Logger:       slog.New(slog.DiscardHandler),
-			}}
-
-			result, err := svc.Start(context.Background(), inst.ID, 0)
-
-			assert.Nil(t, result)
-			var scheduleErr *ScheduleError
-			require.ErrorAs(t, err, &scheduleErr)
-			assert.Equal(t, "start instance: load room", scheduleErr.Op)
-		})
-	}
 }
 
 func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *testing.T) {
@@ -268,18 +221,6 @@ type deleteUnitInstanceRepo struct {
 	deleted          []int64
 	updatedColumns   [][]string
 	updateColumnsErr error
-}
-
-type startGuardRoomRepo struct {
-	facilitiesModel.RoomRepository
-	room      *facilitiesModel.Room
-	err       error
-	findCalls int
-}
-
-func (r *startGuardRoomRepo) FindByID(_ context.Context, _ any) (*facilitiesModel.Room, error) {
-	r.findCalls++
-	return r.room, r.err
 }
 
 func (r *deleteUnitInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleModel.ActivityInstance, error) {

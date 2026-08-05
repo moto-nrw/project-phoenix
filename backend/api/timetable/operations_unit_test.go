@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -117,17 +116,6 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 	assert.Equal(t, int64(232), service.lastInstanceID)
 }
 
-func TestOperationsStartSchulhofUsesDedicatedConflictCode(t *testing.T) {
-	service := &fakeOperationsService{err: scheduleSvc.ErrSchulhofSupervisionRequired}
-	res := NewResource(Dependencies{OperationsService: service})
-	router := operationRouter(http.MethodPost, "/instances/{id}/start", res.operationsStart)
-
-	rr := executeOperationRequest(router, http.MethodPost, "/instances/231/start", nil)
-
-	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"code":"schulhof_supervision_required"`)
-}
-
 func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 241
@@ -211,9 +199,10 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 244
 	// Start fails non-5xx: the real service's Start delegates to InstanceService.Start,
-	// which returns Schulhof (→ 409). The Create write made just before must roll back.
+	// which returns an invalid transition (→ 409). The Create write made just before
+	// must roll back.
 	instanceSvc := &rollbackProbeInstanceService{
-		mockInstanceService: &mockInstanceService{startErr: scheduleSvc.ErrSchulhofSupervisionRequired},
+		mockInstanceService: &mockInstanceService{startErr: scheduleSvc.ErrInvalidInstanceTransition},
 		create: func(ctx context.Context, _ scheduleSvc.CreateInstanceInput) (*schedule.ActivityInstance, error) {
 			require.NoError(t, guardianRepo.Create(ctx, probe))
 			require.Greater(t, probe.ID, int64(0), "probe write must happen inside the tenant transaction")
@@ -270,7 +259,6 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	rr := execute()
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"code":"schulhof_supervision_required"`)
 	_, err = guardianRepo.FindByID(testpkg.TenantContext(1), probe.ID)
 	assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound,
 		"a non-5xx start failure must roll back writes made before Start")
@@ -522,37 +510,6 @@ func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Nil(t, service.lastSpontaneousInput, "weekend starts must not reach the operations service")
-}
-
-func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
-	const schulhofRoomID int64 = 42
-
-	service := &fakeOperationsService{}
-	res := NewResource(Dependencies{
-		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
-			ActiveGroupRepo: &fakeOperationActiveGroupRepo{},
-			RoomRepo: &fakeOperationRoomRepo{
-				room: &facilitiesModels.Room{Name: constants.SchulhofRoomName},
-			},
-		}),
-		InstanceService:   &mockInstanceService{},
-		OperationsService: service,
-		SettingsService: &fakeOperationSettingsService{
-			hasOverride: true,
-			boolValue:   true,
-		},
-	})
-	res.Now = testWorkdayNow
-	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
-
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
-		"title":   "Pausenhof",
-		"room_id": schulhofRoomID,
-	})
-
-	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"code":"schulhof_supervision_required"`)
-	assert.Nil(t, service.lastSpontaneousInput, "Schulhof must be rejected before creating a spontaneous instance")
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
@@ -811,7 +768,6 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{scheduleSvc.ErrTimetableOperationNotFound, http.StatusNotFound},
 		{scheduleSvc.ErrTimetableOperationConflict, http.StatusConflict},
 		{scheduleSvc.ErrInvalidInstanceTransition, http.StatusConflict},
-		{scheduleSvc.ErrSchulhofSupervisionRequired, http.StatusConflict},
 		{scheduleSvc.ErrInstanceNotFound, http.StatusNotFound},
 		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
 		{activeSvc.ErrRoomConflict, http.StatusConflict},

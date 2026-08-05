@@ -84,7 +84,9 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	assert.True(t, result[0].IsOverdue)
 }
 
-func TestTimetableOperationsPlannedNowExcludesSchulhof(t *testing.T) {
+// Since #2161 the Schulhof is a regular plannable room: its planned blocks
+// appear in the "Jetzt starten" list exactly like any other room's.
+func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	const schulhofRoomID int64 = 811
 	deps := newTimetableOpsDeps()
@@ -103,8 +105,9 @@ func TestTimetableOperationsPlannedNowExcludesSchulhof(t *testing.T) {
 	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, int64(331), result[0].ID)
+	require.Len(t, result, 2)
+	ids := []int64{result[0].ID, result[1].ID}
+	assert.ElementsMatch(t, []int64{330, 331}, ids)
 }
 
 func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {

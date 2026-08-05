@@ -3,7 +3,6 @@ package facilities
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -146,19 +145,6 @@ func (s *schulhofConflictActiveService) CreateActiveGroup(context.Context, *acti
 	return s.createErr
 }
 
-func newSchulhofConflictService(activeService *schulhofConflictActiveService, room *facilityModels.Room, activityGroup *activityModels.Group) *schulhofService {
-	room.Name = constants.SchulhofRoomName
-	room.IsSystem = true
-	activityGroup.Name = constants.SchulhofActivityName
-	activityGroup.IsSystem = true
-	return &schulhofService{
-		facilityService: &schulhofConflictFacilityService{room: room},
-		activityService: &schulhofConflictActivityService{group: activityGroup},
-		activeService:   activeService,
-		logger:          slog.New(slog.DiscardHandler),
-	}
-}
-
 func TestSchulhofStatusPropagatesInfrastructureReadErrors(t *testing.T) {
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
@@ -257,86 +243,57 @@ func TestSchulhofEnsureInfrastructurePropagatesActivityLookupError(t *testing.T)
 	assert.Nil(t, activityGroup)
 }
 
-func TestSchulhofService_GetOrCreateActiveGroup_ReusesConcurrentSchulhofGroupAfterRoomConflict(t *testing.T) {
-	ctx := context.Background()
-	room := &facilityModels.Room{Model: base.Model{ID: 42}}
-	activityGroup := &activityModels.Group{Model: base.Model{ID: 77}, PlannedRoomID: &room.ID}
-	concurrentGroup := &active.Group{
+// Since #2161 the status read model surfaces the NEWEST open group in the
+// room regardless of template backing: a started planned block (different
+// template) or a spontaneous session counts just like the system activity's
+// own daily group. Ended groups never win.
+func TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate(t *testing.T) {
+	room := &facilityModels.Room{
+		Model:    base.Model{ID: 42},
+		Name:     constants.SchulhofRoomName,
+		IsSystem: true,
+	}
+	roomID := room.ID
+	activityGroup := &activityModels.Group{
+		Model:         base.Model{ID: 77},
+		Name:          constants.SchulhofActivityName,
+		PlannedRoomID: &roomID,
+		IsSystem:      true,
+	}
+	now := time.Now()
+	older := &active.Group{
 		Model:     base.Model{ID: 88},
 		GroupID:   &activityGroup.ID,
 		RoomID:    room.ID,
-		StartTime: time.Now(),
+		StartTime: now.Add(-2 * time.Hour),
+	}
+	plannedBlockTemplateID := int64(500)
+	newer := &active.Group{
+		Model:     base.Model{ID: 89},
+		GroupID:   &plannedBlockTemplateID,
+		RoomID:    room.ID,
+		StartTime: now.Add(-10 * time.Minute),
+	}
+	endedAt := now
+	ended := &active.Group{
+		Model:     base.Model{ID: 90},
+		RoomID:    room.ID,
+		StartTime: now,
+		EndTime:   &endedAt,
 	}
 	activeService := &schulhofConflictActiveService{
-		findGroupsByCall: [][]*active.Group{
-			{},
-			{},
-			{concurrentGroup},
-		},
-		createErr: fmt.Errorf("create raced with another supervisor: %w", activeSvc.ErrRoomConflict),
+		findGroupsByCall: [][]*active.Group{{older, ended, newer}},
 	}
-	service := newSchulhofConflictService(activeService, room, activityGroup)
+	service := NewSchulhofService(
+		&schulhofConflictFacilityService{room: room},
+		&schulhofConflictActivityService{group: activityGroup},
+		activeService,
+		slog.New(slog.DiscardHandler),
+	)
 
-	result, err := service.GetOrCreateActiveGroup(ctx, 123)
+	status, err := service.GetSchulhofStatus(context.Background(), 1)
 
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, concurrentGroup.ID, result.ID)
-	assert.Equal(t, 1, activeService.createCalls)
-	assert.Equal(t, 3, activeService.findCalls)
-	assert.Empty(t, activeService.endedIDs)
-}
-
-func TestSchulhofService_GetOrCreateActiveGroup_ReturnsRefetchErrorAfterRoomConflict(t *testing.T) {
-	ctx := context.Background()
-	room := &facilityModels.Room{Model: base.Model{ID: 42}}
-	activityGroup := &activityModels.Group{Model: base.Model{ID: 77}, PlannedRoomID: &room.ID}
-	refetchErr := errors.New("refetch failed")
-	activeService := &schulhofConflictActiveService{
-		findGroupsByCall: [][]*active.Group{
-			{},
-			{},
-			nil,
-		},
-		findErrorsByCall: []error{
-			nil,
-			nil,
-			refetchErr,
-		},
-		createErr: fmt.Errorf("create raced with another supervisor: %w", activeSvc.ErrRoomConflict),
-	}
-	service := newSchulhofConflictService(activeService, room, activityGroup)
-
-	result, err := service.GetOrCreateActiveGroup(ctx, 123)
-
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.ErrorIs(t, err, refetchErr)
-	assert.Contains(t, err.Error(), "failed to refetch Schulhof active group after room conflict")
-	assert.Equal(t, 1, activeService.createCalls)
-	assert.Equal(t, 3, activeService.findCalls)
-}
-
-func TestSchulhofService_GetOrCreateActiveGroup_PropagatesRoomConflictWhenRefetchFindsNoGroup(t *testing.T) {
-	ctx := context.Background()
-	room := &facilityModels.Room{Model: base.Model{ID: 42}}
-	activityGroup := &activityModels.Group{Model: base.Model{ID: 77}, PlannedRoomID: &room.ID}
-	activeService := &schulhofConflictActiveService{
-		findGroupsByCall: [][]*active.Group{
-			{},
-			{},
-			{},
-		},
-		createErr: &activeSvc.ActiveError{Op: "CreateActiveGroup", Err: activeSvc.ErrRoomConflict},
-	}
-	service := newSchulhofConflictService(activeService, room, activityGroup)
-
-	result, err := service.GetOrCreateActiveGroup(ctx, 123)
-
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.ErrorIs(t, err, activeSvc.ErrRoomConflict)
-	assert.Contains(t, err.Error(), "failed to create Schulhof active group")
-	assert.Equal(t, 1, activeService.createCalls)
-	assert.Equal(t, 3, activeService.findCalls)
+	require.NotNil(t, status.ActiveGroupID)
+	assert.Equal(t, newer.ID, *status.ActiveGroupID)
 }
