@@ -8,7 +8,6 @@ import {
   configToFormSection,
   type SectionConfig,
 } from "./types";
-import { databaseThemes } from "@/lib/database/themes";
 
 describe("defineEntityConfig", () => {
   it("returns the config as-is with proper typing", () => {
@@ -17,7 +16,7 @@ describe("defineEntityConfig", () => {
         singular: "Test",
         plural: "Tests",
       },
-      theme: databaseThemes.students,
+      concept: "children",
       labels: {
         createModalTitle: "Test erstellen",
         editModalTitle: "Test bearbeiten",
@@ -62,8 +61,7 @@ describe("configToFormSection", () => {
         },
       ],
       columns: 2,
-      backgroundColor: "bg-blue-50",
-      iconPath: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+      concept: "children",
     };
 
     const formSection = configToFormSection(sectionConfig);
@@ -77,8 +75,7 @@ describe("configToFormSection", () => {
     expect(formSection.fields[0]?.required).toBe(true);
     expect(formSection.fields[0]?.placeholder).toBe("Enter text");
     expect(formSection.columns).toBe(2);
-    expect(formSection.backgroundColor).toBe("bg-blue-50");
-    expect(formSection.iconPath).toBe("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z");
+    expect(formSection.concept).toBe("children");
   });
 
   it("converts multiple fields correctly", () => {

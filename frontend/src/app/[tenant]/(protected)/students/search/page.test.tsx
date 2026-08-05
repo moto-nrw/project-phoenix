@@ -167,36 +167,42 @@ vi.mock("@/components/ui/location-badge", () => ({
 
 // Mock location helpers: LOCATION_COLORS is consumed by student-card.tsx
 // (check-in mode tint), so the mock must expose the brand palette even if
-// individual tests don't assert on colors.
-vi.mock("~/lib/location-helper", () => ({
-  isHomeLocation: (loc: string) => loc === "Zuhause" || loc === "",
-  isPresentLocation: (loc: string) =>
-    loc !== "Zuhause" &&
-    loc !== "" &&
-    loc !== "Unterwegs" &&
-    loc !== "Schulhof",
-  isTransitLocation: (loc: string) => loc === "Unterwegs",
-  isSchoolyardLocation: (loc: string) => loc === "Schulhof",
-  LOCATION_COLORS: {
-    GROUP_ROOM: "#83CD2D",
-    OTHER_ROOM: "#5080D8",
-    HOME: "#DC2626",
-    SCHOOLYARD: "#F78C10",
-    TRANSIT: "#D946EF",
-    UNKNOWN: "#6B7280",
-    SICK: "#EAB308",
-    EXCUSED: "#7C3AED",
-  },
-  LOCATION_STATUSES: {
-    PRESENT: "Anwesend",
-    HOME: "Zuhause",
-    SCHOOLYARD: "Schulhof",
-    TRANSIT: "Unterwegs",
-    UNKNOWN: "Unbekannt",
-    SICK: "Krank",
-    EXCUSED: "Entschuldigt",
-  },
-}));
+// individual tests don't assert on colors. Partial mock via importOriginal
+// so MOTO_COLOR_PALETTE (consumed transitively by MotoDuotoneIcon, now
+// reached through DetailIcons in students/search/page.tsx) stays available.
+vi.mock("~/lib/location-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/location-helper")>();
+  return {
+    ...actual,
+    isHomeLocation: (loc: string) => loc === "Zuhause" || loc === "",
+    isPresentLocation: (loc: string) =>
+      loc !== "Zuhause" &&
+      loc !== "" &&
+      loc !== "Unterwegs" &&
+      loc !== "Schulhof",
+    isTransitLocation: (loc: string) => loc === "Unterwegs",
+    isSchoolyardLocation: (loc: string) => loc === "Schulhof",
+    LOCATION_COLORS: {
+      GROUP_ROOM: "#83CD2D",
+      OTHER_ROOM: "#5080D8",
+      HOME: "#DC2626",
+      SCHOOLYARD: "#F78C10",
+      TRANSIT: "#D946EF",
+      UNKNOWN: "#6B7280",
+      SICK: "#EAB308",
+      EXCUSED: "#7C3AED",
+    },
+    LOCATION_STATUSES: {
+      PRESENT: "Anwesend",
+      HOME: "Zuhause",
+      SCHOOLYARD: "Schulhof",
+      TRANSIT: "Unterwegs",
+      UNKNOWN: "Unbekannt",
+      SICK: "Krank",
+      EXCUSED: "Entschuldigt",
+    },
+  };
+});
 
 // Mock school-checkin FAB + hook so existing search tests aren't
 // responsible for the new floating mode trigger;

@@ -584,17 +584,6 @@ describe("validateFormFields", () => {
 // =============================================================================
 
 describe("DatabaseForm", () => {
-  const mockTheme = {
-    primary: "teal-500",
-    secondary: "blue-600",
-    accent: "blue" as const,
-    background: "blue-50",
-    border: "blue-200",
-    textAccent: "blue-800",
-    icon: null,
-    avatarGradient: "from-teal-400 to-blue-500",
-  };
-
   const mockSections: FormSection[] = [
     {
       title: "Test Section",
@@ -610,7 +599,6 @@ describe("DatabaseForm", () => {
   ];
 
   const defaultProps = {
-    theme: mockTheme,
     sections: mockSections,
     onSubmit: vi.fn(),
     onCancel: vi.fn(),
