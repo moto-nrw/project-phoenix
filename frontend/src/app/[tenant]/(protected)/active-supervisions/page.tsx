@@ -1076,6 +1076,15 @@ function MeinRaumPageContent() {
     },
   );
 
+  // #2161: the permanent Schulhof tab (one-tap "Beaufsichtigen") rides on the
+  // generic spontaneous-start flow, so it is gated on the same capability.
+  // Tenants without it see the yard as a normal room tab while a planned or
+  // spontaneous session runs there. Synced into state below (like
+  // schulhofStatus) so transient dashboard refetches don't drop the tab.
+  const [schulhofTabEnabled, setSchulhofTabEnabled] = useState(false);
+  const schulhofTabAvailable =
+    schulhofTabEnabled && schulhofStatus?.exists === true;
+
   // Sync SWR dashboard data with local state
   useEffect(() => {
     if (!dashboardData) return;
@@ -1105,6 +1114,9 @@ function MeinRaumPageContent() {
     // independent requests, so a missing status must not leave an old shortcut
     // active.
     setSchulhofStatus(dashboardError ? null : data.schulhofStatus);
+    setSchulhofTabEnabled(
+      data.capabilities?.webSpontaneousActivitiesEnabled === true,
+    );
 
     // Cache active groups for UnclaimedRooms component
     if (data.supervisedGroups.length > 0) {
@@ -1220,7 +1232,7 @@ function MeinRaumPageContent() {
   // so localStorage stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
     // Handle Schulhof param specially
-    if (roomParam === "schulhof" && schulhofStatus?.exists) {
+    if (roomParam === "schulhof" && schulhofTabAvailable) {
       if (!isSchulhofTabSelected) {
         setIsSchulhofTabSelected(true);
         setSelectedRoomId(null);
@@ -1259,7 +1271,7 @@ function MeinRaumPageContent() {
       const savedRoomId = localStorage.getItem("sidebar-last-room");
 
       // Handle Schulhof restore from localStorage
-      if (savedRoomId === SCHULHOF_TAB_ID && schulhofStatus?.exists) {
+      if (savedRoomId === SCHULHOF_TAB_ID && schulhofTabAvailable) {
         if (!isSchulhofTabSelected) {
           setIsSchulhofTabSelected(true);
           setSelectedRoomId(null);
@@ -1301,7 +1313,7 @@ function MeinRaumPageContent() {
   }, [
     allRooms,
     roomParam,
-    schulhofStatus?.exists,
+    schulhofTabAvailable,
     schulhofStatus?.activeGroupId,
     schulhofStatus?.isUserSupervising,
   ]);
@@ -1481,13 +1493,13 @@ function MeinRaumPageContent() {
   }, [dashboardError]);
 
   useEffect(() => {
-    if (schulhofStatus?.exists || !isSchulhofTabSelected) return;
+    if (schulhofTabAvailable || !isSchulhofTabSelected) return;
 
     setIsSchulhofTabSelected(false);
     setSelectedRoomId(allRooms[0]?.id ?? null);
     setSelectedTimetableInstanceId(null);
     setStudents([]);
-  }, [allRooms, isSchulhofTabSelected, schulhofStatus?.exists]);
+  }, [allRooms, isSchulhofTabSelected, schulhofTabAvailable]);
 
   // Derive loading state from SWR
   useEffect(() => {
@@ -1500,12 +1512,12 @@ function MeinRaumPageContent() {
   useEffect(() => {
     if (
       allRooms.length === 0 &&
-      schulhofStatus?.exists &&
+      schulhofTabAvailable &&
       !isSchulhofTabSelected
     ) {
       setIsSchulhofTabSelected(true);
     }
-  }, [allRooms.length, schulhofStatus?.exists, isSchulhofTabSelected]);
+  }, [allRooms.length, schulhofTabAvailable, isSchulhofTabSelected]);
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
@@ -1793,14 +1805,58 @@ function MeinRaumPageContent() {
     }
   }, [currentRoom, currentStaffId]);
 
-  // Handle toggling Schulhof supervision (start/stop)
+  // Start a fresh Schulhof session via the generic spontaneous flow (#2161).
+  // A "room is already occupied" conflict means another session won the race
+  // between status fetch and start — join that session instead of failing.
+  const startSchulhofSpontaneously = useCallback(async () => {
+    const status = schulhofStatusRef.current;
+    if (!status?.roomId) {
+      throw new Error("Schulhof room is not provisioned");
+    }
+    if (!currentStaffId) {
+      throw new Error("no staff profile for spontaneous Schulhof start");
+    }
+    const window = spontaneousActivityWindow(new Date());
+    try {
+      await timetableOperationsApi.createAndStartSpontaneous({
+        date: window.date,
+        start_time: window.startTime,
+        end_time: window.endTime,
+        title: SCHULHOF_ROOM_NAME,
+        room_id: Number(status.roomId),
+        activity_group_id: status.activityGroupId
+          ? Number(status.activityGroupId)
+          : undefined,
+        staff_ids: [Number(currentStaffId)],
+        student_ids: [],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes("room is already occupied")) throw err;
+      const fresh = await activeService.getSchulhofStatus();
+      if (!fresh.activeGroupId) throw err;
+      await activeService.claimActiveGroup(fresh.activeGroupId);
+    }
+  }, [currentStaffId, schulhofStatusRef]);
+
+  // Handle toggling Schulhof supervision (start/stop). Since #2161 this rides
+  // on the generic mechanics: claim the open session, start a spontaneous one
+  // when the yard is empty, end the own supervision to stop.
   const handleToggleSchulhof = useCallback(async () => {
     if (!schulhofStatus) return;
 
     try {
       setIsTogglingSchulhof(true);
-      const action = schulhofStatus.isUserSupervising ? "stop" : "start";
-      await activeService.toggleSchulhofSupervision(action);
+      if (schulhofStatus.isUserSupervising) {
+        if (!schulhofStatus.supervisionId) {
+          throw new Error("no supervision id in Schulhof status");
+        }
+        await activeService.endSupervision(schulhofStatus.supervisionId);
+      } else if (schulhofStatus.activeGroupId) {
+        await activeService.claimActiveGroup(schulhofStatus.activeGroupId);
+      } else {
+        await startSchulhofSpontaneously();
+      }
 
       // Refresh to get updated status
       // Note: Don't reset isTogglingSchulhof here - let the useEffect below handle it
@@ -1818,7 +1874,7 @@ function MeinRaumPageContent() {
       // Only reset loading state on error - success case handled by useEffect
       setIsTogglingSchulhof(false);
     }
-  }, [schulhofStatus]);
+  }, [schulhofStatus, startSchulhofSpontaneously]);
 
   // Reset toggling state when schulhofStatus updates (prevents flicker after successful toggle)
   // Also includes a timeout fallback to prevent stuck loading state if SWR refresh fails
@@ -1990,17 +2046,15 @@ function MeinRaumPageContent() {
       defaultRoomId={currentRoom?.room_id}
       isStarting={isStartingSpontaneous}
       occupiedRoomIds={occupiedRoomIds}
-      schulhofSupervisionAvailable={schulhofStatus?.exists === true}
       onStart={(payload) => void handleStartSpontaneousActivity(payload)}
-      onOpenSchulhofSupervision={handleOpenSchulhofSupervision}
     />
   ) : null;
 
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
-  // If Schulhof exists, we'll show the main view with just the Schulhof tab
+  // If the Schulhof tab is available, we'll show the main view with just that tab
   if (
     allRooms.length === 0 &&
-    !schulhofStatus?.exists &&
+    !schulhofTabAvailable &&
     plannedNow.length === 0
   ) {
     return (
@@ -2236,13 +2290,15 @@ function MeinRaumPageContent() {
       {spontaneousStartBanner}
 
       {/* Modern Header with PageHeaderWithSearch component */}
-      {/* Count rooms EXCLUDING Schulhof (to avoid double-counting with schulhofStatus) */}
+      {/* With the permanent tab enabled, count rooms EXCLUDING Schulhof (to
+          avoid double-counting with schulhofStatus). Without it (#2161,
+          capability off), the yard is an ordinary room tab. */}
       {(() => {
-        const roomsWithoutSchulhof = allRooms.filter(
-          (room) => room.room_name !== SCHULHOF_ROOM_NAME,
-        );
+        const roomsWithoutSchulhof = schulhofTabEnabled
+          ? allRooms.filter((room) => room.room_name !== SCHULHOF_ROOM_NAME)
+          : allRooms;
         const totalSupervisions =
-          roomsWithoutSchulhof.length + (schulhofStatus?.exists ? 1 : 0);
+          roomsWithoutSchulhof.length + (schulhofTabAvailable ? 1 : 0);
 
         return (
           <PageHeaderWithSearch
@@ -2286,8 +2342,9 @@ function MeinRaumPageContent() {
                         id: room.id,
                         label: room.room_name ?? room.name,
                       })),
-                      // Schulhof permanent tab (always shown if exists)
-                      ...(schulhofStatus?.exists
+                      // Schulhof permanent tab (only with the spontaneous
+                      // capability, #2161)
+                      ...(schulhofTabAvailable
                         ? [
                             {
                               id: SCHULHOF_TAB_ID,

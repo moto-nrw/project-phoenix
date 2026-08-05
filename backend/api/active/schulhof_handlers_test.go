@@ -30,7 +30,6 @@ import (
 type mockSchulhofService struct {
 	getStatusFunc            func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error)
 	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*activityModels.Group, error)
-	getOrCreateActiveFunc    func(ctx context.Context, createdBy int64) (*active.Group, error)
 }
 
 func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {

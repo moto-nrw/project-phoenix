@@ -126,7 +126,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
-    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    claimActiveGroup: vi.fn(() => Promise.resolve()),
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
@@ -544,6 +544,7 @@ describe("BFF dashboard data with students and Schulhof", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "r100",
@@ -968,6 +969,7 @@ describe("Schulhof user supervising view", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "room-schulhof",
@@ -1032,6 +1034,7 @@ describe("Schulhof user supervising view", () => {
             },
           ],
           firstRoomId: "r1",
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "room-schulhof",

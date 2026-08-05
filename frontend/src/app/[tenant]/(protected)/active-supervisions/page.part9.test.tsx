@@ -126,7 +126,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
-    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    claimActiveGroup: vi.fn(() => Promise.resolve()),
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
@@ -1156,6 +1156,7 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: null,
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "schulhof-r1",
@@ -1221,6 +1222,7 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
         },
       ],
       firstRoomId: null,
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "schulhof-r1",
@@ -1351,6 +1353,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: null,
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "schulhof-room",
