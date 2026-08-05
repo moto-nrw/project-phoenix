@@ -306,6 +306,7 @@ export function EnrollmentStatusView({
         closeLabel={t("modalClose")}
         backdropLabel={t("modalBackdropClose")}
         isConfirmLoading={withdrawingChild !== null}
+        isDismissDisabled={withdrawingChild !== null}
         confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
       >
         <p className="text-sm leading-6 text-gray-600">
