@@ -440,6 +440,7 @@ GET /operator/auth/mfa/trusted-devices
 GET /operator/auth/passkeys
 GET /operator/auth/passkeys/
 GET /operator/devices/
+GET /operator/devices/{id}/transfer-status
 GET /operator/invitations/
 GET /operator/organizations/
 GET /operator/organizations/summaries
@@ -763,6 +764,7 @@ POST /operator/auth/passkeys/register/verify
 POST /operator/auth/refresh
 POST /operator/devices/
 POST /operator/devices/{id}/set-api-key
+POST /operator/devices/{id}/transfer
 POST /operator/invitations/
 POST /operator/invitations/{id}/resend
 POST /operator/organizations/

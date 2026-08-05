@@ -18,6 +18,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -60,6 +61,40 @@ type UpdateSchoolRequest struct {
 	Hidden         bool
 }
 
+// defaultDeviceOnlineWindow is the fallback online/offline cutoff used when no
+// settings resolver is wired or the per-tenant setting
+// iot.device_online_window_minutes cannot be resolved (issue #586).
+const defaultDeviceOnlineWindow = 5 * time.Minute
+
+// DeviceTransferSession describes the open kiosk session blocking a transfer.
+type DeviceTransferSession struct {
+	ID           int64     `json:"id"`
+	StartedAt    time.Time `json:"started_at"`
+	ActivityName *string   `json:"activity_name,omitempty"`
+	RoomName     *string   `json:"room_name,omitempty"`
+}
+
+// DeviceTransferStatus is the operator-facing preflight result.
+type DeviceTransferStatus struct {
+	CanTransfer   bool                   `json:"can_transfer"`
+	IsOnline      bool                   `json:"is_online"`
+	IsProtected   bool                   `json:"is_protected"`
+	LastSeen      *time.Time             `json:"last_seen,omitempty"`
+	ActiveSession *DeviceTransferSession `json:"active_session,omitempty"`
+}
+
+// ActiveDeviceSessionFinder is the narrow device-transfer session lookup dependency.
+type ActiveDeviceSessionFinder interface {
+	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+}
+
+// TenantSettingsResolver is the narrow settings dependency for resolving
+// per-tenant settings outside tenant middleware (operator requests carry no
+// tenant context).
+type TenantSettingsResolver interface {
+	ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error)
+}
+
 // OperatorProvisioningService handles operator-led tenant provisioning.
 type OperatorProvisioningService interface {
 	CreateOrganization(ctx context.Context, organization *platform.Organization, operatorID int64, clientIP net.IP) (*platform.Organization, error)
@@ -79,6 +114,8 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	GetDeviceTransferStatus(ctx context.Context, id int64) (*DeviceTransferStatus, error)
+	TransferDevice(ctx context.Context, id, targetSchoolID, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
@@ -152,6 +189,8 @@ type OperatorProvisioningServiceConfig struct {
 	AccountRepo           authModels.AccountRepository
 	TeacherRepo           userModels.TeacherRepository
 	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
+	ActiveGroupRepo       ActiveDeviceSessionFinder
+	Settings              TenantSettingsResolver
 	InvitationService     authSvc.InvitationService
 	AuthService           authSvc.AuthService
 	AuditLogRepo          platform.OperatorAuditLogRepository
@@ -318,7 +357,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		existing, err := s.SchoolRepo.FindByID(adminCtx, id)
 		if err != nil {
-			if isSchoolLookupNotFound(err) {
+			if isLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: id}
 			}
 			return err
@@ -585,7 +624,7 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -673,7 +712,7 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -787,7 +826,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -994,12 +1033,239 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 	})
 }
 
+// deviceOnlineWindow resolves the tenant's iot.device_online_window_minutes
+// setting, falling back to defaultDeviceOnlineWindow when no resolver is wired
+// or the lookup fails. ctx must be the outer request context, not the admin-tx
+// context: ResolveIntForTenant opens its own tenant transaction, which the
+// nested-transaction guard rejects inside an admin transaction.
+func (s *operatorProvisioningService) deviceOnlineWindow(ctx context.Context, tenantID int64) time.Duration {
+	if s.Settings == nil {
+		return defaultDeviceOnlineWindow
+	}
+	minutes, err := s.Settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyDeviceOnlineWindowMinutes)
+	if err != nil {
+		s.getLogger().Warn("device transfer: resolve online window failed, using fallback",
+			slog.Int64("tenant_id", tenantID),
+			slog.Any("error", err),
+		)
+		return defaultDeviceOnlineWindow
+	}
+	if minutes <= 0 {
+		return defaultDeviceOnlineWindow
+	}
+	return time.Duration(minutes) * time.Minute
+}
+
+func (s *operatorProvisioningService) transferStatus(ctx, adminCtx context.Context, device *iotModels.Device) (*DeviceTransferStatus, error) {
+	status := &DeviceTransferStatus{LastSeen: device.LastSeen}
+	if device.DeviceID == iotModels.WebManualDeviceID {
+		status.IsProtected = true
+		return status, nil
+	}
+	if device.LastSeen != nil {
+		status.IsOnline = time.Since(*device.LastSeen) <= s.deviceOnlineWindow(ctx, device.TenantID)
+	}
+	if s.ActiveGroupRepo == nil {
+		return nil, fmt.Errorf("device transfer: active group repository is not configured")
+	}
+	group, err := s.ActiveGroupRepo.FindActiveByDeviceIDWithNames(adminCtx, device.ID)
+	if err != nil {
+		return nil, fmt.Errorf("device transfer: find active session: %w", err)
+	}
+	if group != nil {
+		session := &DeviceTransferSession{ID: group.ID, StartedAt: group.StartTime}
+		if group.ActualGroup != nil {
+			session.ActivityName = &group.ActualGroup.Name
+		}
+		if group.Room != nil {
+			session.RoomName = &group.Room.Name
+		}
+		status.ActiveSession = session
+	}
+	status.CanTransfer = !status.IsOnline && status.ActiveSession == nil
+	return status, nil
+}
+
+// GetDeviceTransferStatus returns current blockers without mutating the device.
+func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Context, id int64) (*DeviceTransferStatus, error) {
+	if id <= 0 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("device id is required")}
+	}
+	var result *DeviceTransferStatus
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
+		if findErr != nil {
+			if isLookupNotFound(findErr) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			return findErr
+		}
+		if device == nil {
+			return &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+		var statusErr error
+		result, statusErr = s.transferStatus(ctx, adminCtx, device)
+		return statusErr
+	})
+	return result, err
+}
+
+func (s *operatorProvisioningService) loadTransferSource(adminCtx context.Context, id, targetSchoolID int64) (*iotModels.Device, error) {
+	source, err := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
+	if err != nil {
+		if isLookupNotFound(err) {
+			return nil, &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+		return nil, err
+	}
+	if source == nil {
+		return nil, &OperatorDeviceNotFoundError{DeviceID: id}
+	}
+	if source.DeviceID == iotModels.WebManualDeviceID {
+		return nil, &DeviceTransferProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
+	}
+	if source.TenantID == targetSchoolID {
+		return nil, &DeviceTransferSameSchoolError{SchoolID: targetSchoolID}
+	}
+	return source, nil
+}
+
+func (s *operatorProvisioningService) validateTransferDestination(adminCtx context.Context, source *iotModels.Device, targetSchoolID int64) error {
+	sourceSchool, err := s.SchoolRepo.FindByID(adminCtx, source.TenantID)
+	if err != nil {
+		if isLookupNotFound(err) {
+			return &SchoolNotFoundError{SchoolID: source.TenantID}
+		}
+		return fmt.Errorf("TransferDevice: lookup source school: %w", err)
+	}
+	if sourceSchool == nil {
+		return &SchoolNotFoundError{SchoolID: source.TenantID}
+	}
+
+	targetSchool, err := s.SchoolRepo.FindByID(adminCtx, targetSchoolID)
+	if err != nil {
+		if isLookupNotFound(err) {
+			return &SchoolNotFoundError{SchoolID: targetSchoolID}
+		}
+		return fmt.Errorf("TransferDevice: lookup target school: %w", err)
+	}
+	if targetSchool == nil {
+		return &SchoolNotFoundError{SchoolID: targetSchoolID}
+	}
+	if targetSchool.IsDeleted() {
+		return &SchoolAlreadyDeletedError{SchoolID: targetSchoolID}
+	}
+	if !targetSchool.Active {
+		return &SchoolInactiveError{SchoolID: targetSchoolID}
+	}
+	if sourceSchool.OrganizationID != targetSchool.OrganizationID {
+		return &DeviceTransferOrganizationMismatchError{SourceSchoolID: source.TenantID, TargetSchoolID: targetSchoolID}
+	}
+	return nil
+}
+
+func (s *operatorProvisioningService) ensureDeviceTransferable(ctx, adminCtx context.Context, source *iotModels.Device) error {
+	status, err := s.transferStatus(ctx, adminCtx, source)
+	if err != nil {
+		return err
+	}
+	if status.IsOnline {
+		return &DeviceTransferBlockedError{DeviceID: source.ID, Reason: DeviceTransferBlockedOnline}
+	}
+	if status.ActiveSession != nil {
+		return &DeviceTransferBlockedError{DeviceID: source.ID, Reason: DeviceTransferBlockedActiveSession}
+	}
+	return nil
+}
+
+func (s *operatorProvisioningService) archiveAndCreateTransferredDevice(adminCtx context.Context, source *iotModels.Device, targetSchoolID int64) (*iotModels.Device, error) {
+	originalStatus := source.Status
+	var transferredAPIKey *string
+	if source.APIKey != nil {
+		key := *source.APIKey
+		transferredAPIKey = &key
+	}
+
+	now := time.Now()
+	source.ArchivedAt = &now
+	source.APIKey = nil
+	source.Status = iotModels.DeviceStatusInactive
+	source.RoomID = nil
+	source.RegisteredByID = nil
+	if err := s.DeviceRepo.Update(adminCtx, source); err != nil {
+		return nil, fmt.Errorf("TransferDevice: archive source: %w", err)
+	}
+
+	target := &iotModels.Device{
+		DeviceID:   source.DeviceID,
+		DeviceType: source.DeviceType,
+		Name:       source.Name,
+		Status:     originalStatus,
+		APIKey:     transferredAPIKey,
+	}
+	target.SetTenantID(targetSchoolID)
+	if err := s.DeviceRepo.Create(tenant.WithTenantID(adminCtx, targetSchoolID), target); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			if isAPIKeyConstraintViolation(err) {
+				return nil, &ConflictError{Err: fmt.Errorf("api_key already in use")}
+			}
+			return nil, &ConflictError{Err: fmt.Errorf("device_id already exists for target school")}
+		}
+		return nil, fmt.Errorf("TransferDevice: create target: %w", err)
+	}
+
+	source.TransferredToDeviceID = &target.ID
+	if err := s.DeviceRepo.Update(adminCtx, source); err != nil {
+		return nil, fmt.Errorf("TransferDevice: link source history: %w", err)
+	}
+	return target, nil
+}
+
+// TransferDevice moves the current device identity and API key to another school
+// while retaining the archived source row for historical foreign keys.
+func (s *operatorProvisioningService) TransferDevice(ctx context.Context, id, targetSchoolID, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error) {
+	if id <= 0 || targetSchoolID <= 0 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("device id and target_school_id are required")}
+	}
+
+	var result *OperatorDeviceInfo
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+		source, err := s.loadTransferSource(adminCtx, id, targetSchoolID)
+		if err != nil {
+			return err
+		}
+		if err := s.validateTransferDestination(adminCtx, source, targetSchoolID); err != nil {
+			return err
+		}
+		if err := s.ensureDeviceTransferable(ctx, adminCtx, source); err != nil {
+			return err
+		}
+		target, err := s.archiveAndCreateTransferredDevice(adminCtx, source, targetSchoolID)
+		if err != nil {
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionTransfer, platform.ResourceDevice, &id, clientIP, map[string]any{
+			"device_id":        source.DeviceID,
+			"source_device_id": id,
+			"target_device_id": target.ID,
+			"source_school_id": source.TenantID,
+			"target_school_id": targetSchoolID,
+		})
+
+		var queryErr error
+		result, queryErr = s.queryDeviceSingle(adminCtx, "TransferDevice", target.ID)
+		return queryErr
+	})
+	return result, err
+}
+
 func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -1163,7 +1429,7 @@ func (s *operatorProvisioningService) resolveAdminInviteContext(ctx context.Cont
 func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, schoolID int64) (*platform.School, error) {
 	school, err := s.SchoolRepo.FindByID(ctx, schoolID)
 	if err != nil {
-		if isSchoolLookupNotFound(err) {
+		if isLookupNotFound(err) {
 			return nil, &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		return nil, err
@@ -1289,7 +1555,9 @@ func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID 
 	}
 }
 
-func isSchoolLookupNotFound(err error) bool {
+// isLookupNotFound reports whether a repository FindByID-style error means
+// "no such row" (directly or wrapped in a DatabaseError), regardless of entity.
+func isLookupNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -1351,7 +1619,7 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
-			if isSchoolLookupNotFound(err) {
+			if isLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return err
@@ -1411,7 +1679,7 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
-			if isSchoolLookupNotFound(err) {
+			if isLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return err

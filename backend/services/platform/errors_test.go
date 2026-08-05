@@ -107,6 +107,25 @@ func TestOperatorDeviceNotFoundError(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+func TestDeviceTransferErrors(t *testing.T) {
+	assert.Equal(t,
+		"device with ID 11 cannot be transferred: protected",
+		(&platform.DeviceTransferProtectedError{DeviceID: 11, Reason: "protected"}).Error(),
+	)
+	assert.Equal(t,
+		"device with ID 12 cannot be transferred: device_online",
+		(&platform.DeviceTransferBlockedError{DeviceID: 12, Reason: platform.DeviceTransferBlockedOnline}).Error(),
+	)
+	assert.Equal(t,
+		"schools 13 and 14 belong to different organizations",
+		(&platform.DeviceTransferOrganizationMismatchError{SourceSchoolID: 13, TargetSchoolID: 14}).Error(),
+	)
+	assert.Equal(t,
+		"device already belongs to school 15",
+		(&platform.DeviceTransferSameSchoolError{SchoolID: 15}).Error(),
+	)
+}
+
 func TestPersonNotFoundError(t *testing.T) {
 	err := &platform.PersonNotFoundError{PersonID: 42}
 	assert.Equal(t, "person with ID 42 not found", err.Error())

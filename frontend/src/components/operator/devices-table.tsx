@@ -11,6 +11,11 @@ import {
 import { createLogger } from "~/lib/logger";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
+import { ArrowRightLeft, KeyRound, Trash2 } from "lucide-react";
 
 const logger = createLogger({ component: "DevicesTable" });
 
@@ -83,6 +88,7 @@ interface DevicesTableProps {
   devices: OperatorDevice[];
   showSchool?: boolean;
   onSetKey?: (device: OperatorDevice) => void;
+  onTransfer?: (device: OperatorDevice) => void;
   onDelete?: (device: OperatorDevice) => void;
 }
 
@@ -90,6 +96,7 @@ export function DevicesTable({
   devices,
   showSchool = false,
   onSetKey,
+  onTransfer,
   onDelete,
 }: Readonly<DevicesTableProps>) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -190,39 +197,48 @@ export function DevicesTable({
       },
     );
 
-    if (onSetKey || onDelete) {
+    if (onSetKey || onTransfer || onDelete) {
       cols.push({
         key: "actions",
         header: "Aktionen",
-        render: (row) => (
-          <div className="flex items-center gap-2">
-            {onSetKey && (
-              <button
-                type="button"
-                onClick={() => onSetKey(row)}
-                className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-                title="API-Key ändern"
-              >
-                Key ändern
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                onClick={() => onDelete(row)}
-                className="rounded-lg border border-[#FF3130]/20 px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 hover:text-[#FF3130]"
-                title="Gerät löschen"
-              >
-                Löschen
-              </button>
-            )}
-          </div>
-        ),
+        render: (row) => {
+          const items: OverflowMenuEntry[] = [];
+          if (onTransfer) {
+            items.push({
+              label: "Schule wechseln",
+              icon: <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />,
+              onClick: () => onTransfer(row),
+            });
+          }
+          if (onSetKey) {
+            items.push({
+              label: "API-Key ändern",
+              icon: <KeyRound className="h-4 w-4" aria-hidden="true" />,
+              onClick: () => onSetKey(row),
+            });
+          }
+          if (onDelete) {
+            if (items.length > 0) items.push({ kind: "separator" });
+            items.push({
+              label: "Löschen",
+              icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+              destructive: true,
+              onClick: () => onDelete(row),
+            });
+          }
+          return (
+            <OverflowMenu
+              items={items}
+              triggerSize="sm"
+              ariaLabel={`Aktionen für ${row.name || row.deviceId}`}
+            />
+          );
+        },
       });
     }
 
     return cols;
-  }, [showSchool, onSetKey, onDelete, copiedId, handleCopyApiKey]);
+  }, [showSchool, onSetKey, onTransfer, onDelete, copiedId, handleCopyApiKey]);
 
   return (
     <DataTable

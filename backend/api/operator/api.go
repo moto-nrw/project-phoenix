@@ -267,6 +267,8 @@ func (rs *Resource) mountProvisioningRoutes(r chi.Router) {
 		r.Get("/", rs.provisioningResource.ListAllDevices)
 		r.Post("/", rs.provisioningResource.CreateDevice)
 		r.Post("/{id}/set-api-key", rs.provisioningResource.SetDeviceAPIKey)
+		r.Get("/{id}/transfer-status", rs.provisioningResource.GetDeviceTransferStatus)
+		r.Post("/{id}/transfer", rs.provisioningResource.TransferDevice)
 		r.Delete("/{id}", rs.provisioningResource.DeleteDevice)
 	})
 

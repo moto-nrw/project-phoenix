@@ -1916,6 +1916,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRepo:           repos.Account,
 		TeacherRepo:           repos.Teacher,
 		GroupSupervisorRepo:   repos.GroupSupervisor,
+		ActiveGroupRepo:       repos.ActiveGroup,
+		Settings:              settingsService,
 		InvitationService:     invitationService,
 		AuthService:           authService,
 		AuditLogRepo:          repos.OperatorAuditLog,

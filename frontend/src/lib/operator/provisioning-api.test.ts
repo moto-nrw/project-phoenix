@@ -623,6 +623,60 @@ describe("OperatorProvisioningService", () => {
     });
   });
 
+  describe("device transfer", () => {
+    it("loads and maps transfer blockers", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        can_transfer: false,
+        is_online: true,
+        last_seen: NOW,
+        active_session: {
+          id: 77,
+          started_at: NOW,
+          activity_name: "Mensa",
+          room_name: "Speisesaal",
+        },
+      });
+
+      const result =
+        await operatorProvisioningService.getDeviceTransferStatus("1/unsafe");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/devices/1%2Funsafe/transfer-status",
+      );
+      expect(result).toEqual({
+        canTransfer: false,
+        isOnline: true,
+        lastSeen: NOW,
+        activeSession: {
+          id: "77",
+          startedAt: NOW,
+          activityName: "Mensa",
+          roomName: "Speisesaal",
+        },
+      });
+    });
+
+    it("posts the numeric target school and maps the transferred device", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        ...mockBackendDevice,
+        school_id: 20,
+        school_name: "Walbach",
+      });
+
+      const result = await operatorProvisioningService.transferDevice(
+        "1/unsafe",
+        "20",
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/devices/1%2Funsafe/transfer",
+        { method: "POST", body: { target_school_id: 20 } },
+      );
+      expect(result.schoolId).toBe("20");
+      expect(result.schoolName).toBe("Walbach");
+    });
+  });
+
   describe("createSchoolAccount", () => {
     const mockAccountData = {
       email: "new@school.de",

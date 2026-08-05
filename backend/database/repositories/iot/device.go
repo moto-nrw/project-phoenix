@@ -17,6 +17,7 @@ const (
 	tableIoTDevices    = "iot.devices"
 	whereDeviceIDEqual = "device_id = ?"
 	whereStatusEqual   = "status = ?"
+	whereNotArchived   = `"device".archived_at IS NULL`
 )
 
 // DeviceRepository implements iot.DeviceRepository interface
@@ -45,7 +46,8 @@ func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.D
 		ColumnExpr(`"device".*`).
 		ColumnExpr(`"room".name AS room_name`).
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
-		Where(`"device".id = ?`, id)
+		Where(`"device".id = ?`, id).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -60,6 +62,25 @@ func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.D
 	return device, nil
 }
 
+// FindByIDForUpdate retrieves and locks a current device for a transfer.
+// The archived predicate is re-evaluated after a concurrent row lock wait, so
+// at most one transfer can archive a source device.
+func (r *DeviceRepository) FindByIDForUpdate(ctx context.Context, id int64) (*iot.Device, error) {
+	device := new(iot.Device)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(device).
+		ModelTableExpr(`iot.devices AS "device"`).
+		ColumnExpr(`"device".*`).
+		Where(`"device".id = ?`, id).
+		Where(whereNotArchived).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "device")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
+	}
+	return device, nil
+}
+
 // FindByDeviceID retrieves a device by its deviceID
 func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	device := new(iot.Device)
@@ -69,7 +90,8 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 		ColumnExpr(`"device".*`).
 		ColumnExpr(`"room".name AS room_name`).
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
-		Where(whereDeviceIDEqual, deviceID)
+		Where(whereDeviceIDEqual, deviceID).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -91,7 +113,8 @@ func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*io
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("api_key = ?", apiKey)
+		Where("api_key = ?", apiKey).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -113,7 +136,8 @@ func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("device_type = ?", deviceType)
+		Where("device_type = ?", deviceType).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -135,7 +159,8 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, status)
+		Where(whereStatusEqual, status).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -157,7 +182,8 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("registered_by_id = ?", personID)
+		Where("registered_by_id = ?", personID).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -213,7 +239,8 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set(whereStatusEqual, status).
-		Where(whereDeviceIDEqual, deviceID)
+		Where(whereDeviceIDEqual, deviceID).
+		Where("archived_at IS NULL")
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -239,7 +266,8 @@ func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime)
+		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -267,7 +295,8 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Column("device_type").
-		ColumnExpr("COUNT(*) AS count")
+		ColumnExpr("COUNT(*) AS count").
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 
@@ -300,7 +329,8 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 		ModelTableExpr(`iot.devices AS "device"`).
 		ColumnExpr(`"device".*`).
 		ColumnExpr(`"room".name AS room_name`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`)
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
+		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
 

@@ -98,6 +98,39 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 	})
 }
 
+func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	scope := testpkg.NewTenantScope(t, db)
+	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
+	repo := repositories.NewFactory(db).Device
+	ctx := testpkg.TenantContext(scope.TenantID)
+	deviceID := fmt.Sprintf("transfer-history-%d", time.Now().UnixNano())
+	apiKey := fmt.Sprintf("transfer-key-%d", time.Now().UnixNano())
+	source := &iot.Device{DeviceID: deviceID, DeviceType: "terminal", Status: iot.DeviceStatusInactive, APIKey: &apiKey}
+	require.NoError(t, repo.Create(ctx, source))
+	defer testpkg.CleanupTableRecords(t, db, "iot.devices", source.ID)
+
+	_, err := db.NewRaw(`UPDATE iot.devices SET archived_at = NOW(), api_key = NULL WHERE id = ?`, source.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = repo.FindByID(ctx, source.ID)
+	require.Error(t, err)
+	_, err = repo.FindByDeviceID(ctx, deviceID)
+	require.Error(t, err)
+	_, err = repo.FindByAPIKey(ctx, apiKey)
+	require.Error(t, err)
+	_, err = repo.FindByIDForUpdate(ctx, source.ID)
+	require.Error(t, err)
+
+	target := &iot.Device{DeviceID: deviceID, DeviceType: "terminal", Status: iot.DeviceStatusActive}
+	require.NoError(t, repo.Create(ctx, target), "an archived row must not reserve the current tenant/device identity")
+	defer testpkg.CleanupTableRecords(t, db, "iot.devices", target.ID)
+	found, err := repo.FindByDeviceID(ctx, deviceID)
+	require.NoError(t, err)
+	assert.Equal(t, target.ID, found.ID)
+}
+
 func TestDeviceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

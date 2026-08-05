@@ -112,6 +112,9 @@ func (s *internalDeviceRepoStub) FindByID(ctx context.Context, id interface{}) (
 	}
 	return nil, nil
 }
+func (s *internalDeviceRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*iotModels.Device, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalDeviceRepoStub) Update(ctx context.Context, device *iotModels.Device) error {
 	if s.updateFn != nil {
 		return s.updateFn(ctx, device)
@@ -291,10 +294,10 @@ func TestNormalizeAdminInviteRequest(t *testing.T) {
 }
 
 func TestIsSchoolLookupNotFound(t *testing.T) {
-	assert.True(t, isSchoolLookupNotFound(sql.ErrNoRows))
-	assert.True(t, isSchoolLookupNotFound(&modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}))
-	assert.False(t, isSchoolLookupNotFound(assert.AnError))
-	assert.False(t, isSchoolLookupNotFound(nil))
+	assert.True(t, isLookupNotFound(sql.ErrNoRows))
+	assert.True(t, isLookupNotFound(&modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}))
+	assert.False(t, isLookupNotFound(assert.AnError))
+	assert.False(t, isLookupNotFound(nil))
 }
 
 func TestMapSchoolCreateConflict_NilSchool(t *testing.T) {
@@ -1038,12 +1041,12 @@ func TestWithAdminTx_ExistingTxInContext(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// isSchoolLookupNotFound — DatabaseError with non-ErrNoRows
+// isLookupNotFound — DatabaseError with non-ErrNoRows
 // ---------------------------------------------------------------------------
 
 func TestIsSchoolLookupNotFound_DatabaseErrorNonNoRows(t *testing.T) {
 	err := &modelBase.DatabaseError{Op: "find", Err: assert.AnError}
-	assert.False(t, isSchoolLookupNotFound(err))
+	assert.False(t, isLookupNotFound(err))
 }
 
 // ---------------------------------------------------------------------------

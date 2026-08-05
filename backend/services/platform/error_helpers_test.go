@@ -104,10 +104,10 @@ func TestIsForeignKeyViolation(t *testing.T) {
 }
 
 // ============================================================================
-// isSchoolLookupNotFound — additional edge case
+// isLookupNotFound — additional edge case
 // ============================================================================
 
 func TestIsSchoolLookupNotFound_DatabaseErrorWithOtherError(t *testing.T) {
 	err := &modelBase.DatabaseError{Op: "find school", Err: errors.New("connection refused")}
-	assert.False(t, isSchoolLookupNotFound(err))
+	assert.False(t, isLookupNotFound(err))
 }
