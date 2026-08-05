@@ -8,7 +8,14 @@ import {
   useState,
 } from "react";
 import { useSWRConfig } from "swr";
-import { CalendarClock, Clock3, Thermometer, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  Clock3,
+  Pencil,
+  Thermometer,
+  Trash2,
+} from "lucide-react";
 
 import {
   DenyAbsenceModal,
@@ -33,8 +40,12 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatCard, type StatCardTone } from "~/components/ui/stat-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -377,14 +388,9 @@ export function AbwesenheitenTab({
       />
 
       {/* Upcoming approved absences */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Kommende Abwesenheiten
-        </h3>
+      <SectionCard title="Kommende Abwesenheiten" headingLevel={3}>
         {upcoming.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">
-            Keine geplanten Abwesenheiten.
-          </p>
+          <EmptyState title="Keine geplanten Abwesenheiten." />
         ) : (
           <ul className="space-y-2">
             {upcoming.map((row) => (
@@ -400,17 +406,12 @@ export function AbwesenheitenTab({
             ))}
           </ul>
         )}
-      </div>
+      </SectionCard>
 
       {/* Past history */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Historie {year}
-        </h3>
+      <SectionCard title={`Historie ${year}`} headingLevel={3}>
         {history.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">
-            Keine vergangenen oder abgelehnten Abwesenheiten.
-          </p>
+          <EmptyState title="Keine vergangenen oder abgelehnten Abwesenheiten." />
         ) : (
           <ul className="space-y-2">
             {history.slice(0, 20).map((row) => (
@@ -426,7 +427,7 @@ export function AbwesenheitenTab({
             ))}
           </ul>
         )}
-      </div>
+      </SectionCard>
 
       {/* Modals */}
       {sickStaff && (
@@ -614,27 +615,15 @@ function PendingAbsences({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
+      <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-5 py-4 shadow-sm">
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
+          <Check className="h-4 w-4" aria-hidden />
         </span>
         <div>
           <p className="text-sm font-medium text-gray-700">
             Keine offenen Anfragen
           </p>
-          <p className="text-xs text-gray-400">Alles bearbeitet.</p>
+          <p className="text-xs text-gray-500">Alles bearbeitet.</p>
         </div>
       </div>
     );
@@ -643,12 +632,10 @@ function PendingAbsences({
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-center gap-2">
-        <h3 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+        <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
           Eingehende Anfragen
         </h3>
-        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-          {rows.length}
-        </span>
+        <StatusBadge tone="red" label={String(rows.length)} />
       </div>
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
@@ -682,45 +669,33 @@ function QuotaTile({
   readonly tone: "primary" | "success" | "amber" | "muted";
   readonly onEdit?: () => void;
 }) {
-  const valueClass = {
-    primary: "text-gray-900",
-    success: "text-[#70b525]",
-    amber: "text-amber-600",
-    muted: "text-gray-400",
-  }[tone];
+  const cardTone = {
+    primary: "gray",
+    success: "green",
+    amber: "orange",
+    muted: "gray",
+  }[tone] as StatCardTone;
   return (
-    <div className="relative rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-      <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-        {label}
-      </p>
-      <p className={`mt-1 text-2xl font-bold tabular-nums ${valueClass}`}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-xs text-gray-400">{hint}</p>
-      {onEdit && (
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label="Urlaubsanspruch bearbeiten"
-          title="Urlaubsanspruch bearbeiten"
-          className="absolute top-2 right-2 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-        >
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+    <StatCard
+      label={label}
+      value={value}
+      hint={hint}
+      tone={cardTone}
+      action={
+        onEdit ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onEdit}
+            aria-label="Urlaubsanspruch bearbeiten"
+            title="Urlaubsanspruch bearbeiten"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-            />
-          </svg>
-        </button>
-      )}
-    </div>
+            <Pencil className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -784,15 +759,16 @@ function AbsenceRow({
       <div className="flex items-center gap-2">
         <StatusDotBadge label={meta.label} color={meta.color} />
         {canDelete && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onDelete}
             aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
             title={`${absenceTypeLabel(row.absence_type)} löschen`}
-            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
           >
             <Trash2 className="h-4 w-4" aria-hidden />
-          </button>
+          </Button>
         )}
       </div>
     </li>
@@ -1136,22 +1112,24 @@ function EditQuotaModal({
       title={`Urlaubsanspruch ${year} bearbeiten`}
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="md"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="primary"
+            size="md"
             onClick={handleSubmit}
             disabled={submitting}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
           >
             {submitting ? "…" : "Speichern"}
-          </button>
+          </Button>
         </div>
       }
     >

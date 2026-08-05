@@ -13,9 +13,12 @@ import {
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { Avatar } from "~/components/ui/avatar";
+import { EmptyState } from "~/components/ui/empty-state";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
   OverflowMenu,
@@ -43,7 +46,6 @@ function StaffHeader({
 }) {
   const locationStatus = getStaffLocationStatus(staff);
   const displayType = getStaffDisplayType(staff);
-  const initials = getInitials(`${staff.firstName} ${staff.lastName}`);
   const employmentLabel = staff.employmentType
     ? (employmentTypeLabels[staff.employmentType] ?? staff.employmentType)
     : null;
@@ -58,10 +60,13 @@ function StaffHeader({
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 flex-1 items-start gap-4">
-        {/* Avatar - solid neutral gray, status is shown in badge */}
-        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-base font-semibold text-gray-600 sm:h-16 sm:w-16 sm:text-lg">
-          {initials}
-        </div>
+        {/* Kit avatar: initials fallback in the brand-green tint. The name is
+            rendered right next to it, so the avatar is decorative. */}
+        <Avatar
+          name={`${staff.firstName} ${staff.lastName}`}
+          size="lg"
+          decorative
+        />
 
         {/* Eyebrow + Name + Subheading + meta */}
         <div className="min-w-0 flex-1">
@@ -86,17 +91,15 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
+        {/* Kein Glow, kein Pulsieren — dieselbe Entscheidung wie auf den
+            Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
+            (LOCATION_COLORS über getStaffLocationStatus), deshalb
+            StatusDotBadge und nicht StatusBadge. */}
         {!staff.isLimitedProfile ? (
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
-            style={{
-              backgroundColor: locationStatus.customBgColor,
-              boxShadow: locationStatus.customShadow,
-            }}
-          >
-            <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
-            {locationStatus.label}
-          </span>
+          <StatusDotBadge
+            label={locationStatus.label}
+            color={locationStatus.customBgColor}
+          />
         ) : null}
         {menu}
       </div>
@@ -201,11 +204,10 @@ export default function StaffDetailContent() {
 
   if (error || !staff) {
     return (
-      <div className="py-12 text-center">
-        <p className="text-gray-500">
-          Mitarbeiter konnte nicht geladen werden.
-        </p>
-      </div>
+      <EmptyState
+        title="Mitarbeiter konnte nicht geladen werden."
+        description="Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr."
+      />
     );
   }
 
@@ -264,9 +266,10 @@ export default function StaffDetailContent() {
               <span className="inline-flex items-center gap-1.5">
                 Abwesenheiten
                 {pendingCount > 0 && (
-                  <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                    {pendingCount > 99 ? "99+" : pendingCount}
-                  </span>
+                  <StatusBadge
+                    tone="red"
+                    label={pendingCount > 99 ? "99+" : String(pendingCount)}
+                  />
                 )}
               </span>
             </TabsTrigger>
