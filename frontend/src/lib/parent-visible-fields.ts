@@ -45,5 +45,3 @@ export const PARENT_VISIBLE_HINTS = {
   guardianPermissions:
     "Andere Erziehungsberechtigte dieses Kindes sehen im Elternportal, wer abholberechtigt und wer Notfallkontakt ist.",
 } as const;
-
-export type ParentVisibleHintKey = keyof typeof PARENT_VISIBLE_HINTS;
