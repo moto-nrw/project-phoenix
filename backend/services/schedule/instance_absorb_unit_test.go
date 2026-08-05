@@ -87,7 +87,10 @@ func (r *absorbVisitRepo) FindByActiveGroupID(_ context.Context, groupID int64) 
 
 type absorbInstanceStudentRepo struct {
 	scheduleModel.InstanceStudentRepository
-	updates []absorbedAttendanceUpdate
+	unplannedStudentID int64
+	updates            []absorbedAttendanceUpdate
+	lookups            []absorbedAttendanceUpdate
+	creates            []absorbedAttendanceUpdate
 }
 
 type absorbedAttendanceUpdate struct {
@@ -104,7 +107,28 @@ func (r *absorbInstanceStudentRepo) UpdateAttendanceFromCheckin(
 		studentID:  studentID,
 		checkedIn:  checkedIn,
 	})
-	return true, nil
+	return studentID != r.unplannedStudentID, nil
+}
+
+func (r *absorbInstanceStudentRepo) FindByInstanceAndStudent(
+	_ context.Context, instanceID, studentID int64,
+) (*scheduleModel.InstanceStudent, error) {
+	r.lookups = append(r.lookups, absorbedAttendanceUpdate{
+		instanceID: instanceID,
+		studentID:  studentID,
+	})
+	return nil, nil
+}
+
+func (r *absorbInstanceStudentRepo) CreateUnplannedPresentIfAbsent(
+	_ context.Context, instanceID, studentID int64, checkedIn time.Time,
+) (*scheduleModel.InstanceStudent, error) {
+	r.creates = append(r.creates, absorbedAttendanceUpdate{
+		instanceID: instanceID,
+		studentID:  studentID,
+		checkedIn:  checkedIn,
+	})
+	return &scheduleModel.InstanceStudent{}, nil
 }
 
 // A started instance absorbs open sessions WITHOUT active supervisors in its
@@ -112,9 +136,10 @@ func (r *absorbInstanceStudentRepo) UpdateAttendanceFromCheckin(
 // supervised parallel sessions alone (#2161, sanctioned pattern per #2139).
 func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	const (
-		instanceID = int64(9)
-		newGroupID = int64(10)
-		studentID  = int64(21)
+		instanceID         int64 = 9
+		newGroupID               = int64(10)
+		studentID                = int64(21)
+		unplannedStudentID       = int64(22)
 	)
 
 	now := time.Now()
@@ -134,12 +159,19 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		12: {{StaffID: 7, GroupID: 12}},
 	}}
 	entryTime := now.Add(-15 * time.Minute)
-	visitRepo := &absorbVisitRepo{visits: []*activeModel.Visit{{
-		StudentID:     studentID,
-		ActiveGroupID: unsupervised.ID,
-		EntryTime:     entryTime,
-	}}}
-	instanceStudents := &absorbInstanceStudentRepo{}
+	visitRepo := &absorbVisitRepo{visits: []*activeModel.Visit{
+		{
+			StudentID:     studentID,
+			ActiveGroupID: unsupervised.ID,
+			EntryTime:     entryTime,
+		},
+		{
+			StudentID:     unplannedStudentID,
+			ActiveGroupID: unsupervised.ID,
+			EntryTime:     entryTime,
+		},
+	}}
+	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
 	instanceRepo := &absorbInstanceRepo{byGroup: map[int64]*scheduleModel.ActivityInstance{
 		13: {
 			Date:          timezone.TodayDate(),
@@ -167,5 +199,18 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		instanceID: instanceID,
 		studentID:  studentID,
 		checkedIn:  entryTime,
+	}, {
+		instanceID: instanceID,
+		studentID:  unplannedStudentID,
+		checkedIn:  entryTime,
 	}}, instanceStudents.updates, "absorbed visit is mirrored into the planned attendance row")
+	assert.Equal(t, []absorbedAttendanceUpdate{{
+		instanceID: instanceID,
+		studentID:  unplannedStudentID,
+	}}, instanceStudents.lookups, "missing planned attendance is confirmed before inserting")
+	assert.Equal(t, []absorbedAttendanceUpdate{{
+		instanceID: instanceID,
+		studentID:  unplannedStudentID,
+		checkedIn:  entryTime,
+	}}, instanceStudents.creates, "unplanned absorbed student gets a present attendance row")
 }
