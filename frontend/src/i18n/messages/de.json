@@ -167,7 +167,6 @@
     "masterDataTitle": "Stammdaten",
     "masterDataDescription": "Die wichtigsten Angaben zu Kind und Betreuung.",
     "guardians": {
-      "eyebrow": "Abholung & Kontakt",
       "title": "Abholberechtigte & Kontakte",
       "description": "Erziehungsberechtigte und Personen, die Ihr Kind abholen dürfen.",
       "loadError": "Kontakte konnten nicht geladen werden.",

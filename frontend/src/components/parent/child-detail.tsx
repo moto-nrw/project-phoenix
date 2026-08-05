@@ -326,6 +326,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
               eyebrow={t("masterDataEyebrow")}
               title={t("masterDataTitle")}
               description={t("masterDataDescription")}
+              concept="children"
             />
             {care.features.has_open_change_request && (
               <div className="mt-3">
@@ -710,6 +711,7 @@ function ChildMessagesPanel({
           eyebrow={t("messages.eyebrow")}
           title={t("messages.title")}
           description={t("messages.description")}
+          concept="parentConversations"
         />
         {!composeDisabled && (
           <Button

@@ -167,7 +167,6 @@
     "masterDataTitle": "Master data",
     "masterDataDescription": "The most important details about child and care.",
     "guardians": {
-      "eyebrow": "Pickup & contact",
       "title": "Pickup permissions & contacts",
       "description": "Legal guardians and people who may pick up your child.",
       "loadError": "Contacts could not be loaded.",

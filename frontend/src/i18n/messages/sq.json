@@ -167,7 +167,6 @@
     "masterDataTitle": "Të dhënat bazë",
     "masterDataDescription": "Të dhënat më të rëndësishme për fëmijën dhe përkujdesjen.",
     "guardians": {
-      "eyebrow": "Marrja dhe kontakti",
       "title": "Të autorizuar për marrje dhe kontakte",
       "description": "Kujdestarë ligjorë dhe persona që mund ta marrin fëmijën tuaj.",
       "loadError": "Kontaktet nuk mund të ngarkoheshin.",
