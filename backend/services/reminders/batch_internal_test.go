@@ -838,6 +838,9 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 // two answers to one question start drifting apart.
 func TestBatchReportsPersonalAssignments(t *testing.T) {
 	nowMin := minutesOfDay(timezone.Now())
+	if nowMin < 60 || nowMin > 1380 {
+		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
+	}
 	start := nowMin + 5
 
 	w := newWorld()
