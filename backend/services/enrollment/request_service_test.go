@@ -374,6 +374,94 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 		"an edited contact email must not borrow another guardian's renewal permission")
 }
 
+func withLateInviteRenewalFixture(
+	t *testing.T,
+	test func(
+		env *requestTestEnv,
+		svc enrollmentService.RequestService,
+		result *enrollmentService.SubmitResult,
+		submission enrollmentService.SubmitRequest,
+		authorizer *recordingGuardianAuthorizer,
+	),
+) {
+	t.Helper()
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repos := repositories.NewFactory(env.db)
+
+	submission := validSubmission(env.phaseID)
+	student := testpkg.CreateTestStudent(t, env.db, submission.Children[0].FirstName, submission.Children[0].LastName, "1a")
+	defer func() {
+		_, err := env.db.NewDelete().
+			TableExpr("enrollment.late_invites").
+			Where("phase_id = ?", env.phaseID).
+			Exec(context.Background())
+		assert.NoError(t, err)
+		_, err = env.db.NewDelete().
+			TableExpr("enrollment.requests").
+			Where("phase_id = ?", env.phaseID).
+			Exec(context.Background())
+		assert.NoError(t, err)
+		testpkg.CleanupTableRecords(t, env.db, "users.students", student.ID)
+		testpkg.CleanupTableRecords(t, env.db, "users.persons", student.PersonID)
+	}()
+	_, err := env.db.NewUpdate().
+		TableExpr(`users.persons`).
+		Set("birthday = ?", submission.Children[0].DateOfBirth).
+		Where("id = ?", student.PersonID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		TableExpr(`enrollment.phases`).
+		Set("audience = ?", enrollmentModels.PhaseAudienceExistingStudents).
+		Where("id = ?", env.phaseID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	const inviteEmail = "renewal-invited@example.test"
+	authorizer := &recordingGuardianAuthorizer{grantedEmail: inviteEmail}
+	config := env.config
+	config.LateInviteRepo = repos.LateInvite
+	config.StudentRepo = repos.Student
+	config.GuardianAuthorizer = authorizer
+	svc := enrollmentService.NewRequestService(config)
+	created, err := svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
+		PhaseID:       env.phaseID,
+		GuardianEmail: inviteEmail,
+		CreatedBy:     env.creatorID,
+	})
+	require.NoError(t, err)
+
+	submission.GuardianEmail = "corrected-contact@example.test"
+	submission.LateInviteToken = created.Token
+	result, err := svc.Submit(ctx, submission)
+	require.NoError(t, err)
+	require.NotNil(t, result.Request)
+	require.Len(t, result.Children, 1)
+	assert.Equal(t, inviteEmail, authorizer.email)
+	assert.Equal(t, submission.GuardianEmail, result.Request.GuardianEmail)
+
+	test(env, svc, result, submission, authorizer)
+}
+
+func TestRequestService_ReplaceEditableLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
+	withLateInviteRenewalFixture(t, func(
+		_ *requestTestEnv,
+		svc enrollmentService.RequestService,
+		result *enrollmentService.SubmitResult,
+		submission enrollmentService.SubmitRequest,
+		authorizer *recordingGuardianAuthorizer,
+	) {
+		authorizer.email = ""
+		updated, err := svc.ReplaceEditable(testpkg.TenantContext(1), result.Request.StatusToken, submission)
+
+		require.NoError(t, err)
+		assert.Equal(t, authorizer.grantedEmail, authorizer.email)
+		assert.Equal(t, submission.GuardianEmail, updated.Request.GuardianEmail)
+	})
+}
+
 // --- Submit ---
 
 // TestRequestService_Submit_RejectsCrossTenantPhase proves a phase_id from

@@ -2389,9 +2389,18 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				}
 				// Authorized against the PERSISTED request's identity, so an edit
 				// cannot re-point the pin at a child the request's guardian holds no
-				// re-enrollment permission on (#1663).
+				// re-enrollment permission on. For an accountless late invite that
+				// identity is the invite recipient, not the corrected contact email
+				// stored on the request (#1663, #2164).
+				reEnrollSubmitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
+				if matchedStudentID != nil {
+					reEnrollSubmitter, err = reEnrollmentSubmitterForPersistedRequest(txCtx, s.LateInviteRepo, req)
+					if err != nil {
+						return fmt.Errorf("edit replace: resolve re-enrollment identity: %w", err)
+					}
+				}
 				if err := s.assertGuardianMayReEnrollStudent(txCtx,
-					reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+					reEnrollSubmitter,
 					matchedStudentID, req.TenantID, i); err != nil {
 					return err
 				}
@@ -3947,6 +3956,34 @@ func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64,
 		GuardianEmail:     strings.ToLower(strings.TrimSpace(guardianEmail)),
 		AdminManaged:      normalizedSubmissionSource(submissionSource) == enrollmentModels.RequestSourceAdminManual,
 	}
+}
+
+// reEnrollmentSubmitterForPersistedRequest restores the security identity of a
+// stored request. An accountless late-invite request may contain a corrected
+// contact email, so later re-authorization must reload the address the school
+// issued the invite to. Falling back to request.guardian_email would either let
+// an edit borrow another guardian's permission or reject a valid renewal whose
+// corrected address has no pre-existing relationship.
+func reEnrollmentSubmitterForPersistedRequest(
+	ctx context.Context,
+	lateInvites enrollmentModels.LateInviteRepository,
+	req *enrollmentModels.Request,
+) (reEnrollmentSubmitter, error) {
+	if req == nil {
+		return reEnrollmentSubmitter{}, errors.New("request is required")
+	}
+	email := req.GuardianEmail
+	if req.GuardianAccountID == nil && normalizedSubmissionSource(req.SubmissionSource) == enrollmentModels.RequestSourceLateInvite {
+		if lateInvites == nil {
+			return reEnrollmentSubmitter{}, errors.New("late invite repository is not configured")
+		}
+		invite, err := lateInvites.FindByUsedRequestID(ctx, req.ID)
+		if err != nil {
+			return reEnrollmentSubmitter{}, fmt.Errorf("load late invite for request %d: %w", req.ID, err)
+		}
+		email = invite.GuardianEmail
+	}
+	return reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, email), nil
 }
 
 // assertGuardianMayReEnrollStudent enforces the per-child authorization gate for
