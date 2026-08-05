@@ -56,9 +56,10 @@ export function ParentVisibleBadge({
 }
 
 /**
- * The one-line explanation that turns the markers above into a rule. Renders a
- * live marker so the icon-only form needs no separate key, and names the
- * child's address because that is the field schools ask about most.
+ * The key for the markers above. Two jobs, one line: it labels the icon-only
+ * field marker (which shows the eye without the words), and it states the
+ * inverse, which the markers alone can only imply. What the marker means is
+ * already in its own text, so the legend does not repeat it.
  */
 export function ParentVisibilityLegend({
   className,
@@ -67,9 +68,8 @@ export function ParentVisibilityLegend({
     // Inline flow rather than flex, so a narrow container wraps the sentence
     // around the marker instead of stranding it on a line of its own.
     <p className={cn("text-xs leading-relaxed text-gray-500", className)}>
-      <ParentVisibleBadge className="mr-1" />
-      kennzeichnet Angaben, die Erziehungsberechtigte im Elternportal sehen.
-      Alle übrigen Angaben, auch die Adresse des Kindes, bleiben intern.
+      <ParentVisibleBadge className="mr-1.5" />
+      Nicht gekennzeichnete Angaben bleiben intern.
     </p>
   );
 }

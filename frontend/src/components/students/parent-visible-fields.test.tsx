@@ -44,11 +44,11 @@ describe("Für-Eltern-sichtbar Kennzeichnung", () => {
     }
   });
 
-  it("explains in the legend that everything else stays internal", () => {
+  it("states the inverse in the legend, which the markers only imply", () => {
     renderPersonalInfo();
 
     expect(
-      screen.getByText(/Adresse des Kindes, bleiben intern/),
+      screen.getByText(/Nicht gekennzeichnete Angaben bleiben intern/),
     ).toBeInTheDocument();
   });
 

@@ -210,7 +210,12 @@ export function RelationshipPermissionsFields({
             </span>
           </div>
         </label>
-        <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.guardianPermissions} />
+        {/* This badge sits at the right edge of its row, where a left-aligned
+            bubble runs off the modal. Anchor it to the right instead. */}
+        <ParentVisibleBadge
+          hint={PARENT_VISIBLE_HINTS.guardianPermissions}
+          bubbleClassName="left-auto right-0"
+        />
       </div>
     </>
   );
