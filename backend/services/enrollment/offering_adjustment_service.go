@@ -376,6 +376,22 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("%w: only approved children with a linked student can be synced", ErrOfferingAdjustmentInvalid)
 	}
 
+	// Tenant-wide gates BEFORE the first student row lock, in the project-wide
+	// class-change order (shared class-writes gate first, recurrence gate
+	// second, row locks last) — the same order the direct school_class PUT
+	// takes in acquirePreRowLockGates. Locking the row first and the
+	// recurrence gate only later (in the class-change branch below) let this
+	// sync and a concurrent direct PUT on the same child wait on each other
+	// cyclically until PostgreSQL aborted one (#2147 review round 15). The
+	// gates are taken unconditionally because whether the confirmed edit
+	// actually changes the class is only known once the row is locked.
+	if err := s.StudentRepo.LockStudentClassWritesShared(ctx); err != nil {
+		return nil, fmt.Errorf("decision: lock class writes for approved child sync: %w", err)
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
+	}
+
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
 	if err != nil || student == nil {
 		return nil, ErrDecisionStudentNotFound
@@ -415,15 +431,9 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	// a direct school_class edit or a grade transition, so the Jahrgang-
 	// filtered offering-sourced Regeltermine and their materialized future
 	// occurrences must follow in the same transaction (#2147 review round 13).
-	// Lock order is safe: the row locks above already hold the shared
-	// class-writes gate (taken inside FindByIDForUpdate/Update), which
-	// excludes a concurrently applying grade transition outright; taking the
-	// recurrence gate after the row locks matches the established order of
-	// the enrollment flows (materializeEnrollmentsFrom).
+	// The recurrence gate is already held — taken with the shared class-writes
+	// gate before the first row lock above.
 	if student.SchoolClass != previousSchoolClass {
-		if err := s.lockTemplateRecurrence(ctx); err != nil {
-			return nil, err
-		}
 		if err := s.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
 			return nil, fmt.Errorf("decision: resync sourced templates after class change: %w", err)
 		}
