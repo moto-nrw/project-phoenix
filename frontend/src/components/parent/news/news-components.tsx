@@ -222,7 +222,7 @@ export function NewsDetailModal({
             href={item.link_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-moto-blue inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2 hover:text-[#3f68b5]"
+            className="text-moto-blue hover:text-moto-blue-hover inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
           >
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{item.link_url}</span>

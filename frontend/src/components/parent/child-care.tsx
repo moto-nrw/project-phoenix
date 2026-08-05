@@ -756,7 +756,7 @@ export function SickNoteModal({
           {t("sick.daysCount", { count: dates.length })}
         </p>
         {noteRequired && excusedRequiresApproval && (
-          <p className="rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 px-3 py-2 text-sm text-[#92710b]">
+          <p className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm">
             {t("sick.approvalHint")}
           </p>
         )}
@@ -1191,7 +1191,7 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
             </p>
-            <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
+            <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.pendingLabel")}
             </span>
             {onWithdraw && r.is_self && (

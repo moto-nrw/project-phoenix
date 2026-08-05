@@ -95,7 +95,7 @@ export default function ParentNewsPage() {
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
               <MotoConceptIcon concept="news" size={22} />
             </span>
             <div className="min-w-0">

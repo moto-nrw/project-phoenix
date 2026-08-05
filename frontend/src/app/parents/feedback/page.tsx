@@ -358,7 +358,7 @@ export default function ParentFeedbackPage() {
         }}
         title={t("deleteTitle")}
         confirmText={t("delete")}
-        confirmButtonClass="bg-moto-red hover:bg-[#e02b2a]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">{t("deleteBody")}</p>

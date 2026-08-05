@@ -161,7 +161,7 @@ function EmptyChildren() {
   const t = useTranslations("parentChildren");
   return (
     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         <MotoConceptIcon concept="children" size={22} />
       </span>
       <h2 className="mt-3 text-sm font-semibold text-gray-900">
