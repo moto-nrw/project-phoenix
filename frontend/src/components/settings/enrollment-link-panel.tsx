@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 
 const logger = createLogger({ component: "EnrollmentLinkPanel" });
 
@@ -78,29 +79,12 @@ export function EnrollmentLinkPanel({ tab }: Props) {
   };
 
   return (
-    <section className="border-moto-green/40 bg-moto-green/5 rounded-2xl border p-4 sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <div className="bg-moto-green/15 rounded-lg p-1.5">
-            <svg
-              className="h-4 w-4 text-[#5a8e1f]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13.828 10.172a4 4 0 015.656 0l1.414 1.414a4 4 0 010 5.656l-3.535 3.535a4 4 0 01-5.657 0l-1.414-1.414M10.172 13.828a4 4 0 01-5.656 0l-1.414-1.414a4 4 0 010-5.657l3.535-3.535a4 4 0 015.657 0l1.414 1.414"
-              />
-            </svg>
-          </div>
-          <h3 className="text-sm font-semibold text-gray-900">
-            Anmeldelink für Eltern
-          </h3>
-        </div>
+        <ConceptSectionHeader
+          title="Anmeldelink für Eltern"
+          concept="enrollments"
+        />
         <p className="text-xs text-gray-600">
           Teile diesen Link mit Eltern, damit sie ihre Kinder anmelden können.
           Der Link ist öffentlich; ein Login ist nicht nötig.

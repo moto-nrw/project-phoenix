@@ -7,7 +7,14 @@ import {
   useEffectEvent,
   useRef,
 } from "react";
-import { ExternalLink, FileText, FileUp, Pencil, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  FileText,
+  FileUp,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -705,19 +712,7 @@ export function SettingsField({
               className="moto-content-surface inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
               title="Auf Standard zurücksetzen"
             >
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">Zurücksetzen</span>
             </button>
           )}
@@ -1109,7 +1104,7 @@ function renderAGBSourceEditor({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
                 <label
-                  className={`border-moto-blue/25 hover:bg-moto-blue/10 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors ${
+                  className={`border-moto-blue/25 hover:bg-moto-blue/10 text-moto-blue-hover inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors ${
                     !canManageDocument || documentSaving
                       ? "pointer-events-none opacity-50"
                       : ""

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BellRing } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { createLogger } from "~/lib/logger";
 import {
   isPushConfigurationMissing,
@@ -75,6 +75,29 @@ export function PushNotificationSection({
     void refresh();
   }, [refresh]);
 
+  const headerAction =
+    state === "unsubscribed" ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        onClick={() => void enable()}
+      >
+        Aktivieren
+      </Button>
+    ) : state === "subscribed" ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        onClick={() => void disable()}
+      >
+        Deaktivieren
+      </Button>
+    ) : null;
+
   const enable = async () => {
     setBusy(true);
     setError(null);
@@ -122,36 +145,12 @@ export function PushNotificationSection({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <BellRing className="h-5 w-5 text-gray-800" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-gray-900">
-            Push-Benachrichtigungen
-          </h3>
-        </div>
-        {state === "unsubscribed" && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void enable()}
-          >
-            Aktivieren
-          </Button>
-        )}
-        {state === "subscribed" && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void disable()}
-          >
-            Deaktivieren
-          </Button>
-        )}
-      </div>
+      <ConceptSectionHeader
+        className="mb-4"
+        title="Push-Benachrichtigungen"
+        concept="notifications"
+        actions={headerAction}
+      />
 
       {error && (
         <div className="mb-3">

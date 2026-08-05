@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Mail, Plus, Trash2 } from "lucide-react";
+import { Mail, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { suggestCurrentDeviceLabel } from "~/lib/device-label";
 import {
   isPasskeySupported,
@@ -124,29 +125,32 @@ export function PasskeySettingsSection({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-5 w-5 text-gray-800" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-gray-900">Passkeys</h3>
-        </div>
-        {supported && !confirmingEnrollment && !enrolling && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            disabled={busy}
-            onClick={() => {
-              setError(null);
-              setMessage(null);
-              setConfirmingEnrollment(true);
-            }}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Hinzufügen
-          </Button>
-        )}
-      </div>
+      <ConceptSectionHeader
+        className="mb-4"
+        title="Passkeys"
+        concept="permissions"
+        actions={
+          supported &&
+          !confirmingEnrollment &&
+          !enrolling && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={busy}
+              onClick={() => {
+                setError(null);
+                setMessage(null);
+                setConfirmingEnrollment(true);
+              }}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Hinzufügen
+            </Button>
+          )
+        }
+      />
 
       {!supported && (
         <p className="text-sm text-gray-600">
