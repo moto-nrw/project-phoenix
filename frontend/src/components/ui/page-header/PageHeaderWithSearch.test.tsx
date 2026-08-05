@@ -9,8 +9,10 @@ import type { PageHeaderWithSearchProps } from "./types";
 
 // Mock sub-components
 vi.mock("./PageHeader", () => ({
-  PageHeader: ({ title }: { title: string }) => (
-    <div data-testid="page-header">{title}</div>
+  PageHeader: ({ title, concept }: { title: string; concept?: string }) => (
+    <div data-testid="page-header" data-concept={concept}>
+      {title}
+    </div>
   ),
 }));
 
@@ -116,6 +118,21 @@ describe("PageHeaderWithSearch", () => {
   it("renders page header with title", () => {
     render(<PageHeaderWithSearch {...baseProps} />);
     expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
+  });
+
+  it("forwards the concept prop to the title area when set", () => {
+    render(<PageHeaderWithSearch {...baseProps} concept="staff" />);
+    expect(screen.getByTestId("page-header")).toHaveAttribute(
+      "data-concept",
+      "staff",
+    );
+  });
+
+  it("does not set a concept on the title area when omitted", () => {
+    render(<PageHeaderWithSearch {...baseProps} />);
+    expect(screen.getByTestId("page-header")).not.toHaveAttribute(
+      "data-concept",
+    );
   });
 
   it("renders search bar", () => {

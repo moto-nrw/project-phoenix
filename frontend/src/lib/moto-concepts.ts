@@ -1,6 +1,7 @@
 import {
   AddressBookIcon,
   ArrowsLeftRightIcon,
+  BellIcon,
   BookOpenIcon,
   BriefcaseIcon,
   BuildingsIcon,
@@ -365,6 +366,13 @@ export const MOTO_CONCEPTS = {
   ),
   help: concept("Hilfe", BookOpenIcon, "greenDeep", "function", "system"),
   settings: concept("Einstellungen", GearIcon, "neutral", "function", "system"),
+  notifications: concept(
+    "Benachrichtigungen",
+    BellIcon,
+    "neutral",
+    "function",
+    "system",
+  ),
 } as const satisfies Record<string, MotoConceptDefinition>;
 
 export type MotoConceptKey = keyof typeof MOTO_CONCEPTS;

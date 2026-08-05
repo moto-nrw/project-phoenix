@@ -136,4 +136,20 @@ describe("PageHeader", () => {
     const { container } = render(<PageHeader title="Test" />);
     expect(container.firstChild).toHaveClass("md:hidden");
   });
+
+  it("renders the grey concept icon tile when concept is set", () => {
+    const { container } = render(<PageHeader title="Test" concept="staff" />);
+
+    expect(
+      container.querySelector('[data-moto-duotone-tone="orange"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no concept icon tile when concept is omitted", () => {
+    const { container } = render(<PageHeader title="Test" />);
+
+    expect(
+      container.querySelector("[data-moto-duotone-tone]"),
+    ).not.toBeInTheDocument();
+  });
 });
