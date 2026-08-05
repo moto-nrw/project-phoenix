@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { Check, Loader2, Plus, X } from "lucide-react";
+import { BriefcaseIcon, UserIcon } from "@phosphor-icons/react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "@/lib/auth-helpers";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { createLogger } from "~/lib/logger";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -253,19 +256,9 @@ export function TeacherForm({
         {/* Personal Information Section */}
         <div className="bg-moto-orange/10 rounded-xl border border-gray-100 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-            <svg
-              className="text-moto-orange h-3.5 w-3.5 md:h-4 md:w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
+            <span className="flex h-3.5 w-3.5 shrink-0 md:h-4 md:w-4">
+              <MotoDuotoneIcon icon={UserIcon} tone="neutral" size="100%" />
+            </span>
             Persönliche Informationen
           </h4>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
@@ -485,19 +478,13 @@ export function TeacherForm({
         {/* Professional Information Section */}
         <div className="bg-moto-orange/10 rounded-xl border border-gray-100 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-            <svg
-              className="text-moto-orange h-3.5 w-3.5 md:h-4 md:w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            <span className="flex h-3.5 w-3.5 shrink-0 md:h-4 md:w-4">
+              <MotoDuotoneIcon
+                icon={BriefcaseIcon}
+                tone="neutral"
+                size="100%"
               />
-            </svg>
+            </span>
             Berufliche Informationen
           </h4>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
@@ -539,19 +526,7 @@ export function TeacherForm({
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
           >
             <span className="flex items-center justify-center gap-2">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="h-4 w-4" aria-hidden />
               Abbrechen
             </span>
           </button>
@@ -562,46 +537,19 @@ export function TeacherForm({
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
-                <svg
+                <Loader2
                   className="h-4 w-4 animate-spin text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+                  aria-hidden
+                />
                 Wird gespeichert...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={
-                      submitLabel === "Erstellen"
-                        ? "M12 4v16m8-8H4"
-                        : "M5 13l4 4L19 7"
-                    }
-                  />
-                </svg>
+                {submitLabel === "Erstellen" ? (
+                  <Plus className="h-4 w-4" aria-hidden />
+                ) : (
+                  <Check className="h-4 w-4" aria-hidden />
+                )}
                 {submitLabel}
               </span>
             )}

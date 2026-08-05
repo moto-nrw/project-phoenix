@@ -10,6 +10,7 @@ import {
 import { useSWRConfig } from "swr";
 import { Check, Pencil, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 
 import {
   DenyAbsenceModal,
@@ -347,9 +348,12 @@ export function AbwesenheitenTab({
 
       {/* Upcoming approved absences */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Kommende Abwesenheiten
-        </h3>
+        <div className="mb-3">
+          <ConceptSectionHeader
+            title="Kommende Abwesenheiten"
+            concept="calendar"
+          />
+        </div>
         {upcoming.length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-400">
             Keine geplanten Abwesenheiten.
@@ -373,9 +377,12 @@ export function AbwesenheitenTab({
 
       {/* Past history */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Historie {year}
-        </h3>
+        <div className="mb-3">
+          <ConceptSectionHeader
+            title={`Historie ${year}`}
+            concept="changeHistory"
+          />
+        </div>
         {history.length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-400">
             Keine vergangenen oder abgelehnten Abwesenheiten.
@@ -517,13 +524,16 @@ function PendingAbsences({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-          Eingehende Anfragen
-        </h3>
-        <span className="bg-moto-red inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white">
-          {rows.length}
-        </span>
+      <div className="mb-3">
+        <ConceptSectionHeader
+          title="Eingehende Anfragen"
+          concept="notifications"
+          actions={
+            <span className="bg-moto-red inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white">
+              {rows.length}
+            </span>
+          }
+        />
       </div>
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
