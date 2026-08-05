@@ -363,3 +363,43 @@ func TestSchulhofStatusPrefersCurrentUsersSupervisedOpenGroup(t *testing.T) {
 	require.NotNil(t, status.SupervisionID)
 	assert.Equal(t, ownedSupervision.ID, *status.SupervisionID)
 }
+
+func TestSchulhofStatusIgnoresOpenGroupsFromPreviousDays(t *testing.T) {
+	const staffID int64 = 123
+	room := &facilityModels.Room{
+		Model:    base.Model{ID: 42},
+		Name:     constants.SchulhofRoomName,
+		IsSystem: true,
+	}
+	roomID := room.ID
+	activityGroup := &activityModels.Group{
+		Model:         base.Model{ID: 77},
+		Name:          constants.SchulhofActivityName,
+		PlannedRoomID: &roomID,
+		IsSystem:      true,
+	}
+	stale := &active.Group{
+		Model:     base.Model{ID: 88},
+		RoomID:    room.ID,
+		StartTime: time.Now().AddDate(0, 0, -1),
+	}
+	activeService := &schulhofConflictActiveService{
+		findGroupsByCall: [][]*active.Group{{stale}},
+		supervisors: map[int64][]*active.GroupSupervisor{
+			stale.ID: {{GroupID: stale.ID, StaffID: staffID}},
+		},
+	}
+	service := NewSchulhofService(
+		&schulhofConflictFacilityService{room: room},
+		&schulhofConflictActivityService{group: activityGroup},
+		activeService,
+		slog.New(slog.DiscardHandler),
+	)
+
+	status, err := service.GetSchulhofStatus(context.Background(), staffID)
+
+	require.NoError(t, err)
+	assert.Nil(t, status.ActiveGroupID)
+	assert.False(t, status.IsUserSupervising)
+	assert.Zero(t, status.SupervisorCount)
+}

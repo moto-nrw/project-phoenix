@@ -456,24 +456,28 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}, nil
 }
 
-// absorbUnsupervisedOpenGroups folds open sessions without any active
-// supervisor in the given room into the freshly started bridge group: their
-// open visits move over, then the orphan session is ended. Typical case: a
-// kiosk scan into the room auto-created an unsupervised fallback session
-// (e.g. Schulhof, #2161) before the planned block started — without
-// absorption those children would sit in a session nobody supervises while
-// staff run the planned block next to it. Supervised sessions are left
-// alone: parallel supervised groups in one room are a sanctioned pattern
-// (#2139). No per-student SSE fires here; the EventInstanceStarted broadcast
-// that follows makes clients refetch.
+// absorbUnsupervisedOpenGroups folds today's unbridged sessions without an
+// active supervisor in the given room into the freshly started bridge group:
+// their open visits move over, then the orphan session is ended. Typical case:
+// a kiosk scan into the room auto-created an unsupervised fallback session
+// (e.g. Schulhof, #2161) before the planned block started. A group already
+// linked to any timetable instance is not a fallback and must retain its
+// bridge, even when the instance currently has no active supervisor. Supervised
+// sessions are also left alone: parallel supervised groups in one room are a
+// sanctioned pattern (#2139). No per-student SSE fires here; the
+// EventInstanceStarted broadcast that follows makes clients refetch.
 func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, roomID, newGroupID int64) error {
 	openGroups, err := s.deps.ActiveGroupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return fmt.Errorf("find open groups in room %d: %w", roomID, err)
 	}
 
+	today := timezone.TodayDate()
 	for _, group := range openGroups {
 		if group.ID == newGroupID {
+			continue
+		}
+		if timezone.DateFromTime(group.StartTime) != today {
 			continue
 		}
 
@@ -487,6 +491,17 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, room
 			return fmt.Errorf("lock open group %d: %w", group.ID, err)
 		}
 		if lockedGroup == nil || lockedGroup.EndTime != nil {
+			continue
+		}
+		if timezone.DateFromTime(lockedGroup.StartTime) != today {
+			continue
+		}
+
+		instance, err := s.deps.InstanceRepo.FindByActiveGroupID(ctx, group.ID)
+		if err != nil {
+			return fmt.Errorf("load timetable bridge of group %d: %w", group.ID, err)
+		}
+		if instance != nil {
 			continue
 		}
 

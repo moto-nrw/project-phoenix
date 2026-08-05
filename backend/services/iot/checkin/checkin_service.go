@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -474,11 +475,24 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 		return nil, newInternalError(checkinErrFindActiveGroups)
 	}
 
-	if len(activeGroups) > 0 {
-		return s.useExistingActiveGroup(ctx, activeGroups, room, deviceID), nil
+	currentGroups := activeGroupsStartedToday(activeGroups, timeNow())
+	if len(currentGroups) > 0 {
+		return s.useExistingActiveGroup(ctx, currentGroups, room, deviceID), nil
 	}
 
 	return s.createSpecialRoomActiveGroupIfNeeded(ctx, room, deviceID)
+}
+
+func activeGroupsStartedToday(groups []*active.Group, now time.Time) []*active.Group {
+	today := timezone.DateFromTime(now)
+	current := make([]*active.Group, 0, len(groups))
+	for _, group := range groups {
+		if group == nil || group.EndTime != nil || timezone.DateFromTime(group.StartTime) != today {
+			continue
+		}
+		current = append(current, group)
+	}
+	return current
 }
 
 // useExistingActiveGroup selects an active group in the room, preferring one

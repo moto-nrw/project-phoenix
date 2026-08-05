@@ -10,6 +10,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -125,11 +126,12 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 		return nil, fmt.Errorf("failed to look up Schulhof activity: %w", err)
 	}
 
-	// Step 3: Prefer the caller's newest supervised group, then fall back to the
-	// newest open group in the room. Planned timetable blocks, spontaneous
-	// sessions, and IoT fallback groups all count (#2161). The caller preference
-	// keeps an existing supervisor's session manageable when a later parallel
-	// session starts in the same room.
+	// Step 3: Prefer the caller's newest supervised group from today, then fall
+	// back to today's newest open group in the room. Planned timetable blocks,
+	// spontaneous sessions, and IoT fallback groups all count (#2161). The day
+	// boundary prevents a failed nightly cleanup from exposing yesterday's
+	// session as current. The caller preference keeps an existing supervisor's
+	// session manageable when a later parallel session starts in the same room.
 	activeGroup, supervisors, err := s.findPreferredOpenActiveGroup(ctx, room.ID, staffID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up open Schulhof group: %w", err)
@@ -276,8 +278,9 @@ func (s *schulhofService) findPreferredOpenActiveGroup(
 	openGroups := make([]*active.Group, 0, len(activeGroups))
 	openGroupIDs := make([]int64, 0, len(activeGroups))
 	var newestOpen *active.Group
+	today := timezone.TodayDate()
 	for _, ag := range activeGroups {
-		if ag.EndTime != nil {
+		if ag.EndTime != nil || timezone.DateFromTime(ag.StartTime) != today {
 			continue
 		}
 		openGroups = append(openGroups, ag)
