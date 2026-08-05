@@ -426,7 +426,7 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	// Fold open, supervisor-less sessions in this room into the fresh bridge
 	// group before announcing it — same tenant tx, so a failure rolls back the
 	// whole transition.
-	if err := s.absorbUnsupervisedOpenGroups(ctx, instance.RoomID, newGroup.ID); err != nil {
+	if err := s.absorbUnsupervisedOpenGroups(ctx, instance.ID, instance.RoomID, newGroup.ID); err != nil {
 		return nil, &ScheduleError{Op: "start instance: absorb unsupervised sessions", Err: err}
 	}
 
@@ -464,15 +464,17 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 // linked to any timetable instance is not a fallback and must retain its
 // bridge, even when the instance currently has no active supervisor. Supervised
 // sessions are also left alone: parallel supervised groups in one room are a
-// sanctioned pattern (#2139). No per-student SSE fires here; the
-// EventInstanceStarted broadcast that follows makes clients refetch.
-func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, roomID, newGroupID int64) error {
+// sanctioned pattern (#2139). Absorbed open visits are mirrored into the
+// target instance's attendance rows before commit. No per-student SSE fires
+// here; the EventInstanceStarted broadcast that follows makes clients refetch.
+func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, instanceID, roomID, newGroupID int64) error {
 	openGroups, err := s.deps.ActiveGroupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return fmt.Errorf("find open groups in room %d: %w", roomID, err)
 	}
 
 	today := timezone.TodayDate()
+	movedTotal := 0
 	for _, group := range openGroups {
 		if group.ID == newGroupID {
 			continue
@@ -521,6 +523,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, room
 		if err := s.deps.ActiveGroupRepo.EndSession(ctx, group.ID); err != nil {
 			return fmt.Errorf("end absorbed group %d: %w", group.ID, err)
 		}
+		movedTotal += moved
 		s.getLogger().Info("absorbed unsupervised session into started instance",
 			slog.Int64("absorbed_group_id", group.ID),
 			slog.Int64("new_group_id", newGroupID),
@@ -528,6 +531,50 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, room
 		)
 	}
 
+	if movedTotal > 0 {
+		if err := s.syncAbsorbedVisitAttendance(ctx, instanceID, newGroupID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, instanceID, activeGroupID int64) error {
+	visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, activeGroupID)
+	if err != nil {
+		return fmt.Errorf("load absorbed visits from group %d: %w", activeGroupID, err)
+	}
+
+	for _, visit := range visits {
+		if visit == nil || visit.ExitTime != nil {
+			continue
+		}
+
+		updated, err := s.deps.InstanceStudents.UpdateAttendanceFromCheckin(
+			ctx, instanceID, visit.StudentID, visit.EntryTime,
+		)
+		if err != nil {
+			return fmt.Errorf("mark absorbed student %d present: %w", visit.StudentID, err)
+		}
+		if updated {
+			continue
+		}
+
+		attendance, err := s.deps.InstanceStudents.FindByInstanceAndStudent(ctx, instanceID, visit.StudentID)
+		if err != nil {
+			return fmt.Errorf("load absorbed student %d attendance: %w", visit.StudentID, err)
+		}
+		if attendance != nil {
+			continue
+		}
+
+		if _, err := s.deps.InstanceStudents.CreateUnplannedPresentIfAbsent(
+			ctx, instanceID, visit.StudentID, visit.EntryTime,
+		); err != nil {
+			return fmt.Errorf("create absorbed student %d attendance: %w", visit.StudentID, err)
+		}
+	}
 	return nil
 }
 

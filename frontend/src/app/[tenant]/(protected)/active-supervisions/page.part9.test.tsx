@@ -613,6 +613,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
           }
         | undefined;
       const badge = p.badge as { count: number } | undefined;
+      const actionButton = p.actionButton as React.ReactNode;
 
       return (
         <div data-testid="page-header" data-count={badge?.count}>
@@ -627,6 +628,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
               {tab.label}
             </button>
           ))}
+          {actionButton}
         </div>
       );
     });
@@ -830,6 +832,75 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
         "2",
       );
     });
+    expect(
+      screen.queryByRole("button", { name: "Aufsicht abgeben" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a parallel Schulhof session visible when the permanent status is unclaimed", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "yard-parallel",
+          name: "Schulhof",
+          room_id: "yard-room",
+          room: { id: "yard-room", name: "Schulhof" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "s10",
+          studentName: "Parallel Student",
+          schoolClass: "4a",
+          groupName: "Gruppe A",
+          activeGroupId: "yard-parallel",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "yard-parallel",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: {
+        exists: true,
+        roomId: "yard-room",
+        roomName: "Schulhof",
+        activityGroupId: "yard-activity",
+        activeGroupId: "yard-primary",
+        isUserSupervising: false,
+        supervisionId: null,
+        supervisorCount: 0,
+        studentCount: 9,
+        supervisors: [],
+      },
+    };
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Parallel Student")).toBeInTheDocument();
+    expect(screen.getByTestId("page-header")).toHaveAttribute(
+      "data-count",
+      "1",
+    );
   });
 
   it("handles 403 error from loadRoomVisits gracefully when switching rooms", async () => {

@@ -50,8 +50,8 @@ func (r *absorbSupervisorRepo) FindByActiveGroupID(_ context.Context, groupID in
 
 type absorbVisitRepo struct {
 	activeModel.VisitRepository
-	transferCounts map[int64]int
-	transfers      [][2]int64
+	visits    []*activeModel.Visit
+	transfers [][2]int64
 }
 
 type absorbInstanceRepo struct {
@@ -65,14 +65,57 @@ func (r *absorbInstanceRepo) FindByActiveGroupID(_ context.Context, groupID int6
 
 func (r *absorbVisitRepo) TransferActiveVisitsBetweenGroups(_ context.Context, oldGroupID, newGroupID int64) (int, error) {
 	r.transfers = append(r.transfers, [2]int64{oldGroupID, newGroupID})
-	return r.transferCounts[oldGroupID], nil
+	moved := 0
+	for _, visit := range r.visits {
+		if visit.ActiveGroupID == oldGroupID && visit.ExitTime == nil {
+			visit.ActiveGroupID = newGroupID
+			moved++
+		}
+	}
+	return moved, nil
+}
+
+func (r *absorbVisitRepo) FindByActiveGroupID(_ context.Context, groupID int64) ([]*activeModel.Visit, error) {
+	visits := make([]*activeModel.Visit, 0)
+	for _, visit := range r.visits {
+		if visit.ActiveGroupID == groupID {
+			visits = append(visits, visit)
+		}
+	}
+	return visits, nil
+}
+
+type absorbInstanceStudentRepo struct {
+	scheduleModel.InstanceStudentRepository
+	updates []absorbedAttendanceUpdate
+}
+
+type absorbedAttendanceUpdate struct {
+	instanceID int64
+	studentID  int64
+	checkedIn  time.Time
+}
+
+func (r *absorbInstanceStudentRepo) UpdateAttendanceFromCheckin(
+	_ context.Context, instanceID, studentID int64, checkedIn time.Time,
+) (bool, error) {
+	r.updates = append(r.updates, absorbedAttendanceUpdate{
+		instanceID: instanceID,
+		studentID:  studentID,
+		checkedIn:  checkedIn,
+	})
+	return true, nil
 }
 
 // A started instance absorbs open sessions WITHOUT active supervisors in its
 // room (their open visits move over, the orphan session ends) and leaves
 // supervised parallel sessions alone (#2161, sanctioned pattern per #2139).
 func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
-	const newGroupID = int64(10)
+	const (
+		instanceID = int64(9)
+		newGroupID = int64(10)
+		studentID  = int64(21)
+	)
 
 	now := time.Now()
 	newGroup := &activeModel.Group{StartTime: now}
@@ -90,7 +133,13 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*activeModel.GroupSupervisor{
 		12: {{StaffID: 7, GroupID: 12}},
 	}}
-	visitRepo := &absorbVisitRepo{transferCounts: map[int64]int{11: 1}}
+	entryTime := now.Add(-15 * time.Minute)
+	visitRepo := &absorbVisitRepo{visits: []*activeModel.Visit{{
+		StudentID:     studentID,
+		ActiveGroupID: unsupervised.ID,
+		EntryTime:     entryTime,
+	}}}
+	instanceStudents := &absorbInstanceStudentRepo{}
 	instanceRepo := &absorbInstanceRepo{byGroup: map[int64]*scheduleModel.ActivityInstance{
 		13: {
 			Date:          timezone.TodayDate(),
@@ -100,17 +149,23 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	}}
 
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:    instanceRepo,
-		ActiveGroupRepo: groupRepo,
-		SupervisorRepo:  supervisorRepo,
-		VisitRepo:       visitRepo,
-		Logger:          slog.New(slog.DiscardHandler),
+		InstanceRepo:     instanceRepo,
+		InstanceStudents: instanceStudents,
+		ActiveGroupRepo:  groupRepo,
+		SupervisorRepo:   supervisorRepo,
+		VisitRepo:        visitRepo,
+		Logger:           slog.New(slog.DiscardHandler),
 	}}
 
-	err := svc.absorbUnsupervisedOpenGroups(context.Background(), 42, newGroupID)
+	err := svc.absorbUnsupervisedOpenGroups(context.Background(), instanceID, 42, newGroupID)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{11, 12, 13}, groupRepo.lockedIDs, "only today's candidate sessions are locked")
 	assert.Equal(t, []int64{11}, groupRepo.endedIDs, "only the unbridged unsupervised session is ended")
 	assert.Equal(t, [][2]int64{{11, newGroupID}}, visitRepo.transfers, "open visits move through the conditional bulk update")
+	assert.Equal(t, []absorbedAttendanceUpdate{{
+		instanceID: instanceID,
+		studentID:  studentID,
+		checkedIn:  entryTime,
+	}}, instanceStudents.updates, "absorbed visit is mirrored into the planned attendance row")
 }

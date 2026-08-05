@@ -274,9 +274,15 @@ func (s *CheckinService) ProcessCheckout(ctx context.Context, student *users.Stu
 }
 
 // ShouldSkipCheckin reports whether check-in should be skipped (student scanned
-// the same room they are already in).
-func ShouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visit) bool {
+// the same room they are already in). A visit from a previous day's session is
+// a rollover recovery, not a same-session toggle: after checkout the scan must
+// continue into today's group.
+func ShouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visit, now time.Time) bool {
 	if roomID == nil || !checkedOut || currentVisit == nil || currentVisit.ActiveGroup == nil {
+		return false
+	}
+	if !currentVisit.ActiveGroup.StartTime.IsZero() &&
+		timezone.DateFromTime(currentVisit.ActiveGroup.StartTime) != timezone.DateFromTime(now) {
 		return false
 	}
 	return currentVisit.ActiveGroup.RoomID == *roomID
@@ -476,11 +482,6 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 	}
 
 	now := timeNow()
-	currentGroups := activeGroupsStartedToday(activeGroups, now)
-	if len(currentGroups) > 0 {
-		return s.useExistingActiveGroup(ctx, currentGroups, room, deviceID), nil
-	}
-
 	if room.Name == constants.SchulhofRoomName || constants.IsWCRoomName(room.Name) {
 		if err := s.endPreviousDayActiveGroups(ctx, activeGroups, now); err != nil {
 			s.getLogger().ErrorContext(ctx, "failed to end stale special-room session",
@@ -490,6 +491,11 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 			)
 			return nil, specialRoomCreationError(room.Name)
 		}
+	}
+
+	currentGroups := activeGroupsStartedToday(activeGroups, now)
+	if len(currentGroups) > 0 {
+		return s.useExistingActiveGroup(ctx, currentGroups, room, deviceID), nil
 	}
 
 	return s.createSpecialRoomActiveGroupIfNeeded(ctx, room, deviceID)

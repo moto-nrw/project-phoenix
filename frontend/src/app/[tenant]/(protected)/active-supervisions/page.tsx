@@ -850,10 +850,6 @@ function MeinRaumPageContent() {
     ],
   );
 
-  // True when Schulhof is the active view — either via the permanent tab flag
-  // or because the sidebar navigated with the room's actual ID (not "schulhof")
-  const isSchulhofActive =
-    isSchulhofTabSelected || currentRoom?.room_name === SCHULHOF_ROOM_NAME;
   const occupiedRoomIds = useMemo(() => {
     const ids = allRooms
       .map((room) => room.room_id)
@@ -869,7 +865,7 @@ function MeinRaumPageContent() {
 
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
-    activeSupervisionName: isSchulhofActive
+    activeSupervisionName: isSchulhofTabSelected
       ? SCHULHOF_ROOM_NAME
       : currentRoom?.room_name,
   });
@@ -2307,7 +2303,7 @@ function MeinRaumPageContent() {
               // Mobile only: Show title when exactly 1 supervision
               // 1 supervision = title, 2+ supervisions = tabs (dropdown)
               !isDesktop && totalSupervisions === 1
-                ? isSchulhofActive
+                ? isSchulhofTabSelected
                   ? SCHULHOF_ROOM_NAME
                   : (currentRoom?.room_name ?? "Aktuelle Aufsicht")
                 : ""
@@ -2403,7 +2399,7 @@ function MeinRaumPageContent() {
             actionButton={
               // Only show release button when user IS supervising Schulhof
               // "Beaufsichtigen" button is shown in the empty state instead (no duplicate)
-              isSchulhofActive && schulhofStatus?.isUserSupervising ? (
+              isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
                 <button
                   type="button"
                   onClick={() => setShowReleaseModal(true)}
@@ -2429,7 +2425,7 @@ function MeinRaumPageContent() {
             }
             mobileActionButton={
               // Only show release button when user IS supervising Schulhof
-              isSchulhofActive && schulhofStatus?.isUserSupervising ? (
+              isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
                 <button
                   type="button"
                   onClick={() => setShowReleaseModal(true)}
@@ -2472,7 +2468,7 @@ function MeinRaumPageContent() {
       )}
 
       {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
-      {isSchulhofActive &&
+      {isSchulhofTabSelected &&
         schulhofStatus &&
         !schulhofStatus.isUserSupervising && (
           <SchulhofNotSupervisingView
@@ -2484,7 +2480,7 @@ function MeinRaumPageContent() {
         )}
 
       {currentRoom &&
-      (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
+      (!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) ? (
         <div className="mb-4">
           <Suspense fallback={null}>
             <TransitStudentsSection
@@ -2496,7 +2492,7 @@ function MeinRaumPageContent() {
       ) : null}
 
       {/* Student Grid - Mobile Optimized */}
-      {(!isSchulhofActive || schulhofStatus?.isUserSupervising) &&
+      {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
         renderStudentContent()}
     </div>
   );
