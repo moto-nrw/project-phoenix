@@ -122,7 +122,7 @@ export const OPERATOR_STATUS_STYLES: Record<OperatorSuggestionStatus, string> =
     in_progress: "bg-white text-gray-700 border-2 border-moto-orange",
     done: "bg-white text-gray-700 border-2 border-moto-green",
     rejected: "bg-white text-gray-700 border-2 border-moto-red",
-    need_info: "bg-white text-gray-700 border-2 border-purple-500",
+    need_info: "bg-white text-gray-700 border-2 border-moto-purple",
   };
 
 export const OPERATOR_STATUS_DOT_COLORS: Record<
@@ -134,5 +134,5 @@ export const OPERATOR_STATUS_DOT_COLORS: Record<
   in_progress: "bg-moto-orange",
   done: "bg-moto-green",
   rejected: "bg-moto-red",
-  need_info: "bg-purple-500",
+  need_info: "bg-moto-purple",
 };

@@ -14,6 +14,7 @@ import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useLatest } from "~/lib/hooks/use-latest";
+import { PRESENCE_CARD_GRADIENTS } from "~/lib/location-helper";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -183,8 +184,6 @@ interface BFFDashboardResponse {
   };
   plannedNow: PlannedTimetableInstance[];
 }
-
-const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
 /** Check if a student matches the current search, group, and year filters */
 function matchesStudentFilters(
@@ -2098,7 +2097,7 @@ function MeinRaumPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   photoUrl={student.photo_url ?? null}
-                  gradient={GROUP_CARD_GRADIENT}
+                  gradient={PRESENCE_CARD_GRADIENTS.otherRoom}
                   onClick={() =>
                     router.push(
                       `/students/${student.id}?from=/active-supervisions`,

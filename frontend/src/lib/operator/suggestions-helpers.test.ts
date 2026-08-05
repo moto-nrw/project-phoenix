@@ -208,7 +208,7 @@ describe("OPERATOR_STATUS_STYLES", () => {
     expect(OPERATOR_STATUS_STYLES.in_progress).toContain("border-moto-orange");
     expect(OPERATOR_STATUS_STYLES.done).toContain("border-moto-green");
     expect(OPERATOR_STATUS_STYLES.rejected).toContain("border-moto-red");
-    expect(OPERATOR_STATUS_STYLES.need_info).toContain("border-purple-500");
+    expect(OPERATOR_STATUS_STYLES.need_info).toContain("border-moto-purple");
   });
 });
 
@@ -219,6 +219,6 @@ describe("OPERATOR_STATUS_DOT_COLORS", () => {
     expect(OPERATOR_STATUS_DOT_COLORS.in_progress).toBe("bg-moto-orange");
     expect(OPERATOR_STATUS_DOT_COLORS.done).toBe("bg-moto-green");
     expect(OPERATOR_STATUS_DOT_COLORS.rejected).toBe("bg-moto-red");
-    expect(OPERATOR_STATUS_DOT_COLORS.need_info).toBe("bg-purple-500");
+    expect(OPERATOR_STATUS_DOT_COLORS.need_info).toBe("bg-moto-purple");
   });
 });

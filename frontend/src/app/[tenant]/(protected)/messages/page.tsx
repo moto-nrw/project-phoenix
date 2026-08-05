@@ -94,7 +94,7 @@ function MessagesInboxContent() {
       <PageHeaderWithSearch
         title="Nachrichten"
         badge={{
-          icon: <MotoConceptIcon concept="messages" size={20} />,
+          icon: <MotoConceptIcon concept="parentConversations" size={20} />,
           count: filteredThreads.length,
         }}
         search={{
@@ -141,7 +141,7 @@ function MessagesInboxContent() {
       {filteredThreads.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
-            <MotoConceptIcon concept="messages" size={48} />
+            <MotoConceptIcon concept="parentConversations" size={48} />
             <div>
               <h3 className="text-lg font-medium text-gray-900">
                 Noch keine Nachrichten

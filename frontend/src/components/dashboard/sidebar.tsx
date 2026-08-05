@@ -1098,7 +1098,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               href="/parents/messages"
               className={getLinkClasses("/parents/messages")}
             >
-              {renderConceptNavIcon("messages", "/parents/messages")}
+              {renderConceptNavIcon("parentConversations", "/parents/messages")}
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
             </Link>

@@ -57,7 +57,7 @@ function ElternContent() {
       href: "/messages",
       title: "Nachrichten",
       body: "Unterhaltungen mit Eltern lesen und beantworten.",
-      concept: "messages",
+      concept: "parentConversations",
       points: ["Ein Verlauf pro Kind", "Rückfragen direkt klären"],
       show: true,
     },

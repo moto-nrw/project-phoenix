@@ -71,7 +71,7 @@ const ACTION_TILE_CLASS =
 const CHILD_ACTIONS = [
   { key: "sick", concept: "sick" },
   { key: "pickupTime", concept: "pickup" },
-  { key: "message", concept: "messages" },
+  { key: "message", concept: "parentConversations" },
   { key: "pickupPermission", concept: "permissions" },
   { key: "people", concept: "parents" },
   { key: "news", concept: "news" },
@@ -641,7 +641,7 @@ function TodayPanel({
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
           <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <MotoConceptIcon concept="messages" size={22} />
+            <MotoConceptIcon concept="parentConversations" size={22} />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -719,7 +719,11 @@ function ChildMessagesPanel({
             onClick={onCompose}
             className="shrink-0"
           >
-            <MotoConceptIcon concept="messages" size={18} className="mr-1.5" />
+            <MotoConceptIcon
+              concept="parentConversations"
+              size={18}
+              className="mr-1.5"
+            />
             {t("messages.compose")}
           </Button>
         )}

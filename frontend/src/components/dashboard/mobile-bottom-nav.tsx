@@ -334,7 +334,7 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     label: "Nachrichten",
     tKey: "messages",
     iconKey: "chat",
-    concept: "messages",
+    concept: "parentConversations",
     alwaysShow: true,
   },
   // Neuigkeiten — only shown once a linked school broadcasts announcements
