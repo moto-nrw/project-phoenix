@@ -376,6 +376,22 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("%w: only approved children with a linked student can be synced", ErrOfferingAdjustmentInvalid)
 	}
 
+	// Tenant-wide gates BEFORE the first student row lock, in the project-wide
+	// class-change order (shared class-writes gate first, recurrence gate
+	// second, row locks last) — the same order the direct school_class PUT
+	// takes in acquirePreRowLockGates. Locking the row first and the
+	// recurrence gate only later (in the class-change branch below) let this
+	// sync and a concurrent direct PUT on the same child wait on each other
+	// cyclically until PostgreSQL aborted one (#2147 review round 15). The
+	// gates are taken unconditionally because whether the confirmed edit
+	// actually changes the class is only known once the row is locked.
+	if err := s.StudentRepo.LockStudentClassWritesShared(ctx); err != nil {
+		return nil, fmt.Errorf("decision: lock class writes for approved child sync: %w", err)
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
+	}
+
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
 	if err != nil || student == nil {
 		return nil, ErrDecisionStudentNotFound
@@ -400,6 +416,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	// stranded on a now-stale grade ("2a" while the edit bumps to grade 3)
 	// falls back to the new bare grade rather than leaving the student in a
 	// mismatched class. Issue #1833.
+	previousSchoolClass := student.SchoolClass
 	student.SchoolClass = s.resolveRolloverSchoolClass(child, student.SchoolClass)
 	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
 	if guardianEmail != "" {
@@ -408,6 +425,18 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	student.GuardianPhone = req.GuardianPhone
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
+	}
+
+	// A confirmed edit can move the child into another Jahrgang, exactly like
+	// a direct school_class edit or a grade transition, so the Jahrgang-
+	// filtered offering-sourced Regeltermine and their materialized future
+	// occurrences must follow in the same transaction (#2147 review round 13).
+	// The recurrence gate is already held — taken with the shared class-writes
+	// gate before the first row lock above.
+	if student.SchoolClass != previousSchoolClass {
+		if err := s.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+			return nil, fmt.Errorf("decision: resync sourced templates after class change: %w", err)
+		}
 	}
 
 	var guardian *users.GuardianProfile
@@ -638,10 +667,41 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	if effectiveFrom != nil {
 		return s.splitAdjustedEnrollments(ctx, requestChildID, studentID, replacement, phase, *effectiveFrom)
 	}
+	previousGroups, err := s.enrollmentGroupIDsForRequestChild(ctx, studentID, requestChildID)
+	if err != nil {
+		return err
+	}
 	if _, err := s.StudentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
 		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
 	}
-	return s.materializeEnrollments(ctx, requestChildID, studentID, phase)
+	if err := s.materializeEnrollments(ctx, requestChildID, studentID, phase); err != nil {
+		return err
+	}
+	// materializeEnrollments reconciled the templates the NEW selection plans;
+	// templates only the OLD selection planned still carry the child on
+	// already-materialized future occurrences (#2147 review).
+	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, previousGroups, enrollmentRewriteBoundary(nil))
+}
+
+// enrollmentGroupIDsForRequestChild returns the activity groups the child's
+// tagged enrollment rows currently reference, so a full rematerialization can
+// reconcile the occurrences of templates the new selection no longer plans.
+func (s *decisionService) enrollmentGroupIDsForRequestChild(
+	ctx context.Context,
+	studentID, requestChildID int64,
+) (map[int64]bool, error) {
+	rows, err := s.StudentEnrollmentRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list enrollments for adjustment reconcile: %w", err)
+	}
+	groupIDs := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if row == nil || row.EnrollmentRequestChildID == nil || *row.EnrollmentRequestChildID != requestChildID {
+			continue
+		}
+		groupIDs[row.ActivityGroupID] = true
+	}
+	return groupIDs, nil
 }
 
 // splitAdjustedEnrollments applies the new offering selection from
@@ -669,7 +729,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 	phase *enrollmentModels.Phase,
 	effectiveFrom timezone.Date,
 ) error {
-	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, replacement, phase)
+	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, replacement, phase)
 	if err != nil {
 		return err
 	}
@@ -677,12 +737,22 @@ func (s *decisionService) splitAdjustedEnrollments(
 	if err != nil {
 		return fmt.Errorf("decision: list enrollments for dated adjustment: %w", err)
 	}
+	// Every template the switch touches — rows it caps or deletes as well as
+	// rows it creates — must afterwards be reconciled onto its already-
+	// materialized future occurrences (#2147 review).
+	affectedGroups := draftGroupIDSet(drafts)
 	for _, row := range existing {
+		if row != nil && row.EnrollmentRequestChildID != nil && *row.EnrollmentRequestChildID == requestChildID {
+			affectedGroups[row.ActivityGroupID] = true
+		}
 		if err := s.reconcileAdjustedEnrollment(ctx, row, requestChildID, phase, effectiveFrom, drafts); err != nil {
 			return err
 		}
 	}
-	return s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, &effectiveFrom)
+	if err := s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, &effectiveFrom); err != nil {
+		return err
+	}
+	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, affectedGroups, enrollmentRewriteBoundary(&effectiveFrom))
 }
 
 func (s *decisionService) reconcileAdjustedEnrollment(
@@ -703,9 +773,14 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 		!row.ValidFrom.After(effectiveFrom) &&
 		(row.ValidUntil == nil || row.ValidUntil.After(effectiveFrom)) &&
 		careDraftMatchesEnrollment(draft, row) {
-		phaseEndExclusive := phase.ServiceEndDate.AddDays(1)
-		if row.ValidUntil != nil && row.ValidUntil.Before(phaseEndExclusive) {
-			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, phaseEndExclusive); err != nil {
+		// The retained row is only ever extended to the end the draft itself
+		// may reach — the phase end, clamped by the sourced segment's envelope
+		// and the offering-link window (#2147 review). Extending a capped
+		// split predecessor back to the phase end would restore coverage past
+		// the split and overlap its successor.
+		draftEndExclusive := careDraftValidUntil(draft, phase)
+		if row.ValidUntil != nil && row.ValidUntil.Before(draftEndExclusive) {
+			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, draftEndExclusive); err != nil {
 				return fmt.Errorf("decision: extend retained adjusted enrollment: %w", err)
 			}
 		}

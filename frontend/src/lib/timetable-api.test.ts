@@ -358,6 +358,59 @@ describe("timetableService", () => {
     );
   });
 
+  it("loads the offering sources with and without a period filter (#2137)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            offerings: [
+              {
+                id: 12,
+                name: "Frühbetreuung",
+                phase_id: 3,
+                phase_name: "Schuljahr 2026/27",
+                total_count: 18,
+                grade_counts: { "0": 2, "1": 9, "2": 7 },
+                sourced_templates: [
+                  { id: 7, name: "Frühbetreuung Jg. 1", grade_levels: [1] },
+                ],
+                legacy_linked_template_id: 7,
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: { offerings: [] } }));
+
+    await expect(timetableService.getOfferingSources("5")).resolves.toEqual([
+      {
+        id: "12",
+        name: "Frühbetreuung",
+        phaseId: "3",
+        phaseName: "Schuljahr 2026/27",
+        totalCount: 18,
+        gradeCounts: { 0: 2, 1: 9, 2: 7 },
+        sourcedTemplates: [
+          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
+        ],
+        legacyLinkedTemplateId: "7",
+      },
+    ]);
+    await expect(timetableService.getOfferingSources()).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/offering-sources?calendar_period_id=5",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    // No period → no query string at all, not a dangling "?".
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/offering-sources",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
   it("checks conflicts with only the provided params in the query string", async () => {
     fetchMock
       .mockResolvedValueOnce(

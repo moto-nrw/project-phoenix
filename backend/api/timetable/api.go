@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
@@ -108,6 +109,9 @@ type Dependencies struct {
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	SlotListsService       slotlists.Service
+	// OfferingSourceOptions serves the offering-source editor support
+	// endpoint (#2137); implemented by the enrollment decision service.
+	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService    planexport.Service
 	PlanningTrackService scheduleSvc.PlanningTrackService
@@ -328,6 +332,10 @@ func (rs *Resource) Router() chi.Router {
 		// appear immediately on the grid.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/templates", rs.listTemplates)
+		// Offering-source editor support (#2137): Angebots-Auswahl mit
+		// Jahrgangs-Zählern für den Regeltermin-Editor.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Get("/offering-sources", rs.listOfferingSources)
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/templates/{id}", rs.getTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).

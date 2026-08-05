@@ -199,6 +199,15 @@ type StudentRepository interface {
 	// BEFORE the recurrence and grade-transition gates.
 	LockStudentClassWrites(ctx context.Context) error
 
+	// LockStudentClassWritesShared acquires the SHARED form of the class-writes
+	// gate. The repository takes it implicitly in front of every student
+	// insert/update/row lock; callers only need it explicitly when they must
+	// acquire ANOTHER tenant-wide gate (e.g. the recurrence gate) before their
+	// first student row lock — the shared gate has to come first to keep the
+	// project-wide order (class-writes → recurrence → rows) acyclic against a
+	// concurrently applying grade transition (#2147 review round 12).
+	LockStudentClassWritesShared(ctx context.Context) error
+
 	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
 	// UPDATE so the caller can re-validate state under the same row
 	// lock the next UPDATE on the row will use. Used by the photo

@@ -488,3 +488,93 @@ func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx c
 	}
 	return count, nil
 }
+
+// ListApprovedChildrenByCareOfferingIDs returns the approved, still-relevant
+// offering links for the given offerings with each child's resolved student
+// and school class (#2137). Rows whose interval already ended before
+// onOrAfter, children without a resolved student row, and alumni are
+// excluded. Tenant isolation comes from RLS on the tenant transaction, like
+// every other query in this repository.
+//
+// Links that only start in the future (a dated switch into the offering) are
+// deliberately included — they are prospective enrollments the editor counts
+// and the roster resync seeds. Callers that write dated rows MUST honour each
+// link's ValidFrom/ValidUntil instead of assuming the link covers onOrAfter.
+func (r *RequestChildOfferingRepository) ListApprovedChildrenByCareOfferingIDs(
+	ctx context.Context,
+	careOfferingIDs []int64,
+	onOrAfter timezone.Date,
+) ([]*enrollment.ApprovedOfferingChild, error) {
+	result := make([]*enrollment.ApprovedOfferingChild, 0)
+	if len(careOfferingIDs) == 0 {
+		return result, nil
+	}
+	links := make([]*enrollment.RequestChildOffering, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&links).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
+		Where(`"request_child_offering".care_offering_id IN (?)`, bun.List(careOfferingIDs)).
+		Where(`"child".status = ?`, enrollment.ChildStatusApproved).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, onOrAfter).
+		OrderExpr(`"request_child_offering".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list approved children for care offerings: %w", err)
+	}
+	if len(links) == 0 {
+		return result, nil
+	}
+
+	childIDs := make([]int64, 0, len(links))
+	seen := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if !seen[link.RequestChildID] {
+			seen[link.RequestChildID] = true
+			childIDs = append(childIDs, link.RequestChildID)
+		}
+	}
+
+	// Alumni are excluded by status; users.students has no soft-delete
+	// column (graduation flips status to 'alumnus' instead).
+	var studentRows []struct {
+		ChildID     int64  `bun:"child_id"`
+		StudentID   int64  `bun:"student_id"`
+		SchoolClass string `bun:"school_class"`
+	}
+	err = base.GetDB(ctx, r.db).NewRaw(`
+		SELECT
+			"child".id AS child_id,
+			"student".id AS student_id,
+			"student".school_class
+		FROM enrollment.request_children AS "child"
+		INNER JOIN users.students AS "student"
+			ON "student".id = COALESCE("child".created_student_id, "child".matched_student_id)
+		WHERE "child".id IN (?)
+		  AND "student".status <> 'alumnus'
+	`, bun.List(childIDs)).Scan(ctx, &studentRows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve students for approved offering children: %w", err)
+	}
+
+	type studentInfo struct {
+		id          int64
+		schoolClass string
+	}
+	students := make(map[int64]studentInfo, len(studentRows))
+	for _, row := range studentRows {
+		students[row.ChildID] = studentInfo{id: row.StudentID, schoolClass: row.SchoolClass}
+	}
+	for _, link := range links {
+		info, ok := students[link.RequestChildID]
+		if !ok {
+			continue
+		}
+		result = append(result, &enrollment.ApprovedOfferingChild{
+			Link:        link,
+			StudentID:   info.id,
+			SchoolClass: info.schoolClass,
+		})
+	}
+	return result, nil
+}
