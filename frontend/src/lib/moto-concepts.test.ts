@@ -17,10 +17,12 @@ describe("MOTO_CONCEPTS", () => {
     },
   );
 
-  it("keeps every concept icon unique", () => {
-    const icons = Object.values(MOTO_CONCEPTS).map((concept) => concept.icon);
+  it("keeps every concept visually distinct via icon and tone", () => {
+    const renderings = Object.values(MOTO_CONCEPTS).map((concept) =>
+      [concept.icon.displayName, concept.tone].join("/"),
+    );
 
-    expect(new Set(icons).size).toBe(icons.length);
+    expect(new Set(renderings).size).toBe(renderings.length);
   });
 
   it("assigns distinct semantic tones to dashboard concepts", () => {

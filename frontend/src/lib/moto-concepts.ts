@@ -1,4 +1,5 @@
 import {
+  AddressBookIcon,
   ArrowsLeftRightIcon,
   BookOpenIcon,
   BriefcaseIcon,
@@ -44,7 +45,6 @@ import {
   QuestionIcon,
   ShieldCheckIcon,
   ShieldWarningIcon,
-  StudentIcon,
   SunIcon,
   TrendUpIcon,
   UserCheckIcon,
@@ -80,7 +80,7 @@ export interface MotoConceptDefinition {
 
 export const MOTO_CONCEPTS = {
   dashboard: concept("Home", HouseLineIcon, "neutral", "function", "system"),
-  children: concept("Kinder", StudentIcon, "greenVivid", "core", "people"),
+  children: concept("Kinder", UserIcon, "greenVivid", "core", "people"),
   groups: concept("Gruppen", UsersThreeIcon, "greenDeep", "core", "people"),
   rooms: concept("Räume", DoorIcon, "blue", "core", "people"),
   staff: concept(
@@ -107,7 +107,7 @@ export const MOTO_CONCEPTS = {
     "core",
     "administration",
   ),
-  people: concept("Personen", UserIcon, "navy", "core", "people"),
+  people: concept("Personen", AddressBookIcon, "navy", "core", "people"),
   operators: concept("Operatoren", UsersFourIcon, "mint", "core", "people"),
 
   present: concept(
