@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -149,6 +150,23 @@ func TestDecisionService_RestoreWithdrawn_NotFound(t *testing.T) {
 	_, err := env.decision.RestoreWithdrawn(ctx, 99_999_999, env.creatorID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrDecisionRequestNotFound))
+}
+
+func TestDecisionService_RestoreWithdrawn_LoadFailurePreservesError(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	// A failed request load (here: canceled context) must keep its cause
+	// instead of collapsing into the 404 sentinel — the handler's
+	// transient-503/default-500 mapping depends on seeing the real error.
+	ctx, cancel := context.WithCancel(testpkg.TenantContext(1))
+	cancel()
+
+	_, err := env.decision.RestoreWithdrawn(ctx, 1, env.creatorID)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, enrollmentService.ErrDecisionRequestNotFound),
+		"a query failure must not surface as request-not-found")
+	assert.True(t, errors.Is(err, context.Canceled))
 }
 
 func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
