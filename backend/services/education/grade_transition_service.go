@@ -860,20 +860,27 @@ func (s *GradeTransitionService) executeApply(
 		return err
 	}
 
+	// Drop the departed children from already-materialized rosters so they stop
+	// counting on today's and future timetables and staffing ratios, archiving
+	// each removed row so the revert can replay it (#405 review). MUST run
+	// before the offering-source resync below: the resync also removes sourced
+	// still-planned rows of the now-alumni graduates, but plainly, without
+	// archiving — running it first would leave this pass nothing to archive,
+	// and the revert could then only reconstruct plain expected rows, losing
+	// per-occurrence room, note, and non-booking edits (#2147 review round 16).
+	if err := s.reconcileGraduatedRosters(ctx, transition.ID, graduates); err != nil {
+		return err
+	}
+
 	// The class writes above changed Jahrgänge (and graduations produced
 	// alumni): re-reconcile every offering-sourced template so its
 	// Jahrgang-filtered roster follows the children into their new grades
 	// (#2137). Runs under the recurrence lock taken in ApplyChecked, inside
 	// the same transaction — a failure rolls the whole transition back
-	// instead of leaving rosters half-synced.
+	// instead of leaving rosters half-synced. The graduates' planned rows are
+	// already archived away above, so the resync finds them gone and removes
+	// nothing twice.
 	if err := s.resyncOfferingSourcedTemplates(ctx); err != nil {
-		return err
-	}
-
-	// Drop the departed children from already-materialized rosters so they stop
-	// counting on today's and future timetables and staffing ratios, archiving
-	// each removed row so the revert can replay it (#405 review).
-	if err := s.reconcileGraduatedRosters(ctx, transition.ID, graduates); err != nil {
 		return err
 	}
 
@@ -1475,13 +1482,6 @@ func (s *GradeTransitionService) executeRevert(
 		return err
 	}
 
-	// Mirror of the apply-side resync (#2137): the class and status writes
-	// above moved children back into their previous Jahrgänge, so the
-	// offering-sourced rosters must follow in the opposite direction too.
-	if err := s.resyncOfferingSourcedTemplates(ctx); err != nil {
-		return err
-	}
-
 	// Re-add the restored children to already-materialized rosters they were
 	// dropped from (replayed from the archive, with today's day statuses) or
 	// never added to (materialized while alumni) (#405 review). Only the children
@@ -1489,7 +1489,22 @@ func (s *GradeTransitionService) executeRevert(
 	// hand since the apply is deliberately left as-is, and one restored to the
 	// pending or inactive state it held before the transition belongs off
 	// actionable future rosters just like any other non-active child.
+	// MUST run before the offering-source resync below: the replay puts the
+	// archived sourced rows — per-occurrence room, note, and non-booking
+	// markers intact — back first, so the resync finds them already present
+	// and retains them instead of recreating plain expected rows (#2147
+	// review round 16). The enrollment fill for instances materialized while
+	// the children were alumni is unaffected by the order: sourced enrollment
+	// rows are still capped at this point, so those instances are covered by
+	// the resync's own occurrence reconciliation right after.
 	if err := s.reconcileRestoredRosters(ctx, transition, reactivated); err != nil {
+		return err
+	}
+
+	// Mirror of the apply-side resync (#2137): the class and status writes
+	// above moved children back into their previous Jahrgänge, so the
+	// offering-sourced rosters must follow in the opposite direction too.
+	if err := s.resyncOfferingSourcedTemplates(ctx); err != nil {
 		return err
 	}
 
