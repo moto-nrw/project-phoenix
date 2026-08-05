@@ -116,6 +116,7 @@ type Factory struct {
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
+	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
@@ -397,6 +398,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:              db,
 		SettingsService: settingsService,
 		Logger:          logger.With("service", "users"),
+	})
+
+	// Birthday display (#1542): who is celebrating today, plus the school
+	// settings and personal opt-out that decide who may be shown.
+	birthdayService := users.NewBirthdayService(users.BirthdayServiceDependencies{
+		StudentRepo:     repos.Student,
+		StaffRepo:       repos.Staff,
+		PersonRepo:      repos.Person,
+		SettingsService: settingsService,
+		Logger:          logger.With("service", "birthdays"),
 	})
 
 	// Staff documents (#1424): metadata + per-category authority for the
@@ -2078,6 +2089,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
+		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,

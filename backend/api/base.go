@@ -24,6 +24,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
@@ -118,6 +119,7 @@ type API struct {
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
+	Birthdays        *birthdaysAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
@@ -578,6 +580,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
+	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
@@ -845,6 +848,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount users resources
 		r.Mount("/users", a.Users.Router())
+
+		// Birthday display + staff birthday list (#1542)
+		r.Mount("/birthdays", a.Birthdays.Router())
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
