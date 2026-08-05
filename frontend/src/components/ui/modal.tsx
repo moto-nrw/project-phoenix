@@ -78,17 +78,53 @@ export function Modal({
   const onCloseRef = useLatest(onClose);
   const isDismissDisabledRef = useLatest(isDismissDisabled);
 
+  // Pending dismissal (exit-animation delay before onClose). Tracked so a
+  // confirmation that starts during the 250ms window can cancel it —
+  // otherwise the queued onClose would hide the modal while the confirmed
+  // operation is still running.
+  const dismissTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
   // Enhanced close handler with exit animation (stable — no deps on onClose)
   const handleClose = useCallback(() => {
     if (isDismissDisabledRef.current) return;
+    if (dismissTimerRef.current !== null) return;
     setIsExiting(true);
     setIsAnimating(false);
 
     // Delay actual close to allow exit animation
-    setTimeout(() => {
+    dismissTimerRef.current = setTimeout(() => {
+      dismissTimerRef.current = null;
+      // Backstop for a confirmation that started during the exit animation
+      // but whose isDismissDisabled prop hasn't reached the effect below yet.
+      if (isDismissDisabledRef.current) {
+        setIsExiting(false);
+        setIsAnimating(true);
+        return;
+      }
       onCloseRef.current();
     }, 250);
   }, [isDismissDisabledRef, onCloseRef]);
+
+  // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
+  // the dialog back from its exit animation.
+  useEffect(() => {
+    if (isDismissDisabled && dismissTimerRef.current !== null) {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = null;
+      setIsExiting(false);
+      setIsAnimating(true);
+    }
+  }, [isDismissDisabled]);
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, []);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
