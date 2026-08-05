@@ -18,6 +18,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -60,7 +61,10 @@ type UpdateSchoolRequest struct {
 	Hidden         bool
 }
 
-const deviceTransferOnlineThreshold = 5 * time.Minute
+// defaultDeviceOnlineWindow is the fallback online/offline cutoff used when no
+// settings resolver is wired or the per-tenant setting
+// iot.device_online_window_minutes cannot be resolved (issue #586).
+const defaultDeviceOnlineWindow = 5 * time.Minute
 
 // DeviceTransferSession describes the open kiosk session blocking a transfer.
 type DeviceTransferSession struct {
@@ -82,6 +86,13 @@ type DeviceTransferStatus struct {
 // ActiveDeviceSessionFinder is the narrow device-transfer session lookup dependency.
 type ActiveDeviceSessionFinder interface {
 	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+}
+
+// TenantSettingsResolver is the narrow settings dependency for resolving
+// per-tenant settings outside tenant middleware (operator requests carry no
+// tenant context).
+type TenantSettingsResolver interface {
+	ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error)
 }
 
 // OperatorProvisioningService handles operator-led tenant provisioning.
@@ -179,6 +190,7 @@ type OperatorProvisioningServiceConfig struct {
 	TeacherRepo           userModels.TeacherRepository
 	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
 	ActiveGroupRepo       ActiveDeviceSessionFinder
+	Settings              TenantSettingsResolver
 	InvitationService     authSvc.InvitationService
 	AuthService           authSvc.AuthService
 	AuditLogRepo          platform.OperatorAuditLogRepository
@@ -345,7 +357,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		existing, err := s.SchoolRepo.FindByID(adminCtx, id)
 		if err != nil {
-			if isSchoolLookupNotFound(err) {
+			if isLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: id}
 			}
 			return err
@@ -612,7 +624,7 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -700,7 +712,7 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -814,7 +826,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -1021,22 +1033,37 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 	})
 }
 
-func isDeviceLookupNotFound(err error) bool {
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
+// deviceOnlineWindow resolves the tenant's iot.device_online_window_minutes
+// setting, falling back to defaultDeviceOnlineWindow when no resolver is wired
+// or the lookup fails. ctx must be the outer request context, not the admin-tx
+// context: ResolveIntForTenant opens its own tenant transaction, which the
+// nested-transaction guard rejects inside an admin transaction.
+func (s *operatorProvisioningService) deviceOnlineWindow(ctx context.Context, tenantID int64) time.Duration {
+	if s.Settings == nil {
+		return defaultDeviceOnlineWindow
 	}
-	var dbErr *modelBase.DatabaseError
-	return errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows)
+	minutes, err := s.Settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyDeviceOnlineWindowMinutes)
+	if err != nil {
+		s.getLogger().Warn("device transfer: resolve online window failed, using fallback",
+			slog.Int64("tenant_id", tenantID),
+			slog.Any("error", err),
+		)
+		return defaultDeviceOnlineWindow
+	}
+	if minutes <= 0 {
+		return defaultDeviceOnlineWindow
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
-func (s *operatorProvisioningService) transferStatus(adminCtx context.Context, device *iotModels.Device) (*DeviceTransferStatus, error) {
+func (s *operatorProvisioningService) transferStatus(ctx, adminCtx context.Context, device *iotModels.Device) (*DeviceTransferStatus, error) {
 	status := &DeviceTransferStatus{LastSeen: device.LastSeen}
 	if device.DeviceID == iotModels.WebManualDeviceID {
 		status.IsProtected = true
 		return status, nil
 	}
 	if device.LastSeen != nil {
-		status.IsOnline = time.Since(*device.LastSeen) <= deviceTransferOnlineThreshold
+		status.IsOnline = time.Since(*device.LastSeen) <= s.deviceOnlineWindow(ctx, device.TenantID)
 	}
 	if s.ActiveGroupRepo == nil {
 		return nil, fmt.Errorf("device transfer: active group repository is not configured")
@@ -1068,7 +1095,7 @@ func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Contex
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
 		if findErr != nil {
-			if isDeviceLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &OperatorDeviceNotFoundError{DeviceID: id}
 			}
 			return findErr
@@ -1077,7 +1104,7 @@ func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Contex
 			return &OperatorDeviceNotFoundError{DeviceID: id}
 		}
 		var statusErr error
-		result, statusErr = s.transferStatus(adminCtx, device)
+		result, statusErr = s.transferStatus(ctx, adminCtx, device)
 		return statusErr
 	})
 	return result, err
@@ -1086,7 +1113,7 @@ func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Contex
 func (s *operatorProvisioningService) loadTransferSource(adminCtx context.Context, id, targetSchoolID int64) (*iotModels.Device, error) {
 	source, err := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
 	if err != nil {
-		if isDeviceLookupNotFound(err) {
+		if isLookupNotFound(err) {
 			return nil, &OperatorDeviceNotFoundError{DeviceID: id}
 		}
 		return nil, err
@@ -1106,6 +1133,9 @@ func (s *operatorProvisioningService) loadTransferSource(adminCtx context.Contex
 func (s *operatorProvisioningService) validateTransferDestination(adminCtx context.Context, source *iotModels.Device, targetSchoolID int64) error {
 	sourceSchool, err := s.SchoolRepo.FindByID(adminCtx, source.TenantID)
 	if err != nil {
+		if isLookupNotFound(err) {
+			return &SchoolNotFoundError{SchoolID: source.TenantID}
+		}
 		return fmt.Errorf("TransferDevice: lookup source school: %w", err)
 	}
 	if sourceSchool == nil {
@@ -1114,7 +1144,7 @@ func (s *operatorProvisioningService) validateTransferDestination(adminCtx conte
 
 	targetSchool, err := s.SchoolRepo.FindByID(adminCtx, targetSchoolID)
 	if err != nil {
-		if isSchoolLookupNotFound(err) {
+		if isLookupNotFound(err) {
 			return &SchoolNotFoundError{SchoolID: targetSchoolID}
 		}
 		return fmt.Errorf("TransferDevice: lookup target school: %w", err)
@@ -1134,8 +1164,8 @@ func (s *operatorProvisioningService) validateTransferDestination(adminCtx conte
 	return nil
 }
 
-func (s *operatorProvisioningService) ensureDeviceTransferable(adminCtx context.Context, source *iotModels.Device) error {
-	status, err := s.transferStatus(adminCtx, source)
+func (s *operatorProvisioningService) ensureDeviceTransferable(ctx, adminCtx context.Context, source *iotModels.Device) error {
+	status, err := s.transferStatus(ctx, adminCtx, source)
 	if err != nil {
 		return err
 	}
@@ -1207,7 +1237,7 @@ func (s *operatorProvisioningService) TransferDevice(ctx context.Context, id, ta
 		if err := s.validateTransferDestination(adminCtx, source, targetSchoolID); err != nil {
 			return err
 		}
-		if err := s.ensureDeviceTransferable(adminCtx, source); err != nil {
+		if err := s.ensureDeviceTransferable(ctx, adminCtx, source); err != nil {
 			return err
 		}
 		target, err := s.archiveAndCreateTransferredDevice(adminCtx, source, targetSchoolID)
@@ -1235,7 +1265,7 @@ func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, sch
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
-			if isSchoolLookupNotFound(findErr) {
+			if isLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return findErr
@@ -1399,7 +1429,7 @@ func (s *operatorProvisioningService) resolveAdminInviteContext(ctx context.Cont
 func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, schoolID int64) (*platform.School, error) {
 	school, err := s.SchoolRepo.FindByID(ctx, schoolID)
 	if err != nil {
-		if isSchoolLookupNotFound(err) {
+		if isLookupNotFound(err) {
 			return nil, &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		return nil, err
@@ -1525,7 +1555,9 @@ func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID 
 	}
 }
 
-func isSchoolLookupNotFound(err error) bool {
+// isLookupNotFound reports whether a repository FindByID-style error means
+// "no such row" (directly or wrapped in a DatabaseError), regardless of entity.
+func isLookupNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -1587,7 +1619,7 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
-			if isSchoolLookupNotFound(err) {
+			if isLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return err
@@ -1647,7 +1679,7 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
-			if isSchoolLookupNotFound(err) {
+			if isLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
 			}
 			return err

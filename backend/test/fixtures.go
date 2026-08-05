@@ -252,6 +252,8 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 		Model(&existingDevice).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(`"device".device_id = ?`, iot.WebManualDeviceID).
+		Where(`"device".tenant_id = ?`, device.TenantID).
+		Where(`"device".archived_at IS NULL`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to fetch web manual device")
 

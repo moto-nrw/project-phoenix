@@ -15,12 +15,14 @@ import (
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -3804,6 +3806,62 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_SessionLookupFailur
 
 	require.Nil(t, status)
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_UsesTenantOnlineWindowSetting(t *testing.T) {
+	lastSeen := time.Now().Add(-10 * time.Minute)
+	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
+	device.SetTenantID(10)
+
+	var resolvedTenantID int64
+	var resolvedKey string
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return device, nil
+		}},
+		ActiveGroupRepo: &mockActiveDeviceSessionRepo{},
+		Settings: &configtest.Mock{ResolveIntForTenantFn: func(_ context.Context, tenantID int64, key string) (int, error) {
+			resolvedTenantID = tenantID
+			resolvedKey = key
+			return 15, nil
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), device.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.Equal(t, int64(10), resolvedTenantID)
+	assert.Equal(t, configModel.KeyDeviceOnlineWindowMinutes, resolvedKey)
+	// Seen 10 minutes ago is inside the tenant's 15-minute window.
+	assert.True(t, status.IsOnline)
+	assert.False(t, status.CanTransfer)
+}
+
+func TestOperatorProvisioningService_GetDeviceTransferStatus_OnlineWindowResolveErrorFallsBack(t *testing.T) {
+	lastSeen := time.Now().Add(-10 * time.Minute)
+	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
+	device.SetTenantID(10)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+			return device, nil
+		}},
+		ActiveGroupRepo: &mockActiveDeviceSessionRepo{},
+		Settings: &configtest.Mock{ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
+			return 0, assert.AnError
+		}},
+	})
+
+	status, err := service.GetDeviceTransferStatus(context.Background(), device.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	// Fallback window is 5 minutes; seen 10 minutes ago counts as offline.
+	assert.False(t, status.IsOnline)
+	assert.True(t, status.CanTransfer)
 }
 
 func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesIdentity(t *testing.T) {
