@@ -9,7 +9,7 @@ import { trackEvent } from "./analytics";
  * re-decides who may be shown.
  */
 
-export type BirthdayKind = "student" | "staff";
+type BirthdayKind = "student" | "staff";
 
 export interface BirthdayCelebration {
   kind: BirthdayKind;

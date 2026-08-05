@@ -169,6 +169,20 @@ func (*shiftMockStaffRepo) FindReachableCalendarStaffIDs(context.Context, []int6
 	return map[int64]bool{}, nil
 }
 
+// Birthday display (#1542) — irrelevant to shift planning, stubbed to satisfy
+// the interface.
+func (*shiftMockStaffRepo) FindBirthdaysOn(context.Context, []usersModels.MonthDay) ([]usersModels.BirthdayEntry, error) {
+	return nil, nil
+}
+
+func (*shiftMockStaffRepo) ListBirthdaysForExport(context.Context) ([]usersModels.BirthdayEntry, error) {
+	return nil, nil
+}
+
+func (*shiftMockStaffRepo) SetBirthdayDisplayOptOut(context.Context, int64, bool) error {
+	return nil
+}
+
 func (m *shiftMockStaffRepo) ListAllWithPerson(context.Context) ([]*usersModels.Staff, error) {
 	return nil, nil
 }
