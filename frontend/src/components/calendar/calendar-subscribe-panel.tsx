@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarCheck, Copy, Link2, RefreshCw } from "lucide-react";
+import { Copy, Link, RefreshCw } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import {
   getParentCalendarFeed,
@@ -62,8 +63,8 @@ export function CalendarSubscribePanel() {
   return (
     <div className="moto-content-surface rounded-2xl border border-gray-200 p-4 shadow-sm sm:p-6">
       <div className="flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#ECF7DA] text-[#5a8f1e]">
-          <CalendarCheck className="h-5 w-5" aria-hidden />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+          <MotoConceptIcon concept="calendar" size={22} />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -83,7 +84,7 @@ export function CalendarSubscribePanel() {
               isLoading={loading}
               onClick={load}
             >
-              <Link2 className="h-4 w-4" aria-hidden />
+              <Link className="h-4 w-4" aria-hidden />
               Abo-Link anzeigen
             </Button>
           ) : null}
@@ -92,9 +93,9 @@ export function CalendarSubscribePanel() {
             <div className="mt-4 space-y-4">
               <a
                 href={feed.webcal_url}
-                className="bg-moto-green inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold text-gray-950 transition-colors hover:bg-[#74b827]"
+                className="bg-moto-green hover:bg-moto-green-hover inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold text-gray-950 transition-colors"
               >
-                <CalendarCheck className="h-4 w-4" aria-hidden />
+                <MotoConceptIcon concept="calendar" size={16} />
                 Im Kalender abonnieren
               </a>
 
