@@ -3,6 +3,7 @@ import {
   Bell,
   BellRing,
   Building2,
+  Cake,
   CalendarDays,
   CalendarRange,
   CircleStop,
@@ -509,10 +510,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche`. Bei detaillierter Anwesenheit öffnet `Freie Räume` die `Räume`-Übersicht. `Auslastung` zeigt nur den aktuellen Wert.",
           "Bei detaillierter Anwesenheit zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
           "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
+          "Die Karte `Geburtstage` nennt die Kinder, die heute Geburtstag haben, mit Gruppe, Klasse und dem Alter, das sie erreichen. Montags stehen die Geburtstage vom Wochenende mit dabei, gekennzeichnet mit `Samstag` oder `Sonntag`. Hat niemand Geburtstag, steht dort `Heute keine Geburtstage`. Die Karte lässt sich unter `Einstellungen` -> `Betrieb` -> `Geburtstage` ausschalten; dort wird auch entschieden, ob die Geburtstage der Mitarbeitenden mit erscheinen.",
         ],
         callout: {
           title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Freie Räume`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet – auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Freie Räume`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet – auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
           tone: "blue",
         },
         screenshot:
@@ -1284,6 +1286,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Datenverwaltung` -> `Exporte` öffnen.",
           "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesplanung`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin in der `Kindersuche` unter `Exportieren`.",
           "Die Karte `Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
+          "Unter `Personallisten` gibt die Karte `Geburtstagsliste` die Geburtstage der Mitarbeitenden nach Kalender sortiert aus, mit derselben Monatsauswahl wie bei den Kindern. Die Liste enthält Name und Geburtsdatum, kein Alter. Sie erscheint nur für Konten, die auch die Stammdaten des Personals öffnen dürfen.",
           "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
           "Unter `Auf anderen Seiten` führt `Tageslisten` zu den Listen aus geplanten Angeboten (Mensa, Lernzeit, AG-Angebote, Randstunden, Ganztag) mit den Datenbasen Plan, Ist und Abgleich - der Einstieg liegt im Bereich `Planung`, siehe das Kapitel `Tageslisten`. Daneben führen `Dienstplan` und `Betreuungsplan` auf die jeweilige Planungsseite: Beide Pläne werden dort über `Drucken` als Wochenblatt ausgegeben, weil der Export immer die Woche meint, die gerade zu sehen ist. `Anmeldungen` und `Zeitnachweis` führen ebenso auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
         ],
@@ -1713,6 +1716,26 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Profilseite mit dem Abschnitt Benachrichtigungen: Schalter je Art, gruppiert nach Abholungen, Aktivitäten und Kinder, mit der Schaltfläche Alle deaktivieren.",
+      },
+      {
+        id: "eigenen-geburtstag-anzeigen",
+        title: "Eigenen Geburtstag anzeigen oder verbergen",
+        icon: Cake,
+        printCompact: true,
+        summary:
+          "Ob der eigene Geburtstag auf der Startseite erscheint, entscheidet jede Person selbst. Das Geburtsjahr wird dort nie angezeigt.",
+        steps: [
+          "Im eigenen Profil den Abschnitt `Geburtstag` öffnen.",
+          "Den Schalter `Meinen Geburtstag auf der Startseite anzeigen` ein- oder ausschalten. Er speichert sofort.",
+          "Ausgeschaltet erscheint der eigene Name an keinem Tag auf der Startseite, auch wenn die Schule die Anzeige für das Team eingeschaltet hat.",
+        ],
+        callout: {
+          title: "Zwei Schalter, beide müssen zustimmen",
+          body: "Die Schule entscheidet unter `Einstellungen` -> `Betrieb` -> `Geburtstage`, ob Geburtstage von Mitarbeitenden überhaupt angezeigt werden; im Auslieferungszustand ist das aus. Dieser persönliche Schalter entscheidet zusätzlich für die eigene Person. Der Abschnitt fehlt bei Konten ohne Personaldatensatz.",
+          tone: "blue",
+        },
+        screenshot:
+          "Profilseite mit dem Abschnitt Geburtstag und dem Schalter für die Anzeige auf der Startseite.",
       },
       {
         id: "push-benachrichtigungen-aktivieren",

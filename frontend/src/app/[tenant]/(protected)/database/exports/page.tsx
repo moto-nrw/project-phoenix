@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { StaffBirthdayExportModal } from "~/components/staff/staff-birthday-export-modal";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -120,9 +121,17 @@ export default function DatabaseExportsPage() {
     isAdmin(session) ||
     (hasPermission(session, "schedules:read") &&
       hasPermission(session, "users:read"));
+  // Die Personal-Geburtstagsliste zeigt volle Geburtsdaten und hängt deshalb
+  // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542) —
+  // users:read reicht bewusst nicht.
+  const canExportStaffBirthdays =
+    isAdmin(session) ||
+    hasPermission(session, "users:update") ||
+    hasPermission(session, "time-tracking:manage");
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );
+  const [staffBirthdayModalOpen, setStaffBirthdayModalOpen] = useState(false);
   // Every in-flight export, keyed per action: a single "which one is running"
   // value would let a finished export re-enable the buttons of one still
   // rendering, so two clicks could fire the same export twice.
@@ -185,6 +194,32 @@ export default function DatabaseExportsPage() {
             </InfoCard>
           ))}
         </ExportSection>
+
+        {canExportStaffBirthdays && (
+          <ExportSection title="Personallisten">
+            <InfoCard
+              title="Geburtstagsliste"
+              icon={<Cake className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Geburtstage der Mitarbeitenden nach Kalender sortiert.
+                Voreingestellt ist der aktuelle Monat. Ohne hinterlegtes
+                Geburtsdatum fehlt eine Person in dieser Liste.
+              </ExportDescription>
+              <ExportActions>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="outline"
+                  onClick={() => setStaffBirthdayModalOpen(true)}
+                >
+                  <Download className="mr-2 h-4 w-4" aria-hidden />
+                  Liste erstellen
+                </Button>
+              </ExportActions>
+            </InfoCard>
+          </ExportSection>
+        )}
 
         <ExportSection title="Momentaufnahmen">
           <InfoCard
@@ -341,6 +376,11 @@ export default function DatabaseExportsPage() {
         heading={studentModal?.heading}
         lockedPreset={studentModal?.lockedPreset}
         onClose={() => setStudentModal(null)}
+      />
+
+      <StaffBirthdayExportModal
+        isOpen={staffBirthdayModalOpen}
+        onClose={() => setStaffBirthdayModalOpen(false)}
       />
     </div>
   );
