@@ -9,6 +9,7 @@ import {
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
 } from "~/components/enrollment/public-enrollment-shell";
+import { useOneTimeQueryFlag } from "~/lib/hooks/use-one-time-query-flag";
 import { useTenant } from "~/lib/tenant-context";
 
 interface PageProps {
@@ -27,7 +28,9 @@ function EnrollmentStatusPageContent({ params }: PageProps) {
   const { token } = use(params);
   const searchParams = useSearchParams();
   const { tenant } = useTenant();
-  const justSubmitted = searchParams.get("submitted") === "1";
+  // One-time: the flag hides the withdraw controls, so it must not survive a
+  // refresh or a bookmarked/shared URL (#2156 review).
+  const justSubmitted = useOneTimeQueryFlag("submitted");
   const duplicateWarning = searchParams.get("duplicate_warning") === "1";
 
   return (
