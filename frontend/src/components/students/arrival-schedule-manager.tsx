@@ -404,10 +404,11 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
               kommt nicht
             </span>
           ) : day.isException ? (
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-              <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                <circle cx="10" cy="10" r="5" />
-              </svg>
+            <span className="bg-moto-orange/15 text-moto-orange inline-flex h-5 w-5 items-center justify-center rounded-full">
+              <span
+                className="h-2 w-2 rounded-full bg-current"
+                aria-hidden="true"
+              />
             </span>
           ) : null}
         </div>
@@ -467,12 +468,13 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
         </div>
         {day.isException ? (
           <span
-            className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-100 text-orange-600"
+            className="bg-moto-orange/15 text-moto-orange flex h-4 w-4 items-center justify-center rounded-full"
             title="Abweichende Ankunft"
           >
-            <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
-              <circle cx="10" cy="10" r="5" />
-            </svg>
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-current"
+              aria-hidden="true"
+            />
           </span>
         ) : null}
       </div>

@@ -377,11 +377,11 @@ describe("SchoolClassIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders the schools concept icon at meta-icon size", () => {
+  it("renders a muted neutral meta icon at meta-icon size", () => {
     const { container } = render(<SchoolClassIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg).toHaveAttribute("data-moto-duotone-tone", "gold");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
     expect(svg).toHaveAttribute("width", "14");
     expect(svg).toHaveAttribute("height", "14");
   });
@@ -394,11 +394,11 @@ describe("GroupIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders the groups concept icon at meta-icon size", () => {
+  it("renders a muted neutral meta icon at meta-icon size", () => {
     const { container } = render(<GroupIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg).toHaveAttribute("data-moto-duotone-tone", "greenDeep");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
     expect(svg).toHaveAttribute("width", "14");
     expect(svg).toHaveAttribute("height", "14");
   });
@@ -410,15 +410,24 @@ describe("PickupTimeIcon", () => {
 
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
+
+  it("renders a muted neutral meta icon at meta-icon size", () => {
+    const { container } = render(<PickupTimeIcon />);
+
+    const svg = container.querySelector("svg");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
+    expect(svg).toHaveAttribute("width", "14");
+    expect(svg).toHaveAttribute("height", "14");
+  });
 });
 
 describe("ExceptionIcon", () => {
-  it("renders the pickup concept icon", () => {
+  it("renders an orange exception marker", () => {
     const { container } = render(<ExceptionIcon />);
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg).toHaveAttribute("data-moto-duotone-tone", "petrol");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "orange");
   });
 });
 
@@ -487,7 +496,7 @@ describe("PickupTimeRow", () => {
     );
 
     const exceptionSvg = container.querySelector(
-      "svg[data-moto-duotone-tone='petrol']",
+      "svg[data-moto-duotone-tone='orange']",
     );
     expect(exceptionSvg).toBeInTheDocument();
   });
@@ -612,7 +621,7 @@ describe("ArrivalTimeRow", () => {
     );
 
     expect(
-      container.querySelector("svg[data-moto-duotone-tone='petrol']"),
+      container.querySelector("svg[data-moto-duotone-tone='orange']"),
     ).toBeInTheDocument();
   });
 

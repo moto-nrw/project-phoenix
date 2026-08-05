@@ -13,6 +13,12 @@ import {
   Plus,
 } from "lucide-react";
 import {
+  ChalkboardTeacherIcon,
+  ClockIcon,
+  UsersThreeIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
+import {
   getStudentTimeStatus,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
@@ -24,7 +30,7 @@ import {
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -264,12 +270,14 @@ export function StudentCard({
 
 /** Icon for school class display */
 export function SchoolClassIcon() {
-  return <MotoConceptIcon concept="schools" size={14} />;
+  return (
+    <MotoDuotoneIcon icon={ChalkboardTeacherIcon} tone="neutral" size={14} />
+  );
 }
 
 /** Icon for group display */
 export function GroupIcon() {
-  return <MotoConceptIcon concept="groups" size={14} />;
+  return <MotoDuotoneIcon icon={UsersThreeIcon} tone="neutral" size={14} />;
 }
 
 /** Reusable info row for school class or group */
@@ -292,12 +300,12 @@ export function StudentInfoRow({
 
 /** Icon for pickup time display */
 export function PickupTimeIcon() {
-  return <MotoConceptIcon concept="careTimes" size={14} />;
+  return <MotoDuotoneIcon icon={ClockIcon} tone="neutral" size={14} />;
 }
 
 /** Icon for exception indicator */
 export function ExceptionIcon() {
-  return <MotoConceptIcon concept="pickup" size={14} />;
+  return <MotoDuotoneIcon icon={WarningCircleIcon} tone="orange" size={14} />;
 }
 
 /**

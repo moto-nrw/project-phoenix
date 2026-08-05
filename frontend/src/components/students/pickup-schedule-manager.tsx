@@ -449,13 +449,10 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             <div className="min-w-0 flex-1">
               {day.isException && (
                 <span className="bg-moto-orange/15 text-moto-orange inline-flex h-5 w-5 items-center justify-center rounded-full">
-                  <svg
-                    className="h-3 w-3"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <circle cx="10" cy="10" r="5" />
-                  </svg>
+                  <span
+                    className="h-2 w-2 rounded-full bg-current"
+                    aria-hidden="true"
+                  />
                 </span>
               )}
             </div>
@@ -531,9 +528,10 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
             className="bg-moto-orange/15 text-moto-orange flex h-4 w-4 items-center justify-center rounded-full"
             title="Abweichende Zeit"
           >
-            <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
-              <circle cx="10" cy="10" r="5" />
-            </svg>
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-current"
+              aria-hidden="true"
+            />
           </span>
         )}
       </div>
