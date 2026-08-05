@@ -13,6 +13,10 @@ import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { createLogger } from "~/lib/logger";
+import { Minus, Plus } from "lucide-react";
+import { InfoIcon } from "@phosphor-icons/react";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { SectionHeader } from "~/components/ui/concept-section-header";
 
 const logger = createLogger({ component: "QuickCreateActivityModal" });
 
@@ -210,16 +214,14 @@ export function QuickCreateActivityModal({
           )}
 
           {/* Activity Name Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
-            <div className="absolute top-2 right-2 h-16 w-16 rounded-full bg-gray-100/20 blur-2xl"></div>
-            <div className="absolute bottom-2 left-2 h-12 w-12 rounded-full bg-slate-100/20 blur-xl"></div>
-            <div className="relative">
+          <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-5">
+            <div>
               <label
                 htmlFor="name"
                 className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "name" ? "text-red-600" : "text-gray-700"}`}
               >
-                <div className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                  <span className="text-xs font-bold text-white">1</span>
+                <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
+                  <span className="text-xs font-bold text-gray-700">1</span>
                 </div>
                 Aktivitätsname
               </label>
@@ -236,19 +238,16 @@ export function QuickCreateActivityModal({
             </div>
           </div>
 
-          {/* Category Card — no overflow-hidden on the card itself: it would clip the CustomSelect menu */}
-          <div className="relative rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
-            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-              <div className="absolute top-2 left-2 h-14 w-14 rounded-full bg-gray-100/20 blur-2xl"></div>
-            </div>
-            <div className="relative">
+          {/* Category Card */}
+          <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-5">
+            <div>
               <label
                 id="category_id-label"
                 htmlFor="category_id"
                 className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "category_id" ? "text-red-600" : "text-gray-700"}`}
               >
-                <div className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                  <span className="text-xs font-bold text-white">2</span>
+                <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
+                  <span className="text-xs font-bold text-gray-700">2</span>
                 </div>
                 Kategorie
               </label>
@@ -276,15 +275,14 @@ export function QuickCreateActivityModal({
           </div>
 
           {/* Participants Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
-            <div className="absolute right-2 bottom-2 h-20 w-20 rounded-full bg-gray-100/20 blur-2xl"></div>
-            <div className="relative">
+          <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-5">
+            <div>
               <label
                 htmlFor="max_participants"
                 className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "max_participants" ? "text-red-600" : "text-gray-700"}`}
               >
-                <div className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                  <span className="text-xs font-bold text-white">3</span>
+                <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
+                  <span className="text-xs font-bold text-gray-700">3</span>
                 </div>
                 Maximale Teilnehmerzahl
               </label>
@@ -304,19 +302,11 @@ export function QuickCreateActivityModal({
                   disabled={Number.parseInt(form.max_participants, 10) <= 1}
                   aria-label="Teilnehmer reduzieren"
                 >
-                  <svg
+                  <Minus
                     className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
                     strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19.5 12h-15"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                 </button>
 
                 <input
@@ -346,52 +336,25 @@ export function QuickCreateActivityModal({
                   disabled={Number.parseInt(form.max_participants, 10) >= 50}
                   aria-label="Teilnehmer erhöhen"
                 >
-                  <svg
+                  <Plus
                     className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
                     strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                 </button>
               </div>
             </div>
           </div>
 
           {/* Info Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/80 to-slate-50/80 p-4 backdrop-blur-sm">
-            <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-gradient-to-br from-blue-100/10 to-indigo-100/10 blur-3xl"></div>
-            <div className="relative flex items-start gap-3">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-gray-100 to-slate-100">
-                <svg
-                  className="h-4 w-4 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="mb-1 text-sm font-medium text-gray-700">
-                  Hinweis
-                </p>
-                <p className="text-sm text-gray-600">
-                  Die Aktivität ist sofort für NFC-Terminals verfügbar.
-                </p>
-              </div>
-            </div>
+          <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-4">
+            <SectionHeader
+              title="Hinweis"
+              icon={
+                <MotoDuotoneIcon icon={InfoIcon} tone="neutral" size={18} />
+              }
+              subtitle="Die Aktivität ist sofort für NFC-Terminals verfügbar."
+            />
           </div>
         </form>
       )}

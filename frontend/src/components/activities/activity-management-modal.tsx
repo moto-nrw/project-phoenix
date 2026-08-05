@@ -16,6 +16,9 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
+import { Minus, Plus, Trash2 } from "lucide-react";
+import { InfoIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 
 const logger = createLogger({ component: "ActivityManagement" });
 
@@ -126,19 +129,7 @@ function NormalFooter({
             disabled={isSubmitting || isDeleting}
             aria-label="Aktivität löschen"
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-              />
-            </svg>
+            <Trash2 className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
           </Button>
         )}
       </div>
@@ -372,15 +363,14 @@ export function ActivityManagementModal({
           {error && <Alert type="error" message={error} />}
 
           {/* Activity Name Card - Compact */}
-          <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-            <div className="absolute top-1 right-1 h-12 w-12 rounded-full bg-gray-100/20 blur-xl"></div>
-            <div className="relative">
+          <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+            <div>
               <label
                 htmlFor="name"
                 className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
               >
-                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                  <span className="text-[10px] font-bold text-white">1</span>
+                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
+                  <span className="text-[10px] font-bold text-gray-700">1</span>
                 </div>
                 Aktivitätsname
               </label>
@@ -398,19 +388,16 @@ export function ActivityManagementModal({
             </div>
           </div>
 
-          {/* Category Card - Compact — no overflow-hidden on the card itself: it would clip the CustomSelect menu */}
-          <div className="relative rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
-            </div>
-            <div className="relative">
+          {/* Category Card - Compact */}
+          <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+            <div>
               <label
                 id="category_id-label"
                 htmlFor="category_id"
                 className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
               >
-                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                  <span className="text-[10px] font-bold text-white">2</span>
+                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
+                  <span className="text-[10px] font-bold text-gray-700">2</span>
                 </div>
                 Kategorie
               </label>
@@ -438,15 +425,14 @@ export function ActivityManagementModal({
           </div>
 
           {/* Participants Card - Compact */}
-          <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-            <div className="absolute right-1 bottom-1 h-14 w-14 rounded-full bg-gray-100/20 blur-xl"></div>
-            <div className="relative">
+          <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+            <div>
               <label
                 htmlFor="max_participants"
                 className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
               >
-                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                  <span className="text-[10px] font-bold text-white">3</span>
+                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
+                  <span className="text-[10px] font-bold text-gray-700">3</span>
                 </div>
                 Maximale Teilnehmerzahl
               </label>
@@ -468,19 +454,11 @@ export function ActivityManagementModal({
                   }
                   aria-label="Teilnehmer reduzieren"
                 >
-                  <svg
+                  <Minus
                     className="h-5 w-5 md:h-4 md:w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
                     strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19.5 12h-15"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                 </button>
 
                 <input
@@ -513,19 +491,11 @@ export function ActivityManagementModal({
                   }
                   aria-label="Teilnehmer erhöhen"
                 >
-                  <svg
+                  <Plus
                     className="h-5 w-5 md:h-4 md:w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
                     strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                 </button>
               </div>
             </div>
@@ -533,42 +503,28 @@ export function ActivityManagementModal({
 
           {/* Info Card / Delete Confirmation - Compact */}
           {showDeleteConfirm ? (
-            <div className="relative overflow-hidden rounded-lg border border-red-200/30 bg-gradient-to-br from-red-50/60 to-rose-50/60 p-3 backdrop-blur-sm">
-              <div className="relative flex items-center gap-2">
-                <svg
-                  className="h-3.5 w-3.5 flex-shrink-0 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                  />
-                </svg>
-                <p className="text-xs font-medium text-red-700">
+            <div className="border-moto-red/30 bg-moto-red-soft rounded-lg border p-3">
+              <div className="flex items-center gap-2">
+                <MotoDuotoneIcon
+                  icon={WarningCircleIcon}
+                  tone="red"
+                  size={14}
+                  className="flex-shrink-0"
+                />
+                <p className="text-moto-red-hover text-xs font-medium">
                   Diese Aktivität wirklich löschen?
                 </p>
               </div>
             </div>
           ) : (
-            <div className="relative overflow-hidden rounded-lg border border-gray-200/30 bg-gradient-to-br from-gray-50/60 to-slate-50/60 p-3 backdrop-blur-sm">
-              <div className="relative flex items-center gap-2">
-                <svg
-                  className="h-3.5 w-3.5 flex-shrink-0 text-gray-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+            <div className="rounded-lg border border-gray-200/30 bg-gray-50 p-3">
+              <div className="flex items-center gap-2">
+                <MotoDuotoneIcon
+                  icon={InfoIcon}
+                  tone="neutral"
+                  size={14}
+                  className="flex-shrink-0"
+                />
                 <p className="text-xs text-gray-600">
                   {readOnly
                     ? "Sie können nur Aktivitäten bearbeiten, die Sie selbst erstellt haben."
