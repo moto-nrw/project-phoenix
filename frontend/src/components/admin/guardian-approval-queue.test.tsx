@@ -2,7 +2,6 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianApprovalQueue from "./guardian-approval-queue";
 import type { PendingApproval } from "@/lib/guardian-api";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({ success: vi.fn(), error: vi.fn() })),
@@ -115,12 +114,11 @@ describe("GuardianApprovalQueue", () => {
     fireEvent.click(screen.getByRole("button", { name: /Einstellungen/ }));
     expect(mockPush).toHaveBeenCalledWith("/settings?tab=operations");
 
-    const iconBadge =
-      container.querySelector(".lucide-settings")?.parentElement;
-    expect(iconBadge).toHaveStyle({
-      backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}1F`,
-      color: LOCATION_COLORS.OTHER_ROOM,
-    });
+    const iconBadge = container.querySelector(
+      '[data-testid="approvals-empty-icon"]',
+    );
+    expect(iconBadge).toHaveAttribute("data-concept", "settings");
+    expect(iconBadge).toHaveClass("bg-gray-100");
   });
 
   it("explains an empty queue when invites are sent without approval", async () => {
@@ -152,12 +150,11 @@ describe("GuardianApprovalQueue", () => {
       screen.queryByRole("button", { name: /Einstellungen/ }),
     ).not.toBeInTheDocument();
 
-    const iconBadge =
-      container.querySelector(".lucide-user-check")?.parentElement;
-    expect(iconBadge).toHaveStyle({
-      backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}24`,
-      color: LOCATION_COLORS.GROUP_ROOM,
-    });
+    const iconBadge = container.querySelector(
+      '[data-testid="approvals-empty-icon"]',
+    );
+    expect(iconBadge).toHaveAttribute("data-concept", "accounts");
+    expect(iconBadge).toHaveClass("bg-gray-100");
   });
 
   it("defers only an empty result while the invite mode is loading", async () => {

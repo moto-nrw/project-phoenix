@@ -529,7 +529,7 @@ describe("InvitationForm", () => {
       });
 
       const roleLabel = screen.getByText("Rolle");
-      expect(roleLabel.className).toContain("text-red-600");
+      expect(roleLabel.className).toContain("text-moto-red-strong");
     });
   });
 });
