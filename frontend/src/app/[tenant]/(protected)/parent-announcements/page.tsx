@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BarChart3,
   Check,
   ExternalLink,
   Pencil,
@@ -452,7 +451,7 @@ function ParentAnnouncementsContent() {
     const menuItems: OverflowMenuItem[] = [
       {
         label: "Anzeigen",
-        icon: <BarChart3 className="size-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="reports" size={16} />,
         onClick: () => setDetailFor(row),
       },
     ];
@@ -1398,7 +1397,7 @@ function AnnouncementCard({
             onClick={onOpen}
             className="gap-1.5 text-gray-600"
           >
-            <BarChart3 className="size-4" aria-hidden />
+            <MotoConceptIcon concept="reports" size={16} />
             Details
           </Button>
         )}
@@ -1726,7 +1725,7 @@ function DetailModal({
 
         <div>
           <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-            <BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />
+            <MotoConceptIcon concept="reports" size={16} />
             {isPublished ? "Statistik" : "Aktuelle Reichweite"}
           </h4>
           {error ? (
