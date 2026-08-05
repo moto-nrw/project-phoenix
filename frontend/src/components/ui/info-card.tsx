@@ -52,7 +52,8 @@ export function InfoItem({
   value,
   icon,
 }: Readonly<{
-  label: string;
+  /** Plain text, or text plus an inline marker (e.g. ParentVisibleBadge). */
+  label: string | React.ReactNode;
   value: string | React.ReactNode;
   icon?: React.ReactNode;
 }>) {

@@ -22,6 +22,8 @@ import {
   defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
+import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
+import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianForm" });
@@ -590,12 +592,18 @@ export default function GuardianFormModal({
               </h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div>
-                  <label
-                    htmlFor={`guardian-first-name-${entry.id}`}
-                    className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-red-600" : "text-gray-700"}`}
-                  >
-                    Vorname <span className="text-red-500">*</span>
-                  </label>
+                  <div className="mb-1 flex items-center gap-1">
+                    <label
+                      htmlFor={`guardian-first-name-${entry.id}`}
+                      className={`block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-red-600" : "text-gray-700"}`}
+                    >
+                      Vorname <span className="text-red-500">*</span>
+                    </label>
+                    <ParentVisibleBadge
+                      compact
+                      hint={PARENT_VISIBLE_HINTS.guardianName}
+                    />
+                  </div>
                   <input
                     id={`guardian-first-name-${entry.id}`}
                     type="text"
@@ -612,12 +620,18 @@ export default function GuardianFormModal({
                 </div>
 
                 <div>
-                  <label
-                    htmlFor={`guardian-last-name-${entry.id}`}
-                    className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-red-600" : "text-gray-700"}`}
-                  >
-                    Nachname <span className="text-red-500">*</span>
-                  </label>
+                  <div className="mb-1 flex items-center gap-1">
+                    <label
+                      htmlFor={`guardian-last-name-${entry.id}`}
+                      className={`block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-red-600" : "text-gray-700"}`}
+                    >
+                      Nachname <span className="text-red-500">*</span>
+                    </label>
+                    <ParentVisibleBadge
+                      compact
+                      hint={PARENT_VISIBLE_HINTS.guardianName}
+                    />
+                  </div>
                   <input
                     id={`guardian-last-name-${entry.id}`}
                     type="text"
@@ -638,6 +652,7 @@ export default function GuardianFormModal({
                   value={entry.relationshipType}
                   onChange={(value) => updateRelationshipType(entry.id, value)}
                   disabled={isLoading}
+                  parentVisibleHint={PARENT_VISIBLE_HINTS.guardianName}
                 />
                 <GuardianRoleSelect
                   id={`guardian-role-${entry.id}`}
@@ -665,6 +680,9 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Kontaktdaten
+                <ParentVisibleBadge
+                  hint={PARENT_VISIBLE_HINTS.guardianContact}
+                />
               </h3>
 
               {/* Email */}
@@ -848,6 +866,9 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Adresse
+                <ParentVisibleBadge
+                  hint={PARENT_VISIBLE_HINTS.guardianContact}
+                />
               </h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div className="md:col-span-2">

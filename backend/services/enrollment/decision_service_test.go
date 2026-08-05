@@ -133,7 +133,13 @@ func newDecisionServiceForTest(
 		ParentsURL:               "http://parents.localhost:3000",
 		Settings:                 settings,
 		LockTemplateRecurrence:   lockTemplateRecurrence,
-		Logger:                   slog.Default(),
+		InstanceRosters: scheduleService.NewRosterReconciler(
+			repoFactory.ActivityInstance,
+			repoFactory.InstanceStudent,
+			repoFactory.StudentEnrollment,
+			slog.Default(),
+		),
+		Logger: slog.Default(),
 	})
 }
 

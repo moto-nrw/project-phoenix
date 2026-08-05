@@ -965,6 +965,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:            materializationService,
 		InstanceService:            instanceService,
 		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
@@ -1553,8 +1554,49 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
-		Logger: logger.With("service", "enrollment-decision"),
+		// Sourced-roster resyncs must also refresh already-materialized future
+		// occurrences (#2147 review) — the materializer never revisits them.
+		InstanceRosters: rosterReconciler,
+		Logger:          logger.With("service", "enrollment-decision"),
 	})
+	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
+	}
+	// A split that moves the Zielgruppe away from 'angebot' drops the
+	// successor's source rule; the carried roster must then shed its
+	// source-derived rows (#2147 review). Wired late because the decision
+	// service is constructed after the split service.
+	templateSplitService.SetOfferingRosterResync(offeringRosterResyncer.ResyncTemplateOfferingRoster)
+	// Grade transitions rewrite school classes, so they must re-reconcile the
+	// offering-sourced templates' Jahrgang-filtered rosters (#2137). Wired
+	// here because the decision service is constructed after the grade
+	// transition service.
+	gradeTransitionResyncer, ok := enrollmentDecisionService.(education.OfferingSourceResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
+	}
+	gradeTransitionService.SetOfferingSourceResyncer(gradeTransitionResyncer)
+	// A care-offering edit changes the wanted roster of every template sourcing
+	// it (#2147 review). Wired late because the decision service is constructed
+	// after the care-offering service.
+	careOfferingSourceBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSourceResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not accept the sourced-template resyncer")
+	}
+	careOfferingSourcedResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingSourcedTemplateResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
+	}
+	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
+	// A phase service-window change re-bounds every roster row derived from
+	// the phase's offerings, so the templates sourcing them must resync too
+	// (#2147 review). Same late binding as above.
+	phaseSourceBinder, ok := enrollmentPhaseService.(enrollment.CareOfferingSourceResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment phase service does not accept the sourced-template resyncer")
+	}
+	phaseSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,
@@ -2113,6 +2155,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			TimeframeRepo:              repos.Timeframe,
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+			ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
+			ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 			DeviationEventRepo:         repos.DeviationEvent,
 			ConflictAckRepo:            repos.TimetableConflictAck,
 			Broadcaster:                realtimeHub,

@@ -455,4 +455,23 @@ type RequestChildOfferingRepository interface {
 	// including a replacement scheduled for a future date. It protects later
 	// materialization from incompatible offering/template edits.
 	CountMaterializableByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
+
+	// ListApprovedChildrenByCareOfferingIDs returns, per offering, every
+	// offering link of an APPROVED request child that is still current or
+	// scheduled (valid_until in the future or open), with the child's
+	// resolved student id and the student's school class hydrated for
+	// Jahrgang filtering (#2137). Children without a resolved student row
+	// (approval not yet materialized) and alumni are excluded. Empty input
+	// returns an empty slice without a query.
+	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
+}
+
+// ApprovedOfferingChild is one approved, still-relevant offering selection
+// with the enrollment-to-student resolution the offering-source flows need
+// (#2137): roster resync of sourced Regeltermine and the editor's per-grade
+// count preview.
+type ApprovedOfferingChild struct {
+	Link        *RequestChildOffering
+	StudentID   int64
+	SchoolClass string
 }

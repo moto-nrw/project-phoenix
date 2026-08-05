@@ -32,8 +32,10 @@ import type {
   MoveStaffInput,
   MoveStaffResponse,
   StaffPoolResponse,
+  BackendOfferingSourcesResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
+  OfferingSourceOption,
   BackendWeeklyInstancesResponse,
   AttendancePatchBody,
   AttendanceResponse,
@@ -81,6 +83,7 @@ import {
   mapEditedInWindowResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
+  mapOfferingSourceOptions,
   mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
@@ -200,6 +203,28 @@ class TimetableService {
       instances_created: raw.instances_created,
     });
     return mapCreateTemplateResult(raw);
+  }
+
+  /**
+   * GET /api/timetable/offering-sources — Betreuungsangebote selectable as
+   * Regeltermin roster source (#2137), with per-Jahrgang counts of approved
+   * children and the templates already sourcing each offering.
+   */
+  async getOfferingSources(
+    calendarPeriodId?: string | null,
+  ): Promise<OfferingSourceOption[]> {
+    const params = new URLSearchParams();
+    if (calendarPeriodId) params.set("calendar_period_id", calendarPeriodId);
+    const response = await fetch(
+      `/api/timetable/offering-sources${params.toString() ? `?${params}` : ""}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    const raw = await unwrap<BackendOfferingSourcesResponse>(response);
+    return mapOfferingSourceOptions(raw);
   }
 
   async getTemplates(periodId?: string | null): Promise<TemplatesResponse> {

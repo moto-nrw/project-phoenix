@@ -438,6 +438,10 @@ export interface TimetableTemplate {
   targetGradeLevel?: number;
   targetSchoolClass?: string;
   targets?: TimetableTarget[];
+  /** Offering-source rule (#2137): set on "angebot" templates whose roster
+   * derives from a Betreuungsangebot; empty grade list = alle Kinder. */
+  sourceCareOfferingId?: string;
+  sourceGradeLevels?: number[];
   enrollmentCount: number;
   supervisorCount: number;
   /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
@@ -519,6 +523,8 @@ export interface BackendTimetableTemplate {
     education_group_id?: number;
     education_group_name?: string;
   }>;
+  source_care_offering_id?: number;
+  source_grade_levels?: number[];
   enrollment_count: number;
   supervisor_count: number;
   required_staff_count: number;
@@ -940,6 +946,13 @@ export interface CreateTemplateBody {
   target_group_type?: TargetGroupType;
   target_grade_level?: number;
   target_school_class?: string;
+  /** Offering-source rule (#2137, target_group_type "angebot" only). With a
+   * source set, student_ids must be empty — the roster derives from the
+   * offering's approved enrollments. The update endpoint is presence-aware:
+   * an omitted field keeps the stored value, only an explicit null clears
+   * it — so always send null, never undefined, to mean "no source". */
+  source_care_offering_id?: number | null;
+  source_grade_levels?: number[] | null;
   /**
    * Series start (#2135): schedules get it as valid_from, so no instances
    * materialize before it and the roster becomes valid from it. Must lie
@@ -985,6 +998,48 @@ export type UpdateTemplateBody = Omit<
    */
   list_kind?: TimetableListKind | null;
 };
+
+/**
+ * One selectable Betreuungsangebot for the offering-source editor (#2137):
+ * per-Jahrgang counts of approved children (live filter preview) and the
+ * templates already sourcing it (overlap Hinweis).
+ */
+export interface OfferingSourceOption {
+  id: string;
+  name: string;
+  phaseId: string;
+  phaseName: string;
+  totalCount: number;
+  /** Jahrgang → approved children; key 0 = ohne ableitbaren Jahrgang. */
+  gradeCounts: Record<number, number>;
+  sourcedTemplates: OfferingSourcedTemplate[];
+  legacyLinkedTemplateId?: string;
+}
+
+interface OfferingSourcedTemplate {
+  id: string;
+  name: string;
+  gradeLevels: number[];
+}
+
+interface BackendOfferingSourceOption {
+  id: number;
+  name: string;
+  phase_id: number;
+  phase_name: string;
+  total_count: number;
+  grade_counts: Record<string, number>;
+  sourced_templates: {
+    id: number;
+    name: string;
+    grade_levels?: number[];
+  }[];
+  legacy_linked_template_id?: number;
+}
+
+export interface BackendOfferingSourcesResponse {
+  offerings: BackendOfferingSourceOption[];
+}
 
 export interface CreateTemplateResult {
   templateId: string;

@@ -33,6 +33,11 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
+import {
+  ParentVisibleBadge,
+  ParentVisibilityLegend,
+} from "~/components/ui/parent-visible-badge";
+import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 
@@ -854,17 +859,47 @@ export function PersonalInfoReadOnly({
           <ViewOnlyBadge />
         )}
       </div>
+      <ParentVisibilityLegend className="mb-4" />
       <div className="space-y-3">
-        <InfoItem label="Vollständiger Name" value={student.name} />
-        <InfoItem label="Klasse" value={student.school_class} />
+        <InfoItem
+          label={
+            <ParentVisibleLabel
+              label="Vollständiger Name"
+              hint={PARENT_VISIBLE_HINTS.name}
+            />
+          }
+          value={student.name}
+        />
+        <InfoItem
+          label={
+            <ParentVisibleLabel
+              label="Klasse"
+              hint={PARENT_VISIBLE_HINTS.schoolClass}
+            />
+          }
+          value={student.school_class}
+        />
         <InfoItem
           label="Gruppe"
           value={student.group_name ?? "Nicht zugewiesen"}
         />
-        <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
+        <InfoItem
+          label={
+            <ParentVisibleLabel
+              label="Geburtsdatum"
+              hint={PARENT_VISIBLE_HINTS.birthday}
+            />
+          }
+          value={birthdayDisplay}
+        />
         {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
         <InfoItem
-          label="Erlaubte Heimwege"
+          label={
+            <ParentVisibleLabel
+              label="Erlaubte Heimwege"
+              hint={PARENT_VISIBLE_HINTS.departure}
+            />
+          }
           value={
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 flex-1">
@@ -937,7 +972,12 @@ export function PersonalInfoReadOnly({
         )}
         {student.health_info && (
           <InfoItem
-            label="Gesundheitsinformationen"
+            label={
+              <ParentVisibleLabel
+                label="Gesundheitsinformationen"
+                hint={PARENT_VISIBLE_HINTS.healthInfo}
+              />
+            }
             value={
               <span className="flex items-start gap-1.5">
                 <span className="min-w-0 flex-1">{student.health_info}</span>
@@ -982,6 +1022,19 @@ export function PersonalInfoReadOnly({
         <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
       </div>
     </div>
+  );
+}
+
+/** An InfoItem label carrying the "sichtbar für Eltern" marker (#2163). */
+function ParentVisibleLabel({
+  label,
+  hint,
+}: Readonly<{ label: string; hint: string }>) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <ParentVisibleBadge compact hint={hint} />
+    </span>
   );
 }
 
