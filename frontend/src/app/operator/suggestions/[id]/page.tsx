@@ -250,7 +250,7 @@ export default function OperatorSuggestionDetailPage() {
             <button
               type="button"
               onClick={() => setShowDeleteModal(true)}
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+              className="hover:bg-moto-red-soft hover:text-moto-red rounded-lg p-1.5 text-gray-400 transition-colors"
               aria-label="Beitrag löschen"
               title="Beitrag unwiderruflich löschen"
             >
@@ -260,7 +260,7 @@ export default function OperatorSuggestionDetailPage() {
               <ThumbsUp className="h-4.5 w-4.5" fill="currentColor" />
               <span className="text-sm font-bold">{suggestion.upvotes}</span>
             </span>
-            <span className="flex items-center gap-1 text-red-500">
+            <span className="text-moto-red flex items-center gap-1">
               <ThumbsDown className="h-4.5 w-4.5" fill="currentColor" />
               <span className="text-sm font-bold">{suggestion.downvotes}</span>
             </span>
@@ -334,7 +334,7 @@ export default function OperatorSuggestionDetailPage() {
                       <button
                         type="button"
                         onClick={() => setDeleteCommentId(comment.id)}
-                        className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-red-500"
+                        className="hover:text-moto-red rounded p-1 text-gray-400 transition-colors hover:bg-gray-200"
                         aria-label="Kommentar löschen"
                       >
                         <svg
@@ -392,7 +392,7 @@ export default function OperatorSuggestionDetailPage() {
         }}
         title="Kommentar löschen?"
         confirmText="Löschen"
-        confirmButtonClass="bg-red-500 hover:bg-red-600"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         isConfirmLoading={isDeletingComment}
       >
         <p className="text-sm text-gray-600">
@@ -409,7 +409,7 @@ export default function OperatorSuggestionDetailPage() {
         }}
         title="Beitrag löschen?"
         confirmText="Endgültig löschen"
-        confirmButtonClass="bg-red-500 hover:bg-red-600"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">

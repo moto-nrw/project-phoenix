@@ -341,7 +341,7 @@ function OperatorSuggestionCard({
                 <ThumbsUp className="h-4 w-4" fill="currentColor" />
                 <span className="text-xs font-bold">{suggestion.upvotes}</span>
               </span>
-              <span className="flex items-center gap-1 text-red-500">
+              <span className="text-moto-red flex items-center gap-1">
                 <ThumbsDown className="h-4 w-4" fill="currentColor" />
                 <span className="text-xs font-bold">
                   {suggestion.downvotes}

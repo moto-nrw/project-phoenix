@@ -92,7 +92,7 @@ export function AnnouncementViewsAccordion({
             )}
 
             {/* Error */}
-            {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
+            {error && <p className="text-moto-red mb-2 text-xs">{error}</p>}
 
             {/* Confirmed users list */}
             {!isLoading && confirmedUsers.length > 0 && (
@@ -125,7 +125,7 @@ export function AnnouncementViewsAccordion({
                             · {getRelativeTime(detail.seenAt)}
                           </time>
                         </div>
-                        <Check className="h-4 w-4 text-green-500" />
+                        <Check className="text-moto-green h-4 w-4" />
                       </div>
                     </div>
                   </div>

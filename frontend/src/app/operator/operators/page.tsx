@@ -166,7 +166,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-moto-red text-sm">{error}</p>}
 
         <button
           type="submit"
@@ -244,7 +244,7 @@ function PendingInvitationsList({
         className="mb-4"
       />
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="text-moto-red mb-4 text-sm">{error}</p>}
 
       <div className="space-y-3">
         {invitations.map((inv) => (
@@ -298,7 +298,7 @@ function PendingInvitationsList({
         onConfirm={() => void handleRevoke()}
         title="Einladung widerrufen"
         confirmText="Widerrufen"
-        confirmButtonClass="bg-red-500 hover:bg-red-600"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
       >
         <p>
           Möchtest du die Einladung an{" "}

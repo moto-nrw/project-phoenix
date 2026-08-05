@@ -1031,7 +1031,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handleDelete()}
         title="Ankündigung löschen?"
         confirmText="Löschen"
-        confirmButtonClass="bg-red-500 hover:bg-red-600"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">

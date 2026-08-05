@@ -149,7 +149,7 @@ function OperatorPersonsPageContent() {
                 <button
                   type="button"
                   onClick={() => setDeletePersonTarget(person)}
-                  className="ml-3 shrink-0 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  className="hover:bg-moto-red-soft hover:text-moto-red-hover ml-3 shrink-0 rounded-lg p-1.5 text-gray-400 transition-colors"
                   title="Person löschen"
                 >
                   <svg
@@ -189,7 +189,7 @@ function OperatorPersonsPageContent() {
               </span>{" "}
               wirklich löschen?
             </p>
-            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="bg-moto-amber-soft text-moto-amber-strong mt-3 rounded-lg px-3 py-2 text-sm">
               <p className="font-medium">
                 Folgende Aktionen werden ausgeführt:
               </p>
@@ -217,13 +217,13 @@ function OperatorPersonsPageContent() {
                 value={deletePersonConfirmInput}
                 onChange={(e) => setDeletePersonConfirmInput(e.target.value)}
                 placeholder={deletePersonTarget.fullName}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+                className="focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 autoComplete="off"
               />
             </div>
 
             {deletePersonError && (
-              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+              <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
                 {deletePersonError}
               </div>
             )}
@@ -244,7 +244,7 @@ function OperatorPersonsPageContent() {
                   deletePersonLoading ||
                   deletePersonConfirmInput !== deletePersonTarget.fullName
                 }
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="bg-moto-red hover:bg-moto-red-hover rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deletePersonLoading ? "Wird gelöscht..." : "Endgültig löschen"}
               </button>

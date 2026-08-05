@@ -339,14 +339,14 @@ export function InviteContent() {
             />
           </div>
           {confirmPassword.length > 0 && !passwordsMatch && (
-            <p className="mt-1 text-xs text-red-500">
+            <p className="text-moto-red mt-1 text-xs">
               Passwörter stimmen nicht überein
             </p>
           )}
         </div>
 
         {formError && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border p-3 text-sm">
             {formError}
           </div>
         )}
