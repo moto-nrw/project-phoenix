@@ -174,6 +174,55 @@ func TestBuildTemplateSplitInput_ListKindThreeState(t *testing.T) {
 	}
 }
 
+// The split flow must carry the offering-source rule (#2137) with the same
+// three-state contract as the template PUT (#2147 review round 14): omitted
+// inherits the old template's source and filter, an explicit null clears
+// them, values set them. Without the pass-through the service always copied
+// the old template's rule and a requested change was silently dropped.
+func TestBuildTemplateSplitInput_SourceFieldsThreeState(t *testing.T) {
+	t.Run("omitted -> inherit (not provided)", func(t *testing.T) {
+		req := &splitTemplateRequest{}
+		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON("")), req))
+
+		in, err := buildTemplateSplitInput(100, req)
+		require.NoError(t, err)
+
+		assert.False(t, in.SourceCareOfferingIDProvided)
+		assert.False(t, in.SourceGradeLevelsProvided)
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels)
+	})
+
+	t.Run("explicit null -> clear (provided, nil)", func(t *testing.T) {
+		req := &splitTemplateRequest{}
+		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(
+			`"source_care_offering_id": null, "source_grade_levels": null`)), req))
+
+		in, err := buildTemplateSplitInput(100, req)
+		require.NoError(t, err)
+
+		assert.True(t, in.SourceCareOfferingIDProvided)
+		assert.True(t, in.SourceGradeLevelsProvided)
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels)
+	})
+
+	t.Run("values -> set (provided)", func(t *testing.T) {
+		req := &splitTemplateRequest{}
+		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(
+			`"source_care_offering_id": 7, "source_grade_levels": [2, 3]`)), req))
+
+		in, err := buildTemplateSplitInput(100, req)
+		require.NoError(t, err)
+
+		require.True(t, in.SourceCareOfferingIDProvided)
+		require.NotNil(t, in.SourceCareOfferingID)
+		assert.EqualValues(t, 7, *in.SourceCareOfferingID)
+		assert.True(t, in.SourceGradeLevelsProvided)
+		assert.Equal(t, []int{2, 3}, in.SourceGradeLevels)
+	})
+}
+
 func TestSplitTemplateRequestBind_RejectsWeekendWeekdays(t *testing.T) {
 	req := &splitTemplateRequest{}
 	require.NoError(t, json.Unmarshal([]byte(`{

@@ -84,16 +84,30 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
+	// The offering-source pair is presence-aware: an omitted source id merges
+	// the STORED source in after bind (applyOfferingSourcePresence / the split
+	// service). Validating a submitted Jahrgangsfilter against the
+	// not-yet-merged nil source here would reject a legitimate filter-only
+	// edit of a sourced template (#2147 review round 14), so the pair enters
+	// the bind-time validation only when the source id itself was submitted.
+	// The merged state is always re-validated service-side
+	// (validateOfferingSourceInput → ErrOfferingSourceInvalid → 400).
+	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
+	if !req.SourceCareOfferingID.Set {
+		sourceGradeLevelsForBind = nil
+	}
 	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
 		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingID.Value, req.SourceGradeLevels.Value, req.Targets,
+		req.SourceCareOfferingID.Value, sourceGradeLevelsForBind, req.Targets,
 	)
 	if err != nil {
 		return err
 	}
 	req.TargetGroupType = targetType
 	req.TargetSchoolClass = schoolClass
-	req.SourceGradeLevels.Value = sourceGradeLevels
+	if req.SourceCareOfferingID.Set {
+		req.SourceGradeLevels.Value = sourceGradeLevels
+	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err

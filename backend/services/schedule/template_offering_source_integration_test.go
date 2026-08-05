@@ -410,6 +410,167 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	assert.Equal(t, monday, *byStudent[s.students[1]].ValidUntil)
 }
 
+// A split request may change the source rule itself (#2147 review round 14):
+// the editor lets the admin adjust the Quelle or the Jahrgangsfilter and then
+// pick the "following" scope. The provided fields must land on the successor,
+// and the changed feed must reconcile the carried roster — a row of a child
+// the new rule no longer wants may not survive the carry-over.
+func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) {
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                 name,
+		Type:                 activitiesModels.GroupTypeCare,
+		Weekdays:             []int{activitiesModels.WeekdayMonday},
+		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:               s.roomID,
+		CategoryID:           s.categoryID,
+		MaxParticipants:      20,
+		CalendarPeriodID:     &s.period.ID,
+		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingID: &offering.ID,
+		SourceGradeLevels:    []int{1, 2},
+		RosterValidFrom:      monday.AddDays(-30),
+		GradeLevelMax:        schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	// One source-fed row the old rule planned; the child holds no approved
+	// offering link, so ANY reconciliation removes it — its survival therefore
+	// tells apart the plain carry-over (unchanged rule, see the inheritance
+	// test) from the resync a changed rule must trigger.
+	repos := repositories.NewFactory(s.db)
+	childID := createSplitRequestChild(t, s, s.students[0])
+	sourcedUntil := s.period.EndDate.AddDays(1)
+	sourced := &activitiesModels.StudentEnrollment{
+		StudentID:                s.students[0],
+		ActivityGroupID:          result.TemplateID,
+		ValidFrom:                s.period.StartDate,
+		ValidUntil:               &sourcedUntil,
+		CalendarPeriodID:         &s.period.ID,
+		EnrollmentRequestChildID: &childID,
+		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
+	}
+	sourced.SetTenantID(s.tenantID)
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, sourced))
+
+	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
+		TemplateID:                result.TemplateID,
+		EffectiveDate:             monday,
+		Name:                      name,
+		Type:                      activitiesModels.GroupTypeCare,
+		Weekdays:                  []int{activitiesModels.WeekdayMonday},
+		StartTime:                 time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		EndTime:                   time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
+		RoomID:                    s.roomID,
+		CategoryID:                s.categoryID,
+		CalendarPeriodID:          &s.period.ID,
+		TargetGroupType:           activitiesModels.TargetGroupTypeAngebot,
+		SourceGradeLevels:         []int{3},
+		SourceGradeLevelsProvided: true,
+		GradeLevelMax:             schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
+
+	successor := loadTemplateGroup(t, s, split.NewTemplateID)
+	require.NotNil(t, successor.SourceCareOfferingID, "the omitted source id must still inherit")
+	assert.Equal(t, offering.ID, *successor.SourceCareOfferingID)
+	assert.Equal(t, []int{3}, successor.SourceGradeLevels,
+		"the provided Jahrgangsfilter must land on the successor instead of the inherited one")
+
+	assert.Empty(t, loadSplitEnrollments(t, s, split.NewTemplateID),
+		"the changed rule must reconcile the carried roster, not keep the old feed's row")
+}
+
+// Keeping the 'angebot' Zielgruppe while explicitly clearing the source
+// (source_care_offering_id: null) turns the successor into a manual template:
+// the rule is gone and the source-fed rows the carry-over copied are removed,
+// while the manual roster survives (#2147 review round 14).
+func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                 name,
+		Type:                 activitiesModels.GroupTypeCare,
+		Weekdays:             []int{activitiesModels.WeekdayMonday},
+		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:               s.roomID,
+		CategoryID:           s.categoryID,
+		MaxParticipants:      20,
+		CalendarPeriodID:     &s.period.ID,
+		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingID: &offering.ID,
+		RosterValidFrom:      monday.AddDays(-30),
+		GradeLevelMax:        schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	repos := repositories.NewFactory(s.db)
+	childID := createSplitRequestChild(t, s, s.students[0])
+	sourcedUntil := s.period.EndDate.AddDays(1)
+	sourced := &activitiesModels.StudentEnrollment{
+		StudentID:                s.students[0],
+		ActivityGroupID:          result.TemplateID,
+		ValidFrom:                s.period.StartDate,
+		ValidUntil:               &sourcedUntil,
+		CalendarPeriodID:         &s.period.ID,
+		EnrollmentRequestChildID: &childID,
+		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
+	}
+	sourced.SetTenantID(s.tenantID)
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, sourced))
+	manual := &activitiesModels.StudentEnrollment{
+		StudentID:        s.students[1],
+		ActivityGroupID:  result.TemplateID,
+		ValidFrom:        monday.AddDays(-30),
+		CalendarPeriodID: &s.period.ID,
+	}
+	manual.SetTenantID(s.tenantID)
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, manual))
+
+	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
+		TemplateID:                   result.TemplateID,
+		EffectiveDate:                monday,
+		Name:                         name,
+		Type:                         activitiesModels.GroupTypeCare,
+		Weekdays:                     []int{activitiesModels.WeekdayMonday},
+		StartTime:                    time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		EndTime:                      time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
+		RoomID:                       s.roomID,
+		CategoryID:                   s.categoryID,
+		CalendarPeriodID:             &s.period.ID,
+		TargetGroupType:              activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDProvided: true,
+		GradeLevelMax:                schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
+
+	successor := loadTemplateGroup(t, s, split.NewTemplateID)
+	assert.Nil(t, successor.SourceCareOfferingID)
+	assert.Empty(t, successor.SourceGradeLevels)
+
+	successorRows := loadSplitEnrollments(t, s, split.NewTemplateID)
+	require.Len(t, successorRows, 1, "the successor must carry only the manual row")
+	assert.Equal(t, s.students[1], successorRows[0].StudentID)
+	assert.Nil(t, successorRows[0].EnrollmentRequestChildID)
+}
+
 // A source whose Anmeldephase reaches beyond the template's Kalenderzeitraum
 // could never materialize its children, so the template save rejects it
 // instead of persisting a dead rule (#2137).

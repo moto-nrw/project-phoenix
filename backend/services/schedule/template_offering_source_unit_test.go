@@ -158,6 +158,129 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 	})
 }
 
+// resolveSuccessorOfferingSource merges the presence-aware split request
+// fields with the old template before anything is written (#2147 review
+// round 14): omitted fields inherit, provided fields are authoritative, and
+// a Zielgruppe away from 'angebot' drops the rule. Without the merge a split
+// silently kept the old template's source and filter no matter what the
+// request asked for.
+func TestResolveSuccessorOfferingSource(t *testing.T) {
+	oldOffering := int64(12)
+	newOffering := int64(13)
+	sourcedOld := func() *activitiesModel.Group {
+		return &activitiesModel.Group{
+			TargetGroupType:      activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingID: &oldOffering,
+			SourceGradeLevels:    []int{1, 2},
+		}
+	}
+
+	t.Run("omitted fields inherit source and filter", func(t *testing.T) {
+		in := &TemplateSplitInput{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
+		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
+		require.NotNil(t, in.SourceCareOfferingID)
+		assert.Equal(t, oldOffering, *in.SourceCareOfferingID)
+		assert.Equal(t, []int{1, 2}, in.SourceGradeLevels)
+	})
+
+	t.Run("provided values win over the stored ones", func(t *testing.T) {
+		in := &TemplateSplitInput{
+			TargetGroupType:              activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingID:         &newOffering,
+			SourceCareOfferingIDProvided: true,
+			SourceGradeLevels:            []int{3},
+			SourceGradeLevelsProvided:    true,
+		}
+		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
+		require.NotNil(t, in.SourceCareOfferingID)
+		assert.Equal(t, newOffering, *in.SourceCareOfferingID)
+		assert.Equal(t, []int{3}, in.SourceGradeLevels)
+	})
+
+	t.Run("filter-only change keeps the inherited source", func(t *testing.T) {
+		in := &TemplateSplitInput{
+			TargetGroupType:           activitiesModel.TargetGroupTypeAngebot,
+			SourceGradeLevels:         []int{4},
+			SourceGradeLevelsProvided: true,
+		}
+		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
+		require.NotNil(t, in.SourceCareOfferingID)
+		assert.Equal(t, oldOffering, *in.SourceCareOfferingID)
+		assert.Equal(t, []int{4}, in.SourceGradeLevels)
+	})
+
+	t.Run("explicit nil clears the source and drags the omitted filter along", func(t *testing.T) {
+		in := &TemplateSplitInput{
+			TargetGroupType:              activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDProvided: true,
+		}
+		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels,
+			"a source cleared by explicit null must not leave the stored filter behind (DB CHECK)")
+	})
+
+	t.Run("a Zielgruppe away from angebot drops the rule", func(t *testing.T) {
+		in := &TemplateSplitInput{
+			TargetGroupType:              activitiesModel.TargetGroupTypeNone,
+			SourceCareOfferingID:         &newOffering,
+			SourceCareOfferingIDProvided: true,
+		}
+		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels)
+	})
+
+	t.Run("merged source next to explicit student_ids is rejected", func(t *testing.T) {
+		in := &TemplateSplitInput{
+			TargetGroupType: activitiesModel.TargetGroupTypeAngebot,
+			StudentIDs:      []int64{21},
+		}
+		err := resolveSuccessorOfferingSource(in, sourcedOld())
+		require.ErrorIs(t, err, ErrOfferingSourceInvalid)
+		assert.ErrorContains(t, err, "student_ids must be empty")
+	})
+
+	t.Run("no stored source stays no source", func(t *testing.T) {
+		in := &TemplateSplitInput{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
+		require.NoError(t, resolveSuccessorOfferingSource(in, &activitiesModel.Group{
+			TargetGroupType: activitiesModel.TargetGroupTypeAngebot,
+		}))
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels)
+	})
+}
+
+// offeringRosterFeedChanged gates the split's roster resync: an unchanged
+// feed keeps the plain carry-over, every difference triggers reconciliation.
+func TestOfferingRosterFeedChanged(t *testing.T) {
+	offeringA := int64(12)
+	offeringB := int64(13)
+	group := func(offeringID *int64, levels []int) *activitiesModel.Group {
+		return &activitiesModel.Group{SourceCareOfferingID: offeringID, SourceGradeLevels: levels}
+	}
+
+	tests := []struct {
+		name        string
+		old, newG   *activitiesModel.Group
+		wantChanged bool
+	}{
+		{"both without source", group(nil, nil), group(nil, nil), false},
+		{"identical source and filter", group(&offeringA, []int{1, 2}), group(&offeringA, []int{1, 2}), false},
+		{"identical filter in different order", group(&offeringA, []int{2, 1}), group(&offeringA, []int{1, 2}), false},
+		{"source added", group(nil, nil), group(&offeringA, nil), true},
+		{"source removed", group(&offeringA, nil), group(nil, nil), true},
+		{"source switched", group(&offeringA, nil), group(&offeringB, nil), true},
+		{"filter changed", group(&offeringA, []int{1}), group(&offeringA, []int{2}), true},
+		{"filter cleared", group(&offeringA, []int{1}), group(&offeringA, nil), true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.wantChanged, offeringRosterFeedChanged(tc.old, tc.newG))
+		})
+	}
+}
+
 // resyncUpdatedTemplateOfferingRoster decides whether an edit has to touch
 // the offering-sourced roster at all, and with which window.
 //

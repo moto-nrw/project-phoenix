@@ -307,10 +307,20 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
-		Targets:           targetModels(req.Targets),
-		StudentIDs:        req.StudentIDs,
-		StaffIDs:          req.StaffIDs,
-		PrimaryStaffID:    req.PrimaryStaffID,
+		// Offering-source rule (#2137): same presence contract as the template
+		// PUT — omitted fields inherit the old template's source and filter,
+		// submitted fields are authoritative (#2147 review round 14). Without
+		// the pass-through an editor save that changes the Quelle or the
+		// Jahrgangsfilter and then picks the "following" scope would silently
+		// keep the old rule on the successor.
+		SourceCareOfferingID:         req.SourceCareOfferingID.Value,
+		SourceCareOfferingIDProvided: req.SourceCareOfferingID.Set,
+		SourceGradeLevels:            req.SourceGradeLevels.Value,
+		SourceGradeLevelsProvided:    req.SourceGradeLevels.Set,
+		Targets:                      targetModels(req.Targets),
+		StudentIDs:                   req.StudentIDs,
+		StaffIDs:                     req.StaffIDs,
+		PrimaryStaffID:               req.PrimaryStaffID,
 		// Per-weekday roster deviations follow the successor (#2129); the
 		// embedded updateTemplateRequest.Bind already validated them against
 		// the submitted weekdays.
