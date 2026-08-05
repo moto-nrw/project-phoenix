@@ -455,7 +455,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const renderField = (field: FormField) => {
     const hasError = field.name === errorFieldName;
 
-    const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-red-400" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
+    const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
     const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-red-600" : "text-gray-700"}`;
 
     switch (field.type) {

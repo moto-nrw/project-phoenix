@@ -1400,7 +1400,7 @@ export function CalendarOverviewList({
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="rounded-lg bg-[#ECF7DA] px-2 py-2 text-gray-800">
+          <div className="bg-moto-green-soft rounded-lg px-2 py-2 text-gray-800">
             <div className="font-semibold">{accepted}</div>
             <div>Zugesagt</div>
           </div>

@@ -361,7 +361,7 @@ function RolesPageContent() {
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start gap-3">
             <TriangleAlert
-              className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600"
+              className="text-moto-amber-strong mt-0.5 h-5 w-5 flex-shrink-0"
               aria-hidden
             />
             <div>
