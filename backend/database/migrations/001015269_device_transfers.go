@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	deviceTransfersVersion     = "1.15.268"
+	deviceTransfersVersion     = "1.15.269"
 	deviceTransfersDescription = "Allow operator device transfers while retaining tenant history"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func deviceTransfersUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.268: Adding device transfer history...")
+	fmt.Println("Migration 1.15.269: Adding device transfer history...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE iot.devices
 			ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
@@ -51,7 +51,7 @@ func deviceTransfersUp(ctx context.Context, db *bun.DB) error {
 }
 
 func deviceTransfersDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.268: Removing device transfer history...")
+	fmt.Println("Rolling back migration 1.15.269: Removing device transfer history...")
 	_, err := db.ExecContext(ctx, `
 		UPDATE iot.devices
 		SET device_id = LEFT(device_id, 220) || '-ARCHIVED-' || id
