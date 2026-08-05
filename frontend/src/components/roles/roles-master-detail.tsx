@@ -134,7 +134,7 @@ function RoleDetailContent({
       <button
         type="button"
         onClick={onManagePermissions}
-        className="flex items-center gap-1.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 hover:bg-purple-100"
+        className="border-moto-purple/20 bg-moto-purple-soft text-moto-purple-strong hover:bg-moto-purple/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
       >
         <MotoConceptIcon concept="permissions" size={16} />
         Berechtigungen
@@ -205,11 +205,11 @@ function RoleStammdatenTab({
             </span>
           ) : null}
           {!role.isSystem && !role.baseRole ? (
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2.5 py-1 text-xs font-medium">
               Zuordnung fehlt
             </span>
           ) : null}
-          <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700">
+          <span className="bg-moto-purple-soft text-moto-purple-strong rounded-full px-2.5 py-1 text-xs font-medium">
             {role.permissions?.length ?? 0} Berechtigungen
           </span>
         </div>

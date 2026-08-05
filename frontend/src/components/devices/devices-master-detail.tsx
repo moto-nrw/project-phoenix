@@ -256,7 +256,7 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
           <button
             type="button"
             onClick={() => setRevealed((current) => !current)}
-            className="bg-moto-orange rounded px-2 py-1 text-xs text-white hover:bg-[#e57a00]"
+            className="bg-moto-orange hover:bg-moto-orange-hover rounded px-2 py-1 text-xs text-white"
           >
             {revealed ? "Verbergen" : "Anzeigen"}
           </button>

@@ -554,7 +554,7 @@ export function GradeTransitionsManager({
         confirmText="Ja, löschen"
         cancelText="Abbrechen"
         isConfirmLoading={busy}
-        confirmButtonClass="bg-moto-red hover:bg-[#e02c2b] text-white"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover text-white"
       >
         <p>
           Den Entwurf für {deleteTarget?.academicYear} wirklich löschen? Es

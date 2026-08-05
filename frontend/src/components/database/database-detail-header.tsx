@@ -11,8 +11,9 @@ import { Avatar } from "~/components/ui/avatar";
  *  - an object with `{ name, imageUrl? }` so callers with a real entity name
  *    can pass through the shared <Avatar> (image with initials fallback).
  *
- * Existing string callers stay pixel-identical via the legacy chip below; the
- * object form is used for entities that may have a photo (students today).
+ * Existing string callers render via the legacy chip below (now on the
+ * moto-blue-soft/moto-blue tokens instead of a raw hex); the object form is
+ * used for entities that may have a photo (students today).
  */
 type AvatarProp = string | { name: string; imageUrl?: string | null };
 
@@ -37,16 +38,16 @@ export function DatabaseDetailHeader({
   return (
     <div className="flex items-center gap-4 px-6 py-5">
       {icon ? (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gray-100">
           {icon}
         </div>
       ) : typeof avatar === "string" ? (
-        // Legacy chip — kept verbatim so roles/groups/permissions render
-        // identically to before. Light-blue brand chip with pre-computed
-        // initials. Do not migrate these callers without designer review.
+        // Legacy chip for roles/groups/permissions: light-blue brand chip
+        // with pre-computed initials (Task 6 moved it from a raw hex chip
+        // to the moto-blue-soft/moto-blue tokens).
         <div
           aria-hidden
-          className="text-moto-blue flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#DCE6F8] text-base font-semibold"
+          className="text-moto-blue bg-moto-blue-soft flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold"
         >
           {avatar}
         </div>
@@ -58,7 +59,7 @@ export function DatabaseDetailHeader({
         <div className="mt-0.5 truncate text-sm text-gray-500">{subtitle}</div>
       </div>
       {warning ? (
-        <div className="text-moto-orange flex items-center gap-1.5 rounded-full bg-[#FFE8D0] px-3 py-1 text-xs font-semibold">
+        <div className="text-moto-orange bg-moto-orange-soft flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold">
           <AlertTriangle className="h-3 w-3" aria-hidden />
           {warning}
         </div>

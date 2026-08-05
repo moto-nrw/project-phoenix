@@ -18,7 +18,7 @@ interface GroupHeaderProps {
 
 const HEADER_BG: Record<GroupHeaderVariant, string> = {
   neutral: "bg-gray-50",
-  warning: "bg-[#FFF8ED]",
+  warning: "bg-moto-orange-soft",
   success: "bg-moto-green-soft/40",
 };
 
@@ -30,7 +30,7 @@ const CHEVRON_COLOR: Record<GroupHeaderVariant, string> = {
 
 const BADGE_STYLES: Record<GroupHeaderVariant, string> = {
   neutral: "bg-gray-200 text-gray-700",
-  warning: "bg-[#FFE8D0] text-moto-orange",
+  warning: "bg-moto-orange-soft text-moto-orange",
   success: "bg-moto-green-soft text-moto-green",
 };
 
