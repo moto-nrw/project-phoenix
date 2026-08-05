@@ -21,13 +21,13 @@ function getAccountCapabilityMeta(account: SchoolAccount) {
   if (account.isActiveCaregiver) {
     return {
       label: "Betreuung aktiv",
-      className: "bg-moto-orange/15 text-[#C56F0D]",
+      className: "bg-moto-orange/15 text-moto-orange-strong",
     };
   }
   if (account.hasUserRole && !account.hasCaregiverProfile) {
     return {
       label: "Betreuung unvollständig",
-      className: "bg-[#EAB308]/15 text-[#854D0E]",
+      className: "bg-moto-amber/15 text-moto-amber-strong",
     };
   }
   if (account.hasCaregiverProfile && !account.hasUserRole) {
@@ -39,7 +39,7 @@ function getAccountCapabilityMeta(account: SchoolAccount) {
   if (account.hasAdminRole) {
     return {
       label: "Nur Verwaltung",
-      className: "bg-moto-blue/15 text-[#4070C8]",
+      className: "bg-moto-blue/15 text-moto-blue-hover",
     };
   }
   return {
@@ -51,8 +51,8 @@ function getAccountCapabilityMeta(account: SchoolAccount) {
 function AccountStatusBadge({ status }: Readonly<{ status: string }>) {
   const styles: Record<string, string> = {
     active: "bg-moto-green/15 text-moto-green-strong",
-    pending: "bg-[#EAB308]/15 text-[#854D0E]",
-    invited: "bg-[#7C3AED]/15 text-[#5B21B6]",
+    pending: "bg-moto-amber/15 text-moto-amber-strong",
+    invited: "bg-moto-purple/15 text-moto-purple-strong",
     inactive: "bg-gray-100 text-gray-500",
   };
   const labels: Record<string, string> = {
@@ -143,7 +143,7 @@ export function AccountsTable({
               {row.roleName.split(", ").map((role) => (
                 <span
                   key={role}
-                  className="bg-moto-blue/10 inline-flex rounded-full px-2 py-0.5 text-xs font-medium text-[#4070C8]"
+                  className="bg-moto-blue/10 text-moto-blue-hover inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
                 >
                   {role}
                 </span>

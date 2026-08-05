@@ -186,8 +186,11 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
-            <Check className="h-9 w-9 text-[#4E7D1B]" aria-hidden="true" />
+          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <Check
+              className="text-moto-green-strong h-9 w-9"
+              aria-hidden="true"
+            />
           </div>
           <Link
             href={operatorPath("/operator/login")}
@@ -211,8 +214,8 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
-            <span className="text-2xl font-semibold text-red-600">!</span>
+          <div className="bg-moto-red-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <span className="text-moto-red text-2xl font-semibold">!</span>
           </div>
           <Link
             href={operatorPath("/operator/login")}

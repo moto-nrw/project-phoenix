@@ -8,6 +8,7 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
+import { PersonTags } from "~/components/operator/persons-table";
 import {
   CardSkeletons,
   SimpleEmptyState,
@@ -95,7 +96,7 @@ function OperatorPersonsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Personen" tabs={tabs} />
+      <PageHeaderWithSearch title="Personen" concept="people" tabs={tabs} />
 
       <OrgSchoolFilter
         idPrefix="person"
@@ -137,21 +138,7 @@ function OperatorPersonsPageContent() {
                     {person.firstName} {person.lastName}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    {person.isStaff && (
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                        Mitarbeiter
-                      </span>
-                    )}
-                    {person.isStudent && (
-                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                        Kinder
-                      </span>
-                    )}
-                    {person.hasRfidCard && (
-                      <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
-                        RFID
-                      </span>
-                    )}
+                    <PersonTags person={person} />
                   </div>
                   {person.accountEmail && (
                     <p className="mt-1 truncate text-xs text-gray-500">

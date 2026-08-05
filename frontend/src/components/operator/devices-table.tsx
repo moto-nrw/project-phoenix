@@ -29,7 +29,7 @@ function DeviceStatusBadge({
   const styles: Record<string, string> = {
     active: "bg-moto-green/15 text-moto-green-strong",
     inactive: "bg-gray-100 text-gray-500",
-    maintenance: "bg-[#EAB308]/15 text-[#854D0E]",
+    maintenance: "bg-moto-amber/15 text-moto-amber-strong",
     offline: "bg-moto-red/10 text-moto-red-strong",
   };
   return (

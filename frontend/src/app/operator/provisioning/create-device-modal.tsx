@@ -131,11 +131,11 @@ export function CreateDeviceModal({
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Gerät erstellt">
         <div className="space-y-4">
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-            <p className="text-sm font-medium text-green-800">
+          <div className="border-moto-green/20 bg-moto-green/10 rounded-lg border p-4">
+            <p className="text-moto-green-strong text-sm font-medium">
               Gerät erfolgreich erstellt
             </p>
-            <div className="mt-2 space-y-1 text-sm text-green-700">
+            <div className="text-moto-green-strong mt-2 space-y-1 text-sm">
               <p>
                 Geräte-ID:{" "}
                 <span className="font-mono">{createdDevice.deviceId}</span>
@@ -241,7 +241,7 @@ export function CreateDeviceModal({
             onChange={(e) => setDeviceId(e.target.value)}
             placeholder="z.B. T-001"
             maxLength={255}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
             required
           />
         </FormField>
@@ -272,7 +272,7 @@ export function CreateDeviceModal({
             onChange={(e) => setName(e.target.value)}
             placeholder="z.B. Eingangsbereich"
             maxLength={255}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           />
         </FormField>
 
@@ -288,7 +288,7 @@ export function CreateDeviceModal({
                 value="auto"
                 checked={apiKeyMode === "auto"}
                 onChange={() => setApiKeyMode("auto")}
-                className="text-blue-600"
+                className="text-moto-blue"
               />
               <span className="text-sm text-gray-700">
                 Automatisch generieren
@@ -301,7 +301,7 @@ export function CreateDeviceModal({
                 value="manual"
                 checked={apiKeyMode === "manual"}
                 onChange={() => setApiKeyMode("manual")}
-                className="text-blue-600"
+                className="text-moto-blue"
               />
               <span className="text-sm text-gray-700">
                 Eigenen Key eingeben
@@ -314,7 +314,7 @@ export function CreateDeviceModal({
                 onChange={(e) => setCustomApiKey(e.target.value)}
                 placeholder="API-Key eingeben..."
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
               />
             )}
           </div>
