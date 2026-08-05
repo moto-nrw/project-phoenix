@@ -113,7 +113,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
         </div>
       )}
       {info && (
-        <div className="border-moto-green/30 bg-moto-green/5 rounded-lg border p-3 text-sm text-[#5BA01F]">
+        <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-lg border p-3 text-sm">
           {info}
         </div>
       )}
@@ -156,7 +156,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                 </div>
 
                 {reasonLabel && (
-                  <div className="mt-3 inline-flex items-center rounded-full bg-[#F59E0B]/15 px-3 py-1 text-xs font-medium text-[#9a6800]">
+                  <div className="bg-moto-amber/15 text-moto-amber-strong mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-medium">
                     {reasonLabel}
                   </div>
                 )}

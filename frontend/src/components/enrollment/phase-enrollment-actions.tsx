@@ -106,7 +106,7 @@ export function LateInviteModal({
 
         {generatedUrl ? (
           <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-            <p className="text-sm font-medium text-[#365A10]">
+            <p className="text-moto-green-strong text-sm font-medium">
               Link wurde erstellt.
             </p>
             <div className="mt-3 flex items-center gap-2">
@@ -241,7 +241,7 @@ export function ManualApprovedEnrollmentModal({
         ) : null}
         {statusUrl ? (
           <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-            <p className="text-sm font-medium text-[#365A10]">
+            <p className="text-moto-green-strong text-sm font-medium">
               Die manuelle Anmeldung wurde angelegt und freigegeben.
             </p>
             <div className="mt-3 flex items-center gap-2">
