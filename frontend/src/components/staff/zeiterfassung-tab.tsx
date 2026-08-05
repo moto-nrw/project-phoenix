@@ -2,8 +2,12 @@
 
 import { useMemo, useState } from "react";
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
@@ -267,20 +271,19 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     <div className="space-y-5">
       <KpiCards metrics={metrics} />
 
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-            Zeiterfassung
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
+      <SectionCard
+        title="Zeiterfassung"
+        headingLevel={3}
+        actions={
+          <>
             <ViewToggle value={viewMode} onChange={setViewMode} />
             <StaffExportButton
               staffId={staffId}
               yearStart={startOfYear(today)}
             />
-          </div>
-        </div>
-
+          </>
+        }
+      >
         <RangeNav
           label={formatRangeLabel(viewMode, monthAnchor, weekAnchor)}
           onPrev={handlePrev}
@@ -384,7 +387,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
             />
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }
@@ -406,58 +409,37 @@ function RangeNav({
     <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
       <div className="hidden sm:block" />
       <div className="flex min-w-0 items-center justify-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={onPrev}
           aria-label="Zurück"
-          className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </Button>
         <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
           {label}
         </h3>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={onNext}
           aria-label="Vor"
-          className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-        </button>
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </Button>
       </div>
       <div className="flex justify-center sm:justify-end">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="compact"
           onClick={onToday}
-          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
         >
           {todayLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );

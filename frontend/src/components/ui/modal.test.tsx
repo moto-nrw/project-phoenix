@@ -581,6 +581,58 @@ describe("ConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("should cancel a queued dismissal when the lock is set during the exit animation", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={onClose}
+          onConfirm={vi.fn()}
+          title="Confirm"
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Dismissal starts while unlocked — the exit animation is now running.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hintergrund - Klicken zum Schließen",
+      }),
+    );
+
+    // The operation takes the lock inside the 250ms animation window.
+    rerender(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={onClose}
+          onConfirm={vi.fn()}
+          title="Confirm"
+          isConfirmLoading={true}
+          isDismissDisabled={true}
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    // ...and the dialog is visible again, not left mid-exit.
+    expect(screen.getByText("Sure?")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveClass("animate-modalEnter");
+  });
+
   it("should keep dismissal open while loading without isDismissDisabled", async () => {
     const onClose = vi.fn();
     render(

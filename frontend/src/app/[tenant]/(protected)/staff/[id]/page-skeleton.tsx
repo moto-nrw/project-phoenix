@@ -19,7 +19,7 @@ export function StaffDetailSkeleton() {
     >
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-4">
-          <Skeleton className="h-14 w-14 flex-shrink-0 rounded-full sm:h-16 sm:w-16" />
+          <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-3 w-32 rounded" />
             <Skeleton className="h-7 w-48 rounded" />

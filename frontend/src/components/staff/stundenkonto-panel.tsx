@@ -14,6 +14,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
@@ -97,12 +98,11 @@ export function StundenkontoPanel({
   };
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-          Stundenkonto-Verwaltung
-        </h3>
-        <div className="flex flex-wrap gap-2">
+    <SectionCard
+      title="Stundenkonto-Verwaltung"
+      headingLevel={3}
+      actions={
+        <>
           <Button
             type="button"
             variant="outline"
@@ -147,9 +147,9 @@ export function StundenkontoPanel({
             <Flag className="h-3.5 w-3.5" aria-hidden />
             Eröffnungssaldo
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {adjustments.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-400">
           Noch keine Buchungen — Auszahlungen, Freizeitausgleich, Resets und
@@ -181,15 +181,16 @@ export function StundenkontoPanel({
                 <span className="text-sm font-medium text-gray-900 tabular-nums">
                   {formatSignedDuration(adjustment.minutesDelta)}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setDeleteTarget(adjustment)}
                   aria-label={`Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)} löschen`}
                   title="Buchung löschen"
-                  className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
-                </button>
+                </Button>
               </div>
             </li>
           ))}
@@ -264,7 +265,7 @@ export function StundenkontoPanel({
         loading={deleting}
         error={deleteError}
       />
-    </div>
+    </SectionCard>
   );
 }
 

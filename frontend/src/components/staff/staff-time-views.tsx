@@ -10,6 +10,7 @@ import {
   SegmentedControl,
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
+import { StatCard } from "~/components/ui/stat-card";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 import type { PeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
@@ -21,6 +22,12 @@ export function formatSignedDuration(minutes: number): string {
 
 // ─── KPI Cards ───────────────────────────────────────────────────────────────
 
+/**
+ * Thin adapter over the kit's {@link StatCard}. Kept so the existing callers
+ * keep their prop names (`primary`/`secondary`/`color`) and so
+ * `getDeltaStatus`'s older "amber" spelling maps to the kit tone vocabulary in
+ * exactly one place.
+ */
 export function KpiCard({
   label,
   primary,
@@ -38,40 +45,15 @@ export function KpiCard({
    *  mitten im Wert um. Eine Stufe kleiner und ohne Umbruch. */
   readonly compactPrimary?: boolean;
 }) {
-  const primaryColor = {
-    green: "text-[#70b525]",
-    amber: "text-amber-600",
-    gray: "text-gray-700",
-    red: "text-red-600",
-  }[color ?? "gray"];
-  const barColor = {
-    green: "bg-[#83CD2D]",
-    amber: "bg-amber-500",
-    gray: "bg-gray-400",
-    red: "bg-red-500",
-  }[color ?? "gray"];
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-bold ${primaryColor} ${
-          compactPrimary ? "text-xl whitespace-nowrap" : "text-2xl"
-        }`}
-      >
-        {primary}
-      </p>
-      {secondary && <p className="mt-1 text-xs text-gray-500">{secondary}</p>}
-      {progressPct !== undefined && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className={`h-full rounded-full ${barColor} transition-all`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-          />
-        </div>
-      )}
-    </div>
+    <StatCard
+      label={label}
+      value={primary}
+      hint={secondary}
+      progressPct={progressPct}
+      tone={color === "amber" ? "orange" : (color ?? "gray")}
+      compactValue={compactPrimary}
+    />
   );
 }
 

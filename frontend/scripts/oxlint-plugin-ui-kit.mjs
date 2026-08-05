@@ -35,7 +35,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/database/students/page.tsx",
   "src/app/[tenant]/(protected)/ogs-groups/page.tsx",
   "src/app/[tenant]/(protected)/rooms/page.tsx",
-  "src/app/[tenant]/(protected)/staff/[id]/page.tsx",
   "src/app/[tenant]/(protected)/staff/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/page.tsx",
@@ -105,16 +104,12 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/settings/personalization-tab.tsx",
   "src/components/settings/settings-field.tsx",
   "src/components/shared/base-comment-accordion.tsx",
-  "src/components/staff/abwesenheiten-tab.tsx",
   "src/components/staff/admin-session-edit-modal.tsx",
-  "src/components/staff/arbeitszeitmodell-tab.tsx",
   "src/components/staff/school-overview-section.tsx",
   "src/components/staff/shift-edit-modal.tsx",
   "src/components/staff/staff-pending-inbox.tsx",
   "src/components/staff/staff-session-table.tsx",
   "src/components/staff/staff-time-accounts-table.tsx",
-  "src/components/staff/staff-time-views.tsx",
-  "src/components/staff/stundenkonto-panel.tsx",
   "src/components/students/arrival-day-edit-modal.tsx",
   "src/components/students/arrival-schedule-form-modal.tsx",
   "src/components/students/arrival-schedule-manager.tsx",
@@ -180,7 +175,6 @@ src/app/[tenant]/(protected)/database/students/import/page.tsx|bg-blue-50/30 bor
 src/app/[tenant]/(protected)/database/students/page.tsx|bg-red-100 bg-red-50:2 bg-red-600 bg-red-700 border-red-200:2 text-red-700 text-red-800
 src/app/[tenant]/(protected)/ogs-groups/page.tsx|bg-orange-50:2 border-orange-200:2 from-amber-50/80 from-blue-50/80 from-emerald-50/80 from-fuchsia-50/80 from-red-50/80 text-orange-600:2 text-orange-900 to-cyan-100/80 to-green-100/80 to-pink-100/80 to-rose-100/80 to-yellow-100/80
 src/app/[tenant]/(protected)/rooms/page.tsx|text-blue-400
-src/app/[tenant]/(protected)/staff/[id]/page.tsx|bg-red-500
 src/app/[tenant]/(protected)/staff/page.tsx|bg-red-50 bg-red-500 border-red-200 text-red-800
 src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx|bg-blue-100 bg-blue-200 bg-green-500:3 bg-red-500:3 bg-yellow-400:3 text-blue-800
 src/app/[tenant]/(protected)/students/[id]/page.tsx|bg-blue-100 bg-blue-200 text-amber-600 text-blue-800
@@ -250,16 +244,12 @@ src/components/settings/passkey-settings-section.tsx|bg-red-50 text-red-700
 src/components/settings/personalization-tab.tsx|bg-green-50 bg-red-50 border-green-500 border-red-200 ring-green-500 text-green-500 text-red-600
 src/components/settings/settings-field.tsx|bg-amber-50 bg-yellow-50 border-amber-200 text-amber-700 text-amber-800 text-red-600:4 text-yellow-700
 src/components/shared/base-comment-accordion.tsx|bg-blue-100 bg-red-500:2 bg-red-600 text-blue-600:2 text-red-500:2
-src/components/staff/abwesenheiten-tab.tsx|bg-red-50 bg-red-500 text-amber-600 text-red-600
 src/components/staff/admin-session-edit-modal.tsx|bg-amber-50 bg-red-50 text-amber-800 text-red-700
-src/components/staff/arbeitszeitmodell-tab.tsx|bg-amber-50/60 border-amber-200
 src/components/staff/school-overview-section.tsx|bg-amber-500 text-amber-600 text-red-600:2
 src/components/staff/shift-edit-modal.tsx|bg-amber-50:2 bg-red-50 text-amber-800:2 text-red-700
 src/components/staff/staff-pending-inbox.tsx|bg-red-500
 src/components/staff/staff-session-table.tsx|text-amber-600 text-red-600
 src/components/staff/staff-time-accounts-table.tsx|bg-red-50 border-red-200 text-red-600 text-red-800
-src/components/staff/staff-time-views.tsx|bg-amber-500 bg-red-500 text-amber-600 text-red-600
-src/components/staff/stundenkonto-panel.tsx|bg-red-50 text-red-600
 src/components/students/arrival-day-edit-modal.tsx|bg-red-50:3 border-red-200 text-red-600:2 text-red-700
 src/components/students/arrival-schedule-form-modal.tsx|bg-red-50 border-red-200 text-red-700
 src/components/students/arrival-schedule-manager.tsx|bg-orange-100:2 bg-red-50 border-red-200 text-orange-600:2 text-red-700
@@ -326,7 +316,6 @@ const ROUNDED_3XL_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/dashboard/page.tsx",
   "src/app/[tenant]/(protected)/rooms/page-skeleton.tsx",
   "src/app/[tenant]/(protected)/rooms/page.tsx",
-  "src/app/[tenant]/(protected)/staff/[id]/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/change-history/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page-skeleton.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
@@ -348,13 +337,6 @@ const ROUNDED_3XL_BASELINE_FILES = new Set([
   "src/components/rooms/room-detail-content.tsx",
   "src/components/rooms/students-in-room-section.tsx",
   "src/components/rooms/transit-students-section.tsx",
-  "src/components/staff/abwesenheiten-tab.tsx",
-  "src/components/staff/arbeitszeitmodell-tab.tsx",
-  "src/components/staff/staff-time-views.tsx",
-  "src/components/staff/stundenkonto-panel.tsx",
-  "src/components/staff/uebersicht-tab-skeleton.tsx",
-  "src/components/staff/uebersicht-tab.tsx",
-  "src/components/staff/zeiterfassung-tab.tsx",
   "src/components/students/student-checkout-section.tsx",
   "src/components/suggestions/suggestion-card.tsx",
 ]);
@@ -375,7 +357,6 @@ const ROUNDED_3XL_BASELINE = new Map([
   ["src/app/[tenant]/(protected)/dashboard/page-skeleton.tsx", 2],
   ["src/app/[tenant]/(protected)/dashboard/page.tsx", 10],
   ["src/app/[tenant]/(protected)/rooms/page-skeleton.tsx", 2],
-  ["src/app/[tenant]/(protected)/staff/[id]/page.tsx", 1],
   ["src/app/[tenant]/(protected)/students/[id]/change-history/page.tsx", 1],
   [
     "src/app/[tenant]/(protected)/students/[id]/feedback-history/page-skeleton.tsx",
@@ -403,13 +384,6 @@ const ROUNDED_3XL_BASELINE = new Map([
   ["src/components/rooms/room-detail-content.tsx", 1],
   ["src/components/rooms/students-in-room-section.tsx", 1],
   ["src/components/rooms/transit-students-section.tsx", 1],
-  ["src/components/staff/abwesenheiten-tab.tsx", 3],
-  ["src/components/staff/arbeitszeitmodell-tab.tsx", 2],
-  ["src/components/staff/staff-time-views.tsx", 1],
-  ["src/components/staff/stundenkonto-panel.tsx", 1],
-  ["src/components/staff/uebersicht-tab-skeleton.tsx", 3],
-  ["src/components/staff/uebersicht-tab.tsx", 3],
-  ["src/components/staff/zeiterfassung-tab.tsx", 1],
   ["src/components/students/student-checkout-section.tsx", 5],
   ["src/components/suggestions/suggestion-card.tsx", 1],
 ]);
