@@ -355,7 +355,7 @@ export function StudentsInRoomSection({
       {isTruncated && (
         <div
           role="status"
-          className="mt-3 rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm text-[#7a5c00]"
+          className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
         >
           Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
           {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}

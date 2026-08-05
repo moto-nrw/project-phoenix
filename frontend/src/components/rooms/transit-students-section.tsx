@@ -16,7 +16,6 @@ import { Button } from "~/components/ui/button";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { activeService } from "~/lib/active-service";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
@@ -242,8 +241,7 @@ export function TransitStudentsSection({
           className="group flex w-full min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
         >
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100"
             aria-hidden="true"
           >
             <MotoConceptIcon concept="transit" size={18} />

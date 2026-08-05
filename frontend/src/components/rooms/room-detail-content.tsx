@@ -13,8 +13,9 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Building2, CircleDot, Layers, Tag } from "lucide-react";
+import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { RoomStatusBadge } from "./room-status-badge";
 import { useSWRAuth } from "~/lib/swr";
 import {
   formatDate,
@@ -131,25 +132,6 @@ function mapBackendToFrontendHistoryEntry(
     supervisorName: backendEntry.supervisor_name,
     studentCount: backendEntry.student_count,
   };
-}
-
-function StatusBadge({ isOccupied }: Readonly<{ isOccupied: boolean }>) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold ${
-        isOccupied
-          ? "bg-moto-red/15 text-moto-red"
-          : "bg-moto-green/15 text-[#4a7a15]"
-      }`}
-    >
-      <span
-        className={`mr-2 h-2 w-2 rounded-full ${
-          isOccupied ? "bg-moto-red animate-pulse" : "bg-moto-green"
-        }`}
-      />
-      {isOccupied ? "Belegt" : "Frei"}
-    </span>
-  );
 }
 
 function groupByDate(entries: readonly RoomHistoryEntry[]): DateGroup[] {
@@ -391,7 +373,7 @@ export function RoomDetailContent({
               {room.name}
             </h1>
             <div className="flex-shrink-0">
-              <StatusBadge isOccupied={room.isOccupied} />
+              <RoomStatusBadge isOccupied={room.isOccupied} />
             </div>
           </div>
           {headerAction && (room.building || room.floor !== undefined) ? (
@@ -434,27 +416,55 @@ export function RoomDetailContent({
                 header above; review feedback (#1323): redundant. */}
             {room.building && (
               <IconDetailRow
-                icon={<Building2 className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={BuildingsIcon}
+                    tone="neutral"
+                    size={16}
+                  />
+                }
                 label="Gebäude"
                 value={room.building}
               />
             )}
             {room.floor !== undefined && (
               <IconDetailRow
-                icon={<Layers className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={StackSimpleIcon}
+                    tone="neutral"
+                    size={16}
+                  />
+                }
                 label="Etage"
                 value={formatFloor(room.floor)}
               />
             )}
             {room.category && (
               <IconDetailRow
-                icon={<Tag className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon icon={TagIcon} tone="neutral" size={16} />
+                }
                 label="Kategorie"
                 value={room.category}
               />
             )}
             <IconDetailRow
-              icon={<CircleDot className="h-4 w-4" />}
+              icon={
+                room.isOccupied ? (
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.rooms.icon}
+                    tone={MOTO_CONCEPTS.rooms.tone}
+                    size={16}
+                  />
+                ) : (
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.freeRooms.icon}
+                    tone={MOTO_CONCEPTS.freeRooms.tone}
+                    size={16}
+                  />
+                )
+              }
               label="Status"
               value={room.isOccupied ? "Belegt" : "Frei"}
             />
