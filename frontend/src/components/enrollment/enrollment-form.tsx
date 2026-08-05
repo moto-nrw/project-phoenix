@@ -21,6 +21,7 @@ import {
   type SubmitGuardianPayload,
   type EnrollmentEditDraft,
   type PublicPhase,
+  type PublicLateInvitePrefill,
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
@@ -172,6 +173,7 @@ export interface EnrollmentFormPrefetchedData {
   captchaConfig: PublicCaptchaConfig | null;
   legalTexts: PublicLegalTexts;
   profile?: MeProfileResponse | null;
+  lateInvite?: PublicLateInvitePrefill;
   /** Concrete-class config (#1833); absent falls back to disabled. */
   schoolClass?: PublicSchoolClassConfig;
   collectGradeLevel?: boolean;
@@ -317,16 +319,19 @@ export function EnrollmentForm({
 
   const [guardianFirstName, setGuardianFirstName] = useState(
     initialDraft?.guardian_first_name ??
+      prefetchedData?.lateInvite?.guardian_first_name ??
       prefetchedData?.profile?.guardian.first_name ??
       "",
   );
   const [guardianLastName, setGuardianLastName] = useState(
     initialDraft?.guardian_last_name ??
+      prefetchedData?.lateInvite?.guardian_last_name ??
       prefetchedData?.profile?.guardian.last_name ??
       "",
   );
   const [guardianEmail, setGuardianEmail] = useState(
     initialDraft?.guardian_email ??
+      prefetchedData?.lateInvite?.guardian_email ??
       prefetchedData?.profile?.guardian.email ??
       "",
   );
@@ -436,6 +441,18 @@ export function EnrollmentForm({
           prefetchedData.offerings,
         ),
       );
+      if (prefetchedData.lateInvite) {
+        setGuardianFirstName(
+          (prev) =>
+            prev || prefetchedData.lateInvite?.guardian_first_name || "",
+        );
+        setGuardianLastName(
+          (prev) => prev || prefetchedData.lateInvite?.guardian_last_name || "",
+        );
+        setGuardianEmail(
+          (prev) => prev || prefetchedData.lateInvite?.guardian_email || "",
+        );
+      }
       if (prefetchedData.profile) {
         setGuardianFirstName(
           (prev) => prev || prefetchedData.profile?.guardian.first_name || "",

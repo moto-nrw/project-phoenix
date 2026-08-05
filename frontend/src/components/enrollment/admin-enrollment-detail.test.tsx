@@ -126,6 +126,62 @@ beforeEach(() => {
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
 });
 
+describe("AdminEnrollmentDetail late-invite email warning", () => {
+  const request = {
+    id: "request-1",
+    phase_id: "phase-1",
+    phase_name: "2026/27",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Beispiel",
+    guardian_email: "submitted@example.test",
+    submitted_at: "2026-08-05T10:00:00Z",
+    status_token: "status-token",
+    children: [
+      {
+        id: "child-1",
+        first_name: "Lina",
+        last_name: "Kind",
+        date_of_birth: "2018-04-15",
+        status: "submitted" as const,
+        activation_mode: "scheduled",
+      },
+    ],
+  };
+
+  it("shows the warning when the submitted email differs from the invite", async () => {
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      late_invite_guardian_email: "invited@example.test",
+      late_invite_email_mismatch: true,
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Der Nachzügler-Link wurde für invited@example.test erstellt. Im Antrag wurde submitted@example.test angegeben. Der Elternportal-Zugang bleibt mit der eingeladenen Adresse verknüpft.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the warning when both emails match", async () => {
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      late_invite_guardian_email: "submitted@example.test",
+      late_invite_email_mismatch: false,
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(await screen.findAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/Der Nachzügler-Link wurde für/),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("AdminEnrollmentDetail data correction", () => {
   it("keeps the corrected child in local state when the follow-up reload fails", async () => {
     const child: AdminRequestChild = {

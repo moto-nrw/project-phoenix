@@ -386,6 +386,22 @@ func TestGetAdminRequestHandler_HappyPathReturnsDetail(t *testing.T) {
 	assert.Contains(t, body, `"status_token":"detail-token"`)
 }
 
+func TestGetAdminRequestHandler_ReportsLateInviteEmailMismatch(t *testing.T) {
+	summary := makeReqSummary(1234, 5678,
+		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
+	)
+	summary.Request.StatusToken = "detail-token"
+	summary.Request.GuardianEmail = "submitted@example.test"
+	summary.LateInvite = &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}
+	router := buildAdminDecisionRouter(&mockDecisionService{getResult: summary})
+
+	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"late_invite_guardian_email":"invited@example.test"`)
+	assert.Contains(t, w.Body.String(), `"late_invite_email_mismatch":true`)
+}
+
 func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 	mock := &mockDecisionService{
 		getResult: makeReqSummary(1234, 5678,

@@ -334,10 +334,10 @@ func (r *StudentGuardianRepository) FilterAccountsWithStudentAccess(ctx context.
 //
 // Email is a legitimate identity key here because guardian_profiles is unique
 // on (tenant_id, LOWER(email)) (migration 1.15.145), so at most one profile per
-// school can answer, and because it is the SAME identity the decision service
-// attaches to the student on approval: proving that identity already holds
-// re-enrollment authority over the student is what keeps a renewal from
-// granting anyone new access.
+// school can answer. For late invites the request service passes the address the
+// school issued the invite to, never an unverified replacement entered in the
+// form. That proves the token recipient already holds re-enrollment authority
+// over the student before approval applies any corrected contact data.
 //
 // Unlike the account variant an active auth.account_tenants mapping is not
 // required — an accountless guardian has none — but a profile that DOES carry an

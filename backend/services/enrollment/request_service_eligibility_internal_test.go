@@ -515,9 +515,9 @@ func TestAssertGuardianMayReEnrollStudent_EmailIdentityGrantedPasses(t *testing.
 	assert.Equal(t, authorize.GuardianPermissionEnrollmentSubmit, auth.gotPerm)
 }
 
-// The reviewed P1: a late-invite recipient naming a child they have no guardian
-// relationship with is rejected. The invite proves the school invited this email
-// into the closed phase, never authority over one enrolled child.
+// A late-invite holder naming a child they have no guardian relationship with
+// is rejected. The invite opens the phase, but the submitted email still has to
+// prove authority over the enrolled child.
 func TestAssertGuardianMayReEnrollStudent_EmailIdentityNotGrantedRejected(t *testing.T) {
 	auth := &stubGuardianAuthorizer{granted: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}

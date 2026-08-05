@@ -43,6 +43,7 @@ import { formatCalendarDate } from "~/lib/localized-date-format";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -255,6 +256,15 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                 {info}
               </div>
             )}
+
+            {data.late_invite_email_mismatch === true &&
+              data.late_invite_guardian_email && (
+                <Alert
+                  type="warning"
+                  announce="off"
+                  message={`Der Nachzügler-Link wurde für ${data.late_invite_guardian_email} erstellt. Im Antrag wurde ${data.guardian_email} angegeben. Der Elternportal-Zugang bleibt mit der eingeladenen Adresse verknüpft.`}
+                />
+              )}
 
             <EnrollmentSummary data={data} submittedAt={submittedAt} />
 
