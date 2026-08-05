@@ -119,6 +119,11 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
+	// FindBirthdaysOn returns the non-graduated children whose birthday falls
+	// on one of the given annually recurring days (#1542). Children without a
+	// stored birth date are omitted, never rendered as an unknown date.
+	FindBirthdaysOn(ctx context.Context, days []MonthDay) ([]BirthdayEntry, error)
+
 	// ListWithOptions retrieves students with query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
 
@@ -290,6 +295,20 @@ type StaffRepository interface {
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
 	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)
+
+	// FindBirthdaysOn returns the staff members whose birthday falls on one of
+	// the given annually recurring days, excluding everyone who opted out of
+	// the display (#1542). The opt-out is applied in the query so no caller
+	// can bypass it.
+	FindBirthdaysOn(ctx context.Context, days []MonthDay) ([]BirthdayEntry, error)
+
+	// ListBirthdaysForExport returns every staff member with a stored birth
+	// date, opt-outs included. Backs the administrative Geburtstagsliste,
+	// which is gated on the same permission as the Stammdaten it reads.
+	ListBirthdaysForExport(ctx context.Context) ([]BirthdayEntry, error)
+
+	// SetBirthdayDisplayOptOut flips one staff member's dashboard opt-out.
+	SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
 }
 
 // TeacherRepository defines operations for managing teachers

@@ -142,6 +142,8 @@ const (
 	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
 	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
 	KeyGroupMode                       = "operations.group_mode"
+	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
+	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
