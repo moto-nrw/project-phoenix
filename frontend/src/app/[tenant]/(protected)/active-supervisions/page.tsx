@@ -15,7 +15,6 @@ import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useLatest } from "~/lib/hooks/use-latest";
-import { PRESENCE_CARD_GRADIENTS } from "~/lib/location-helper";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -2091,7 +2090,6 @@ function MeinRaumPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   photoUrl={student.photo_url ?? null}
-                  gradient={PRESENCE_CARD_GRADIENTS.otherRoom}
                   onClick={() =>
                     router.push(
                       `/students/${student.id}?from=/active-supervisions`,

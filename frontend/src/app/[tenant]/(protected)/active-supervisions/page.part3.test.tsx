@@ -154,9 +154,9 @@ vi.mock("~/components/ui/empty-student-results", () => ({
 }));
 
 // Mock location-helper
-// Partial mock: keep the real MOTO_COLOR_PALETTE/LOCATION_COLORS/gradient
-// exports (moto-duotone-icon.tsx reads MOTO_COLOR_PALETTE at module scope)
-// and only stub the location-parsing predicates used by this test file.
+// Partial mock: keep the real MOTO_COLOR_PALETTE/LOCATION_COLORS exports
+// (moto-duotone-icon.tsx reads MOTO_COLOR_PALETTE at module scope) and only
+// stub the location-parsing predicates used by this test file.
 vi.mock("~/lib/location-helper", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/location-helper")>();
   return {

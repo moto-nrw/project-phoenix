@@ -46,8 +46,6 @@ interface StudentCardProps {
    * checking the feature flag themselves.
    */
   readonly photoUrl?: string | null;
-  /** Legacy visual accent prop retained for existing callers. */
-  readonly gradient?: string;
   /** Click handler for navigation (used when checkinMode is false/absent) */
   readonly onClick: () => void;
   /** Location badge component to render */
@@ -123,7 +121,6 @@ export function StudentCard({
   firstName,
   lastName,
   photoUrl,
-  gradient,
   onClick,
   locationBadge,
   extraContent,
@@ -150,7 +147,6 @@ export function StudentCard({
   const ariaLabel = checkinMode
     ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
     : `${firstName} ${lastName} - Tippen für mehr Infos`;
-  void gradient;
 
   return (
     <button
@@ -486,12 +482,14 @@ export function StudentAbsenceRow({
  * until the OGS confirms — so this renders as a single compact amber pill
  * alongside them, not in place of them. The parent's note (if any) is kept to
  * the hover title so the card stays as dense as its other rows. Amber hex comes
- * from LOCATION_COLORS.SICK (CLAUDE.md §0).
+ * from LOCATION_COLORS.SCHOOLYARD (CLAUDE.md §0). Not LOCATION_COLORS.SICK:
+ * this pill is a pending-approval hint, not an illness signal, and SICK is
+ * red per the MOTO tone table (Krank = rot).
  */
 export function StudentPendingExcusedRow({
   note,
 }: Readonly<{ note?: string }>) {
-  const tone = getLocationBadgeTone(LOCATION_COLORS.SICK);
+  const tone = getLocationBadgeTone(LOCATION_COLORS.SCHOOLYARD);
 
   // Leading icon at the row's left edge (aligned with the other StudentInfoRow
   // icons) and the amber pill in the text column, so this line sits in the same

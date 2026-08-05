@@ -23,7 +23,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import { getPresenceCardGradient, isHomeLocation } from "~/lib/location-helper";
+import { isHomeLocation } from "~/lib/location-helper";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -1045,15 +1045,6 @@ function OGSGroupPageContent() {
     };
   }, [students]);
 
-  const getCardGradient = useCallback(
-    (student: Student) =>
-      getPresenceCardGradient(
-        student.current_location,
-        isStudentInGroupRoom(student, currentGroup),
-      ),
-    [currentGroup],
-  );
-
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
@@ -1246,7 +1237,6 @@ function OGSGroupPageContent() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {sortedStudents.map((student) => {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
-              const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
               const studentAbsence = getStudentAbsence({
                 sick: student.sick,
@@ -1265,7 +1255,6 @@ function OGSGroupPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   photoUrl={student.photo_url ?? null}
-                  gradient={cardGradient}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }

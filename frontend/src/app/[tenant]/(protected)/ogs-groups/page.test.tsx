@@ -182,9 +182,9 @@ vi.mock("~/lib/api", () => ({
 }));
 
 // Mock location helpers. Partial mock via importOriginal — MotoConceptIcon
-// (rendered for the substitution badge) pulls in MOTO_COLOR_PALETTE and
-// getCardGradient uses the real getPresenceCardGradient, both of which must
-// stay real; only the location predicates below are deliberately stubbed.
+// (rendered for the substitution badge) pulls in MOTO_COLOR_PALETTE, which
+// must stay real; only the location predicates below are deliberately
+// stubbed.
 vi.mock("~/lib/location-helper", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/location-helper")>();
   return {

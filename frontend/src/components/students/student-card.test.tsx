@@ -91,18 +91,6 @@ describe("StudentCard", () => {
     expect(screen.getByText("Class 1a")).toBeInTheDocument();
   });
 
-  it("ignores legacy custom gradient classes", () => {
-    const { container } = render(
-      <StudentCard
-        {...defaultProps}
-        gradient="from-red-50/80 to-pink-100/80"
-      />,
-    );
-
-    const gradientDiv = container.querySelector(".from-red-50\\/80");
-    expect(gradientDiv).not.toBeInTheDocument();
-  });
-
   it("does not render the previous default gradient overlay", () => {
     const { container } = render(<StudentCard {...defaultProps} />);
 

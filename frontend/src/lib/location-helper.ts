@@ -566,55 +566,6 @@ export function isTransitLocation(location?: string | null): boolean {
   return parseLocation(location).status === LOCATION_STATUSES.TRANSIT;
 }
 
-/**
- * Soft gradient utility classes for a student presence card's background,
- * one per LOCATION_COLORS status family. Derived from the moto-* design
- * tokens (not generic Tailwind palette colors) so a card's accent always
- * matches the color family used by the matching location badge. Shared by
- * the OGS-groups and active-supervisions student grids so this mapping only
- * lives in one place.
- */
-export const PRESENCE_CARD_GRADIENTS = {
-  groupRoom: "from-moto-green-soft to-moto-green-light/70",
-  otherRoom: "from-moto-blue-soft to-moto-blue-light/70",
-  schoolyard: "from-moto-amber-soft to-moto-amber-light/70",
-  transit: "from-moto-magenta-soft to-moto-magenta-light/70",
-  // No moto-neutral token exists; HOME/unknown fall back to plain gray so
-  // the card reads as neutral instead of borrowing another status's color.
-  home: "from-gray-50/80 to-gray-100/80",
-  unknown: "from-gray-50/80 to-gray-100/80",
-} as const;
-
-/**
- * Resolves the presence-card gradient for a student location string.
- * Mirrors getLocationColor's priority order: own group room, then
- * schoolyard/transit/home status, then present-with-or-without-room,
- * falling back to neutral for anything unrecognised.
- */
-export function getPresenceCardGradient(
-  location: string | null | undefined,
-  isGroupRoom: boolean,
-): string {
-  if (isGroupRoom) {
-    return PRESENCE_CARD_GRADIENTS.groupRoom;
-  }
-  if (isSchoolyardLocation(location)) {
-    return PRESENCE_CARD_GRADIENTS.schoolyard;
-  }
-  if (isTransitLocation(location)) {
-    return PRESENCE_CARD_GRADIENTS.transit;
-  }
-  if (isHomeLocation(location)) {
-    return PRESENCE_CARD_GRADIENTS.home;
-  }
-
-  const parsed = parseLocation(location);
-  if (parsed.room || parsed.status === LOCATION_STATUSES.PRESENT) {
-    return PRESENCE_CARD_GRADIENTS.otherRoom;
-  }
-  return PRESENCE_CARD_GRADIENTS.unknown;
-}
-
 interface RgbColor {
   r: number;
   g: number;

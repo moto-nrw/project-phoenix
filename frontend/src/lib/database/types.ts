@@ -150,7 +150,6 @@ interface ListItemConfig<T = Record<string, unknown>> {
   }>;
   avatar?: {
     text: (entity: T) => string;
-    backgroundColor?: string;
   };
 }
 
