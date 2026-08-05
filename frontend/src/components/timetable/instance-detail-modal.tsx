@@ -238,7 +238,7 @@ const NOT_SCHEDULED_TONE = "border-gray-200 bg-gray-50 text-gray-600";
 function attendanceTone(status: InstanceStudentSummary["status"]): string {
   switch (status) {
     case "present":
-      return "border-moto-green/20 bg-moto-green/10 text-[#6BA023]";
+      return "border-moto-green/20 bg-moto-green/10 text-moto-green-strong";
     case "absent":
       return "border-moto-red/20 bg-moto-red/10 text-moto-red-strong";
     case "expected":
@@ -1105,7 +1105,7 @@ interface IconActionButtonProps {
 
 const ICON_ACTION_PALETTE: Record<IconActionTone, string> = {
   green:
-    "border-moto-green/20 bg-white text-[#6BA023] hover:border-moto-green/40 hover:bg-moto-green/10",
+    "border-moto-green/20 bg-white text-moto-green-strong hover:border-moto-green/40 hover:bg-moto-green/10",
   red: "border-moto-red/20 bg-white text-moto-red-strong hover:border-moto-red/40 hover:bg-moto-red/10",
   slate:
     "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",

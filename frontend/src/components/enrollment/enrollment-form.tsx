@@ -1919,7 +1919,7 @@ export function EnrollmentForm({
                                   {bucket.group}
                                 </span>
                                 {offeringRuleHint(bucket.rule, tr) && (
-                                  <span className="bg-moto-blue/10 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                                  <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-[11px] font-medium">
                                     {offeringRuleHint(bucket.rule, tr)}
                                   </span>
                                 )}
@@ -2901,7 +2901,7 @@ const LEGAL_MARKDOWN_COMPONENTS: Components = {
   ),
   a: ({ node: _node, children, ...props }) => (
     <a
-      className="text-moto-blue font-medium underline underline-offset-2 hover:text-[#3F66AE]"
+      className="text-moto-blue hover:text-moto-blue-hover font-medium underline underline-offset-2"
       target="_blank"
       rel="noopener noreferrer"
       {...props}

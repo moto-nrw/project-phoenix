@@ -430,7 +430,7 @@ function EnrollmentStatusContent({
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       {duplicateWarning ? (
-        <div className="border-moto-orange/30 bg-moto-orange/10 rounded-xl border px-4 py-3 text-sm leading-6 text-[#7C4A03]">
+        <div className="border-moto-orange/30 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm leading-6">
           {t("duplicateWarning")}
         </div>
       ) : null}
@@ -449,7 +449,7 @@ function EnrollmentStatusContent({
         </div>
       ) : null}
       {info ? (
-        <div className="border-moto-green/30 bg-moto-green/5 rounded-2xl border p-4 text-sm text-[#5BA01F]">
+        <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-2xl border p-4 text-sm">
           {info}
         </div>
       ) : null}

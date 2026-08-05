@@ -868,7 +868,7 @@ export default function StaffCalendarPage() {
                                 selected
                                   ? "border-gray-900 bg-white text-gray-950"
                                   : choice.covered
-                                    ? "border-gray-200 bg-[#ECF7DA] text-gray-500"
+                                    ? "bg-moto-green-soft border-gray-200 text-gray-500"
                                     : "border-transparent bg-white text-gray-700 hover:border-gray-200"
                               } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
                             >

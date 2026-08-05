@@ -312,7 +312,7 @@ describe("DatabasePage", () => {
 
     expect(
       screen.getByTestId("database-section-icon-students").querySelector("svg"),
-    ).toHaveAttribute("data-moto-duotone-tone", "blue");
+    ).toHaveAttribute("data-moto-duotone-tone", "greenVivid");
     expect(
       screen.getByTestId("database-section-icon-teachers").querySelector("svg"),
     ).toHaveAttribute("data-moto-duotone-tone", "orange");

@@ -853,7 +853,7 @@ export function CareScheduleManager({
         confirmText="Entfernen"
         cancelText="Abbrechen"
         isConfirmLoading={deletingStatusDayId === statusDayToDelete?.id}
-        confirmButtonClass="bg-moto-red-strong hover:bg-[#B91C1C]"
+        confirmButtonClass="bg-moto-red-strong hover:bg-moto-red-hover"
       >
         <p className="text-sm leading-6 text-gray-600">
           {statusDayToDelete
@@ -1071,7 +1071,7 @@ function CareDayCard({
               <span className="text-xs font-semibold text-gray-500">Heute</span>
             ) : null}
             {parentChanged ? (
-              <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-[#3a63b0]">
+              <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
                 <MotoConceptIcon concept="parents" size={14} />
                 Von Eltern
               </span>

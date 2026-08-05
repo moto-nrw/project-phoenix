@@ -429,7 +429,7 @@ function ParentAnnouncementsContent() {
                 setPublishError("");
                 setPublishTarget(row);
               }}
-              className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+              className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
             >
               <Send className="size-4" aria-hidden />
               Veröffentlichen
@@ -1384,7 +1384,7 @@ function AnnouncementCard({
             size="compact"
             disabled={pending}
             onClick={onPublish}
-            className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+            className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
           >
             <Send className="size-4" aria-hidden />
             Veröffentlichen
@@ -1691,7 +1691,7 @@ function DetailModal({
             href={announcement.link_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-moto-blue inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2 hover:text-[#3f68b5]"
+            className="text-moto-blue hover:text-moto-blue-hover inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
           >
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{announcement.link_url}</span>
