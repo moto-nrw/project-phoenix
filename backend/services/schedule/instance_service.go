@@ -476,6 +476,20 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, room
 		if group.ID == newGroupID {
 			continue
 		}
+
+		// Serialize the "still open and unsupervised" decision with generic
+		// supervision claims. ClaimActiveGroup takes the same row lock before it
+		// checks EndTime and inserts its supervisor row, so either the claim wins
+		// and this re-check sees a supervisor, or absorption wins and the claimant
+		// sees the ended session after waiting.
+		lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, group.ID)
+		if err != nil {
+			return fmt.Errorf("lock open group %d: %w", group.ID, err)
+		}
+		if lockedGroup == nil || lockedGroup.EndTime != nil {
+			continue
+		}
+
 		supervisors, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
 		if err != nil {
 			return fmt.Errorf("load supervisors of group %d: %w", group.ID, err)
@@ -484,20 +498,9 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, room
 			continue
 		}
 
-		visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, group.ID)
+		moved, err := s.deps.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, group.ID, newGroupID)
 		if err != nil {
-			return fmt.Errorf("load visits of group %d: %w", group.ID, err)
-		}
-		moved := 0
-		for _, visit := range visits {
-			if visit.ExitTime != nil {
-				continue
-			}
-			visit.ActiveGroupID = newGroupID
-			if err := s.deps.VisitRepo.Update(ctx, visit); err != nil {
-				return fmt.Errorf("move visit %d to group %d: %w", visit.ID, newGroupID, err)
-			}
-			moved++
+			return fmt.Errorf("move open visits from group %d to group %d: %w", group.ID, newGroupID, err)
 		}
 
 		if err := s.deps.ActiveGroupRepo.EndSession(ctx, group.ID); err != nil {

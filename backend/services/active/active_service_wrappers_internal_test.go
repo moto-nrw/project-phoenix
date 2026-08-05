@@ -76,15 +76,25 @@ func (r *staffRepoForActiveWrapperTest) FindByID(_ context.Context, id interface
 
 type groupRepoForActiveWrapperTest struct {
 	activeModels.GroupRepository
-	group  *activeModels.Group
-	groups map[int64]*activeModels.Group
-	err    error
-	gotID  interface{}
-	gotIDs []int64
+	group       *activeModels.Group
+	groups      map[int64]*activeModels.Group
+	err         error
+	gotID       interface{}
+	gotIDs      []int64
+	lockedID    int64
+	onRowLocked func()
 }
 
 func (r *groupRepoForActiveWrapperTest) FindByID(_ context.Context, id interface{}) (*activeModels.Group, error) {
 	r.gotID = id
+	return r.group, r.err
+}
+
+func (r *groupRepoForActiveWrapperTest) FindByIDForUpdate(_ context.Context, id int64) (*activeModels.Group, error) {
+	r.lockedID = id
+	if r.onRowLocked != nil {
+		r.onRowLocked()
+	}
 	return r.group, r.err
 }
 
@@ -262,6 +272,44 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 
 		require.ErrorIs(t, err, expectedErr)
 	})
+}
+
+func TestClaimActiveGroupLocksLifecycleThroughSupervisorInsert(t *testing.T) {
+	ctx := context.Background()
+	const (
+		groupID int64 = 42
+		staffID int64 = 84
+	)
+	group := &activeModels.Group{Model: modelBase.Model{ID: groupID}}
+	groupLocked := false
+	groupRepo := &groupRepoForActiveWrapperTest{
+		group: group,
+		onRowLocked: func() {
+			groupLocked = true
+		},
+	}
+	staffRepo := &staffRepoForActiveWrapperTest{
+		staff: &userModels.Staff{Model: modelBase.Model{ID: staffID}},
+	}
+	supervisorRepo := &mockGroupSupervisorRepository{
+		createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			assert.True(t, groupLocked, "group lifecycle must be locked before supervisor insert")
+			assert.Equal(t, groupID, supervisor.GroupID)
+			assert.Equal(t, staffID, supervisor.StaffID)
+			return nil
+		},
+	}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		GroupRepo:      groupRepo,
+		StaffRepo:      staffRepo,
+		SupervisorRepo: supervisorRepo,
+	}}
+
+	supervisor, err := svc.ClaimActiveGroup(ctx, groupID, staffID, "supervisor")
+
+	require.NoError(t, err)
+	require.NotNil(t, supervisor)
+	assert.Equal(t, groupID, groupRepo.lockedID)
 }
 
 func TestGetCrossTenantStudents_Branches(t *testing.T) {

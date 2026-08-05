@@ -108,6 +108,7 @@ type schulhofConflictActiveService struct {
 	createErr        error
 	supervisorsErr   error
 	visitsErr        error
+	supervisors      map[int64][]*active.GroupSupervisor
 
 	createCalls int
 	findCalls   int
@@ -116,6 +117,18 @@ type schulhofConflictActiveService struct {
 
 func (s *schulhofConflictActiveService) FindSupervisorsByActiveGroupID(context.Context, int64) ([]*active.GroupSupervisor, error) {
 	return []*active.GroupSupervisor{}, s.supervisorsErr
+}
+
+func (s *schulhofConflictActiveService) FindSupervisorsByActiveGroupIDs(_ context.Context, groupIDs []int64) ([]*active.GroupSupervisor, error) {
+	if s.supervisorsErr != nil {
+		return nil, s.supervisorsErr
+	}
+
+	var supervisors []*active.GroupSupervisor
+	for _, groupID := range groupIDs {
+		supervisors = append(supervisors, s.supervisors[groupID]...)
+	}
+	return supervisors, nil
 }
 
 func (s *schulhofConflictActiveService) FindVisitsByActiveGroupID(context.Context, int64) ([]*active.Visit, error) {
@@ -296,4 +309,57 @@ func TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, status.ActiveGroupID)
 	assert.Equal(t, newer.ID, *status.ActiveGroupID)
+}
+
+func TestSchulhofStatusPrefersCurrentUsersSupervisedOpenGroup(t *testing.T) {
+	const staffID int64 = 123
+	room := &facilityModels.Room{
+		Model:    base.Model{ID: 42},
+		Name:     constants.SchulhofRoomName,
+		IsSystem: true,
+	}
+	roomID := room.ID
+	activityGroup := &activityModels.Group{
+		Model:         base.Model{ID: 77},
+		Name:          constants.SchulhofActivityName,
+		PlannedRoomID: &roomID,
+		IsSystem:      true,
+	}
+	now := time.Now()
+	owned := &active.Group{
+		Model:     base.Model{ID: 88},
+		RoomID:    room.ID,
+		StartTime: now.Add(-time.Hour),
+	}
+	newer := &active.Group{
+		Model:     base.Model{ID: 89},
+		RoomID:    room.ID,
+		StartTime: now,
+	}
+	ownedSupervision := &active.GroupSupervisor{
+		Model:   base.Model{ID: 99},
+		GroupID: owned.ID,
+		StaffID: staffID,
+	}
+	activeService := &schulhofConflictActiveService{
+		findGroupsByCall: [][]*active.Group{{owned, newer}},
+		supervisors: map[int64][]*active.GroupSupervisor{
+			owned.ID: {ownedSupervision},
+		},
+	}
+	service := NewSchulhofService(
+		&schulhofConflictFacilityService{room: room},
+		&schulhofConflictActivityService{group: activityGroup},
+		activeService,
+		slog.New(slog.DiscardHandler),
+	)
+
+	status, err := service.GetSchulhofStatus(context.Background(), staffID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status.ActiveGroupID)
+	assert.Equal(t, owned.ID, *status.ActiveGroupID)
+	assert.True(t, status.IsUserSupervising)
+	require.NotNil(t, status.SupervisionID)
+	assert.Equal(t, ownedSupervision.ID, *status.SupervisionID)
 }

@@ -90,6 +90,7 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  roomsOutsideSchulhofStatus,
   withActiveSupervisionPresence,
 } from "~/components/active-supervisions/view-model";
 import type {
@@ -1356,7 +1357,6 @@ function MeinRaumPageContent() {
   const timetableRosterKey = activeSupervisionRosterKey({
     selectedTimetableInstanceId,
     currentRoomId,
-    isSchulhofActive,
     missingRosterActiveGroupIds,
   });
   const {
@@ -2290,15 +2290,16 @@ function MeinRaumPageContent() {
       {spontaneousStartBanner}
 
       {/* Modern Header with PageHeaderWithSearch component */}
-      {/* With the permanent tab enabled, count rooms EXCLUDING Schulhof (to
-          avoid double-counting with schulhofStatus). Without it (#2161,
-          capability off), the yard is an ordinary room tab. */}
+      {/* With the permanent tab enabled, exclude only the active group already
+          represented by schulhofStatus. Other parallel Schulhof sessions stay
+          reachable as normal supervision tabs. */}
       {(() => {
-        const roomsWithoutSchulhof = schulhofTabEnabled
-          ? allRooms.filter((room) => room.room_name !== SCHULHOF_ROOM_NAME)
-          : allRooms;
+        const roomsOutsideStatus = roomsOutsideSchulhofStatus(allRooms, {
+          schulhofTabEnabled,
+          statusActiveGroupId: schulhofStatus?.activeGroupId,
+        });
         const totalSupervisions =
-          roomsWithoutSchulhof.length + (schulhofTabAvailable ? 1 : 0);
+          roomsOutsideStatus.length + (schulhofTabAvailable ? 1 : 0);
 
         return (
           <PageHeaderWithSearch
@@ -2337,8 +2338,9 @@ function MeinRaumPageContent() {
               totalSupervisions >= 2 && !isDesktop
                 ? {
                     items: [
-                      // Regular supervised rooms (excluding Schulhof)
-                      ...roomsWithoutSchulhof.map((room) => ({
+                      // Regular supervised sessions, including any parallel
+                      // Schulhof group not represented by the permanent tab.
+                      ...roomsOutsideStatus.map((room) => ({
                         id: room.id,
                         label: room.room_name ?? room.name,
                       })),

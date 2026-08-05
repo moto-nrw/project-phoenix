@@ -27,7 +27,8 @@ import (
 // IoT checkin path and the kiosk checkout button depend on.
 type SchulhofService interface {
 	// GetSchulhofStatus returns the current status of the Schulhof area including
-	// room info, the newest open active group, supervisors, and student count.
+	// room info, the caller's newest supervised group (or otherwise the newest
+	// open group), supervisors, and student count.
 	GetSchulhofStatus(ctx context.Context, staffID int64) (*SchulhofStatus, error)
 
 	// EnsureInfrastructure ensures the Schulhof room, category, and activity group exist.
@@ -124,11 +125,12 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 		return nil, fmt.Errorf("failed to look up Schulhof activity: %w", err)
 	}
 
-	// Step 3: Find the newest open active group in the room. Planned timetable
-	// blocks, spontaneous sessions, and IoT fallback groups all count (#2161);
-	// newest-wins matches the IoT checkin pick so both views agree on "the"
-	// current Schulhof session.
-	activeGroup, err := s.findNewestOpenActiveGroup(ctx, room.ID)
+	// Step 3: Prefer the caller's newest supervised group, then fall back to the
+	// newest open group in the room. Planned timetable blocks, spontaneous
+	// sessions, and IoT fallback groups all count (#2161). The caller preference
+	// keeps an existing supervisor's session manageable when a later parallel
+	// session starts in the same room.
+	activeGroup, supervisors, err := s.findPreferredOpenActiveGroup(ctx, room.ID, staffID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up open Schulhof group: %w", err)
 	}
@@ -138,11 +140,7 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	}
 	status.ActiveGroupID = &activeGroup.ID
 
-	// Step 4: Get supervisors for this active group
-	supervisors, err := s.activeService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up Schulhof supervisors: %w", err)
-	}
+	// Step 4: Map the active supervisors loaded while selecting the group.
 	status.SupervisorCount = len(supervisors)
 	for _, sup := range supervisors {
 		if sup.EndDate != nil {
@@ -261,27 +259,68 @@ func (s *schulhofService) findSchulhofActivity(ctx context.Context, room *facili
 	return nil, errSchulhofActivityNotFound
 }
 
-// findNewestOpenActiveGroup returns the open (end_time IS NULL) active group
-// with the latest start_time in the given room, or nil when none is open.
-// Newest-wins mirrors the IoT checkin selection so the status read model and
-// kiosk scans agree on the current Schulhof session when several groups
-// overlap (#2161).
-func (s *schulhofService) findNewestOpenActiveGroup(ctx context.Context, roomID int64) (*active.Group, error) {
+// findPreferredOpenActiveGroup returns the caller's newest actively supervised
+// group in the room, or the newest open group when the caller supervises none.
+// It returns the selected group's active supervisors with the group so status
+// rendering does not need a second lookup.
+func (s *schulhofService) findPreferredOpenActiveGroup(
+	ctx context.Context,
+	roomID int64,
+	staffID int64,
+) (*active.Group, []*active.GroupSupervisor, error) {
 	activeGroups, err := s.activeService.FindActiveGroupsByRoomID(ctx, roomID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find active groups: %w", err)
+		return nil, nil, fmt.Errorf("failed to find active groups: %w", err)
 	}
 
-	var newest *active.Group
+	openGroups := make([]*active.Group, 0, len(activeGroups))
+	openGroupIDs := make([]int64, 0, len(activeGroups))
+	var newestOpen *active.Group
 	for _, ag := range activeGroups {
 		if ag.EndTime != nil {
 			continue
 		}
-		if newest == nil || ag.StartTime.After(newest.StartTime) {
-			newest = ag
+		openGroups = append(openGroups, ag)
+		openGroupIDs = append(openGroupIDs, ag.ID)
+		if newerActiveGroup(ag, newestOpen) {
+			newestOpen = ag
 		}
 	}
-	return newest, nil
+	if newestOpen == nil {
+		return nil, nil, nil
+	}
+
+	allSupervisors, err := s.activeService.FindSupervisorsByActiveGroupIDs(ctx, openGroupIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find active supervisors: %w", err)
+	}
+
+	supervisorsByGroup := make(map[int64][]*active.GroupSupervisor, len(openGroups))
+	for _, supervisor := range allSupervisors {
+		supervisorsByGroup[supervisor.GroupID] = append(supervisorsByGroup[supervisor.GroupID], supervisor)
+	}
+
+	var newestSupervised *active.Group
+	for _, group := range openGroups {
+		for _, supervisor := range supervisorsByGroup[group.ID] {
+			if supervisor.StaffID == staffID && newerActiveGroup(group, newestSupervised) {
+				newestSupervised = group
+				break
+			}
+		}
+	}
+
+	selected := newestOpen
+	if newestSupervised != nil {
+		selected = newestSupervised
+	}
+	return selected, supervisorsByGroup[selected.ID], nil
+}
+
+func newerActiveGroup(candidate, current *active.Group) bool {
+	return current == nil ||
+		candidate.StartTime.After(current.StartTime) ||
+		(candidate.StartTime.Equal(current.StartTime) && candidate.ID > current.ID)
 }
 
 // ensureSchulhofRoom finds or creates the Schulhof room.

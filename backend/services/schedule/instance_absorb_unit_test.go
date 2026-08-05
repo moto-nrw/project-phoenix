@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"testing"
-	"time"
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/stretchr/testify/assert"
@@ -14,11 +13,22 @@ import (
 type absorbGroupRepo struct {
 	activeModel.GroupRepository
 	openGroups []*activeModel.Group
+	lockedIDs  []int64
 	endedIDs   []int64
 }
 
 func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
 	return r.openGroups, nil
+}
+
+func (r *absorbGroupRepo) FindByIDForUpdate(_ context.Context, id int64) (*activeModel.Group, error) {
+	r.lockedIDs = append(r.lockedIDs, id)
+	for _, group := range r.openGroups {
+		if group.ID == id {
+			return group, nil
+		}
+	}
+	return nil, nil
 }
 
 func (r *absorbGroupRepo) EndSession(_ context.Context, id int64) error {
@@ -37,17 +47,13 @@ func (r *absorbSupervisorRepo) FindByActiveGroupID(_ context.Context, groupID in
 
 type absorbVisitRepo struct {
 	activeModel.VisitRepository
-	byGroup map[int64][]*activeModel.Visit
-	updated []*activeModel.Visit
+	transferCounts map[int64]int
+	transfers      [][2]int64
 }
 
-func (r *absorbVisitRepo) FindByActiveGroupID(_ context.Context, groupID int64) ([]*activeModel.Visit, error) {
-	return r.byGroup[groupID], nil
-}
-
-func (r *absorbVisitRepo) Update(_ context.Context, visit *activeModel.Visit) error {
-	r.updated = append(r.updated, visit)
-	return nil
+func (r *absorbVisitRepo) TransferActiveVisitsBetweenGroups(_ context.Context, oldGroupID, newGroupID int64) (int, error) {
+	r.transfers = append(r.transfers, [2]int64{oldGroupID, newGroupID})
+	return r.transferCounts[oldGroupID], nil
 }
 
 // A started instance absorbs open sessions WITHOUT active supervisors in its
@@ -55,12 +61,6 @@ func (r *absorbVisitRepo) Update(_ context.Context, visit *activeModel.Visit) er
 // supervised parallel sessions alone (#2161, sanctioned pattern per #2139).
 func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	const newGroupID = int64(10)
-
-	exitTime := time.Now()
-	openVisit := &activeModel.Visit{ActiveGroupID: 11, StudentID: 1}
-	openVisit.ID = 101
-	exitedVisit := &activeModel.Visit{ActiveGroupID: 11, StudentID: 2, ExitTime: &exitTime}
-	exitedVisit.ID = 102
 
 	newGroup := &activeModel.Group{}
 	newGroup.ID = newGroupID
@@ -73,9 +73,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*activeModel.GroupSupervisor{
 		12: {{StaffID: 7, GroupID: 12}},
 	}}
-	visitRepo := &absorbVisitRepo{byGroup: map[int64][]*activeModel.Visit{
-		11: {openVisit, exitedVisit},
-	}}
+	visitRepo := &absorbVisitRepo{transferCounts: map[int64]int{11: 1}}
 
 	svc := &instanceService{deps: InstanceServiceDependencies{
 		ActiveGroupRepo: groupRepo,
@@ -87,9 +85,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	err := svc.absorbUnsupervisedOpenGroups(context.Background(), 42, newGroupID)
 
 	require.NoError(t, err)
+	assert.Equal(t, []int64{11, 12}, groupRepo.lockedIDs, "candidate sessions are locked before inspection")
 	assert.Equal(t, []int64{11}, groupRepo.endedIDs, "only the unsupervised session is ended")
-	require.Len(t, visitRepo.updated, 1, "only the open visit moves")
-	assert.Equal(t, openVisit.ID, visitRepo.updated[0].ID)
-	assert.Equal(t, newGroupID, visitRepo.updated[0].ActiveGroupID)
-	assert.Equal(t, int64(11), exitedVisit.ActiveGroupID, "exited visits stay in the absorbed group")
+	assert.Equal(t, [][2]int64{{11, newGroupID}}, visitRepo.transfers, "open visits move through the conditional bulk update")
 }
