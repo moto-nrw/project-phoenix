@@ -1149,3 +1149,80 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
 	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 }
+
+// TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation reproduces
+// the reuse gap from the #2174 review: an open invitation created WITHOUT
+// approval (staff direct invite, not_required) exists when a parent confirms a
+// role upgrade. The reused row must be promoted to pending — otherwise it
+// never reaches the staff queue, ApproveInvitation never applies the persisted
+// upgrade, and the still-consumable token would grant an account without the
+// promised access.
+func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Requeue", "7j")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-requeue")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+
+	// Earlier staff direct invite: open, token emailed, no approval required.
+	studentID := student.ID
+	existing := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("upgrade-requeue-%d", time.Now().UnixNano()),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+		ExpiresAt:         time.Now().Add(48 * time.Hour),
+		StudentID:         &studentID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+	}
+	existing.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+
+	// Parent confirms the upgrade (direct mode — approval is forced).
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            false,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
+	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+		"reused not_required invitation must be re-queued as pending")
+	assert.True(t, inv.RoleUpgrade)
+	require.NotNil(t, inv.RequestedByAccountID)
+	assert.Equal(t, creatorID, *inv.RequestedByAccountID, "queue must name the requesting parent")
+
+	// The request is visible in the staff queue and approval applies the
+	// upgrade.
+	views, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+	var view *authService.PendingApprovalView
+	for _, v := range views {
+		if v.InvitationID == existing.ID {
+			view = v
+		}
+	}
+	require.NotNil(t, view, "re-queued request must appear in the approval queue")
+	assert.True(t, view.RoleUpgrade)
+
+	require.NoError(t, env.service.ApproveInvitation(ctx, existing.ID, creatorID))
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+}

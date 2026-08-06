@@ -399,6 +399,28 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 			}
 		}
+		// Reverse transition: the caller requires approval-gating (a
+		// parent-confirmed upgrade), but the open invitation was created
+		// without it — an earlier staff direct invite (not_required) or an
+		// approved-but-not-yet-accepted request. Re-queue it as pending:
+		// otherwise the row never surfaces in the staff queue,
+		// ApproveInvitation (the only consumer of RoleUpgrade) can never
+		// fire, and the still-consumable token would grant an account
+		// without the promised access. Flipping to pending also freezes the
+		// outstanding token until staff decide
+		// (guardianInvitationTokenConsumable refuses pending tokens).
+		if approvalStatus == authModels.GuardianInvitationApprovalPending &&
+			openInvitation.ApprovalStatus != authModels.GuardianInvitationApprovalPending {
+			openInvitation.ApprovalStatus = authModels.GuardianInvitationApprovalPending
+			openInvitation.ApprovedBy = nil
+			openInvitation.ApprovedAt = nil
+			if req.RequestedByParentAccountID != nil {
+				openInvitation.RequestedByAccountID = req.RequestedByParentAccountID
+			}
+			if err := s.InvitationRepo.Update(ctx, openInvitation); err != nil {
+				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+			}
+		}
 		// A re-invite that confirmed a restrictive-contact upgrade must stick
 		// the flag onto the reused row, or the approval would silently skip
 		// the upgrade (#2172).
