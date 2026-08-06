@@ -178,13 +178,19 @@ func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, storedNames(queued), name, "a settled intent must not come back")
 
-	// Queueing the same object twice must not raise — the upload path and the
-	// deletion path can both reach for it.
+	// Queueing the same object again REVIVES the settled intent. Settling is
+	// an update, so the row outlives the upload it belonged to; deleting the
+	// child re-queues under the same stored name, and if that were a no-op the
+	// bytes would stay on disk with nothing left pointing at them.
 	duplicate := &userModels.StudentDocumentFileCleanup{}
 	duplicate.OwnerID = student.ID
 	duplicate.FilenameStored = name
 	duplicate.RetryAfter = time.Now()
 	require.NoError(t, repo.QueueFileCleanup(ctx, duplicate))
+
+	queued, err = repo.ListQueuedFileCleanups(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, storedNames(queued), name, "a re-queued object must become eligible again")
 }
 
 func storedNames(cleanups []*userModels.StudentDocumentFileCleanup) []string {

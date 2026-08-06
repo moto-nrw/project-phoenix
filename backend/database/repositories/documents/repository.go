@@ -288,12 +288,23 @@ func (r *Repository[T, C]) MarkFileDeleted(ctx context.Context, documentID int64
 
 // QueueFileCleanup durably records the intent to remove an object before it
 // is written.
+//
+// A settled intent is REVIVED rather than left alone, and that is the whole
+// point of the conflict clause. Settling an intent is an update (cleaned_at is
+// stamped, the row stays), so every object that was ever uploaded leaves a
+// row behind under its stored name. Queueing again for that name — which is
+// exactly what deleting the owner does, since the document rows cascade away
+// and the intents are all that survive — would otherwise hit the unique index,
+// do nothing, and strand the bytes on disk with nothing left pointing at them.
 func (r *Repository[T, C]) QueueFileCleanup(ctx context.Context, cleanup C) error {
 	base.EnsureTenantID(ctx, cleanup)
 	if _, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(cleanup).
 		ModelTableExpr(r.cleanupTableExpr()).
-		On("CONFLICT (tenant_id, filename_stored) DO NOTHING").
+		On("CONFLICT (tenant_id, filename_stored) DO UPDATE").
+		Set("cleaned_at = NULL").
+		Set("retry_after = EXCLUDED.retry_after").
+		Set("owner_id = EXCLUDED.owner_id").
 		Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "queue " + r.cfg.Alias + " file cleanup", Err: err}
 	}

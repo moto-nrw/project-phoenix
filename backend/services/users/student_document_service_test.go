@@ -84,9 +84,14 @@ func (s *studentDocumentScenario) actor(perms ...string) usersSvc.StudentDocumen
 	}
 }
 
+// create mirrors what the upload handler does, intent first. Skipping that
+// step in tests hides the whole class of bug where a later re-queue collides
+// with the settled intent this leaves behind.
 func (s *studentDocumentScenario) create(t *testing.T, category string, actor usersSvc.StudentDocumentActor) *userModels.StudentDocument {
 	t.Helper()
-	doc, err := s.svc.CreateStudentDocument(s.ctx, s.input(category), actor)
+	input := s.input(category)
+	require.NoError(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, input.FilenameStored))
+	doc, err := s.svc.CreateStudentDocument(s.ctx, input, actor)
 	require.NoError(t, err)
 	return doc
 }
