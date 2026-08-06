@@ -45,7 +45,6 @@ export interface SchulhofStatusResponse {
 export function activeSupervisionRosterKey(options: {
   readonly selectedTimetableInstanceId: string | null;
   readonly currentRoomId: string | null | undefined;
-  readonly isSchulhofActive: boolean;
   readonly missingRosterActiveGroupIds: ReadonlySet<string>;
 }): string | null {
   if (options.selectedTimetableInstanceId) {
@@ -53,12 +52,25 @@ export function activeSupervisionRosterKey(options: {
   }
   if (
     !options.currentRoomId ||
-    options.isSchulhofActive ||
     options.missingRosterActiveGroupIds.has(options.currentRoomId)
   ) {
     return null;
   }
   return `timetable-roster-active-group-${options.currentRoomId}`;
+}
+
+export function roomsOutsideSchulhofStatus(
+  rooms: readonly ActiveSupervisionRoom[],
+  options: {
+    readonly schulhofTabEnabled: boolean;
+    readonly statusActiveGroupId: string | null | undefined;
+  },
+): ActiveSupervisionRoom[] {
+  if (!options.schulhofTabEnabled || !options.statusActiveGroupId) {
+    return [...rooms];
+  }
+
+  return rooms.filter((room) => room.id !== options.statusActiveGroupId);
 }
 
 interface VisitDisplayLike {

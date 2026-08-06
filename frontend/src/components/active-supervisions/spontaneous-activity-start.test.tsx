@@ -21,29 +21,7 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
-type TestSubjectProps = Omit<
-  React.ComponentProps<typeof ProductionSpontaneousActivityStart>,
-  "onOpenSchulhofSupervision" | "schulhofSupervisionAvailable"
-> & {
-  onOpenSchulhofSupervision?: () => void;
-  schulhofSupervisionAvailable?: boolean;
-};
-
-const noopOpenSchulhofSupervision = () => undefined;
-
-function SpontaneousActivityStart({
-  onOpenSchulhofSupervision = noopOpenSchulhofSupervision,
-  schulhofSupervisionAvailable = true,
-  ...props
-}: TestSubjectProps) {
-  return (
-    <ProductionSpontaneousActivityStart
-      {...props}
-      schulhofSupervisionAvailable={schulhofSupervisionAvailable}
-      onOpenSchulhofSupervision={onOpenSchulhofSupervision}
-    />
-  );
-}
+const SpontaneousActivityStart = ProductionSpontaneousActivityStart;
 
 // The modal renders to a portal with animations in the real kit component;
 // stub it to a plain container so tests stay synchronous. The footer is a
@@ -215,7 +193,7 @@ describe("SpontaneousActivityStart", () => {
     });
   });
 
-  it("opens the dedicated Schulhof supervision without a generic start", async () => {
+  it("treats Schulhof as a normal startable room (#2161)", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -228,81 +206,29 @@ describe("SpontaneousActivityStart", () => {
       }),
     );
     const onStart = vi.fn();
-    const onOpenSchulhofSupervision = vi.fn();
-    render(
-      <SpontaneousActivityStart
-        currentStaffId="11"
-        defaultRoomId="5"
-        occupiedRoomIds={["5"]}
-        onStart={onStart}
-        onOpenSchulhofSupervision={onOpenSchulhofSupervision}
-      />,
-    );
+    render(<SpontaneousActivityStart currentStaffId="11" onStart={onStart} />);
 
     await openModalAndWaitForRefs();
-    expect(getRoomCombobox()).toHaveTextContent("Mensa");
-    expect(
-      screen.getByRole("button", { name: "Aktivität starten" }),
-    ).toBeInTheDocument();
     fireEvent.click(getRoomCombobox());
     const schulhofOption = screen.getByRole("option", { name: "Schulhof" });
     expect(schulhofOption).toBeEnabled();
     fireEvent.click(schulhofOption);
 
-    expect(
-      screen.getByText(/eigene Schulhof-Aufsicht geführt/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Zur Schulhof-Aufsicht" }),
-    ).toBeEnabled();
-    submitForm();
-
-    expect(onOpenSchulhofSupervision).toHaveBeenCalledTimes(1);
-    expect(onStart).not.toHaveBeenCalled();
-
-    await openModalAndWaitForRefs();
-    expect(getRoomCombobox()).toHaveTextContent("Mensa");
+    fireEvent.change(
+      screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
+      { target: { value: "Hofpause" } },
+    );
     expect(
       screen.getByRole("button", { name: "Aktivität starten" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/eigene Schulhof-Aufsicht geführt/),
-    ).not.toBeInTheDocument();
-  });
+    submitForm();
 
-  it("keeps Schulhof visible but disables it when its supervision status is unavailable", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        json: async () => ({
-          data: [
-            { id: 3, name: "Mensa" },
-            { id: 5, name: "Schulhof" },
-          ],
-        }),
-      }),
-    );
-    const onStart = vi.fn();
-    const onOpenSchulhofSupervision = vi.fn();
-    render(
-      <SpontaneousActivityStart
-        currentStaffId="11"
-        schulhofSupervisionAvailable={false}
-        onStart={onStart}
-        onOpenSchulhofSupervision={onOpenSchulhofSupervision}
-      />,
-    );
-
-    await openModalAndWaitForRefs();
-    fireEvent.click(getRoomCombobox());
-
-    expect(
-      screen.getByRole("option", {
-        name: "Schulhof (Aufsicht nicht verfügbar)",
-      }),
-    ).toBeDisabled();
-    expect(onOpenSchulhofSupervision).not.toHaveBeenCalled();
-    expect(onStart).not.toHaveBeenCalled();
+    expect(onStart).toHaveBeenCalledWith({
+      title: "Hofpause",
+      roomId: "5",
+      activityGroupId: undefined,
+      additionalStaffIds: [],
+    });
   });
 
   it("allows a custom spontaneous activity title without template binding", async () => {

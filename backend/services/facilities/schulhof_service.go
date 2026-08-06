@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -19,29 +19,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 )
 
-// SchulhofService provides operations for managing the Schulhof (schoolyard) area.
-// The Schulhof is a special permanent outdoor supervision area that:
-// - Always appears in the "My Supervisions" tabs
-// - Can be claimed/released by supervisors at any time
-// - Auto-creates necessary infrastructure (room, category, activity) on first use
+// SchulhofService provides the read model and infrastructure bootstrap for the
+// Schulhof (schoolyard) area. Since #2161 the Schulhof is a regular plannable
+// room: sessions there are started via the generic timetable/spontaneous flows
+// and supervision uses the generic claim/end-supervision endpoints. This
+// service only answers "what is going on in the Schulhof right now" and
+// auto-creates the reserved infrastructure (room, category, activity) that the
+// IoT checkin path and the kiosk checkout button depend on.
 type SchulhofService interface {
 	// GetSchulhofStatus returns the current status of the Schulhof area including
-	// room info, active group, supervisors, and student count.
+	// room info, the caller's newest supervised group (or otherwise the newest
+	// open group), supervisors, and student count.
 	GetSchulhofStatus(ctx context.Context, staffID int64) (*SchulhofStatus, error)
-
-	// ToggleSupervision starts or stops supervision for the given staff member.
-	// action must be "start" or "stop".
-	ToggleSupervision(ctx context.Context, staffID int64, action string) (*SupervisionResult, error)
 
 	// EnsureInfrastructure ensures the Schulhof room, category, and activity group exist.
 	// createdBy is the staff ID to use when creating new infrastructure.
 	// Returns the activity group.
 	EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error)
-
-	// GetOrCreateActiveGroup returns the active Schulhof group for today,
-	// creating one if it doesn't exist.
-	// createdBy is the staff ID to use when creating new infrastructure.
-	GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error)
 }
 
 // SchulhofStatus represents the current state of the Schulhof area.
@@ -64,13 +58,6 @@ type SupervisorInfo struct {
 	StaffID       int64  `json:"staff_id"`
 	Name          string `json:"name"`
 	IsCurrentUser bool   `json:"is_current_user"`
-}
-
-// SupervisionResult represents the result of a supervision toggle operation.
-type SupervisionResult struct {
-	Action        string `json:"action"` // "started" or "stopped"
-	SupervisionID *int64 `json:"supervision_id,omitempty"`
-	ActiveGroupID int64  `json:"active_group_id"`
 }
 
 // schulhofService implements SchulhofService.
@@ -125,37 +112,37 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	status.Exists = true
 	status.RoomID = &room.ID
 
-	// Step 2: Find Schulhof activity group
+	// Step 2: Find the Schulhof activity group. Purely informational since
+	// #2161 — sessions in the room are no longer required to be backed by the
+	// system activity, so a missing activity does not end the lookup.
 	activityGroup, err := s.findSchulhofActivity(ctx, room)
-	if err != nil {
-		if errors.Is(err, errSchulhofActivityNotFound) {
-			s.getLogger().Info("schulhof activity not found",
-				slog.String("component", "schulhof"))
-			return status, nil
-		}
+	switch {
+	case err == nil:
+		status.ActivityGroupID = &activityGroup.ID
+	case errors.Is(err, errSchulhofActivityNotFound):
+		s.getLogger().Info("schulhof activity not found",
+			slog.String("component", "schulhof"))
+	default:
 		return nil, fmt.Errorf("failed to look up Schulhof activity: %w", err)
 	}
-	status.ActivityGroupID = &activityGroup.ID
-	if err := ValidateSchulhofActivityRoom(activityGroup, room); err != nil {
-		return nil, fmt.Errorf("invalid Schulhof activity infrastructure: %w", err)
-	}
 
-	// Step 3: Find today's active group for this room
-	activeGroup, err := s.findTodayActiveGroup(ctx, room.ID, activityGroup.ID)
+	// Step 3: Prefer the caller's newest supervised group from today, then fall
+	// back to today's newest open group in the room. Planned timetable blocks,
+	// spontaneous sessions, and IoT fallback groups all count (#2161). The day
+	// boundary prevents a failed nightly cleanup from exposing yesterday's
+	// session as current. The caller preference keeps an existing supervisor's
+	// session manageable when a later parallel session starts in the same room.
+	activeGroup, supervisors, err := s.findPreferredOpenActiveGroup(ctx, room.ID, staffID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to look up today's Schulhof group: %w", err)
+		return nil, fmt.Errorf("failed to look up open Schulhof group: %w", err)
 	}
 	if activeGroup == nil {
-		// No active session today - still return status with exists=true
+		// No open session - still return status with exists=true
 		return status, nil
 	}
 	status.ActiveGroupID = &activeGroup.ID
 
-	// Step 4: Get supervisors for this active group
-	supervisors, err := s.activeService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up Schulhof supervisors: %w", err)
-	}
+	// Step 4: Map the active supervisors loaded while selecting the group.
 	status.SupervisorCount = len(supervisors)
 	for _, sup := range supervisors {
 		if sup.EndDate != nil {
@@ -190,66 +177,6 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	}
 
 	return status, nil
-}
-
-// ToggleSupervision starts or stops supervision for the given staff member.
-func (s *schulhofService) ToggleSupervision(ctx context.Context, staffID int64, action string) (*SupervisionResult, error) {
-	if action != "start" && action != "stop" {
-		return nil, fmt.Errorf("invalid action: %s (must be 'start' or 'stop')", action)
-	}
-
-	// Ensure infrastructure exists (use staffID as creator if infrastructure needs to be created)
-	_, err := s.EnsureInfrastructure(ctx, staffID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to ensure Schulhof infrastructure: %w", err)
-	}
-
-	// Get or create active group for today
-	activeGroup, err := s.GetOrCreateActiveGroup(ctx, staffID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get/create active group: %w", err)
-	}
-
-	result := &SupervisionResult{
-		ActiveGroupID: activeGroup.ID,
-	}
-
-	if action == "start" {
-		// Claim the group as supervisor
-		supervision, err := s.activeService.ClaimActiveGroup(ctx, activeGroup.ID, staffID, "supervisor")
-		if err != nil {
-			return nil, fmt.Errorf("failed to claim Schulhof supervision: %w", err)
-		}
-		result.Action = "started"
-		result.SupervisionID = &supervision.ID
-	} else {
-		// Find and end the user's supervision
-		supervisors, err := s.activeService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find supervisors: %w", err)
-		}
-
-		var supervisionID int64
-		found := false
-		for _, sup := range supervisors {
-			if sup.StaffID == staffID && sup.EndDate == nil {
-				supervisionID = sup.ID
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return nil, fmt.Errorf("user is not currently supervising the Schulhof")
-		}
-
-		if err := s.activeService.EndSupervision(ctx, supervisionID); err != nil {
-			return nil, fmt.Errorf("failed to end Schulhof supervision: %w", err)
-		}
-		result.Action = "stopped"
-	}
-
-	return result, nil
 }
 
 // EnsureInfrastructure ensures the Schulhof room, category, and activity group exist.
@@ -311,69 +238,6 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 	return createdActivity, nil
 }
 
-// GetOrCreateActiveGroup returns the active Schulhof group for today.
-func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error) {
-	// Ensure infrastructure exists
-	activityGroup, err := s.EnsureInfrastructure(ctx, createdBy)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the room
-	room, err := FindCanonicalSchulhofRoom(ctx, s.facilityService)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find Schulhof room: %w", err)
-	}
-	if err := ValidateSchulhofActivityRoom(activityGroup, room); err != nil {
-		return nil, fmt.Errorf("invalid Schulhof activity infrastructure: %w", err)
-	}
-
-	// Find today's active group
-	activeGroup, err := s.findTodayActiveGroup(ctx, room.ID, activityGroup.ID)
-	if err == nil && activeGroup != nil {
-		return activeGroup, nil
-	}
-
-	// End any stale (non-today) active groups for this room before creating a new one.
-	// Without this, CheckRoomConflict in CreateActiveGroup would reject the new group
-	// because a leftover group from a previous day still occupies the room.
-	if err := s.endStaleActiveGroups(ctx, room.ID); err != nil {
-		return nil, fmt.Errorf("failed to end stale active groups: %w", err)
-	}
-
-	// Create a new active group for today. Schulhof sessions are always
-	// template-backed (the well-known Schulhof activity), so GroupID is set.
-	now := time.Now()
-	activityGroupID := activityGroup.ID
-	newActiveGroup := &active.Group{
-		GroupID:   &activityGroupID,
-		RoomID:    room.ID,
-		StartTime: now,
-	}
-
-	if err := s.activeService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
-		if errors.Is(err, activeSvc.ErrRoomConflict) {
-			existingGroup, findErr := s.findTodayActiveGroup(ctx, room.ID, activityGroup.ID)
-			if findErr != nil {
-				return nil, fmt.Errorf("failed to refetch Schulhof active group after room conflict: %w", findErr)
-			}
-			if existingGroup != nil {
-				s.getLogger().Info("reused concurrently created schulhof active group",
-					slog.String("component", "schulhof"),
-					slog.Int64("active_group_id", existingGroup.ID))
-				return existingGroup, nil
-			}
-		}
-		return nil, fmt.Errorf("failed to create Schulhof active group: %w", err)
-	}
-
-	s.getLogger().Info("created schulhof active group for today",
-		slog.String("component", "schulhof"),
-		slog.Int64("active_group_id", newActiveGroup.ID))
-
-	return newActiveGroup, nil
-}
-
 // findSchulhofActivity finds the dedicated system activity for the canonical
 // Schulhof room. Activity names are not unique, so a normal staff activity
 // with the same name must not be adopted or block provisioning.
@@ -397,56 +261,69 @@ func (s *schulhofService) findSchulhofActivity(ctx context.Context, room *facili
 	return nil, errSchulhofActivityNotFound
 }
 
-// findTodayActiveGroup finds an active group for the Schulhof room that started today.
-func (s *schulhofService) findTodayActiveGroup(ctx context.Context, roomID, activityGroupID int64) (*active.Group, error) {
-	// Get all active groups for this room
+// findPreferredOpenActiveGroup returns the caller's newest actively supervised
+// group in the room, or the newest open group when the caller supervises none.
+// It returns the selected group's active supervisors with the group so status
+// rendering does not need a second lookup.
+func (s *schulhofService) findPreferredOpenActiveGroup(
+	ctx context.Context,
+	roomID int64,
+	staffID int64,
+) (*active.Group, []*active.GroupSupervisor, error) {
 	activeGroups, err := s.activeService.FindActiveGroupsByRoomID(ctx, roomID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find active groups: %w", err)
+		return nil, nil, fmt.Errorf("failed to find active groups: %w", err)
 	}
 
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-
+	openGroups := make([]*active.Group, 0, len(activeGroups))
+	openGroupIDs := make([]int64, 0, len(activeGroups))
+	var newestOpen *active.Group
+	today := timezone.TodayDate()
 	for _, ag := range activeGroups {
-		// Check if it's for the Schulhof activity and started today and not ended.
-		// Spontaneous sessions (no template, WP-B6) can never match here.
-		templateID, ok := ag.TemplateID()
-		if ok && templateID == activityGroupID && ag.StartTime.After(todayStart) && ag.EndTime == nil {
-			return ag, nil
+		if ag.EndTime != nil || timezone.DateFromTime(ag.StartTime) != today {
+			continue
+		}
+		openGroups = append(openGroups, ag)
+		openGroupIDs = append(openGroupIDs, ag.ID)
+		if newerActiveGroup(ag, newestOpen) {
+			newestOpen = ag
 		}
 	}
-
-	return nil, nil
-}
-
-// endStaleActiveGroups ends any active groups for the given room that are still open
-// (end_time IS NULL) but started before today. This prevents room conflict errors when
-// creating a new daily Schulhof active group.
-func (s *schulhofService) endStaleActiveGroups(ctx context.Context, roomID int64) error {
-	activeGroups, err := s.activeService.FindActiveGroupsByRoomID(ctx, roomID)
-	if err != nil {
-		return fmt.Errorf("failed to find active groups: %w", err)
+	if newestOpen == nil {
+		return nil, nil, nil
 	}
 
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	allSupervisors, err := s.activeService.FindSupervisorsByActiveGroupIDs(ctx, openGroupIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find active supervisors: %w", err)
+	}
 
-	for _, ag := range activeGroups {
-		// Only end groups from BEFORE today. Today's groups are safe — this ensures
-		// mid-day supervisor changes don't disrupt the current Schulhof session.
-		if ag.EndTime == nil && !ag.StartTime.After(todayStart) {
-			s.getLogger().Info("ending stale schulhof active group",
-				slog.String("component", "schulhof"),
-				slog.Int64("active_group_id", ag.ID),
-				slog.String("started", ag.StartTime.Format("2006-01-02")))
-			if err := s.activeService.EndActiveGroupSession(ctx, ag.ID); err != nil {
-				return fmt.Errorf("failed to end stale active group %d: %w", ag.ID, err)
+	supervisorsByGroup := make(map[int64][]*active.GroupSupervisor, len(openGroups))
+	for _, supervisor := range allSupervisors {
+		supervisorsByGroup[supervisor.GroupID] = append(supervisorsByGroup[supervisor.GroupID], supervisor)
+	}
+
+	var newestSupervised *active.Group
+	for _, group := range openGroups {
+		for _, supervisor := range supervisorsByGroup[group.ID] {
+			if supervisor.StaffID == staffID && supervisor.EndDate == nil && newerActiveGroup(group, newestSupervised) {
+				newestSupervised = group
+				break
 			}
 		}
 	}
 
-	return nil
+	selected := newestOpen
+	if newestSupervised != nil {
+		selected = newestSupervised
+	}
+	return selected, supervisorsByGroup[selected.ID], nil
+}
+
+func newerActiveGroup(candidate, current *active.Group) bool {
+	return current == nil ||
+		candidate.StartTime.After(current.StartTime) ||
+		(candidate.StartTime.Equal(current.StartTime) && candidate.ID > current.ID)
 }
 
 // ensureSchulhofRoom finds or creates the Schulhof room.

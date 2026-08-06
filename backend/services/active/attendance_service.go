@@ -846,9 +846,16 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 // ClaimActiveGroup allows a staff member to claim supervision of an active group
 // This is primarily used for deviceless rooms like Schulhof
 func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
-	// Verify group exists and is still active
-	group, err := s.GroupRepo.FindByID(ctx, groupID)
+	// Lock the group while checking its lifecycle and creating the supervisor.
+	// Planned-session absorption takes the same lock before deciding that an
+	// open, unsupervised group can be folded into the new session. This prevents
+	// a claim from committing on a group that absorption ended while the claim
+	// was in flight.
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
+	}
+	if group == nil {
 		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
 	}
 

@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -228,8 +227,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}, "Spontaneous timetable instance created and started")
 }
 
-// validateSpontaneousRoom checks the target room exists, is not the permanent
-// Schulhof room (which has its own supervision flow), and is currently
+// validateSpontaneousRoom checks the target room exists and is currently
 // unoccupied — taking the spontaneous-start room lock in between so the
 // existence-vs-conflict check is serialized. Renders the appropriate error and
 // returns false on any failure.
@@ -245,13 +243,6 @@ func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Reque
 	}
 	if room == nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
-		return false
-	}
-	if room.Name == constants.SchulhofRoomName {
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			scheduleSvc.ErrSchulhofSupervisionRequired,
-			schulhofSupervisionRequiredCode,
-		))
 		return false
 	}
 	if err := rs.lockSpontaneousStartRoom(r.Context(), roomID); err != nil {
@@ -558,8 +549,6 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, scheduleSvc.ErrSchulhofSupervisionRequired):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):

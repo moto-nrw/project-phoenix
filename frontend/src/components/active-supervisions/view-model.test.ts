@@ -5,6 +5,7 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  roomsOutsideSchulhofStatus,
   withActiveSupervisionPresence,
 } from "./view-model";
 
@@ -16,7 +17,6 @@ describe("active-supervisions view model", () => {
       activeSupervisionRosterKey({
         selectedTimetableInstanceId: null,
         currentRoomId: "active-1",
-        isSchulhofActive: false,
         missingRosterActiveGroupIds: missing,
       }),
     ).toBeNull();
@@ -24,7 +24,6 @@ describe("active-supervisions view model", () => {
       activeSupervisionRosterKey({
         selectedTimetableInstanceId: null,
         currentRoomId: "active-2",
-        isSchulhofActive: false,
         missingRosterActiveGroupIds: missing,
       }),
     ).toBe("timetable-roster-active-group-active-2");
@@ -35,10 +34,34 @@ describe("active-supervisions view model", () => {
       activeSupervisionRosterKey({
         selectedTimetableInstanceId: "instance-1",
         currentRoomId: "active-1",
-        isSchulhofActive: false,
         missingRosterActiveGroupIds: new Set(["active-1"]),
       }),
     ).toBe("timetable-roster-instance-1");
+  });
+
+  it("resolves a planned roster by active group after a Schulhof reload", () => {
+    expect(
+      activeSupervisionRosterKey({
+        selectedTimetableInstanceId: null,
+        currentRoomId: "schulhof-planned-active-group",
+        missingRosterActiveGroupIds: new Set(),
+      }),
+    ).toBe("timetable-roster-active-group-schulhof-planned-active-group");
+  });
+
+  it("keeps parallel Schulhof sessions outside the permanent status tab", () => {
+    const rooms = [
+      { id: "status-group", name: "Aufsicht 1", room_name: "Schulhof" },
+      { id: "parallel-group", name: "Aufsicht 2", room_name: "Schulhof" },
+      { id: "other-group", name: "Kreativ", room_name: "Atelier" },
+    ];
+
+    expect(
+      roomsOutsideSchulhofStatus(rooms, {
+        schulhofTabEnabled: true,
+        statusActiveGroupId: "status-group",
+      }).map((room) => room.id),
+    ).toEqual(["parallel-group", "other-group"]);
   });
 
   it("maps educational group names to ids", () => {

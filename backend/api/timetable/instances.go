@@ -25,8 +25,6 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
-const schulhofSupervisionRequiredCode = "schulhof_supervision_required"
-
 // StartInstanceResponse is the 200 body for POST /instances/{id}/start. Warnings
 // is always present (empty array when clean) so clients can iterate without a
 // nil check.
@@ -178,8 +176,6 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 	switch {
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrSchulhofSupervisionRequired):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):

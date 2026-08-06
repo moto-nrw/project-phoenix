@@ -1,13 +1,10 @@
 package active
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -46,18 +43,6 @@ type SupervisorInfoResponse struct {
 	StaffID       int64  `json:"staff_id"`
 	Name          string `json:"name"`
 	IsCurrentUser bool   `json:"is_current_user"`
-}
-
-// ToggleSupervisionRequest represents the request body for toggling supervision.
-type ToggleSupervisionRequest struct {
-	Action string `json:"action"` // "start" or "stop"
-}
-
-// ToggleSupervisionResponse represents the API response for toggle supervision.
-type ToggleSupervisionResponse struct {
-	Action        string `json:"action"` // "started" or "stopped"
-	SupervisionID *int64 `json:"supervision_id,omitempty"`
-	ActiveGroupID int64  `json:"active_group_id"`
 }
 
 // getSchulhofStatus handles GET /api/active/schulhof/status
@@ -102,60 +87,4 @@ func (rs *SchulhofResource) getSchulhofStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "")
-}
-
-// toggleSchulhofSupervision handles POST /api/active/schulhof/supervise
-func (rs *SchulhofResource) toggleSchulhofSupervision(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// Get current staff from user context
-	staff, err := rs.userContextService.GetCurrentStaff(ctx)
-	if err != nil || staff == nil {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("user must be a staff member")))
-		return
-	}
-
-	// Parse request body
-	var req ToggleSupervisionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-
-	// Validate action
-	if req.Action != "start" && req.Action != "stop" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("action must be 'start' or 'stop'")))
-		return
-	}
-
-	// Toggle supervision
-	result, err := rs.schulhofService.ToggleSupervision(ctx, staff.ID, req.Action)
-	if err != nil {
-		// Check for specific error messages
-		errMsg := err.Error()
-		if errMsg == "user is not currently supervising the Schulhof" {
-			common.RenderError(w, r, common.ErrorConflict(err))
-			return
-		}
-		if errors.Is(err, activeSvc.ErrRoomConflict) {
-			common.RenderError(w, r, common.ErrorConflict(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	// Return success response
-	resp := ToggleSupervisionResponse{
-		Action:        result.Action,
-		SupervisionID: result.SupervisionID,
-		ActiveGroupID: result.ActiveGroupID,
-	}
-
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, common.Response{
-		Status:  "success",
-		Data:    resp,
-		Message: "Schulhof supervision " + result.Action + " successfully",
-	})
 }

@@ -380,11 +380,24 @@ vi.mock("~/components/students/care-schedule-manager", () => ({
   ),
 }));
 
+vi.mock("~/components/students/student-enrollments-tab", () => ({
+  StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
+}));
+
 // Mock pickup schedule API
 vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: vi.fn().mockResolvedValue({
     schedules: [],
     exceptions: [],
+  }),
+}));
+
+// Mock arrival schedule API
+vi.mock("~/lib/student-arrival-api", () => ({
+  fetchArrivalData: vi.fn().mockResolvedValue({
+    schedules: [],
+    exceptions: [],
+    notes: [],
   }),
 }));
 

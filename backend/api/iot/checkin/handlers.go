@@ -335,7 +335,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 7: Determine if checkin should be skipped (same room scenario)
-	skipCheckin := checkinSvc.ShouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
+	skipCheckin := checkinSvc.ShouldSkipCheckin(req.RoomID, checkedOut, currentVisit, now)
 	if skipCheckin {
 		rs.getLogger().DebugContext(ctx, "skipping re-checkin to same room",
 			slog.Int64("room_id", *req.RoomID),

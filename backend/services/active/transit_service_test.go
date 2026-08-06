@@ -646,6 +646,48 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testin
 	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
 }
 
+func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`).Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+	}()
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "transit-binary-target")
+	room := testpkg.CreateTestRoom(t, db, "Transit Binary Target Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Transit", "Binary", "TBS1")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, student.ID)
+
+	result, err := service.AssignTransitStudentsToActiveGroup(ctx, []int64{student.ID}, targetGroup.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, targetGroup.ID, result.ActiveGroupID)
+	assert.Equal(t, room.ID, result.RoomID)
+	assert.Empty(t, result.Assigned)
+	require.Len(t, result.Skipped, 1)
+	assert.Equal(t, activeSvc.TransitSkipNotInTransit, result.Skipped[0].Reason)
+	assert.Equal(t, student.ID, result.Skipped[0].StudentID)
+
+	// Binary-mode tenants must not gain room-visit rows through this path.
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, activeSvc.ErrVisitNotFound)
+	assert.Nil(t, currentVisit)
+}
+
 func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

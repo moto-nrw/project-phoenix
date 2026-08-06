@@ -159,11 +159,12 @@ func (rs *Resource) Router() chi.Router {
 		// Cross-tenant students (Ferienbetreuung / holiday care)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/cross-tenant-students", rs.getCrossTenantStudents)
 
-		// Schulhof (schoolyard) - permanent outdoor supervision area
+		// Schulhof (schoolyard) - status read model for the permanent tab.
+		// Supervision itself runs through the generic spontaneous-start and
+		// claim endpoints since #2161.
 		r.Route("/schulhof", func(r chi.Router) {
 			schulhofResource := NewSchulhofResource(rs.SchulhofService, rs.UserContextService)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/status", schulhofResource.getSchulhofStatus)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/supervise", schulhofResource.toggleSchulhofSupervision)
 		})
 
 	})

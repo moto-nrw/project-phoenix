@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,37 +56,48 @@ func (s *stubActiveService) CountActiveVisitsByActiveGroupID(ctx context.Context
 // =============================================================================
 
 func TestShouldSkipCheckin_NilRoomID(t *testing.T) {
-	result := checkin.ShouldSkipCheckin(nil, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
+	result := checkin.ShouldSkipCheckin(nil, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_NotCheckedOut(t *testing.T) {
 	roomID := int64(1)
-	result := checkin.ShouldSkipCheckin(&roomID, false, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
+	result := checkin.ShouldSkipCheckin(&roomID, false, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_NilCurrentVisit(t *testing.T) {
 	roomID := int64(1)
-	result := checkin.ShouldSkipCheckin(&roomID, true, nil)
+	result := checkin.ShouldSkipCheckin(&roomID, true, nil, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_NilActiveGroup(t *testing.T) {
 	roomID := int64(1)
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{})
+	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{}, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_SameRoom(t *testing.T) {
 	roomID := int64(1)
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
+	now := time.Now()
+	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1, StartTime: now}}, now)
 	assert.True(t, result)
 }
 
 func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
 	roomID := int64(2)
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
+	now := time.Now()
+	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1, StartTime: now}}, now)
+	assert.False(t, result)
+}
+
+func TestShouldSkipCheckin_PreviousDaySameRoom(t *testing.T) {
+	roomID := int64(1)
+	now := time.Now()
+	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{
+		ActiveGroup: &active.Group{RoomID: roomID, StartTime: now.AddDate(0, 0, -1)},
+	}, now)
 	assert.False(t, result)
 }
 

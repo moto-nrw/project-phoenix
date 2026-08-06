@@ -4,7 +4,6 @@ import {
   mapVisitResponse,
   mapSupervisorResponse,
   mapSchulhofStatusResponse,
-  mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
@@ -12,7 +11,6 @@ import {
   type BackendVisit,
   type BackendSupervisor,
   type BackendSchulhofStatus,
-  type BackendToggleSupervisionResponse,
   type ActiveGroup,
   type Visit,
   type Supervisor,
@@ -514,74 +512,6 @@ describe("active-helpers", () => {
 
       expect(result.supervisors).toEqual([]);
       expect(result.supervisorCount).toBe(0);
-    });
-  });
-
-  describe("mapToggleSupervisionResponse", () => {
-    it("maps started action correctly", () => {
-      const backendResponse: BackendToggleSupervisionResponse = {
-        action: "started",
-        supervision_id: 456,
-        active_group_id: 789,
-      };
-
-      const result = mapToggleSupervisionResponse(backendResponse);
-
-      expect(result.action).toBe("started");
-      expect(result.supervisionId).toBe("456");
-      expect(result.activeGroupId).toBe("789");
-    });
-
-    it("maps stopped action correctly", () => {
-      const backendResponse: BackendToggleSupervisionResponse = {
-        action: "stopped",
-        active_group_id: 123,
-      };
-
-      const result = mapToggleSupervisionResponse(backendResponse);
-
-      expect(result.action).toBe("stopped");
-      expect(result.supervisionId).toBeNull();
-      expect(result.activeGroupId).toBe("123");
-    });
-
-    it("handles undefined supervision_id as null", () => {
-      const backendResponse: BackendToggleSupervisionResponse = {
-        action: "stopped",
-        active_group_id: 999,
-        // supervision_id is undefined when stopping
-      };
-
-      const result = mapToggleSupervisionResponse(backendResponse);
-
-      expect(result.supervisionId).toBeNull();
-    });
-
-    it("converts numeric IDs to strings", () => {
-      const backendResponse: BackendToggleSupervisionResponse = {
-        action: "started",
-        supervision_id: 111,
-        active_group_id: 222,
-      };
-
-      const result = mapToggleSupervisionResponse(backendResponse);
-
-      expect(typeof result.supervisionId).toBe("string");
-      expect(typeof result.activeGroupId).toBe("string");
-    });
-
-    it("preserves action as literal type", () => {
-      const backendResponse: BackendToggleSupervisionResponse = {
-        action: "started",
-        supervision_id: 1,
-        active_group_id: 2,
-      };
-
-      const result = mapToggleSupervisionResponse(backendResponse);
-
-      // TypeScript should infer this as "started" | "stopped"
-      const action: "started" | "stopped" = result.action;
-      expect(action).toBe("started");
     });
   });
 });
