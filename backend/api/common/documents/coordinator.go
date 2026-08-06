@@ -156,30 +156,6 @@ func (c *Coordinator) CleanupDocument(tenantID, ownerID, documentID int64, store
 	}
 }
 
-// CleanupQueued removes the bytes of an upload whose metadata never landed.
-func (c *Coordinator) CleanupQueued(tenantID, ownerID, cleanupID int64, storedName, source string) {
-	ctx := c.NewTenantContext(tenantID)
-	if err := c.Remove(ctx, tenantID, storedName); err != nil {
-		c.logger().Warn("document orphan cleanup failed",
-			"kind", c.Kind,
-			"owner_id", ownerID,
-			"cleanup_id", cleanupID,
-			"source", source,
-			"error", err,
-		)
-		return
-	}
-	if err := c.Store.MarkQueuedCleanupComplete(ctx, cleanupID); err != nil {
-		c.logger().Error("document orphan cleanup status update failed",
-			"kind", c.Kind,
-			"owner_id", ownerID,
-			"cleanup_id", cleanupID,
-			"source", source,
-			"error", err,
-		)
-	}
-}
-
 // ReleaseFailedUpload disposes of the bytes of an upload whose metadata could
 // not be persisted, and settles its queued intent: complete when the object is
 // gone, re-activated when removal failed so the scheduler retries.
