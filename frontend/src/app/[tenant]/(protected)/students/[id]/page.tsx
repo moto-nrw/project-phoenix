@@ -170,7 +170,7 @@ function studentTabs(
   hasStudentReadAccess: boolean,
   canViewEnrollments: boolean,
   canViewCarePlan: boolean,
-  hasWriteAccess: boolean,
+  canViewDocuments: boolean,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -196,12 +196,14 @@ function studentTabs(
   const withCarePlan = canViewCarePlan
     ? base
     : base.filter((tab) => tab !== "betreuungsplan");
-  // Dokumente (#777) needs users:update or one of the two document
-  // permissions; the backend route rejects everyone else. hasWriteAccess is
-  // the same predicate the change-history entry already gates on, and both
-  // hold data of the same sensitivity class, so a read-only user never sees a
-  // tab that could only answer 403.
-  return hasWriteAccess
+  // Dokumente (#777) mirrors the backend route gate exactly:
+  // RequiresAnyPermission(users:update, student_documents:health,
+  // student_documents:legal). Gating on write access instead would disagree in
+  // both directions — a group supervisor without users:update would see a tab
+  // that only answers 403, and a role holding just student_documents:health
+  // (which the migration exists to make grantable) could never reach the tab
+  // at all.
+  return canViewDocuments
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
 }
@@ -370,15 +372,21 @@ function StudentDetailPageContent() {
   const canViewCarePlan =
     sessionStatus === "authenticated" &&
     hasPermission(session, "schedules:read");
+  // Same three permissions the backend route gate accepts (#777).
+  const canViewDocuments =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+    hasPermission(session, "student_documents:health") ||
+      hasPermission(session, "student_documents:legal"));
   const visibleTabs = useMemo(
     () =>
       studentTabs(
         hasFullAccess,
         canViewEnrollments,
         canViewCarePlan,
-        hasWriteAccess,
+        canViewDocuments,
       ),
-    [canViewEnrollments, canViewCarePlan, hasFullAccess, hasWriteAccess],
+    [canViewEnrollments, canViewCarePlan, hasFullAccess, canViewDocuments],
   );
   const tabResolutionTabs =
     sessionStatus === "loading"
