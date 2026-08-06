@@ -104,11 +104,14 @@ type ChangeRequestService interface {
 }
 
 type ChangeRequestServiceConfig struct {
-	ChangeRequestRepo        enrollmentModels.ChangeRequestRepository
-	MessageRepo              enrollmentModels.ChangeRequestMessageRepository
-	RequestRepo              enrollmentModels.RequestRepository
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
+	ChangeRequestRepo   enrollmentModels.ChangeRequestRepository
+	MessageRepo         enrollmentModels.ChangeRequestMessageRepository
+	RequestRepo         enrollmentModels.RequestRepository
+	RequestChildRepo    enrollmentModels.RequestChildRepository
+	RequestGuardianRepo enrollmentModels.RequestGuardianRepository
+	// LateInviteRepo restores the original invite identity when an accountless
+	// late-invite renewal is re-authorized during change-request approval.
+	LateInviteRepo           enrollmentModels.LateInviteRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
@@ -1469,7 +1472,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 		CareOfferingRepo:         s.CareOfferingRepo,
 		Settings:                 s.Settings,
 	}}
-	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, openByID, preservedChildIDs)
+	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, preservedChildIDs)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
 	}
@@ -1625,8 +1628,16 @@ func (s *changeRequestService) reconcileMatchedStudent(
 	if err := assertExistingStudentMatchResolved(phase, pin, eligibilityEnforced, index); err != nil {
 		return err
 	}
+	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
+	if pin != nil {
+		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.LateInviteRepo, req)
+		if err != nil {
+			return fmt.Errorf("change request approve: resolve re-enrollment identity: %w", err)
+		}
+		submitter = resolvedSubmitter
+	}
 	if err := rs.assertGuardianMayReEnrollStudent(ctx,
-		reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+		submitter,
 		pin, req.GetTenantID(), index); err != nil {
 		return err
 	}

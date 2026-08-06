@@ -459,6 +459,12 @@ export interface MeProfileResponse {
   children: MeProfileChild[];
 }
 
+export interface PublicLateInvitePrefill {
+  guardian_email: string;
+  guardian_first_name?: string;
+  guardian_last_name?: string;
+}
+
 export interface PublicEnrollmentBootstrap {
   phase: PublicPhase;
   schema: PublicFormSchema | null;
@@ -471,6 +477,7 @@ export interface PublicEnrollmentBootstrap {
   captcha_config: PublicCaptchaConfig | null;
   legal_texts: PublicLegalTexts;
   profile?: MeProfileResponse | null;
+  late_invite?: PublicLateInvitePrefill;
 }
 
 export async function fetchPublicEnrollmentBootstrap(

@@ -24,6 +24,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
@@ -68,7 +69,23 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+// offeringSourceOptions narrows the enrollment decision service to the
+// timetable editor's offering-source view (#2137). Returns nil when the
+// concrete service does not implement it (partial test wiring) — the handler
+// then responds 500 instead of panicking, matching the resource's nil-dep
+// contract.
+func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.OfferingSourceOptionLister {
+	lister, ok := svc.(enrollmentSvc.OfferingSourceOptionLister)
+	if !ok {
+		return nil
+	}
+	return lister
+}
 
 // API represents the API structure
 type API struct {
@@ -102,6 +119,7 @@ type API struct {
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
+	Birthdays        *birthdaysAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
@@ -455,6 +473,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:          db,
 		Logger:      logger.With("service", "student-photo"),
 	})
+	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
+	// Regeltermine like a grade transition does (#2147 review round 10). The
+	// factory already fails startup when the decision service stops
+	// implementing the resync, so the assertion cannot silently miss here.
+	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
@@ -483,13 +506,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActivityService:         api.Services.Activities,
 		EnrollmentDecision:      api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
-		Broadcaster:             api.Services.RealtimeHub,
-		ParentEventEmitter:      api.Services.ParentEventEmitter,
-		AbsenceNotifier:         api.Services.AbsenceNotifier,
-		StudentPhotos:           api.Services.StudentPhotos,
-		ListExportService:       api.Services.ListExport,
-		Logger:                  logger.With("handler", "students"),
-		DB:                      db,
+		OfferingSourceResyncer:  studentClassResyncer,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Broadcaster:        api.Services.RealtimeHub,
+		ParentEventEmitter: api.Services.ParentEventEmitter,
+		AbsenceNotifier:    api.Services.AbsenceNotifier,
+		StudentPhotos:      api.Services.StudentPhotos,
+		ListExportService:  api.Services.ListExport,
+		Logger:             logger.With("handler", "students"),
+		DB:                 db,
 	})
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
@@ -553,6 +580,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
+	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
@@ -574,6 +602,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
 		SlotListsService:       api.Services.SlotLists,
+		OfferingSourceOptions:  offeringSourceOptions(api.Services.EnrollmentDecision),
 		PlanExportService:      api.Services.PlanExport,
 		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "timetable"),
@@ -819,6 +848,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount users resources
 		r.Mount("/users", a.Users.Router())
+
+		// Birthday display + staff birthday list (#1542)
+		r.Mount("/birthdays", a.Birthdays.Router())
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())

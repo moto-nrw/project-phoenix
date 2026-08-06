@@ -126,7 +126,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
-    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    claimActiveGroup: vi.fn(() => Promise.resolve()),
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
@@ -1401,6 +1401,7 @@ describe("Schulhof permanent tab functionality", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-1",
@@ -1445,6 +1446,7 @@ describe("Schulhof permanent tab functionality", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-1",
@@ -1504,6 +1506,7 @@ describe("Schulhof permanent tab functionality", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-1",
@@ -1549,6 +1552,7 @@ describe("Schulhof permanent tab functionality", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-1",
@@ -1635,6 +1639,7 @@ describe("Schulhof toggle supervision behavior", () => {
 describe("Schulhof status from BFF response", () => {
   it("parses Schulhof status from dashboard data", () => {
     const bffData = {
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "room-1",
@@ -3363,6 +3368,7 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-r1",
@@ -3418,6 +3424,7 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-r1",

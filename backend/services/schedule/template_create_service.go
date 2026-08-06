@@ -9,6 +9,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,6 +40,11 @@ type CreateTemplateInput struct {
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
 	Targets           []*activitiesModel.GroupTarget
+	// SourceCareOfferingID/SourceGradeLevels declare the offering-source rule
+	// (#2137). With a source set, the roster is seeded from the offering's
+	// approved enrollments and StudentIDs must be empty.
+	SourceCareOfferingID *int64
+	SourceGradeLevels    []int
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
 	ListKind       *string
@@ -142,6 +148,56 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 	if in.RosterValidFrom.IsZero() {
 		return errors.New("roster valid_from is required")
 	}
+	if err := validateOfferingSourceInput(in.SourceCareOfferingID, in.SourceGradeLevels, in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateOfferingSourceInput enforces the offering-source request contract
+// shared by template create and update (#2137): a grade filter only together
+// with a source, a source only on 'angebot' templates, filter values within
+// the supported grade bounds and free of duplicates (mirroring
+// Group.ValidateTargetGroup, which direct service callers bypass), and no
+// manual roster next to a source (the roster is derived, a snapshot would
+// silently drift).
+func validateOfferingSourceInput(sourceOfferingID *int64, gradeLevels []int, targetGroupType string, studentIDs []int64, weekdayAssignments []WeekdayRosterAssignment) error {
+	if sourceOfferingID == nil {
+		if len(gradeLevels) > 0 {
+			return fmt.Errorf("%w: source_grade_levels requires source_care_offering_id", ErrOfferingSourceInvalid)
+		}
+		return nil
+	}
+	if *sourceOfferingID <= 0 {
+		return fmt.Errorf("%w: source_care_offering_id must be positive", ErrOfferingSourceInvalid)
+	}
+	if targetGroupType != activitiesModel.TargetGroupTypeAngebot {
+		return fmt.Errorf("%w: source_care_offering_id requires target group type 'angebot'", ErrOfferingSourceInvalid)
+	}
+	seenGrades := make(map[int]bool, len(gradeLevels))
+	for _, level := range gradeLevels {
+		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+			return fmt.Errorf(
+				"%w: source_grade_levels entries must be between %d and %d",
+				ErrOfferingSourceInvalid, schoolclass.MinGradeLevel, schoolclass.MaxGradeLevel,
+			)
+		}
+		if seenGrades[level] {
+			return fmt.Errorf("%w: source_grade_levels must not contain duplicates", ErrOfferingSourceInvalid)
+		}
+		seenGrades[level] = true
+	}
+	if len(studentIDs) > 0 {
+		return fmt.Errorf("%w: student_ids must be empty when an offering source is set", ErrOfferingSourceInvalid)
+	}
+	// Per-weekday CHILD lists (#2129) are editor-owned snapshots; a sourced
+	// roster is server-managed. Letting both in would plan children twice.
+	// Per-weekday staff on sourced templates is a possible follow-up — the
+	// editor hides the whole weekday section for sourced templates today, so
+	// reject staff rows too instead of silently accepting a half.
+	if len(weekdayAssignments) > 0 {
+		return fmt.Errorf("%w: weekday_assignments must be empty when an offering source is set", ErrOfferingSourceInvalid)
+	}
 	return nil
 }
 
@@ -151,6 +207,16 @@ func (s *TimetableDataService) createTemplateLocked(
 	tenantID int64,
 	result *CreateTemplateResult,
 ) error {
+	// The tenant-wide recurrence gate serializes this create with every other
+	// recurrence writer — update, split, materialization, and the enrollment
+	// decision fan-out. An offering-sourced template seeds its roster from the
+	// approved enrollments inside this transaction; without the gate a
+	// concurrent approval and this create can each miss the other's
+	// uncommitted rows, leaving the child off the new template until an
+	// unrelated resync (#2147 review).
+	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+		return &ScheduleError{Op: "create template: lock recurrence", Err: err}
+	}
 	// Validation before any write: a rejected request must not strand a
 	// timeframe or a half-built template.
 	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
@@ -170,6 +236,12 @@ func (s *TimetableDataService) createTemplateLocked(
 		return err
 	}
 	applyTargetMirrorToCreateInput(&in, targets)
+	// Before any write: an unknown or period-incompatible source would
+	// otherwise only fail on the group insert's FK (500) instead of the
+	// client-correctable 400 the resync produces (#2147 review round 18).
+	if err := s.validateOfferingSourceReference(ctx, in.SourceCareOfferingID, in.CalendarPeriodID, "create template: validate offering source"); err != nil {
+		return err
+	}
 
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
@@ -178,23 +250,25 @@ func (s *TimetableDataService) createTemplateLocked(
 
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
-		Name:              in.Name,
-		MaxParticipants:   in.MaxParticipants,
-		RequiredStaff:     in.RequiredStaff,
-		IsOpen:            true,
-		CategoryID:        in.CategoryID,
-		PlanningTrackID:   in.PlanningTrackID,
-		PlannedRoomID:     &roomID,
-		Type:              in.Type,
-		EducationGroupID:  in.EducationGroupID,
-		IsTemplate:        true,
-		CreatedBy:         in.CreatedBy,
-		CalendarPeriodID:  in.CalendarPeriodID,
-		TargetGroupType:   in.TargetGroupType,
-		TargetGradeLevel:  in.TargetGradeLevel,
-		TargetSchoolClass: in.TargetSchoolClass,
-		ListKind:          in.ListKind,
-		Notes:             in.Notes,
+		Name:                 in.Name,
+		MaxParticipants:      in.MaxParticipants,
+		RequiredStaff:        in.RequiredStaff,
+		IsOpen:               true,
+		CategoryID:           in.CategoryID,
+		PlanningTrackID:      in.PlanningTrackID,
+		PlannedRoomID:        &roomID,
+		Type:                 in.Type,
+		EducationGroupID:     in.EducationGroupID,
+		IsTemplate:           true,
+		CreatedBy:            in.CreatedBy,
+		CalendarPeriodID:     in.CalendarPeriodID,
+		TargetGroupType:      in.TargetGroupType,
+		TargetGradeLevel:     in.TargetGradeLevel,
+		TargetSchoolClass:    in.TargetSchoolClass,
+		SourceCareOfferingID: in.SourceCareOfferingID,
+		SourceGradeLevels:    in.SourceGradeLevels,
+		ListKind:             in.ListKind,
+		Notes:                in.Notes,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
@@ -230,6 +304,21 @@ func (s *TimetableDataService) createTemplateLocked(
 
 	if err := s.createTemplateRoster(ctx, group.ID, in, tenantID); err != nil {
 		return err
+	}
+
+	if in.SourceCareOfferingID != nil {
+		if s.deps.ResyncOfferingRoster == nil {
+			return &ScheduleError{Op: createTemplateOp, Err: errors.New("offering roster resync is not configured")}
+		}
+		if err := s.deps.ResyncOfferingRoster(ctx, OfferingRosterResyncInput{
+			TemplateID:       group.ID,
+			OfferingID:       in.SourceCareOfferingID,
+			GradeLevels:      in.SourceGradeLevels,
+			CalendarPeriodID: in.CalendarPeriodID,
+			EffectiveFrom:    in.RosterValidFrom,
+		}); err != nil {
+			return &ScheduleError{Op: "create template: seed offering roster", Err: err}
+		}
 	}
 
 	result.TemplateID = group.ID

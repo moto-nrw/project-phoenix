@@ -126,7 +126,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
-    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    claimActiveGroup: vi.fn(() => Promise.resolve()),
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
@@ -544,6 +544,7 @@ describe("BFF dashboard data with students and Schulhof", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "r100",
@@ -968,6 +969,7 @@ describe("Schulhof user supervising view", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "room-schulhof",
@@ -1032,6 +1034,7 @@ describe("Schulhof user supervising view", () => {
             },
           ],
           firstRoomId: "r1",
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "room-schulhof",
@@ -1098,7 +1101,7 @@ describe("Schulhof user supervising view", () => {
 
 describe("Schulhof action button logic", () => {
   it("determines action button rendering for supervising user", () => {
-    const isSchulhofActive = true;
+    const isSchulhofTabSelected = true;
     const schulhofStatus = {
       exists: true,
       isUserSupervising: true,
@@ -1108,16 +1111,16 @@ describe("Schulhof action button logic", () => {
 
     // When user is supervising, show release button
     const showReleaseButton =
-      isSchulhofActive && schulhofStatus?.isUserSupervising;
+      isSchulhofTabSelected && schulhofStatus?.isUserSupervising;
     const showClaimButton =
-      isSchulhofActive && !schulhofStatus?.isUserSupervising;
+      isSchulhofTabSelected && !schulhofStatus?.isUserSupervising;
 
     expect(showReleaseButton).toBe(true);
     expect(showClaimButton).toBe(false);
   });
 
   it("determines action button rendering for non-supervising user", () => {
-    const isSchulhofActive = true;
+    const isSchulhofTabSelected = true;
     const schulhofStatus = {
       exists: true,
       isUserSupervising: false,
@@ -1126,16 +1129,16 @@ describe("Schulhof action button logic", () => {
     };
 
     const showReleaseButton =
-      isSchulhofActive && schulhofStatus?.isUserSupervising;
+      isSchulhofTabSelected && schulhofStatus?.isUserSupervising;
     const showClaimButton =
-      isSchulhofActive && !schulhofStatus?.isUserSupervising;
+      isSchulhofTabSelected && !schulhofStatus?.isUserSupervising;
 
     expect(showReleaseButton).toBe(false);
     expect(showClaimButton).toBe(true);
   });
 
   it("hides action buttons when not on Schulhof tab", () => {
-    const isSchulhofActive = false;
+    const isSchulhofTabSelected = false;
     const schulhofStatus = {
       exists: true,
       isUserSupervising: true,
@@ -1143,15 +1146,15 @@ describe("Schulhof action button logic", () => {
       studentCount: 5,
     };
 
-    const showActionButton = isSchulhofActive && schulhofStatus;
+    const showActionButton = isSchulhofTabSelected && schulhofStatus;
     expect(showActionButton).toBe(false);
   });
 
   it("hides action buttons when Schulhof status is null", () => {
-    const isSchulhofActive = true;
+    const isSchulhofTabSelected = true;
     const schulhofStatus = null;
 
-    const showActionButton = isSchulhofActive && schulhofStatus;
+    const showActionButton = isSchulhofTabSelected && schulhofStatus;
     expect(showActionButton).toBeNull();
   });
 });
@@ -1161,12 +1164,12 @@ describe("Page header title logic", () => {
     isDesktop: boolean,
     allRoomsLength: number,
     schulhofExists: boolean,
-    isSchulhofActive: boolean,
+    isSchulhofTabSelected: boolean,
     currentRoomName?: string,
   ): string {
     return !isDesktop &&
       (allRoomsLength === 1 || (allRoomsLength === 0 && schulhofExists))
-      ? isSchulhofActive
+      ? isSchulhofTabSelected
         ? "Schulhof"
         : (currentRoomName ?? "Aktuelle Aufsicht")
       : "";
@@ -1196,34 +1199,48 @@ describe("Page header title logic", () => {
 });
 
 describe("Student badge count logic", () => {
-  it("shows Schulhof student count when Schulhof is active", () => {
-    const isSchulhofActive = true;
+  it("shows Schulhof status count when the permanent Schulhof tab is selected", () => {
+    const isSchulhofTabSelected = true;
     const schulhofStudentCount = 15;
     const currentRoomStudentCount = 8;
 
-    const count = isSchulhofActive
+    const count = isSchulhofTabSelected
       ? schulhofStudentCount
       : currentRoomStudentCount;
     expect(count).toBe(15);
   });
 
-  it("shows room student count when regular room is active", () => {
-    const isSchulhofActive = false;
+  it("shows current room count for a regular tab", () => {
+    const isSchulhofTabSelected = false;
     const schulhofStudentCount = 15;
     const currentRoomStudentCount = 8;
 
-    const count = isSchulhofActive
+    const count = isSchulhofTabSelected
       ? schulhofStudentCount
       : currentRoomStudentCount;
     expect(count).toBe(8);
   });
 
+  it("shows the selected parallel Schulhof group's count", () => {
+    const isSchulhofTabSelected = false;
+    const currentRoomName = "Schulhof";
+    const schulhofStudentCount = 15;
+    const currentRoomStudentCount = 8;
+
+    const count = isSchulhofTabSelected
+      ? schulhofStudentCount
+      : currentRoomStudentCount;
+
+    expect(currentRoomName).toBe("Schulhof");
+    expect(count).toBe(8);
+  });
+
   it("defaults to 0 when counts are undefined", () => {
-    const isSchulhofActive = true;
+    const isSchulhofTabSelected = true;
     const schulhofStudentCount: number | undefined = undefined;
     const currentRoomStudentCount: number | undefined = undefined;
 
-    const count = isSchulhofActive
+    const count = isSchulhofTabSelected
       ? (schulhofStudentCount ?? 0)
       : (currentRoomStudentCount ?? 0);
     expect(count).toBe(0);
@@ -1309,27 +1326,6 @@ describe("currentRoom useMemo logic", () => {
       : (allRooms[selectedRoomIndex] ?? null);
 
     expect(currentRoom).toBeNull();
-  });
-});
-
-describe("isSchulhofActive detection", () => {
-  function checkSchulhofActive(
-    isSchulhofTabSelected: boolean,
-    currentRoomName: string,
-  ): boolean {
-    return isSchulhofTabSelected || currentRoomName === "Schulhof";
-  }
-
-  it("is true when Schulhof tab selected", () => {
-    expect(checkSchulhofActive(true, "Regular Room")).toBe(true);
-  });
-
-  it("is true when current room is Schulhof by name", () => {
-    expect(checkSchulhofActive(false, "Schulhof")).toBe(true);
-  });
-
-  it("is false when neither tab nor room name matches", () => {
-    expect(checkSchulhofActive(false, "Raum 101")).toBe(false);
   });
 });
 

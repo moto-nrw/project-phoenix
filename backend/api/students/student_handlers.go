@@ -1166,6 +1166,68 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 	return fresh, nil
 }
 
+// acquirePreRowLockGates takes the advisory locks that must precede ANY
+// student row lock of this request. It returns whether a class-change resync
+// may be owed after the write (see resyncSourcedTemplatesOnClassChange).
+//
+// Photo feature: the lock is taken only when consent is actually toggling
+// (name/notes edits must not queue behind a feature disable/purge). The photo
+// upload and delete transactions acquire LockPhotoFeature and THEN their row
+// lock (FindByIDForUpdate); taking a row lock first would invert that order
+// and let a consent update and a concurrent upload deadlock each other.
+//
+// Recurrence gate: a school_class edit moves the child between Jahrgängen, so
+// the Jahrgang-filtered offering-sourced Regeltermine must be re-reconciled in
+// the same transaction, exactly like a grade transition (#2147 review round
+// 10). The gates are taken BEFORE any student row lock, in the project-wide
+// grade-transition order (shared class-writes gate first, recurrence gate
+// second, row locks last) — any other order can deadlock against a
+// concurrently applying transition. They are taken whenever the request
+// carries a class at all, because whether the class actually changes is only
+// known once the row is locked.
+func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *users.Student, req *UpdateStudentRequest) (classChangeRequested bool, err error) {
+	consentChanging := req.PhotoConsentGiven != nil &&
+		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+	if consentChanging {
+		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
+			return false, err
+		}
+	}
+
+	if req.SchoolClass == nil || rs.OfferingSourceResyncer == nil {
+		return false, nil
+	}
+	if rs.LockTemplateRecurrence == nil {
+		return false, errors.New("template recurrence lock is not configured")
+	}
+	// Shared class-writes gate BEFORE the recurrence gate: a grade transition
+	// takes the class-writes gate exclusively FIRST and then the recurrence
+	// gate (lockRecurrenceThenTransitions). Taking recurrence here and the
+	// shared class gate only later (implicitly, inside FindByIDForUpdate)
+	// would let the two transactions wait on each other cyclically until
+	// PostgreSQL aborts one (#2147 review round 12). Re-entrant, so the
+	// row-lock methods' implicit shared acquisition stays a no-op.
+	if err := rs.StudentService.LockClassWritesShared(ctx); err != nil {
+		return false, err
+	}
+	if err := rs.LockTemplateRecurrence(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// resyncSourcedTemplatesOnClassChange follows the child into the new Jahrgang
+// on every offering-sourced template once the locked row's class actually
+// changed. Runs under the recurrence gate acquirePreRowLockGates took; a
+// resync failure aborts the whole update instead of committing a class edit
+// whose sourced rosters are stale (#2147 review round 10).
+func (rs *Resource) resyncSourcedTemplatesOnClassChange(ctx context.Context, classChangeRequested bool, previousSchoolClass, currentSchoolClass string) error {
+	if !classChangeRequested || previousSchoolClass == currentSchoolClass {
+		return nil
+	}
+	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate())
+}
+
 // applyStudentUpdate performs the locked-row student patch inside the caller's
 // tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
 // concurrent photo upload can't have its photo_path clobbered by a stale
@@ -1174,18 +1236,11 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 // companionsChanged reports what the caller must forward to the client: whether
 // this write actually changed the Laufgemeinschaft.
 func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) (bool, error) {
-	// The photo-feature advisory lock comes FIRST, before any student row lock,
-	// and only when consent is actually toggling (name/notes edits must not
-	// queue behind a feature disable/purge). The photo upload and delete
-	// transactions acquire LockPhotoFeature and THEN their row lock
-	// (FindByIDForUpdate); taking a row lock here first would invert that order
-	// and let a consent update and a concurrent upload deadlock each other.
-	consentChanging := req.PhotoConsentGiven != nil &&
-		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
-	if consentChanging {
-		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-			return false, err
-		}
+	// Advisory locks that must precede ANY student row lock of this request —
+	// see the helper for the two ordering rationales.
+	classChangeRequested, err := rs.acquirePreRowLockGates(ctx, student, req)
+	if err != nil {
+		return false, err
 	}
 
 	// Before ANY row lock of this request: a companion update writes the linked
@@ -1209,6 +1264,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// MUST happen before applyStudentFieldUpdates overwrites them.
 	wasSick := boolPtrValue(fresh.Sick)
 	wasExcused := boolPtrValue(fresh.Excused)
+	previousSchoolClass := fresh.SchoolClass
 
 	// Snapshot the tracked profile fields before applying the patch so the
 	// audit diff (#1455) compares the locked pre-update row with the persisted
@@ -1253,6 +1309,10 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		return false, err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
+		return false, err
+	}
+
+	if err := rs.resyncSourcedTemplatesOnClassChange(ctx, classChangeRequested, previousSchoolClass, fresh.SchoolClass); err != nil {
 		return false, err
 	}
 

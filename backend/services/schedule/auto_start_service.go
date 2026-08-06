@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -28,7 +27,6 @@ type AutoStartResult struct {
 	SkippedAfterWindow  int
 	SkippedNoStaff      int
 	SkippedConflict     int
-	SkippedSchulhof     int
 	SkippedMoved        int
 	SkippedNonPlanned   int
 	Failed              int
@@ -172,10 +170,6 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			result.SkippedAfterWindow++
 			continue
 		}
-		if roomNames[inst.RoomID] == constants.SchulhofRoomName {
-			result.SkippedSchulhof++
-			continue
-		}
 		if staffCounts[inst.ID] < 1 {
 			result.SkippedNoStaff++
 			continue
@@ -192,13 +186,6 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 		}
 
 		if _, err := s.InstanceService.Start(ctx, inst.ID, 0); err != nil {
-			if errors.Is(err, ErrSchulhofSupervisionRequired) {
-				result.SkippedSchulhof++
-				s.Logger.Debug("auto-start skipped Schulhof instance",
-					slog.Int64("instance_id", inst.ID),
-				)
-				continue
-			}
 			// A concurrent admin PUT moved this block to another day between the
 			// batch read and Start's locked reload. That is benign: the move is
 			// committed, and the next scheduler tick re-reads and starts the block

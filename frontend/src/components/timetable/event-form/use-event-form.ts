@@ -49,6 +49,7 @@ import {
   fetchAllStudentOptions,
   formFromInstance,
   formFromSeries,
+  hasPerWeekdayStaffDeviation,
   initialPrimaryStaffID,
   initialStaffIDs,
   initialStudentIDs,
@@ -73,6 +74,7 @@ import type {
   CreateTemplateBody,
   EditedInWindowResult,
   EnrichedInstance,
+  OfferingSourceOption,
   ShiftCoverageCheckParams,
   ShiftCoverageWarningItem,
   TargetGroupType,
@@ -1069,6 +1071,13 @@ export function useEventForm({
    * the shared lists to know who is there on a given day.
    */
   const weekdayAssignmentsBody = (): WeekdayAssignmentBody[] | undefined => {
+    // An offering-sourced roster is server-managed; the backend rejects
+    // weekday_assignments next to a source (#2137 x #2129). The editor hides
+    // the section, but a stale perWeekdayRoster flag from before the source
+    // was picked must not leak into the payload.
+    if (form.targetGroupType === "angebot" && form.sourceCareOfferingId) {
+      return undefined;
+    }
     if (!form.perWeekdayRoster || form.weekdays.length < 2) return undefined;
     return [...form.weekdays]
       .sort((a, b) => a - b)
@@ -1089,6 +1098,8 @@ export function useEventForm({
   };
 
   const changeTargetGroupType = (nextType: TargetGroupType) => {
+    // Read outside the updater so it stays pure (mirrors applySourceOffering).
+    const restoredStudentIds = preSourceStudentIdsRef.current;
     setForm((current) => ({
       ...current,
       targetGroupType: nextType,
@@ -1100,6 +1111,18 @@ export function useEventForm({
         nextType === "klasse" ? current.targetSchoolClasses : [],
       educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
       educationGroupIds: nextType === "gruppe" ? current.educationGroupIds : [],
+      sourceCareOfferingId:
+        nextType === "angebot" ? current.sourceCareOfferingId : "",
+      sourceGradeLevels:
+        nextType === "angebot" ? current.sourceGradeLevels : [],
+      // Leaving "angebot" clears the source above, so the manual roster
+      // stashed when the source was picked must come back with it, exactly
+      // like clearing the source in place. Keeping the emptied list would
+      // make the next save wipe the participants (#2147 review round 13).
+      studentIds:
+        nextType !== "angebot" && current.sourceCareOfferingId !== ""
+          ? restoredStudentIds
+          : current.studentIds,
     }));
     setValidationError(null);
     setFieldErrors((current) => {
@@ -1324,6 +1347,20 @@ export function useEventForm({
       form.targetGroupType === "klasse" && form.targetSchoolClasses.length > 0
         ? form.targetSchoolClasses[0]?.trim()
         : undefined,
+    // Explicit null, never undefined: the update endpoint is presence-aware
+    // (#2147 review round 12) — an omitted field keeps the stored source, so
+    // clearing it in the editor MUST send null to be honored. Create treats
+    // null and omitted alike.
+    source_care_offering_id:
+      form.targetGroupType === "angebot" && form.sourceCareOfferingId
+        ? Number(form.sourceCareOfferingId)
+        : null,
+    source_grade_levels:
+      form.targetGroupType === "angebot" &&
+      form.sourceCareOfferingId &&
+      form.sourceGradeLevels.length > 0
+        ? [...form.sourceGradeLevels].sort((a, b) => a - b)
+        : null,
     targets:
       form.targetGroupType === "jahrgang"
         ? form.targetGradeLevels.map((value) => ({
@@ -1344,7 +1381,12 @@ export function useEventForm({
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
     required_staff: parseRequiredStaffOverride(form.requiredStaff),
-    student_ids: studentIDsForSave.map(Number),
+    // A sourced roster is server-managed — the backend rejects student_ids
+    // next to a source.
+    student_ids:
+      form.targetGroupType === "angebot" && form.sourceCareOfferingId
+        ? []
+        : studentIDsForSave.map(Number),
     staff_ids: staffIDsForSave.map(Number),
     primary_staff_id: primaryStaffIDForSave
       ? Number(primaryStaffIDForSave)
@@ -1477,6 +1519,17 @@ export function useEventForm({
       target_group_type: template.targetGroupType,
       target_grade_level: template.targetGradeLevel,
       target_school_class: template.targetSchoolClass,
+      // Explicit null mirrors seriesBody: the presence-aware PUT keeps an
+      // omitted source, so preserving "no source" needs null (#2147 r12).
+      source_care_offering_id: template.sourceCareOfferingId
+        ? Number(template.sourceCareOfferingId)
+        : null,
+      source_grade_levels:
+        template.sourceCareOfferingId &&
+        template.sourceGradeLevels &&
+        template.sourceGradeLevels.length > 0
+          ? template.sourceGradeLevels
+          : null,
       targets: template.targets?.map((target) => ({
         type: target.type,
         grade_level: target.gradeLevel,
@@ -1497,7 +1550,11 @@ export function useEventForm({
       calendar_period_id: calendarPeriodId
         ? Number(calendarPeriodId)
         : undefined,
-      student_ids: templateStudentIDs.map(Number),
+      // A sourced template's studentIds ARE the sourced rows; echoing them
+      // next to the source would be rejected by the backend.
+      student_ids: template.sourceCareOfferingId
+        ? []
+        : templateStudentIDs.map(Number),
       staff_ids: templateStaffIDs.map(Number),
       primary_staff_id:
         primaryStaffId && templateStaffIDs.includes(primaryStaffId)
@@ -2369,6 +2426,211 @@ export function useEventForm({
       return { ...current, studentIds, weekdayRosters };
     });
   };
+
+  // -------------------------------------------------------------------
+  // Offering source (#2137): Betreuungsangebot als dynamische Kinderquelle
+  // eines Regeltermins. Loaded lazily when the Angebot tab is active;
+  // per-Jahrgang counts drive the live filter preview and the overlap
+  // Hinweis against other Termine sourcing the same offering.
+  // -------------------------------------------------------------------
+  const [offeringSources, setOfferingSources] = useState<
+    OfferingSourceOption[] | null
+  >(null);
+  const [offeringSourcesError, setOfferingSourcesError] = useState<
+    string | null
+  >(null);
+  // The manual shared roster as it was before a source was selected in this
+  // session — restored when the source is cleared again (#2147 review).
+  const preSourceStudentIdsRef = useRef<string[]>([]);
+  const wantsOfferingSources =
+    expanded && isSeriesFlow && form.targetGroupType === "angebot";
+  useEffect(() => {
+    if (!wantsOfferingSources) return;
+    let cancelled = false;
+    setOfferingSourcesError(null);
+    timetableService
+      .getOfferingSources(form.calendarPeriodId || undefined)
+      .then((options) => {
+        if (!cancelled) setOfferingSources(options);
+      })
+      .catch((err: unknown) => {
+        logger.error("offering_sources_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) {
+          setOfferingSources([]);
+          setOfferingSourcesError(
+            "Betreuungsangebote konnten nicht geladen werden.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsOfferingSources, form.calendarPeriodId]);
+
+  const selectedOfferingSource = useMemo(
+    () =>
+      offeringSources?.find(
+        (offering) => offering.id === form.sourceCareOfferingId,
+      ) ?? null,
+    [form.sourceCareOfferingId, offeringSources],
+  );
+
+  // Jahrgänge offered for the filter: every grade with enrolled children plus
+  // the already-selected ones (so a saved filter stays visible even when its
+  // grade currently has no children).
+  const sourceGradeOptions = useMemo(() => {
+    const grades = new Set<number>(form.sourceGradeLevels);
+    if (selectedOfferingSource) {
+      for (const grade of Object.keys(selectedOfferingSource.gradeCounts)) {
+        const parsed = Number(grade);
+        if (parsed > 0) grades.add(parsed);
+      }
+    }
+    return [...grades].sort((a, b) => a - b);
+  }, [form.sourceGradeLevels, selectedOfferingSource]);
+
+  // Live count of children the current filter captures.
+  const sourceFilteredCount = useMemo(() => {
+    if (!selectedOfferingSource) return 0;
+    if (form.sourceGradeLevels.length === 0) {
+      return selectedOfferingSource.totalCount;
+    }
+    return form.sourceGradeLevels.reduce(
+      (sum, grade) => sum + (selectedOfferingSource.gradeCounts[grade] ?? 0),
+      0,
+    );
+  }, [form.sourceGradeLevels, selectedOfferingSource]);
+
+  // Other Termine sourcing the same offering whose Jahrgang subsets overlap
+  // the current filter (empty filter = alle Jahrgänge). Advisory only — the
+  // save is never blocked, mirroring the conflict warnings.
+  const sourceOverlapWarnings = useMemo(() => {
+    if (!selectedOfferingSource) return [] as string[];
+    const currentTemplateId = initialSeries?.id;
+    const selected = form.sourceGradeLevels;
+    return selectedOfferingSource.sourcedTemplates
+      .filter((template) => template.id !== currentTemplateId)
+      .filter((template) => {
+        const other = template.gradeLevels;
+        if (selected.length === 0 || other.length === 0) return true;
+        return other.some((grade) => selected.includes(grade));
+      })
+      .map((template) => {
+        const scope =
+          template.gradeLevels.length > 0
+            ? `Jahrgang ${template.gradeLevels.join(", ")}`
+            : "alle Jahrgänge";
+        return `„${template.name}“ nutzt dasselbe Angebot (${scope}). Kinder mit gemeinsamem Jahrgang werden in beiden Regelterminen eingeplant.`;
+      });
+  }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSource]);
+
+  const applySourceOffering = (offeringId: string) => {
+    // Selecting a source clears the manual roster (server-managed). Stash it
+    // so clearing the source restores the admin's picks — submitting the
+    // emptied array would wipe the shared manual assignments on save
+    // (#2147 review). The ref is touched here, outside the updater, so the
+    // updater stays pure.
+    if (offeringId && !form.sourceCareOfferingId) {
+      preSourceStudentIdsRef.current = form.studentIds;
+    }
+    if (offeringId && form.perWeekdayRoster) {
+      staffRosterTouched.current = true;
+      studentRosterTouched.current = true;
+    }
+    const restoredStudentIds = preSourceStudentIdsRef.current;
+    setForm((current) => {
+      const next = {
+        ...current,
+        sourceCareOfferingId: offeringId,
+        // A filter belongs to one offering; switching resets it.
+        sourceGradeLevels:
+          offeringId === current.sourceCareOfferingId
+            ? current.sourceGradeLevels
+            : [],
+        // The sourced roster is server-managed; clearing the source restores
+        // the manual roster picked before the source was set.
+        studentIds: offeringId
+          ? []
+          : current.sourceCareOfferingId
+            ? restoredStudentIds
+            : current.studentIds,
+      };
+      if (!offeringId || !current.perWeekdayRoster) return next;
+      // A source knows only one shared Besetzung, so per-weekday mode ends
+      // right here, visibly in the Personal step, not silently at save time.
+      // Days that staff identically collapse into the shared controls. Days
+      // that deviate are NOT aggregated into an all-weekdays union: nobody
+      // chose that staffing, so the shared Besetzung starts empty and has to
+      // be picked explicitly (#2147 review round 13).
+      const baseline = rosterForWeekday(
+        current,
+        current.weekdays[0] ?? activeRosterWeekday,
+      );
+      const flattened = hasPerWeekdayStaffDeviation(current)
+        ? { staffIds: [] as string[], primaryStaffId: "" }
+        : {
+            staffIds: [...baseline.staffIds],
+            primaryStaffId: baseline.primaryStaffId,
+          };
+      return {
+        ...next,
+        ...flattened,
+        perWeekdayRoster: false,
+        weekdayRosters: {},
+      };
+    });
+    setValidationError(null);
+  };
+
+  // Offering pick awaiting explicit confirmation because applying it removes
+  // a deliberate per-weekday staffing (#2147 review): with a source set, the
+  // payload carries only the shared staff list (the backend rejects
+  // weekday_assignments next to a source). Confirming empties the shared
+  // Besetzung, so the replacement staffing is an explicit choice, never an
+  // implicit all-weekdays union (#2147 review round 13).
+  const [pendingSourceOfferingId, setPendingSourceOfferingId] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    setPendingSourceOfferingId(null);
+    // A new modal session must not inherit the previous session's stashed
+    // manual roster: clearing a source in a freshly opened, already sourced
+    // template would otherwise restore (and save) another template's picks
+    // (#2147 review round 10).
+    preSourceStudentIdsRef.current = [];
+  }, [isOpen]);
+
+  const changeSourceOffering = (offeringId: string) => {
+    if (
+      offeringId !== "" &&
+      form.sourceCareOfferingId === "" &&
+      hasPerWeekdayStaffDeviation(form)
+    ) {
+      setPendingSourceOfferingId(offeringId);
+      return;
+    }
+    applySourceOffering(offeringId);
+  };
+
+  const confirmPendingSourceOffering = () => {
+    if (pendingSourceOfferingId === null) return;
+    applySourceOffering(pendingSourceOfferingId);
+    setPendingSourceOfferingId(null);
+  };
+
+  const cancelPendingSourceOffering = () => setPendingSourceOfferingId(null);
+
+  const toggleSourceGradeLevel = (grade: number) => {
+    setForm((current) => ({
+      ...current,
+      sourceGradeLevels: current.sourceGradeLevels.includes(grade)
+        ? current.sourceGradeLevels.filter((item) => item !== grade)
+        : [...current.sourceGradeLevels, grade].sort((a, b) => a - b),
+    }));
+  };
+
   const retryStudentLoad = async () => {
     const studentSeq = ++studentLoadSeq.current;
     const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
@@ -2538,6 +2800,17 @@ export function useEventForm({
     abWeekHint,
     studentBulkOptions,
     targetClassOptions,
+    offeringSources,
+    offeringSourcesError,
+    selectedOfferingSource,
+    sourceGradeOptions,
+    sourceFilteredCount,
+    sourceOverlapWarnings,
+    changeSourceOffering,
+    pendingSourceOfferingId,
+    confirmPendingSourceOffering,
+    cancelPendingSourceOffering,
+    toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,

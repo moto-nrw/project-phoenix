@@ -10,7 +10,6 @@ import {
   mapVisitResponse,
   mapSupervisorResponse,
   mapSchulhofStatusResponse,
-  mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
@@ -18,12 +17,10 @@ import {
   type Visit,
   type Supervisor,
   type SchulhofStatus,
-  type ToggleSupervisionResponse,
   type BackendActiveGroup,
   type BackendVisit,
   type BackendSupervisor,
   type BackendSchulhofStatus,
-  type BackendToggleSupervisionResponse,
   type CreateActiveGroupInput,
   type CreateVisitInput,
   type CreateSupervisorInput,
@@ -964,25 +961,6 @@ export const activeService = {
       "/active/schulhof/status",
       mapSchulhofStatusResponse,
       "Get Schulhof status",
-    );
-  },
-
-  /**
-   * Toggle Schulhof supervision for the current user.
-   * @param action - "start" to begin supervising, "stop" to end supervision
-   */
-  toggleSchulhofSupervision: async (
-    action: "start" | "stop",
-  ): Promise<ToggleSupervisionResponse> => {
-    return proxyPost<
-      BackendToggleSupervisionResponse,
-      ToggleSupervisionResponse
-    >(
-      "/api/active/schulhof/supervise",
-      "/active/schulhof/supervise",
-      { action },
-      mapToggleSupervisionResponse,
-      "Toggle Schulhof supervision",
     );
   },
 

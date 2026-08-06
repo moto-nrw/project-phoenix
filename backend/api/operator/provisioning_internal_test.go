@@ -50,6 +50,8 @@ type mockProvisioningService struct {
 	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 	createDeviceFn            func(context.Context, int64, string, string, *string, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
+	getDeviceTransferStatusFn func(context.Context, int64) (*platformSvc.DeviceTransferStatus, error)
+	transferDeviceFn          func(context.Context, int64, int64, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	softDeleteSchoolFn        func(int64) error
 	restoreSchoolFn           func(int64) error
 	softDeleteOrgFn           func(int64) error
@@ -188,6 +190,18 @@ func (m *mockProvisioningService) CreateDevice(ctx context.Context, schoolID int
 func (m *mockProvisioningService) SetDeviceAPIKey(ctx context.Context, deviceID int64, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 	if m.setDeviceAPIKeyFn != nil {
 		return m.setDeviceAPIKeyFn(ctx, deviceID, apiKey, operatorID, clientIP)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) GetDeviceTransferStatus(ctx context.Context, deviceID int64) (*platformSvc.DeviceTransferStatus, error) {
+	if m.getDeviceTransferStatusFn != nil {
+		return m.getDeviceTransferStatusFn(ctx, deviceID)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) TransferDevice(ctx context.Context, deviceID, targetSchoolID, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+	if m.transferDeviceFn != nil {
+		return m.transferDeviceFn(ctx, deviceID, targetSchoolID, operatorID, clientIP)
 	}
 	return nil, nil
 }
@@ -1391,6 +1405,79 @@ func TestProvisioningResource_SetDeviceAPIKey_NotFound(t *testing.T) {
 	resource.SetDeviceAPIKey(rr, req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_GetDeviceTransferStatus(t *testing.T) {
+	lastSeen := time.Now().Add(-10 * time.Minute)
+	resource := NewProvisioningResource(&mockProvisioningService{
+		getDeviceTransferStatusFn: func(_ context.Context, deviceID int64) (*platformSvc.DeviceTransferStatus, error) {
+			assert.Equal(t, int64(17), deviceID)
+			return &platformSvc.DeviceTransferStatus{CanTransfer: true, LastSeen: &lastSeen}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/devices/17/transfer-status", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "17")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.GetDeviceTransferStatus(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, true, data["can_transfer"])
+	assert.Equal(t, false, data["is_protected"])
+}
+
+func TestProvisioningResource_TransferDevice(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		transferDeviceFn: func(_ context.Context, deviceID, targetSchoolID, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			assert.Equal(t, int64(17), deviceID)
+			assert.Equal(t, int64(23), targetSchoolID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "198.51.100.30", clientIP.String())
+			return &platformSvc.OperatorDeviceInfo{ID: 99, DeviceID: "DEV-17", SchoolID: targetSchoolID}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices/17/transfer", bytes.NewBufferString(`{"target_school_id":23}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.30:4444"
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "17")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.TransferDevice(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(99), data["id"])
+	assert.Equal(t, float64(23), data["school_id"])
+}
+
+func TestProvisioningResource_TransferDevice_Blocked(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		transferDeviceFn: func(_ context.Context, deviceID, _ int64, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			return nil, &platformSvc.DeviceTransferBlockedError{DeviceID: deviceID, Reason: platformSvc.DeviceTransferBlockedOnline}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices/17/transfer", bytes.NewBufferString(`{"target_school_id":23}`))
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "17")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.TransferDevice(rr, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
 // --- CreateSchoolAccount handler tests ---

@@ -64,6 +64,16 @@ func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *t
 		return lateInviteRepo.MarkUsed(ctx, inviteB.ID, requestB.ID, time.Now())
 	}))
 
+	var linked *enrollmentModels.LateInvite
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		linked, err = lateInviteRepo.FindByUsedRequestID(ctx, requestA.ID)
+		return err
+	}))
+	require.NotNil(t, linked)
+	assert.Equal(t, inviteA.ID, linked.ID)
+	assert.Equal(t, "a@example.test", linked.GuardianEmail)
+
 	var deleted int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error

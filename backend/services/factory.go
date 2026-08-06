@@ -116,6 +116,7 @@ type Factory struct {
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
+	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
@@ -397,6 +398,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:              db,
 		SettingsService: settingsService,
 		Logger:          logger.With("service", "users"),
+	})
+
+	// Birthday display (#1542): who is celebrating today, plus the school
+	// settings and personal opt-out that decide who may be shown.
+	birthdayService := users.NewBirthdayService(users.BirthdayServiceDependencies{
+		StudentRepo:     repos.Student,
+		StaffRepo:       repos.Staff,
+		PersonRepo:      repos.Person,
+		SettingsService: settingsService,
+		Logger:          logger.With("service", "birthdays"),
 	})
 
 	// Staff documents (#1424): metadata + per-category authority for the
@@ -965,6 +976,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:            materializationService,
 		InstanceService:            instanceService,
 		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
@@ -1517,12 +1529,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		PhaseRepo:                repos.Phase,
 		FormSchemaRepo:           repos.FormSchema,
 		DataAccessLogRepo:        repos.DataAccessLog,
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:     repos.EnrollmentRestorationAudit,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
 		StaffRepo:                repos.Staff,
@@ -1551,8 +1565,49 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
-		Logger: logger.With("service", "enrollment-decision"),
+		// Sourced-roster resyncs must also refresh already-materialized future
+		// occurrences (#2147 review) — the materializer never revisits them.
+		InstanceRosters: rosterReconciler,
+		Logger:          logger.With("service", "enrollment-decision"),
 	})
+	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
+	}
+	// A split that moves the Zielgruppe away from 'angebot' drops the
+	// successor's source rule; the carried roster must then shed its
+	// source-derived rows (#2147 review). Wired late because the decision
+	// service is constructed after the split service.
+	templateSplitService.SetOfferingRosterResync(offeringRosterResyncer.ResyncTemplateOfferingRoster)
+	// Grade transitions rewrite school classes, so they must re-reconcile the
+	// offering-sourced templates' Jahrgang-filtered rosters (#2137). Wired
+	// here because the decision service is constructed after the grade
+	// transition service.
+	gradeTransitionResyncer, ok := enrollmentDecisionService.(education.OfferingSourceResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
+	}
+	gradeTransitionService.SetOfferingSourceResyncer(gradeTransitionResyncer)
+	// A care-offering edit changes the wanted roster of every template sourcing
+	// it (#2147 review). Wired late because the decision service is constructed
+	// after the care-offering service.
+	careOfferingSourceBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSourceResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not accept the sourced-template resyncer")
+	}
+	careOfferingSourcedResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingSourcedTemplateResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
+	}
+	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
+	// A phase service-window change re-bounds every roster row derived from
+	// the phase's offerings, so the templates sourcing them must resync too
+	// (#2147 review). Same late binding as above.
+	phaseSourceBinder, ok := enrollmentPhaseService.(enrollment.CareOfferingSourceResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment phase service does not accept the sourced-template resyncer")
+	}
+	phaseSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,
@@ -1618,6 +1673,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
@@ -1860,6 +1916,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRepo:           repos.Account,
 		TeacherRepo:           repos.Teacher,
 		GroupSupervisorRepo:   repos.GroupSupervisor,
+		ActiveGroupRepo:       repos.ActiveGroup,
+		Settings:              settingsService,
 		InvitationService:     invitationService,
 		AuthService:           authService,
 		AuditLogRepo:          repos.OperatorAuditLog,
@@ -2035,6 +2093,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
+		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
@@ -2110,6 +2169,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			TimeframeRepo:              repos.Timeframe,
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+			ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
+			ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 			DeviationEventRepo:         repos.DeviationEvent,
 			ConflictAckRepo:            repos.TimetableConflictAck,
 			Broadcaster:                realtimeHub,

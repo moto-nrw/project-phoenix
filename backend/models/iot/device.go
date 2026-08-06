@@ -28,14 +28,16 @@ const (
 type Device struct {
 	base.Model `bun:"schema:iot,table:devices"`
 	base.TenantModel
-	DeviceID       string       `bun:"device_id,notnull" json:"device_id"`
-	DeviceType     string       `bun:"device_type,notnull" json:"device_type"`
-	Name           *string      `bun:"name" json:"name,omitempty"`
-	Status         DeviceStatus `bun:"status,notnull,default:'active'" json:"status"`
-	APIKey         *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
-	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
-	RegisteredByID *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
-	RoomID         *int64       `bun:"room_id" json:"room_id,omitempty"`
+	DeviceID              string       `bun:"device_id,notnull" json:"device_id"`
+	DeviceType            string       `bun:"device_type,notnull" json:"device_type"`
+	Name                  *string      `bun:"name" json:"name,omitempty"`
+	Status                DeviceStatus `bun:"status,notnull,default:'active'" json:"status"`
+	APIKey                *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
+	LastSeen              *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
+	RegisteredByID        *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
+	RoomID                *int64       `bun:"room_id" json:"room_id,omitempty"`
+	ArchivedAt            *time.Time   `bun:"archived_at" json:"-"`
+	TransferredToDeviceID *int64       `bun:"transferred_to_device_id" json:"-"`
 
 	// Relations
 

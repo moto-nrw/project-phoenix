@@ -526,8 +526,10 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return nil
 	}
 
-	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateActiveGroupExists(ctx, visit.ActiveGroupID); err != nil {
+	// Lock and re-check the target immediately before the visit-side writes.
+	// The lock serializes check-ins with session absorption/end paths, which
+	// take the same active.groups row lock before closing the session.
+	if err := s.validateActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -641,6 +643,22 @@ func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) 
 			return ErrActiveGroupNotFound
 		}
 		return err
+	}
+	return nil
+}
+
+// validateActiveGroupOpenForUpdate locks the target group and rejects ended
+// sessions. Tenant HTTP requests and scheduler operations already run inside a
+// tenant transaction, so the lock remains held through the subsequent visit
+// or supervisor INSERT. This prevents a row selected before a concurrent
+// absorption from attaching to the group after that absorption ends it.
+func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID int64) error {
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if group == nil || group.EndTime != nil {
+		return ErrActiveGroupNotFound
 	}
 	return nil
 }
@@ -1220,8 +1238,11 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
 
-	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateActiveGroupExists(ctx, supervisor.GroupID); err != nil {
+	// Lock the group and reject ended sessions before INSERT. The same
+	// active.groups row lock serializes this write with session absorption
+	// (absorbUnsupervisedOpenGroups) and ClaimActiveGroup, so a supervisor
+	// cannot attach to a group that a concurrent absorption is ending.
+	if err := s.validateActiveGroupOpenForUpdate(ctx, supervisor.GroupID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
 

@@ -284,17 +284,6 @@ func TestStartInstance_InvalidTransition(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid_transition")
 }
 
-func TestStartInstance_SchulhofUsesDedicatedConflictCode(t *testing.T) {
-	mock := &mockInstanceService{startErr: scheduleSvc.ErrSchulhofSupervisionRequired}
-	rs := NewResource(Dependencies{InstanceService: mock})
-	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
-
-	w := doPost(t, router, "/instances/1/start", nil)
-
-	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"schulhof_supervision_required"`)
-}
-
 func TestStartInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{startErr: errors.New("db connection lost")}
 	rs := NewResource(Dependencies{InstanceService: mock})

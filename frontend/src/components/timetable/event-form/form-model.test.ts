@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { TimetableTemplate } from "~/lib/timetable-types";
 
-import { formFromSeries } from "./form-model";
+import {
+  emptyForm,
+  formFromSeries,
+  hasPerWeekdayStaffDeviation,
+} from "./form-model";
 
 function template(
   overrides: Partial<TimetableTemplate> = {},
@@ -54,5 +58,44 @@ describe("formFromSeries", () => {
 
     expect(form.educationGroupId).toBe("");
     expect(form.educationGroupIds).toEqual(["17", "18"]);
+  });
+});
+
+describe("hasPerWeekdayStaffDeviation", () => {
+  const perWeekdayForm = () => ({
+    ...emptyForm("2026-08-13"),
+    weekdays: [1, 2],
+    perWeekdayRoster: true,
+    weekdayRosters: {
+      1: { staffIds: ["7"], primaryStaffId: "", studentIds: ["11"] },
+      2: { staffIds: ["7"], primaryStaffId: "", studentIds: ["12"] },
+    },
+  });
+
+  it("is false in shared mode and for uniform per-weekday staffing", () => {
+    expect(hasPerWeekdayStaffDeviation(emptyForm("2026-08-13"))).toBe(false);
+    // Differing child lists alone are no staffing deviation — a sourced
+    // roster replaces the children by design.
+    expect(hasPerWeekdayStaffDeviation(perWeekdayForm())).toBe(false);
+  });
+
+  it("detects a weekday staffed differently", () => {
+    const form = perWeekdayForm();
+    form.weekdayRosters[2] = {
+      staffIds: ["8"],
+      primaryStaffId: "",
+      studentIds: [],
+    };
+    expect(hasPerWeekdayStaffDeviation(form)).toBe(true);
+  });
+
+  it("detects a diverging zuständige Person", () => {
+    const form = perWeekdayForm();
+    form.weekdayRosters[2] = {
+      staffIds: ["7"],
+      primaryStaffId: "7",
+      studentIds: [],
+    };
+    expect(hasPerWeekdayStaffDeviation(form)).toBe(true);
   });
 });

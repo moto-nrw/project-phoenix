@@ -237,6 +237,30 @@ function sameIdSet(left: string[], right: string[]): boolean {
   return right.every((id) => seen.has(id));
 }
 
+/**
+ * True when at least one weekday staffs differently from the others. This is
+ * the state an offering source destroys: with a source set, the payload
+ * carries only the shared staff list (the backend rejects
+ * `weekday_assignments` next to a source), so activating one must ask for
+ * explicit confirmation first (#2147 review). Confirming then empties the
+ * shared staffing instead of adopting an aggregated all-weekdays union, so
+ * the replacement Besetzung is picked explicitly (#2147 review round 13).
+ * Child lists are not compared; a sourced roster replaces them by design.
+ */
+export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
+  if (!form.perWeekdayRoster || form.weekdays.length < 2) return false;
+  const [first, ...rest] = form.weekdays;
+  if (first === undefined) return false;
+  const baseline = rosterForWeekday(form, first);
+  return rest.some((weekday) => {
+    const current = rosterForWeekday(form, weekday);
+    return (
+      !sameIdSet(baseline.staffIds, current.staffIds) ||
+      baseline.primaryStaffId !== current.primaryStaffId
+    );
+  });
+}
+
 export interface EventFormState {
   title: string;
   date: string;
@@ -303,6 +327,15 @@ export interface EventFormState {
   targetGradeLevels: string[];
   targetSchoolClasses: string[];
   educationGroupIds: string[];
+  /**
+   * Offering-source rule (#2137), only meaningful for "angebot": the
+   * Betreuungsangebot whose approved children feed this Regeltermin, plus the
+   * Jahrgang filter (empty = alle Kinder des Angebots). With a source set the
+   * manual student picker is hidden and studentIds stays empty — the roster
+   * is server-managed.
+   */
+  sourceCareOfferingId: string;
+  sourceGradeLevels: number[];
 }
 
 export interface PersonOption {
@@ -358,6 +391,8 @@ export function emptyForm(
     targetGradeLevels: [],
     targetSchoolClasses: [],
     educationGroupIds: [],
+    sourceCareOfferingId: "",
+    sourceGradeLevels: [],
   };
 }
 
@@ -405,6 +440,8 @@ export function formFromInstance(
     targetGradeLevels: [],
     targetSchoolClasses: [],
     educationGroupIds: [],
+    sourceCareOfferingId: "",
+    sourceGradeLevels: [],
   };
 }
 
@@ -444,7 +481,10 @@ export function formFromSeries(
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
       resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
-    studentIds: series.studentIds,
+    // A sourced roster is server-managed: the backend rejects student_ids
+    // next to a source, and the list's studentIds are exactly the sourced
+    // rows — prefilling them would turn the rule into a snapshot.
+    studentIds: series.sourceCareOfferingId ? [] : series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
     // A series that carries weekday assignments was saved in per-weekday mode
@@ -463,6 +503,8 @@ export function formFromSeries(
         ? String(series.targetGradeLevel)
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
+    sourceCareOfferingId: series.sourceCareOfferingId ?? "",
+    sourceGradeLevels: series.sourceGradeLevels ?? [],
     targetGradeLevels:
       targets.length > 0
         ? targets.flatMap((target) =>

@@ -149,6 +149,8 @@ GET /api/admin/grade-transitions/suggest
 GET /api/admin/grade-transitions/{id}/
 GET /api/admin/grade-transitions/{id}/history
 GET /api/admin/grade-transitions/{id}/preview
+GET /api/birthdays/
+GET /api/birthdays/opt-out
 GET /api/calendar/appointments/{appointmentId}
 GET /api/calendar/appointments/{appointmentId}/ics
 GET /api/calendar/appointments/{appointmentId}/overview
@@ -382,6 +384,7 @@ GET /api/timetable/gaps
 GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
 GET /api/timetable/instances/{id}/staff-pool
+GET /api/timetable/offering-sources
 GET /api/timetable/operations/active-groups/{id}/roster
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster
@@ -437,6 +440,7 @@ GET /operator/auth/mfa/trusted-devices
 GET /operator/auth/passkeys
 GET /operator/auth/passkeys/
 GET /operator/devices/
+GET /operator/devices/{id}/transfer-status
 GET /operator/invitations/
 GET /operator/organizations/
 GET /operator/organizations/summaries
@@ -518,7 +522,6 @@ POST /api/active/groups/{id}/claim
 POST /api/active/groups/{id}/end
 POST /api/active/mappings/add
 POST /api/active/mappings/remove
-POST /api/active/schulhof/supervise
 POST /api/active/supervisors/
 POST /api/active/supervisors/{id}/end
 POST /api/active/tracking-indicators
@@ -539,6 +542,7 @@ POST /api/activities/{id}/supervisors
 POST /api/admin/grade-transitions/
 POST /api/admin/grade-transitions/{id}/apply
 POST /api/admin/grade-transitions/{id}/revert
+POST /api/birthdays/staff-export
 POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
@@ -553,6 +557,7 @@ POST /api/enrollment/admin/reports/care-usage/export
 POST /api/enrollment/admin/reports/class-roster/export
 POST /api/enrollment/admin/request-children/{id}/rollover-review
 POST /api/enrollment/admin/requests/{id}/children/{childId}/decide
+POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
 POST /api/enrollment/care-offerings/
 POST /api/enrollment/care-offerings/{id}/clone
@@ -758,6 +763,7 @@ POST /operator/auth/passkeys/register/verify
 POST /operator/auth/refresh
 POST /operator/devices/
 POST /operator/devices/{id}/set-api-key
+POST /operator/devices/{id}/transfer
 POST /operator/invitations/
 POST /operator/invitations/{id}/resend
 POST /operator/organizations/
@@ -806,6 +812,7 @@ PUT /api/activities/{id}/schedules/{scheduleId}
 PUT /api/activities/{id}/students
 PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
+PUT /api/birthdays/opt-out
 PUT /api/calendar/appointments/{appointmentId}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings

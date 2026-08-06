@@ -14,6 +14,7 @@ import {
   Mail,
   Pencil,
   Phone,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   UserRound,
@@ -32,6 +33,7 @@ import {
   decideAdminChild,
   getAdminRequest,
   listAdminChildOfferingAdjustments,
+  restoreAdminRequest,
   updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
@@ -41,6 +43,8 @@ import { formatCalendarDate } from "~/lib/localized-date-format";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
@@ -92,6 +96,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const [deletionTarget, setDeletionTarget] = useState<
     { type: "request" } | { type: "child"; id: string; label: string } | null
   >(null);
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,6 +166,29 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     }
   };
 
+  const handleRestore = async () => {
+    if (!data) return;
+    setRestoring(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const result = await restoreAdminRequest(requestId);
+      setRestoreOpen(false);
+      setInfo(buildRestoreInfoMessage(result));
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      logger.error("admin_enrollment_restore_failed", {
+        error: message,
+        request_id: requestId,
+      });
+      setRestoreOpen(false);
+      setError(message);
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   if (loading) {
     return <p className="text-sm text-gray-500">Wird geladen...</p>;
   }
@@ -181,6 +210,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const childStats = summarizeChildren(data.children);
   const phaseHref = tenantPath(`/admin/enrollments/phases/${data.phase_id}`);
   const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
+  // The restore action shows whenever at least one child is withdrawn —
+  // exactly the backend's restore precondition. Individual child withdraws
+  // never stamp withdrawn_at, and RestoreWithdrawn restores the withdrawn
+  // subset even while siblings stay active or terminal.
+  const withdrawnChildCount = data.children.filter(
+    (child) => child.status === "withdrawn",
+  ).length;
+  const hasRestorableChildren = withdrawnChildCount > 0;
 
   return (
     <div className="space-y-5">
@@ -219,6 +256,15 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                 {info}
               </div>
             )}
+
+            {data.late_invite_email_mismatch === true &&
+              data.late_invite_guardian_email && (
+                <Alert
+                  type="warning"
+                  announce="off"
+                  message={`Der Nachzügler-Link wurde für ${data.late_invite_guardian_email} erstellt. Im Antrag wurde ${data.guardian_email} angegeben. Der Elternportal-Zugang bleibt mit der eingeladenen Adresse verknüpft.`}
+                />
+              )}
 
             <EnrollmentSummary data={data} submittedAt={submittedAt} />
 
@@ -272,10 +318,30 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               statusHref={statusHref}
               submittedAt={submittedAt}
               onDeleteRequest={() => setDeletionTarget({ type: "request" })}
+              onRestoreRequest={
+                hasRestorableChildren ? () => setRestoreOpen(true) : undefined
+              }
             />
           </aside>
         </div>
       </section>
+      <ConfirmationModal
+        isOpen={restoreOpen}
+        onClose={() => setRestoreOpen(false)}
+        onConfirm={() => void handleRestore()}
+        title="Anmeldung wiederherstellen"
+        confirmText="Wiederherstellen"
+        isConfirmLoading={restoring}
+      >
+        <p className="text-sm text-gray-600">
+          {withdrawnChildCount === 1
+            ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
+            : `Alle ${withdrawnChildCount} zurückgezogenen Kinder werden wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet.`}{" "}
+          Bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes
+          Betreuungsangebot inzwischen voll, kommt das betroffene Kind
+          stattdessen auf die Warteliste.
+        </p>
+      </ConfirmationModal>
       <AdminEnrollmentDeletionModal
         isOpen={deletionTarget !== null}
         requestId={data.id}
@@ -540,12 +606,14 @@ function ReviewSidebar({
   statusHref,
   submittedAt,
   onDeleteRequest,
+  onRestoreRequest,
 }: Readonly<{
   childStats: ReturnType<typeof summarizeChildren>;
   data: AdminRequestSummary;
   statusHref: string;
   submittedAt: string;
   onDeleteRequest: () => void;
+  onRestoreRequest?: () => void;
 }>) {
   return (
     <div className="space-y-4 lg:sticky lg:top-6">
@@ -593,6 +661,18 @@ function ReviewSidebar({
           Statusseite öffnen
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>
+        {onRestoreRequest ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="mt-3 w-full"
+            onClick={onRestoreRequest}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+            Anmeldung wiederherstellen
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline_danger"
@@ -744,6 +824,24 @@ function getDecisionIcon(status: DecisionStatus): React.ReactNode {
     return <ClipboardList className="h-4 w-4" aria-hidden="true" />;
   }
   return <CalendarClock className="h-4 w-4" aria-hidden="true" />;
+}
+
+function buildRestoreInfoMessage(result: {
+  restored_children: number;
+  waitlisted_children: number;
+}): string {
+  const restored = result.restored_children;
+  const waitlisted = result.waitlisted_children;
+  if (waitlisted > 0) {
+    const restoredPart =
+      restored === 1 ? "1 Kind wurde" : `${restored} Kinder wurden`;
+    const waitlistedPart =
+      waitlisted === 1 ? "1 Kind steht" : `${waitlisted} Kinder stehen`;
+    return `Die Anmeldung wurde wiederhergestellt. ${restoredPart} zurückgesetzt; ${waitlistedPart} auf der Warteliste, weil ein Betreuungsangebot inzwischen voll ist.`;
+  }
+  return restored === 1
+    ? "Die Anmeldung wurde wiederhergestellt. 1 Kind steht wieder auf „Eingegangen“."
+    : `Die Anmeldung wurde wiederhergestellt. ${restored} Kinder stehen wieder auf „Eingegangen“.`;
 }
 
 function summarizeChildren(children: AdminRequestChild[]) {

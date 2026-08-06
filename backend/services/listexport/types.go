@@ -92,6 +92,10 @@ const (
 	PresetPickupList         Preset = "pickup_list"
 	PresetBlankChecklist     Preset = "blank_checklist"
 	PresetBirthdayList       Preset = "birthday_list"
+	// PresetStaffBirthdayList is the staff counterpart of PresetBirthdayList
+	// (#1542). Separate rather than shared because the child list carries
+	// class, group, and age, none of which belong on a colleague list.
+	PresetStaffBirthdayList Preset = "staff_birthday_list"
 )
 
 type Column struct {

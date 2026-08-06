@@ -341,12 +341,6 @@ interface BackendSchulhofSupervisor {
   is_current_user: boolean;
 }
 
-export interface BackendToggleSupervisionResponse {
-  action: string;
-  supervision_id?: number;
-  active_group_id: number;
-}
-
 export interface SchulhofStatus {
   exists: boolean;
   roomId: string | null;
@@ -365,12 +359,6 @@ interface SchulhofSupervisor {
   staffId: string;
   name: string;
   isCurrentUser: boolean;
-}
-
-export interface ToggleSupervisionResponse {
-  action: "started" | "stopped";
-  supervisionId: string | null;
-  activeGroupId: string;
 }
 
 export function mapSchulhofStatusResponse(
@@ -398,17 +386,5 @@ export function mapSchulhofStatusResponse(
       name: sup.name,
       isCurrentUser: sup.is_current_user,
     })),
-  };
-}
-
-export function mapToggleSupervisionResponse(
-  backend: BackendToggleSupervisionResponse,
-): ToggleSupervisionResponse {
-  return {
-    action: backend.action as "started" | "stopped",
-    supervisionId: backend.supervision_id
-      ? String(backend.supervision_id)
-      : null,
-    activeGroupId: String(backend.active_group_id),
   };
 }

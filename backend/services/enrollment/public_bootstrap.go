@@ -3,6 +3,8 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -20,6 +22,7 @@ type PublicFormBootstrapData struct {
 	Offerings    []*enrollmentModels.CareOffering
 	Capabilities FormCapabilities
 	LegalTexts   LegalTexts
+	LateInvite   *enrollmentModels.LateInvite
 }
 
 // BootstrapStage identifies which resolution step of a public bootstrap
@@ -43,10 +46,12 @@ func (e *BootstrapStageError) Error() string { return e.Err.Error() }
 func (e *BootstrapStageError) Unwrap() error { return e.Err }
 
 type publicBootstrapOptions struct {
-	loadSchema     bool
-	loadLegal      bool
-	classifyStages bool
-	legalLoader    func(ctx context.Context) (LegalTexts, error)
+	loadSchema      bool
+	loadLegal       bool
+	classifyStages  bool
+	lateInviteToken string
+	lateInviteNow   time.Time
+	legalLoader     func(ctx context.Context) (LegalTexts, error)
 }
 
 // isPublicGateError reports whether err is one of the public
@@ -86,6 +91,24 @@ func (s *requestService) assemblePublicBootstrap(
 		Capabilities: capabilities,
 		Offerings:    []*enrollmentModels.CareOffering{},
 	}
+	trimmedLateInviteToken := strings.TrimSpace(opts.lateInviteToken)
+	if s.LateInviteRepo != nil && trimmedLateInviteToken != "" {
+		invite, inviteErr := s.LateInviteRepo.FindUsableByTokenHash(
+			ctx,
+			lateInviteTokenHash(trimmedLateInviteToken),
+			phase.ID,
+			opts.lateInviteNow,
+		)
+		switch {
+		case inviteErr == nil:
+			data.LateInvite = invite
+		case errors.Is(inviteErr, enrollmentModels.ErrLateInviteNotFound):
+			// An invalid token does not block an otherwise public, open phase.
+			// It simply grants no prefill data or closed-phase override.
+		default:
+			return nil, fmt.Errorf("resolve late invite prefill: %w", inviteErr)
+		}
+	}
 	if opts.loadSchema {
 		schema, schemaErr := s.resolveSubmissionSchema(ctx, phase)
 		if schemaErr != nil {
@@ -119,9 +142,11 @@ func (s *requestService) LoadPublicFormBootstrap(ctx context.Context, phaseID in
 			return s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 		},
 		publicBootstrapOptions{
-			loadSchema:     true,
-			loadLegal:      true,
-			classifyStages: true,
+			loadSchema:      true,
+			loadLegal:       true,
+			classifyStages:  true,
+			lateInviteToken: lateInviteToken,
+			lateInviteNow:   now,
 			legalLoader: func(ctx context.Context) (LegalTexts, error) {
 				return s.LegalTextsForPhaseWithLateInvite(ctx, phaseID, lateInviteToken)
 			},
@@ -140,9 +165,11 @@ func (s *requestService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID 
 			return s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
 		},
 		publicBootstrapOptions{
-			loadSchema:     true,
-			loadLegal:      true,
-			classifyStages: true,
+			loadSchema:      true,
+			loadLegal:       true,
+			classifyStages:  true,
+			lateInviteToken: lateInviteToken,
+			lateInviteNow:   now,
 			legalLoader: func(ctx context.Context) (LegalTexts, error) {
 				return s.LegalTextsForEnrolleePhaseWithLateInvite(ctx, phaseID, lateInviteToken, access)
 			},

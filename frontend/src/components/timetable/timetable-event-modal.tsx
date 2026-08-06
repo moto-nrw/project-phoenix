@@ -216,6 +216,17 @@ export function TimetableEventModal({
     abWeekHint,
     studentBulkOptions,
     targetClassOptions,
+    offeringSources,
+    offeringSourcesError,
+    selectedOfferingSource,
+    sourceGradeOptions,
+    sourceFilteredCount,
+    sourceOverlapWarnings,
+    changeSourceOffering,
+    pendingSourceOfferingId,
+    confirmPendingSourceOffering,
+    cancelPendingSourceOffering,
+    toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,
@@ -256,6 +267,13 @@ export function TimetableEventModal({
     canCheckShiftCoverage,
     closingDayRanges,
   });
+
+  const pendingSourceOfferingName =
+    pendingSourceOfferingId !== null
+      ? (offeringSources?.find(
+          (offering) => offering.id === pendingSourceOfferingId,
+        )?.name ?? null)
+      : null;
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
   // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
@@ -561,6 +579,14 @@ export function TimetableEventModal({
                 missingTargetCohortCount={missingTargetCohortCount}
                 targetCohortButtonLabel={targetCohortButtonLabel}
                 addTargetCohort={addTargetCohort}
+                offeringSources={offeringSources}
+                offeringSourcesError={offeringSourcesError}
+                selectedOfferingSource={selectedOfferingSource}
+                sourceGradeOptions={sourceGradeOptions}
+                sourceFilteredCount={sourceFilteredCount}
+                sourceOverlapWarnings={sourceOverlapWarnings}
+                changeSourceOffering={changeSourceOffering}
+                toggleSourceGradeLevel={toggleSourceGradeLevel}
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}
                 coverageWarningCount={coverageWarningCount}
@@ -866,6 +892,32 @@ export function TimetableEventModal({
               </p>
             </div>
           )}
+        </ConfirmationModal>
+
+        {/* #2137 x #2129: ein Angebot als Quelle kennt nur eine gemeinsame
+            Besetzung. Bestehende wochentagsspezifische Personalzuweisungen
+            werden beim Übernehmen entfernt und NICHT zu einer Sammelliste
+            zusammengelegt; die gemeinsame Besetzung muss danach ausdrücklich
+            neu gewählt werden. Das braucht eine ausdrückliche Bestätigung. */}
+        <ConfirmationModal
+          isOpen={pendingSourceOfferingId !== null}
+          onClose={cancelPendingSourceOffering}
+          onConfirm={confirmPendingSourceOffering}
+          title="Besetzung je Wochentag wird ersetzt"
+          confirmText="Angebot als Quelle übernehmen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+        >
+          <p className="text-sm leading-relaxed text-gray-600">
+            Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit
+            {pendingSourceOfferingName
+              ? ` dem Angebot „${pendingSourceOfferingName}“ `
+              : " einem Angebot "}
+            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage. Die
+            bisherigen Zuweisungen je Wochentag werden entfernt; wähle die
+            gemeinsame Besetzung anschließend im Schritt „Personal und Kinder“
+            neu. Die Kinderliste kommt automatisch aus dem Angebot.
+          </p>
         </ConfirmationModal>
 
         {/* Kategorien verwalten (#2131): mounted only while open so its fetch

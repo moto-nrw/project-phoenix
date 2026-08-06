@@ -19,6 +19,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
+import { BirthdayVisibilitySection } from "~/components/settings/birthday-visibility-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { getInitials } from "~/lib/format-utils";
 
@@ -275,6 +276,9 @@ function ProfileContent() {
             Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
         {/* "Was" before "wo": pick the topics first, then the device. */}
         <NotificationPreferencesSection />
+        {/* Persönliche Geburtstagsanzeige (#1542) — steht bei den anderen
+            Sichtbarkeits-/Benachrichtigungsentscheidungen des eigenen Kontos. */}
+        <BirthdayVisibilitySection />
         <PushNotificationSection />
         <PasskeySettingsSection />
         <TrustedDevicesSection />

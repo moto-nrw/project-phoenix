@@ -1489,6 +1489,15 @@ func (r *StudentRepository) LockStudentClassWrites(ctx context.Context) error {
 	return r.lockClassWrites(ctx, false)
 }
 
+// LockStudentClassWritesShared exposes the shared class-writes gate for the
+// one caller that must take it explicitly: a write path that acquires another
+// tenant-wide gate (the recurrence gate) before its first student row lock.
+// Advisory locks are re-entrant, so the implicit acquisition inside the later
+// row-lock/update methods stays a no-op.
+func (r *StudentRepository) LockStudentClassWritesShared(ctx context.Context) error {
+	return r.lockClassWritesShared(ctx)
+}
+
 // lockClassWritesShared takes the SHARED per-tenant class-writes gate. Called at
 // the top of every repository method that inserts a student, updates one, or
 // takes a student row lock the caller will update under — always BEFORE that

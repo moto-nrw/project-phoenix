@@ -76,6 +76,21 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
+	// Binary-mode tenants track no room visits, so there is no transit state
+	// to resolve — mirror moveStudentsToActiveGroup's short-circuit.
+	if s.GetPresenceMode(ctx) == "binary" {
+		result := &TransitAssignResult{
+			Assigned:      []int64{},
+			Skipped:       []TransitAssignSkipped{},
+			ActiveGroupID: targetGroup.ID,
+			RoomID:        targetGroup.RoomID,
+		}
+		for _, studentID := range uniqueIDs {
+			result.Skipped = append(result.Skipped, TransitAssignSkipped{StudentID: studentID, Reason: TransitSkipNotInTransit})
+		}
+		return result, nil
+	}
+
 	openAttendance, err := s.AttendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
@@ -105,7 +120,12 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 			ActiveGroupID: targetGroup.ID,
 			EntryTime:     time.Now(),
 		}
-		if err := s.CreateVisit(ctx, visit); err != nil {
+		// The lock-free path, not CreateVisit: this transaction already holds
+		// the group row lock, and CreateVisit locks the student row before the
+		// group row — the opposite order. Re-acquiring the student lock here
+		// would deadlock against a concurrent check-in of the same student.
+		// Attendance is already open (checked above), so nothing is lost.
+		if err := s.createVisitWithoutAttendanceMutation(ctx, visit); err != nil {
 			if errors.Is(err, ErrStudentAlreadyActive) {
 				result.Skipped = append(result.Skipped, TransitAssignSkipped{StudentID: studentID, Reason: TransitSkipNotInTransit})
 				continue
@@ -413,6 +433,12 @@ func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int6
 	return group, nil
 }
 
+// createVisitWithoutAttendanceMutation inserts a visit for a student whose
+// attendance is already open, without touching attendance rows. Callers hold
+// the target group's row lock (lockActiveGroupForMove) and this helper takes
+// no student row lock — CreateVisit locks student-then-group, so re-acquiring
+// the student lock under the group lock would invert that order and deadlock
+// against a concurrent check-in.
 func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visit *active.Visit) error {
 	if visit == nil || visit.Validate() != nil {
 		return &ActiveError{Op: "CreateMoveVisit", Err: ErrInvalidData}

@@ -33,6 +33,11 @@ var (
 	// ErrStudentNotFound indicates a student could not be found in this tenant
 	ErrStudentNotFound = errors.New("student not found")
 
+	// ErrStaffNotFound indicates the account has no staff record in this
+	// tenant. Self-service staff settings render it as a 404 rather than a
+	// 500: an account that is not staff here has nothing to configure.
+	ErrStaffNotFound = errors.New("staff not found")
+
 	// ErrStudentGraduated indicates a write that only makes sense for an
 	// enrolled child targeted a graduated (alumnus) student. Graduation is a
 	// soft delete, so callers render it as the same 404 every other

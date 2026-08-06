@@ -11,13 +11,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,6 +124,29 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		activeService,
 		slog.Default(),
 	)
+}
+
+// createOpenSchulhofGroup provisions the Schulhof infrastructure and inserts an
+// open active group in the Schulhof room, mirroring what a started planned
+// block, a spontaneous session, or an IoT scan produces (#2161). Replaces the
+// retired GetOrCreateActiveGroup as fixture setup.
+func createOpenSchulhofGroup(t *testing.T, db *bun.DB, service facilitiesSvc.SchulhofService, ctx context.Context, startTime time.Time) *active.Group {
+	t.Helper()
+
+	activityGroup, err := service.EnsureInfrastructure(ctx, 0)
+	require.NoError(t, err)
+	require.NotNil(t, activityGroup.PlannedRoomID, "EnsureInfrastructure should set PlannedRoomID")
+
+	activityGroupID := activityGroup.ID
+	group := &active.Group{
+		GroupID:   &activityGroupID,
+		RoomID:    *activityGroup.PlannedRoomID,
+		StartTime: startTime,
+	}
+	group.SetTenantID(tenant.FromContext(ctx))
+	repoFactory := repositories.NewFactory(db)
+	require.NoError(t, repoFactory.ActiveGroup.Create(ctx, group))
+	return group
 }
 
 // ============================================================================
@@ -260,8 +283,7 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, *activeGroup.GroupID, activeGroup.RoomID)
 
 	// ACT
@@ -313,8 +335,7 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now create fresh active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add supervisor
@@ -367,8 +388,7 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	require.NoError(t, err)
 
 	// Now create fresh active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add two supervisors
@@ -435,8 +455,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now create fresh active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
 
 	// Add visits (one with exit, one without)
@@ -456,140 +475,6 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	require.NotNil(t, status.ActiveGroupID, "Should have an active group for Schulhof")
 	assert.Equal(t, activeGroup.ID, *status.ActiveGroupID, "GetSchulhofStatus should find the active group we created")
 	assert.Equal(t, 1, status.StudentCount) // Only student1 (no exit time)
-}
-
-// ============================================================================
-// ToggleSupervision Tests
-// ============================================================================
-
-func TestSchulhofService_ToggleSupervision_StartSuccess(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// ACT
-	result, err := service.ToggleSupervision(ctx, staff.ID, "start")
-
-	// ASSERT
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, "started", result.Action)
-	assert.NotNil(t, result.SupervisionID)
-	assert.NotZero(t, result.ActiveGroupID)
-
-	// Cleanup
-	if result.SupervisionID != nil {
-		testpkg.CleanupActivityFixtures(t, db, *result.SupervisionID)
-	}
-	testpkg.CleanupActivityFixtures(t, db, result.ActiveGroupID)
-
-	// Find created activity group and cleanup
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", constants.SchulhofActivityName)
-	options.Filter = filter
-	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff, repoFactory.Student)
-	groups, _ := activityService.ListGroups(ctx, options)
-	if len(groups) > 0 {
-		testpkg.CleanupActivityFixtures(t, db, groups[0].ID, groups[0].CategoryID)
-		if groups[0].PlannedRoomID != nil {
-			testpkg.CleanupActivityFixtures(t, db, *groups[0].PlannedRoomID)
-		}
-	}
-}
-
-func TestSchulhofService_ToggleSupervision_StopSuccess(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// Start supervision first
-	startResult, err := service.ToggleSupervision(ctx, staff.ID, "start")
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, startResult.ActiveGroupID)
-
-	// ACT - Stop supervision
-	stopResult, err := service.ToggleSupervision(ctx, staff.ID, "stop")
-
-	// ASSERT
-	require.NoError(t, err)
-	require.NotNil(t, stopResult)
-	assert.Equal(t, "stopped", stopResult.Action)
-	assert.NotZero(t, stopResult.ActiveGroupID)
-
-	// Cleanup
-	if startResult.SupervisionID != nil {
-		testpkg.CleanupActivityFixtures(t, db, *startResult.SupervisionID)
-	}
-
-	// Find created activity group and cleanup
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", constants.SchulhofActivityName)
-	options.Filter = filter
-	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff, repoFactory.Student)
-	groups, _ := activityService.ListGroups(ctx, options)
-	if len(groups) > 0 {
-		testpkg.CleanupActivityFixtures(t, db, groups[0].ID, groups[0].CategoryID)
-		if groups[0].PlannedRoomID != nil {
-			testpkg.CleanupActivityFixtures(t, db, *groups[0].PlannedRoomID)
-		}
-	}
-}
-
-func TestSchulhofService_ToggleSupervision_StopNotSupervising(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// Create infrastructure and active group (but don't add as supervisor)
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, *activeGroup.GroupID, activeGroup.RoomID)
-
-	// ACT - Try to stop when not supervising
-	result, err := service.ToggleSupervision(ctx, staff.ID, "stop")
-
-	// ASSERT
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "not currently supervising")
-}
-
-func TestSchulhofService_ToggleSupervision_InvalidAction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// ACT
-	result, err := service.ToggleSupervision(ctx, staff.ID, "invalid")
-
-	// ASSERT
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "invalid action")
 }
 
 // ============================================================================
@@ -648,181 +533,6 @@ func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	assert.Equal(t, activityGroup1.PlannedRoomID, activityGroup2.PlannedRoomID)
 }
 
-// ============================================================================
-// GetOrCreateActiveGroup Tests
-// ============================================================================
-
-func TestSchulhofService_GetOrCreateActiveGroup_Creates(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// ACT
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	require.NotNil(t, activeGroup)
-	assert.NotZero(t, activeGroup.ID)
-	assert.NotZero(t, activeGroup.GroupID)
-	assert.NotZero(t, activeGroup.RoomID)
-	assert.WithinDuration(t, time.Now(), activeGroup.StartTime, 5*time.Second)
-
-	// Cleanup — activeGroup.GroupID is *int64 (WP-B6); Schulhof is always template-backed.
-	testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, *activeGroup.GroupID, activeGroup.RoomID)
-
-	// Find created activity group and cleanup
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", constants.SchulhofActivityName)
-	options.Filter = filter
-	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff, repoFactory.Student)
-	groups, _ := activityService.ListGroups(ctx, options)
-	if len(groups) > 0 {
-		testpkg.CleanupActivityFixtures(t, db, groups[0].CategoryID)
-	}
-}
-
-func TestSchulhofService_GetOrCreateActiveGroup_ReturnsExisting(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// Create first time
-	activeGroup1, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup1.ID, *activeGroup1.GroupID, activeGroup1.RoomID)
-
-	// ACT - Call again (should return same group)
-	activeGroup2, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	require.NotNil(t, activeGroup2)
-	assert.Equal(t, activeGroup1.ID, activeGroup2.ID)
-	assert.Equal(t, activeGroup1.GroupID, activeGroup2.GroupID)
-	assert.Equal(t, activeGroup1.RoomID, activeGroup2.RoomID)
-
-	// Find created activity group and cleanup
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", constants.SchulhofActivityName)
-	options.Filter = filter
-	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff, repoFactory.Student)
-	groups, _ := activityService.ListGroups(ctx, options)
-	if len(groups) > 0 {
-		testpkg.CleanupActivityFixtures(t, db, groups[0].CategoryID)
-	}
-}
-
-func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// Ensure infrastructure exists
-	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
-
-	repoFactory := repositories.NewFactory(db)
-
-	// Clean up any existing active groups for this room from previous test runs
-	// This handles test pollution when tests run in parallel or don't clean up properly
-	_, err = db.NewUpdate().
-		Model((*active.Group)(nil)).
-		ModelTableExpr(`active.groups AS "group"`).
-		Set("end_time = ?", time.Now()).
-		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
-		Exec(ctx)
-	require.NoError(t, err)
-
-	// Create an ended active group from today
-	endedTime := time.Now()
-	endedActivityGroupID := activityGroup.ID
-	endedGroup := &active.Group{
-		GroupID:   &endedActivityGroupID,
-		RoomID:    *activityGroup.PlannedRoomID,
-		StartTime: time.Now().Add(-2 * time.Hour),
-		EndTime:   &endedTime,
-	}
-
-	// Create minimal dependencies for active service
-	educationService := educationSvc.NewService(
-		repoFactory.Group,
-		repoFactory.GroupTeacher,
-		repoFactory.GroupSubstitution,
-		repoFactory.Room,
-		repoFactory.Teacher,
-		repoFactory.Staff,
-		repoFactory.Student,
-	)
-
-	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:  repoFactory.Person,
-		RFIDRepo:    repoFactory.RFIDCard,
-		AccountRepo: repoFactory.Account,
-		StudentRepo: repoFactory.Student,
-		StaffRepo:   repoFactory.Staff,
-		TeacherRepo: repoFactory.Teacher,
-		DB:          db,
-	})
-
-	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
-		GroupRepo:          repoFactory.ActiveGroup,
-		VisitRepo:          repoFactory.ActiveVisit,
-		SupervisorRepo:     repoFactory.GroupSupervisor,
-		CombinedGroupRepo:  repoFactory.CombinedGroup,
-		GroupMappingRepo:   repoFactory.GroupMapping,
-		AttendanceRepo:     repoFactory.Attendance,
-		StudentRepo:        repoFactory.Student,
-		PersonRepo:         repoFactory.Person,
-		TeacherRepo:        repoFactory.Teacher,
-		StaffRepo:          repoFactory.Staff,
-		RoomRepo:           repoFactory.Room,
-		ActivityGroupRepo:  repoFactory.ActivityGroup,
-		ActivityCatRepo:    repoFactory.ActivityCategory,
-		EducationGroupRepo: repoFactory.Group,
-		DeviceRepo:         repoFactory.Device,
-		EducationService:   educationService,
-		UsersService:       usersService,
-		DB:                 db,
-		Broadcaster:        nil,
-	})
-	err = activeService.CreateActiveGroup(ctx, endedGroup)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, endedGroup.ID)
-
-	// ACT - Should create a new one, not return the ended one
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	require.NotNil(t, activeGroup)
-	assert.NotEqual(t, endedGroup.ID, activeGroup.ID) // Should be a different group
-	assert.Nil(t, activeGroup.EndTime)                // Should not be ended
-
-	// Cleanup
-	testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
-}
-
 // TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions verifies that ended
 // supervisions are excluded from the status response.
 func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) {
@@ -851,8 +561,7 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 	require.NoError(t, err)
 
 	// Create fresh active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add active supervisor
@@ -885,128 +594,6 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 	assert.Equal(t, staff1.ID, status.Supervisors[0].StaffID)
 }
 
-// TestSchulhofService_ToggleSupervision_StopAction verifies that stopping
-// supervision correctly ends the user's supervision record.
-func TestSchulhofService_ToggleSupervision_StopAction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Stop", "Supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// First, start supervision
-	startResult, err := service.ToggleSupervision(ctx, staff.ID, "start")
-	require.NoError(t, err)
-	require.NotNil(t, startResult)
-	assert.Equal(t, "started", startResult.Action)
-	assert.NotNil(t, startResult.SupervisionID)
-	_ = *startResult.SupervisionID // Verify we got a supervision ID
-
-	// Now stop supervision
-	stopResult, err := service.ToggleSupervision(ctx, staff.ID, "stop")
-	require.NoError(t, err)
-	require.NotNil(t, stopResult)
-	assert.Equal(t, "stopped", stopResult.Action)
-
-	// Verify the supervision was actually ended by checking status
-	status, err := service.GetSchulhofStatus(ctx, staff.ID)
-	require.NoError(t, err)
-	assert.False(t, status.IsUserSupervising, "User should no longer be supervising")
-}
-
-// ============================================================================
-// endStaleActiveGroups Tests (via GetOrCreateActiveGroup)
-// ============================================================================
-
-// TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups verifies that stale
-// active groups from previous days are ended before creating a new one.
-func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Stale", "Tester")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// Ensure infrastructure exists
-	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
-
-	// Clean up any existing active groups for this room
-	_, err = db.NewUpdate().
-		Model((*active.Group)(nil)).
-		ModelTableExpr(`active.groups AS "group"`).
-		Set("end_time = ?", time.Now()).
-		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
-		Exec(ctx)
-	require.NoError(t, err)
-
-	// Create a stale active group from "yesterday" that is still open (no EndTime)
-	yesterday := time.Now().Add(-24 * time.Hour)
-	staleActivityGroupID := activityGroup.ID
-	staleGroup := &active.Group{
-		GroupID:   &staleActivityGroupID,
-		RoomID:    *activityGroup.PlannedRoomID,
-		StartTime: yesterday,
-		// EndTime is nil — this is the stale group
-	}
-
-	repoFactory := repositories.NewFactory(db)
-	educationService := educationSvc.NewService(
-		repoFactory.Group, repoFactory.GroupTeacher, repoFactory.GroupSubstitution,
-		repoFactory.Room, repoFactory.Teacher, repoFactory.Staff, repoFactory.Student,
-	)
-	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo: repoFactory.Person, RFIDRepo: repoFactory.RFIDCard,
-		AccountRepo: repoFactory.Account,
-		StudentRepo: repoFactory.Student, StaffRepo: repoFactory.Staff,
-		TeacherRepo: repoFactory.Teacher, DB: db,
-	})
-	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
-		GroupRepo: repoFactory.ActiveGroup, VisitRepo: repoFactory.ActiveVisit,
-		SupervisorRepo: repoFactory.GroupSupervisor, CombinedGroupRepo: repoFactory.CombinedGroup,
-		GroupMappingRepo: repoFactory.GroupMapping, AttendanceRepo: repoFactory.Attendance,
-		StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
-		TeacherRepo: repoFactory.Teacher, StaffRepo: repoFactory.Staff,
-		RoomRepo: repoFactory.Room, ActivityGroupRepo: repoFactory.ActivityGroup,
-		ActivityCatRepo: repoFactory.ActivityCategory, EducationGroupRepo: repoFactory.Group,
-		DeviceRepo: repoFactory.Device, EducationService: educationService,
-		UsersService: usersService, DB: db, Broadcaster: nil,
-	})
-
-	err = activeService.CreateActiveGroup(ctx, staleGroup)
-	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, staleGroup.ID)
-
-	// ACT — GetOrCreateActiveGroup should detect and end the stale group, then create a new one
-	newActiveGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-	require.NotNil(t, newActiveGroup)
-	assert.NotEqual(t, staleGroup.ID, newActiveGroup.ID, "A new active group should be created, not the stale one")
-	assert.Nil(t, newActiveGroup.EndTime, "New active group should be open")
-
-	// Verify the stale group was actually ended
-	var endedGroup active.Group
-	err = db.NewSelect().
-		Model(&endedGroup).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, staleGroup.ID).
-		Scan(ctx)
-	require.NoError(t, err)
-	assert.NotNil(t, endedGroup.EndTime, "Stale group should have been ended")
-
-	// Cleanup
-	testpkg.CleanupActivityFixtures(t, db, newActiveGroup.ID)
-}
-
 // TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising verifies that status
 // correctly shows IsUserSupervising=false for a staff member who is NOT the supervisor.
 func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T) {
@@ -1035,8 +622,7 @@ func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T
 	require.NoError(t, err)
 
 	// Create fresh active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add staff1 as supervisor
@@ -1139,8 +725,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create fresh active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
-	require.NoError(t, err)
+	activeGroup := createOpenSchulhofGroup(t, db, service, ctx, time.Now())
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add visits where ALL have exited (both have exit times)

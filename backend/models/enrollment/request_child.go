@@ -142,6 +142,13 @@ type RequestChildRepository interface {
 	ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*RequestChild, error)
 
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
+	// RestoreWithdrawnByRequestID flips every withdrawn child of the request
+	// out of withdrawn and clears status_reason/reviewed_at/reviewed_by
+	// (the fields the withdraw path stamped). Children in waitlistedChildIDs
+	// come back as waitlisted (capacity gate), everyone else as submitted.
+	// Returns all restored ids; empty means the request had no withdrawn
+	// children. Admin restore flow only (#2157).
+	RestoreWithdrawnByRequestID(ctx context.Context, requestID int64, waitlistedChildIDs []int64) ([]int64, error)
 	UpdateData(ctx context.Context, child *RequestChild) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 	// UpdateMatchedStudent re-points (or clears, on nil) the already-enrolled

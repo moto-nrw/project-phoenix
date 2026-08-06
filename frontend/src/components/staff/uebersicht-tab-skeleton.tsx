@@ -14,7 +14,7 @@ export function UebersichtTabSkeleton() {
         {Array.from({ length: 3 }, (_, i) => (
           <div
             key={i}
-            className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-sm"
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
           >
             <Skeleton className="h-3 w-24 rounded" />
             <Skeleton className="mt-2 h-7 w-20 rounded" />
@@ -27,23 +27,23 @@ export function UebersichtTabSkeleton() {
         {Array.from({ length: 2 }, (_, i) => (
           <div
             key={i}
-            className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-sm sm:p-6"
+            className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm"
           >
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Skeleton className="h-3 w-40 rounded" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <Skeleton className="h-6 w-40 rounded" />
               <Skeleton className="h-9 w-40 rounded-lg" />
             </div>
-            <Skeleton className="h-64 w-full rounded-xl" />
+            <Skeleton className="mt-4 h-64 w-full rounded-xl" />
           </div>
         ))}
       </div>
 
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-sm sm:p-6">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Skeleton className="h-3 w-32 rounded" />
+      <div className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <Skeleton className="h-6 w-32 rounded" />
           <Skeleton className="h-9 w-40 rounded-lg" />
         </div>
-        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 items-center gap-6 md:grid-cols-2">
           <Skeleton className="mx-auto h-64 w-64 rounded-full" />
           <div className="flex flex-col gap-3">
             {Array.from({ length: 4 }, (_, i) => (

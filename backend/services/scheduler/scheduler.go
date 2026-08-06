@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -1862,7 +1861,6 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 				slog.Int("started", result.Started),
 				slog.Int("skipped_no_staff", result.SkippedNoStaff),
 				slog.Int("skipped_conflict", result.SkippedConflict),
-				slog.Int("skipped_schulhof", result.SkippedSchulhof),
 				slog.Int("skipped_moved", result.SkippedMoved),
 				slog.Int64("duration_ms", result.DurationMS),
 			)
@@ -1891,7 +1889,7 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 
 // scheduleInstanceOverdueTask registers the tick when all dependencies are
 // wired. A partial setup registers no task, matching SetMaterializer's opt-in
-// pattern so misconfiguration cannot emit unsafe generic Schulhof reminders.
+// pattern so misconfiguration cannot emit overdue events for unresolved rooms.
 func (s *Scheduler) scheduleInstanceOverdueTask() {
 	if s.instanceRepo == nil || s.instanceRoomRepo == nil || s.overdueBroadcaster == nil {
 		s.getLogger().Info("instance overdue tick not configured (missing instance repo, room repo, or broadcaster)")
@@ -1975,7 +1973,6 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 		roomIDs[inst.RoomID] = struct{}{}
 	}
 
-	schulhofRoomIDs := make(map[int64]struct{})
 	if len(roomIDs) > 0 {
 		if s.instanceRoomRepo == nil {
 			s.getLogger().Warn("overdue tick: room repository is not configured",
@@ -2001,9 +1998,6 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 				continue
 			}
 			resolvedRoomIDs[room.ID] = struct{}{}
-			if room.Name == constants.SchulhofRoomName {
-				schulhofRoomIDs[room.ID] = struct{}{}
-			}
 		}
 		for roomID := range roomIDs {
 			if _, found := resolvedRoomIDs[roomID]; !found {
@@ -2017,9 +2011,6 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 
 	for _, inst := range candidates {
-		if _, isSchulhof := schulhofRoomIDs[inst.RoomID]; isSchulhof {
-			continue
-		}
 		key := overdueKey{tenantID: tenantID, instanceID: inst.ID}
 		if _, seen := s.overdueEmitted.Load(key); seen {
 			continue

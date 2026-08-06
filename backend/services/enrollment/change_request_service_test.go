@@ -25,12 +25,21 @@ import (
 // calls testpkg.SetupTestDB and owns cleanup for the shared request fixtures.
 func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentService.ChangeRequestService {
 	repoFactory := repositories.NewFactory(env.db)
+	return newChangeRequestServiceForTestWithAuthorizer(env, repoFactory.StudentGuardian)
+}
+
+func newChangeRequestServiceForTestWithAuthorizer(
+	env *requestTestEnv,
+	authorizer enrollmentService.GuardianStudentAuthorizer,
+) enrollmentService.ChangeRequestService {
+	repoFactory := repositories.NewFactory(env.db)
 	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repoFactory.ChangeRequest,
 		MessageRepo:              repoFactory.ChangeRequestMessage,
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
 		RequestGuardianRepo:      repoFactory.RequestGuardian,
+		LateInviteRepo:           repoFactory.LateInvite,
 		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
 		CareOfferingRepo:         repoFactory.CareOffering,
 		FormSchemaRepo:           repoFactory.FormSchema,
@@ -39,13 +48,45 @@ func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentService.Chang
 		GuardianProfileRepo:      repoFactory.GuardianProfile,
 		GuardianPhoneRepo:        repoFactory.GuardianPhoneNumber,
 		StudentRepo:              repoFactory.Student,
-		GuardianAuthorizer:       repoFactory.StudentGuardian,
+		GuardianAuthorizer:       authorizer,
 		Settings:                 env.settings,
 		OutboxEnqueuer:           env.outbox,
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
 		DB:                       env.db,
 		Logger:                   slog.Default(),
+	})
+}
+
+func TestChangeRequestService_ApproveLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
+	withLateInviteRenewalFixture(t, func(
+		env *requestTestEnv,
+		_ enrollmentService.RequestService,
+		result *enrollmentService.SubmitResult,
+		_ enrollmentService.SubmitRequest,
+		authorizer *recordingGuardianAuthorizer,
+	) {
+		ctx := testpkg.TenantContext(1)
+		enableChangeRequestMode(t, env, result.Children[0].ID)
+		svc := newChangeRequestServiceForTestWithAuthorizer(env, authorizer)
+		proposed := proposedChangeSubmission(t, env, result)
+		phone := "+49 221 555 2165"
+		proposed.GuardianPhone = &phone
+		created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+			Submission: proposed,
+			ParentNote: "Bitte Telefonnummer korrigieren.",
+		})
+		require.NoError(t, err)
+
+		authorizer.email = ""
+		_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+			Note:           "Freigegeben.",
+			ActorAccountID: env.creatorID,
+			ActorRole:      "admin",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, authorizer.grantedEmail, authorizer.email)
 	})
 }
 
@@ -66,6 +107,7 @@ func newChangeRequestServiceWithDecisionAndRepoForTest(
 		RequestRepo:              env.repos.Request,
 		RequestChildRepo:         env.repos.RequestChild,
 		RequestGuardianRepo:      env.repos.RequestGuardian,
+		LateInviteRepo:           env.repos.LateInvite,
 		RequestChildOfferingRepo: env.repos.RequestChildOffering,
 		CareOfferingRepo:         env.repos.CareOffering,
 		FormSchemaRepo:           env.repos.FormSchema,

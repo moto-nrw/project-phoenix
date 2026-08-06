@@ -17,6 +17,7 @@ const (
 	ActionAddComment           = "add_comment"
 	ActionDeleteComment        = "delete_comment"
 	ActionRotateAPIKey         = "rotate_api_key"
+	ActionTransfer             = "transfer"
 	ActionHidePost             = "hide_post"
 	ActionUnhidePost           = "unhide_post"
 	ActionDeletePost           = "delete_post"

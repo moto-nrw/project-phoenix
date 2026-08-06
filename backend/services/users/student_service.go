@@ -67,6 +67,11 @@ type StudentService interface {
 	// LockPhotoFeature acquires the per-tenant photo-feature advisory lock.
 	LockPhotoFeature(ctx context.Context) error
 
+	// LockClassWritesShared acquires the shared per-tenant class-writes gate.
+	// Needed only by callers that take another tenant-wide gate (recurrence)
+	// before their first student row lock — see the repository method.
+	LockClassWritesShared(ctx context.Context) error
+
 	// ListPrivacyConsents retrieves a student's privacy consents.
 	ListPrivacyConsents(ctx context.Context, studentID int64) ([]*userModels.PrivacyConsent, error)
 
@@ -351,6 +356,10 @@ func (s *studentService) Delete(ctx context.Context, id int64) error {
 
 func (s *studentService) LockPhotoFeature(ctx context.Context) error {
 	return s.studentRepo.LockPhotoFeature(ctx)
+}
+
+func (s *studentService) LockClassWritesShared(ctx context.Context) error {
+	return s.studentRepo.LockStudentClassWritesShared(ctx)
 }
 
 func (s *studentService) ListPrivacyConsents(ctx context.Context, studentID int64) ([]*userModels.PrivacyConsent, error) {
