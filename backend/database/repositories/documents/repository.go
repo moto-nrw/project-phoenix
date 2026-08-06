@@ -210,7 +210,9 @@ func (r *Repository[T, C]) ListDeletedPendingFileCleanups(ctx context.Context) (
 		ModelTableExpr(r.tableExpr()).
 		Where(r.col("deleted_at") + " IS NOT NULL").
 		Where(r.col("file_deleted_at") + " IS NULL").
-		WhereAllWithDeleted()
+		WhereAllWithDeleted().
+		Order("id ASC").
+		Limit(documents.CleanupBatchSize)
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx, &rows); err != nil {
@@ -351,6 +353,8 @@ func (r *Repository[T, C]) listQueuedFileCleanups(ctx context.Context, where str
 		ModelTableExpr(r.cleanupTableExpr()).
 		Where(r.cleanupCol("retry_after")+" <= ?", time.Now()).
 		Where(r.cleanupCol("cleaned_at") + " IS NULL").
+		Order("id ASC").
+		Limit(documents.CleanupBatchSize).
 		For("UPDATE SKIP LOCKED")
 	if where != "" {
 		query = query.Where(where, arg)

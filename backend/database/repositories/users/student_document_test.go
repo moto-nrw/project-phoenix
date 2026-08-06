@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	documentModels "github.com/moto-nrw/project-phoenix/models/documents"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -199,4 +200,37 @@ func storedNames(cleanups []*userModels.StudentDocumentFileCleanup) []string {
 		names = append(names, cleanup.FilenameStored)
 	}
 	return names
+}
+
+// TestStudentDocumentRepository_CleanupSweepIsBounded pins the cap the
+// scheduler depends on. The sweep runs inside one tenant transaction, so an
+// uncapped pass after a cohort deletion would hold a connection through
+// thousands of unlink-and-mark pairs, and a deadline firing mid-pass would roll
+// back every completion mark it had written.
+func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, db, "Viele", "Dokumente", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	repo := repositories.NewFactory(db).StudentDocument
+	ctx := testpkg.TenantContext(student.TenantID)
+
+	overBatch := documentModels.CleanupBatchSize + 5
+	ids := make([]int64, 0, overBatch)
+	for i := range overBatch {
+		cleanup := &userModels.StudentDocumentFileCleanup{}
+		cleanup.OwnerID = student.ID
+		cleanup.FilenameStored = fmt.Sprintf("bounded-%d-%d.pdf", time.Now().UnixNano(), i)
+		cleanup.RetryAfter = time.Now().Add(-time.Minute)
+		require.NoError(t, repo.QueueFileCleanup(ctx, cleanup))
+		ids = append(ids, cleanup.ID)
+	}
+	defer testpkg.CleanupTableRecords(t, db, "users.student_document_file_cleanup", ids...)
+
+	queued, err := repo.ListQueuedFileCleanups(ctx)
+	require.NoError(t, err)
+	assert.Len(t, queued, documentModels.CleanupBatchSize,
+		"one pass must stop at the batch size, leaving the rest for the next tick")
 }

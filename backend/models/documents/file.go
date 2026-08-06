@@ -19,6 +19,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// CleanupBatchSize caps one storage-cleanup sweep pass. The sweep runs inside
+// a single tenant transaction, so an uncapped pass after a large deletion
+// would hold a pool connection through thousands of unlink-and-mark pairs —
+// and a context deadline firing mid-pass would roll back every completion mark
+// that pass had written, so the next one would start from zero. Bounded passes
+// commit their progress and resume on the next tick.
+const CleanupBatchSize = 200
+
 // File is the metadata of one stored document. The bytes live in the storage
 // backend under FilenameStored; only the owning domain's download handler can
 // reach them.
