@@ -10,7 +10,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -49,6 +51,11 @@ var ErrStudentDocumentInvalid = errors.New("invalid student document")
 // ErrStudentDocumentForbidden marks a category the caller's permissions do
 // not cover — HTTP 403.
 var ErrStudentDocumentForbidden = errors.New("student document category not permitted")
+
+// ErrStudentDocumentNoAccess marks a child the caller may not reach at all —
+// HTTP 403. Separate from the category error because it answers a different
+// question: not "which drawer" but "whose file cabinet".
+var ErrStudentDocumentNoAccess = errors.New("no access to this child")
 
 // StudentDocumentActor identifies the acting account for permission checks
 // and audit rows.
@@ -116,13 +123,24 @@ type StudentDocumentService interface {
 	ActivateQueuedCleanup(ctx context.Context, storedName string) error
 }
 
+// StudentDocumentUserContext is the slice of the user context the document
+// service needs to answer "does this caller supervise this child". It is
+// authorize.StudentModifyUserContext, restated so the service depends on a
+// named interface rather than a package alias.
+type StudentDocumentUserContext interface {
+	GetCurrentStaff(ctx context.Context) (*userModels.Staff, error)
+	GetMyGroups(ctx context.Context) ([]*educationModels.Group, error)
+	GetMyActiveGroups(ctx context.Context) ([]*activeModels.Group, error)
+}
+
 type studentDocumentService struct {
-	db        *bun.DB
-	documents userModels.StudentDocumentRepository
-	students  userModels.StudentRepository
-	audit     auditModels.StudentFieldEditRepository
-	accessLog auditModels.DataAccessLogRepository
-	logger    *slog.Logger
+	db          *bun.DB
+	documents   userModels.StudentDocumentRepository
+	students    userModels.StudentRepository
+	audit       auditModels.StudentFieldEditRepository
+	accessLog   auditModels.DataAccessLogRepository
+	userContext StudentDocumentUserContext
+	logger      *slog.Logger
 }
 
 // NewStudentDocumentService wires the child document service.
@@ -132,16 +150,45 @@ func NewStudentDocumentService(
 	students userModels.StudentRepository,
 	audit auditModels.StudentFieldEditRepository,
 	accessLog auditModels.DataAccessLogRepository,
+	userContext StudentDocumentUserContext,
 	logger *slog.Logger,
 ) StudentDocumentService {
 	return &studentDocumentService{
-		db:        db,
-		documents: documents,
-		students:  students,
-		audit:     audit,
-		accessLog: accessLog,
-		logger:    logger,
+		db:          db,
+		documents:   documents,
+		students:    students,
+		audit:       audit,
+		accessLog:   accessLog,
+		userContext: userContext,
+		logger:      logger,
 	}
+}
+
+// requireStudentAccess enforces the per-child gate every other per-child
+// endpoint applies: admin, or supervisor of the child's group. The route gate
+// only proves the caller may reach documents at all — without this, a
+// supervisor holding users:update could read and delete the paperwork of every
+// child in the school, whatever gdpr.student_data_scope says.
+//
+// It lives here rather than in the handler because the upload and download
+// routes deliberately run without the tenant-transaction middleware (a slow
+// 10 MB body must not pin a pool connection), and this check needs to happen
+// inside the same transaction as the work it guards.
+func (s *studentDocumentService) requireStudentAccess(ctx context.Context, studentID int64, actor StudentDocumentActor) (*userModels.Student, error) {
+	student, err := s.students.FindByID(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if authorize.HasAdminWildcard(actor.Permissions) {
+		return student, nil
+	}
+	if student.GroupID == nil {
+		return nil, ErrStudentDocumentNoAccess
+	}
+	if s.userContext == nil || !authorize.IsGroupSupervisor(ctx, *student.GroupID, s.userContext) {
+		return nil, ErrStudentDocumentNoAccess
+	}
+	return student, nil
 }
 
 func (s *studentDocumentService) getLogger() *slog.Logger {
@@ -192,7 +239,7 @@ func (s *studentDocumentService) requireCategoryPermission(category string, acto
 }
 
 func (s *studentDocumentService) ListStudentDocuments(ctx context.Context, studentID int64, category string, actor StudentDocumentActor) ([]*userModels.StudentDocument, []string, error) {
-	if _, err := s.students.FindByID(ctx, studentID); err != nil {
+	if _, err := s.requireStudentAccess(ctx, studentID, actor); err != nil {
 		return nil, nil, err
 	}
 
@@ -246,7 +293,7 @@ func (s *studentDocumentService) CreateStudentDocument(ctx context.Context, inpu
 
 	tenantID := tenant.FromContext(ctx)
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if _, err := s.students.FindByID(ctx, input.StudentID); err != nil {
+		if _, err := s.requireStudentAccess(ctx, input.StudentID, actor); err != nil {
 			return err
 		}
 		if err := s.recordAudit(ctx, input.StudentID, actor, "", documentAuditValue(input.Category, input.FilenameDisplay)); err != nil {
@@ -270,7 +317,7 @@ func (s *studentDocumentService) ResolveStudentDocumentDownload(ctx context.Cont
 	var document *userModels.StudentDocument
 	tenantID := tenant.FromContext(ctx)
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if _, err := s.students.FindByID(ctx, studentID); err != nil {
+		if _, err := s.requireStudentAccess(ctx, studentID, actor); err != nil {
 			return err
 		}
 		doc, err := s.documents.FindForOwner(ctx, studentID, documentID)
@@ -329,6 +376,9 @@ func (s *studentDocumentService) DeleteStudentDocument(ctx context.Context, stud
 	var deleted *userModels.StudentDocument
 	tenantID := tenant.FromContext(ctx)
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if _, err := s.requireStudentAccess(ctx, studentID, actor); err != nil {
+			return err
+		}
 		doc, err := s.documents.FindForOwner(ctx, studentID, documentID)
 		if err != nil {
 			return err
@@ -352,6 +402,9 @@ func (s *studentDocumentService) DeleteStudentDocument(ctx context.Context, stud
 }
 
 func (s *studentDocumentService) ResolveStudentDocumentCleanup(ctx context.Context, studentID, documentID int64, actor StudentDocumentActor) (*userModels.StudentDocument, error) {
+	if _, err := s.requireStudentAccess(ctx, studentID, actor); err != nil {
+		return nil, err
+	}
 	doc, err := s.documents.FindForOwnerIncludingDeleted(ctx, studentID, documentID)
 	if err != nil {
 		return nil, err
@@ -363,6 +416,9 @@ func (s *studentDocumentService) ResolveStudentDocumentCleanup(ctx context.Conte
 }
 
 func (s *studentDocumentService) ListDeletedStudentDocumentsPendingFileCleanup(ctx context.Context, studentID int64, actor StudentDocumentActor) ([]*userModels.StudentDocument, error) {
+	if _, err := s.requireStudentAccess(ctx, studentID, actor); err != nil {
+		return nil, err
+	}
 	return s.documents.ListDeletedPendingFileCleanupByOwnerID(ctx, studentID, visibleStudentDocumentCategories(actor))
 }
 

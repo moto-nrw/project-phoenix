@@ -423,18 +423,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "staff_documents"),
 	)
 
-	// Child documents (#777): metadata + per-category authority for the
-	// child's Dokumente tab. Writes into the per-child change history and the
-	// data-access log.
-	studentDocumentService := users.NewStudentDocumentService(
-		db,
-		repos.StudentDocument,
-		repos.Student,
-		repos.StudentFieldEdit,
-		repos.DataAccessLog,
-		logger.With("service", "student_documents"),
-	)
-
 	// Initialize guardian service
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo:     repos.GuardianProfile,
@@ -1680,6 +1668,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
+
+	// Child documents (#777): metadata, per-category authority and the
+	// per-child access gate for the Dokumente tab. Needs the user context to
+	// answer "does this caller supervise this child", so it is wired after it.
+	studentDocumentService := users.NewStudentDocumentService(
+		db,
+		repos.StudentDocument,
+		repos.Student,
+		repos.StudentFieldEdit,
+		repos.DataAccessLog,
+		userContextService,
+		logger.With("service", "student_documents"),
+	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,

@@ -126,7 +126,8 @@ func isSensitiveStudentDocumentCategory(category string) bool {
 // renderStudentDocumentError maps document service errors onto HTTP responses.
 func renderStudentDocumentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, usersSvc.ErrStudentDocumentForbidden):
+	case errors.Is(err, usersSvc.ErrStudentDocumentForbidden),
+		errors.Is(err, usersSvc.ErrStudentDocumentNoAccess):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, usersSvc.ErrStudentDocumentInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -180,9 +181,18 @@ func (rs *Resource) listStudentDocuments(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, resp, "Student documents retrieved successfully")
 }
 
-// retryStudentDocumentCleanups schedules removal of objects left behind by an
-// earlier failure: soft-deleted documents whose unlink did not complete, and
-// orphaned uploads whose metadata never landed.
+// retryStudentDocumentCleanups schedules removal of objects whose unlink did
+// not finish, for the child in the URL only.
+//
+// It deliberately does NOT touch queued upload intents, for two reasons. They
+// are tenant-wide and uncapped, so a graduate purge could leave hundreds
+// eligible and hand the whole backlog to whoever next opens any child's tab —
+// hundreds of sequential unlinks and transactions inside one request. And the
+// intent scan takes its rows FOR UPDATE SKIP LOCKED to keep a concurrent
+// upload from having its bytes deleted, a lock that is released at COMMIT,
+// which is before an after-commit hook removes anything. The scheduler owns
+// that work instead: it removes inside the same transaction that holds the
+// lock, and it reaches every tenant within five minutes.
 func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID int64, actor usersSvc.StudentDocumentActor, source string) {
 	coordinator, err := rs.studentDocumentCoordinator()
 	if err != nil {
@@ -191,28 +201,16 @@ func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID 
 	}
 	tenantID := tenant.FromContext(ctx)
 
-	if documents, err := rs.StudentDocumentService.ListDeletedStudentDocumentsPendingFileCleanup(ctx, studentID, actor); err != nil {
-		rs.getLogger().Warn("student document cleanup retry lookup failed",
-			"student_id", studentID, "error", err)
-	} else {
-		for _, document := range documents {
-			docID, storedName := document.ID, document.FilenameStored
-			tenant.RegisterAfterCommit(ctx, func() {
-				coordinator.CleanupDocument(tenantID, studentID, docID, storedName, source)
-			})
-		}
-	}
-
-	cleanups, err := rs.StudentDocumentService.ListQueuedStudentDocumentFileCleanups(ctx)
+	documents, err := rs.StudentDocumentService.ListDeletedStudentDocumentsPendingFileCleanup(ctx, studentID, actor)
 	if err != nil {
-		rs.getLogger().Warn("student document orphan cleanup retry lookup failed",
+		rs.getLogger().Warn("student document cleanup retry lookup failed",
 			"student_id", studentID, "error", err)
 		return
 	}
-	for _, cleanup := range cleanups {
-		ownerID, cleanupID, storedName := cleanup.OwnerID, cleanup.ID, cleanup.FilenameStored
+	for _, document := range documents {
+		docID, storedName := document.ID, document.FilenameStored
 		tenant.RegisterAfterCommit(ctx, func() {
-			coordinator.CleanupQueued(tenantID, ownerID, cleanupID, storedName, source)
+			coordinator.CleanupDocument(tenantID, studentID, docID, storedName, source)
 		})
 	}
 }
