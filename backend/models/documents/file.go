@@ -27,6 +27,13 @@ import (
 // commit their progress and resume on the next tick.
 const CleanupBatchSize = 200
 
+// RequestCleanupRetryLimit caps how many stale objects a single page view will
+// try to reclaim. It is deliberately far smaller than CleanupBatchSize: a
+// request should mop up the odd straggler, never work through a backlog. If
+// the storage backend was unreachable for a while, that backlog belongs to the
+// scheduler, which is built for it and does not make a staff member wait.
+const RequestCleanupRetryLimit = 10
+
 // File is the metadata of one stored document. The bytes live in the storage
 // backend under FilenameStored; only the owning domain's download handler can
 // reach them.

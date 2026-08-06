@@ -234,3 +234,38 @@ func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
 	assert.Len(t, queued, documentModels.CleanupBatchSize,
 		"one pass must stop at the batch size, leaving the rest for the next tick")
 }
+
+// TestStudentDocumentRepository_RequestRetryIsBounded pins the tighter cap on
+// the query that feeds the request path. Each returned row becomes an unlink
+// plus a transaction after the response, so a page view must never inherit a
+// backlog left by an unreachable storage backend.
+func TestStudentDocumentRepository_RequestRetryIsBounded(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, db, "Rueckstand", "Kind", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-backlog-%d@example.test", time.Now().UnixNano()))
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+
+	repo := repositories.NewFactory(db).StudentDocument
+	ctx := testpkg.TenantContext(student.TenantID)
+
+	overLimit := documentModels.RequestCleanupRetryLimit + 3
+	ids := make([]int64, 0, overLimit)
+	for i := range overLimit {
+		doc := newTestStudentDocument(student.ID, account.ID,
+			userModels.StudentDocumentCategorySonstiges,
+			fmt.Sprintf("rueckstand-%d.pdf", i),
+			fmt.Sprintf("rueckstand-%d-%d.pdf", time.Now().UnixNano(), i))
+		require.NoError(t, repo.Create(ctx, doc))
+		require.NoError(t, repo.SoftDelete(ctx, doc, account.ID))
+		ids = append(ids, doc.ID)
+	}
+	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", ids...)
+
+	pending, err := repo.ListDeletedPendingFileCleanupByOwnerID(ctx, student.ID, userModels.StudentDocumentCategories)
+	require.NoError(t, err)
+	assert.Len(t, pending, documentModels.RequestCleanupRetryLimit,
+		"one page view retries at most the request limit, the scheduler takes the rest")
+}

@@ -223,6 +223,11 @@ func (r *Repository[T, C]) ListDeletedPendingFileCleanups(ctx context.Context) (
 
 // ListDeletedPendingFileCleanupByOwnerID limits retry candidates to
 // soft-deleted documents in the caller's visible categories.
+//
+// This one feeds the request path: the caller registers an after-commit hook
+// per row, each an unlink plus its own transaction. It is therefore capped at
+// documents.RequestCleanupRetryLimit rather than the sweep batch size — a page
+// view must never inherit a backlog.
 func (r *Repository[T, C]) ListDeletedPendingFileCleanupByOwnerID(ctx context.Context, ownerID int64, categories []string) ([]T, error) {
 	if len(categories) == 0 {
 		return []T{}, nil
@@ -235,7 +240,9 @@ func (r *Repository[T, C]) ListDeletedPendingFileCleanupByOwnerID(ctx context.Co
 		Where(r.col("category")+" IN (?)", bun.List(categories)).
 		Where(r.col("deleted_at") + " IS NOT NULL").
 		Where(r.col("file_deleted_at") + " IS NULL").
-		WhereAllWithDeleted()
+		WhereAllWithDeleted().
+		Order("id ASC").
+		Limit(documents.RequestCleanupRetryLimit)
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx, &rows); err != nil {
