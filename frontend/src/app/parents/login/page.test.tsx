@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -19,6 +19,13 @@ vi.mock("next-auth/react", () => ({
   signIn: mocks.signIn,
   signOut: mocks.signOut,
   useSession: mocks.useSession,
+}));
+
+// parentPath() reads NEXT_PUBLIC_PARENTS_HOSTNAME and throws when it is unset,
+// which no unit-test env provides. The path mapping itself is covered by
+// parent-url.test.ts.
+vi.mock("~/lib/parent-url", () => ({
+  parentPath: (path: string) => path,
 }));
 
 vi.mock("next-intl", async () => {
@@ -154,6 +161,91 @@ describe("ParentLoginPage i18n", () => {
     await vi.waitFor(() => {
       expect(mocks.signOut).toHaveBeenCalledWith({ redirect: false });
     });
+  });
+
+  it("redirects to the parents portal once the session is published", () => {
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "parent", token: "valid-token" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/parents");
+  });
+
+  it("leaves the redirect to the session and never pushes a second navigation", async () => {
+    // Two concurrent navigations to the same target left the App Router state
+    // as a pending thenable, and Next's conditional `use(state)` then rendered
+    // a different number of hooks ("Rendered more hooks than during the
+    // previous render") — the portal died right after login until a reload.
+    mocks.signIn.mockResolvedValue({ error: null });
+
+    render(<ParentLoginPage />);
+
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "parent@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await vi.waitFor(() => {
+      expect(mocks.signIn).toHaveBeenCalledWith("parent-credentials", {
+        redirect: false,
+        email: "parent@example.com",
+        password: "password123",
+      });
+    });
+
+    expect(mocks.push).not.toHaveBeenCalled();
+    // The form stays locked until the session-driven redirect navigates away.
+    expect(
+      screen.getByRole("button", { name: "Signing in..." }),
+    ).toBeDisabled();
+  });
+
+  it("releases the form when the session never arrives after a successful login", async () => {
+    // NextAuth holt die Session per fetchData(), das jeden Fetch-Fehler
+    // schluckt und null liefert. signIn meldet dann ok, status bleibt aber
+    // "unauthenticated" und der Redirect feuert nie — ohne Watchdog bliebe das
+    // Formular dauerhaft gesperrt und ohne Fehlermeldung zurück.
+    vi.useFakeTimers();
+    mocks.signIn.mockResolvedValue({ error: null });
+
+    try {
+      render(<ParentLoginPage />);
+
+      fireEvent.change(screen.getByLabelText("Email address"), {
+        target: { value: "parent@example.com" },
+      });
+      fireEvent.change(screen.getByLabelText("Password"), {
+        target: { value: "password123" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(
+        screen.getByRole("button", { name: "Signing in..." }),
+      ).toBeDisabled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Forgot your password?" }),
+      ).toBeEnabled();
+      expect(screen.getByText("Login error. Please try again.")).toBeVisible();
+      expect(mocks.push).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens the password reset modal with localized parent copy", () => {

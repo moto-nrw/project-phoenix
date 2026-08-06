@@ -103,7 +103,7 @@ func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
 }
-func (f *fakeParentService) InviteRelatedAccount(context.Context, int64, int64, string, string, string) (*parentService.InviteRelatedAccountResult, error) {
+func (f *fakeParentService) InviteRelatedAccount(context.Context, int64, int64, string, string, string, bool) (*parentService.InviteRelatedAccountResult, error) {
 	return nil, nil
 }
 func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, int64) error {

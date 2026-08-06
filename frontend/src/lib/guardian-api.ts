@@ -744,12 +744,16 @@ type InviteGuardianOutcome =
   | "linked_existing_account"
   | "already_linked"
   | "invited"
-  | "pending_approval";
+  | "pending_approval"
+  | "existing_contact_restricted";
 
 export interface InviteGuardianResult {
   outcome: InviteGuardianOutcome;
   guardian_profile_id: string;
   invitation_id?: string;
+  // Current guardian role for the existing_contact_restricted outcome, so the
+  // UI can name it in the upgrade confirmation (#2172).
+  existing_role?: string;
 }
 
 /**
@@ -765,6 +769,7 @@ export async function inviteGuardianToStudent(
     firstName?: string;
     lastName?: string;
     relationshipType?: string;
+    confirmRoleUpgrade?: boolean;
   },
 ): Promise<InviteGuardianResult> {
   const response = await fetch(`/api/guardians/students/${studentId}/invite`, {
@@ -775,6 +780,9 @@ export async function inviteGuardianToStudent(
       first_name: options?.firstName ?? "",
       last_name: options?.lastName ?? "",
       relationship_type: options?.relationshipType ?? "",
+      // Only sent when confirming an upgrade; a plain invite keeps the
+      // historical four-field body.
+      ...(options?.confirmRoleUpgrade ? { confirm_role_upgrade: true } : {}),
     }),
   });
 
@@ -1059,6 +1067,9 @@ export interface PendingApproval {
   requestedByEmail?: string;
   createdAt: string;
   expiresAt: string;
+  // Approving this request also upgrades an existing restrictive contact
+  // link to full portal access (#2172).
+  roleUpgrade: boolean;
 }
 
 interface BackendPendingApproval {
@@ -1071,6 +1082,7 @@ interface BackendPendingApproval {
   requested_by_email?: string;
   created_at: string;
   expires_at: string;
+  role_upgrade?: boolean;
 }
 
 function mapPendingApproval(data: BackendPendingApproval): PendingApproval {
@@ -1084,6 +1096,7 @@ function mapPendingApproval(data: BackendPendingApproval): PendingApproval {
     requestedByEmail: data.requested_by_email,
     createdAt: data.created_at,
     expiresAt: data.expires_at,
+    roleUpgrade: data.role_upgrade ?? false,
   };
 }
 
