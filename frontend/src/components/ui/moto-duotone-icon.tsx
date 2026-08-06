@@ -1,28 +1,10 @@
 import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import {
+  MOTO_COLOR_PALETTE,
+  type MotoDuotoneTone,
+} from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
-
-export type MotoDuotoneTone =
-  | "blue"
-  | "teal"
-  | "magenta"
-  | "orange"
-  | "amber"
-  | "purple"
-  | "greenDeep"
-  | "greenVivid"
-  | "indigo"
-  | "red"
-  | "coral"
-  | "cyan"
-  | "navy"
-  | "mint"
-  | "wine"
-  | "gold"
-  | "petrol"
-  | "neutral"
-  | "stone";
 
 export const MOTO_DUOTONE_TONES: Record<
   MotoDuotoneTone,
@@ -31,6 +13,10 @@ export const MOTO_DUOTONE_TONES: Record<
   blue: {
     primary: MOTO_COLOR_PALETTE.blue.strong,
     secondary: MOTO_COLOR_PALETTE.blue.light,
+  },
+  timeTracking: {
+    primary: MOTO_COLOR_PALETTE.timeTracking.base,
+    secondary: MOTO_COLOR_PALETTE.timeTracking.light,
   },
   teal: {
     primary: MOTO_COLOR_PALETTE.teal.strong,

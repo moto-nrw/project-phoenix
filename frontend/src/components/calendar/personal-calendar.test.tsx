@@ -67,8 +67,6 @@ describe("PersonalCalendar", () => {
   it("renders shift events with the Dienst badge", () => {
     render(
       <PersonalCalendar
-        title="Mein Kalender"
-        subtitle="Termine und Dienstplan"
         events={[shift]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -86,8 +84,6 @@ describe("PersonalCalendar", () => {
     const onRespond = vi.fn();
     render(
       <PersonalCalendar
-        title="Mein Kalender"
-        subtitle="Termine und Betreuung"
         events={[appointment, timetable]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -96,8 +92,8 @@ describe("PersonalCalendar", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Mein Kalender" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Mein Kalender" }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText("Staff meeting").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Betreuung Gruppe A").length).toBeGreaterThan(0);
     // The pending response badge is shown on the event surface.
@@ -136,7 +132,6 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[shortRsvp, followUp]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -170,7 +165,6 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[appointment, weekendEvent]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -195,7 +189,6 @@ describe("PersonalCalendar", () => {
     const onCreate = vi.fn();
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={onWeekChange}
@@ -221,7 +214,6 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[cancelled]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -242,7 +234,6 @@ describe("PersonalCalendar", () => {
   it("renders an add-to-calendar link for active appointments", () => {
     render(
       <PersonalCalendar
-        title="Familienkalender"
         events={[appointment]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -267,7 +258,6 @@ describe("PersonalCalendar", () => {
     const editable: CalendarEvent = { ...appointment, can_edit: true };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[editable]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -293,7 +283,6 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[cancelled]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -324,7 +313,6 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[multiDayTimed]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -354,7 +342,6 @@ describe("PersonalCalendar", () => {
       };
       render(
         <PersonalCalendar
-          title="Mein Kalender"
           events={[multiDayTimed]}
           referenceDate={new Date(2026, 0, 5)}
           viewMode={viewMode}
@@ -372,7 +359,6 @@ describe("PersonalCalendar", () => {
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar
-        title="Familienkalender"
         events={[]}
         weekStart={new Date(2026, 0, 5)}
         error="Kalender konnte nicht geladen werden."

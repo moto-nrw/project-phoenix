@@ -21,7 +21,7 @@ describe("ConceptSectionHeader", () => {
 
     expect(iconSurface).toHaveClass("rounded-xl", "bg-gray-100");
     expect(
-      iconSurface?.querySelector('[data-moto-duotone-tone="teal"]'),
+      iconSurface?.querySelector('[data-moto-duotone-tone="blue"]'),
     ).toBeInTheDocument();
   });
 
@@ -43,7 +43,7 @@ describe("ConceptSectionHeader", () => {
     expect(screen.getByText("Austausch mit der OGS")).toBeInTheDocument();
     expect(iconSurface).toHaveClass("rounded-xl", "bg-gray-100");
     expect(
-      iconSurface?.querySelector('[data-moto-duotone-tone="teal"]'),
+      iconSurface?.querySelector('[data-moto-duotone-tone="blue"]'),
     ).toBeInTheDocument();
   });
 });

@@ -148,8 +148,6 @@ export default function ParentCalendarPage() {
   return (
     <div className="mx-auto w-full max-w-7xl">
       <PersonalCalendar
-        title="Familienkalender"
-        subtitle="Termine, Einladungen und Betreuungsangebote Ihrer Kinder."
         events={data?.events ?? []}
         referenceDate={referenceDate}
         viewMode={viewMode}

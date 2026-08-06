@@ -81,6 +81,12 @@ describe("MOTO_COLOR_PALETTE", () => {
         hover: "#3B68C0",
         strong: "#315C9B",
       },
+      timeTracking: {
+        soft: "#E0F2FE",
+        light: "#7DD3FC",
+        base: "#0EA5E9",
+        strong: "#0369A1",
+      },
       orange: {
         soft: "#FFF3E5",
         base: "#F78C10",

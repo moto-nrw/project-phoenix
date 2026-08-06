@@ -37,6 +37,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
@@ -529,9 +530,12 @@ function PendingAbsences({
           title="Eingehende Anfragen"
           concept="notifications"
           actions={
-            <span className="bg-moto-red inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white">
-              {rows.length}
-            </span>
+            <NotificationBadge
+              count={rows.length}
+              tone="staff"
+              size="sm"
+              ariaLabel={`${rows.length} ${rows.length === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
+            />
           }
         />
       </div>

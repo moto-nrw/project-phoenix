@@ -18,6 +18,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -238,11 +239,12 @@ export default function StaffDetailContent() {
           <TabsTrigger value="abwesenheiten">
             <span className="inline-flex items-center gap-1.5">
               Abwesenheiten
-              {pendingCount > 0 && (
-                <span className="bg-moto-red inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
+              <NotificationBadge
+                count={pendingCount}
+                tone="staff"
+                size="sm"
+                ariaLabel={`${pendingCount} ${pendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
+              />
             </span>
           </TabsTrigger>
           {canManageTimeTracking ? (

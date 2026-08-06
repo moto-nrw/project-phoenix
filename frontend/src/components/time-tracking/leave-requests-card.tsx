@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { UmbrellaIcon } from "@phosphor-icons/react";
 
 import { Button } from "~/components/ui/button";
+import { SectionHeader } from "~/components/ui/concept-section-header";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
@@ -185,12 +188,18 @@ export function LeaveRequestsCard() {
   return (
     <>
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Urlaub
-          </h2>
-          <span className="text-xs text-gray-400">{year}</span>
-        </div>
+        <SectionHeader
+          className="mb-5"
+          title="Urlaub"
+          icon={
+            <MotoDuotoneIcon
+              icon={UmbrellaIcon}
+              tone="timeTracking"
+              size={22}
+            />
+          }
+          actions={<span className="text-xs text-gray-400">{year}</span>}
+        />
 
         <div
           className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}

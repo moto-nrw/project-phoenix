@@ -54,6 +54,28 @@ export const LOCATION_STATUSES = {
 } as const;
 
 /** Shared brand palette. Red follows Phoenix notifications and hours accounts. */
+export type MotoDuotoneTone =
+  | "blue"
+  | "timeTracking"
+  | "teal"
+  | "magenta"
+  | "orange"
+  | "amber"
+  | "purple"
+  | "greenDeep"
+  | "greenVivid"
+  | "indigo"
+  | "red"
+  | "coral"
+  | "cyan"
+  | "navy"
+  | "mint"
+  | "wine"
+  | "gold"
+  | "petrol"
+  | "neutral"
+  | "stone";
+
 export const MOTO_COLOR_PALETTE = {
   green: {
     soft: "#EEF9E1",
@@ -71,6 +93,12 @@ export const MOTO_COLOR_PALETTE = {
     base: "#5080D8",
     hover: "#3B68C0",
     strong: "#315C9B",
+  },
+  timeTracking: {
+    soft: "#E0F2FE",
+    light: "#7DD3FC",
+    base: "#0EA5E9",
+    strong: "#0369A1",
   },
   orange: {
     soft: "#FFF3E5",

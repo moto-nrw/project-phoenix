@@ -24,6 +24,18 @@ describe("MotoDuotoneIcon", () => {
     expect(icon).toHaveAttribute("aria-hidden", "true");
   });
 
+  it("uses the work-time chart blue for time tracking", () => {
+    const { container } = render(
+      <MotoDuotoneIcon icon={BuildingsIcon} tone="timeTracking" />,
+    );
+    const icon = container.querySelector("svg");
+
+    expect(icon).toHaveStyle({ color: "#0EA5E9" });
+    expect(icon?.style.getPropertyValue("--moto-icon-secondary")).toBe(
+      "#7DD3FC",
+    );
+  });
+
   it("uses both website greens for group icons", () => {
     const { container } = render(
       <MotoDuotoneIcon icon={UsersThreeIcon} tone="greenDeep" />,

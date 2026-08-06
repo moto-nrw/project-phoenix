@@ -12,6 +12,7 @@ import { GuidePdfButton } from "./guide-pdf-button";
 import { HelpHashScroll, HelpSearchInline } from "./help-search";
 import { HelpBackButton, helpBackButtonClassName } from "./help-back-button";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
@@ -187,6 +188,7 @@ export function EntryPointCard({
   body,
   icon: Icon,
   concept,
+  iconTone,
   points,
 }: {
   readonly href: string;
@@ -194,6 +196,7 @@ export function EntryPointCard({
   readonly body: string;
   readonly icon?: LucideIcon;
   readonly concept?: MotoConceptKey;
+  readonly iconTone?: MotoDuotoneTone;
   readonly points: readonly string[];
 }) {
   return (
@@ -209,7 +212,7 @@ export function EntryPointCard({
           {concept ? (
             <MotoDuotoneIcon
               icon={MOTO_CONCEPTS[concept].icon}
-              tone={MOTO_CONCEPTS[concept].tone}
+              tone={iconTone ?? MOTO_CONCEPTS[concept].tone}
               size={36}
             />
           ) : Icon ? (

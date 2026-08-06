@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
-import { ConceptPageHeader } from "~/components/ui/concept-section-header";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   CalendarAppointmentOverview,
@@ -32,8 +31,6 @@ import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 export type CalendarViewMode = "day" | "week" | "month";
 
 interface PersonalCalendarProps {
-  readonly title: string;
-  readonly subtitle?: string;
   readonly events: readonly CalendarEvent[];
   readonly referenceDate?: Date;
   readonly weekStart?: Date;
@@ -376,8 +373,6 @@ function nextLabel(viewMode: CalendarViewMode): string {
 }
 
 export function PersonalCalendar({
-  title,
-  subtitle,
   events,
   referenceDate: rawReferenceDate,
   weekStart,
@@ -451,16 +446,9 @@ export function PersonalCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <ConceptPageHeader
-          title={title}
-          concept="calendar"
-          subtitle={subtitle}
-        />
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
-          {/* Date navigation — full width on mobile so the range label has room
-              instead of being squeezed between wrapping buttons. */}
-          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
             <Button
               type="button"
               variant="ghost"
@@ -487,66 +475,63 @@ export function PersonalCalendar({
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
-          {/* On mobile each control fills the row (no right-hand gap): the view
-              switch spans full width with equal segments, Heute/Sa-So share a
-              row, and 'Neuer Termin' spans its own. From sm up they collapse
-              back to a compact inline toolbar. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex w-full items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:w-auto">
-              {viewOptions.map((option) => {
-                const selected = option.mode === viewMode;
-                return (
-                  <Button
-                    key={option.mode}
-                    type="button"
-                    variant={selected ? "primary" : "ghost"}
-                    size="compact"
-                    className="flex-1 justify-center sm:flex-none"
-                    aria-pressed={selected}
-                    onClick={() => handleViewModeChange(option.mode)}
-                  >
-                    {option.label}
-                  </Button>
-                );
-              })}
-            </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            className="flex-1 justify-center bg-white sm:flex-none"
+            onClick={() => handleDateChange(new Date())}
+          >
+            Heute
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end">
+          <div className="flex w-full items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:w-auto">
+            {viewOptions.map((option) => {
+              const selected = option.mode === viewMode;
+              return (
+                <Button
+                  key={option.mode}
+                  type="button"
+                  variant={selected ? "primary" : "ghost"}
+                  size="compact"
+                  className="flex-1 justify-center sm:flex-none"
+                  aria-pressed={selected}
+                  onClick={() => handleViewModeChange(option.mode)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
+          {viewMode !== "day" ? (
             <Button
               type="button"
-              variant="outline"
+              variant={showWeekend ? "primary" : "outline"}
               size="compact"
-              className="flex-1 justify-center bg-white sm:flex-none"
-              onClick={() => handleDateChange(new Date())}
+              className={`flex-1 justify-center sm:flex-none ${
+                showWeekend ? "" : "bg-white"
+              }`}
+              aria-pressed={showWeekend}
+              onClick={() => setShowWeekend((value) => !value)}
             >
-              Heute
+              {hiddenWeekendCount > 0
+                ? `Sa/So (${hiddenWeekendCount})`
+                : "Sa/So"}
             </Button>
-            {viewMode !== "day" ? (
-              <Button
-                type="button"
-                variant={showWeekend ? "primary" : "outline"}
-                size="compact"
-                className={`flex-1 justify-center sm:flex-none ${
-                  showWeekend ? "" : "bg-white"
-                }`}
-                aria-pressed={showWeekend}
-                onClick={() => setShowWeekend((value) => !value)}
-              >
-                {hiddenWeekendCount > 0
-                  ? `Sa/So (${hiddenWeekendCount})`
-                  : "Sa/So"}
-              </Button>
-            ) : null}
-            {onCreate ? (
-              <Button
-                type="button"
-                size="compact"
-                className="w-full justify-center sm:w-auto"
-                onClick={onCreate}
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                Neuer Termin
-              </Button>
-            ) : null}
-          </div>
+          ) : null}
+          {onCreate ? (
+            <Button
+              type="button"
+              size="compact"
+              className="w-full justify-center sm:w-auto"
+              onClick={onCreate}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Neuer Termin
+            </Button>
+          ) : null}
         </div>
       </div>
 

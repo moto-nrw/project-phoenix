@@ -618,8 +618,6 @@ export default function StaffCalendarPage() {
   return (
     <div className="w-full">
       <PersonalCalendar
-        title="Mein Kalender"
-        subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
         // On a load error SWR may still hold the previous range's data; don't
         // render stale appointments under the new date label.
         events={calendarError ? [] : (data?.events ?? [])}

@@ -23,10 +23,8 @@ import {
   usePresenceMode,
 } from "~/lib/tenant-context";
 import { DashboardSkeleton } from "./page-skeleton";
-import {
-  MotoDuotoneIcon,
-  type MotoDuotoneTone,
-} from "~/components/ui/moto-duotone-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 

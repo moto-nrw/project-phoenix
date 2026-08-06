@@ -18,9 +18,8 @@ interface SidebarAccordionSectionProps {
   readonly emptyText?: string;
   readonly children?: ReactNode;
   readonly hasChildren: boolean;
-  // Aggregate red badge shown on the collapsed header (e.g. the sum of unread
-  // messages + pending requests across the section's sub-items) so the count
-  // stays visible without expanding. Renders nothing when 0.
+  // Aggregate section badge for unread messages and pending requests. The
+  // count stays visible while the section is collapsed.
   readonly badgeCount?: number;
 }
 

@@ -2,7 +2,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
 
-export type ConceptIconTileVariant = "section" | "page" | "display";
+type ConceptIconTileVariant = "section" | "page" | "display";
 
 const CONCEPT_ICON_TILE_VARIANTS: Record<
   ConceptIconTileVariant,

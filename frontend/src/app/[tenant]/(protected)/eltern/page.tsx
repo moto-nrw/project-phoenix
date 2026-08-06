@@ -124,6 +124,7 @@ function ElternContent() {
               title={card.title}
               body={card.body}
               concept={card.concept}
+              iconTone="blue"
               points={card.points}
             />
           ))}

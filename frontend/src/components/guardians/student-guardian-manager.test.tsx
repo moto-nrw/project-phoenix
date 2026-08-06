@@ -481,7 +481,7 @@ describe("StudentGuardianManager", () => {
         .parentElement?.previousElementSibling;
       expect(iconSurface).toHaveClass("bg-gray-100", "rounded-xl");
       expect(
-        iconSurface?.querySelector('[data-moto-duotone-tone="teal"]'),
+        iconSurface?.querySelector('[data-moto-duotone-tone="blue"]'),
       ).toBeInTheDocument();
     });
 

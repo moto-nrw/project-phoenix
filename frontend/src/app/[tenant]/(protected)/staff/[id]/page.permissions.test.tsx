@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
+const pendingAbsenceCount = vi.hoisted(() => ({ value: 0 }));
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -40,7 +41,7 @@ vi.mock("~/lib/swr", () => ({
           isLoading: false,
           error: null,
         }
-      : { data: 0, isLoading: false, error: null },
+      : { data: pendingAbsenceCount.value, isLoading: false, error: null },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
@@ -110,6 +111,7 @@ vi.mock("./page-skeleton", () => ({
 describe("StaffDetailContent permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pendingAbsenceCount.value = 0;
     window.scrollTo = vi.fn();
   });
 
@@ -174,5 +176,31 @@ describe("StaffDetailContent permissions", () => {
       "href",
       "/payroll",
     );
+  });
+
+  it("uses the attention color for pending absence requests", () => {
+    pendingAbsenceCount.value = 2;
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["time_tracking:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    const absencesTab = screen.getByRole("button", {
+      name: "Abwesenheiten 2 offene Abwesenheitsanträge",
+    });
+    expect(
+      within(absencesTab).getByLabelText("2 offene Abwesenheitsanträge"),
+    ).toHaveClass("bg-moto-orange");
   });
 });

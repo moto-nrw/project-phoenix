@@ -141,6 +141,23 @@ describe("EntryPointCard", () => {
     );
     expect(screen.getAllByText("dup")).toHaveLength(2);
   });
+
+  it("allows a page to override a concept icon tone", () => {
+    const { container } = render(
+      <EntryPointCard
+        href="/meal-plan"
+        title="Essensplan"
+        body="Speiseplan pflegen"
+        concept="mealPlan"
+        iconTone="blue"
+        points={["Gerichte je Woche"]}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-moto-duotone-tone="blue"]'),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("GuideShell", () => {

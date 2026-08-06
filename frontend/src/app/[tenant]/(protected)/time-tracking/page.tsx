@@ -11,8 +11,15 @@ import React, {
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  ChartBarIcon,
+  ClockCounterClockwiseIcon,
+  ClockIcon,
+} from "@phosphor-icons/react";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
+import { SectionHeader } from "~/components/ui/concept-section-header";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   Drawer,
   DrawerClose,
@@ -48,6 +55,7 @@ import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useToast } from "~/contexts/ToastContext";
 import {
   usePeriodMetrics,
@@ -827,18 +835,22 @@ function ClockInCard({
     <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="relative p-5 sm:p-6 md:p-8">
         {/* Title + status badge */}
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Stempeluhr
-          </h2>
-          {statusBadge && (
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge.className}`}
-            >
-              {statusBadge.label}
-            </span>
-          )}
-        </div>
+        <SectionHeader
+          className="mb-5"
+          title="Stempeluhr"
+          icon={
+            <MotoDuotoneIcon icon={ClockIcon} tone="timeTracking" size={22} />
+          }
+          actions={
+            statusBadge ? (
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge.className}`}
+              >
+                {statusBadge.label}
+              </span>
+            ) : undefined
+          }
+        />
 
         {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
             Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
@@ -1771,20 +1783,28 @@ function OwnZeiterfassungSection({
 
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-          Zeiterfassung
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          {ownStaffId && (
-            <StaffExportButton
-              staffId={ownStaffId}
-              yearStart={startOfYear(today)}
-            />
-          )}
-        </div>
-      </div>
+      <SectionHeader
+        className="mb-5"
+        title="Zeiterfassung"
+        icon={
+          <MotoDuotoneIcon
+            icon={ClockCounterClockwiseIcon}
+            tone="timeTracking"
+            size={22}
+          />
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+            {ownStaffId && (
+              <StaffExportButton
+                staffId={ownStaffId}
+                yearStart={startOfYear(today)}
+              />
+            )}
+          </div>
+        }
+      />
       <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
         <div className="hidden sm:block" />
         <div className="flex min-w-0 items-center justify-center gap-2">
@@ -1909,7 +1929,10 @@ function OwnZeiterfassungSection({
 // ─── WeekChart ───────────────────────────────────────────────────────────────
 
 const weekChartConfig = {
-  netMinutes: { label: "Arbeitszeit", color: "#0ea5e9" }, // sky-500 — matches sidebar icon
+  netMinutes: {
+    label: "Arbeitszeit",
+    color: MOTO_COLOR_PALETTE.timeTracking.base,
+  },
   breakMinutes: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
 } satisfies ChartConfig;
 
@@ -2030,17 +2053,25 @@ function WeekChart({
   return (
     <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border shadow-sm md:h-full md:min-h-0">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
-        <div className="mb-3 flex items-baseline justify-between sm:mb-4">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Wochenübersicht
-          </h2>
-          {chartData.length > 0 && (
-            <span className="text-[10px] text-gray-400 sm:text-xs">
-              {chartData[0]?.label?.split(" ")[1] ?? ""} –{" "}
-              {chartData[chartData.length - 1]?.label?.split(" ")[1] ?? ""}
-            </span>
-          )}
-        </div>
+        <SectionHeader
+          className="mb-3 sm:mb-4"
+          title="Wochenübersicht"
+          icon={
+            <MotoDuotoneIcon
+              icon={ChartBarIcon}
+              tone="timeTracking"
+              size={22}
+            />
+          }
+          actions={
+            chartData.length > 0 ? (
+              <span className="text-[10px] text-gray-400 sm:text-xs">
+                {chartData[0]?.label?.split(" ")[1] ?? ""} –{" "}
+                {chartData[chartData.length - 1]?.label?.split(" ")[1] ?? ""}
+              </span>
+            ) : undefined
+          }
+        />
         <ChartContainer
           config={weekChartConfig}
           className="!aspect-auto min-h-0 flex-1"

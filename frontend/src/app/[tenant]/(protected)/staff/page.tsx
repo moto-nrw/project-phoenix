@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { BellSimpleRingingIcon } from "@phosphor-icons/react";
 import { ChevronRight } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -631,6 +632,8 @@ function StaffPageContent() {
                 const cardInfo = getStaffCardInfo(staffMember);
                 const notes = formatStaffNotes(staffMember.staffNotes, 80);
                 const supervisions = staffMember.supervisions ?? [];
+                const pendingRequestCount =
+                  pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
                 const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${userIsAdmin ? "cursor-pointer" : ""}`;
                 const navigateToStaff = () =>
@@ -689,20 +692,27 @@ function StaffPageContent() {
                               <span className="h-1.5 w-1.5 rounded-full bg-white/80"></span>
                               {locationStatus.label}
                             </span>
-                            {(pendingByStaff.get(Number(staffMember.id)) ?? 0) >
-                              0 && (
-                              <span className="bg-moto-red inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold text-white">
-                                {pendingByStaff.get(Number(staffMember.id))}{" "}
-                                {pendingByStaff.get(Number(staffMember.id)) ===
-                                1
-                                  ? "Anfrage"
-                                  : "Anfragen"}
-                              </span>
-                            )}
                           </span>
                         </div>
 
                         <div className="flex-1 space-y-2">
+                          {pendingRequestCount > 0 && (
+                            <div className="text-moto-orange-strong flex items-center gap-1.5 text-xs font-medium">
+                              <BellSimpleRingingIcon
+                                className="text-moto-orange h-[18px] w-[18px] shrink-0"
+                                aria-hidden="true"
+                              />
+                              <span>
+                                <span className="font-semibold">
+                                  {pendingRequestCount}
+                                </span>{" "}
+                                {pendingRequestCount === 1
+                                  ? "offener Abwesenheitsantrag"
+                                  : "offene Abwesenheitsanträge"}
+                              </span>
+                            </div>
+                          )}
+
                           {supervisions.length > 0 && (
                             <div className="text-sm text-gray-600">
                               <span className="font-medium">

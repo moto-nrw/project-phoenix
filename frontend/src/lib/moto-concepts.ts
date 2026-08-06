@@ -15,6 +15,7 @@ import {
   CalendarXIcon,
   CarIcon,
   ChalkboardTeacherIcon,
+  ChatCircleTextIcon,
   ChartBarIcon,
   ChatsCircleIcon,
   ClipboardTextIcon,
@@ -60,7 +61,7 @@ import {
   VanIcon,
   type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
-import type { MotoDuotoneTone } from "~/components/ui/moto-duotone-icon";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
 
 export type MotoConceptKind = "core" | "status" | "function";
 export type MotoConceptSection =
@@ -83,7 +84,7 @@ export const MOTO_CONCEPTS = {
   dashboard: concept("Home", HouseLineIcon, "neutral", "function", "system"),
   children: concept("Kinder", UserIcon, "greenVivid", "core", "people"),
   groups: concept("Gruppen", UsersThreeIcon, "greenDeep", "core", "people"),
-  rooms: concept("Räume", DoorIcon, "blue", "core", "people"),
+  rooms: concept("Räume", DoorIcon, "navy", "core", "people"),
   staff: concept(
     "Mitarbeiter",
     IdentificationCardIcon,
@@ -91,7 +92,7 @@ export const MOTO_CONCEPTS = {
     "core",
     "people",
   ),
-  parents: concept("Eltern", UsersIcon, "teal", "core", "people"),
+  parents: concept("Eltern", UsersIcon, "blue", "core", "people"),
   activities: concept("Aktivitäten", ListChecksIcon, "coral", "core", "people"),
   supervision: concept("Aufsicht", EyeIcon, "purple", "core", "people"),
   organizations: concept(
@@ -108,7 +109,7 @@ export const MOTO_CONCEPTS = {
     "core",
     "administration",
   ),
-  people: concept("Personen", AddressBookIcon, "navy", "core", "people"),
+  people: concept("Personen", AddressBookIcon, "teal", "core", "people"),
   operators: concept("Operatoren", UsersFourIcon, "mint", "core", "people"),
 
   present: concept(
@@ -199,7 +200,7 @@ export const MOTO_CONCEPTS = {
   timeTracking: concept(
     "Zeiterfassung",
     ClockIcon,
-    "neutral",
+    "timeTracking",
     "function",
     "planning",
   ),
@@ -242,21 +243,21 @@ export const MOTO_CONCEPTS = {
   parentMessages: concept(
     "Elternmitteilungen",
     EnvelopeIcon,
-    "teal",
+    "blue",
     "function",
     "communication",
   ),
   parentConversations: concept(
     "Nachrichten mit Eltern",
-    ChatsCircleIcon,
-    "teal",
+    ChatCircleTextIcon,
+    "blue",
     "function",
     "communication",
   ),
   news: concept(
     "Neuigkeiten",
     NewspaperIcon,
-    "teal",
+    "blue",
     "function",
     "communication",
   ),
@@ -270,7 +271,7 @@ export const MOTO_CONCEPTS = {
   feedback: concept(
     "Feedback",
     NotePencilIcon,
-    "teal",
+    "coral",
     "function",
     "communication",
   ),
