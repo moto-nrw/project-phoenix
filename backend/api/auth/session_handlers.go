@@ -96,7 +96,14 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 		case errors.Is(authErr.Err, authService.ErrParentMustUseParentPortal):
-			common.RenderError(w, r, common.ErrorForbidden(authService.ErrParentMustUseParentPortal))
+			// Guardian-only account at the staff login. The code is what the
+			// frontend switches on to point the user at the parents portal —
+			// matching on the English message text would be brittle. Safe to
+			// be specific: this branch is only reachable once
+			// validateLoginCredentials has already accepted the password, so
+			// it tells the caller nothing about an account they don't own.
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				authService.ErrParentMustUseParentPortal, "use_parent_portal"))
 		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too

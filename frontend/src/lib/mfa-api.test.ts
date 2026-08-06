@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
-import { MFAApiError, germanMFAErrorMessage } from "./mfa-api";
+import { MFAApiError, germanMFAErrorMessage, login } from "./mfa-api";
 
 describe("germanMFAErrorMessage", () => {
   it("returns a generic fallback for non-MFAApiError errors", () => {
@@ -117,5 +117,60 @@ describe("MFAApiError", () => {
     expect(err.status).toBe(401);
     expect(err.message).toBe("Invalid code");
     expect(err.name).toBe("MFAApiError");
+  });
+
+  it("carries the backend error code when one is given", () => {
+    const err = new MFAApiError(403, "nope", "use_parent_portal");
+    expect(err.code).toBe("use_parent_portal");
+  });
+
+  it("leaves code undefined when none is given", () => {
+    expect(new MFAApiError(401, "Invalid code").code).toBeUndefined();
+  });
+});
+
+describe("login error bodies", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function mockErrorBody(status: number, body: unknown) {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as unknown as typeof global.fetch;
+  }
+
+  // The backend's `code` is the stable contract; `error` is English prose
+  // that callers must not branch on. Without this the tenant login cannot
+  // tell a guardian-only account apart from any other 403.
+  it("surfaces the backend code on the thrown MFAApiError", async () => {
+    mockErrorBody(403, {
+      status: "error",
+      error: "guardian accounts must log in at the parents portal",
+      code: "use_parent_portal",
+    });
+
+    await expect(
+      login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "use_parent_portal",
+    });
+  });
+
+  it("leaves code undefined when the body carries none", async () => {
+    mockErrorBody(401, {
+      status: "error",
+      error: "invalid username or password",
+    });
+
+    await expect(
+      login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
+    ).rejects.toMatchObject({ status: 401, code: undefined });
   });
 });

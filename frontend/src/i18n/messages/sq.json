@@ -413,10 +413,13 @@
     "submitting": "Duke hyrë...",
     "submit": "Hyr",
     "forgotPassword": "Keni harruar fjalëkalimin?",
+    "fromStaffBanner": "Llogaritë e prindërve hyjnë këtu. Ju lutemi shkruani përsëri fjalëkalimin tuaj.",
+    "staffLoginLink": "Shko te hyrja e shkollës",
     "errors": {
       "accountInactive": "Llogaria juaj është çaktivizuar. Ju lutemi kontaktoni shkollën.",
       "rateLimited": "Shumë përpjekje hyrjeje. Ju lutemi provoni më vonë.",
-      "invalidCredentials": "Hyrja nuk është e mundur. Kontrolloni të dhënat ose përdorni hyrjen e shkollës nëse jeni personel.",
+      "invalidCredentials": "Hyrja nuk është e mundur. Kontrolloni të dhënat tuaja.",
+      "notAGuardian": "Kjo llogari i përket personelit të shkollës. Ju lutemi përdorni hyrjen e shkollës.",
       "invalid": "Të dhëna hyrjeje të pavlefshme",
       "generic": "Gabim gjatë hyrjes. Ju lutemi provoni përsëri."
     }
