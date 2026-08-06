@@ -217,13 +217,16 @@ func (s *guardianInvitationService) upgradeStudentLink(ctx context.Context, stud
 		return nil
 	}
 	// Defense in depth: a persisted RoleUpgrade flag must not promote a link
-	// that became a social-worker contact between request and approval.
+	// that became a social-worker contact between request and approval. The
+	// refusal is an error, not a silent skip — otherwise the caller would
+	// report success (and, on approval, send an invitation email) for access
+	// that was never granted.
 	if authorize.NormalizeGuardianRole(link.GuardianRole) == authorize.GuardianRoleSocialWorker {
-		s.getLogger().Warn("guardian contact upgrade skipped: social-worker link is school-managed",
+		s.getLogger().Warn("guardian contact upgrade refused: social-worker link is school-managed",
 			slog.Int64("student_id", studentID),
 			slog.Int64("guardian_profile_id", guardianProfileID),
 		)
-		return nil
+		return &AuthError{Op: op, Err: ErrInviteSocialWorkerManaged}
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleLegalGuardian)
 	if err := s.StudentGuardianRepo.Update(ctx, link); err != nil {
@@ -309,6 +312,9 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 
 	// Existing account → access is granted by the link alone; no token needed.
 	if profile.HasAccount {
+		if err := s.closeSupersededApprovalRequests(ctx, profile.ID, req.StudentID); err != nil {
+			return nil, err
+		}
 		outcome := InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = InviteOutcomeAlreadyLinked
@@ -419,6 +425,14 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 			openInvitation.ApprovalStatus = authModels.GuardianInvitationApprovalPending
 			openInvitation.ApprovedBy = nil
 			openInvitation.ApprovedAt = nil
+			// The reused row carries the leftover expiry of the older
+			// invitation, and guardianApprovalExpired gates approve/reject on
+			// it — a short remaining lifetime would lock staff out of a
+			// just-submitted request. Restart the window and drop the stale
+			// email tracking, exactly like the pending → not_required branch.
+			openInvitation.ExpiresAt = time.Now().Add(s.resolveTokenExpiry(ctx))
+			openInvitation.EmailSentAt = nil
+			openInvitation.EmailError = nil
 			if req.RequestedByParentAccountID != nil {
 				openInvitation.RequestedByAccountID = req.RequestedByParentAccountID
 			}
@@ -455,6 +469,37 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 	return invitation, nil
 }
 
+// closeSupersededApprovalRequests resolves parent-initiated requests for this
+// child that a direct link just overtook: the account now has access, so a
+// still-pending row would linger in the staff queue forever and approving it
+// later would be a no-op. Closing it mirrors how ApproveInvitation finishes an
+// invitation whose access comes from the link alone (not_required + accepted).
+func (s *guardianInvitationService) closeSupersededApprovalRequests(ctx context.Context, guardianProfileID, studentID int64) error {
+	now := time.Now()
+	open, err := s.openStudentInvitations(ctx, guardianProfileID, studentID, now)
+	if err != nil {
+		return &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
+	for _, inv := range open {
+		if !inv.IsPendingApproval() {
+			continue
+		}
+		inv.ApprovalStatus = authModels.GuardianInvitationApprovalNotRequired
+		inv.ApprovedBy = nil
+		inv.ApprovedAt = nil
+		inv.AcceptedAt = &now
+		if err := s.InvitationRepo.Update(ctx, inv); err != nil {
+			return &AuthError{Op: opGuardianInviteToStudent, Err: err}
+		}
+		s.getLogger().Info("guardian approval request closed: access granted directly",
+			slog.Int64("invitation_id", inv.ID),
+			slog.Int64("student_id", studentID),
+			slog.Int64("guardian_profile_id", guardianProfileID),
+		)
+	}
+	return nil
+}
+
 func (s *guardianInvitationService) findOpenStudentInvitation(ctx context.Context, guardianProfileID, studentID int64) (*authModels.GuardianInvitation, error) {
 	invitations, err := s.openStudentInvitations(ctx, guardianProfileID, studentID, time.Now())
 	if err != nil {
@@ -468,7 +513,10 @@ func (s *guardianInvitationService) findOpenStudentInvitation(ctx context.Contex
 
 // ApproveInvitation resolves a pending parent-initiated request: it links the
 // child and either grants access to an existing account or dispatches the
-// invitation email.
+// invitation email. A promised role upgrade that can no longer be applied
+// (the link became a school-managed social-worker contact meanwhile) aborts
+// the approval: the request stays pending so staff can reject it, instead of
+// reporting success for access that was never granted.
 func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
 	invitation, err := s.InvitationRepo.FindByID(ctx, invitationID)
 	if err != nil {

@@ -140,6 +140,10 @@ func (rs *Resource) approveInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rs.InvitationService.ApproveInvitation(r.Context(), invitationID, accountID); err != nil {
 		tenant.MarkRollback(r.Context())
+		if errors.Is(err, authSvc.ErrInviteSocialWorkerManaged) {
+			common.RenderError(w, r, common.ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
