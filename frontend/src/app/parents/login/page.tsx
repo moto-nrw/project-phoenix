@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
-import { redirect, useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -29,7 +29,6 @@ export default function ParentLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const router = useRouter();
   const { data: session, status } = useSession();
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
   // Separate state controls the loading spinner for the UI.
@@ -72,6 +71,14 @@ export default function ParentLoginPage() {
     void check();
   }, [status, session]);
 
+  // Einzige Weiterleitung nach erfolgreichem Login. Sie greift, sobald NextAuth
+  // die neue Session veröffentlicht — auch für den Fall "bereits angemeldet,
+  // ruft /login direkt auf". handleSubmit darf daher NICHT zusätzlich
+  // router.push() feuern: zwei gleichzeitige Navigationen auf dasselbe Ziel
+  // lassen den App-Router-State als pending Thenable stehen, und das
+  // bedingte `use(state)` in Next' useActionQueue rendert dann eine
+  // unterschiedliche Anzahl Hooks ("Rendered more hooks than during the
+  // previous render", Seite bricht ab, erst ein Reload heilt es).
   if (isRedirectingToParent) {
     redirect(parentPath("/parents"));
   }
@@ -101,13 +108,15 @@ export default function ParentLoginPage() {
           invalid_credentials: t("errors.invalidCredentials"),
         };
         setError(errorMessages[result.code ?? ""] ?? t("errors.invalid"));
+        setIsLoading(false);
         return;
       }
 
-      router.push(parentPath("/parents"));
+      // Kein router.push hier — die Weiterleitung oben übernimmt. isLoading
+      // bleibt absichtlich stehen, damit das Formular bis zur Navigation
+      // gesperrt bleibt und niemand ein zweites Mal absendet.
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.generic"));
-    } finally {
       setIsLoading(false);
     }
   };
