@@ -149,7 +149,7 @@ func (s *studentDocumentScenario) auditRows(t *testing.T) []*auditModels.Student
 		Model(&rows).
 		ModelTableExpr(`audit.student_field_edits AS "student_field_edit"`).
 		Where(`"student_field_edit".student_id = ?`, s.studentID).
-		Where(`"student_field_edit".field_name = ?`, auditModels.StudentFieldDocument).
+		Where(`"student_field_edit".field_name LIKE ?`, auditModels.StudentFieldDocumentPrefix+"%").
 		Order("id ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
@@ -405,4 +405,40 @@ func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
 	adminDocs, _, err := outsider.ListStudentDocuments(s.ctx, s.studentID, "", s.actor("admin:*"))
 	require.NoError(t, err)
 	assert.Len(t, adminDocs, 1)
+}
+
+// TestStudentDocumentService_AuditFieldCarriesCategory pins the property the
+// change-history filter depends on. Without the category in the field name a
+// reader cannot tell a Sorgerechtsnachweis row from a Betreuungsvertrag row,
+// and the history becomes a way around the document permissions: a supervisor
+// without student_documents:health would read "Ärztliches Attest:
+// Attest_Epilepsie.pdf" in the Historie tab while the Dokumente tab hides that
+// very document.
+func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+
+	s.create(t, userModels.StudentDocumentCategoryAttest, s.actor("student_documents:health"))
+	s.create(t, userModels.StudentDocumentCategoryBetreuungsvertrag, s.actor("users:update"))
+
+	rows := s.auditRows(t)
+	require.Len(t, rows, 2)
+
+	fields := []string{rows[0].FieldName, rows[1].FieldName}
+	assert.Contains(t, fields, auditModels.StudentDocumentField(userModels.StudentDocumentCategoryAttest))
+	assert.Contains(t, fields, auditModels.StudentDocumentField(userModels.StudentDocumentCategoryBetreuungsvertrag))
+
+	// And the category survives the round trip a reader performs.
+	for _, row := range rows {
+		category := auditModels.StudentDocumentCategoryFromField(row.FieldName)
+		require.NotEmpty(t, category, "every document row must name its category")
+		assert.True(t, userModels.IsValidStudentDocumentCategory(category))
+	}
+
+	// The office permission covers the contract but not the medical note.
+	office := []string{"users:update"}
+	assert.True(t, usersSvc.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategoryBetreuungsvertrag, office))
+	assert.False(t, usersSvc.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategoryAttest, office))
+	assert.False(t, usersSvc.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategorySorgerecht, office))
+	assert.False(t, usersSvc.CanSeeEveryStudentDocumentCategory(office))
+	assert.True(t, usersSvc.CanSeeEveryStudentDocumentCategory([]string{"admin:*"}))
 }
