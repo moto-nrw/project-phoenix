@@ -297,7 +297,14 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 		ContentType:     uploaded.ContentType,
 	}, actor)
 	if err != nil {
-		coordinator.ReleaseFailedUpload(r.Context(), tenantID, id, storedName, err)
+		// Only the two request-shaped rejections are decided before the
+		// metadata transaction opens, so only they prove the row never landed
+		// and let the bytes go immediately. Anything deeper — including a
+		// commit whose acknowledgement never arrived — is in doubt and is left
+		// to the queued intent.
+		rejectedBeforeCommit := errors.Is(err, usersSvc.ErrStudentDocumentInvalid) ||
+			errors.Is(err, usersSvc.ErrStudentDocumentForbidden)
+		coordinator.ReleaseFailedUpload(r.Context(), tenantID, id, storedName, rejectedBeforeCommit, err)
 		renderStudentDocumentError(w, r, err)
 		return
 	}

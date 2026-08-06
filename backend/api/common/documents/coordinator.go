@@ -172,14 +172,21 @@ func (c *Coordinator) CleanupQueued(tenantID, ownerID, cleanupID int64, storedNa
 // not be persisted, and settles its queued intent: complete when the object is
 // gone, re-activated when removal failed so the scheduler retries.
 //
-// A cancelled or timed-out metadata transaction is the one case that touches
-// neither. Its commit may still have landed, and deleting the object here
-// would strand a committed document row pointing at nothing. The intent
-// decides instead: a committed transaction has already settled it, a
-// rolled-back one leaves it queued for the scheduler.
-func (c *Coordinator) ReleaseFailedUpload(ctx context.Context, tenantID, ownerID int64, storedName string, cause error) {
-	if isUnresolved(cause) {
-		c.logger().Warn("document upload interrupted, leaving cleanup to the queued intent",
+// It does that ONLY when the caller can prove the metadata never landed —
+// rejectedBeforeCommit. Everything else is in doubt and must be left alone:
+// a transaction whose COMMIT failed to acknowledge (a dropped connection is
+// the classic case, not just a cancelled context) may well have committed on
+// the server, and removing the object here would strand a live document row
+// whose download 404s forever with no sweep able to notice.
+//
+// Leaving it alone is always safe, which is why it is the default. The queued
+// intent decides instead: a committed transaction settled it in the same
+// transaction, so the object stays; a rolled-back one leaves it queued and the
+// scheduler reclaims the bytes once the upload deadline has passed. The only
+// cost of being wrong in this direction is a few minutes of delay.
+func (c *Coordinator) ReleaseFailedUpload(ctx context.Context, tenantID, ownerID int64, storedName string, rejectedBeforeCommit bool, cause error) {
+	if !rejectedBeforeCommit {
+		c.logger().Warn("document upload outcome undecided, leaving cleanup to the queued intent",
 			"kind", c.Kind, "owner_id", ownerID, "error", cause,
 		)
 		return
@@ -200,11 +207,4 @@ func (c *Coordinator) ReleaseFailedUpload(ctx context.Context, tenantID, ownerID
 			"kind", c.Kind, "owner_id", ownerID, "error", err,
 		)
 	}
-}
-
-// isUnresolved reports whether an upload failure leaves the metadata
-// transaction's outcome undecided, in which case the object must not be
-// removed by this request.
-func isUnresolved(err error) bool {
-	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
