@@ -118,6 +118,7 @@ type Factory struct {
 	Users                    users.PersonService
 	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
+	StudentDocuments         users.StudentDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -420,6 +421,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StaffMasterDataChange,
 		repos.DataAccessLog,
 		logger.With("service", "staff_documents"),
+	)
+
+	// Child documents (#777): metadata + per-category authority for the
+	// child's Dokumente tab. Writes into the per-child change history and the
+	// data-access log.
+	studentDocumentService := users.NewStudentDocumentService(
+		db,
+		repos.StudentDocument,
+		repos.Student,
+		repos.StudentFieldEdit,
+		repos.DataAccessLog,
+		logger.With("service", "student_documents"),
 	)
 
 	// Initialize guardian service
@@ -1666,6 +1679,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentDeletionAudit,
 		db,
 	)
+	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
@@ -2095,6 +2109,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Users:                    usersService,
 		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
+		StudentDocuments:         studentDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

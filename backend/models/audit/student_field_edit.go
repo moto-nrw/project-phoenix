@@ -40,6 +40,13 @@ const (
 	StudentFieldDepartureDays          = "departure_days"
 	StudentFieldDepartureCompanionNote = "departure_companion_note"
 
+	// StudentFieldDocument records an upload or deletion in the child's
+	// document file (#777). The value carries the category label and the
+	// display filename, never the document's content: the audit trail must
+	// survive the file it describes, and it must not become a second copy of
+	// data the deletion was meant to remove.
+	StudentFieldDocument = "document"
+
 	// StudentFieldEditSystemActor identifies automated changes. edited_by has
 	// no foreign key so zero can safely represent the scheduler without
 	// attributing its work to a real account.
@@ -66,7 +73,7 @@ func (e *StudentFieldEdit) Validate() error {
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
 		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays,
-		StudentFieldDepartureCompanionNote:
+		StudentFieldDepartureCompanionNote, StudentFieldDocument:
 		// Valid field names
 	default:
 		return errors.New("invalid field name")

@@ -36,6 +36,11 @@ const (
 	// Lohnabrechnungen. StudentID stays NULL; metadata carries staff_id,
 	// document_id and category.
 	ResourceTypeStaffDocumentDownload = "staff_document_download"
+	// ResourceTypeStudentDocumentDownload records serving a sensitive child
+	// document (#777): Attest, Impfnachweis and Medikamentenplan (Art. 9
+	// health data) plus the Sorgerechtsnachweis. Metadata carries student_id,
+	// document_id and category.
+	ResourceTypeStudentDocumentDownload = "student_document_download"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive
