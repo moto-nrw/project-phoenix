@@ -59,8 +59,8 @@ import {
   UsersFourIcon,
   UsersThreeIcon,
   VanIcon,
-  type Icon as PhosphorIcon,
-} from "@phosphor-icons/react";
+} from "@phosphor-icons/react/ssr";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 
 export type MotoConceptKind = "core" | "status" | "function";
