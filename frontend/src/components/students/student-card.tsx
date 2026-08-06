@@ -13,8 +13,8 @@ import {
   Plus,
 } from "lucide-react";
 import {
+  CalendarXIcon,
   ChalkboardTeacherIcon,
-  ClockIcon,
   UsersThreeIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
@@ -294,9 +294,13 @@ export function StudentInfoRow({
   );
 }
 
-/** Icon for pickup time display */
+/**
+ * Icon for pickup time display. Same outline clock as the with-time state in
+ * renderTimeStatusIcon, so a "Gehzeit" row always carries the same glyph no
+ * matter whether it shows a time, a dash, or a colored status.
+ */
 export function PickupTimeIcon() {
-  return <MotoDuotoneIcon icon={ClockIcon} tone="neutral" size={14} />;
+  return <Clock className="h-3.5 w-3.5 text-gray-400" />;
 }
 
 /** Icon for exception indicator */
@@ -306,13 +310,14 @@ export function ExceptionIcon() {
 
 /**
  * Neutral marker for "not coming today" rows (sick, excused, or a schedule
- * exception with no time). A known absence is information, not a warning — a
- * calm gray clock matches the student detail page and avoids the alarm an
- * amber triangle implies. Used for every absence line so the same state always
- * reads the same, across cards and detail.
+ * exception with no time). A known absence is information, not a warning, so
+ * it stays calm gray and avoids the alarm an amber triangle implies. Uses the
+ * CalendarX glyph of the notArrival concept instead of a clock, so absence
+ * lines never share their icon with the Gehzeit rows. Used for every absence
+ * line so the same state always reads the same, across cards and detail.
  */
 export function AbsenceIcon() {
-  return <Clock className="h-3.5 w-3.5 text-gray-400" />;
+  return <MotoDuotoneIcon icon={CalendarXIcon} tone="neutral" size={14} />;
 }
 
 /**

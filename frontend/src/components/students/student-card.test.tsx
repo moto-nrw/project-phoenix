@@ -399,13 +399,13 @@ describe("PickupTimeIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders a muted neutral meta icon at meta-icon size", () => {
+  it("renders the same muted outline clock as the with-time Gehzeit rows", () => {
     const { container } = render(<PickupTimeIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
-    expect(svg).toHaveAttribute("width", "14");
-    expect(svg).toHaveAttribute("height", "14");
+    expect(svg?.className).toContain("lucide-clock");
+    expect(svg?.className).toContain("text-gray-400");
+    expect(svg).not.toHaveAttribute("data-moto-duotone-tone");
   });
 });
 
@@ -420,12 +420,15 @@ describe("ExceptionIcon", () => {
 });
 
 describe("AbsenceIcon", () => {
-  it("renders a neutral gray clock, not an amber/orange warning", () => {
+  it("renders a neutral calendar-x marker, not a clock or an amber warning", () => {
     const { container } = render(<AbsenceIcon />);
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg?.className).toContain("text-gray-400");
+    // Distinct glyph: absence lines must never share the Gehzeit clock.
+    expect(svg?.className).not.toContain("lucide-clock");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
+    expect(svg).toHaveAttribute("width", "14");
     expect(svg?.className).not.toContain("text-moto-orange-strong");
   });
 });
@@ -633,9 +636,12 @@ describe("StudentAbsenceRow", () => {
     expect(
       screen.getByText("Kommt heute nicht (krank gemeldet)"),
     ).toBeInTheDocument();
-    // Neutral gray clock — a known absence is information, not a warning. Never
-    // the amber exception triangle, never the red overdue warning.
-    expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+    // Neutral duotone calendar-x: a known absence is information, not a
+    // warning. Never the amber exception triangle, never the red overdue
+    // warning, and never the Gehzeit clock glyph.
+    expect(
+      container.querySelector('svg[data-moto-duotone-tone="neutral"]'),
+    ).toBeInTheDocument();
     expect(
       container.querySelector("svg.text-moto-orange-strong"),
     ).not.toBeInTheDocument();
