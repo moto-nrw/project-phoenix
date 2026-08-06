@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -313,7 +315,7 @@ func TestSettingsUploadLoginImage_Success(t *testing.T) {
 
 	// Clean up the uploaded file
 	t.Cleanup(func() {
-		filePath := filepath.Join("public", filepath.FromSlash(imageURL[1:]))
+		filePath := uploadedFilePath(t, imageURL)
 		_ = os.Remove(filePath)
 	})
 }
@@ -348,7 +350,7 @@ func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
 	response1 := testutil.ParseJSONResponse(t, rr1.Body.Bytes())
 	data1 := response1["data"].(map[string]interface{})
 	firstURL := data1["login_image_url"].(string)
-	firstPath := filepath.Join("public", filepath.FromSlash(firstURL[1:]))
+	firstPath := uploadedFilePath(t, firstURL)
 
 	// Verify first file exists on disk
 	_, err := os.Stat(firstPath)
@@ -365,7 +367,7 @@ func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
 	response2 := testutil.ParseJSONResponse(t, rr2.Body.Bytes())
 	data2 := response2["data"].(map[string]interface{})
 	secondURL := data2["login_image_url"].(string)
-	secondPath := filepath.Join("public", filepath.FromSlash(secondURL[1:]))
+	secondPath := uploadedFilePath(t, secondURL)
 
 	// Verify old file was cleaned up
 	_, err = os.Stat(firstPath)
@@ -379,6 +381,20 @@ func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.Remove(secondPath)
 	})
+}
+
+// uploadedFilePath resolves a stored upload URL ("/uploads/login-images/x.png")
+// to its location on disk the same way the application does. Building the path
+// by hand from the working directory would only re-create the duplicated
+// path knowledge that api/common/upload.go now owns: save, serve and delete
+// all resolve through ResolvePublicDir, so the test has to as well.
+func uploadedFilePath(t *testing.T, storedURL string) string {
+	t.Helper()
+	baseDir := "public"
+	if resolved, err := common.ResolvePublicDir(); err == nil {
+		baseDir = resolved
+	}
+	return filepath.Join(baseDir, filepath.FromSlash(strings.TrimPrefix(storedURL, "/")))
 }
 
 func TestSettingsUploadLoginImage_InvalidFileType(t *testing.T) {
