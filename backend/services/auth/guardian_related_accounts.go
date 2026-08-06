@@ -399,8 +399,8 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 			}
 		}
-		// Reverse transition: the caller requires approval-gating (a
-		// parent-confirmed upgrade), but the open invitation was created
+		// Reverse transition, ONLY for a confirmed role upgrade: the upgrade
+		// requires approval-gating, but the open invitation was created
 		// without it — an earlier staff direct invite (not_required) or an
 		// approved-but-not-yet-accepted request. Re-queue it as pending:
 		// otherwise the row never surfaces in the staff queue,
@@ -409,7 +409,12 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 		// without the promised access. Flipping to pending also freezes the
 		// outstanding token until staff decide
 		// (guardianInvitationTokenConsumable refuses pending tokens).
-		if approvalStatus == authModels.GuardianInvitationApprovalPending &&
+		// The roleUpgrade gate is load-bearing: in staff_approval mode EVERY
+		// parent invite arrives with approvalStatus=pending, and a plain
+		// duplicate re-invite must not revert an already-resolved invitation
+		// (that would invalidate its live token and force a re-approval).
+		if roleUpgrade &&
+			approvalStatus == authModels.GuardianInvitationApprovalPending &&
 			openInvitation.ApprovalStatus != authModels.GuardianInvitationApprovalPending {
 			openInvitation.ApprovalStatus = authModels.GuardianInvitationApprovalPending
 			openInvitation.ApprovedBy = nil

@@ -1226,3 +1226,76 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
 	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 }
+
+// TestInviteToStudent_PlainReinviteKeepsResolvedInvitation is the regression
+// guard for the #2174 review blocker: in staff_approval mode EVERY parent
+// invite is approval-gated, so a plain duplicate re-invite (no confirmed role
+// upgrade) that reuses an open, already-resolved invitation must NOT revert it
+// to pending — that would invalidate its live token and force a re-approval.
+// Only a confirmed role upgrade may re-queue a resolved invitation.
+func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "plain-reinvite")
+	creatorID := env.inviterAccountID(t)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+
+	for _, status := range []string{
+		authModels.GuardianInvitationApprovalApproved,
+		authModels.GuardianInvitationApprovalNotRequired,
+	} {
+		t.Run(status, func(t *testing.T) {
+			// One student per subtest: findOpenStudentInvitation is scoped by
+			// (profile, student), so the previous subtest's still-open
+			// invitation must not be a reuse candidate here.
+			student := testpkg.CreateTestStudent(t, env.db, "Plain", "Reinvite", "7k")
+			now := time.Now()
+			studentID := student.ID
+			existing := &authModels.GuardianInvitation{
+				Token:             fmt.Sprintf("plain-reinvite-%s-%d", status, now.UnixNano()),
+				GuardianProfileID: profile.ID,
+				CreatedBy:         creatorID,
+				ExpiresAt:         now.Add(48 * time.Hour),
+				StudentID:         &studentID,
+				ApprovalStatus:    status,
+			}
+			if status == authModels.GuardianInvitationApprovalApproved {
+				existing.ApprovedBy = &creatorID
+				existing.ApprovedAt = &now
+			}
+			existing.SetTenantID(1)
+			// Cleanup: the test-level defer deletes every invitation of this
+			// profile, so no per-subtest cleanup (which would also delete the
+			// shared profile).
+			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+
+			// Duplicate plain parent invite in staff_approval mode.
+			result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+				StudentID:                  student.ID,
+				Email:                      *profile.Email,
+				CreatedBy:                  creatorID,
+				RequestedByParentAccountID: &creatorID,
+				RequireApproval:            true,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result.InvitationID)
+			assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
+
+			inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
+			require.NoError(t, err)
+			assert.Equal(t, status, inv.ApprovalStatus,
+				"a plain re-invite must not revert a resolved invitation")
+			assert.False(t, inv.RoleUpgrade)
+			if status == authModels.GuardianInvitationApprovalApproved {
+				assert.NotNil(t, inv.ApprovedBy, "approval record must survive a duplicate submission")
+				assert.NotNil(t, inv.ApprovedAt)
+			}
+		})
+	}
+}
