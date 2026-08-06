@@ -370,6 +370,64 @@ func TestSchulhofStatusPrefersCurrentUsersSupervisedOpenGroup(t *testing.T) {
 	assert.Equal(t, ownedSupervision.ID, *status.SupervisionID)
 }
 
+func TestSchulhofStatusIgnoresCallersEndedSupervisionWhenSelectingGroup(t *testing.T) {
+	const staffID int64 = 123
+	room := &facilityModels.Room{
+		Model:    base.Model{ID: 42},
+		Name:     constants.SchulhofRoomName,
+		IsSystem: true,
+	}
+	roomID := room.ID
+	activityGroup := &activityModels.Group{
+		Model:         base.Model{ID: 77},
+		Name:          constants.SchulhofActivityName,
+		PlannedRoomID: &roomID,
+		IsSystem:      true,
+	}
+	// Anchored to today's Berlin midnight — see
+	// TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate.
+	dayStart := timezone.TodayDate().BerlinMidnight()
+	handedOff := &active.Group{
+		Model:     base.Model{ID: 88},
+		RoomID:    room.ID,
+		StartTime: dayStart.Add(1 * time.Minute),
+	}
+	newer := &active.Group{
+		Model:     base.Model{ID: 89},
+		RoomID:    room.ID,
+		StartTime: dayStart.Add(10 * time.Minute),
+	}
+	// The caller supervised the older group but already handed it off: the
+	// supervisor row is ended, so it must not steer group selection.
+	endedOn := timezone.TodayDate()
+	endedSupervision := &active.GroupSupervisor{
+		Model:   base.Model{ID: 99},
+		GroupID: handedOff.ID,
+		StaffID: staffID,
+		EndDate: &endedOn,
+	}
+	activeService := &schulhofConflictActiveService{
+		findGroupsByCall: [][]*active.Group{{handedOff, newer}},
+		supervisors: map[int64][]*active.GroupSupervisor{
+			handedOff.ID: {endedSupervision},
+		},
+	}
+	service := NewSchulhofService(
+		&schulhofConflictFacilityService{room: room},
+		&schulhofConflictActivityService{group: activityGroup},
+		activeService,
+		slog.New(slog.DiscardHandler),
+	)
+
+	status, err := service.GetSchulhofStatus(context.Background(), staffID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status.ActiveGroupID)
+	assert.Equal(t, newer.ID, *status.ActiveGroupID)
+	assert.False(t, status.IsUserSupervising)
+	assert.Nil(t, status.SupervisionID)
+}
+
 func TestSchulhofStatusIgnoresOpenGroupsFromPreviousDays(t *testing.T) {
 	const staffID int64 = 123
 	room := &facilityModels.Room{

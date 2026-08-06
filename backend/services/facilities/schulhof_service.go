@@ -306,7 +306,7 @@ func (s *schulhofService) findPreferredOpenActiveGroup(
 	var newestSupervised *active.Group
 	for _, group := range openGroups {
 		for _, supervisor := range supervisorsByGroup[group.ID] {
-			if supervisor.StaffID == staffID && newerActiveGroup(group, newestSupervised) {
+			if supervisor.StaffID == staffID && supervisor.EndDate == nil && newerActiveGroup(group, newestSupervised) {
 				newestSupervised = group
 				break
 			}
