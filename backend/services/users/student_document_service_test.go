@@ -442,3 +442,48 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 	assert.False(t, usersSvc.CanSeeEveryStudentDocumentCategory(office))
 	assert.True(t, usersSvc.CanSeeEveryStudentDocumentCategory([]string{"admin:*"}))
 }
+
+// TestStudentDocumentService_AuthorizeUploadWritesNothing pins the guard the
+// upload handler relies on: it must answer before any byte or cleanup row
+// exists, and it must answer the same way the transaction later does.
+func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	office := s.actor("users:update")
+
+	// Wrong category for these permissions, unknown category, and a child the
+	// caller supervises nothing of — all refused up front.
+	require.ErrorIs(t,
+		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategoryAttest, office),
+		usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t,
+		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, "erfundene_kategorie", office),
+		usersSvc.ErrStudentDocumentInvalid)
+
+	repos := repositories.NewFactory(s.db)
+	outsider := usersSvc.NewStudentDocumentService(
+		s.db,
+		repos.StudentDocument,
+		repos.Student,
+		repos.StudentFieldEdit,
+		repos.DataAccessLog,
+		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID + 100_000}},
+		nil,
+	)
+	require.ErrorIs(t,
+		outsider.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategorySonstiges, office),
+		usersSvc.ErrStudentDocumentNoAccess)
+
+	// None of those refusals left a trace — no document row, no cleanup intent,
+	// no audit entry.
+	docs, _, err := s.svc.ListStudentDocuments(s.ctx, s.studentID, "", s.actor("admin:*"))
+	require.NoError(t, err)
+	assert.Empty(t, docs)
+	queued, err := s.svc.ListQueuedStudentDocumentFileCleanups(s.ctx)
+	require.NoError(t, err)
+	assert.Empty(t, queued)
+	assert.Empty(t, s.auditRows(t))
+
+	// And the permitted combination passes, so the guard is not simply closed.
+	require.NoError(t,
+		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategoryBetreuungsvertrag, office))
+}

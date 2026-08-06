@@ -84,6 +84,13 @@ type StudentDocumentService interface {
 	// first, plus the actor's visible categories (the frontend builds its
 	// filter and upload choices from them).
 	ListStudentDocuments(ctx context.Context, studentID int64, category string, actor StudentDocumentActor) ([]*userModels.StudentDocument, []string, error)
+	// AuthorizeStudentDocumentUpload answers "may this caller add a document
+	// of this category to this child" WITHOUT writing anything. The upload
+	// handler calls it before it puts bytes on disk or a cleanup intent in
+	// the database, so an unauthorized request costs nothing but the request
+	// itself. CreateStudentDocument repeats both checks inside its own
+	// transaction, which stays the authoritative one.
+	AuthorizeStudentDocumentUpload(ctx context.Context, studentID int64, category string, actor StudentDocumentActor) error
 	// CreateStudentDocument persists the metadata row and the audit entry in
 	// one tenant transaction.
 	CreateStudentDocument(ctx context.Context, input CreateStudentDocumentInput, actor StudentDocumentActor) (*userModels.StudentDocument, error)
@@ -272,6 +279,20 @@ func (s *studentDocumentService) ListStudentDocuments(ctx context.Context, stude
 		return nil, nil, err
 	}
 	return docs, visible, nil
+}
+
+func (s *studentDocumentService) AuthorizeStudentDocumentUpload(ctx context.Context, studentID int64, category string, actor StudentDocumentActor) error {
+	if !userModels.IsValidStudentDocumentCategory(category) {
+		return fmt.Errorf("%w: unknown category", ErrStudentDocumentInvalid)
+	}
+	if err := s.requireCategoryPermission(category, actor); err != nil {
+		return err
+	}
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		_, err := s.requireStudentAccess(ctx, studentID, actor)
+		return err
+	})
 }
 
 func (s *studentDocumentService) CreateStudentDocument(ctx context.Context, input CreateStudentDocumentInput, actor StudentDocumentActor) (*userModels.StudentDocument, error) {

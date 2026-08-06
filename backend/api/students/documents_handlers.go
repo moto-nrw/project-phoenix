@@ -249,6 +249,20 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 	}
 	defer common.CloseFile(uploaded.File)
 
+	category := r.FormValue("category")
+
+	// Authorize BEFORE anything is written. The route gate only proves the
+	// caller may reach documents at all, and every group supervisor holds
+	// users:update — without this, any of them could aim a 10 MB upload at any
+	// child ID in the school and force both a write into the shared uploads
+	// volume and a durable cleanup row, once per attempt, reclaimed only after
+	// the scheduler's grace delay. The transaction below re-checks; this is
+	// about not paying for a request that was never allowed.
+	if err := rs.StudentDocumentService.AuthorizeStudentDocumentUpload(r.Context(), id, category, actor); err != nil {
+		renderStudentDocumentError(w, r, err)
+		return
+	}
+
 	storedName, err := apiDocuments.NewStoredName(common.DocumentFileExtension(uploaded.ContentType))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -291,7 +305,7 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 
 	doc, err := rs.StudentDocumentService.CreateStudentDocument(uploadCtx, usersSvc.CreateStudentDocumentInput{
 		StudentID:       id,
-		Category:        r.FormValue("category"),
+		Category:        category,
 		FilenameDisplay: uploaded.Filename,
 		FilenameStored:  storedName,
 		SizeBytes:       size,
