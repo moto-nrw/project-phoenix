@@ -22,7 +22,6 @@ type dashboardBaseData struct {
 	allEducationGroups       []*educationModels.Group
 	allActivityGroups        []*activitiesModels.Group
 	activityGroupsByID       map[int64]*activitiesModels.Group
-	educationGroupsByID      map[int64]*educationModels.Group
 	activityCategories       int
 	supervisorsToday         int
 	visitsByGroupID          map[int64][]*active.Visit
@@ -61,7 +60,6 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 		studentsPresent:          make(map[int64]bool),
 		visitsByGroupID:          make(map[int64][]*active.Visit),
 		activityGroupsByID:       make(map[int64]*activitiesModels.Group),
-		educationGroupsByID:      make(map[int64]*educationModels.Group),
 	}
 
 	// Get active visits
@@ -117,14 +115,17 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 		return nil, err
 	}
 	data.allEducationGroups = allEducationGroups
-	for _, eg := range allEducationGroups {
-		data.educationGroupsByID[eg.ID] = eg
-	}
 
-	// Get activity groups (loaded once, used by name resolution and current activities).
-	// Non-critical: if this fails, dashboard still shows core metrics with fallback names.
+	// Get activity groups (loaded once, used by name resolution, OGS-group
+	// classification and current activities).
+	// Non-critical: if this fails, dashboard still shows core metrics with
+	// fallback names and an OGS-group count of zero — log it, never swallow it.
 	allActivityGroups, err := s.ActivityGroupRepo.List(ctx, nil)
-	if err == nil {
+	if err != nil {
+		s.getLogger().Warn("activity groups load failed, dashboard degrades to fallback names",
+			"error", err.Error(),
+		)
+	} else {
 		data.allActivityGroups = allActivityGroups
 		for _, ag := range allActivityGroups {
 			data.activityGroupsByID[ag.ID] = ag
@@ -246,9 +247,35 @@ func buildGroupToRoomLookup(allEducationGroups []*educationModels.Group) map[int
 	return lookup
 }
 
+// isOGSGroupTemplate reports whether a timetable template represents a
+// Betreuungsgruppe (OGS group), i.e. a care block bound to one concrete
+// education group.
+//
+// The binding MUST be read off the activities template. active.groups.group_id
+// is a foreign key to activities.groups(id) (fk_active_groups_group), never to
+// education.groups(id). Both tables draw from independent BIGSERIAL sequences,
+// so looking a session's group_id up in an education-keyed map matches by
+// numeric coincidence only — that was issue #2178.
+//
+// Both conditions are load-bearing:
+//   - Type == care excludes an AG whose Zielgruppe happens to be a group
+//     ("Fußball für die Bären"); such a template carries EducationGroupID too.
+//   - EducationGroupID != nil excludes care blocks that serve no specific
+//     group ("Mittagessen 1. Schicht", a Jahrgang-wide Hausaufgabenblock).
+//
+// Multi-target templates (activities.group_targets) need no extra handling:
+// a "gruppe" target list always mirrors its first entry into the scalar
+// EducationGroupID (normalizeDynamicTargets), and Group.validateEducationGroupTarget
+// makes that scalar mandatory for the type.
+func isOGSGroupTemplate(template *activitiesModels.Group) bool {
+	return template != nil &&
+		template.Type == activitiesModels.GroupTypeCare &&
+		template.EducationGroupID != nil
+}
+
 // processActiveGroups calculates metrics from active groups.
 // Returns total active count, OGS-only count, and unique students in rooms.
-func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]*active.Visit, educationGroupsByID map[int64]*educationModels.Group, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
+func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]*active.Visit, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
 	ogsGroupsCount := 0
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{})
 
@@ -272,7 +299,7 @@ func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64
 		// (GroupID == nil, WP-B6) are never OGS-bound — they skip this
 		// classification entirely.
 		if templateID, ok := group.TemplateID(); ok {
-			if _, isOGS := educationGroupsByID[templateID]; isOGS {
+			if isOGSGroupTemplate(activityGroupsByID[templateID]) {
 				ogsGroupsCount++
 			}
 		}
@@ -374,7 +401,7 @@ func buildActiveGroupRoomLookup(activeGroups []*active.Group, roomData *dashboar
 }
 
 // buildRecentActivity builds the recent activity list
-func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group, roomData *dashboardRoomData) []RecentActivity {
+func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) []RecentActivity {
 	recentActivity := []RecentActivity{}
 
 	for _, group := range activeGroups {
@@ -386,7 +413,7 @@ func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[in
 			continue
 		}
 
-		groupName := resolveGroupName(group.GroupID, activityGroupsByID, educationGroupsByID)
+		groupName := resolveGroupName(group.GroupID, activityGroupsByID)
 		roomName := resolveRoomName(group.RoomID, roomData.roomByID)
 
 		// Count unique students
@@ -472,7 +499,7 @@ func determineActivityStatus(participants, maxCapacity int) string {
 }
 
 // buildActiveGroupsSummary builds the active groups summary list
-func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group, roomData *dashboardRoomData) []ActiveGroupInfo {
+func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) []ActiveGroupInfo {
 	summary := []ActiveGroupInfo{}
 
 	for _, group := range activeGroups {
@@ -483,7 +510,7 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 			continue
 		}
 
-		groupName, groupType := resolveGroupNameAndType(group.GroupID, activityGroupsByID, educationGroupsByID)
+		groupName, groupType := resolveGroupNameAndType(group.GroupID, activityGroupsByID)
 		location := resolveRoomName(group.RoomID, roomData.roomByID)
 
 		studentCount := 0
@@ -504,36 +531,38 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 	return summary
 }
 
-// resolveGroupName gets the display name for a group via pre-loaded maps.
-// Spontaneous sessions (groupID == nil, WP-B6) return a generic label since
-// no template row exists to derive a name from.
-func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) string {
+// resolveGroupName gets the display name for a group via the pre-loaded
+// template map. Spontaneous sessions (groupID == nil, WP-B6) return a generic
+// label since no template row exists to derive a name from.
+//
+// groupID is an activities.groups.id — never look it up in an education-keyed
+// map (#2178).
+func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group) string {
 	if groupID == nil {
 		return "Spontane Aktivität"
 	}
 	if ag, ok := activityGroupsByID[*groupID]; ok {
 		return ag.Name
 	}
-	if eg, ok := educationGroupsByID[*groupID]; ok {
-		return eg.Name
-	}
 	return fmt.Sprintf("Gruppe %d", *groupID)
 }
 
 // resolveGroupNameAndType gets the display name and type for a group.
-// Education/OGS groups are checked first since they need the "ogs_group" type.
+// Both come from the session's activities template: care blocks bound to an
+// education group are typed "ogs_group", everything else "activity".
 // Spontaneous sessions (groupID == nil) are classified as "spontaneous".
-func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) (string, string) {
+func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group) (string, string) {
 	if groupID == nil {
 		return "Spontane Aktivität", "spontaneous"
 	}
-	if eg, ok := educationGroupsByID[*groupID]; ok {
-		return eg.Name, "ogs_group"
+	ag, ok := activityGroupsByID[*groupID]
+	if !ok {
+		return fmt.Sprintf("Gruppe %d", *groupID), "activity"
 	}
-	if ag, ok := activityGroupsByID[*groupID]; ok {
-		return ag.Name, "activity"
+	if isOGSGroupTemplate(ag) {
+		return ag.Name, "ogs_group"
 	}
-	return fmt.Sprintf("Gruppe %d", *groupID), "activity"
+	return ag.Name, "activity"
 }
 
 // resolveRoomName gets the display name for a room
