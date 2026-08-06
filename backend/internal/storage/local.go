@@ -57,11 +57,34 @@ func (l *Local) resolve(key string) (string, error) {
 	return full, nil
 }
 
+// contextReader aborts a copy between chunks once ctx is done.
+//
+// It bounds the io.Copy LOOP, not a single blocked syscall: a read that hangs
+// inside the kernel still hangs. That is enough for what this guards — a
+// caller whose deadline is the only thing keeping its cleanup bookkeeping
+// consistent must not keep writing for minutes after that deadline passed.
+type contextReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (c *contextReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
+}
+
 // Save writes r to the resolved path. The object is written directly rather
 // than through a temp file and rename: a failed write is removed before the
 // error returns, and every consumer treats a missing object as "upload did
 // not happen" anyway.
-func (l *Local) Save(_ context.Context, key string, r io.Reader, opts SaveOptions) (int64, error) {
+//
+// The copy honours ctx. An upload whose deadline exists to keep it inside its
+// cleanup window would otherwise be free to finish minutes late, re-creating
+// bytes whose cleanup intent the scheduler had already settled — leaving an
+// object no sweep can find again.
+func (l *Local) Save(ctx context.Context, key string, r io.Reader, opts SaveOptions) (int64, error) {
 	full, err := l.resolve(key)
 	if err != nil {
 		return 0, err
@@ -96,10 +119,15 @@ func (l *Local) Save(_ context.Context, key string, r io.Reader, opts SaveOption
 		return 0, errors.New("storage: failed to secure object")
 	}
 
-	written, copyErr := io.Copy(dst, r)
+	written, copyErr := io.Copy(dst, &contextReader{ctx: ctx, r: r})
 	closeErr := dst.Close()
 	if copyErr != nil || closeErr != nil {
 		_ = os.Remove(full)
+		if copyErr != nil && ctx.Err() != nil {
+			// Surface the cause: the caller decides differently for a
+			// deadline than for a disk error.
+			return 0, ctx.Err()
+		}
 		return 0, errors.New("storage: failed to write object")
 	}
 	return written, nil

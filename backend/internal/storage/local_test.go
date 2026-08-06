@@ -141,3 +141,66 @@ func TestLocalOpenMissingReturnsNotFound(t *testing.T) {
 		t.Fatalf("Stat missing = %v, want ErrNotFound", err)
 	}
 }
+
+// TestLocalSaveHonoursContext covers the deadline the document upload depends
+// on. Its cleanup intent becomes eligible three minutes after that deadline,
+// so a write allowed to run past it can re-create bytes whose intent the
+// scheduler already settled — an object no sweep can find again.
+func TestLocalSaveHonoursContext(t *testing.T) {
+	root := t.TempDir()
+	backend := NewLocal(root)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := backend.Save(ctx, "docs/1/late.pdf", bytes.NewReader([]byte("payload")), SaveOptions{Private: true})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Save with a done context = %v, want context.Canceled", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs", "1", "late.pdf")); !os.IsNotExist(err) {
+		t.Fatal("an aborted write must not leave its partial object behind")
+	}
+}
+
+// TestLocalSaveStopsMidStream proves the abort happens between chunks rather
+// than only before the first one: a copy already in flight when the deadline
+// passes must stop, not run to completion.
+func TestLocalSaveStopsMidStream(t *testing.T) {
+	root := t.TempDir()
+	backend := NewLocal(root)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Cancels itself once the copy has consumed its first chunk.
+	source := &cancelAfterFirstRead{
+		reader: bytes.NewReader(make([]byte, 1<<20)),
+		cancel: cancel,
+	}
+
+	_, err := backend.Save(ctx, "docs/1/stalled.pdf", source, SaveOptions{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Save = %v, want context.Canceled", err)
+	}
+	if source.reads > 3 {
+		t.Fatalf("copy kept reading after cancellation: %d reads", source.reads)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs", "1", "stalled.pdf")); !os.IsNotExist(err) {
+		t.Fatal("an aborted write must not leave its partial object behind")
+	}
+}
+
+type cancelAfterFirstRead struct {
+	reader *bytes.Reader
+	cancel context.CancelFunc
+	reads  int
+}
+
+func (c *cancelAfterFirstRead) Read(p []byte) (int, error) {
+	n, err := c.reader.Read(p)
+	c.reads++
+	if c.reads == 1 {
+		c.cancel()
+	}
+	return n, err
+}
