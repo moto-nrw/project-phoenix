@@ -275,9 +275,14 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 
 	size, err := coordinator.Save(uploadCtx, tenantID, storedName, uploaded.File)
 	if err != nil {
-		if completeErr := rs.StudentDocumentService.MarkQueuedCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
-			rs.getLogger().Warn("student document cleanup intent completion failed after write error",
-				"student_id", id, "error", completeErr)
+		// The intent is activated, not settled. A failed write removes its own
+		// partial object only best-effort, so declaring the bytes gone here
+		// would strand a half-written child document that nothing can reach
+		// again: no metadata row, no eligible intent, no scheduler path.
+		// Activating costs one no-op removal when the object really is gone.
+		if activateErr := rs.StudentDocumentService.ActivateQueuedCleanup(r.Context(), storedName); activateErr != nil {
+			rs.getLogger().Error("student document cleanup intent activation failed after write error",
+				"student_id", id, "error", activateErr)
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
