@@ -3,6 +3,8 @@
 // backgrounds and darkened label colors. Use this whenever a status is one of
 // a fixed set of semantic outcomes; for data-driven colors (a raw hex from
 // LOCATION_COLORS) use StatusDotBadge instead.
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+
 export type StatusBadgeTone = "blue" | "green" | "orange" | "red" | "gray";
 
 const TONES: Record<
@@ -63,4 +65,3 @@ export function StatusBadge({
     </span>
   );
 }
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";

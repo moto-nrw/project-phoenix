@@ -2,14 +2,16 @@
  * CoverageIndicator names the staffing state of a planned position: a status
  * dot plus an "Ist/Soll" number pair (or free-form text for aggregates like a
  * weekly-hours total). Anatomy and colors are fixed by
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2 — do not
+ * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2; do not
  * introduce new colors or shapes here.
  *
  * The `state` prop is always derived by the caller from domain data (an open
  * `GapInstance`, a quittierte Lücke, a plain covered position, …).
- * CoverageIndicator never computes coverage itself — it only renders a state
+ * CoverageIndicator never computes coverage itself; it only renders a state
  * it is told.
  */
+
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type CoverageState = "covered" | "gap" | "acknowledged";
 type CoverageIndicatorSize = "sm" | "md";
@@ -67,10 +69,10 @@ const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
   acknowledged: "text-gray-600",
 };
 
-/** Understaffing-red for the "Ist" figure — only ever used as text color. */
+/** Understaffing-red for the "Ist" figure, only ever used as text color. */
 const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
 
-/** Delta tint of the free-form label — text color only, never a fill. */
+/** Delta tint of the free-form label, text color only, never a fill. */
 const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
   under: MOTO_COLOR_PALETTE.red.base,
   over: "#EAB308",
@@ -165,4 +167,3 @@ export function CoverageIndicator({
     </span>
   );
 }
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
