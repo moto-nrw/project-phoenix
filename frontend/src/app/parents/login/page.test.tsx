@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -204,6 +204,48 @@ describe("ParentLoginPage i18n", () => {
     expect(
       screen.getByRole("button", { name: "Signing in..." }),
     ).toBeDisabled();
+  });
+
+  it("releases the form when the session never arrives after a successful login", async () => {
+    // NextAuth holt die Session per fetchData(), das jeden Fetch-Fehler
+    // schluckt und null liefert. signIn meldet dann ok, status bleibt aber
+    // "unauthenticated" und der Redirect feuert nie — ohne Watchdog bliebe das
+    // Formular dauerhaft gesperrt und ohne Fehlermeldung zurück.
+    vi.useFakeTimers();
+    mocks.signIn.mockResolvedValue({ error: null });
+
+    try {
+      render(<ParentLoginPage />);
+
+      fireEvent.change(screen.getByLabelText("Email address"), {
+        target: { value: "parent@example.com" },
+      });
+      fireEvent.change(screen.getByLabelText("Password"), {
+        target: { value: "password123" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(
+        screen.getByRole("button", { name: "Signing in..." }),
+      ).toBeDisabled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Forgot your password?" }),
+      ).toBeEnabled();
+      expect(screen.getByText("Login error. Please try again.")).toBeVisible();
+      expect(mocks.push).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens the password reset modal with localized parent copy", () => {
