@@ -307,9 +307,9 @@ export const GROUP_ROOM_SHADES = {
  * 1.9:1, all far under the WCAG minimum for normal text. These keep the hue and
  * only take brightness away.
  *
- * Calibrated against {@link SURFACE_GRAY_50}, the darker of the two surfaces
+ * Calibrated against Tailwind gray-50 (#F9FAFB), the darker of the two surfaces
  * they run on (the badge pill; cards are white), so every entry holds on both.
- * The comments carry the ratio on gray-50 — on white each value is a little
+ * The comments carry the ratio on gray-50; on white each value is a little
  * better still.
  *
  * Keyed by the lowercased base hex, so a component only knows its brand color
@@ -333,9 +333,6 @@ const ACCESSIBLE_TEXT_COLORS: Record<string, string> = {
   // EXCUSED #7C3AED is absent on purpose: at 5.5:1 the raw purple already
   // clears the target and is returned unchanged.
 };
-
-/** Tailwind gray-50, the badge-pill background. */
-export const SURFACE_GRAY_50 = "#F9FAFB";
 
 const SURFACE_WHITE = "#FFFFFF";
 
