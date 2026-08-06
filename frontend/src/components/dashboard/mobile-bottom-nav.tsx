@@ -87,23 +87,23 @@ function MobileNavIcon({
   }
 
   if (active) {
-    const ConceptIcon = concept.icon;
     return (
-      <ConceptIcon
+      <MotoDuotoneIcon
+        icon={concept.icon}
+        tone={concept.tone}
         size={20}
-        weight="regular"
         className={className}
-        aria-hidden="true"
       />
     );
   }
 
+  const ConceptIcon = concept.icon;
   return (
-    <MotoDuotoneIcon
-      icon={concept.icon}
-      tone={concept.tone}
+    <ConceptIcon
       size={20}
+      weight="regular"
       className={className}
+      aria-hidden="true"
     />
   );
 }
@@ -921,14 +921,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         : {})}
                       className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
                         isActive
-                          ? "bg-gray-900 text-white"
+                          ? "bg-gray-100 font-semibold text-gray-900"
                           : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
                       } `}
                     >
                       <MobileNavIcon
                         item={item}
                         active={isActive}
-                        className={`h-5 w-5 ${isActive ? "text-white" : "text-gray-600"}`}
+                        className={`h-5 w-5 ${isActive ? "" : "text-gray-600"}`}
                       />
                       <span className="text-base font-medium">
                         {item.label}
@@ -954,7 +954,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {/* Sliding background indicator */}
               {indicatorVisible && (
                 <div
-                  className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
+                  className={`absolute top-0 h-full rounded-full bg-gray-100 ${
                     isInitialMount.current
                       ? ""
                       : "transition-all duration-150 ease-out"
@@ -1003,7 +1003,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     aria-label={item.label}
                     className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
-                        ? "bg-gray-900 text-white"
+                        ? "bg-gray-100 text-gray-900"
                         : "text-gray-400 hover:text-gray-600"
                     } `}
                   >
@@ -1033,7 +1033,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   aria-label="Mehr"
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? "bg-gray-900 text-white"
+                      ? "bg-gray-100 text-gray-900"
                       : "text-gray-400 hover:text-gray-600"
                   } `}
                 >
