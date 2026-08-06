@@ -6,6 +6,7 @@ import {
   listRelatedAccounts,
   inviteRelatedAccount,
   removeRelatedAccount,
+  ParentApiError,
   type RelatedAccount,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
@@ -28,6 +29,18 @@ const STATUS_META: Record<RelatedAccount["status"], { label: string }> = {
 function guardianRoleLabel(role: string | undefined): string | null {
   const option = GUARDIAN_ROLE_OPTIONS.find((o) => o.value === role);
   return option?.label ?? null;
+}
+
+// Maps a failed invite to a German message. Social-worker contacts are
+// school-managed; the backend refuses to invite or upgrade them (#2172).
+function inviteErrorText(err: unknown, fallback: string): string {
+  if (
+    err instanceof ParentApiError &&
+    err.code === "guardian_social_worker_managed"
+  ) {
+    return "Dieser Kontakt wird von der Schule verwaltet und kann nicht über die Eltern-App eingeladen werden.";
+  }
+  return err instanceof Error ? err.message : fallback;
 }
 
 function initials(first: string, last: string): string {
@@ -120,7 +133,7 @@ export default function RelatedAccountsPanel({
       });
       setMessage({
         kind: "error",
-        text: err instanceof Error ? err.message : "Einladung fehlgeschlagen",
+        text: inviteErrorText(err, "Einladung fehlgeschlagen"),
       });
     } finally {
       setBusy(false);
@@ -159,7 +172,7 @@ export default function RelatedAccountsPanel({
       setUpgradePrompt(null);
       setMessage({
         kind: "error",
-        text: err instanceof Error ? err.message : "Freigabe fehlgeschlagen",
+        text: inviteErrorText(err, "Freigabe fehlgeschlagen"),
       });
     } finally {
       setBusy(false);

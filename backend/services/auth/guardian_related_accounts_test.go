@@ -1005,3 +1005,95 @@ func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
 		"full-role links must not trigger the restricted-contact confirmation")
 	assert.Empty(t, result.ExistingRole)
 }
+
+func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Social", "Worker", "7g")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "social-worker-link")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleSocialWorker)
+
+	// Without confirmation → refused outright, never the confirmation outcome.
+	_, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     *profile.Email,
+		CreatedBy: creatorID,
+	})
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	// With confirmation → still refused; the upgrade path must stay closed.
+	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:          student.ID,
+		Email:              *profile.Email,
+		CreatedBy:          creatorID,
+		ConfirmRoleUpgrade: true,
+	})
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	// Approval mode (parent-shaped) → refused before anything is queued.
+	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole, "link must be untouched")
+	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, profile.ID)
+	require.NoError(t, err)
+	assert.Empty(t, invitations, "refusal must not create invitation rows")
+}
+
+func TestApproveInvitation_RoleUpgradeSkipsSocialWorkerLink(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Repurposed", "7h")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-repurposed")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+
+	// The link becomes a school-managed social-worker contact between the
+	// request and the staff approval.
+	link := env.fetchLink(t, student.ID, profile.ID)
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleSocialWorker)
+	require.NoError(t, env.repos.StudentGuardian.Update(ctx, link))
+
+	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+
+	link = env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole,
+		"persisted upgrade flag must not promote a social-worker link")
+	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+}

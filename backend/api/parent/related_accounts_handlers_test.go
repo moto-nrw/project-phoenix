@@ -61,6 +61,16 @@ func (relAcctStubInvites) RevokeAccess(_ context.Context, _ authService.RevokeAc
 	return nil
 }
 
+// relAcctSocialWorkerInvites refuses every invite with the social-worker
+// sentinel, mirroring the service refusal for school-managed contacts (#2172).
+type relAcctSocialWorkerInvites struct {
+	authService.GuardianInvitationService
+}
+
+func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
+	return nil, &authService.AuthError{Op: "invite guardian to student", Err: authService.ErrInviteSocialWorkerManaged}
+}
+
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
 	viper.Set("auth_jwt_secret", testJWTSecret)
@@ -212,4 +222,20 @@ func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
 	assert.True(t, invites.lastReq.ConfirmRoleUpgrade, "confirm_role_upgrade must reach the invite service")
 	assert.Contains(t, rr.Body.String(), `"outcome":"existing_contact_restricted"`)
 	assert.Contains(t, rr.Body.String(), `"existing_role":"emergency_contact"`)
+}
+
+func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	router := newRelAcctRouterWithInvites(t, db, relAcctSocialWorkerInvites{})
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
+		map[string]any{"email": "sozialdienst@example.test", "confirm_role_upgrade": true})
+	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"code":"guardian_social_worker_managed"`)
 }

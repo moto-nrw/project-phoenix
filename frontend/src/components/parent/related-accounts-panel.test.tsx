@@ -1,29 +1,34 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import RelatedAccountsPanel from "./related-accounts-panel";
-import type { RelatedAccount } from "~/lib/parent-api";
+import { ParentApiError, type RelatedAccount } from "~/lib/parent-api";
 
 const mockList = vi.fn();
 const mockInvite = vi.fn();
 const mockRemove = vi.fn();
 
-vi.mock("~/lib/parent-api", () => ({
-  listRelatedAccounts: (studentId: string): unknown => mockList(studentId),
-  // Forward the options argument only when present, so the older two-argument
-  // assertions keep matching plain invites.
-  inviteRelatedAccount: (
-    studentId: string,
-    email: string,
-    options?: unknown,
-  ): unknown =>
-    options === undefined
-      ? mockInvite(studentId, email)
-      : mockInvite(studentId, email, options),
-  removeRelatedAccount: (
-    studentId: string,
-    guardianProfileId: string,
-  ): unknown => mockRemove(studentId, guardianProfileId),
-}));
+vi.mock("~/lib/parent-api", async (importOriginal) => {
+  // Keep the real ParentApiError class so instanceof checks in the panel work.
+  const actual = await importOriginal<typeof import("~/lib/parent-api")>();
+  return {
+    ParentApiError: actual.ParentApiError,
+    listRelatedAccounts: (studentId: string): unknown => mockList(studentId),
+    // Forward the options argument only when present, so the older
+    // two-argument assertions keep matching plain invites.
+    inviteRelatedAccount: (
+      studentId: string,
+      email: string,
+      options?: unknown,
+    ): unknown =>
+      options === undefined
+        ? mockInvite(studentId, email)
+        : mockInvite(studentId, email, options),
+    removeRelatedAccount: (
+      studentId: string,
+      guardianProfileId: string,
+    ): unknown => mockRemove(studentId, guardianProfileId),
+  };
+});
 
 vi.mock("~/components/ui/modal", () => ({
   ConfirmationModal: ({
@@ -175,6 +180,35 @@ describe("RelatedAccountsPanel", () => {
     await waitFor(() =>
       expect(mockInvite).toHaveBeenCalledWith("1", "oma@example.test"),
     );
+  });
+
+  it("explains that school-managed social-worker contacts cannot be invited", async () => {
+    mockInvite.mockRejectedValue(
+      new ParentApiError(
+        "a social-worker contact is managed by the school",
+        403,
+        "guardian_social_worker_managed",
+      ),
+    );
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={true} canRemove={false} />,
+    );
+    await waitFor(() => screen.getByText("Sabine Schneider"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Einladen/ }));
+    fireEvent.change(screen.getByPlaceholderText("E-Mail-Adresse"), {
+      target: { value: "sozialdienst@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Senden/ }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Dieser Kontakt wird von der Schule verwaltet und kann nicht über die Eltern-App eingeladen werden.",
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("upgrade-modal")).not.toBeInTheDocument();
   });
 
   it("removes a non-primary account but never the primary", async () => {

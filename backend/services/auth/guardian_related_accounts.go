@@ -175,6 +175,14 @@ func (s *guardianInvitationService) detectRestrictedContact(ctx context.Context,
 	if authorize.IsFullGuardianRole(link.GuardianRole) {
 		return false, nil, nil
 	}
+	// A social worker is a school-managed professional contact, never a
+	// candidate for the legal-guardian upgrade — the parent edit paths reject
+	// every parent write to such a link (ErrGuardianSocialWorkerManaged), and
+	// the invite flow must not open a side door. Refuse the invite outright,
+	// with or without confirmation.
+	if authorize.NormalizeGuardianRole(link.GuardianRole) == authorize.GuardianRoleSocialWorker {
+		return false, nil, &AuthError{Op: opGuardianInviteToStudent, Err: ErrInviteSocialWorkerManaged}
+	}
 	if !req.ConfirmRoleUpgrade {
 		return false, &InviteToStudentResult{
 			Outcome:           InviteOutcomeExistingContactRestricted,
@@ -194,6 +202,15 @@ func (s *guardianInvitationService) upgradeStudentLink(ctx context.Context, stud
 		return &AuthError{Op: op, Err: err}
 	}
 	if authorize.IsFullGuardianRole(link.GuardianRole) {
+		return nil
+	}
+	// Defense in depth: a persisted RoleUpgrade flag must not promote a link
+	// that became a social-worker contact between request and approval.
+	if authorize.NormalizeGuardianRole(link.GuardianRole) == authorize.GuardianRoleSocialWorker {
+		s.getLogger().Warn("guardian contact upgrade skipped: social-worker link is school-managed",
+			slog.Int64("student_id", studentID),
+			slog.Int64("guardian_profile_id", guardianProfileID),
+		)
 		return nil
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleLegalGuardian)

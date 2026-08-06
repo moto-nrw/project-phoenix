@@ -75,3 +75,43 @@ func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, current.GuardianRole)
 	assert.True(t, authorize.StudentGuardianHasPermission(current, authorize.GuardianPermissionPortalAccess))
 }
+
+func TestInviteGuardianToStudent_SocialWorkerLinkRefused(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "SocialWorker", "8b")
+	profile := testpkg.CreateTestGuardianProfile(t, ctx.db, "staff-social-worker")
+	tenantCtx := testpkg.TenantContext(1)
+	defer func() {
+		_, _ = ctx.db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(context.Background())
+		_, _ = ctx.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+		_, _ = ctx.db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(context.Background())
+	}()
+
+	link := &userModels.StudentGuardian{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "other",
+		EmergencyPriority: 1,
+	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleSocialWorker)
+	link.SetTenantID(1)
+	repos := repositories.NewFactory(ctx.db)
+	require.NoError(t, repos.StudentGuardian.Create(tenantCtx, link))
+
+	router := ctx.resource.Router()
+	path := "/students/" + strconv.FormatInt(student.ID, 10) + "/invite"
+
+	// Even a confirmed upgrade attempt is refused for a social-worker link.
+	req := testutil.NewAuthenticatedRequest(t, "POST", path,
+		map[string]any{"email": *profile.Email, "confirm_role_upgrade": true},
+		bearer(t, testutil.DefaultTestClaims()),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+
+	current, err := repos.StudentGuardian.FindByStudentAndGuardianForUpdate(tenantCtx, student.ID, profile.ID)
+	require.NoError(t, err)
+	assert.Equal(t, authorize.GuardianRoleSocialWorker, current.GuardianRole, "link must be untouched")
+}
