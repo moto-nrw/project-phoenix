@@ -15,6 +15,7 @@ import {
   Check,
   CheckCircle2,
   CircleX,
+  Palette,
   Pencil,
   Repeat,
   RotateCcw,
@@ -820,6 +821,9 @@ export function InstanceDetailModal({
               label="Raum"
             >
               {instance.roomName || `Raum #${instance.roomId}`}
+            </Row>
+            <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
+              {instance.planningTrackName ?? "Keine Planungsspur"}
             </Row>
             <Row
               icon={<MotoConceptIcon concept="staff" size={18} />}

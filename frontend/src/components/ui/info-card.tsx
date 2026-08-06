@@ -1,5 +1,4 @@
 import type React from "react";
-import { SectionHeader } from "~/components/ui/concept-section-header";
 
 /**
  * Mobile-optimized info card component
@@ -9,14 +8,34 @@ export function InfoCard({
   title,
   children,
   icon,
+  eyebrow,
+  headingLevel = 2,
 }: Readonly<{
   title: string;
   children: React.ReactNode;
   icon: React.ReactNode;
+  eyebrow?: string;
+  headingLevel?: 1 | 2;
 }>) {
+  const Heading = headingLevel === 1 ? "h1" : "h2";
+
   return (
     <div className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
-      <SectionHeader className="mb-4" title={title} icon={icon} />
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+          {icon}
+        </div>
+        <div>
+          {eyebrow && (
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              {eyebrow}
+            </p>
+          )}
+          <Heading className="text-base font-semibold text-gray-900 sm:text-lg">
+            {title}
+          </Heading>
+        </div>
+      </div>
       {/* flex-1 lets a child opt into bottom-pinning via mt-auto (e.g. an action
           row that should align across cards of different content length). */}
       <div className="flex flex-1 flex-col space-y-3">{children}</div>
@@ -33,7 +52,8 @@ export function InfoItem({
   value,
   icon,
 }: Readonly<{
-  label: string;
+  /** Plain text, or text plus an inline marker (e.g. ParentVisibleBadge). */
+  label: string | React.ReactNode;
   value: string | React.ReactNode;
   icon?: React.ReactNode;
 }>) {

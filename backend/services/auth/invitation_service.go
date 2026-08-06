@@ -161,7 +161,13 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	if invitation.Role != nil {
 		roleName = invitation.Role.Name
 	}
-	s.sendInvitationEmail(invitation, roleName, req.SchoolName)
+	// Queue the email until the surrounding tenant transaction commits: the
+	// staff import creates invitations mid-transaction, and a rolled-back
+	// token must never reach an inbox as a dead link. Outside a tenant tx
+	// the hook runs synchronously.
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.sendInvitationEmail(invitation, roleName, req.SchoolName)
+	})
 
 	return invitation, nil
 }

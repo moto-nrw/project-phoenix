@@ -51,6 +51,21 @@ func (r *RequestChildRepository) FindByID(ctx context.Context, id int64) (*enrol
 	return child, nil
 }
 
+func (r *RequestChildRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var children []*enrollment.RequestChild
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&children).
+		ModelTableExpr(requestChildTableExpr).
+		Where(`"request_child".id IN (?)`, bun.List(ids)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list request children by ids: %w", err)
+	}
+	return children, nil
+}
+
 // ListByRequestID returns all children for a request, sorted by sort_order.
 func (r *RequestChildRepository) ListByRequestID(ctx context.Context, requestID int64) ([]*enrollment.RequestChild, error) {
 	return r.listByRequestID(ctx, requestID, "")
@@ -128,6 +143,60 @@ func (r *RequestChildRepository) UpdateStatus(ctx context.Context, id int64, new
 		return fmt.Errorf("request child %d not found", id)
 	}
 	return nil
+}
+
+// RestoreWithdrawnByRequestID flips every withdrawn child of the request
+// out of withdrawn and clears the review metadata the withdraw path
+// stamped (status_reason, reviewed_at, reviewed_by). UpdateStatus cannot
+// express this: it always bumps reviewed_at, but a restored child must
+// look un-reviewed again. Children in waitlistedChildIDs come back as
+// waitlisted (the capacity gate flagged their offering as full — same
+// outcome Submit would have produced), everyone else as submitted.
+// Returns the ids of all restored rows; an empty result means the request
+// had no withdrawn children.
+func (r *RequestChildRepository) RestoreWithdrawnByRequestID(ctx context.Context, requestID int64, waitlistedChildIDs []int64) ([]int64, error) {
+	if requestID <= 0 {
+		return nil, fmt.Errorf("request id is required")
+	}
+	restored := make([]int64, 0)
+	if len(waitlistedChildIDs) > 0 {
+		var waitlisted []int64
+		err := base.GetDB(ctx, r.db).NewUpdate().
+			Model((*enrollment.RequestChild)(nil)).
+			ModelTableExpr(requestChildTableExpr).
+			Set("status = ?", enrollment.ChildStatusWaitlisted).
+			Set("status_reason = NULL").
+			Set("reviewed_at = NULL").
+			Set("reviewed_by = NULL").
+			Set("updated_at = NOW()").
+			Where(`"request_child".request_id = ?`, requestID).
+			Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn).
+			Where(`"request_child".id IN (?)`, bun.List(waitlistedChildIDs)).
+			Returning(`"request_child".id`).
+			Scan(ctx, &waitlisted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to restore withdrawn request children to waitlist: %w", err)
+		}
+		restored = append(restored, waitlisted...)
+	}
+	var submitted []int64
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("status = ?", enrollment.ChildStatusSubmitted).
+		Set("status_reason = NULL").
+		Set("reviewed_at = NULL").
+		Set("reviewed_by = NULL").
+		Set("updated_at = NOW()").
+		Where(`"request_child".request_id = ?`, requestID).
+		Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn)
+	if len(waitlistedChildIDs) > 0 {
+		q = q.Where(`"request_child".id NOT IN (?)`, bun.List(waitlistedChildIDs))
+	}
+	if err := q.Returning(`"request_child".id`).Scan(ctx, &submitted); err != nil {
+		return nil, fmt.Errorf("failed to restore withdrawn request children: %w", err)
+	}
+	return append(restored, submitted...), nil
 }
 
 // UpdateData updates the parent-supplied child fields without changing
@@ -266,6 +335,39 @@ func (r *RequestChildRepository) CountCreatedStudentsByPhaseID(ctx context.Conte
 		return 0, fmt.Errorf("failed to count created students by phase: %w", err)
 	}
 	return count, nil
+}
+
+// ListCarePeriodsByStudentID returns the approved enrollments behind a student
+// together with the care window of their phase, latest window first. Joined
+// rather than filtered because the window lives on enrollment.phases, two joins
+// away from the child row. Tenant RLS applies on all three tables.
+func (r *RequestChildRepository) ListCarePeriodsByStudentID(
+	ctx context.Context,
+	studentID int64,
+) ([]*enrollment.StudentCarePeriod, error) {
+	if studentID <= 0 {
+		return nil, fmt.Errorf("student id must be positive")
+	}
+	periods := make([]*enrollment.StudentCarePeriod, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&periods).
+		ModelTableExpr(requestChildTableExpr).
+		Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+		Join(`INNER JOIN enrollment.phases AS "phase" ON "phase".id = "request".phase_id`).
+		ColumnExpr(`"request_child".id AS request_child_id`).
+		ColumnExpr(`"request".id AS request_id`).
+		ColumnExpr(`"phase".id AS phase_id`).
+		ColumnExpr(`"phase".name AS phase_name`).
+		ColumnExpr(`"phase".service_start_date AS service_start_date`).
+		ColumnExpr(`"phase".service_end_date AS service_end_date`).
+		Where(`"request_child".created_student_id = ?`, studentID).
+		Where(`"request_child".status = ?`, enrollment.ChildStatusApproved).
+		OrderExpr(`"phase".service_start_date DESC, "request_child".id DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care periods by student: %w", err)
+	}
+	return periods, nil
 }
 
 // ListByPhaseAndStatuses joins through enrollment.requests to filter by

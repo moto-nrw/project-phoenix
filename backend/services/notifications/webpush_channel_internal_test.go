@@ -36,7 +36,11 @@ type fakePushRepo struct {
 	staffAccountsAsked []int64
 	staffAccountsErr   error
 	deleteErr          error
-	mu                 sync.Mutex
+	// guardiansStudentIDs records the children the guardian lookup was scoped
+	// to, and hiddenStudentID is the child whose access the school has revoked.
+	guardiansStudentIDs []int64
+	hiddenStudentID     int64
+	mu                  sync.Mutex
 }
 
 func (f *fakePushRepo) FindForTenantStaff(context.Context) ([]*iot.PushSubscription, error) {
@@ -47,7 +51,22 @@ func (f *fakePushRepo) FindForTenantAdmins(context.Context) ([]*iot.PushSubscrip
 	return f.admins, nil
 }
 
-func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+func (f *fakePushRepo) FindForGuardians(_ context.Context, accountIDs []int64, studentIDs []int64) ([]*iot.PushSubscription, error) {
+	f.guardiansStudentIDs = studentIDs
+	// Mirrors the repository predicate: the scope admits an account only while it
+	// still holds access to at least one of the listed children.
+	if len(studentIDs) > 0 {
+		permitted := false
+		for _, studentID := range studentIDs {
+			if studentID != f.hiddenStudentID {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			return nil, nil
+		}
+	}
 	var subscriptions []*iot.PushSubscription
 	for _, accountID := range accountIDs {
 		subscriptions = append(subscriptions, f.guardians[accountID]...)
@@ -235,6 +254,42 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+
+	// A child-scoped audience carries the child into the device lookup, which is
+	// where parent_portal.access is answered for the transaction that sends.
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+		StudentIDs:         []int64{55},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+	assert.Equal(t, []int64{55}, repo.guardiansStudentIDs,
+		"the lookup must be told which children the notification is about")
+
+	// Access to that child revoked since the producer picked its audience: the
+	// account keeps its devices and its consent, and still gets nothing.
+	repo.hiddenStudentID = 55
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+		StudentIDs:         []int64{55},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	// An event that is not about one child stays unscoped.
+	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+		TenantID:           41,
+		Scope:              ScopeGuardian,
+		GuardianAccountIDs: []int64{99},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
+	assert.Empty(t, repo.guardiansStudentIDs)
+	repo.hiddenStudentID = 0
 
 	// Group scope is deliberately unsupported: no error, no recipients.
 	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGroup, ActiveGroupID: "g1"})
@@ -442,6 +497,51 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("web push send did not finish")
 	}
+}
+
+func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
+	event := Event{Type: "test", Audience: Audience{TenantID: 41, Scope: ScopeTenant}, Title: "Test"}
+
+	t.Run("without VAPID configuration", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		channel.vapid = VAPIDConfig{}
+		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
+	})
+
+	t.Run("without matching subscriptions", func(t *testing.T) {
+		channel := testChannel(&fakePushRepo{}, &fakeSender{})
+		db, mock := mockTenantTx(t)
+		channel.db = db
+
+		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestWebPushDeliverSynchronouslyPreservesCallerDeadline(t *testing.T) {
+	channel := testChannel(&fakePushRepo{staff: []*iot.PushSubscription{
+		testSub(1, 41, "https://fcm.googleapis.com/device"),
+	}}, &fakeSender{})
+	db, mock := mockTenantTx(t)
+	channel.db = db
+
+	deadline := time.Now().Add(time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	var sendDeadline time.Time
+	channel.sender.(*fakeSender).sendFn = func(sendCtx context.Context) {
+		var ok bool
+		sendDeadline, ok = sendCtx.Deadline()
+		require.True(t, ok, "synchronous sends must inherit the scheduler deadline")
+	}
+
+	require.NoError(t, channel.DeliverSynchronously(ctx, Event{
+		Type:     "test",
+		Audience: Audience{TenantID: 41, Scope: ScopeTenant},
+		Title:    "Test",
+	}))
+	assert.WithinDuration(t, deadline, sendDeadline, 100*time.Millisecond)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 // findForStaffAccounts is the batch path's finder. Kept next to the other

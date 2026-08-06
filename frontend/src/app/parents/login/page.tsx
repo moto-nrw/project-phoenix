@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
-import { redirect, useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -19,6 +19,14 @@ import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
 
+/**
+ * Wie lange nach einem erfolgreichen signIn auf die publizierte Session
+ * gewartet wird, bevor das Formular wieder freigegeben wird. Der Abruf geht an
+ * die eigene Route (/api/parent/auth/session), zehn Sekunden sind also
+ * reichlich und trotzdem kurz genug, dass niemand vor einem toten Screen sitzt.
+ */
+const SESSION_HANDOFF_TIMEOUT_MS = 10_000;
+
 export default function ParentLoginPage() {
   const t = useTranslations("parentLogin");
   const tAuthShell = useTranslations("parentAuthShell");
@@ -29,7 +37,9 @@ export default function ParentLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const router = useRouter();
+  // True zwischen erfolgreichem signIn und der publizierten Session. Steuert
+  // den Watchdog weiter unten.
+  const [awaitingSession, setAwaitingSession] = useState(false);
   const { data: session, status } = useSession();
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
   // Separate state controls the loading spinner for the UI.
@@ -72,6 +82,32 @@ export default function ParentLoginPage() {
     void check();
   }, [status, session]);
 
+  // Watchdog für die Übergabe von signIn an die Session. signIn kann ok
+  // melden, ohne dass danach je eine Session ankommt: NextAuth holt sie per
+  // fetchData(), und das schluckt JEDEN Fetch-Fehler und liefert null
+  // (next-auth/lib/client.js). Ein einzelner wackliger GET auf
+  // /api/parent/auth/session lässt status damit auf "unauthenticated" stehen,
+  // der redirect() unten feuert nie. Ohne diesen Watchdog bliebe das Formular
+  // mit "Anmeldung läuft..." dauerhaft gesperrt und ohne Fehlermeldung
+  // zurück, und nur ein manueller Reload käme da wieder raus.
+  useEffect(() => {
+    if (!awaitingSession) return;
+    const timer = setTimeout(() => {
+      setAwaitingSession(false);
+      setIsLoading(false);
+      setError(t("errors.generic"));
+    }, SESSION_HANDOFF_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [awaitingSession, t]);
+
+  // Einzige Weiterleitung nach erfolgreichem Login. Sie greift, sobald NextAuth
+  // die neue Session veröffentlicht — auch für den Fall "bereits angemeldet,
+  // ruft /login direkt auf". handleSubmit darf daher NICHT zusätzlich
+  // router.push() feuern: zwei gleichzeitige Navigationen auf dasselbe Ziel
+  // lassen den App-Router-State als pending Thenable stehen, und das
+  // bedingte `use(state)` in Next' useActionQueue rendert dann eine
+  // unterschiedliche Anzahl Hooks ("Rendered more hooks than during the
+  // previous render", Seite bricht ab, erst ein Reload heilt es).
   if (isRedirectingToParent) {
     redirect(parentPath("/parents"));
   }
@@ -101,13 +137,17 @@ export default function ParentLoginPage() {
           invalid_credentials: t("errors.invalidCredentials"),
         };
         setError(errorMessages[result.code ?? ""] ?? t("errors.invalid"));
+        setIsLoading(false);
         return;
       }
 
-      router.push(parentPath("/parents"));
+      // Kein router.push hier — die Weiterleitung oben übernimmt. isLoading
+      // bleibt absichtlich stehen, damit das Formular bis zur Navigation
+      // gesperrt bleibt und niemand ein zweites Mal absendet; der Watchdog
+      // gibt es wieder frei, falls die Session ausbleibt.
+      setAwaitingSession(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.generic"));
-    } finally {
       setIsLoading(false);
     }
   };

@@ -4,9 +4,68 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUpdateTemplatePlanningTrackThreeState(t *testing.T) {
+	cases := []struct {
+		name         string
+		fragment     string
+		wantProvided bool
+		wantValue    *int64
+	}{
+		{name: "omitted preserves", wantProvided: false},
+		{name: "null clears", fragment: `"planning_track_id": null`, wantProvided: true},
+		{name: "number assigns", fragment: `"planning_track_id": 42`, wantProvided: true, wantValue: testInt64Ptr(42)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &updateTemplateRequest{}
+			require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(tc.fragment)), req))
+
+			input := buildUpdateTemplateInput(
+				100,
+				&parsedUpdateTemplate{req: req},
+				200,
+				4,
+				timezone.Date{},
+			)
+
+			assert.Equal(t, tc.wantProvided, input.Fields.PlanningTrackIDProvided)
+			assert.Equal(t, tc.wantValue, input.Fields.PlanningTrackID)
+		})
+	}
+}
+
+func TestBuildTemplateSplitInputPlanningTrackThreeState(t *testing.T) {
+	cases := []struct {
+		name         string
+		fragment     string
+		wantProvided bool
+		wantValue    *int64
+	}{
+		{name: "omitted inherits", wantProvided: false},
+		{name: "null clears", fragment: `"planning_track_id": null`, wantProvided: true},
+		{name: "number assigns", fragment: `"planning_track_id": 42`, wantProvided: true, wantValue: testInt64Ptr(42)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &splitTemplateRequest{}
+			require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(tc.fragment)), req))
+
+			input, err := buildTemplateSplitInput(100, req)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantProvided, input.PlanningTrackIDProvided)
+			assert.Equal(t, tc.wantValue, input.PlanningTrackID)
+		})
+	}
+}
+
+func testInt64Ptr(value int64) *int64 {
+	return &value
+}
 
 // splitBodyJSON builds a minimal valid split request body; the required_staff
 // fragment is spliced in per-case so the three-state (omitted / null / value)
@@ -113,6 +172,55 @@ func TestBuildTemplateSplitInput_ListKindThreeState(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The split flow must carry the offering-source rule (#2137) with the same
+// three-state contract as the template PUT (#2147 review round 14): omitted
+// inherits the old template's source and filter, an explicit null clears
+// them, values set them. Without the pass-through the service always copied
+// the old template's rule and a requested change was silently dropped.
+func TestBuildTemplateSplitInput_SourceFieldsThreeState(t *testing.T) {
+	t.Run("omitted -> inherit (not provided)", func(t *testing.T) {
+		req := &splitTemplateRequest{}
+		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON("")), req))
+
+		in, err := buildTemplateSplitInput(100, req)
+		require.NoError(t, err)
+
+		assert.False(t, in.SourceCareOfferingIDProvided)
+		assert.False(t, in.SourceGradeLevelsProvided)
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels)
+	})
+
+	t.Run("explicit null -> clear (provided, nil)", func(t *testing.T) {
+		req := &splitTemplateRequest{}
+		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(
+			`"source_care_offering_id": null, "source_grade_levels": null`)), req))
+
+		in, err := buildTemplateSplitInput(100, req)
+		require.NoError(t, err)
+
+		assert.True(t, in.SourceCareOfferingIDProvided)
+		assert.True(t, in.SourceGradeLevelsProvided)
+		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceGradeLevels)
+	})
+
+	t.Run("values -> set (provided)", func(t *testing.T) {
+		req := &splitTemplateRequest{}
+		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(
+			`"source_care_offering_id": 7, "source_grade_levels": [2, 3]`)), req))
+
+		in, err := buildTemplateSplitInput(100, req)
+		require.NoError(t, err)
+
+		require.True(t, in.SourceCareOfferingIDProvided)
+		require.NotNil(t, in.SourceCareOfferingID)
+		assert.EqualValues(t, 7, *in.SourceCareOfferingID)
+		assert.True(t, in.SourceGradeLevelsProvided)
+		assert.Equal(t, []int{2, 3}, in.SourceGradeLevels)
+	})
 }
 
 func TestSplitTemplateRequestBind_RejectsWeekendWeekdays(t *testing.T) {

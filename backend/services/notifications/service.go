@@ -79,6 +79,25 @@ type Audience struct {
 	GuardianAccountIDs []int64 // batched recipients for ScopeGuardian
 	ActiveGroupID      string  // required for ScopeGroup
 	StaffAccountIDs    []int64 // recipients for ScopeStaff (auth.accounts.id)
+
+	// StudentIDs marks a guardian-scoped event as being ABOUT these children, and
+	// is an authorization instruction rather than payload: the delivery
+	// transaction re-reads users.students_guardians and keeps only recipients who
+	// still hold parent_portal.access for at least one of them.
+	//
+	// Producers decide their audience in the transaction that produced the event;
+	// devices are resolved later, in a transaction of their own. Between the two
+	// a school can revoke a guardian's access to a child, and a push is rendered
+	// on a lock screen — so the question is answered again where the sending
+	// happens. It can only narrow the audience the producer chose, never widen
+	// it: every listed child was already part of what the producer resolved, so
+	// "at least one" cannot admit a recipient the producer excluded.
+	//
+	// One child for a message or a decided request, the children an appointment
+	// was addressed to for the calendar producers. Leave it empty only for events
+	// that are about no child at all (broadcast announcements); those are gated
+	// by their own producer.
+	StudentIDs []int64
 }
 
 // Event is a channel-agnostic notification. Title/Body/DeepLink are
@@ -111,6 +130,13 @@ type Channel interface {
 	Deliver(ctx context.Context, event Event) error
 }
 
+// synchronousChannel reports Web Push acceptance to a producer that must not
+// mark a durable delivery complete until the push service has responded.
+type synchronousChannel interface {
+	Channel
+	DeliverSynchronously(ctx context.Context, event Event) error
+}
+
 // BatchChannel is implemented by channels that can serve many events at once
 // more cheaply than one at a time. The router uses it when available and loops
 // Deliver otherwise, so implementing it is always optional.
@@ -133,6 +159,13 @@ type BatchNotifier interface {
 type Notifier interface {
 	Service
 	BatchNotifier
+	SynchronousService
+}
+
+// SynchronousService is for durable producers such as appointment reminders.
+// Unlike Notify, it waits for Web Push acceptance and returns delivery errors.
+type SynchronousService interface {
+	NotifySynchronously(ctx context.Context, event Event) error
 }
 
 // Service is the entry point features use to trigger notifications.
@@ -182,6 +215,17 @@ func validate(event Event) error {
 	}
 	if event.Title == "" {
 		return errors.New("notification event requires a title")
+	}
+	// A child scope only means something where it is enforced, which is the
+	// guardian device lookup. Silently ignoring it elsewhere would let a producer
+	// believe it had narrowed an audience it did not narrow.
+	if len(event.Audience.StudentIDs) > 0 && event.Audience.Scope != ScopeGuardian {
+		return fmt.Errorf("student-scoped audience requires the guardian scope, got %q", event.Audience.Scope)
+	}
+	for _, studentID := range event.Audience.StudentIDs {
+		if studentID <= 0 {
+			return errors.New("student-scoped audience requires positive student ids")
+		}
 	}
 	switch event.Audience.Scope {
 	case ScopeTenant:
@@ -267,9 +311,65 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	event.Data = maps.Clone(event.Data)
 	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 	event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
+	event.Audience.StudentIDs = slices.Clone(event.Audience.StudentIDs)
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliver(dispatchCtx, event)
 	})
+	return nil
+}
+
+func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
+	if err := validate(event); err != nil {
+		return err
+	}
+	if event.Priority == "" {
+		event.Priority = PriorityNormal
+	}
+	if r.settings == nil {
+		return errors.New("notifications service has no settings service configured")
+	}
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, configModel.KeyNotificationsDispatchEnabled)
+	if err != nil {
+		return fmt.Errorf("resolving notification feature flag: %w", err)
+	}
+	if !enabled {
+		return ErrDisabled
+	}
+	if event.Type != TypeTest {
+		within, err := r.withinActiveWindow(ctx, event.Audience.TenantID)
+		if err != nil {
+			return err
+		}
+		if !within {
+			return ErrOutsideActiveWindow
+		}
+	}
+	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	// The durable producer waits for one channel, not for all of them. Every
+	// other channel stays fire-and-forget exactly as in Notify — a parent with
+	// the portal open must see the in-app notification even though only Web
+	// Push acceptance decides whether the producer may mark the delivery done.
+	// They run first so a push failure cannot skip them.
+	for _, ch := range r.channels {
+		if _, ok := ch.(synchronousChannel); ok {
+			continue
+		}
+		if err := ch.Deliver(dispatchCtx, event); err != nil {
+			r.getLogger().Error("notification channel delivery failed",
+				"channel", ch.Name(),
+				"notification_type", event.Type,
+				"tenant_id", event.Audience.TenantID,
+				"error", err.Error(),
+			)
+		}
+	}
+	for _, ch := range r.channels {
+		if synchronous, ok := ch.(synchronousChannel); ok {
+			if err := synchronous.DeliverSynchronously(dispatchCtx, event); err != nil {
+				return fmt.Errorf("synchronous notification channel %s: %w", ch.Name(), err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -303,6 +403,7 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 		event.Data = maps.Clone(event.Data)
 		event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 		event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
+		event.Audience.StudentIDs = slices.Clone(event.Audience.StudentIDs)
 		prepared = append(prepared, event)
 	}
 

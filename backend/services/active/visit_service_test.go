@@ -139,6 +139,30 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("rejects visit when active group has ended", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "ended-group-visit")
+		room := testpkg.CreateTestRoom(t, db, "Ended Group Visit Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "Ended", "Group", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Ended", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "ended-group-visit-device")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
+
+		require.NoError(t, service.EndActiveGroupSession(ctx, activeGroup.ID))
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		visit := &activeModels.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     time.Now(),
+		}
+
+		err := service.CreateVisit(deviceCtx, visit)
+
+		require.ErrorIs(t, err, active.ErrActiveGroupNotFound)
+		assert.Zero(t, visit.ID, "visit must not be persisted on an ended group")
+	})
+
 	// Duplicate-active-visit path (Issue #844). Two paths can produce
 	// ErrStudentAlreadyActive: the application-level read-then-write check
 	// in ensureStudentHasNoActiveVisit (covers the common single-thread

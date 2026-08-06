@@ -4,6 +4,7 @@ package active_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -136,6 +137,38 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
+	})
+
+	t.Run("rejects ended active group", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "ended-supervisor")
+		room := testpkg.CreateTestRoom(t, db, "Ended Supervisor Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		staff := testpkg.CreateTestStaff(t, db, "Ended", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
+
+		_, err := db.NewUpdate().
+			Table("active.groups").
+			Set("end_time = ?", time.Now()).
+			Where("id = ?", activeGroup.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		supervisor := &activeModels.GroupSupervisor{
+			GroupID:   activeGroup.ID,
+			StaffID:   staff.ID,
+			Role:      "supervisor",
+			StartDate: timezone.TodayDate(),
+		}
+
+		// ACT
+		err = service.CreateGroupSupervisor(ctx, supervisor)
+
+		// ASSERT: ended sessions must not accept new supervisors — a supervisor
+		// row on an ended group would linger as an open supervision (absorption
+		// race, #2161 review).
+		require.Error(t, err)
+		assert.ErrorIs(t, err, active.ErrActiveGroupNotFound)
 	})
 }
 

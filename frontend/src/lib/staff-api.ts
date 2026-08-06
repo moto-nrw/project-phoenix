@@ -77,12 +77,21 @@ export interface Staff {
   // Time-tracking
   workStatus?: string;
   absenceType?: string;
+  isFinancialProfile?: boolean;
+  isLimitedProfile?: boolean;
 }
 
 export interface StaffFilters {
   search?: string;
   status?: "all" | "supervising" | "available";
   type?: "all" | "teachers" | "staff";
+}
+
+export interface StaffDocumentDirectoryEntry {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
 }
 
 /** Active group with supervisors and room info */
@@ -349,6 +358,17 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
 
 // Staff service
 class StaffService {
+  async getDocumentDirectory(): Promise<StaffDocumentDirectoryEntry[]> {
+    const response = await sessionFetch("/api/staff/documents-directory");
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch document directory: ${response.statusText}`,
+      );
+    }
+    return ((await response.json()) as { data: StaffDocumentDirectoryEntry[] })
+      .data;
+  }
+
   // Get all staff members with their current supervision status.
   // `options.strict` opts into the /api/staff route's non-swallowing path so a
   // backend failure rejects here instead of masquerading as an empty staff list
@@ -427,6 +447,48 @@ class StaffService {
       wasPresentToday: staff.was_present_today,
       workStatus: staff.work_status,
       absenceType: staff.absence_type,
+    };
+  }
+
+  async getFinancialProfile(id: string): Promise<Staff> {
+    return this.getMinimalProfile(
+      `/api/staff/financial-profile/${id}`,
+      "financial",
+    );
+  }
+
+  async getDocumentProfile(id: string): Promise<Staff> {
+    return this.getMinimalProfile(
+      `/api/staff/documents-profile/${id}`,
+      "document",
+    );
+  }
+
+  async getMinimalProfile(
+    url: string,
+    profileType: "financial" | "document",
+  ): Promise<Staff> {
+    const response = await sessionFetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch ${profileType} staff profile: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: Omit<
+        Pick<Staff, "id" | "name" | "firstName" | "lastName">,
+        "id"
+      > & { id: number };
+    };
+    return {
+      ...json.data,
+      id: json.data.id.toString(),
+      hasRfid: false,
+      isTeacher: false,
+      isSupervising: false,
+      supervisions: [],
+      isFinancialProfile: profileType === "financial",
+      isLimitedProfile: true,
     };
   }
 
@@ -726,14 +788,69 @@ export interface StaffAbsenceRow {
   duration_days?: number;
 }
 
+// Vacation takeover at the moto introduction (#2132): days already taken
+// before the Stichtag in the previous system. The row is its own audit
+// record (Stichtag, entered Resturlaub, note, actor).
+export interface StaffVacationOpening {
+  id: string;
+  staff_id: string;
+  year: number;
+  effective_date: string;
+  taken_before_days: number;
+  entered_remaining_days: number;
+  note: string;
+  decided_by: string;
+  decided_at: string;
+}
+
+interface BackendStaffVacationOpening extends Omit<
+  StaffVacationOpening,
+  "id" | "staff_id" | "decided_by"
+> {
+  id: number;
+  staff_id: number;
+  decided_by: number;
+}
+
+function mapStaffVacationOpening(
+  data: BackendStaffVacationOpening,
+): StaffVacationOpening {
+  return {
+    ...data,
+    id: data.id.toString(),
+    staff_id: data.staff_id.toString(),
+    decided_by: data.decided_by.toString(),
+  };
+}
+
 export interface StaffVacationQuotaSummary {
   staff_id: number;
   year: number;
   entitled_days: number;
   carryover_days: number;
+  taken_before_days: number;
   taken_days: number;
   reserved_days: number;
   remaining_days: number;
+  opening?: StaffVacationOpening | null;
+}
+
+interface BackendStaffVacationQuotaSummary extends Omit<
+  StaffVacationQuotaSummary,
+  "opening"
+> {
+  opening?: BackendStaffVacationOpening | null;
+}
+
+function mapStaffVacationQuotaSummary(
+  data: BackendStaffVacationQuotaSummary,
+): StaffVacationQuotaSummary {
+  return {
+    ...data,
+    opening: data.opening
+      ? mapStaffVacationOpening(data.opening)
+      : data.opening,
+  };
 }
 
 // Body for the admin "Abwesenheit anlegen" endpoint (POST
@@ -781,9 +898,9 @@ class StaffAbsenceService {
       throw new Error(`Failed to fetch quota: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: StaffVacationQuotaSummary;
+      data: BackendStaffVacationQuotaSummary;
     };
-    return json.data;
+    return mapStaffVacationQuotaSummary(json.data);
   }
 
   async setVacationQuota(
@@ -806,9 +923,65 @@ class StaffAbsenceService {
       throw new Error(`Failed to save quota: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: StaffVacationQuotaSummary;
+      data: BackendStaffVacationQuotaSummary;
     };
-    return json.data;
+    return mapStaffVacationQuotaSummary(json.data);
+  }
+
+  // Vacation takeover (#2132): the admin enters the Resturlaub as of the
+  // Stichtag; the backend derives the pre-introduction days from the quota.
+  async setVacationOpening(
+    staffId: string,
+    payload: {
+      effectiveDate: string;
+      remainingDays: number;
+      note: string;
+    },
+  ): Promise<StaffVacationOpening> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/opening`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          effective_date: payload.effectiveDate,
+          remaining_days: payload.remainingDays,
+          note: payload.note,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Übernahme fehlgeschlagen",
+      );
+      if (error.code === "vacation_opening_already_exists") {
+        throw new Error(
+          "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
+        );
+      }
+      if (error.code === "vacation_opening_absences_before_cutoff") {
+        throw new Error(
+          "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as {
+      data: BackendStaffVacationOpening;
+    };
+    return mapStaffVacationOpening(json.data);
+  }
+
+  async deleteVacationOpening(staffId: string, year: number): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/opening?year=${year}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
+      throw new Error(error.message);
+    }
   }
 
   async approve(absenceId: number, decisionNote?: string): Promise<void> {
@@ -1327,6 +1500,55 @@ class StaffBalanceAdjustmentService {
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
     return mapBalanceAdjustmentResponse(json.data);
   }
+
+  // Eröffnungssaldo (#2132): sets the Stundenkonto to a SIGNED target value
+  // as of the Stichtag — the only booking that may take the account negative
+  // (takeover from the previous system). One opening per person, ever.
+  async createOpening(
+    staffId: string,
+    payload: {
+      effectiveDate: string;
+      balanceMinutes: number;
+      note: string;
+    },
+  ): Promise<BalanceAdjustment> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/opening`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          effective_date: payload.effectiveDate,
+          balance_minutes: payload.balanceMinutes,
+          note: payload.note,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Eröffnungssaldo fehlgeschlagen",
+      );
+      if (error.code === "opening_balance_already_exists") {
+        throw new Error(
+          "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
+        );
+      }
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
+        );
+      }
+      if (error.code === "adjustment_in_closed_month") {
+        throw new Error(
+          "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as { data: BackendBalanceAdjustment };
+    return mapBalanceAdjustmentResponse(json.data);
+  }
 }
 
 // Monatsabschluss (#1417): school-wide freeze of a month's closing balances,
@@ -1479,7 +1701,301 @@ class StaffPayrollNumberService {
   }
 }
 
+// --- Stammdaten (#1423) -----------------------------------------------------
+
+export type StammdatenGender = "female" | "male" | "diverse";
+
+export interface StammdatenPerson {
+  firstName: string;
+  lastName: string;
+  /** "YYYY-MM-DD" or null */
+  birthday: string | null;
+  gender: StammdatenGender | null;
+}
+
+export interface StammdatenKontakt {
+  addressStreet: string | null;
+  addressPostalCode: string | null;
+  addressCity: string | null;
+  phone: string | null;
+  email: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+}
+
+export interface StammdatenArbeitsvertrag {
+  /** "YYYY-MM-DD" or null */
+  entryDate: string | null;
+  contractEndDate: string | null;
+  probationEndDate: string | null;
+  weeklyHours: number | null;
+  employmentType: string | null;
+}
+
+export interface StammdatenQualifikation {
+  id: string | null;
+  name: string;
+  acquiredOn: string | null;
+  expiresOn: string | null;
+}
+
+export interface StaffStammdaten {
+  staffId: string;
+  person: StammdatenPerson;
+  kontakt: StammdatenKontakt;
+  arbeitsvertrag: StammdatenArbeitsvertrag;
+  qualifikationen: StammdatenQualifikation[];
+}
+
+interface StaffFinancialMasked {
+  ibanMasked: string | null;
+  taxIdMasked: string | null;
+  socialSecurityNumberMasked: string | null;
+}
+
+export interface StaffFinancialPlain {
+  iban: string | null;
+  taxId: string | null;
+  socialSecurityNumber: string | null;
+}
+
+interface BackendStammdaten {
+  staff_id: number;
+  person: {
+    first_name: string;
+    last_name: string;
+    birthday: string | null;
+    gender: StammdatenGender | null;
+  };
+  kontakt: {
+    address_street: string | null;
+    address_postal_code: string | null;
+    address_city: string | null;
+    phone: string | null;
+    email: string | null;
+    emergency_contact_name: string | null;
+    emergency_contact_phone: string | null;
+  };
+  arbeitsvertrag: {
+    entry_date: string | null;
+    contract_end_date: string | null;
+    probation_end_date: string | null;
+    weekly_hours: number | null;
+    employment_type: string | null;
+  };
+  qualifikationen: {
+    id?: number;
+    name: string;
+    acquired_on: string | null;
+    expires_on: string | null;
+  }[];
+}
+
+function mapStammdatenResponse(data: BackendStammdaten): StaffStammdaten {
+  return {
+    staffId: data.staff_id.toString(),
+    person: {
+      firstName: data.person.first_name,
+      lastName: data.person.last_name,
+      birthday: data.person.birthday,
+      gender: data.person.gender,
+    },
+    kontakt: {
+      addressStreet: data.kontakt.address_street,
+      addressPostalCode: data.kontakt.address_postal_code,
+      addressCity: data.kontakt.address_city,
+      phone: data.kontakt.phone,
+      email: data.kontakt.email,
+      emergencyContactName: data.kontakt.emergency_contact_name,
+      emergencyContactPhone: data.kontakt.emergency_contact_phone,
+    },
+    arbeitsvertrag: {
+      entryDate: data.arbeitsvertrag.entry_date,
+      contractEndDate: data.arbeitsvertrag.contract_end_date,
+      probationEndDate: data.arbeitsvertrag.probation_end_date,
+      weeklyHours: data.arbeitsvertrag.weekly_hours,
+      employmentType: data.arbeitsvertrag.employment_type,
+    },
+    qualifikationen: (data.qualifikationen ?? []).map((q) => ({
+      id: q.id != null ? q.id.toString() : null,
+      name: q.name,
+      acquiredOn: q.acquired_on,
+      expiresOn: q.expires_on,
+    })),
+  };
+}
+
+async function throwStammdatenError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  const error = await readStaffAPIError(response, fallback);
+  if (error.code === "stammdaten_invalid") {
+    throw new Error(
+      "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
+    );
+  }
+  throw new Error(error.message);
+}
+
+// Stammdaten (#1423): section-scoped master data of one staff member. The
+// non-sensitive sections ride on users:read/users:update, the bank & tax
+// section is staff:financial only — callers gate rendering on the permission
+// so no request fires without it.
+class StaffStammdatenService {
+  async get(staffId: string): Promise<StaffStammdaten> {
+    const response = await sessionFetch(`/api/staff/${staffId}/stammdaten`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch stammdaten: ${response.statusText}`);
+    }
+    const json = (await response.json()) as { data: BackendStammdaten };
+    return mapStammdatenResponse(json.data);
+  }
+
+  private async putSection(
+    staffId: string,
+    section: string,
+    body: Record<string, unknown>,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/stammdaten/${section}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      await throwStammdatenError(
+        response,
+        "Stammdaten konnten nicht gespeichert werden",
+      );
+    }
+  }
+
+  async updatePerson(
+    staffId: string,
+    person: StammdatenPerson,
+    note: string,
+  ): Promise<void> {
+    await this.putSection(staffId, "person", {
+      first_name: person.firstName,
+      last_name: person.lastName,
+      birthday: person.birthday,
+      gender: person.gender,
+      note,
+    });
+  }
+
+  async updateKontakt(
+    staffId: string,
+    kontakt: StammdatenKontakt,
+    note: string,
+  ): Promise<void> {
+    await this.putSection(staffId, "kontakt", {
+      address_street: kontakt.addressStreet,
+      address_postal_code: kontakt.addressPostalCode,
+      address_city: kontakt.addressCity,
+      phone: kontakt.phone,
+      email: kontakt.email,
+      emergency_contact_name: kontakt.emergencyContactName,
+      emergency_contact_phone: kontakt.emergencyContactPhone,
+      note,
+    });
+  }
+
+  async updateArbeitsvertrag(
+    staffId: string,
+    vertrag: StammdatenArbeitsvertrag,
+    note: string,
+  ): Promise<void> {
+    await this.putSection(staffId, "arbeitsvertrag", {
+      entry_date: vertrag.entryDate,
+      contract_end_date: vertrag.contractEndDate,
+      probation_end_date: vertrag.probationEndDate,
+      weekly_hours: vertrag.weeklyHours,
+      employment_type: vertrag.employmentType,
+      note,
+    });
+  }
+
+  async updateQualifikationen(
+    staffId: string,
+    qualifikationen: readonly StammdatenQualifikation[],
+    note: string,
+  ): Promise<void> {
+    await this.putSection(staffId, "qualifikationen", {
+      qualifikationen: qualifikationen.map((q) => ({
+        name: q.name,
+        acquired_on: q.acquiredOn,
+        expires_on: q.expiresOn,
+      })),
+      note,
+    });
+  }
+
+  async getFinancial(staffId: string): Promise<StaffFinancialMasked> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/stammdaten/bank-steuer`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch financial data: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: {
+        iban_masked: string | null;
+        tax_id_masked: string | null;
+        social_security_number_masked: string | null;
+      };
+    };
+    return {
+      ibanMasked: json.data.iban_masked,
+      taxIdMasked: json.data.tax_id_masked,
+      socialSecurityNumberMasked: json.data.social_security_number_masked,
+    };
+  }
+
+  // POST: the reveal writes a GDPR access-log row server-side.
+  async revealFinancial(staffId: string): Promise<StaffFinancialPlain> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/stammdaten/bank-steuer/reveal`,
+      { method: "POST", headers: { "Content-Type": "application/json" } },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to reveal financial data: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: {
+        iban: string | null;
+        tax_id: string | null;
+        social_security_number: string | null;
+      };
+    };
+    return {
+      iban: json.data.iban,
+      taxId: json.data.tax_id,
+      socialSecurityNumber: json.data.social_security_number,
+    };
+  }
+
+  async updateFinancial(
+    staffId: string,
+    financial: StaffFinancialPlain,
+    note: string,
+  ): Promise<void> {
+    await this.putSection(staffId, "bank-steuer", {
+      iban: financial.iban,
+      tax_id: financial.taxId,
+      social_security_number: financial.socialSecurityNumber,
+      note,
+    });
+  }
+}
+
 export const staffService = new StaffService();
+export const staffStammdatenService = new StaffStammdatenService();
 export const staffPayrollNumberService = new StaffPayrollNumberService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();

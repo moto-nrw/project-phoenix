@@ -93,6 +93,8 @@ export function Header() {
     if (matchesPathPrefix(pathname, "/messages")) return tParentNav("messages");
     if (pathname === "/parents/news" || pathname === "/news")
       return tParentNav("news");
+    if (pathname === "/parents/settings" || pathname === "/settings")
+      return tParentNav("settings");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
       return tParentNav("mealPlan");
     return null;
@@ -251,7 +253,11 @@ export function Header() {
                 userEmail={userEmail}
                 profileUrl={profileUrl}
                 profileLabel={
-                  mode === "operator" ? "Profileinstellungen" : undefined
+                  mode === "operator"
+                    ? "Profileinstellungen"
+                    : mode === "parent"
+                      ? tParentNav("settings")
+                      : undefined
                 }
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}

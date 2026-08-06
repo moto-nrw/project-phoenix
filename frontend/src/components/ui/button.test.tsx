@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { Button } from "./button";
+import { Button, ButtonLink } from "./button";
 
 describe("Button", () => {
   it("renders children correctly", () => {
@@ -157,5 +157,18 @@ describe("Button", () => {
     render(<Button disabled>Disabled</Button>);
 
     expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("renders links with the shared button styles", () => {
+    render(
+      <ButtonLink href="/parents/children" variant="outline" size="md">
+        Meine Kinder
+      </ButtonLink>,
+    );
+
+    const link = screen.getByRole("link", { name: "Meine Kinder" });
+    expect(link).toHaveAttribute("href", "/parents/children");
+    expect(link.className).toContain("px-4");
+    expect(link.className).toContain("ring-gray-300");
   });
 });

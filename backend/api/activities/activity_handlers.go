@@ -575,33 +575,6 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, nil, "Activity deleted successfully")
 }
 
-// listCategories handles listing all activity categories
-func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
-	// Get categories
-	categories, err := rs.ActivityService.ListCategories(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	// Hide auto-provisioned system categories (Schulhof, WC) unless the
-	// caller explicitly opts in. Filtered here rather than in
-	// ListCategories because the IoT provisioning flows share that service
-	// method and must keep seeing system categories (issue #923).
-	includeSystem := r.URL.Query().Get("include_system") == "true"
-
-	// Build response
-	responses := make([]CategoryResponse, 0, len(categories))
-	for _, category := range categories {
-		if category.IsSystem && !includeSystem {
-			continue
-		}
-		responses = append(responses, newCategoryResponse(category))
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Categories retrieved successfully")
-}
-
 // getTimespans handles retrieving all available time spans for activities
 func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

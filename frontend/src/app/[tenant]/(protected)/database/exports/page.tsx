@@ -6,6 +6,9 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   ArrowRight,
+  Cake,
+  CalendarCheck,
+  CalendarRange,
   Download,
   FileSpreadsheet,
   FileText,
@@ -14,6 +17,7 @@ import {
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { StaffBirthdayExportModal } from "~/components/staff/staff-birthday-export-modal";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -98,15 +102,30 @@ export default function DatabaseExportsPage() {
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
+  // Der Dienstplan ist admin-only (die Seite leitet andere auf /staff um), der
+  // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
+  const canEditPlans = isAdmin(session);
   // Slot lists expose named children + presence, so the backend requires
-  // schedules:read AND users:read (#1565) — mirror that here.
+  // schedules:read AND users:read (#1565) — mirror that here. Der
+  // Betreuungsplan-Export verlangt dieselbe Kombination.
   const canUseSlotLists =
     isAdmin(session) ||
     (hasPermission(session, "schedules:read") &&
       hasPermission(session, "users:read"));
+  // Die Personal-Geburtstagsliste zeigt volle Geburtsdaten und hängt deshalb
+  // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542) —
+  // users:read reicht bewusst nicht.
+  // Die Berechtigung heisst backendseitig `time_tracking:manage` mit
+  // Unterstrich (permissions.ResourceTimeTracking); die Bindestrich-Variante
+  // trifft niemanden und haette die Karte fuer Leitungsrollen verschluckt.
+  const canExportStaffBirthdays =
+    isAdmin(session) ||
+    hasPermission(session, "users:update") ||
+    hasPermission(session, "time_tracking:manage");
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );
+  const [staffBirthdayModalOpen, setStaffBirthdayModalOpen] = useState(false);
   // Every in-flight export, keyed per action: a single "which one is running"
   // value would let a finished export re-enable the buttons of one still
   // rendering, so two clicks could fire the same export twice.
@@ -169,6 +188,32 @@ export default function DatabaseExportsPage() {
             </InfoCard>
           ))}
         </ExportSection>
+
+        {canExportStaffBirthdays && (
+          <ExportSection title="Personallisten">
+            <InfoCard
+              title="Geburtstagsliste"
+              icon={<Cake className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Geburtstage der Mitarbeitenden nach Kalender sortiert.
+                Voreingestellt ist der aktuelle Monat. Ohne hinterlegtes
+                Geburtsdatum fehlt eine Person in dieser Liste.
+              </ExportDescription>
+              <ExportActions>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="outline"
+                  onClick={() => setStaffBirthdayModalOpen(true)}
+                >
+                  <Download className="mr-2 h-4 w-4" aria-hidden />
+                  Liste erstellen
+                </Button>
+              </ExportActions>
+            </InfoCard>
+          </ExportSection>
+        )}
 
         <ExportSection title="Momentaufnahmen">
           <InfoCard
@@ -264,6 +309,34 @@ export default function DatabaseExportsPage() {
               <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
             </InfoCard>
           )}
+          {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
+              auf ihrer Seite gerade zu sehen ist — ein Datumsdialog hier wäre
+              eine zweite, konkurrierende Bedienung derselben Sache. */}
+          {canEditPlans && !timetableDisabled && (
+            <InfoCard
+              title="Dienstplan"
+              icon={<CalendarRange className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Die Dienstplanwoche zum Aushängen: wer wann wo arbeitet,
+                wahlweise nach Personen oder nach Einsatzbereich. Der Export
+                liegt im Dienstplan.
+              </ExportDescription>
+              <ExportLink href="/dienstplan">Zum Dienstplan</ExportLink>
+            </InfoCard>
+          )}
+          {canUseSlotLists && !timetableDisabled && (
+            <InfoCard
+              title="Betreuungsplan"
+              icon={<CalendarCheck className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Die Betreuungswoche mit Zeiten, Räumen, Personal und Kinderzahl.
+                Der Export liegt im Betreuungsplan.
+              </ExportDescription>
+              <ExportLink href="/betreuungsplan">Zum Betreuungsplan</ExportLink>
+            </InfoCard>
+          )}
           {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),
               so only offer the link to admins rather than send others to a dead end. */}
           {isAdmin(session) && (
@@ -300,6 +373,11 @@ export default function DatabaseExportsPage() {
         heading={studentModal?.heading}
         lockedPreset={studentModal?.lockedPreset}
         onClose={() => setStudentModal(null)}
+      />
+
+      <StaffBirthdayExportModal
+        isOpen={staffBirthdayModalOpen}
+        onClose={() => setStaffBirthdayModalOpen(false)}
       />
     </div>
   );

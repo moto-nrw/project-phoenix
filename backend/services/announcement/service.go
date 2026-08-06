@@ -39,6 +39,13 @@ const (
 	maxBodyLen    = 4000
 	maxLinkURLLen = 2000
 
+	// Poll (Umfrage) option bounds. Two options is the minimum that asks
+	// anything ("Ja"/"Nein"); the upper bound keeps the parent card readable on a
+	// phone and the result bars meaningful.
+	minPollOptions  = 2
+	maxPollOptions  = 10
+	maxPollLabelLen = 120
+
 	// relatedEntityTypeAnnouncement links an outbox row back to its announcement.
 	// Shared by the enqueue and cancel paths so they never drift apart.
 	relatedEntityTypeAnnouncement = "parent_announcement"
@@ -46,6 +53,14 @@ const (
 	parentAnnouncementNotificationType  = "parent_announcement"
 	parentAnnouncementNotificationTitle = "Neue Elternmitteilung"
 	parentAnnouncementNotificationBody  = "Eine neue Mitteilung ist im Elternportal verfügbar."
+
+	// Polls reuse the announcement notification type (one guardian consent switch
+	// covers both — a school broadcast is a school broadcast) but say what they
+	// are, so a parent can tell a question from an information at a glance.
+	parentPollNotificationTitle         = "Neue Umfrage"
+	parentPollNotificationBody          = "Eine Schule bittet um Ihre Rückmeldung im Elternportal."
+	parentPollReminderNotificationTitle = "Erinnerung: Umfrage offen"
+	parentPollReminderNotificationBody  = "Für Ihr Kind fehlt noch eine Rückmeldung im Elternportal."
 )
 
 // Sentinel errors mapped to HTTP status by the handler.
@@ -80,6 +95,14 @@ type Input struct {
 	SendEmail               bool          `json:"send_email"`
 	ExpiresAt               *time.Time    `json:"expires_at,omitempty"`
 	Targets                 []TargetInput `json:"targets"`
+
+	// ResponseType turns the announcement into a poll (Umfrage): "" / "none" is a
+	// plain Mitteilung, single_choice/multi_choice require Options. Options are
+	// the answer labels in display order; ResponseDeadline is the optional answer
+	// cut-off (independent of ExpiresAt, which controls visibility).
+	ResponseType     string     `json:"response_type"`
+	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
+	Options          []string   `json:"options,omitempty"`
 }
 
 // Service is the staff-facing parent-announcement contract.
@@ -93,6 +116,15 @@ type Service interface {
 	Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
 	Stats(ctx context.Context, id int64) (*usersModels.AnnouncementStats, error)
 	Recipients(ctx context.Context, id int64) ([]*usersModels.AnnouncementRecipientStatus, error)
+
+	// --- poll (Umfrage) ---
+	// PollResults returns the per-option tally plus reached/answered child counts.
+	PollResults(ctx context.Context, id int64) (*usersModels.AnnouncementPollResults, error)
+	// PollChildren returns every reached child with the answer given for them.
+	PollChildren(ctx context.Context, id int64) ([]*usersModels.AnnouncementPollChildStatus, error)
+	// RemindUnanswered notifies the guardians of children that have not answered
+	// yet and reports how many were reached.
+	RemindUnanswered(ctx context.Context, id int64) (int, error)
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -150,6 +182,30 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModel
 	if err != nil {
 		return nil, fmt.Errorf("announcement: list: %w", err)
 	}
+	// Attach poll options in one batched query so the staff list can render an
+	// Umfrage row (its options) without an N+1 fetch per announcement.
+	ids := make([]int64, 0, len(rows))
+	byID := make(map[int64]*usersModels.ParentAnnouncement, len(rows))
+	for _, a := range rows {
+		if !a.IsPoll() {
+			continue
+		}
+		ids = append(ids, a.ID)
+		byID[a.ID] = a
+		a.Options = []*usersModels.ParentAnnouncementOption{}
+	}
+	if len(ids) == 0 {
+		return rows, nil
+	}
+	options, err := s.repo.ListOptionsForAnnouncements(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: list options: %w", err)
+	}
+	for _, o := range options {
+		if a, ok := byID[o.AnnouncementID]; ok {
+			a.Options = append(a.Options, o)
+		}
+	}
 	return rows, nil
 }
 
@@ -166,6 +222,13 @@ func (s *service) Get(ctx context.Context, id int64) (*usersModels.ParentAnnounc
 		return nil, fmt.Errorf("announcement: get targets: %w", err)
 	}
 	a.Targets = targets
+	if a.IsPoll() {
+		options, err := s.repo.ListOptions(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("announcement: get options: %w", err)
+		}
+		a.Options = options
+	}
 	return a, nil
 }
 
@@ -181,6 +244,10 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 	if err != nil {
 		return nil, err
 	}
+	options, err := normalizePollOptions(&in)
+	if err != nil {
+		return nil, err
+	}
 
 	a := &usersModels.ParentAnnouncement{
 		Title:                   in.Title,
@@ -190,6 +257,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		RequiresAcknowledgement: in.RequiresAcknowledgement,
 		SendEmail:               in.SendEmail,
 		ExpiresAt:               in.ExpiresAt,
+		ResponseType:            in.ResponseType,
+		ResponseDeadline:        in.ResponseDeadline,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
@@ -199,11 +268,17 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 	if err := s.repo.ReplaceTargets(ctx, a.GetTenantID(), a.ID, targets); err != nil {
 		return nil, fmt.Errorf("announcement: set targets: %w", err)
 	}
+	if err := s.repo.ReplaceOptions(ctx, a.GetTenantID(), a.ID, options); err != nil {
+		return nil, fmt.Errorf("announcement: set options: %w", err)
+	}
 	a.Targets = targets
+	a.Options = options
 	s.logger.Info("parent announcement created",
 		slog.Int64("announcement_id", a.ID),
 		slog.Int64("created_by", createdBy),
 		slog.Int("target_count", len(targets)),
+		slog.String("response_type", a.ResponseType),
+		slog.Int("option_count", len(options)),
 	)
 	return a, nil
 }
@@ -226,6 +301,10 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if err != nil {
 		return nil, err
 	}
+	options, err := normalizePollOptions(&in)
+	if err != nil {
+		return nil, err
+	}
 
 	a.Title = in.Title
 	a.Body = in.Body
@@ -234,6 +313,8 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.RequiresAcknowledgement = in.RequiresAcknowledgement
 	a.SendEmail = in.SendEmail
 	a.ExpiresAt = in.ExpiresAt
+	a.ResponseType = in.ResponseType
+	a.ResponseDeadline = in.ResponseDeadline
 	if err := s.repo.Update(ctx, a); err != nil {
 		// The write is guarded by published_at IS NULL: if the draft was
 		// published between the load above and here, no row matched. Surface the
@@ -253,7 +334,16 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 		}
 		return nil, fmt.Errorf("announcement: update targets: %w", err)
 	}
+	if err := s.repo.ReplaceOptions(ctx, a.GetTenantID(), a.ID, options); err != nil {
+		// Same draft guard as ReplaceTargets: a publish that slipped in between
+		// makes the option swap refuse rather than re-label answers.
+		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
+			return nil, ErrPublishedImmutable
+		}
+		return nil, fmt.Errorf("announcement: update options: %w", err)
+	}
 	a.Targets = targets
+	a.Options = options
 	return a, nil
 }
 
@@ -305,6 +395,9 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 		if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
 			return nil, fmt.Errorf("%w: expires_at is already in the past", ErrValidation)
 		}
+		if a.ResponseDeadline != nil && !a.ResponseDeadline.After(now) {
+			return nil, fmt.Errorf("%w: response_deadline is already in the past", ErrValidation)
+		}
 		// Atomic publish: PublishIfDraft's UPDATE is guarded by
 		// published_at IS NULL, so only ONE of two concurrent publishes flips the
 		// row. Enqueue the opt-in e-mails only for that winner — a double-click or
@@ -334,6 +427,9 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(now) {
 				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
 			}
+			if fresh.ResponseDeadline != nil && !fresh.ResponseDeadline.After(now) {
+				return nil, fmt.Errorf("announcement: draft response deadline elapsed concurrently during publish; rolled back")
+			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
 			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {
 				return nil, fmt.Errorf("announcement: publish push notifications: %w", err)
@@ -357,16 +453,18 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	if s.notifier == nil {
 		return nil
 	}
-	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
-	if err != nil {
-		return fmt.Errorf("resolve guardian recipients: %w", err)
-	}
+	var err error
 	priority := notifications.PriorityNormal
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
 		priority = notifications.PriorityHigh
 	}
-	accountIDs := make([]int64, 0, len(recipients))
-	seen := make(map[int64]struct{}, len(recipients))
+	var accountIDs []int64
+	seen := make(map[int64]struct{})
+	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
+	if err != nil {
+		return fmt.Errorf("resolve guardian recipients: %w", err)
+	}
+	accountIDs = make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
 		if recipient.AccountID <= 0 {
 			continue
@@ -404,10 +502,14 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		}
 	}
 
+	title, body := parentAnnouncementNotificationTitle, parentAnnouncementNotificationBody
+	if a.IsPoll() {
+		title, body = parentPollNotificationTitle, parentPollNotificationBody
+	}
 	err = s.notifier.Notify(ctx, notifications.Event{
 		Type:     parentAnnouncementNotificationType,
-		Title:    parentAnnouncementNotificationTitle,
-		Body:     parentAnnouncementNotificationBody,
+		Title:    title,
+		Body:     body,
 		DeepLink: "/",
 		Priority: priority,
 		Audience: notifications.Audience{
@@ -448,7 +550,9 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		return nil
 	}
 	tenantID := a.GetTenantID()
-	recipients, err := s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
+	var recipients []*usersModels.AnnouncementRecipient
+	var err error
+	recipients, err = s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
 	if err != nil {
 		return fmt.Errorf("announcement: resolve audience e-mails: %w", err)
 	}
@@ -526,6 +630,18 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	// logo (header) and the moto logo (footer) instead of the plain fallbacks.
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
 	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	// A poll says so in the mail: the kicker and intro differ, the rest of the
+	// template (and the deliberate absence of the body) is identical.
+	kicker := defaultEmailKicker
+	intro := ""
+	if a.IsPoll() {
+		kicker = pollEmailKicker
+		intro = "wir bitten Sie um eine kurze Rückmeldung. Die Umfrage finden Sie im Eltern-Portal."
+		if a.ResponseDeadline != nil {
+			intro = fmt.Sprintf("wir bitten Sie um eine kurze Rückmeldung bis zum %s. Die Umfrage finden Sie im Eltern-Portal.",
+				a.ResponseDeadline.Format("02.01.2006"))
+		}
+	}
 	queued := 0
 	for _, rcpt := range recipients {
 		// Deliberately NO announcement body here: e-mail is the least trusted
@@ -542,6 +658,8 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				emailPayloadPortalURL:   s.parentsURL,
 				emailPayloadLogoURL:     logoURL,
 				emailPayloadMotoLogoURL: motoLogoURL,
+				emailPayloadKicker:      kicker,
+				emailPayloadIntro:       intro,
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,
@@ -576,10 +694,10 @@ func (s *service) resolveSchoolLogoURL(ctx context.Context, tenantID int64) stri
 	return emailbranding.SchoolLogoURL(s.parentsURL, raw)
 }
 
-// cancelPendingEmails cancels any not-yet-sent announcement e-mails queued for
-// this announcement. Called when it is retracted (unpublish) or deleted: a
-// published announcement that opted into e-mail may have queued outbox rows the
-// worker hasn't drained yet, and those carry the OLD title + portal link.
+// cancelPendingEmails cancels any not-yet-sent announcement and poll-reminder
+// e-mails queued for this announcement. Called when it is retracted (unpublish)
+// or deleted: both kinds of mail carry a portal link that must not be delivered
+// after the announcement is no longer available.
 // Leaving them would deliver a notification for an announcement staff has already
 // pulled — and, on the documented unpublish -> edit -> republish correction path,
 // a stale e-mail followed by a second corrected one. The cancel runs in the same
@@ -592,9 +710,13 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	if s.outbox == nil {
 		return nil
 	}
-	cancelled, err := s.outbox.CancelPendingByRelatedEntity(ctx, relatedEntityTypeAnnouncement, id, "announcement retracted before send")
-	if err != nil {
-		return fmt.Errorf("announcement: cancel pending e-mails: %w", err)
+	cancelled := int64(0)
+	for _, relatedType := range []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder} {
+		n, err := s.outbox.CancelPendingByRelatedEntity(ctx, relatedType, id, "announcement no longer available")
+		if err != nil {
+			return fmt.Errorf("announcement: cancel pending e-mails: %w", err)
+		}
+		cancelled += n
 	}
 	if cancelled > 0 {
 		s.logger.Info("parent announcement pending e-mails cancelled",
@@ -721,8 +843,17 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 				return nil, fmt.Errorf("%w: %s target needs ref_id", ErrValidation, t.TargetType)
 			}
 			target.TargetRefID = t.RefID
-		case usersModels.AnnouncementTargetSchoolAll, usersModels.AnnouncementTargetPendingEnrollment:
+		case usersModels.AnnouncementTargetSchoolAll:
 			// no ref
+		case usersModels.AnnouncementTargetPendingEnrollment:
+			// A poll is answered per CHILD, and an open application has no
+			// enrolled child yet — the applicant would see a question with no
+			// answer row. The staff form hides the option for polls; refuse it
+			// here too so the API cannot create that dead end.
+			if in.ResponseType == usersModels.ParentAnnouncementResponseSingleChoice ||
+				in.ResponseType == usersModels.ParentAnnouncementResponseMultiChoice {
+				return nil, fmt.Errorf("%w: pending_enrollment cannot be targeted by a poll", ErrValidation)
+			}
 		}
 		key := dedupeKey(target)
 		if seen[key] {

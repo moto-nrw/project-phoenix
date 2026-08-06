@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -170,16 +171,36 @@ type RosterReconciler interface {
 	CurrentRosterBaseline(ctx context.Context) (int64, error)
 }
 
+// OfferingSourceResyncer re-reconciles every offering-sourced timetable
+// template of the tenant (#2137) after this service rewrites school classes.
+// A promotion moves children between Jahrgängen, so templates with a
+// Jahrgang filter must drop the children that left the filter and pick up
+// the ones that entered it; a revert needs the same in the opposite
+// direction. Implemented by the enrollment decision service; injected via
+// SetOfferingSourceResyncer because the factory constructs that service
+// later. Optional so unit tests that do not exercise sourced rosters can
+// leave it unset.
+type OfferingSourceResyncer interface {
+	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+}
+
 // GradeTransitionService manages grade transitions: CRUD, preview/apply,
 // revert, and mapping utilities.
 type GradeTransitionService struct {
-	transitionRepo   education.GradeTransitionRepository
-	studentRepo      users.StudentRepository
-	personRepo       users.PersonRepository
-	visitRepo        activeModels.VisitRepository
-	attendanceRepo   activeModels.AttendanceRepository
-	rosterReconciler RosterReconciler
-	db               *bun.DB
+	transitionRepo         education.GradeTransitionRepository
+	studentRepo            users.StudentRepository
+	personRepo             users.PersonRepository
+	visitRepo              activeModels.VisitRepository
+	attendanceRepo         activeModels.AttendanceRepository
+	rosterReconciler       RosterReconciler
+	offeringSourceResyncer OfferingSourceResyncer
+	db                     *bun.DB
+}
+
+// SetOfferingSourceResyncer wires the offering-source roster resync (#2137).
+// Called by the factory after the enrollment decision service exists.
+func (s *GradeTransitionService) SetOfferingSourceResyncer(resyncer OfferingSourceResyncer) {
+	s.offeringSourceResyncer = resyncer
 }
 
 // GradeTransitionServiceDependencies contains dependencies for the service
@@ -841,8 +862,25 @@ func (s *GradeTransitionService) executeApply(
 
 	// Drop the departed children from already-materialized rosters so they stop
 	// counting on today's and future timetables and staffing ratios, archiving
-	// each removed row so the revert can replay it (#405 review).
+	// each removed row so the revert can replay it (#405 review). MUST run
+	// before the offering-source resync below: the resync also removes sourced
+	// still-planned rows of the now-alumni graduates, but plainly, without
+	// archiving — running it first would leave this pass nothing to archive,
+	// and the revert could then only reconstruct plain expected rows, losing
+	// per-occurrence room, note, and non-booking edits (#2147 review round 16).
 	if err := s.reconcileGraduatedRosters(ctx, transition.ID, graduates); err != nil {
+		return err
+	}
+
+	// The class writes above changed Jahrgänge (and graduations produced
+	// alumni): re-reconcile every offering-sourced template so its
+	// Jahrgang-filtered roster follows the children into their new grades
+	// (#2137). Runs under the recurrence lock taken in ApplyChecked, inside
+	// the same transaction — a failure rolls the whole transition back
+	// instead of leaving rosters half-synced. The graduates' planned rows are
+	// already archived away above, so the resync finds them gone and removes
+	// nothing twice.
+	if err := s.resyncOfferingSourcedTemplates(ctx); err != nil {
 		return err
 	}
 
@@ -854,6 +892,20 @@ func (s *GradeTransitionService) executeApply(
 	}
 
 	return s.markTransitionApplied(ctx, transition, accountID)
+}
+
+// resyncOfferingSourcedTemplates delegates to the injected resyncer with
+// today as the rewrite boundary: roster history before today is immutable,
+// while today's and future planning follows the rewritten classes. No-op when
+// nothing is wired (pure unit tests).
+func (s *GradeTransitionService) resyncOfferingSourcedTemplates(ctx context.Context) error {
+	if s.offeringSourceResyncer == nil {
+		return nil
+	}
+	if err := s.offeringSourceResyncer.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+		return fmt.Errorf("failed to resync offering-sourced templates: %w", err)
+	}
+	return nil
 }
 
 // lockTransitionCohorts resolves the promoting and graduating cohorts, takes a
@@ -1437,7 +1489,22 @@ func (s *GradeTransitionService) executeRevert(
 	// hand since the apply is deliberately left as-is, and one restored to the
 	// pending or inactive state it held before the transition belongs off
 	// actionable future rosters just like any other non-active child.
+	// MUST run before the offering-source resync below: the replay puts the
+	// archived sourced rows — per-occurrence room, note, and non-booking
+	// markers intact — back first, so the resync finds them already present
+	// and retains them instead of recreating plain expected rows (#2147
+	// review round 16). The enrollment fill for instances materialized while
+	// the children were alumni is unaffected by the order: sourced enrollment
+	// rows are still capped at this point, so those instances are covered by
+	// the resync's own occurrence reconciliation right after.
 	if err := s.reconcileRestoredRosters(ctx, transition, reactivated); err != nil {
+		return err
+	}
+
+	// Mirror of the apply-side resync (#2137): the class and status writes
+	// above moved children back into their previous Jahrgänge, so the
+	// offering-sourced rosters must follow in the opposite direction too.
+	if err := s.resyncOfferingSourcedTemplates(ctx); err != nil {
 		return err
 	}
 

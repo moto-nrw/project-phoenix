@@ -58,6 +58,25 @@ describe("Avatar", () => {
     expect(screen.getByText("AB")).toBeTruthy();
   });
 
+  it("can render a decorative rounded initials avatar", () => {
+    render(
+      <Avatar
+        name="Alice Bee"
+        size="md"
+        shape="rounded"
+        decorative
+        className="h-10 w-10"
+      />,
+    );
+
+    const avatar = screen.getByText("AB");
+    expect(avatar).toHaveAttribute("aria-hidden", "true");
+    expect(avatar).not.toHaveAttribute("aria-label");
+    expect(avatar.className).toContain("rounded-xl");
+    expect(avatar.className).toContain("h-10");
+    expect(avatar.className).not.toContain("h-11");
+  });
+
   it("resets the failed state when imageUrl changes", () => {
     const { rerender } = render(
       <Avatar imageUrl="/uploads/student-photos/old.jpg" name="Alice Bee" />,

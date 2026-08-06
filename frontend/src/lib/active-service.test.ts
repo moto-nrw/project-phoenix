@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type {
-  BackendSchulhofStatus,
-  BackendToggleSupervisionResponse,
-} from "./active-helpers";
+import type { BackendSchulhofStatus } from "./active-helpers";
 import { suppressConsole } from "~/test/helpers/console";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import {
@@ -882,8 +879,8 @@ describe("active-service", () => {
 
         expect(result).toEqual([]);
         expect(consoleSpies.warn).toHaveBeenCalledWith(
-          "unexpected unclaimed groups response shape",
-          { payload: JSON.stringify({ unexpected: "format", value: 123 }) },
+          "unexpected_unclaimed_groups_response_shape",
+          { payload_type: "object", payload_key_count: 2 },
         );
       });
 
@@ -1124,129 +1121,6 @@ describe("active-service", () => {
         );
         expect(result.exists).toBe(true);
       });
-    });
-
-    describe("toggleSchulhofSupervision", () => {
-      it("starts supervision via proxy in browser context", async () => {
-        const sampleBackendResponse: BackendToggleSupervisionResponse = {
-          action: "started",
-          supervision_id: 456,
-          active_group_id: 789,
-        };
-
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendResponse }),
-        } as Response);
-
-        const result = await activeService.toggleSchulhofSupervision("start");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/schulhof/supervise",
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({ action: "start" }),
-            headers: expect.objectContaining({
-              Authorization: "Bearer test-token",
-            }),
-          }),
-        );
-        expect(result.action).toBe("started");
-        expect(result.supervisionId).toBe("456");
-        expect(result.activeGroupId).toBe("789");
-      });
-
-      it("stops supervision via proxy in browser context", async () => {
-        const sampleBackendResponse: BackendToggleSupervisionResponse = {
-          action: "stopped",
-          active_group_id: 789,
-        };
-
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendResponse }),
-        } as Response);
-
-        const result = await activeService.toggleSchulhofSupervision("stop");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/schulhof/supervise",
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({ action: "stop" }),
-          }),
-        );
-        expect(result.action).toBe("stopped");
-        expect(result.supervisionId).toBeNull();
-      });
-
-      it("throws error on fetch failure", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: false,
-          status: 400,
-          text: () => Promise.resolve("Invalid action"),
-        } as Response);
-
-        await expect(
-          activeService.toggleSchulhofSupervision("start"),
-        ).rejects.toThrow("Toggle Schulhof supervision failed: 400");
-      });
-
-      it("uses axios in server context for start", async () => {
-        // @ts-expect-error - simulating server context
-        globalThis.window = undefined;
-
-        const sampleBackendResponse: BackendToggleSupervisionResponse = {
-          action: "started",
-          supervision_id: 111,
-          active_group_id: 222,
-        };
-
-        mockedApiPost.mockResolvedValueOnce({
-          data: { data: sampleBackendResponse },
-        });
-
-        const result = await activeService.toggleSchulhofSupervision("start");
-
-        expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://server:8080/active/schulhof/supervise",
-          { action: "start" },
-        );
-        expect(result.action).toBe("started");
-      });
-
-      it("uses axios in server context for stop", async () => {
-        // @ts-expect-error - simulating server context
-        globalThis.window = undefined;
-
-        const sampleBackendResponse: BackendToggleSupervisionResponse = {
-          action: "stopped",
-          active_group_id: 222,
-        };
-
-        mockedApiPost.mockResolvedValueOnce({
-          data: { data: sampleBackendResponse },
-        });
-
-        const result = await activeService.toggleSchulhofSupervision("stop");
-
-        expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://server:8080/active/schulhof/supervise",
-          { action: "stop" },
-        );
-        expect(result.action).toBe("stopped");
-      });
-    });
-  });
-
-  describe("getTrackingIndicators", () => {
-    it("returns empty response when studentIds is empty", async () => {
-      const result = await activeService.getTrackingIndicators([]);
-
-      expect(result).toEqual({ labels: [], results: {} });
     });
 
     it("returns empty response when session has no token", async () => {

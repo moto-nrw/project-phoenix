@@ -44,6 +44,7 @@ type TimetableDataDependencies struct {
 	VisitRepo              activeModel.VisitRepository
 	RoomRepo               facilitiesModel.RoomRepository
 	ActivityCategoryRepo   activitiesModel.CategoryRepository
+	PlanningTrackRepo      scheduleModel.PlanningTrackRepository
 	ActivityGroupRepo      activitiesModel.GroupRepository
 	ActivitySupervisorRepo activitiesModel.SupervisorPlannedRepository
 	StudentEnrollmentRepo  activitiesModel.StudentEnrollmentRepository
@@ -53,8 +54,23 @@ type TimetableDataDependencies struct {
 	// depends on the template being live. Production always wires it; partial
 	// read-only test facades may leave it nil.
 	ValidateCareOfferingSeries func(context.Context, int64) error
+	// ResyncOfferingRoster reconciles an offering-sourced template's roster
+	// with the offering's approved enrollments (#2137). Implemented by the
+	// enrollment decision service (injected to avoid the enrollment→schedule
+	// import cycle); production always wires it, tests that never save a
+	// sourced template may leave it nil.
+	ResyncOfferingRoster func(context.Context, OfferingRosterResyncInput) error
+	// ValidateOfferingSource resolves an offering-source reference before the
+	// template row carrying it is written (#2147 review round 18): existence,
+	// active flag, and phase/period compatibility. Same guard the resync runs,
+	// pulled forward so an unknown offering renders as 400 instead of failing
+	// on the FK with a 500. Production always wires it (the care-offering
+	// service); test facades may leave it nil.
+	ValidateOfferingSource func(ctx context.Context, offeringID int64, calendarPeriodID *int64) error
 	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
 	DeviationEventRepo auditModel.DeviationEventRepository
+	// ConflictAckRepo stores per-user conflict acknowledgements (#2139).
+	ConflictAckRepo scheduleModel.TimetableConflictAckRepository
 	// Broadcaster invalidates planner and "Heute geplant" caches after
 	// template-side changes that bypass the instance CRUD flows.
 	Broadcaster realtime.Broadcaster
@@ -134,21 +150,39 @@ func (s *TimetableDataService) MarkInstanceCompleted(ctx context.Context, id int
 	return s.deps.ActivityInstanceRepo.MarkCompleted(ctx, id, completedAt)
 }
 
-// DetectInstanceStartConflicts runs the planner's start-conflict checks using
-// this facade's repositories.
-func (s *TimetableDataService) DetectInstanceStartConflicts(ctx context.Context, instance *scheduleModel.ActivityInstance, logger *slog.Logger) []InstanceConflictWarning {
-	return DetectStartConflicts(
-		ctx,
-		ConflictDependencies{
-			GroupRepo:         s.deps.ActiveGroupRepo,
-			SupervisorRepo:    s.deps.SupervisorRepo,
-			VisitRepo:         s.deps.VisitRepo,
-			InstanceStaffRepo: s.deps.InstanceStaffRepo,
-			InstanceStudents:  s.deps.InstanceStudentRepo,
-		},
-		instance,
-		logger,
-	)
+// ErrInvalidConflictFingerprint rejects malformed conflict fingerprints
+// before they reach the database (#2139).
+var ErrInvalidConflictFingerprint = errors.New("invalid conflict fingerprint")
+
+// ListConflictAcks returns every conflict fingerprint the account has
+// acknowledged in the current tenant (#2139).
+func (s *TimetableDataService) ListConflictAcks(ctx context.Context, accountID int64) ([]string, error) {
+	if accountID <= 0 {
+		return nil, errors.New("account id is required")
+	}
+	return s.deps.ConflictAckRepo.ListFingerprintsByAccount(ctx, accountID)
+}
+
+// AcknowledgeConflict idempotently hides one concrete conflict for one user.
+func (s *TimetableDataService) AcknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	if accountID <= 0 {
+		return errors.New("account id is required")
+	}
+	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+		return ErrInvalidConflictFingerprint
+	}
+	return s.deps.ConflictAckRepo.Acknowledge(ctx, accountID, fingerprint)
+}
+
+// UnacknowledgeConflict makes a previously hidden conflict visible again.
+func (s *TimetableDataService) UnacknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	if accountID <= 0 {
+		return errors.New("account id is required")
+	}
+	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+		return ErrInvalidConflictFingerprint
+	}
+	return s.deps.ConflictAckRepo.Unacknowledge(ctx, accountID, fingerprint)
 }
 
 func (s *TimetableDataService) GetActivityExceptionsByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityException, error) {
@@ -271,7 +305,7 @@ func (s *TimetableDataService) CreateActivityGroup(ctx context.Context, group *a
 }
 
 func (s *TimetableDataService) GetActivityCategoryByName(ctx context.Context, name string) (*activitiesModel.Category, error) {
-	return s.deps.ActivityCategoryRepo.FindByName(ctx, name)
+	return s.deps.ActivityCategoryRepo.FindByNameIncludingArchivedForShare(ctx, name)
 }
 
 func (s *TimetableDataService) CreateActivityCategory(ctx context.Context, category *activitiesModel.Category) error {
@@ -312,6 +346,9 @@ func (s *TimetableDataService) ListTemplateRows(
 		return nil, err
 	}
 	setDisplayRosterCapacity(rows)
+	if err := s.attachTemplateTargets(ctx, rows); err != nil {
+		return nil, err
+	}
 	// Detail has no period query parameter, so evaluate every active period.
 	// The repository still applies materialization's deterministic period
 	// selection for globally-unpinned templates on overlapping dates.
@@ -319,6 +356,46 @@ func (s *TimetableDataService) ListTemplateRows(
 		return nil, err
 	}
 	return rows, nil
+}
+
+// ListTemplateRowsForTemplatePeriod returns the detail read model for one
+// editable template period, including period-scoped roster and capacity data.
+func (s *TimetableDataService) ListTemplateRowsForTemplatePeriod(
+	ctx context.Context,
+	templateID, periodID int64,
+	childrenPerStaffRatio int,
+) ([]activitiesModel.TemplateListRow, error) {
+	rows, err := s.deps.ActivityGroupRepo.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
+	if err != nil {
+		return nil, err
+	}
+	setDisplayRosterCapacity(rows)
+	if err := s.attachTemplateTargets(ctx, rows); err != nil {
+		return nil, err
+	}
+	if err := s.attachWorstTemplateCapacity(
+		ctx,
+		rows,
+		&periodID,
+		[]int64{templateID},
+		childrenPerStaffRatio,
+	); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
+// the templates the caller may see (issue #2129), optionally narrowed to one
+// template and calendar period. A nil period selects only unscoped roster
+// rows so period-specific assignments cannot be merged. It is a thin read:
+// the grouping into per-weekday assignments is a presentation concern and
+// stays in the API layer.
+func (s *TimetableDataService) ListTemplateWeekdayRoster(
+	ctx context.Context,
+	templateID, calendarPeriodID *int64,
+) ([]activitiesModel.TemplateWeekdayRosterRow, error) {
+	return s.deps.ActivityGroupRepo.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
 }
 
 func (s *TimetableDataService) ListTemplateRowsForPeriod(
@@ -331,6 +408,9 @@ func (s *TimetableDataService) ListTemplateRowsForPeriod(
 		return nil, err
 	}
 	setDisplayRosterCapacity(rows)
+	if err := s.attachTemplateTargets(ctx, rows); err != nil {
+		return nil, err
+	}
 	if err := s.attachWorstTemplateCapacity(
 		ctx,
 		rows,
@@ -341,6 +421,38 @@ func (s *TimetableDataService) ListTemplateRowsForPeriod(
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows []activitiesModel.TemplateListRow) error {
+	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok {
+		return nil
+	}
+	templateIDs := distinctTemplateIDs(rows)
+	targetsByGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, templateIDs)
+	if err != nil {
+		return err
+	}
+	targetStudentsByGroup, err := targetRepo.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
+	if err != nil {
+		return err
+	}
+	for i := range rows {
+		rows[i].Targets = targetsByGroup[rows[i].TemplateID]
+		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
+	}
+	return nil
+}
+
+func unionCount(left, right []int64) int {
+	ids := make(map[int64]struct{}, len(left)+len(right))
+	for _, id := range left {
+		ids[id] = struct{}{}
+	}
+	for _, id := range right {
+		ids[id] = struct{}{}
+	}
+	return len(ids)
 }
 
 func setDisplayRosterCapacity(rows []activitiesModel.TemplateListRow) {

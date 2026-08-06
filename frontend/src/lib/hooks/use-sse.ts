@@ -186,6 +186,11 @@ export function useSSE(
           // remount (the #1694 bus it drives never fired).
           "staffing_deviation_changed",
           "student_companions_changed",
+          // Group access changes: handovers, Vertretungen, group-leader edits
+          // (#2084). Same named-event rule: unregistered means the handler in
+          // useGlobalSSE never runs and a group handed to this user stays
+          // invisible until a reload.
+          "group_access_changed",
           // Notification abstraction (#1624): rendered directly as a toast by
           // NotificationBridge via useGlobalSSE — not a cache trigger.
           "notification",
@@ -229,7 +234,12 @@ export function useSSE(
           const currentAttempts = reconnectAttemptsRef.current;
 
           if (currentAttempts < maxReconnectAttempts) {
-            const delay = reconnectInterval * Math.pow(2, currentAttempts);
+            // Exponential backoff with proportional jitter (up to +100% of the
+            // base delay): a backend restart drops every client of the
+            // deployment at the same instant, and without jitter they all
+            // reconnected — and revalidated — in synchronized waves (#2057).
+            const base = reconnectInterval * Math.pow(2, currentAttempts);
+            const delay = base + Math.random() * base; // NOSONAR typescript:S2245 non-cryptographic reconnect jitter, no security context
 
             // Update both ref (for next closure) and state (for UI)
             reconnectAttemptsRef.current = currentAttempts + 1;

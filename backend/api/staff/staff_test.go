@@ -49,7 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffDocuments, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 
 	router := chi.NewRouter()
 	router.Mount("/staff", resource.Router())
@@ -310,6 +310,36 @@ func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "time_tracking:manage")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Payroll", "Profile")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/financial-profile/%d", staff.ID), nil,
+		testutil.WithJWTBearer(authToken(t, "staff:financial")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetDocumentProfile_AllowsHealthDocuments(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Health", "Documents")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/documents-profile/%d", staff.ID), nil,
+		testutil.WithJWTBearer(authToken(t, "staff_documents:health")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 

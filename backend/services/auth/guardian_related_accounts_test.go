@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -737,4 +738,706 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	inv, err := env.repos.GuardianInvitation.FindByID(ctx, *second.InvitationID)
 	require.NoError(t, err)
 	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+}
+
+// createRestrictedContactLink links a guardian profile to a student with a
+// restrictive preset role (no parent_portal.access), mirroring a
+// staff-maintained contact (#2172).
+func (env *guardianTestEnv) createRestrictedContactLink(t *testing.T, studentID, guardianProfileID int64, role string) {
+	t.Helper()
+	link := &users.StudentGuardian{
+		StudentID:         studentID,
+		GuardianProfileID: guardianProfileID,
+		RelationshipType:  "other",
+		EmergencyPriority: 1,
+	}
+	authorize.ApplyStudentGuardianRole(link, role)
+	link.SetTenantID(1)
+	require.NoError(t, env.repos.StudentGuardian.Create(testpkg.TenantContext(1), link))
+}
+
+// fetchLink reads the current student↔guardian link row.
+func (env *guardianTestEnv) fetchLink(t *testing.T, studentID, guardianProfileID int64) *users.StudentGuardian {
+	t.Helper()
+	link, err := env.repos.StudentGuardian.FindByStudentAndGuardianForUpdate(testpkg.TenantContext(1), studentID, guardianProfileID)
+	require.NoError(t, err)
+	return link
+}
+
+func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Restricted", "Contact", "7a")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "restricted-contact")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
+
+	// Staff-shaped invite without confirmation → detection, zero side effects.
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     *profile.Email,
+		CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, authService.InviteOutcomeExistingContactRestricted, result.Outcome)
+	assert.Equal(t, authorize.GuardianRoleEmergency, result.ExistingRole)
+	assert.Equal(t, profile.ID, result.GuardianProfileID)
+	assert.Nil(t, result.InvitationID)
+
+	// Parent-shaped invite (approval mode) without confirmation → same, and
+	// crucially nothing was queued.
+	parentResult, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, authService.InviteOutcomeExistingContactRestricted, parentResult.Outcome)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleEmergency, link.GuardianRole, "link role must be untouched")
+	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, profile.ID)
+	require.NoError(t, err)
+	assert.Empty(t, invitations, "detection must not create invitation rows")
+}
+
+func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "NoAccount", "7b")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-no-account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:          student.ID,
+		Email:              *profile.Email,
+		CreatedBy:          creatorID,
+		ConfirmRoleUpgrade: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID, "no-account contact still needs a token invitation")
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+
+	assert.Equal(t, authService.InviteOutcomeInvited, result.Outcome)
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess),
+		"upgraded link must carry parent_portal.access")
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.False(t, inv.RoleUpgrade, "direct mode applies the upgrade immediately; the row flag stays false")
+}
+
+func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "HasAccount", "7c")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-has-account")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Upgrade", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:          student.ID,
+		Email:              *profile.Email,
+		CreatedBy:          creatorID,
+		ConfirmRoleUpgrade: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, result.Outcome)
+	assert.Nil(t, result.InvitationID)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess),
+		"existing account must gain access immediately")
+}
+
+func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprove(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Approval", "7d")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-approval")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Approval", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.True(t, inv.RoleUpgrade, "approval mode must persist the upgrade intent")
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleCustom, link.GuardianRole, "no upgrade before approval")
+
+	// Staff sees the upgrade marker in the queue.
+	views, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+	var view *authService.PendingApprovalView
+	for _, v := range views {
+		if v.InvitationID == *result.InvitationID {
+			view = v
+		}
+	}
+	require.NotNil(t, view)
+	assert.True(t, view.RoleUpgrade)
+
+	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	link = env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole, "approval must apply the upgrade")
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+}
+
+func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Reuse", "7e")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-reuse")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
+	studentID := student.ID
+	existing := &authModels.GuardianInvitation{
+		Token:                fmt.Sprintf("upgrade-reuse-%d", time.Now().UnixNano()),
+		GuardianProfileID:    profile.ID,
+		CreatedBy:            creatorID,
+		ExpiresAt:            time.Now().Add(time.Hour),
+		StudentID:            &studentID,
+		RequestedByAccountID: &creatorID,
+		ApprovalStatus:       authModels.GuardianInvitationApprovalPending,
+	}
+	existing.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
+	require.NoError(t, err)
+	assert.True(t, inv.RoleUpgrade, "reused invitation must carry the upgrade flag")
+}
+
+func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Full", "Role", "7f")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "full-role-link")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Full", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleLegalGuardian)
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     *profile.Email,
+		CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, result.Outcome,
+		"full-role links must not trigger the restricted-contact confirmation")
+	assert.Empty(t, result.ExistingRole)
+}
+
+func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Social", "Worker", "7g")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "social-worker-link")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleSocialWorker)
+
+	// Without confirmation → refused outright, never the confirmation outcome.
+	_, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     *profile.Email,
+		CreatedBy: creatorID,
+	})
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	// With confirmation → still refused; the upgrade path must stay closed.
+	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:          student.ID,
+		Email:              *profile.Email,
+		CreatedBy:          creatorID,
+		ConfirmRoleUpgrade: true,
+	})
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	// Approval mode (parent-shaped) → refused before anything is queued.
+	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole, "link must be untouched")
+	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, profile.ID)
+	require.NoError(t, err)
+	assert.Empty(t, invitations, "refusal must not create invitation rows")
+}
+
+// TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink covers the case
+// where the link is repurposed to a school-managed social-worker contact
+// between the parent's confirmation and the staff approval. The upgrade can no
+// longer be applied, so the approval must fail loudly: approving anyway would
+// report success (and email an invitation) for access that was never granted.
+func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
+		cfg.OutboxEnqueuer = outbox
+	})
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Repurposed", "7h")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-repurposed")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+
+	// The link becomes a school-managed social-worker contact between the
+	// request and the staff approval.
+	link := env.fetchLink(t, student.ID, profile.ID)
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleSocialWorker)
+	require.NoError(t, env.repos.StudentGuardian.Update(ctx, link))
+
+	err = env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID)
+	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+
+	link = env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole,
+		"persisted upgrade flag must not promote a social-worker link")
+	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+		"a refused upgrade must not mark the request approved")
+	assert.Nil(t, inv.ApprovedAt)
+	assert.Empty(t, outbox.requests, "no invitation email for access that was not granted")
+}
+
+// TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval verifies
+// that a PARENT-confirmed upgrade of an existing restricted contact is queued
+// for staff approval even when the school runs direct invite mode: the upgrade
+// overrides a deliberate staff-set restriction, so it never applies without a
+// review step. Staff-shaped invites (no RequestedByParentAccountID) keep
+// resolving immediately — covered by the ConfirmedUpgrade_Direct* tests above.
+func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "ParentDirect", "7i")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-parent-direct")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+
+	// Parent-shaped invite in DIRECT mode (RequireApproval false) with a
+	// confirmed upgrade → queued, nothing applied yet.
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            false,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.True(t, inv.RoleUpgrade, "queued request must persist the upgrade intent")
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRolePickupOnly, link.GuardianRole, "no upgrade before approval")
+	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+
+	// Approval applies the upgrade, exactly like staff_approval mode.
+	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	link = env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+}
+
+// TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation reproduces
+// the reuse gap from the #2174 review: an open invitation created WITHOUT
+// approval (staff direct invite, not_required) exists when a parent confirms a
+// role upgrade. The reused row must be promoted to pending — otherwise it
+// never reaches the staff queue, ApproveInvitation never applies the persisted
+// upgrade, and the still-consumable token would grant an account without the
+// promised access.
+func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Requeue", "7j")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-requeue")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+
+	// Earlier staff direct invite: open, token emailed, no approval required.
+	studentID := student.ID
+	existing := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("upgrade-requeue-%d", time.Now().UnixNano()),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+		ExpiresAt:         time.Now().Add(48 * time.Hour),
+		StudentID:         &studentID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+	}
+	existing.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+
+	// Parent confirms the upgrade (direct mode — approval is forced).
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            false,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
+	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+		"reused not_required invitation must be re-queued as pending")
+	assert.True(t, inv.RoleUpgrade)
+	require.NotNil(t, inv.RequestedByAccountID)
+	assert.Equal(t, creatorID, *inv.RequestedByAccountID, "queue must name the requesting parent")
+
+	// The request is visible in the staff queue and approval applies the
+	// upgrade.
+	views, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+	var view *authService.PendingApprovalView
+	for _, v := range views {
+		if v.InvitationID == existing.ID {
+			view = v
+		}
+	}
+	require.NotNil(t, view, "re-queued request must appear in the approval queue")
+	assert.True(t, view.RoleUpgrade)
+
+	require.NoError(t, env.service.ApproveInvitation(ctx, existing.ID, creatorID))
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+}
+
+// TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry guards the
+// approval window of a re-queued row: the reused invitation carries the expiry
+// of the older invite, and approve/reject are gated on it. A nearly-expired
+// leftover must not lock staff out of a request submitted seconds ago.
+func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Expiry", "7k")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-expiry")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+
+	// Earlier staff direct invite, almost expired but still open.
+	studentID := student.ID
+	staleExpiry := time.Now().Add(2 * time.Minute)
+	sentAt := time.Now().Add(-46 * time.Hour)
+	emailError := "smtp timeout"
+	existing := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("upgrade-expiry-%d", time.Now().UnixNano()),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+		ExpiresAt:         staleExpiry,
+		StudentID:         &studentID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		EmailSentAt:       &sentAt,
+		EmailError:        &emailError,
+	}
+	existing.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	require.Equal(t, existing.ID, *result.InvitationID)
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.True(t, inv.ExpiresAt.After(staleExpiry.Add(time.Hour)),
+		"re-queued request must get a fresh approval window, not the leftover expiry")
+	assert.Nil(t, inv.EmailSentAt, "stale email tracking must be cleared")
+	assert.Nil(t, inv.EmailError)
+
+	// The freshly queued request is approvable.
+	require.NoError(t, env.service.ApproveInvitation(ctx, existing.ID, creatorID))
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+}
+
+// TestInviteToStudent_DirectLinkClosesPendingApprovalRequest covers the
+// out-of-band resolution: a parent request is still queued when staff link the
+// same (already registered) account directly. The queued row must not be left
+// behind as a phantom entry that can never do anything.
+func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Superseded", "7l")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-superseded")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Superseded", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+
+	// Parent queues the upgrade request.
+	queued, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, queued.InvitationID)
+	assert.Equal(t, authService.InviteOutcomePendingApproval, queued.Outcome)
+
+	// Staff grant the same access directly instead of using the queue.
+	direct, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:          student.ID,
+		Email:              *profile.Email,
+		CreatedBy:          creatorID,
+		ConfirmRoleUpgrade: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, direct.Outcome)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *queued.InvitationID)
+	require.NoError(t, err)
+	assert.NotEqual(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+		"the superseded request must leave the approval queue")
+	assert.NotNil(t, inv.AcceptedAt, "access exists, so the request is resolved")
+
+	views, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+	for _, v := range views {
+		assert.NotEqual(t, *queued.InvitationID, v.InvitationID,
+			"no phantom entry may stay in the staff queue")
+	}
+}
+
+// TestInviteToStudent_PlainReinviteKeepsResolvedInvitation is the regression
+// guard for the #2174 review blocker: in staff_approval mode EVERY parent
+// invite is approval-gated, so a plain duplicate re-invite (no confirmed role
+// upgrade) that reuses an open, already-resolved invitation must NOT revert it
+// to pending — that would invalidate its live token and force a re-approval.
+// Only a confirmed role upgrade may re-queue a resolved invitation.
+func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "plain-reinvite")
+	creatorID := env.inviterAccountID(t)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+
+	for _, status := range []string{
+		authModels.GuardianInvitationApprovalApproved,
+		authModels.GuardianInvitationApprovalNotRequired,
+	} {
+		t.Run(status, func(t *testing.T) {
+			// One student per subtest: findOpenStudentInvitation is scoped by
+			// (profile, student), so the previous subtest's still-open
+			// invitation must not be a reuse candidate here.
+			student := testpkg.CreateTestStudent(t, env.db, "Plain", "Reinvite", "7k")
+			now := time.Now()
+			studentID := student.ID
+			existing := &authModels.GuardianInvitation{
+				Token:             fmt.Sprintf("plain-reinvite-%s-%d", status, now.UnixNano()),
+				GuardianProfileID: profile.ID,
+				CreatedBy:         creatorID,
+				ExpiresAt:         now.Add(48 * time.Hour),
+				StudentID:         &studentID,
+				ApprovalStatus:    status,
+			}
+			if status == authModels.GuardianInvitationApprovalApproved {
+				existing.ApprovedBy = &creatorID
+				existing.ApprovedAt = &now
+			}
+			existing.SetTenantID(1)
+			// Cleanup: the test-level defer deletes every invitation of this
+			// profile, so no per-subtest cleanup (which would also delete the
+			// shared profile).
+			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+
+			// Duplicate plain parent invite in staff_approval mode.
+			result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+				StudentID:                  student.ID,
+				Email:                      *profile.Email,
+				CreatedBy:                  creatorID,
+				RequestedByParentAccountID: &creatorID,
+				RequireApproval:            true,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result.InvitationID)
+			assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
+
+			inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
+			require.NoError(t, err)
+			assert.Equal(t, status, inv.ApprovalStatus,
+				"a plain re-invite must not revert a resolved invitation")
+			assert.False(t, inv.RoleUpgrade)
+			if status == authModels.GuardianInvitationApprovalApproved {
+				assert.NotNil(t, inv.ApprovedBy, "approval record must survive a duplicate submission")
+				assert.NotNil(t, inv.ApprovedAt)
+			}
+		})
+	}
 }

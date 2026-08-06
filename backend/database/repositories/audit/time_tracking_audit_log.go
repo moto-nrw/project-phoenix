@@ -118,6 +118,19 @@ var auditLogBranches = map[string]string{
 			) AS detail
 		FROM audit.time_tracking_deletions d
 		WHERE d.tenant_id = %s`,
+	auditModels.AuditLogSourceVacationOpening: `
+		SELECT vo.decided_at AS occurred_at, 'vacation_opening' AS source, vo.id AS entry_id,
+			vo.staff_id AS staff_id, ARRAY[vo.staff_id] AS staff_ids,
+			vo.decided_by AS actor_staff_id, FALSE AS actor_is_system,
+			vo.note AS reason,
+			jsonb_build_object(
+				'opening_id', vo.id, 'year', vo.year,
+				'effective_date', to_char(vo.effective_date, 'YYYY-MM-DD'),
+				'taken_before_days', vo.taken_before_days,
+				'entered_remaining_days', vo.entered_remaining_days
+			) AS detail
+		FROM active.staff_vacation_openings vo
+		WHERE vo.tenant_id = %s`,
 	auditModels.AuditLogSourcePersonnelNumber: `
 		SELECT c.occurred_at AS occurred_at, 'personnel_number' AS source, c.id AS entry_id,
 			c.staff_id AS staff_id, ARRAY[c.staff_id] AS staff_ids,

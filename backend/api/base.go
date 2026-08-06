@@ -1,9 +1,9 @@
 package api
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/lestrrat-go/jwx/v3/transform"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
@@ -23,6 +24,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
@@ -63,10 +65,27 @@ import (
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+// offeringSourceOptions narrows the enrollment decision service to the
+// timetable editor's offering-source view (#2137). Returns nil when the
+// concrete service does not implement it (partial test wiring) — the handler
+// then responds 500 instead of panicking, matching the resource's nil-dep
+// contract.
+func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.OfferingSourceOptionLister {
+	lister, ok := svc.(enrollmentSvc.OfferingSourceOptionLister)
+	if !ok {
+		return nil
+	}
+	return lister
+}
 
 // API represents the API structure
 type API struct {
@@ -100,6 +119,7 @@ type API struct {
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
+	Birthdays        *birthdaysAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
@@ -129,6 +149,14 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
 	if err != nil {
+		return nil, err
+	}
+
+	// Fail fast on a partially migrated schema: the student repository selects
+	// and writes its departure columns unconditionally (no per-request
+	// information_schema probes, #2059), so the server must only start against
+	// a fully migrated database.
+	if err := usersRepo.VerifyStudentSchema(context.Background(), db); err != nil {
 		return nil, err
 	}
 
@@ -218,6 +246,10 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	// /operator, /parent, public enrollment) dedupe their settings lookups
 	// too. Idempotent with the group-wide attachment in api/common.
 	router.Use(apiCommon.RequestSettingsCacheMiddleware)
+	// Request-scoped identity memo cache (issue #2099). Router-wide so routes
+	// outside ProtectedTenantGroup (notably /api/sse, which builds its own JWT
+	// chain) dedupe their identity-chain lookups too.
+	router.Use(apiCommon.RequestIdentityCacheMiddleware)
 }
 
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
@@ -334,7 +366,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
 	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
-		generalRateLimiter.SetKeyFunc(tokenAwareRateLimitKey(tokenAuth))
+		generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
 	}
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
@@ -342,7 +374,28 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	router.Use(generalRateLimiter.Middleware())
 }
 
-func tokenAwareRateLimitKey(tokenAuth *projectJWT.TokenAuth) func(*http.Request) string {
+// identityRateLimitKey buckets authenticated requests by their stable quota
+// identity — account ID, scope, and tenant ID from the verified JWT claims —
+// instead of a per-token hash (#2064). Every valid session of the same
+// identity shares one budget, so a re-login or token refresh no longer
+// resets the quota. The key carries only numeric IDs and the scope label,
+// never the raw token, email, or name.
+//
+// Quota-identity rules:
+//   - Same account, same scope, same tenant → one shared budget across all
+//     sessions (browser tabs, refreshed tokens, re-logins).
+//   - A tenant switch mints a JWT with a different tenant_id and gets its
+//     own budget. Different portal scopes ("", "org", "platform", "parent")
+//     are separate budgets too — scope must be in the key because operator
+//     IDs (platform.operators) and account IDs (auth.accounts) are
+//     different ID spaces.
+//   - Requests without a verified identity — missing, expired, or
+//     manipulated JWTs, non-JWT bearer values such as IoT device API keys,
+//     and MFA challenge/enrollment tokens (no "id" claim) — return "" and
+//     the limiter falls back to the trusted client IP. Unverified bearer
+//     values must never produce token-derived buckets: an attacker could
+//     mint arbitrary values and sidestep IP limiting entirely.
+func identityRateLimitKey(tokenAuth *projectJWT.TokenAuth) func(*http.Request) string {
 	return func(r *http.Request) string {
 		tokenString := extractBearerToken(r.Header.Get("Authorization"))
 		if tokenString == "" || tokenAuth == nil || tokenAuth.JwtAuth == nil {
@@ -357,8 +410,19 @@ func tokenAwareRateLimitKey(tokenAuth *projectJWT.TokenAuth) func(*http.Request)
 			return ""
 		}
 
-		sum := sha256.Sum256([]byte(tokenString))
-		return "token:" + hex.EncodeToString(sum[:])
+		claims := map[string]any{}
+		if err := transform.AsMap(token, claims); err != nil {
+			return ""
+		}
+		// JSON numbers decode as float64 (same contract as AppClaims.ParseClaims).
+		accountID, ok := claims["id"].(float64)
+		if !ok || accountID <= 0 {
+			return ""
+		}
+		scope, _ := claims["scope"].(string)
+		tenantID, _ := claims["tenant_id"].(float64)
+
+		return fmt.Sprintf("acct:%d:%s:%d", int64(accountID), scope, int64(tenantID))
 	}
 }
 
@@ -409,6 +473,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:          db,
 		Logger:      logger.With("service", "student-photo"),
 	})
+	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
+	// Regeltermine like a grade transition does (#2147 review round 10). The
+	// factory already fails startup when the decision service stops
+	// implementing the resync, so the assertion cannot silently miss here.
+	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
@@ -429,19 +498,25 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:         api.Services.Settings,
 		MasterDataReviewService: api.Services.MasterDataReview,
 		CareRequestService:      api.Services.CareRequests,
+		OfferingChangeService:   api.Services.OfferingChanges,
 		ExcusedRequestService:   api.Services.ExcusedRequests,
 		StudentStatusDayService: api.Services.StudentStatusDays,
 		StudentHistoryService:   api.Services.StudentHistory,
+		OGSGroupLiveService:     api.Services.OGSGroupLive,
 		ActivityService:         api.Services.Activities,
 		EnrollmentDecision:      api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
-		Broadcaster:             api.Services.RealtimeHub,
-		ParentEventEmitter:      api.Services.ParentEventEmitter,
-		AbsenceNotifier:         api.Services.AbsenceNotifier,
-		StudentPhotos:           api.Services.StudentPhotos,
-		ListExportService:       api.Services.ListExport,
-		Logger:                  logger.With("handler", "students"),
-		DB:                      db,
+		OfferingSourceResyncer:  studentClassResyncer,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Broadcaster:        api.Services.RealtimeHub,
+		ParentEventEmitter: api.Services.ParentEventEmitter,
+		AbsenceNotifier:    api.Services.AbsenceNotifier,
+		StudentPhotos:      api.Services.StudentPhotos,
+		ListExportService:  api.Services.ListExport,
+		Logger:             logger.With("handler", "students"),
+		DB:                 db,
 	})
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
@@ -449,10 +524,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
+	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffDocuments, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
-	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, db, logger.With("handler", "staff-shifts"))
+	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
@@ -504,6 +580,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
+	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
@@ -520,10 +597,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		TemplateSplitService:   api.Services.TemplateSplit,
 		PersonService:          api.Services.Users,
 		TimetableData:          api.Services.TimetableData,
+		PlanningTrackService:   api.Services.PlanningTracks,
 		CareDayService:         api.Services.CareDay,
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
 		SlotListsService:       api.Services.SlotLists,
+		OfferingSourceOptions:  offeringSourceOptions(api.Services.EnrollmentDecision),
+		PlanExportService:      api.Services.PlanExport,
 		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "timetable"),
 		DB:                     db,
@@ -768,6 +848,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount users resources
 		r.Mount("/users", a.Users.Router())
+
+		// Birthday display + staff birthday list (#1542)
+		r.Mount("/birthdays", a.Birthdays.Router())
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())

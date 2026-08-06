@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -66,13 +68,27 @@ type ResourceConfig struct {
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
+	// OfferingChangeService backs the post-enrollment offering-change queue
+	// (#1665).
+	OfferingChangeService   enrollmentService.OfferingChangeRequestService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	OGSGroupLiveService     ogsGroupLiveService.Getter
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
-	Broadcaster             realtime.Broadcaster
+	// OfferingSourceResyncer re-reconciles Jahrgang-filtered offering-sourced
+	// Regeltermine after a direct school_class edit, in the same transaction —
+	// the same hook a grade transition uses (#2147 review round 10). Optional:
+	// nil skips the resync (bare test Resources).
+	OfferingSourceResyncer educationService.OfferingSourceResyncer
+	// LockTemplateRecurrence takes the tenant-wide recurrence gate the resync
+	// requires. It must be acquired BEFORE the student row locks (see
+	// applyStudentUpdate for the ordering rationale). Required whenever
+	// OfferingSourceResyncer is set.
+	LockTemplateRecurrence func(ctx context.Context) error
+	Broadcaster            realtime.Broadcaster
 	// ParentEventEmitter wakes a child's guardians (message-independent
 	// parent_child_updated SSE fan-out) after staff-side care writes, so an open
 	// parents-app tab refetches the child's care state live (#1725). Optional —
@@ -105,6 +121,13 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		// Aggregated OGS-group live projection (#2056). Gated on users:read
+		// like the former roster endpoint; the group-derived sections (room
+		// status, transfers, tracking indicators) additionally require
+		// groups:read and degrade to empty inside the service when it is
+		// missing — mirroring the permission split of the replaced single
+		// endpoints instead of failing the whole roster.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
@@ -141,6 +164,12 @@ func (rs *Resource) Router() chi.Router {
 		// on the same Änderungsanfragen page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+
+		// Post-enrollment offering change requests (#1665). Approving one moves
+		// the child between activity groups on a chosen date, so it shares the
+		// users:update gate of the queues it sits next to on the same page.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
 		// Excused-absence approval requests (#1845): staff review queue.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)

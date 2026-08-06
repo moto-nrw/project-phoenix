@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -112,9 +114,19 @@ type phaseService struct {
 	calendarPeriods                 scheduleService.CalendarPeriodService
 	lockTemplateRecurrence          func(context.Context) error
 	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
-	settings                        PhaseSettingsResolver
-	txHandler                       *modelBase.TxHandler
-	logger                          *slog.Logger
+	// sourcedTemplateResyncer re-reconciles templates sourcing this phase's
+	// offerings after a service-window change (#2147 review). Late-bound via
+	// SetSourcedTemplateResyncer because the decision service is constructed
+	// after this one, mirroring the care-offering service.
+	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
+	settings                PhaseSettingsResolver
+	txHandler               *modelBase.TxHandler
+	logger                  *slog.Logger
+}
+
+// SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
+func (s *phaseService) SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer) {
+	s.sourcedTemplateResyncer = resyncer
 }
 
 func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
@@ -434,42 +446,133 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	if err := s.validateFormSchemaLink(ctx, phase); err != nil {
 		return err
 	}
-	if err := s.validateCareOfferingPhaseUpdate(ctx, phase); err != nil {
+	serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
+	if err != nil {
 		return err
 	}
 	if err := s.repo.Update(ctx, phase); err != nil {
 		return translatePhaseWriteError(err)
 	}
+	if serviceWindowChanged {
+		if err := s.resyncPhaseSourcedTemplates(ctx, phase.ID); err != nil {
+			return err
+		}
+	}
 	s.logger.Info("phase updated", slog.Int64("phase_id", phase.ID))
 	return nil
 }
 
-func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollmentModels.Phase) error {
-	if s.validateCareOfferingPhaseChange == nil {
-		return nil
+// validateCareOfferingPhaseUpdate guards a service-window change against the
+// legacy-linked care offerings and reports whether the window actually
+// changed, so Update can resync offering-sourced templates after the write
+// (#2147 review). The recurrence lock is taken before the existing row is
+// read and stays held for the whole update transaction.
+func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollmentModels.Phase) (bool, error) {
+	if s.validateCareOfferingPhaseChange == nil && s.sourcedTemplateResyncer == nil {
+		return false, nil
 	}
 	if s.lockTemplateRecurrence == nil {
-		return errors.New("phase update care-offering validation requires the template recurrence lock")
+		return false, errors.New("phase update care-offering validation requires the template recurrence lock")
 	}
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
-		return fmt.Errorf("lock template recurrence for phase update: %w", err)
+		return false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
 	existing, err := s.repo.FindByID(ctx, phase.ID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return fmt.Errorf("%w: phase %d", ErrPhaseNotFound, phase.ID)
+			return false, fmt.Errorf("%w: phase %d", ErrPhaseNotFound, phase.ID)
 		}
-		return fmt.Errorf("load phase for care-offering validation: %w", err)
+		return false, fmt.Errorf("load phase for care-offering validation: %w", err)
 	}
 	if existing.ServiceStartDate == phase.ServiceStartDate &&
 		existing.ServiceEndDate == phase.ServiceEndDate {
+		return false, nil
+	}
+	if s.validateCareOfferingPhaseChange != nil {
+		if err := s.validateCareOfferingPhaseChange(ctx, phase.ID, phase); err != nil {
+			if errors.Is(err, ErrCareOfferingInvalid) {
+				return false, fmt.Errorf("%w: %v", ErrPhaseCareOfferingConflict, err)
+			}
+			return false, fmt.Errorf("validate care offerings for phase update: %w", err)
+		}
+	}
+	return true, nil
+}
+
+// resyncPhaseSourcedTemplates re-reconciles every template sourcing one of
+// the phase's offerings after a service-window change (#2147 review): the
+// window bounds every sourced enrollment row and the reconciled materialized
+// occurrences, so extensions and shortenings must propagate immediately, not
+// at the next unrelated template save. A window change that makes a source
+// incompatible with its template's planning period is rejected as
+// ErrPhaseCareOfferingConflict (#2147 review round 7), mirroring the
+// care-offering update path: committing it would leave that template's
+// sourced rows and materialized occurrences stranded, with every later resync
+// skipping the template. Runs under the recurrence lock the update already
+// holds; history before today stays untouched.
+func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64) error {
+	if s.sourcedTemplateResyncer == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.logger.Warn("phase update: sourced-template resyncer not configured; sourced rosters may be stale",
+			slog.Int64("phase_id", phaseID))
 		return nil
 	}
-	if err := s.validateCareOfferingPhaseChange(ctx, phase.ID, phase); err != nil {
-		if errors.Is(err, ErrCareOfferingInvalid) {
-			return fmt.Errorf("%w: %v", ErrPhaseCareOfferingConflict, err)
+	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+	if err != nil {
+		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
+	}
+	today := timezone.TodayDate()
+	for _, offering := range offerings {
+		if offering == nil {
+			continue
 		}
-		return fmt.Errorf("validate care offerings for phase update: %w", err)
+		if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, today); err != nil {
+			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+				// TenantTxMiddleware commits ordinary 4xx responses. Mark the
+				// ambient transaction so the already-written phase update is
+				// discarded together with the rejection.
+				tenant.MarkRollback(ctx)
+				return fmt.Errorf("%w: %w", ErrPhaseCareOfferingConflict, err)
+			}
+			return fmt.Errorf("phase update: resync templates sourcing offering %d: %w", offering.ID, err)
+		}
+	}
+	return nil
+}
+
+// detachPhaseSourcedTemplates retires the sourced rosters of every template
+// sourcing one of the phase's offerings ahead of the phase delete (#2147
+// review round 11); see CareOfferingSourcedTemplateResyncer. Runs inside the
+// delete transaction under the tenant recurrence lock. Deliberately no
+// source validation is involved, so a drifted-invalid source never blocks
+// the delete.
+func (s *phaseService) detachPhaseSourcedTemplates(ctx context.Context, phaseID int64) error {
+	if s.sourcedTemplateResyncer == nil || s.careOfferingRepo == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.logger.Warn("phase delete: sourced-template resyncer not configured; sourced rosters may be orphaned",
+			slog.Int64("phase_id", phaseID))
+		return nil
+	}
+	if s.lockTemplateRecurrence == nil {
+		return errors.New("phase delete sourced-template detach requires the template recurrence lock")
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return fmt.Errorf("lock template recurrence for phase delete: %w", err)
+	}
+	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+	if err != nil {
+		return fmt.Errorf("phase delete: list care offerings for sourced-template detach: %w", err)
+	}
+	today := timezone.TodayDate()
+	for _, offering := range offerings {
+		if offering == nil {
+			continue
+		}
+		if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offering.ID, today); err != nil {
+			return fmt.Errorf("phase delete: detach templates sourcing offering %d: %w", offering.ID, err)
+		}
 	}
 	return nil
 }
@@ -538,6 +641,14 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 
 	deletedRequests := 0
 	run := func(txCtx context.Context) error {
+		// Retire sourced rosters FIRST, while request children and offering
+		// links still exist: the phase cascade SET-NULLs the templates'
+		// source and the rows' provenance, which would leave bounded
+		// offering-derived enrollment rows that keep materializing children
+		// yet are invisible to every later resync (#2147 review round 11).
+		if err := s.detachPhaseSourcedTemplates(txCtx, id); err != nil {
+			return err
+		}
 		if s.requestRepo != nil {
 			n, err := s.requestRepo.DeleteByPhaseID(txCtx, id)
 			if err != nil {

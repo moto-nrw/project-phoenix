@@ -53,6 +53,12 @@ type mockDecisionService struct {
 	decideErrs   []error
 	decideErr    error
 
+	restoreRequestID  int64
+	restoreRestoredBy int64
+	restoreCalls      int
+	restoreResult     *enrollmentService.RestoreOutcome
+	restoreErr        error
+
 	// ExportPhase: records the args the handler forwards (so a handler
 	// test can assert the format + actor were threaded through) and
 	// replays a canned payload/error.
@@ -94,6 +100,13 @@ func (m *mockDecisionService) Decide(_ context.Context, input enrollmentService.
 		return m.decideResult, err
 	}
 	return m.decideResult, m.decideErr
+}
+
+func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, restoredBy int64) (*enrollmentService.RestoreOutcome, error) {
+	m.restoreRequestID = requestID
+	m.restoreRestoredBy = restoredBy
+	m.restoreCalls++
+	return m.restoreResult, m.restoreErr
 }
 
 func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
@@ -142,6 +155,7 @@ func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router 
 	r.Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
 	r.Post("/enrollment/admin/students/{studentId}/requests/export", rs.exportStudentEnrollmentRequests)
 	r.Post("/enrollment/admin/requests/{id}/children/{childId}/decide", rs.decideAdminChild)
+	r.Post("/enrollment/admin/requests/{id}/restore", rs.restoreAdminRequest)
 	return r
 }
 
@@ -370,6 +384,22 @@ func TestGetAdminRequestHandler_HappyPathReturnsDetail(t *testing.T) {
 	assert.Contains(t, body, `"id":"99"`)
 	assert.Contains(t, body, `"date_of_birth":"2018-04-15"`)
 	assert.Contains(t, body, `"status_token":"detail-token"`)
+}
+
+func TestGetAdminRequestHandler_ReportsLateInviteEmailMismatch(t *testing.T) {
+	summary := makeReqSummary(1234, 5678,
+		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
+	)
+	summary.Request.StatusToken = "detail-token"
+	summary.Request.GuardianEmail = "submitted@example.test"
+	summary.LateInvite = &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}
+	router := buildAdminDecisionRouter(&mockDecisionService{getResult: summary})
+
+	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"late_invite_guardian_email":"invited@example.test"`)
+	assert.Contains(t, w.Body.String(), `"late_invite_email_mismatch":true`)
 }
 
 func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
@@ -635,4 +665,75 @@ func TestDecideAdminChildHandler_MalformedJSONReturns400(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- restoreAdminRequest -------------------------------------------------
+
+func TestRestoreAdminRequestHandler_NilServiceReturns500(t *testing.T) {
+	router := buildAdminDecisionRouter(nil)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestRestoreAdminRequestHandler_InvalidRequestIDRejected(t *testing.T) {
+	router := buildAdminDecisionRouter(&mockDecisionService{})
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/notanumber/restore", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestRestoreAdminRequestHandler_HappyPathReturns200(t *testing.T) {
+	mock := &mockDecisionService{
+		restoreResult: &enrollmentService.RestoreOutcome{RestoredChildIDs: []int64{7, 8}},
+	}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 1, mock.restoreCalls)
+	assert.Equal(t, int64(1234), mock.restoreRequestID)
+	assert.Contains(t, w.Body.String(), `"restored_children":2`)
+}
+
+func TestRestoreAdminRequestHandler_RequestNotFoundMapsTo404(t *testing.T) {
+	mock := &mockDecisionService{restoreErr: enrollmentService.ErrDecisionRequestNotFound}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestRestoreAdminRequestHandler_NothingWithdrawnMapsTo400(t *testing.T) {
+	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestoreNothingWithdrawn}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestRestoreAdminRequestHandler_PhaseInactiveMapsTo409(t *testing.T) {
+	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestorePhaseInactive}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.restore_phase_inactive")
+}
+
+func TestRestoreAdminRequestHandler_DuplicateMapsTo409(t *testing.T) {
+	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestoreDuplicateActive}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.restore_duplicate")
+}
+
+func TestRestoreAdminRequestHandler_GenericErrorMapsTo500(t *testing.T) {
+	mock := &mockDecisionService{restoreErr: errors.New("synthetic boom")}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/restore", nil)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

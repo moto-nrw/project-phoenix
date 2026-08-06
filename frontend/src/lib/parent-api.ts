@@ -225,8 +225,11 @@ export interface RelatedAccount {
   readonly last_name: string;
   readonly email?: string;
   readonly relationship_type: string;
+  // Per-child role preset on the link; used to hide the grant-access action
+  // for school-managed social-worker contacts (#2172).
+  readonly guardian_role?: string;
   readonly is_primary: boolean;
-  readonly status: "active" | "pending" | "no_account";
+  readonly status: "active" | "pending" | "no_account" | "active_no_access";
   // Marks the requesting parent's own row. Self-removal is rejected by the
   // backend, so the panel hides the remove action for it.
   readonly is_self: boolean;
@@ -671,6 +674,27 @@ export interface ParentAnnouncement {
   readonly expires_at?: string; // ISO timestamp
   readonly read: boolean;
   readonly acknowledged: boolean;
+
+  // Umfrage fields (#1371). "none" is a plain Mitteilung; a choice type comes
+  // with the answer options and the guardian's own children this poll reaches
+  // (one answer row per child).
+  readonly response_type: "none" | "single_choice" | "multi_choice";
+  readonly response_deadline?: string; // ISO timestamp
+  readonly options?: readonly ParentAnnouncementOption[];
+  readonly children?: readonly ParentAnnouncementPollChild[];
+}
+
+interface ParentAnnouncementOption {
+  readonly id: string;
+  readonly label: string;
+}
+
+/** One of the guardian's children, with the options selected for that child. */
+export interface ParentAnnouncementPollChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly selected_options: readonly string[];
 }
 
 // A child's full conversation (messages oldest-first). `thread_id` is empty
@@ -763,6 +787,28 @@ export async function acknowledgeAnnouncement(
   await postJson<{ acknowledged: boolean }>(
     `/api/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
     { published_at: publishedAt },
+  );
+}
+
+/**
+ * Records the guardian's answer to an Umfrage for ONE child (#1371).
+ * `optionIds` replaces whatever was selected for that child; an empty array
+ * withdraws the answer. Same `publishedAt` version guard as the read/ack calls,
+ * plus the server-side answer deadline.
+ */
+export async function respondToAnnouncement(
+  announcementId: string,
+  studentId: string,
+  optionIds: readonly string[],
+  publishedAt: string,
+): Promise<void> {
+  await postJson<{ answered: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/respond`,
+    {
+      student_id: studentId,
+      option_ids: optionIds,
+      published_at: publishedAt,
+    },
   );
 }
 
@@ -865,13 +911,20 @@ export async function updateGuardianRelationship(
 export interface InviteRelatedAccountResult {
   readonly outcome: string;
   readonly guardian_profile_id: string;
+  // Current guardian role for the existing_contact_restricted outcome, so the
+  // UI can name it in the upgrade confirmation.
+  readonly existing_role?: string;
 }
 
 /** Invites a further guardian to the child by email. */
 export async function inviteRelatedAccount(
   studentId: string,
   email: string,
-  options?: { firstName?: string; lastName?: string },
+  options?: {
+    firstName?: string;
+    lastName?: string;
+    confirmRoleUpgrade?: boolean;
+  },
 ): Promise<InviteRelatedAccountResult> {
   return postJson<InviteRelatedAccountResult>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
@@ -879,6 +932,9 @@ export async function inviteRelatedAccount(
       email,
       first_name: options?.firstName ?? "",
       last_name: options?.lastName ?? "",
+      // Only sent when confirming an upgrade; a plain invite keeps the
+      // historical three-field body.
+      ...(options?.confirmRoleUpgrade ? { confirm_role_upgrade: true } : {}),
     },
   );
 }
@@ -990,6 +1046,198 @@ export async function withdrawCareScheduleRequest(
 ): Promise<ChildCareSchedule> {
   return postJson<ChildCareSchedule>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
+  );
+}
+
+// --- Booked care offerings + AGs (#1665) ---
+
+/** One booked care offering of the child's current care period. */
+interface CareOfferingItem {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** Booked ISO weekdays (1=Mon..7=Sun); empty when the offering has no per-day choice. */
+  readonly weekdays: number[];
+  readonly price_cents?: number;
+  readonly includes_lunch: boolean;
+  readonly includes_holiday_care: boolean;
+  /** First day of a scheduled future booking (YYYY-MM-DD). */
+  readonly valid_from?: string;
+  /** Last day of a superseded booking (YYYY-MM-DD). */
+  readonly valid_until?: string;
+  /** True while a booked offering has not started yet. */
+  readonly starts_later?: boolean;
+}
+
+/** One activity-group membership of the child. */
+interface CareGroupItem {
+  readonly id: string;
+  readonly name: string;
+  readonly weekdays: number[];
+  /** First day (YYYY-MM-DD). */
+  readonly valid_from: string;
+  /** Last day (YYYY-MM-DD, inclusive) — absent for open-ended memberships. */
+  readonly valid_until?: string;
+  /** True for rows materialized from an enrollment selection. */
+  readonly from_offering: boolean;
+  /** True while the membership has not started yet (an approved future switch). */
+  readonly starts_later: boolean;
+}
+
+/** One "current -> requested" line of a pending offering change. */
+interface OfferingDiffLine {
+  readonly label: string;
+  readonly old_state: "not_booked" | "booked";
+  /** Canonical day keys; empty for an all-day booking. */
+  readonly old_days: string[];
+  readonly new_state: "removed" | "booked";
+  /** Canonical day keys; empty for an all-day booking. */
+  readonly new_days: string[];
+}
+
+/** The child's open offering change request. */
+interface PendingOfferingChange {
+  readonly id: string;
+  readonly created_at: string;
+  /** Date the switch would take effect (YYYY-MM-DD). */
+  readonly effective_from: string;
+  readonly note?: string;
+  readonly diff: OfferingDiffLine[];
+  readonly submitted_by_self: boolean;
+}
+
+/** One offering of a decided request. */
+interface OfferingRequestedItem {
+  readonly id: string;
+  readonly name: string;
+  /** ISO weekdays (1=Mon..7=Sun); empty means every care day. */
+  readonly weekdays: number[];
+}
+
+/** A decided change request: the outcome plus a rejection's reason. */
+interface OfferingDecision {
+  readonly id: string;
+  readonly status: "approved" | "rejected";
+  readonly decided_at: string;
+  /** Date the switch took (or would have taken) effect (YYYY-MM-DD). */
+  readonly effective_from: string;
+  readonly reason?: string;
+  /** What the family asked for, so the decision stays readable on its own. */
+  readonly requested: OfferingRequestedItem[];
+}
+
+/** Why the change button is unavailable. Stable identifiers from the backend. */
+export type OfferingChangesDisabledReason =
+  | "no_enrollment"
+  | "no_permission"
+  | "school_disabled"
+  | "period_over"
+  | "no_time_remaining";
+
+/** Parent-facing view of what the child is booked into. */
+export interface ChildCareOfferings {
+  readonly period_name?: string;
+  readonly period_start?: string;
+  readonly period_end?: string;
+  readonly offerings: CareOfferingItem[];
+  readonly groups: CareGroupItem[];
+  readonly can_request: boolean;
+  readonly pending_request?: PendingOfferingChange;
+  /** Earliest date a new request may take effect (YYYY-MM-DD). */
+  readonly earliest_effective_from?: string;
+  /** Most recent decided request, dropped once it ages out of the window. */
+  readonly last_decision?: OfferingDecision;
+  readonly changes_disabled_reason?: OfferingChangesDisabledReason;
+}
+
+/** One selectable offering in the change-request modal. */
+export interface OfferingCatalogItem {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** "fixed" = the school sets the days; "parent_choice" = the family picks. */
+  readonly days_of_week_mode: string;
+  readonly available_days: string[];
+  readonly selection_group?: string;
+  readonly selection_rule: string;
+  readonly is_required: boolean;
+  readonly price_cents?: number;
+  readonly includes_lunch: boolean;
+  readonly includes_holiday_care: boolean;
+  readonly selected: boolean;
+  readonly selected_days: string[];
+  /** True when the current booking is derived from another offering. */
+  readonly automatic?: boolean;
+  /** False for a booking retained after the school deactivated the offering. */
+  readonly is_active?: boolean;
+  readonly capacity?: number;
+  readonly free_slots?: number;
+}
+
+/** The selectable catalog plus the allowed effective-date window. */
+export interface OfferingCatalog {
+  readonly phase_name: string;
+  readonly selection_mode: string;
+  readonly earliest_effective_from: string;
+  readonly latest_effective_from: string;
+  readonly items: OfferingCatalogItem[];
+}
+
+/** One desired offering in a submission. */
+export interface OfferingChangeSelectionInput {
+  readonly offering_id: string;
+  readonly selected_days: string[];
+}
+
+/** Returns the offerings and groups the child is booked into. */
+export async function getChildCareOfferings(
+  studentId: string,
+): Promise<ChildCareOfferings> {
+  return getJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings`,
+  );
+}
+
+/** Returns the offerings the guardian may pick from, prefilled. */
+export async function getChildOfferingCatalog(
+  studentId: string,
+  effectiveFrom?: string,
+): Promise<OfferingCatalog> {
+  const params = effectiveFrom
+    ? `?effective_from=${encodeURIComponent(effectiveFrom)}`
+    : "";
+  return getJson<OfferingCatalog>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/catalog${params}`,
+  );
+}
+
+/**
+ * Submits a post-enrollment offering change. The selection is the COMPLETE
+ * desired booking, not a delta: staff decide one coherent booking, and the
+ * backend re-validates it against capacity and the phase rules on approval.
+ */
+export async function submitOfferingChangeRequest(
+  studentId: string,
+  input: {
+    offerings: OfferingChangeSelectionInput[];
+    effective_from: string;
+    note?: string;
+  },
+): Promise<ChildCareOfferings> {
+  return postJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests`,
+    input,
+  );
+}
+
+/** Withdraws the guardian's own still-open offering change request. */
+export async function withdrawOfferingChangeRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCareOfferings> {
+  return postJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests/${encodeURIComponent(requestId)}/withdraw`,
     {},
   );
 }

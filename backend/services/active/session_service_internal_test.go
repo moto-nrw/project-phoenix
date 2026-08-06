@@ -33,6 +33,9 @@ func (d *deviceRepoForSessionUnitTest) Create(context.Context, *iotModels.Device
 func (d *deviceRepoForSessionUnitTest) FindByID(context.Context, interface{}) (*iotModels.Device, error) {
 	return nil, nil
 }
+func (d *deviceRepoForSessionUnitTest) FindByIDForUpdate(context.Context, int64) (*iotModels.Device, error) {
+	return nil, nil
+}
 func (d *deviceRepoForSessionUnitTest) Update(context.Context, *iotModels.Device) error {
 	return nil
 }

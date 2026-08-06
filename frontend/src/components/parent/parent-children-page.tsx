@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type Child, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
+import { EmptyState } from "~/components/ui/empty-state";
+import { ChildRow, type ChildRowItem } from "~/components/parent/child-row";
+import {
+  ParentLoadError,
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+} from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "ParentChildrenPage" });
 
@@ -27,15 +33,7 @@ function formatServiceRange(
   connector: string,
 ): string {
   if (!child.enrolled_from && !child.enrolled_until) return empty;
-  return `${formatDate(child.enrolled_from, locale, empty)} ${connector} ${formatDate(
-    child.enrolled_until,
-    locale,
-    empty,
-  )}`;
-}
-
-function getInitials(child: Child): string {
-  return `${child.first_name.at(0) ?? ""}${child.last_name.at(0) ?? ""}`.toUpperCase();
+  return `${formatDate(child.enrolled_from, locale, empty)} ${connector} ${formatDate(child.enrolled_until, locale, empty)}`;
 }
 
 export function ParentChildrenPage() {
@@ -64,128 +62,54 @@ export function ParentChildrenPage() {
   }, [load]);
 
   if (loading) {
-    return <ParentChildrenSkeleton />;
+    return <ParentPageSkeleton rows={1} />;
   }
 
   if (error) {
-    return (
-      <div className="mx-auto max-w-7xl">
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
-          {t("loadError")}
-        </div>
-      </div>
-    );
+    return <ParentLoadError message={t("loadError")} />;
   }
 
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-5 sm:p-6 lg:p-8">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("eyebrow")}
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold text-gray-900 sm:text-4xl">
-            {t("title")}
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 sm:text-base">
-            {t("description")}
-          </p>
-        </div>
-      </section>
+  const items: ChildRowItem[] = children.map((child) => ({
+    key: child.student_id,
+    name: `${child.first_name} ${child.last_name}`,
+    schoolName: child.school_class
+      ? `${child.school_name}, ${child.school_class}`
+      : child.school_name,
+    detail: t("careRange", {
+      range: formatServiceRange(
+        child,
+        locale,
+        t("openRange"),
+        t("dateRangeConnector"),
+      ),
+    }),
+    href: `/parents/children/${child.student_id}`,
+  }));
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        {children.length === 0 ? (
-          <EmptyChildren />
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {children.map((child) => (
-              <ChildCard key={child.student_id} child={child} locale={locale} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function ChildCard({
-  child,
-  locale,
-}: Readonly<{ child: Child; locale: string }>) {
-  const t = useTranslations("parentChildren");
-  const name = `${child.first_name} ${child.last_name}`;
   return (
-    <Link
-      href={`/parents/children/${child.student_id}`}
-      className="group rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <div className="flex items-center gap-4">
-        <span className="bg-moto-green/15 text-moto-green-strong flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-base font-semibold">
-          {getInitials(child) || (
-            <MotoConceptIcon concept="children" size={26} />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold break-words text-gray-900">
-                {name}
-              </h2>
-              <p className="text-sm break-words text-gray-600">
-                {child.school_name}
-                {child.school_class ? `, ${child.school_class}` : ""}
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-sm leading-5 break-words text-gray-500">
-            {t("careRange", {
-              range: formatServiceRange(
-                child,
-                locale,
-                t("openRange"),
-                t("dateRangeConnector"),
-              ),
-            })}
-          </p>
-        </div>
-        <ArrowRight
-          className="hidden h-4 w-4 shrink-0 text-gray-400 transition-colors group-hover:text-gray-700 sm:block"
-          aria-hidden="true"
-        />
-      </div>
-    </Link>
-  );
-}
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("eyebrow")}
+        title={t("title")}
+        description={t("description")}
+      />
 
-function EmptyChildren() {
-  const t = useTranslations("parentChildren");
-  return (
-    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-        <MotoConceptIcon concept="children" size={22} />
-      </span>
-      <h2 className="mt-3 text-sm font-semibold text-gray-900">
-        {t("emptyTitle")}
-      </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">
-        {t("emptyDescription")}
-      </p>
-    </div>
-  );
-}
-
-function ParentChildrenSkeleton() {
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-      <div className="grid gap-3 lg:grid-cols-2">
-        {[0, 1, 2, 3].map((item) => (
-          <div
-            key={item}
-            className="h-32 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm"
+      {items.length === 0 ? (
+        <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+          <EmptyState
+            icon={<Users className="h-8 w-8" aria-hidden="true" />}
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
+            className="py-8"
           />
-        ))}
-      </div>
-    </div>
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {items.map((item) => (
+            <ChildRow key={item.key} item={item} variant="card" />
+          ))}
+        </div>
+      )}
+    </ParentPage>
   );
 }

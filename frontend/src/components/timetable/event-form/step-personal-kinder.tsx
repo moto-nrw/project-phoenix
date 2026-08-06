@@ -4,13 +4,21 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
-import type { EventFormState, PersonOption } from "./form-model";
+import type {
+  EventFormState,
+  PersonOption,
+  WeekdayRosterState,
+} from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
+import { WeekdayRosterSection } from "./weekday-roster-section";
 import type { GroupOption } from "./use-event-form";
+import { Checkbox } from "~/components/ui/checkbox";
 import type {
   ConflictWarningItem,
+  OfferingSourceOption,
   ShiftCoverageWarningItem,
   TargetGroupType,
 } from "~/lib/timetable-types";
@@ -21,7 +29,7 @@ const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
   { value: "jahrgang", label: "Jahrgang" },
   { value: "klasse", label: "Klasse" },
   { value: "gruppe", label: "Gruppe" },
-  { value: "angebot", label: "Angebotsauswahl" },
+  { value: "angebot", label: "Angebot" },
 ];
 
 export interface StepPersonalKinderProps {
@@ -57,17 +65,30 @@ export interface StepPersonalKinderProps {
     memberIds: string[];
   }>;
   targetClassOptions: string[];
-  targetClassDescriptionIDs: string;
   targetCohort: { label: string | null; memberIds: string[] };
   missingTargetCohortCount: number;
   targetCohortButtonLabel: string;
   addTargetCohort: () => void;
+  offeringSources: OfferingSourceOption[] | null;
+  offeringSourcesError: string | null;
+  selectedOfferingSource: OfferingSourceOption | null;
+  sourceGradeOptions: number[];
+  sourceFilteredCount: number;
+  sourceOverlapWarnings: string[];
+  changeSourceOffering: (offeringId: string) => void;
+  toggleSourceGradeLevel: (grade: number) => void;
   conflictWarnings: ConflictWarningItem[];
   coverageWarnings: ShiftCoverageWarningItem[];
   coverageWarningCount: number;
   coverageCheckError: string | null;
   requiredStaffTouched: React.RefObject<boolean>;
   staffRosterTouched: React.RefObject<boolean>;
+  /** Per-weekday roster controls (#2129); only rendered in the series flow. */
+  activeRosterWeekday: number;
+  setActiveRosterWeekday: (weekday: number) => void;
+  setPerWeekdayRoster: (enabled: boolean) => void;
+  setWeekdayRoster: (weekday: number, roster: WeekdayRosterState) => void;
+  applyActiveWeekdayRosterToAll: () => void;
 }
 
 /**
@@ -98,18 +119,56 @@ export function StepPersonalKinder({
   preservesGradeAboveTenantCap,
   studentBulkOptions,
   targetClassOptions,
-  targetClassDescriptionIDs,
   targetCohort,
   missingTargetCohortCount,
   targetCohortButtonLabel,
   addTargetCohort,
+  offeringSources,
+  offeringSourcesError,
+  selectedOfferingSource,
+  sourceGradeOptions,
+  sourceFilteredCount,
+  sourceOverlapWarnings,
+  changeSourceOffering,
+  toggleSourceGradeLevel,
   conflictWarnings,
   coverageWarnings,
   coverageWarningCount,
   coverageCheckError,
   requiredStaffTouched,
   staffRosterTouched,
+  activeRosterWeekday,
+  setActiveRosterWeekday,
+  setPerWeekdayRoster,
+  setWeekdayRoster,
+  applyActiveWeekdayRosterToAll,
 }: Readonly<StepPersonalKinderProps>) {
+  const hasOfferingSource =
+    isSeriesFlow &&
+    form.targetGroupType === "angebot" &&
+    form.sourceCareOfferingId !== "";
+  // Per-weekday rosters only make sense for a recurring series, and only once
+  // the people lists have actually loaded — otherwise a save would write the
+  // empty placeholder lists onto every weekday. An offering-sourced template
+  // (#2137) hides the whole section: its child roster is server-managed, and
+  // the backend rejects weekday_assignments next to a source.
+  const rosterWeekdays = [...form.weekdays].sort((a, b) => a - b);
+  const showWeekdayRoster =
+    isSeriesFlow &&
+    !hasOfferingSource &&
+    !loadingStaff &&
+    !staffLoadError &&
+    !loadingStudents &&
+    !studentLoadError;
+  const usePerWeekdayRoster =
+    showWeekdayRoster && form.perWeekdayRoster && rosterWeekdays.length >= 2;
+  const preserveUnavailableWeekdayRoster =
+    isSeriesFlow &&
+    !hasOfferingSource &&
+    form.perWeekdayRoster &&
+    rosterWeekdays.length >= 2 &&
+    !showWeekdayRoster;
+
   let studentRosterField: React.ReactNode;
   if (loadingStudents) {
     studentRosterField = (
@@ -142,6 +201,9 @@ export function StepPersonalKinder({
         onChange={(ids) => update("studentIds", ids)}
         metadata="student"
         bulkOptions={studentBulkOptions}
+        protectedValues={form.protectedStudentAssignments.flatMap(
+          (assignment) => assignment.studentIds,
+        )}
       />
     );
   }
@@ -222,7 +284,12 @@ export function StepPersonalKinder({
               changeTargetGroupType(value as TargetGroupType)
             }
           >
-            <TabsList aria-label="Zielgruppe" className="w-fit">
+            {/* Five pills exceed narrow viewports; wrap instead of bleeding
+                out of the dialog (h-auto overrides the kit's fixed h-9). */}
+            <TabsList
+              aria-label="Zielgruppe"
+              className="h-auto w-fit max-w-full flex-wrap justify-start"
+            >
               {TARGET_GROUP_OPTIONS.map((option) => (
                 <TabsTrigger key={option.value} value={option.value}>
                   {option.label}
@@ -239,30 +306,25 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetGradeLevel}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_grade_level"
                   ariaLabel="Jahrgang"
+                  ariaInvalid={Boolean(fieldErrors.targetGradeLevel)}
                   ariaDescribedBy={
                     fieldErrors.targetGradeLevel
                       ? "event_target_grade_level_error"
                       : undefined
                   }
-                  value={form.targetGradeLevel}
-                  options={[
-                    { value: "", label: "Jahrgang wählen …" },
-                    ...targetGradeOptions,
-                  ]}
-                  onChange={(next) => update("targetGradeLevel", next)}
-                  required
-                  invalid={Boolean(fieldErrors.targetGradeLevel)}
-                  placeholder="Jahrgang wählen …"
+                  value={form.targetGradeLevels}
+                  options={targetGradeOptions}
+                  onChange={(next) => update("targetGradeLevels", next)}
+                  emptyLabel="Jahrgänge wählen ..."
                 />
               </Field>
               {preservesGradeAboveTenantCap ? (
                 <p className="mt-1 text-xs text-gray-500" role="status">
-                  Jahrgang {form.targetGradeLevel} liegt über der aktuell
-                  konfigurierten Höchststufe {gradeLevelMax}. Die bestehende
-                  Zielgruppe bleibt beim Speichern erhalten.
+                  Eine bestehende Auswahl liegt über der aktuell konfigurierten
+                  Höchststufe {gradeLevelMax} und bleibt erhalten.
                 </p>
               ) : null}
             </div>
@@ -276,23 +338,24 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetSchoolClass}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_school_class"
                   ariaLabel="Klasse"
-                  ariaDescribedBy={targetClassDescriptionIDs || undefined}
-                  value={form.targetSchoolClass}
-                  options={[
-                    { value: "", label: "Klasse wählen …" },
-                    ...targetClassOptions.map((schoolClass) => ({
-                      value: schoolClass,
-                      label: schoolClass,
-                    })),
-                  ]}
-                  onChange={(next) => update("targetSchoolClass", next)}
+                  ariaInvalid={Boolean(fieldErrors.targetSchoolClass)}
+                  ariaDescribedBy={
+                    fieldErrors.targetSchoolClass
+                      ? "event_target_school_class_error"
+                      : undefined
+                  }
+                  value={form.targetSchoolClasses}
+                  options={targetClassOptions.map((schoolClass) => ({
+                    value: schoolClass,
+                    label: schoolClass,
+                  }))}
+                  onChange={(next) => update("targetSchoolClasses", next)}
                   disabled={loadingStudents || studentLoadError !== null}
-                  required
-                  invalid={Boolean(fieldErrors.targetSchoolClass)}
-                  placeholder="Klasse wählen …"
+                  emptyLabel="Klassen wählen ..."
+                  searchable
                 />
               </Field>
               {loadingStudents || studentLoadError ? (
@@ -317,65 +380,175 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.educationGroupId}
               >
-                <CustomSelect
+                <MultiCheckboxSelect
                   id="event_target_gruppe"
                   ariaLabel="Gruppe"
+                  ariaInvalid={Boolean(fieldErrors.educationGroupId)}
                   ariaDescribedBy={
                     fieldErrors.educationGroupId
                       ? "event_target_gruppe_error"
                       : undefined
                   }
-                  value={form.educationGroupId}
-                  options={[
-                    { value: "", label: "Gruppe wählen …" },
-                    ...groups.map((group) => ({
-                      value: group.id,
-                      label: group.name,
-                    })),
-                  ]}
-                  onChange={(next) => update("educationGroupId", next)}
+                  value={form.educationGroupIds}
+                  options={groups.map((group) => ({
+                    value: group.id,
+                    label: group.name,
+                  }))}
+                  onChange={(next) => update("educationGroupIds", next)}
                   disabled={loadingRefs}
-                  required
-                  invalid={Boolean(fieldErrors.educationGroupId)}
-                  placeholder="Gruppe wählen …"
+                  emptyLabel="Gruppen wählen ..."
+                  searchable
                 />
               </Field>
             </div>
           )}
 
           {form.targetGroupType === "angebot" && (
-            <p className="mt-1 text-xs text-gray-500">
-              Kinder kommen automatisch über ein Betreuungsangebot hinzu. Die
-              Verknüpfung wird unter „Angebote“ beim jeweiligen Angebot gepflegt
-              (Feld „Regeltermin“).
-            </p>
-          )}
-
-          {targetCohort.label && !loadingStudents && !studentLoadError && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
-              <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
-                Die Zielgruppe beschreibt den Regeltermin. Übernimm die
-                passenden Kinder mit einem Klick; die Auswahl bleibt danach
-                anpassbar.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                onClick={addTargetCohort}
-                disabled={
-                  targetCohort.memberIds.length === 0 ||
-                  missingTargetCohortCount === 0
-                }
-              >
-                {targetCohortButtonLabel}
-              </Button>
+            <div className="mt-1 flex flex-col gap-2">
+              <Field label="Angebot als Quelle" htmlFor="event_source_offering">
+                <CustomSelect
+                  id="event_source_offering"
+                  ariaLabel="Betreuungsangebot"
+                  value={form.sourceCareOfferingId}
+                  options={[
+                    { value: "", label: "Kein Angebot als Quelle" },
+                    ...(offeringSources ?? []).map((offering) => ({
+                      value: offering.id,
+                      label: `${offering.name} (${offering.phaseName || "ohne Phase"}, ${offering.totalCount} ${offering.totalCount === 1 ? "Kind" : "Kinder"})`,
+                    })),
+                  ]}
+                  onChange={changeSourceOffering}
+                  disabled={offeringSources === null}
+                  placeholder="Angebot wählen …"
+                />
+              </Field>
+              {offeringSourcesError ? (
+                <Alert type="warning" message={offeringSourcesError} />
+              ) : null}
+              {form.sourceCareOfferingId === "" && (
+                <p className="text-xs text-gray-500">
+                  Mit einem Angebot als Quelle übernimmt der Regeltermin die
+                  angemeldeten Kinder automatisch – auch bei späteren An- und
+                  Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die
+                  unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld
+                  „Regeltermin“).
+                </p>
+              )}
+              {selectedOfferingSource && (
+                <>
+                  <fieldset className="flex flex-col gap-1">
+                    <legend className="text-xs font-semibold text-gray-700">
+                      Nach Jahrgang filtern
+                    </legend>
+                    <p className="text-xs text-gray-500">
+                      Keine Auswahl = alle Kinder des Angebots.
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-3">
+                      {sourceGradeOptions.map((grade) => (
+                        <label
+                          key={grade}
+                          className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-700"
+                        >
+                          <Checkbox
+                            checked={form.sourceGradeLevels.includes(grade)}
+                            onChange={() => toggleSourceGradeLevel(grade)}
+                          />
+                          Jahrgang {grade} (
+                          {selectedOfferingSource.gradeCounts[grade] ?? 0})
+                        </label>
+                      ))}
+                      {sourceGradeOptions.length === 0 && (
+                        <p className="text-xs text-gray-500">
+                          Für dieses Angebot sind noch keine Jahrgänge
+                          ableitbar.
+                        </p>
+                      )}
+                    </div>
+                  </fieldset>
+                  {sourceFilteredCount === 0 ? (
+                    <Alert
+                      type="warning"
+                      message="Der aktuelle Filter erfasst keine Kinder. Der Regeltermin würde ohne Kinder eingeplant."
+                      announce="off"
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-600" role="status">
+                      Der aktuelle Filter erfasst {sourceFilteredCount}{" "}
+                      {sourceFilteredCount === 1 ? "Kind" : "Kinder"}. Neue,
+                      geänderte oder beendete Anmeldungen wirken sich
+                      automatisch auf zukünftige Planungen aus.
+                    </p>
+                  )}
+                  {sourceOverlapWarnings.map((warning) => (
+                    <Alert
+                      key={warning}
+                      type="warning"
+                      message={`Hinweis: ${warning}`}
+                      announce="off"
+                    />
+                  ))}
+                </>
+              )}
             </div>
           )}
+
+          {form.targetGroupType !== "none" &&
+            form.targetGroupType !== "angebot" && (
+              <p className="mt-2 text-xs leading-5 text-gray-600">
+                Die Kinderliste wird bei der Planung aus allen ausgewählten
+                Zielgruppen gebildet. Überschneidungen werden automatisch
+                entfernt, spätere Gruppenwechsel werden bei einer Neuplanung
+                berücksichtigt. Mit der Schaltfläche darunter kannst du die
+                aktuell passenden Kinder zusätzlich fest auswählen.
+              </p>
+            )}
+          {targetCohort.label && !loadingStudents && !studentLoadError ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              className="mt-2 self-start"
+              onClick={addTargetCohort}
+              disabled={
+                targetCohort.memberIds.length === 0 ||
+                missingTargetCohortCount === 0
+              }
+            >
+              {targetCohortButtonLabel}
+            </Button>
+          ) : null}
         </div>
       )}
 
-      {staffRosterField}
+      {showWeekdayRoster && (
+        <WeekdayRosterSection
+          form={form}
+          weekdays={rosterWeekdays}
+          activeWeekday={activeRosterWeekday}
+          setActiveWeekday={setActiveRosterWeekday}
+          setPerWeekdayRoster={setPerWeekdayRoster}
+          setWeekdayRoster={setWeekdayRoster}
+          applyActiveWeekdayToAll={applyActiveWeekdayRosterToAll}
+          staff={staff}
+          students={students}
+          studentBulkOptions={studentBulkOptions}
+        />
+      )}
+
+      {preserveUnavailableWeekdayRoster && (
+        <div className="flex flex-col gap-2">
+          <Alert
+            type="info"
+            message="Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden, wenn Personal- und Kinderliste vollständig geladen sind. Die bestehenden Zuordnungen bleiben beim Speichern unverändert."
+          />
+          {(loadingStaff || staffLoadError) && staffRosterField}
+          {(loadingStudents || studentLoadError) && studentRosterField}
+        </div>
+      )}
+
+      {!usePerWeekdayRoster &&
+        !preserveUnavailableWeekdayRoster &&
+        staffRosterField}
 
       <Field label="Benötigtes Personal" htmlFor="event_required_staff">
         <Input
@@ -399,7 +572,20 @@ export function StepPersonalKinder({
         </p>
       </Field>
 
-      {studentRosterField}
+      {hasOfferingSource ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-700">Kinder</span>
+          <p className="text-xs text-gray-500">
+            Die Kinderliste kommt aus dem gewählten Betreuungsangebot und wird
+            automatisch aktuell gehalten. Eine manuelle Auswahl ist bei einem
+            Angebot als Quelle nicht nötig.
+          </p>
+        </div>
+      ) : (
+        !usePerWeekdayRoster &&
+        !preserveUnavailableWeekdayRoster &&
+        studentRosterField
+      )}
 
       {(conflictWarnings.length > 0 ||
         coverageWarnings.length > 0 ||

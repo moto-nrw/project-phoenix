@@ -242,7 +242,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	_, err := db.NewInsert().
 		Model(device).
 		ModelTableExpr(`iot.devices`).
-		On("CONFLICT (tenant_id, device_id) DO NOTHING").
+		On("CONFLICT (tenant_id, device_id) WHERE archived_at IS NULL DO NOTHING").
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to ensure web manual device")
 
@@ -252,6 +252,8 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 		Model(&existingDevice).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(`"device".device_id = ?`, iot.WebManualDeviceID).
+		Where(`"device".tenant_id = ?`, device.TenantID).
+		Where(`"device".archived_at IS NULL`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to fetch web manual device")
 
@@ -2617,6 +2619,7 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		"active.groups",
 		"activities.student_enrollments",
 		"activities.groups",
+		"schedule.planning_tracks",
 		"activities.categories",
 		"education.group_teacher",
 		"education.group_substitution",

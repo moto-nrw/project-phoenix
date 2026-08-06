@@ -23,6 +23,7 @@ const mockAddGuardianPhoneNumber = vi.fn();
 const mockUpdateGuardianPhoneNumber = vi.fn();
 const mockDeleteGuardianPhoneNumber = vi.fn();
 const mockSetGuardianPrimaryPhone = vi.fn();
+const mockInviteGuardianToStudent = vi.fn();
 
 // Real subclass exported from the guardian-api mock so any code path that
 // branches on `err instanceof GuardianApiError` still resolves against the
@@ -69,6 +70,11 @@ vi.mock("@/lib/guardian-api", () => ({
     mockDeleteGuardianPhoneNumber(guardianId, phoneId),
   setGuardianPrimaryPhone: (guardianId: string, phoneId: string) =>
     mockSetGuardianPrimaryPhone(guardianId, phoneId),
+  inviteGuardianToStudent: (
+    studentId: string,
+    email: string,
+    options?: unknown,
+  ) => mockInviteGuardianToStudent(studentId, email, options),
 }));
 
 // Session mock — drives the admin-only "Komplett löschen" affordance. Default
@@ -98,10 +104,12 @@ vi.mock("./guardian-list", () => ({
   default: ({
     guardians,
     onEdit,
+    onInvite,
     readOnly,
   }: {
     guardians: GuardianWithRelationship[];
     onEdit?: (g: GuardianWithRelationship) => void;
+    onInvite?: (g: GuardianWithRelationship) => void;
     readOnly?: boolean;
   }) => (
     <div data-testid="guardian-list">
@@ -116,6 +124,15 @@ vi.mock("./guardian-list", () => ({
               data-testid={`edit-${g.id}`}
             >
               Edit {g.id}
+            </button>
+          )}
+          {!readOnly && onInvite && (
+            <button
+              type="button"
+              onClick={() => onInvite(g)}
+              data-testid={`invite-${g.id}`}
+            >
+              Invite {g.id}
             </button>
           )}
         </div>
@@ -1194,6 +1211,84 @@ describe("StudentGuardianManager", () => {
       await waitFor(() => {
         expect(mockFetchStudentGuardians).toHaveBeenCalledTimes(2);
       });
+    });
+  });
+
+  describe("Restricted-contact upgrade confirmation (#2172)", () => {
+    it("asks before upgrading and re-invites with the confirm flag", async () => {
+      mockInviteGuardianToStudent.mockResolvedValueOnce({
+        outcome: "existing_contact_restricted",
+        guardian_profile_id: "guardian-2",
+        existing_role: "emergency_contact",
+      });
+      mockInviteGuardianToStudent.mockResolvedValueOnce({
+        outcome: "already_linked",
+        guardian_profile_id: "guardian-2",
+      });
+
+      render(<StudentGuardianManager studentId="student-123" />);
+      await waitFor(() =>
+        expect(screen.getByTestId("guardian-list")).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByTestId("invite-guardian-2"));
+
+      // First call: plain invite, no confirm flag.
+      await waitFor(() =>
+        expect(mockInviteGuardianToStudent).toHaveBeenNthCalledWith(
+          1,
+          "student-123",
+          "hans@example.com",
+          { confirmRoleUpgrade: false },
+        ),
+      );
+      // The real ConfirmationModal renders via portal; it names the role.
+      expect(
+        await screen.findByText("Vollen Zugriff gewähren?"),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Notfallkontakt/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Zugriff gewähren" }));
+      await waitFor(() =>
+        expect(mockInviteGuardianToStudent).toHaveBeenNthCalledWith(
+          2,
+          "student-123",
+          "hans@example.com",
+          { confirmRoleUpgrade: true },
+        ),
+      );
+      await waitFor(() =>
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Hans Müller hat jetzt vollen Zugriff",
+        ),
+      );
+    });
+
+    it("cancelling the upgrade sends no second invite", async () => {
+      mockInviteGuardianToStudent.mockResolvedValueOnce({
+        outcome: "existing_contact_restricted",
+        guardian_profile_id: "guardian-2",
+        existing_role: "pickup_only",
+      });
+
+      render(<StudentGuardianManager studentId="student-123" />);
+      await waitFor(() =>
+        expect(screen.getByTestId("guardian-list")).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByTestId("invite-guardian-2"));
+      expect(
+        await screen.findByText("Vollen Zugriff gewähren?"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+      await waitFor(() =>
+        expect(
+          screen.queryByText("Vollen Zugriff gewähren?"),
+        ).not.toBeInTheDocument(),
+      );
+      expect(mockInviteGuardianToStudent).toHaveBeenCalledTimes(1);
+      expect(mockToastSuccess).not.toHaveBeenCalled();
     });
   });
 });

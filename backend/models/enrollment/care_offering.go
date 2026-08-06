@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"slices"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -29,6 +32,20 @@ var validDaysOfWeekModes = map[string]bool{
 var canonicalDaySet = map[string]bool{
 	"mon": true, "tue": true, "wed": true, "thu": true, "fri": true,
 	"sat": true, "sun": true,
+}
+
+// canonicalDayISOWeekday maps each canonical day to its ISO weekday number.
+var canonicalDayISOWeekday = map[string]int{
+	"mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6, "sun": 7,
+}
+
+// CanonicalDayToISOWeekday translates a stored day abbreviation ("mon") into
+// its ISO weekday number (1=Mon..7=Sun). Lives on the model so enrollment
+// materialization and the parents-portal read view cannot drift apart on the
+// mapping.
+func CanonicalDayToISOWeekday(day string) (int, bool) {
+	weekday, ok := canonicalDayISOWeekday[strings.ToLower(strings.TrimSpace(day))]
+	return weekday, ok
 }
 
 // Selection rules constrain how many offerings within the same
@@ -321,6 +338,9 @@ func (c *CareOffering) HasUnlimitedCapacity() bool {
 type CareOfferingRepository interface {
 	Create(ctx context.Context, offering *CareOffering) error
 	FindByID(ctx context.Context, id int64) (*CareOffering, error)
+	// ListByIDsForUpdate locks the referenced offerings in ascending id order.
+	// Capacity checks use this to serialize competing approvals.
+	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*CareOffering, error)
 	Update(ctx context.Context, offering *CareOffering) error
 	Delete(ctx context.Context, id int64) error
 	ReplaceAutoAddTriggers(ctx context.Context, targetOfferingID int64, triggerOfferingIDs []int64) error
@@ -339,6 +359,8 @@ type CareOfferingRepository interface {
 	// window gates the surrounding flow, so individual offerings
 	// don't need their own time filter.
 	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
+	// ListActiveByPhaseIDs is the batched variant for queue projections.
+	ListActiveByPhaseIDs(ctx context.Context, phaseIDs []int64) ([]*CareOffering, error)
 
 	// ListByIDs returns the exact care offerings referenced by ids,
 	// regardless of phase. Empty input returns an empty slice.
@@ -366,6 +388,10 @@ type RequestChildOffering struct {
 	ManualSelectedDays    []string `bun:"manual_selected_days,type:jsonb,nullzero" json:"manual_selected_days,omitempty"`
 	AutomaticSelectedDays []string `bun:"automatic_selected_days,type:jsonb,nullzero" json:"automatic_selected_days,omitempty"`
 	Notes                 *string  `bun:"notes" json:"notes,omitempty"`
+	// ValidFrom / ValidUntil make an approved offering switch effective on its
+	// requested date. ValidUntil is exclusive, matching student enrollments.
+	ValidFrom  *timezone.Date `bun:"valid_from,type:date" json:"valid_from,omitempty"`
+	ValidUntil *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 }
 
 // CareOfferingAutoTrigger links a target offering to one source offering
@@ -383,19 +409,69 @@ type CareOfferingAutoTrigger struct {
 type RequestChildOfferingRepository interface {
 	Create(ctx context.Context, row *RequestChildOffering) error
 	ReplaceForRequestChild(ctx context.Context, requestChildID int64, rows []*RequestChildOffering) error
+	// ScheduleReplacementForRequestChild closes the active selection at
+	// effectiveFrom and creates the replacement from that date onward.
+	ScheduleReplacementForRequestChild(ctx context.Context, requestChildID int64, effectiveFrom timezone.Date, rows []*RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
+	ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*RequestChildOffering, error)
+	ListHistoryByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
 
 	// ListByRequestChildIDs is the batched form of
 	// ListByRequestChildID: one query for every offering link across
 	// the given children. Powers the phase export's N+1-free load.
 	// Empty input returns an empty slice without a query.
 	ListByRequestChildIDs(ctx context.Context, requestChildIDs []int64) ([]*RequestChildOffering, error)
+	// ListByRequestChildIDsAtDate is the batched point-in-time variant used by
+	// write paths that must only inspect the selection active on a given date.
+	ListByRequestChildIDsAtDate(ctx context.Context, requestChildIDs []int64, onDate timezone.Date) ([]*RequestChildOffering, error)
+	// ListByRequestChildIDsAtDates loads the selection active on each child's
+	// individual date in one query.
+	ListByRequestChildIDsAtDates(ctx context.Context, dates map[int64]timezone.Date) ([]*RequestChildOffering, error)
 
-	// CountActiveByCareOffering returns the number of children currently
-	// holding (or competing for) a slot in the given care offering.
+	// CountActiveByCareOffering returns the number of non-terminal selections
+	// across all validity intervals for a care offering. New capacity decisions
+	// must use the date/range-specific methods below.
 	// Counts non-terminal statuses on the joined request_children row:
 	// submitted, under_review, approved, waitlisted. Excludes rejected
-	// and withdrawn. Used for capacity-overflow enforcement at submit
-	// time.
+	// and withdrawn.
 	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
+	CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error)
+	// CountMaxActiveByCareOfferingInRange returns the highest simultaneous
+	// number of non-terminal bookings whose validity intervals overlap the
+	// half-open [from, until) range. Capacity checks use it to reserve slots
+	// for approved future offering changes.
+	CountMaxActiveByCareOfferingInRange(ctx context.Context, careOfferingID int64, from, until timezone.Date) (int, error)
+	// CountMaxActiveByCareOfferingInRangeExcludingRequestChild returns the
+	// peak occupancy after removing one child's existing intervals. A dated
+	// replacement uses it to validate the post-replacement state before it
+	// writes the new intervals.
+	CountMaxActiveByCareOfferingInRangeExcludingRequestChild(ctx context.Context, careOfferingID, requestChildID int64, from, until timezone.Date) (int, error)
+	// CountMaxActiveByCareOfferingInRangeExcludingRequestChildren is the batch
+	// variant used while replacing several children in one enrollment request.
+	// It prevents historical selections from being subtracted from a peak that
+	// they did not occupy concurrently.
+	CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx context.Context, careOfferingID int64, requestChildIDs []int64, from, until timezone.Date) (int, error)
+	// CountMaterializableByCareOffering includes every non-terminal selection,
+	// including a replacement scheduled for a future date. It protects later
+	// materialization from incompatible offering/template edits.
+	CountMaterializableByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
+
+	// ListApprovedChildrenByCareOfferingIDs returns, per offering, every
+	// offering link of an APPROVED request child that is still current or
+	// scheduled (valid_until in the future or open), with the child's
+	// resolved student id and the student's school class hydrated for
+	// Jahrgang filtering (#2137). Children without a resolved student row
+	// (approval not yet materialized) and alumni are excluded. Empty input
+	// returns an empty slice without a query.
+	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
+}
+
+// ApprovedOfferingChild is one approved, still-relevant offering selection
+// with the enrollment-to-student resolution the offering-source flows need
+// (#2137): roster resync of sourced Regeltermine and the editor's per-grade
+// count preview.
+type ApprovedOfferingChild struct {
+	Link        *RequestChildOffering
+	StudentID   int64
+	SchoolClass string
 }

@@ -1,0 +1,5 @@
+# GitHub login of the account that posts quorum reviews on this repository.
+# scripts/quorum-rerequest.sh re-requests exactly this account after review
+# findings were fixed, and never touches the other reviewers on a PR.
+# Override per clone with: git config quorum.reviewer <login>
+yungweng

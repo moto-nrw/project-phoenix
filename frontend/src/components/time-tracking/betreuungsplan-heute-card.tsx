@@ -3,6 +3,7 @@
 import { Alert } from "~/components/ui/alert";
 import { InfoCard } from "~/components/ui/info-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
@@ -96,51 +97,35 @@ function AssignmentRow({ block }: { readonly block: OwnAssignment }) {
           </p>
         )}
       </div>
+      {/* Kit StatusBadge — the local Badge copy carried its own tone map of the
+          same brand hexes. Abwesend and Unterbesetzt both land on the orange
+          tone; they never appear on the same block. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {block.isSubstitute && <Badge tone="blue">Vertretung</Badge>}
+        {block.isSubstitute && <StatusBadge tone="blue" label="Vertretung" />}
         {block.cancelled && (
-          <Badge tone="red">
-            {block.cancelReason
-              ? `Entfällt · ${block.cancelReason}`
-              : "Entfällt"}
-          </Badge>
+          <StatusBadge
+            tone="red"
+            label={
+              block.cancelReason
+                ? `Entfällt · ${block.cancelReason}`
+                : "Entfällt"
+            }
+          />
         )}
         {block.isAbsent && (
-          <Badge tone="amber">
-            {block.absenceReason
-              ? `Abwesend · ${block.absenceReason}`
-              : "Abwesend"}
-          </Badge>
+          <StatusBadge
+            tone="orange"
+            label={
+              block.absenceReason
+                ? `Abwesend · ${block.absenceReason}`
+                : "Abwesend"
+            }
+          />
         )}
         {block.understaffedAck && !block.cancelled && (
-          <Badge tone="orange">Unterbesetzt</Badge>
+          <StatusBadge tone="orange" label="Unterbesetzt" />
         )}
       </div>
     </li>
-  );
-}
-
-// Tone maps to the brand palette (LOCATION_COLORS) via arbitrary-value hex, so
-// the badges read like the rest of the app rather than generic Tailwind hues.
-const TONE_CLASS: Record<"blue" | "red" | "amber" | "orange", string> = {
-  blue: "bg-moto-blue/10 text-moto-blue",
-  red: "bg-moto-red/10 text-moto-red",
-  amber: "bg-moto-amber/10 text-moto-amber-strong",
-  orange: "bg-moto-orange/10 text-moto-orange",
-};
-
-function Badge({
-  tone,
-  children,
-}: {
-  readonly tone: "blue" | "red" | "amber" | "orange";
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASS[tone]}`}
-    >
-      {children}
-    </span>
   );
 }

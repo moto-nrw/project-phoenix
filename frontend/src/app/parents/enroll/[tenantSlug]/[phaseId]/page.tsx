@@ -178,6 +178,7 @@ function toParentPrefetchedData(
     // Ignore any profile on the shared bootstrap shape. Parent autofill stays
     // scoped to the parent API, independent of public metadata transport.
     profile,
+    lateInvite: bootstrap.late_invite,
     schoolClass: bootstrap.school_class,
     // Carry the phase audience so the form can suppress linked-child reuse
     // on a new_students phase instead of letting the parent adopt an

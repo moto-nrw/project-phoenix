@@ -21,6 +21,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -107,10 +109,16 @@ type Dependencies struct {
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	SlotListsService       slotlists.Service
-	Broadcaster            realtime.Broadcaster
-	Logger                 *slog.Logger
-	DB                     *bun.DB
-	Now                    func() time.Time
+	// OfferingSourceOptions serves the offering-source editor support
+	// endpoint (#2137); implemented by the enrollment decision service.
+	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister
+	// PlanExportService renders the printable Betreuungsplan week (#2079).
+	PlanExportService    planexport.Service
+	PlanningTrackService scheduleSvc.PlanningTrackService
+	Broadcaster          realtime.Broadcaster
+	Logger               *slog.Logger
+	DB                   *bun.DB
+	Now                  func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -248,9 +256,21 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
 
-			// Shift coverage exposes Dienstplan availability, so it requires both
-			// timetable read access and shift-management access. It is separate from
-			// /conflicts, which remains available to schedules:read-only users.
+		// Per-user conflict acknowledgements (#2139). SchedulesRead on
+		// purpose: whoever sees the banner may manage their own view state;
+		// writes only touch the calling account's rows.
+		r.Route("/conflict-acks", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/", rs.listConflictAcks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Put("/{fingerprint}", rs.acknowledgeConflict)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Delete("/{fingerprint}", rs.unacknowledgeConflict)
+		})
+
+		// Shift coverage exposes Dienstplan availability, so it requires both
+		// timetable read access and shift-management access. It is separate from
+		// /conflicts, which remains available to schedules:read-only users.
 		r.With(authorize.RequiresAllPermissions(
 			permissions.SchedulesRead,
 			permissions.TimeTrackingManage,
@@ -268,6 +288,15 @@ func (rs *Resource) Router() chi.Router {
 				Post("/preview", rs.previewSlotList)
 			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
 				Post("/export", rs.exportSlotList)
+		})
+
+		// Printable Betreuungsplan week (#2079). Staff names are on the sheet,
+		// so it needs users:read on top of the schedules:read the plan itself
+		// requires — the same pair the slot lists use. exportBetreuungsplan
+		// additionally gates the sensitive internal variant by its request body.
+		r.Route("/betreuungsplan", func(r chi.Router) {
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/export", rs.exportBetreuungsplan)
 		})
 
 		r.Route("/operations", func(r chi.Router) {
@@ -303,6 +332,10 @@ func (rs *Resource) Router() chi.Router {
 		// appear immediately on the grid.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/templates", rs.listTemplates)
+		// Offering-source editor support (#2137): Angebots-Auswahl mit
+		// Jahrgangs-Zählern für den Regeltermin-Editor.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Get("/offering-sources", rs.listOfferingSources)
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/templates/{id}", rs.getTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
@@ -320,6 +353,15 @@ func (rs *Resource) Router() chi.Router {
 			Post("/templates/{id}/end", rs.endTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Delete("/templates/{id}", rs.archiveTemplate)
+
+		r.Route("/planning-tracks", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPlanningTracks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Post("/", rs.createPlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Put("/order", rs.reorderPlanningTracks)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Put("/{id}", rs.updatePlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Delete("/{id}", rs.archivePlanningTrack)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).Post("/{id}/restore", rs.restorePlanningTrack)
+		})
 	})
 
 	return r

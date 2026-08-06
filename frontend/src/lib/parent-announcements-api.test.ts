@@ -6,7 +6,11 @@ import {
   fetchAnnouncementRecipients,
   fetchAnnouncementStats,
   fetchAnnouncements,
+  fetchPollChildren,
+  fetchPollResults,
+  isPoll,
   publishAnnouncement,
+  remindUnanswered,
   unpublishAnnouncement,
   updateAnnouncement,
   type Announcement,
@@ -28,6 +32,10 @@ function announcement(overrides: Partial<Announcement> = {}): Announcement {
     created_at: "2026-07-01T08:00:00Z",
     updated_at: "2026-07-01T08:00:00Z",
     targets: [{ target_type: "school_all" }],
+    // A plain Mitteilung: the backend always sends these two, polls override
+    // them (#1371).
+    response_type: "none",
+    options: [],
     ...overrides,
   };
 }
@@ -290,6 +298,111 @@ describe("error handling", () => {
     mockFetch(async () => jsonResponse({ message: "nope" }, { status: 500 }));
     await expect(fetchAnnouncementStats("7")).rejects.toThrow(
       "Statistik konnte nicht geladen werden",
+    );
+  });
+});
+
+// --- Umfragen (#1371) -------------------------------------------------------
+
+describe("poll endpoints", () => {
+  it("creates a poll with its options and deadline", async () => {
+    let seenBody: unknown;
+    mockFetch(async (_input, init) => {
+      seenBody = JSON.parse(String(init?.body));
+      return jsonResponse({
+        data: announcement({
+          response_type: "single_choice",
+          options: [
+            { id: "1", label: "Ja" },
+            { id: "2", label: "Nein" },
+          ],
+        }),
+      });
+    });
+
+    const created = await createAnnouncement({
+      ...validInput,
+      response_type: "single_choice",
+      response_deadline: "2026-07-20T21:59:59Z",
+      options: ["Ja", "Nein"],
+    });
+
+    expect(seenBody).toMatchObject({
+      response_type: "single_choice",
+      response_deadline: "2026-07-20T21:59:59Z",
+      options: ["Ja", "Nein"],
+    });
+    expect(isPoll(created)).toBe(true);
+  });
+
+  it("treats an announcement without a response type as a plain Mitteilung", () => {
+    expect(isPoll(announcement())).toBe(false);
+  });
+
+  it("fetches the tally and falls back to empty results", async () => {
+    const expected = {
+      child_count: 12,
+      target_child_count: 14,
+      answered_count: 5,
+      options: [{ option_id: "1", label: "Ja", count: 4 }],
+    };
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: expected });
+    });
+
+    await expect(fetchPollResults("7")).resolves.toStrictEqual(expected);
+    expect(seenURL).toBe("/api/parent-announcements/7/poll-results");
+
+    mockFetch(async () => jsonResponse({}));
+    await expect(fetchPollResults("7")).resolves.toStrictEqual({
+      child_count: 0,
+      target_child_count: 0,
+      answered_count: 0,
+      options: [],
+    });
+  });
+
+  it("fetches the per-child answer list", async () => {
+    const expected = [
+      {
+        student_id: "10",
+        first_name: "Felix",
+        last_name: "Schneider",
+        school_class: "1a",
+        answer_labels: ["Ja"],
+        responded_at: "2026-07-02T10:00:00Z",
+      },
+    ];
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: expected });
+    });
+
+    await expect(fetchPollChildren("7")).resolves.toStrictEqual(expected);
+    expect(seenURL).toBe("/api/parent-announcements/7/poll-children");
+  });
+
+  it("POSTs the reminder and returns how many guardians it reached", async () => {
+    let seenURL = "";
+    let seenMethod: string | undefined;
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method;
+      return jsonResponse({ data: { reminded_count: 8 } });
+    });
+
+    await expect(remindUnanswered("7")).resolves.toBe(8);
+    expect(seenURL).toBe("/api/parent-announcements/7/remind");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("surfaces the German fallback when the reminder fails", async () => {
+    mockFetch(async () => jsonResponse({}, { status: 409 }));
+    await expect(remindUnanswered("7")).rejects.toThrow(
+      "Erinnerung konnte nicht gesendet werden",
     );
   });
 });

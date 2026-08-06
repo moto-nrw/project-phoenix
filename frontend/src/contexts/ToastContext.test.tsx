@@ -144,7 +144,9 @@ describe("ToastContext", () => {
         </ToastProvider>,
       );
 
-      fireEvent.click(await screen.findByRole("button", { name: "Öffnen" }));
+      const action = await screen.findByRole("button", { name: "Öffnen" });
+      expect(action).toHaveClass("self-center");
+      fireEvent.click(action);
 
       expect(onAction).toHaveBeenCalledOnce();
     });

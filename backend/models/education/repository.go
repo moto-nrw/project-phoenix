@@ -12,6 +12,9 @@ import (
 type GroupRepository interface {
 	base.CRUDRepository[*Group]
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+	// FindByIDsWithRooms is the bulk sibling of FindWithRoom: one LEFT JOIN
+	// resolves every group's room relation (#2094 review).
+	FindByIDsWithRooms(ctx context.Context, ids []int64) (map[int64]*Group, error)
 
 	// Exists reports whether a group with the given ID exists in the current
 	// tenant (issue #584: moved from api/timetable template validation).

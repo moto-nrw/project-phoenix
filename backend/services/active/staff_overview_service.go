@@ -162,7 +162,10 @@ type staffOverviewService struct {
 	shiftRepo      scheduleModels.StaffShiftRepository
 	settings       monthSettingsResolver
 	holidayReader  HolidayDatesReader
-	logger         *slog.Logger
+	// openingRepo carries the vacation takeover rows (#2132); setter
+	// injection (SetVacationOpeningReader), nil in bare unit fixtures.
+	openingRepo activeModels.StaffVacationOpeningRepository
+	logger      *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() timezone.Date
@@ -426,6 +429,10 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch vacation absences: %w", err)
 	}
+	openings, err := s.prefetchVacationOpenings(ctx, staffIDs, key.Year)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, staff := range staffMembers {
 		summary, err := monthSvc.GetMonthSummary(ctx, staff.ID, key.Year, key.Month)
@@ -449,6 +456,7 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 				vacationThrough,
 				quotas[staff.ID],
 				vacationAbsences[staff.ID],
+				openings[staff.ID],
 			),
 		}
 		if staff.EmploymentType != nil {
@@ -480,12 +488,31 @@ func (s *staffOverviewService) remainingVacationDays(
 	through timezone.Date,
 	quota *activeModels.StaffVacationQuota,
 	absences []*activeModels.StaffAbsence,
+	opening *activeModels.StaffVacationOpening,
 ) float64 {
 	entitled, carryover := defaultEntitledDays, 0.0
 	if quota != nil {
 		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
 	}
-	return computeVacationQuotaSummaryThrough(staffID, year, entitled, carryover, through, absences).RemainingDays
+	return computeVacationQuotaSummaryThrough(staffID, year, entitled, carryover, through, absences, opening).RemainingDays
+}
+
+// SetVacationOpeningReader wires the vacation takeover reader (#2132).
+// Setter injection so the 12-parameter constructor and its unit fixtures
+// stay unchanged; nil means the overview ignores takeovers.
+func (s *staffOverviewService) SetVacationOpeningReader(repo activeModels.StaffVacationOpeningRepository) {
+	s.openingRepo = repo
+}
+
+func (s *staffOverviewService) prefetchVacationOpenings(ctx context.Context, staffIDs []int64, year int) (map[int64]*activeModels.StaffVacationOpening, error) {
+	if s.openingRepo == nil {
+		return map[int64]*activeModels.StaffVacationOpening{}, nil
+	}
+	openings, err := s.openingRepo.GetByStaffIDsAndYear(ctx, staffIDs, year)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prefetch vacation openings: %w", err)
+	}
+	return openings, nil
 }
 
 // resolveOverviewMonth turns the requested year/month into the month to

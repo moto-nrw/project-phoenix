@@ -8,7 +8,9 @@
 
 import { Lock } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
@@ -41,6 +43,8 @@ function formatDays(days: number): string {
   return `${value} ${days === 1 ? "Tag" : "Tage"}`;
 }
 
+// Plain text on the white card: brand green for a positive balance, the app's
+// red-600 for a negative one — same tone map as the table rows and KpiCard.
 function deltaClass(minutes: number): string {
   if (minutes > 0) return "text-moto-green-hover";
   if (minutes < 0) return "text-moto-red-strong";
@@ -132,15 +136,15 @@ export function Monatskarte({
 }: MonatskarteProps) {
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
         <div className="h-40 animate-pulse rounded-lg bg-gray-100" />
       </div>
     );
   }
   if (error) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-        <p className="text-moto-red-strong text-sm">{error}</p>
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <Alert type="error" message={error} />
       </div>
     );
   }
@@ -167,18 +171,22 @@ export function Monatskarte({
   })();
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900">
           Monatskarte {monthLabel(summary.year, summary.month)}
         </h3>
         {summary.isClosed && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-            <Lock className="h-3 w-3" />
-            Abgeschlossen
-            {summary.closedAt
-              ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
-              : ""}
+          <span className="inline-flex items-center gap-1.5">
+            <Lock className="h-3 w-3 text-gray-500" aria-hidden />
+            <StatusBadge
+              tone="gray"
+              label={`Abgeschlossen${
+                summary.closedAt
+                  ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
+                  : ""
+              }`}
+            />
           </span>
         )}
       </div>
@@ -295,7 +303,7 @@ export function Monatskarte({
       </div>
 
       {summary.isClosed && summary.driftMinutes !== 0 && (
-        <div className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-xl border p-3 text-xs">
+        <div className="mt-3 rounded-xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-3 text-xs text-[#8A5600]">
           <p className="font-semibold">
             Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
           </p>

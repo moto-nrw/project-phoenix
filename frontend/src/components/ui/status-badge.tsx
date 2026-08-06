@@ -35,13 +35,22 @@ const TONES: Record<
 export function StatusBadge({
   label,
   tone,
+  title,
 }: {
   readonly label: string;
   readonly tone: StatusBadgeTone;
+  /**
+   * Native tooltip on the badge itself. Use when the short label needs the
+   * full context on hover (e.g. "Feiertag" → the holiday's name). Set it here
+   * rather than on a wrapper so the tooltip belongs to the element that
+   * carries the text.
+   */
+  readonly title?: string;
 }) {
   const styles = TONES[tone];
   return (
     <span
+      title={title}
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >

@@ -517,6 +517,90 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	assert.True(t, matched, "a started enrollment reaches the guardian")
 }
 
+func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Wochentag")
+	today := timezone.TodayDate()
+	todayWeekday := int(today.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = activitiesModels.WeekdaySunday
+	}
+	otherWeekday := todayWeekday%activitiesModels.WeekdaySunday + 1
+	enrollment := &activitiesModels.StudentEnrollment{
+		StudentID:       chain.StudentID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       today.AddDays(-1),
+		Weekday:         &otherWeekday,
+	}
+	enrollment.SetTenantID(chain.TenantID)
+	_, err := db.NewInsert().
+		Model(enrollment).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		Exec(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			Model((*activitiesModels.StudentEnrollment)(nil)).
+			ModelTableExpr("activities.student_enrollments").
+			Where("id = ?", enrollment.ID).
+			Exec(context.Background())
+	})
+
+	announcement := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"AG-Wochentag", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID},
+		})
+
+	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, announcement.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.False(t, matched)
+	count, err := repo.CountAudience(ctx, chain.TenantID, announcement.ID)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	recipients, err := repo.ResolveAudienceEmails(ctx, chain.TenantID, announcement.ID)
+	require.NoError(t, err)
+	assert.Empty(t, recipients)
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, []int64{chain.TenantID})
+	require.NoError(t, err)
+	assert.NotContains(t, announcementIDs(feed), announcement.ID)
+
+	_, err = db.NewUpdate().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr("activities.student_enrollments").
+		Set("weekday = ?", todayWeekday).
+		Where("id = ?", enrollment.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	matched, err = repo.AccountMatchesAnnouncement(ctx, chain.TenantID, announcement.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.True(t, matched)
+	count, err = repo.CountAudience(ctx, chain.TenantID, announcement.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	recipients, err = repo.ResolveAudienceEmails(ctx, chain.TenantID, announcement.ID)
+	require.NoError(t, err)
+	require.Len(t, recipients, 1)
+	assert.Equal(t, chain.AccountID, recipients[0].AccountID)
+	feed, err = repo.ListFeedForAccount(ctx, chain.AccountID, []int64{chain.TenantID})
+	require.NoError(t, err)
+	assert.Contains(t, announcementIDs(feed), announcement.ID)
+}
+
+func announcementIDs(items []*usersModels.AnnouncementFeedItem) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids
+}
+
 // TestParentAnnouncementAudience_PendingEnrollmentEmailFallback verifies a
 // pending_enrollment announcement reaches an applicant whose enrollment request
 // was never stamped with guardian_account_id but whose guardian_email matches

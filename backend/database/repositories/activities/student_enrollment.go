@@ -152,6 +152,7 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
 		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
+		ColumnExpr(`"student_enrollment".weekday AS "student_enrollment__weekday"`).
 		ColumnExpr(`"activity_group".id AS "activity_group__id"`).
 		ColumnExpr(`"activity_group".created_at AS "activity_group__created_at"`).
 		ColumnExpr(`"activity_group".updated_at AS "activity_group__updated_at"`).
@@ -169,7 +170,11 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		Join(`LEFT JOIN activities.groups AS "activity_group" ON "activity_group".tenant_id = "student_enrollment".tenant_id AND "activity_group".id = "student_enrollment".activity_group_id`).
 		Where(`"student_enrollment".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_enrollment".valid_from <= ?`, onDate).
-		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate)
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate).
+		Where(`(
+				"student_enrollment".weekday IS NULL
+				OR "student_enrollment".weekday = EXTRACT(ISODOW FROM CAST(? AS DATE))::INT
+			)`, onDate)
 
 	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
@@ -221,6 +226,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
 		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
+		ColumnExpr(`"student_enrollment".weekday AS "student_enrollment__weekday"`).
 		ColumnExpr(`"student".id AS "student__id"`).
 		ColumnExpr(`"student".created_at AS "student__created_at"`).
 		ColumnExpr(`"student".updated_at AS "student__updated_at"`).

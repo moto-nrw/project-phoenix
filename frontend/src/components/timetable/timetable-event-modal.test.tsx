@@ -35,6 +35,7 @@ const {
   mockCheckShiftCoverage,
   mockFetchStudents,
   mockGetAllStaff,
+  mockListPlanningTracks,
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -52,6 +53,7 @@ const {
   mockCheckShiftCoverage: vi.fn(),
   mockFetchStudents: vi.fn(),
   mockGetAllStaff: vi.fn(),
+  mockListPlanningTracks: vi.fn(),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -73,6 +75,12 @@ vi.mock("~/lib/student-api", () => ({
 vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: mockGetAllStaff,
+  },
+}));
+
+vi.mock("~/lib/planning-track-api", () => ({
+  planningTrackService: {
+    list: mockListPlanningTracks,
   },
 }));
 
@@ -98,6 +106,7 @@ import { useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import type {
   EnrichedInstance,
+  ShiftCoverageCheckParams,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
@@ -167,6 +176,7 @@ const template: TimetableTemplate = {
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
+  weekdayAssignments: [],
   schedules: [
     {
       id: "9",
@@ -175,6 +185,30 @@ const template: TimetableTemplate = {
       endTime: "15:00",
       weekPattern: 0,
       calendarPeriodId: "5",
+    },
+  ],
+};
+
+const templateWithWeekdayRosters: TimetableTemplate = {
+  ...template,
+  studentIds: ["21", "22"],
+  staffIds: ["11", "12"],
+  schedules: [
+    { ...template.schedules[0]!, weekday: 1 },
+    { ...template.schedules[0]!, id: "10", weekday: 2 },
+  ],
+  weekdayAssignments: [
+    {
+      weekday: 1,
+      staffIds: ["11"],
+      studentIds: ["21"],
+      primaryStaffId: "11",
+    },
+    {
+      weekday: 2,
+      staffIds: ["12"],
+      studentIds: ["22"],
+      primaryStaffId: "12",
     },
   ],
 };
@@ -277,6 +311,7 @@ function renderModal(
       calendarPeriods={periods}
       defaultCalendarPeriodId="5"
       canCheckShiftCoverage
+      canManageCategories
       {...props}
     />
   );
@@ -307,9 +342,8 @@ function currentStep(): number {
  * values always win, and only when we actually have to pass step 1.
  */
 /**
- * Pick an option from a CustomSelect. The trigger is a role="combobox" button;
- * its menu (and the role="option" entries) only exist in the DOM while open, so
- * we click the trigger first, then the option by its visible label.
+ * Pick an option from a single or multiple select. Multiple selects expose
+ * native checkboxes so their checked state remains accessible.
  */
 async function chooseFromSelect(
   trigger: HTMLElement,
@@ -317,7 +351,14 @@ async function chooseFromSelect(
 ) {
   await waitFor(() => expect(trigger).not.toBeDisabled());
   fireEvent.click(trigger);
-  fireEvent.click(await screen.findByRole("option", { name: optionLabel }));
+  const option = await waitFor(() => {
+    const control =
+      screen.queryByRole("option", { name: optionLabel }) ??
+      screen.queryByRole("checkbox", { name: optionLabel });
+    if (!control) throw new Error("select option is not visible");
+    return control;
+  });
+  fireEvent.click(option);
 }
 
 async function fillStep1Requirements() {
@@ -411,6 +452,14 @@ describe("TimetableEventModal", () => {
       warnings: [],
     });
     mockCheckShiftCoverage.mockResolvedValue({ coverageWarnings: [] });
+    mockListPlanningTracks.mockResolvedValue([
+      {
+        id: "8",
+        name: "Mittag",
+        color: "#F78C10",
+        sortOrder: 1,
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -598,6 +647,46 @@ describe("TimetableEventModal", () => {
       within(dialog).getByRole("button", { name: "Trotzdem planen" }),
     );
     await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+  });
+
+  // #2135: a new series starts at the picked Datum. Occurrences before it can
+  // never be materialized, so a closing day before the start must not trigger
+  // the question.
+  it("ignores closing days before the series start date", async () => {
+    renderModal({
+      variant: "quick",
+      defaultDate: "2026-05-11",
+      closingDayRanges: [
+        {
+          startDate: "2026-05-04",
+          endDate: "2026-05-04",
+          reason: "Konzeptionstag",
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Montagsangebot" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+
+    expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: "2026-05-11" }),
+      ),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
   });
 
   it("filters and bulk-selects visible student rows", async () => {
@@ -823,6 +912,84 @@ describe("TimetableEventModal", () => {
     expect(
       screen.queryByText(/Die Personalliste konnte nicht vollständig/),
     ).not.toBeInTheDocument();
+  });
+
+  it("blocks the shared staff editor when a weekday roster cannot load students", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    renderModal({ initialSeries: templateWithWeekdayRosters });
+
+    await goToStep(3);
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    expect(
+      screen.getByText(
+        /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: /Ada Staff/ }),
+    ).not.toBeInTheDocument();
+
+    await clickSave();
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("blocks the shared student editor when a weekday roster cannot load staff", async () => {
+    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    renderModal({ initialSeries: templateWithWeekdayRosters });
+
+    await goToStep(3);
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    expect(
+      screen.getByText(
+        /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: /Max Kind/ }),
+    ).not.toBeInTheDocument();
+
+    await clickSave();
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
   });
 
   it("reveals a student load failure immediately in quick mode", async () => {
@@ -1175,6 +1342,7 @@ describe("TimetableEventModal", () => {
     await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await chooseFromSelect(screen.getByLabelText("Planungsspur"), "Mittag");
     await goToStep(2);
     await chooseFromSelect(
       screen.getByLabelText("Planungszeitraum*"),
@@ -1188,9 +1356,12 @@ describe("TimetableEventModal", () => {
     );
     await clickSave();
 
-    // The create call carries the first 56-day window of the period
-    // (2026-05-01 … 2026-12-31); the remaining four windows follow as
-    // separate materialize calls.
+    // #2135: the picked Datum (2026-05-04) is the series start — it travels
+    // as start_date and becomes the schedules' valid_from. The
+    // materialization windows still cover the whole period
+    // (2026-05-01 … 2026-12-31) because they run tenant-wide and must keep
+    // backfilling earlier-starting templates; the create call carries the
+    // first 56-day window, the remaining four follow as materialize calls.
     await waitFor(() =>
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1198,7 +1369,9 @@ describe("TimetableEventModal", () => {
           type: "activity",
           room_id: 3,
           category_id: 2,
+          planning_track_id: 8,
           calendar_period_id: 5,
+          start_date: "2026-05-04",
           materialize_from: "2026-05-01",
           materialize_to: "2026-06-25",
           primary_staff_id: 11,
@@ -1221,7 +1394,194 @@ describe("TimetableEventModal", () => {
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
 
-  it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
+  it("keeps an archived planning track visible on its existing series", async () => {
+    mockListPlanningTracks.mockResolvedValue([
+      {
+        id: "8",
+        name: "Alt",
+        color: "#F78C10",
+        sortOrder: 1,
+        archivedAt: "2026-08-03T12:00:00Z",
+      },
+    ]);
+    renderModal({
+      initialSeries: {
+        ...template,
+        planningTrackId: "8",
+        planningTrackName: "Alt",
+        planningTrackColor: "#F78C10",
+        planningTrackSortOrder: 1,
+      },
+    });
+
+    const trigger = await screen.findByLabelText("Planungsspur");
+    await chooseFromSelect(trigger, "Alt (archiviert)");
+    expect(trigger).toHaveTextContent("Alt (archiviert)");
+  });
+
+  // #2135: the picked Datum becomes the series start, so it must lie inside
+  // the selected planning period.
+  it("rejects a series start date outside the selected period", async () => {
+    renderModal({ showPeriodField: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2026/2027",
+    );
+    await goToStep(1);
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-02-01" },
+    });
+    // Datum is a step-0 field, so "Weiter" already blocks on the violation.
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+  });
+
+  // #2135 follow-up: schools pre-plan the next school year while the wizard's
+  // Datum still defaults to today. Selecting a period that does not contain
+  // the Datum moves it to the first selected weekday inside the period
+  // instead of hard-blocking on the wizard's own default.
+  it("moves the Datum into a future period on period selection", async () => {
+    const futurePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Schuljahr 2027/2028",
+      startDate: "2027-08-01",
+      endDate: "2028-07-31",
+      weekCycleAnchor: "2027-08-02",
+    };
+    const { onSaved } = renderModal({
+      showPeriodField: true,
+      calendarPeriods: [...periods, futurePeriod],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2027/2028",
+    );
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await clickSave();
+
+    // defaultDate 2026-05-04 is a Monday; the first Monday inside the
+    // future period is 2027-08-02. Materialization still spans the whole
+    // period (tenant-wide backfill), starting at 2027-08-01.
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendar_period_id: 9,
+          start_date: "2027-08-02",
+          materialize_from: "2027-08-01",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" }),
+    );
+  });
+
+  // The A/B predicate applies to the moved Datum too: with "Alle 2 Wochen"
+  // the first selected weekday inside the future period can sit in the other
+  // week slot, which the materializer would skip; the series would then start
+  // a week after the displayed date.
+  it("moves the Datum onto the matching A/B week when biweekly is selected", async () => {
+    const abPeriod: CalendarPeriod = {
+      ...periods[0]!,
+      weekCycleLength: 2,
+    };
+    const futurePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Schuljahr 2027/2028",
+      startDate: "2027-08-01",
+      endDate: "2028-07-31",
+      weekCycleLength: 2,
+      // Anchor 2027-08-09: the period's first Monday (2027-08-02) falls into
+      // Woche B, the series' Woche A first materializes on 2027-08-09.
+      weekCycleAnchor: "2027-08-09",
+    };
+    renderModal({
+      showPeriodField: true,
+      calendarPeriods: [abPeriod, futurePeriod],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    // defaultDate 2026-05-04 is Woche A of the current period.
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2027/2028",
+    );
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendar_period_id: 9,
+          week_pattern: 1,
+          start_date: "2027-08-09",
+          materialize_from: "2027-08-01",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText(
+        "Das Datum muss im gewählten Planungszeitraum liegen.",
+      ),
+    ).toBeNull();
+  });
+
+  it("submits multiple selected Jahrgang targets", async () => {
     renderModal({ showPeriodField: true });
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
@@ -1248,10 +1608,11 @@ describe("TimetableEventModal", () => {
     });
     fireEvent.click(screen.getByLabelText(/^Jahrgang\*/));
     expect(
-      screen.getByRole("option", { name: "Jahrgang 13" }),
+      screen.getByRole("checkbox", { name: "Jahrgang 13" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Jahrgang 14" })).toBeNull();
-    fireEvent.click(screen.getByRole("option", { name: "Jahrgang 13" }));
+    expect(screen.queryByRole("checkbox", { name: "Jahrgang 14" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 12" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 13" }));
 
     await clickSave();
 
@@ -1259,13 +1620,17 @@ describe("TimetableEventModal", () => {
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 13,
+          target_grade_level: 12,
+          targets: [
+            { type: "jahrgang", grade_level: 12 },
+            { type: "jahrgang", grade_level: 13 },
+          ],
         }),
       ),
     );
   });
 
-  it("shows and preserves an existing grade above the current tenant cap", async () => {
+  it("allows removing an existing grade above the current tenant cap", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
       routingMode: "path",
@@ -1275,7 +1640,11 @@ describe("TimetableEventModal", () => {
       initialSeries: {
         ...template,
         targetGroupType: "jahrgang",
-        targetGradeLevel: 13,
+        targetGradeLevel: 4,
+        targets: [
+          { type: "jahrgang", gradeLevel: 4 },
+          { type: "jahrgang", gradeLevel: 13 },
+        ],
       },
       showPeriodField: true,
     });
@@ -1283,14 +1652,18 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await goToStep(3);
     const gradeSelect = screen.getByLabelText(/^Jahrgang\*/);
-    expect(gradeSelect).toHaveTextContent("Jahrgang 13 (bestehend)");
+    expect(gradeSelect).toHaveTextContent("2 ausgewählt");
     fireEvent.click(gradeSelect);
     expect(
-      screen.getByRole("option", { name: "Jahrgang 13 (bestehend)" }),
-    ).toBeDisabled();
+      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+    ).toBeEnabled();
     expect(
       screen.getByText(/über der aktuell konfigurierten Höchststufe 4/),
     ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+    );
 
     await clickSave();
 
@@ -1299,7 +1672,50 @@ describe("TimetableEventModal", () => {
         "7",
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 13,
+          target_grade_level: 4,
+          targets: [{ type: "jahrgang", grade_level: 4 }],
+        }),
+      ),
+    );
+  });
+
+  it("allows adding a valid grade while retaining one above the tenant cap", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: { gradeLevelMax: 4 } as TenantInfo,
+    });
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 4,
+        targets: [
+          { type: "jahrgang", gradeLevel: 4 },
+          { type: "jahrgang", gradeLevel: 13 },
+        ],
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    fireEvent.click(screen.getByLabelText(/^Jahrgang\*/));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 3" }));
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "jahrgang",
+          target_grade_level: 4,
+          targets: [
+            { type: "jahrgang", grade_level: 4 },
+            { type: "jahrgang", grade_level: 13 },
+            { type: "jahrgang", grade_level: 3 },
+          ],
         }),
       ),
     );
@@ -1422,6 +1838,64 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("clears the legacy group target when switching Zielgruppe to none", async () => {
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "gruppe",
+        educationGroupId: "31",
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Keine" }), {
+      button: 0,
+    });
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "none",
+          education_group_id: undefined,
+          targets: [],
+        }),
+      ),
+    );
+  });
+
+  it("preserves an independent education group on an existing series", async () => {
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "none",
+        educationGroupId: "31",
+      },
+      showPeriodField: true,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga aktualisiert" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          name: "Yoga aktualisiert",
+          target_group_type: "none",
+          education_group_id: 31,
+        }),
+      ),
+    );
+  });
+
   it("initializes and saves a direct series edit with its template-only period pin", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
@@ -1522,6 +1996,102 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("collapses the remaining day's roster into the visible shared fields", async () => {
+    renderModal({
+      initialSeries: templateWithWeekdayRosters,
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(2);
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekdays: [1],
+          staff_ids: [11],
+          student_ids: [],
+          primary_staff_id: 11,
+          weekday_assignments: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("uses the active weekday when switching back to one shared roster", async () => {
+    renderModal({
+      initialSeries: templateWithWeekdayRosters,
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(3);
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für alle Tage gleich" }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          staff_ids: [12],
+          student_ids: [22],
+          primary_staff_id: 12,
+          weekday_assignments: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("adds a target cohort to every per-weekday child roster", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [
+        { id: "21", name: "Mara Drei A", school_class: "3a" },
+        { id: "22", name: "Mika Drei B", school_class: "3b" },
+        { id: "23", name: "Nora Drei C", school_class: "3c" },
+      ],
+    });
+    renderModal({
+      initialSeries: {
+        ...templateWithWeekdayRosters,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 3,
+      },
+      defaultDate: "2026-05-04",
+    });
+
+    await goToStep(3);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Alle 3 Kinder aus Jahrgang 3 übernehmen",
+      }),
+    );
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          weekday_assignments: [
+            expect.objectContaining({
+              weekday: 1,
+              student_ids: expect.arrayContaining([21, 22, 23]),
+            }),
+            expect.objectContaining({
+              weekday: 2,
+              student_ids: expect.arrayContaining([21, 22, 23]),
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
   it("cancels a direct Regeltermin edit and writes nothing (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({
       count: 1,
@@ -1604,12 +2174,19 @@ describe("TimetableEventModal", () => {
 
     await screen.findByText("Termin wiederholen");
     await clickSave();
-    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+    // #2135: the repeated instance's date (2026-05-04) is the series start.
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: "2026-05-04" }),
+      ),
+    );
     expect(mockUpdate).toHaveBeenCalledWith(
       "42",
       expect.objectContaining({ activity_group_id: 8 }),
     );
-    // Conversion materializes the whole period in 56-day chunks.
+    // Conversion materializes the whole period in 56-day chunks — the
+    // series' own valid_from skips its dates before the start, while the
+    // tenant-wide run keeps backfilling earlier-starting templates.
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalledTimes(5));
     expect(mockMaterialize).toHaveBeenNthCalledWith(
       1,
@@ -1776,6 +2353,9 @@ describe("TimetableEventModal", () => {
           weekdays: [1, 2, 3, 4, 5],
           week_pattern: 0,
           calendar_period_id: 5,
+          // #2135: the picked Datum is the series start; the materialize
+          // window still spans the period for tenant-wide backfill.
+          start_date: "2026-05-04",
           materialize_from: "2026-05-01",
           materialize_to: "2026-06-25",
         }),
@@ -2245,6 +2825,73 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it.each([
+    {
+      scope: "Ab jetzt dauerhaft",
+      buttonName: /Ab jetzt dauerhaft/,
+      expectedWrite: "split",
+    },
+    {
+      scope: "Alle Termine der Serie",
+      buttonName: /Alle Termine der Serie/,
+      expectedWrite: "update",
+    },
+  ])(
+    "checks weekday-specific staff separately for '$scope'",
+    async ({ buttonName, expectedWrite }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+      const shortPeriod: CalendarPeriod = {
+        ...periods[0]!,
+        startDate: "2026-05-04",
+        endDate: "2026-05-15",
+      };
+      mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+      renderModal({
+        initialInstance: {
+          ...savedInstance,
+          activityGroupId: "7",
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+        calendarPeriods: [shortPeriod],
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      mockCheckShiftCoverage.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+      await waitFor(() => {
+        const scopeProbes = mockCheckShiftCoverage.mock.calls
+          .map(([probe]) => probe as ShiftCoverageCheckParams)
+          .filter((probe) => probe.calendarPeriodId === "5");
+        expect(scopeProbes).toEqual([
+          expect.objectContaining({
+            dates: ["2026-05-04", "2026-05-11"],
+            staffIds: ["11"],
+          }),
+          expect.objectContaining({
+            dates: ["2026-05-05", "2026-05-12"],
+            staffIds: ["12"],
+          }),
+        ]);
+      });
+      if (expectedWrite === "split") {
+        await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+      } else {
+        await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      }
+    },
+  );
+
   it("checks all following occurrences and saves despite coverage warnings", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
@@ -2255,6 +2902,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1 },
         { ...template.schedules[0]!, id: "10", weekday: 3 },
@@ -2327,6 +2975,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
         {
@@ -2378,6 +3027,7 @@ describe("TimetableEventModal", () => {
     };
     mockGetTemplate.mockResolvedValue({
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
         {
@@ -2571,6 +3221,72 @@ describe("TimetableEventModal", () => {
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
 
+  it.each([
+    { scope: /Alle Termine der Serie/, write: "update" },
+    { scope: /Ab jetzt dauerhaft/, write: "split" },
+  ])(
+    "applies the selected planning track for $write series edits",
+    async ({ scope, write }) => {
+      renderModal({
+        initialInstance: {
+          ...savedInstance,
+          activityGroupId: "7",
+          planningTrackId: "8",
+          planningTrackName: "Mittag",
+          planningTrackColor: "#F78C10",
+          planningTrackSortOrder: 1,
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(screen.getByRole("button", { name: scope }));
+
+      const expected = expect.objectContaining({ planning_track_id: 8 });
+      if (write === "split") {
+        await waitFor(() =>
+          expect(mockSplitTemplate).toHaveBeenCalledWith("7", expected),
+        );
+      } else {
+        await waitFor(() =>
+          expect(mockUpdateTemplate).toHaveBeenCalledWith("7", expected),
+        );
+      }
+    },
+  );
+
+  it("sends an explicit null when an all-series edit clears the planning track", async () => {
+    const trackedTemplate = {
+      ...template,
+      planningTrackId: "8",
+      planningTrackName: "Mittag",
+      planningTrackColor: "#F78C10",
+      planningTrackSortOrder: 1,
+    };
+    mockGetTemplate.mockResolvedValue(trackedTemplate);
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+      },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ planning_track_id: null }),
+      ),
+    );
+  });
+
   it("preserves the fetched staffing override for an untouched all-series edit", async () => {
     mockGetTemplate.mockResolvedValue({
       ...template,
@@ -2686,6 +3402,48 @@ describe("TimetableEventModal", () => {
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
         "7",
         expect.objectContaining({ student_ids: [21, 22] }),
+      ),
+    );
+  });
+
+  it("preserves weekday child rosters after a successful untouched occurrence load", async () => {
+    mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        studentIds: ["31"],
+      },
+    });
+
+    await goToStep(3);
+    await screen.findByText("Max Kind");
+    await clickSave();
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          student_ids: [21, 22],
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [21],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [22],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
       ),
     );
   });
@@ -3142,6 +3900,7 @@ describe("TimetableEventModal", () => {
     };
     const mondayWednesday: TimetableTemplate = {
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 1 },
         { ...template.schedules[0]!, id: "10", weekday: 3 },
@@ -3226,6 +3985,7 @@ describe("TimetableEventModal", () => {
   it("moves a legacy Saturday to Monday even when another workday remains", async () => {
     const fridaySaturdayTemplate: TimetableTemplate = {
       ...template,
+      weekdayAssignments: [],
       schedules: [
         { ...template.schedules[0]!, weekday: 5 },
         { ...template.schedules[0]!, id: "10", weekday: 6 },
@@ -3617,6 +4377,7 @@ describe("TimetableEventModal", () => {
       calendarPeriods: periods,
       defaultCalendarPeriodId: "5",
       canCheckShiftCoverage: true,
+      canManageCategories: true,
     } as const;
     const { rerender } = render(<TimetableEventModal {...baseProps} />);
 

@@ -7,11 +7,6 @@ vi.mock("~/lib/hooks/use-reminders", () => ({
   useReminders: () => mockUseReminders(),
 }));
 
-const { mockRedirect } = vi.hoisted(() => ({ mockRedirect: vi.fn() }));
-vi.mock("next/navigation", () => ({
-  redirect: mockRedirect,
-}));
-
 import RemindersPage from "./page";
 
 function set(value: {
@@ -35,10 +30,37 @@ beforeEach(() => {
 });
 
 describe("RemindersPage", () => {
-  it("shows the empty state when nothing is due", () => {
-    set({ reminders: [], count: 0 });
+  it("shows the activation hint when reminder types are disabled", () => {
+    set({
+      reminders: [],
+      count: 0,
+      data: { reminders: [], count: 0, enabled: false },
+    });
     render(<RemindersPage />);
     expect(screen.getByText("Keine aktiven Erinnerungen")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Erinnerungstypen werden in den Einstellungen/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Erinnerungen aktiviert/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a compact success status when reminders are enabled but none are active", () => {
+    set({
+      reminders: [],
+      count: 0,
+      data: { reminders: [], count: 0, enabled: true },
+    });
+    render(<RemindersPage />);
+    expect(
+      screen.getByText(
+        "Erinnerungen aktiviert. Aktuell gibt es keine aktiven Erinnerungen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Erinnerungstypen werden in den Einstellungen/),
+    ).not.toBeInTheDocument();
   });
 
   it("groups reminders by type and colors only overdue red", () => {
@@ -91,33 +113,5 @@ describe("RemindersPage", () => {
     expect(
       screen.getByLabelText("Erinnerungen werden geladen…"),
     ).toBeInTheDocument();
-    expect(mockRedirect).not.toHaveBeenCalled();
-  });
-
-  it("does not redirect while data has not loaded yet (no data)", () => {
-    set({ reminders: [], count: 0 });
-    render(<RemindersPage />);
-    expect(mockRedirect).not.toHaveBeenCalled();
-  });
-
-  it("redirects to the dashboard when the feature is disabled", () => {
-    set({
-      reminders: [],
-      count: 0,
-      data: { reminders: [], count: 0, enabled: false },
-    });
-    render(<RemindersPage />);
-    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/dashboard");
-  });
-
-  it("renders the page when the feature is enabled", () => {
-    set({
-      reminders: [],
-      count: 0,
-      data: { reminders: [], count: 0, enabled: true },
-    });
-    render(<RemindersPage />);
-    expect(screen.getByText("Keine aktiven Erinnerungen")).toBeInTheDocument();
-    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

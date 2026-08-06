@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -273,9 +274,15 @@ func (s *CheckinService) ProcessCheckout(ctx context.Context, student *users.Stu
 }
 
 // ShouldSkipCheckin reports whether check-in should be skipped (student scanned
-// the same room they are already in).
-func ShouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visit) bool {
+// the same room they are already in). A visit from a previous day's session is
+// a rollover recovery, not a same-session toggle: after checkout the scan must
+// continue into today's group.
+func ShouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visit, now time.Time) bool {
 	if roomID == nil || !checkedOut || currentVisit == nil || currentVisit.ActiveGroup == nil {
+		return false
+	}
+	if !currentVisit.ActiveGroup.StartTime.IsZero() &&
+		timezone.DateFromTime(currentVisit.ActiveGroup.StartTime) != timezone.DateFromTime(now) {
 		return false
 	}
 	return currentVisit.ActiveGroup.RoomID == *roomID
@@ -474,23 +481,80 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 		return nil, newInternalError(checkinErrFindActiveGroups)
 	}
 
-	if len(activeGroups) > 0 {
-		return s.useExistingActiveGroup(ctx, activeGroups, room, deviceID), nil
+	// The same-day filter is limited to the special rooms that auto-create
+	// sessions: only there does endPreviousDayActiveGroups close the stale
+	// session that the filter hides. For regular rooms no such cleanup runs
+	// here — a prior-day session that outlived the session-end cutoff must
+	// stay reusable, or scans would 404 until the next EndDailySessions run.
+	currentGroups := activeGroups
+	if room.Name == constants.SchulhofRoomName || constants.IsWCRoomName(room.Name) {
+		now := timeNow()
+		if err := s.endPreviousDayActiveGroups(ctx, activeGroups, now); err != nil {
+			s.getLogger().ErrorContext(ctx, "failed to end stale special-room session",
+				slog.Int64("room_id", room.ID),
+				slog.String("room_name", room.Name),
+				slog.String("error", err.Error()),
+			)
+			return nil, specialRoomCreationError(room.Name)
+		}
+		currentGroups = activeGroupsStartedToday(activeGroups, now)
+	}
+	if len(currentGroups) > 0 {
+		return s.useExistingActiveGroup(ctx, currentGroups, room, deviceID), nil
 	}
 
 	return s.createSpecialRoomActiveGroupIfNeeded(ctx, room, deviceID)
 }
 
+func activeGroupsStartedToday(groups []*active.Group, now time.Time) []*active.Group {
+	today := timezone.DateFromTime(now)
+	current := make([]*active.Group, 0, len(groups))
+	for _, group := range groups {
+		if group == nil || group.EndTime != nil || timezone.DateFromTime(group.StartTime) != today {
+			continue
+		}
+		current = append(current, group)
+	}
+	return current
+}
+
+func (s *CheckinService) endPreviousDayActiveGroups(ctx context.Context, groups []*active.Group, now time.Time) error {
+	today := timezone.DateFromTime(now)
+	for _, group := range groups {
+		if group == nil || group.EndTime != nil {
+			continue
+		}
+		if groupDate := timezone.DateFromTime(group.StartTime); !groupDate.Before(today) {
+			continue
+		}
+
+		err := s.active.EndActiveGroupSession(ctx, group.ID)
+		if err != nil && !errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded) {
+			return fmt.Errorf("end stale active group %d: %w", group.ID, err)
+		}
+	}
+	return nil
+}
+
 // useExistingActiveGroup selects an active group in the room, preferring one
-// linked to deviceID and falling back to the first group.
+// linked to deviceID and falling back to the group with the newest start_time.
+// The newest-wins fallback is deliberate: since Schulhof became a regular
+// plannable room (#2161) several open groups can coexist in one room (planned
+// block + spontaneous/IoT fallback session), and the repository query carries
+// no ORDER BY — picking the first row would make the scan target a coin flip.
+// Newest-wins lands kiosk scans in the just-started planned block and matches
+// the Schulhof status read model's selection.
 func (s *CheckinService) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, room *facilities.Room, deviceID int64) *SelectedActiveGroup {
-	selected := activeGroups[0] // default fallback
+	selected := activeGroups[0]
 	deviceMatched := false
 	for _, g := range activeGroups {
 		if g.DeviceID != nil && *g.DeviceID == deviceID {
 			selected = g
 			deviceMatched = true
 			break
+		}
+		if g.StartTime.After(selected.StartTime) {
+			selected = g
 		}
 	}
 
@@ -566,14 +630,7 @@ func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Contex
 			slog.String("room_name", room.Name),
 			slog.String("error", err.Error()),
 		)
-		switch {
-		case room.Name == constants.SchulhofRoomName:
-			return nil, newInternalError(checkinErrCreateSchulhof)
-		case constants.IsWCRoomName(room.Name):
-			return nil, newInternalError(checkinErrCreateWC)
-		default:
-			return nil, newInternalError(checkinErrCreateSession)
-		}
+		return nil, specialRoomCreationError(room.Name)
 	}
 
 	newActiveGroup.Room = room
@@ -587,6 +644,17 @@ func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Contex
 		RoomName:     room.Name,
 		DeviceScoped: false,
 	}, nil
+}
+
+func specialRoomCreationError(roomName string) *CheckinError {
+	switch {
+	case roomName == constants.SchulhofRoomName:
+		return newInternalError(checkinErrCreateSchulhof)
+	case constants.IsWCRoomName(roomName):
+		return newInternalError(checkinErrCreateWC)
+	default:
+		return newInternalError(checkinErrCreateSession)
+	}
 }
 
 // roomNameByID resolves the room name from a room object or by ID lookup.

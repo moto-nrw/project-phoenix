@@ -310,7 +310,7 @@ function ToastRow({
             <button
               type="button"
               onClick={handleAction}
-              className={`flex-shrink-0 text-sm font-semibold ${desktopStyles.text} underline underline-offset-2 transition-opacity hover:opacity-70`}
+              className={`flex-shrink-0 self-center text-sm font-semibold ${desktopStyles.text} underline underline-offset-2 transition-opacity hover:opacity-70`}
             >
               {item.action.label}
             </button>

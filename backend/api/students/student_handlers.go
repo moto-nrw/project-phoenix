@@ -77,6 +77,12 @@ func (rs *Resource) parseAndGetStudentIncludingAlumni(w http.ResponseWriter, r *
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters and determine access
 	params := parseStudentListParams(r)
+	slimView, viewErr := parseStudentListView(r.URL.Query().Get("view"))
+	if viewErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(viewErr))
+		return
+	}
+	params.slimView = slimView
 	// Resolved BEFORE the fetch: the room/location pre-filters below query
 	// today's live active.visits state, so a non-today planning request has to
 	// be rejected before that query runs, not after it (#1939).
@@ -141,7 +147,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+	planningTimes, err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot))
+	if err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -158,7 +165,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	rs.enrichPaginatedPlanningTimes(r, responses, params, dataSnapshot, planningDate, isToday)
+	enrichPaginatedPlanningTimes(responses, params, dataSnapshot, planningTimes, isToday)
 
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
 	// grouping is per weekday, so a list rendered for another planning date must
@@ -169,15 +176,24 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
+	pagination := common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}
+	// Projection happens last, after every filter, sort and pagination step has
+	// run on the full responses — the two views differ on the wire only (#2097).
+	if params.slimView {
+		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses), pagination, "Students retrieved successfully")
+		return
+	}
+	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
 }
 
 // enrichPaginatedPlanningTimes layers the planning-date time data onto the final
 // paginated slice: today's live check-in/out times (kept off any other day so
 // current presence is never read as a plan), and, when requested, the effective
-// pickup/arrival times for the date via a single bulk query per kind. Both skip
-// redacted students — only rows the caller has full access to are enriched.
-func (rs *Resource) enrichPaginatedPlanningTimes(r *http.Request, responses []StudentResponse, params *studentListParams, dataSnapshot *common.StudentDataSnapshot, planningDate timezone.Date, isToday bool) {
+// pickup/arrival times from the maps enrichWithDayPlanning already bulk-loaded
+// for the pre-pagination superset (#2098 — no second round of the same
+// queries). Both skip redacted students — only rows the caller has full access
+// to are enriched.
+func enrichPaginatedPlanningTimes(responses []StudentResponse, params *studentListParams, dataSnapshot *common.StudentDataSnapshot, planningTimes dayPlanningTimes, isToday bool) {
 	if isToday {
 		for i := range responses {
 			if !responses[i].HasFullAccess {
@@ -187,15 +203,11 @@ func (rs *Resource) enrichPaginatedPlanningTimes(r *http.Request, responses []St
 		}
 	}
 
-	if !params.includePickupTimes && !params.includeArrivalTimes {
-		return
-	}
-	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if params.includePickupTimes {
-		rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+		applyPickupTimesFromMap(responses, planningTimes.pickups)
 	}
 	if params.includeArrivalTimes {
-		rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+		applyArrivalTimesFromMap(responses, planningTimes.arrivals)
 	}
 }
 
@@ -424,7 +436,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		single := []StudentResponse{response.StudentResponse}
-		if err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
+		if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
 			student.ID: attendanceStatus,
 		}); err != nil {
 			renderError(w, r, common.ErrorInternalServer(err))
@@ -1154,6 +1166,68 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 	return fresh, nil
 }
 
+// acquirePreRowLockGates takes the advisory locks that must precede ANY
+// student row lock of this request. It returns whether a class-change resync
+// may be owed after the write (see resyncSourcedTemplatesOnClassChange).
+//
+// Photo feature: the lock is taken only when consent is actually toggling
+// (name/notes edits must not queue behind a feature disable/purge). The photo
+// upload and delete transactions acquire LockPhotoFeature and THEN their row
+// lock (FindByIDForUpdate); taking a row lock first would invert that order
+// and let a consent update and a concurrent upload deadlock each other.
+//
+// Recurrence gate: a school_class edit moves the child between Jahrgängen, so
+// the Jahrgang-filtered offering-sourced Regeltermine must be re-reconciled in
+// the same transaction, exactly like a grade transition (#2147 review round
+// 10). The gates are taken BEFORE any student row lock, in the project-wide
+// grade-transition order (shared class-writes gate first, recurrence gate
+// second, row locks last) — any other order can deadlock against a
+// concurrently applying transition. They are taken whenever the request
+// carries a class at all, because whether the class actually changes is only
+// known once the row is locked.
+func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *users.Student, req *UpdateStudentRequest) (classChangeRequested bool, err error) {
+	consentChanging := req.PhotoConsentGiven != nil &&
+		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+	if consentChanging {
+		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
+			return false, err
+		}
+	}
+
+	if req.SchoolClass == nil || rs.OfferingSourceResyncer == nil {
+		return false, nil
+	}
+	if rs.LockTemplateRecurrence == nil {
+		return false, errors.New("template recurrence lock is not configured")
+	}
+	// Shared class-writes gate BEFORE the recurrence gate: a grade transition
+	// takes the class-writes gate exclusively FIRST and then the recurrence
+	// gate (lockRecurrenceThenTransitions). Taking recurrence here and the
+	// shared class gate only later (implicitly, inside FindByIDForUpdate)
+	// would let the two transactions wait on each other cyclically until
+	// PostgreSQL aborts one (#2147 review round 12). Re-entrant, so the
+	// row-lock methods' implicit shared acquisition stays a no-op.
+	if err := rs.StudentService.LockClassWritesShared(ctx); err != nil {
+		return false, err
+	}
+	if err := rs.LockTemplateRecurrence(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// resyncSourcedTemplatesOnClassChange follows the child into the new Jahrgang
+// on every offering-sourced template once the locked row's class actually
+// changed. Runs under the recurrence gate acquirePreRowLockGates took; a
+// resync failure aborts the whole update instead of committing a class edit
+// whose sourced rosters are stale (#2147 review round 10).
+func (rs *Resource) resyncSourcedTemplatesOnClassChange(ctx context.Context, classChangeRequested bool, previousSchoolClass, currentSchoolClass string) error {
+	if !classChangeRequested || previousSchoolClass == currentSchoolClass {
+		return nil
+	}
+	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate())
+}
+
 // applyStudentUpdate performs the locked-row student patch inside the caller's
 // tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
 // concurrent photo upload can't have its photo_path clobbered by a stale
@@ -1162,18 +1236,11 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 // companionsChanged reports what the caller must forward to the client: whether
 // this write actually changed the Laufgemeinschaft.
 func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) (bool, error) {
-	// The photo-feature advisory lock comes FIRST, before any student row lock,
-	// and only when consent is actually toggling (name/notes edits must not
-	// queue behind a feature disable/purge). The photo upload and delete
-	// transactions acquire LockPhotoFeature and THEN their row lock
-	// (FindByIDForUpdate); taking a row lock here first would invert that order
-	// and let a consent update and a concurrent upload deadlock each other.
-	consentChanging := req.PhotoConsentGiven != nil &&
-		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
-	if consentChanging {
-		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-			return false, err
-		}
+	// Advisory locks that must precede ANY student row lock of this request —
+	// see the helper for the two ordering rationales.
+	classChangeRequested, err := rs.acquirePreRowLockGates(ctx, student, req)
+	if err != nil {
+		return false, err
 	}
 
 	// Before ANY row lock of this request: a companion update writes the linked
@@ -1197,6 +1264,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// MUST happen before applyStudentFieldUpdates overwrites them.
 	wasSick := boolPtrValue(fresh.Sick)
 	wasExcused := boolPtrValue(fresh.Excused)
+	previousSchoolClass := fresh.SchoolClass
 
 	// Snapshot the tracked profile fields before applying the patch so the
 	// audit diff (#1455) compares the locked pre-update row with the persisted
@@ -1241,6 +1309,10 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		return false, err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
+		return false, err
+	}
+
+	if err := rs.resyncSourcedTemplatesOnClassChange(ctx, classChangeRequested, previousSchoolClass, fresh.SchoolClass); err != nil {
 		return false, err
 	}
 

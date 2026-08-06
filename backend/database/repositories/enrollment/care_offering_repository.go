@@ -227,6 +227,30 @@ func (r *CareOfferingRepository) ListByIDs(ctx context.Context, ids []int64) ([]
 	return offerings, nil
 }
 
+// ListByIDsForUpdate loads and locks the requested offerings in a stable order.
+// The lock is held by the surrounding tenant transaction and serializes the
+// capacity check with the booking mutation of competing approvals.
+func (r *CareOfferingRepository) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollment.CareOffering, error) {
+	if len(ids) == 0 {
+		return []*enrollment.CareOffering{}, nil
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".id IN (?)`, bun.List(ids)).
+		OrderExpr(`"care_offering".id`).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock care offerings by ids: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
+	return offerings, nil
+}
+
 func (r *CareOfferingRepository) ListByActivityGroupIDs(
 	ctx context.Context,
 	activityGroupIDs []int64,
@@ -282,6 +306,27 @@ func (r *CareOfferingRepository) ListActiveByPhase(ctx context.Context, phaseID 
 		Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active offerings by phase: %w", err)
+	}
+	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
+		return nil, err
+	}
+	return offerings, nil
+}
+
+func (r *CareOfferingRepository) ListActiveByPhaseIDs(ctx context.Context, phaseIDs []int64) ([]*enrollment.CareOffering, error) {
+	if len(phaseIDs) == 0 {
+		return nil, nil
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".phase_id IN (?)`, bun.List(phaseIDs)).
+		Where(`"care_offering".is_active = TRUE`).
+		OrderExpr(`"care_offering".phase_id, "care_offering".sort_order, "care_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active care offerings by phase ids: %w", err)
 	}
 	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
 		return nil, err

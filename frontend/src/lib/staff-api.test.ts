@@ -38,6 +38,7 @@ import {
   staffService,
   staffSessionEditsService,
   staffSessionService,
+  staffStammdatenService,
   workTimeModelService,
 } from "./staff-api";
 
@@ -110,6 +111,102 @@ describe("staff-api", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  describe("staffService.getDocumentDirectory", () => {
+    it("unwraps the API response envelope", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const entries = [
+        {
+          id: "42",
+          name: "Mila Muster",
+          firstName: "Mila",
+          lastName: "Muster",
+        },
+      ];
+      mockFetch.mockResolvedValue({
+        ok: true,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({ success: true, message: "", data: entries }),
+      } as Response);
+
+      await expect(staffService.getDocumentDirectory()).resolves.toEqual(
+        entries,
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/documents-directory",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+    });
+
+    it("throws with the status text when the directory request fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffService.getDocumentDirectory()).rejects.toThrow(
+        "Failed to fetch document directory: Forbidden",
+      );
+    });
+  });
+
+  describe("staffService.getDocumentProfile", () => {
+    it("maps the reduced document profile", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 42,
+              name: "Mila Muster",
+              firstName: "Mila",
+              lastName: "Muster",
+            },
+          }),
+      } as Response);
+
+      const profile = await staffService.getDocumentProfile("42");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/documents-profile/42",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+      expect(profile).toMatchObject({
+        id: "42",
+        name: "Mila Muster",
+        isLimitedProfile: true,
+        isFinancialProfile: false,
+        isSupervising: false,
+        hasRfid: false,
+        isTeacher: false,
+        supervisions: [],
+      });
+    });
+
+    it("throws with the profile type in the message when the request fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffService.getDocumentProfile("42")).rejects.toThrow(
+        "Failed to fetch document staff profile: Forbidden",
+      );
+    });
   });
 
   describe("staffService.getAllStaff", () => {
@@ -1740,6 +1837,94 @@ describe("staff-api", () => {
       expect(result.entitled_days).toBe(30);
     });
 
+    it("maps vacation opening identifiers to strings", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 7,
+              staff_id: 4,
+              year: 2026,
+              effective_date: "2026-02-28",
+              taken_before_days: 5.5,
+              entered_remaining_days: 26.5,
+              note: "Übernahme aus Urlaubsliste",
+              decided_by: 9,
+              decided_at: "2026-03-01T08:00:00Z",
+            },
+          }),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.setVacationOpening("4", {
+          effectiveDate: "2026-02-28",
+          remainingDays: 26.5,
+          note: "Übernahme aus Urlaubsliste",
+        }),
+      ).resolves.toMatchObject({
+        id: "7",
+        staff_id: "4",
+        decided_by: "9",
+      });
+    });
+
+    it.each([
+      [
+        "vacation_opening_already_exists",
+        "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
+      ],
+      [
+        "vacation_opening_absences_before_cutoff",
+        "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
+      ],
+    ])("explains the takeover rejection %s", async (code, message) => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.setVacationOpening("4", {
+          effectiveDate: "2026-02-28",
+          remainingDays: 26.5,
+          note: "Übernahme aus Urlaubsliste",
+        }),
+      ).rejects.toThrow(message);
+    });
+
+    it("reports a failed takeover deletion", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ error: "Keine Übernahme für dieses Jahr" }),
+          ),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.deleteVacationOpening("4", 2026),
+      ).rejects.toThrow("Keine Übernahme für dieses Jahr");
+    });
+
+    it("deletes a takeover for the given year", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.deleteVacationOpening("4", 2026);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/4/vacation/opening?year=2026",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
     it("throws when saving vacation quota fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
@@ -2375,6 +2560,554 @@ describe("staff-api", () => {
           note: "x",
         }),
       ).rejects.toThrow("Ungültiger Reset");
+    });
+
+    // Eröffnungssaldo (#2132). The backend's stable error codes carry no German
+    // text; the copy the admin reads lives here, so it is pinned here too.
+    it("maps the opening balance response", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 21,
+              staff_id: 4,
+              type: "opening",
+              minutes_delta: -330,
+              effective_date: "2026-07-31",
+              note: "Übernahme aus Altsystem",
+              decided_by: 9,
+              decided_at: "2026-08-01T08:00:00Z",
+            },
+          }),
+      } as Response);
+
+      const opening = await staffBalanceAdjustmentService.createOpening("4", {
+        effectiveDate: "2026-07-31",
+        balanceMinutes: -330,
+        note: "Übernahme aus Altsystem",
+      });
+
+      expect(opening).toMatchObject({
+        id: "21",
+        type: "opening",
+        minutesDelta: -330,
+      });
+    });
+
+    it.each([
+      [
+        "opening_balance_already_exists",
+        "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
+      ],
+      [
+        "dependent_balance_reset",
+        "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
+      ],
+      [
+        "adjustment_in_closed_month",
+        "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
+      ],
+    ])("explains the opening rejection %s", async (code, message) => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.createOpening("4", {
+          effectiveDate: "2026-07-31",
+          balanceMinutes: 600,
+          note: "Übernahme",
+        }),
+      ).rejects.toThrow(message);
+    });
+
+    it("passes an unmapped opening rejection through verbatim", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ error: "Stichtag liegt in der Zukunft" }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.createOpening("4", {
+          effectiveDate: "2099-01-01",
+          balanceMinutes: 600,
+          note: "Übernahme",
+        }),
+      ).rejects.toThrow("Stichtag liegt in der Zukunft");
+    });
+  });
+
+  // Stammdaten (#1423). The section writes carry the snake_case wire shape the
+  // backend validates, and the financial endpoints are the only ones that ever
+  // return plaintext — both are pinned here.
+  describe("staffService.getFinancialProfile", () => {
+    it("maps the reduced payroll profile and flags it", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              id: 42,
+              name: "Erika Musterfrau",
+              firstName: "Erika",
+              lastName: "Musterfrau",
+            },
+          }),
+      } as unknown as Response);
+
+      const result = await staffService.getFinancialProfile("42");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/financial-profile/42",
+        expect.any(Object),
+      );
+      expect(result.id).toBe("42");
+      expect(result.name).toBe("Erika Musterfrau");
+      expect(result.isFinancialProfile).toBe(true);
+      expect(result.hasRfid).toBe(false);
+      expect(result.isTeacher).toBe(false);
+      expect(result.isSupervising).toBe(false);
+      expect(result.supervisions).toEqual([]);
+    });
+
+    it("throws when the reduced profile is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffService.getFinancialProfile("42")).rejects.toThrow(
+        "Failed to fetch financial staff profile: Forbidden",
+      );
+    });
+  });
+
+  describe("staffStammdatenService", () => {
+    const backendStammdaten = {
+      staff_id: 7,
+      person: {
+        first_name: "Max",
+        last_name: "Mustermann",
+        birthday: "1991-06-02",
+        gender: "male" as const,
+      },
+      kontakt: {
+        address_street: "Musterweg 1",
+        address_postal_code: "48143",
+        address_city: "Münster",
+        phone: "+49 251 1",
+        email: "max@example.com",
+        emergency_contact_name: "Erika Muster",
+        emergency_contact_phone: "+49 170 1",
+      },
+      arbeitsvertrag: {
+        entry_date: "2024-08-01",
+        contract_end_date: null,
+        probation_end_date: "2025-01-31",
+        weekly_hours: 29.5,
+        employment_type: "part_time",
+      },
+      qualifikationen: [
+        {
+          id: 3,
+          name: "Erste-Hilfe-Kurs",
+          acquired_on: "2023-03-10",
+          expires_on: "2026-03-10",
+        },
+        { name: "Schwimmschein", acquired_on: null, expires_on: null },
+      ],
+    };
+
+    it("maps the aggregate response to camelCase", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: backendStammdaten }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.get("7");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/7/stammdaten",
+        expect.any(Object),
+      );
+      expect(result.staffId).toBe("7");
+      expect(result.person).toEqual({
+        firstName: "Max",
+        lastName: "Mustermann",
+        birthday: "1991-06-02",
+        gender: "male",
+      });
+      expect(result.kontakt.addressPostalCode).toBe("48143");
+      expect(result.kontakt.emergencyContactName).toBe("Erika Muster");
+      expect(result.arbeitsvertrag).toEqual({
+        entryDate: "2024-08-01",
+        contractEndDate: null,
+        probationEndDate: "2025-01-31",
+        weeklyHours: 29.5,
+        employmentType: "part_time",
+      });
+      // Persisted rows carry an id, a freshly typed one does not.
+      expect(result.qualifikationen).toEqual([
+        {
+          id: "3",
+          name: "Erste-Hilfe-Kurs",
+          acquiredOn: "2023-03-10",
+          expiresOn: "2026-03-10",
+        },
+        {
+          id: null,
+          name: "Schwimmschein",
+          acquiredOn: null,
+          expiresOn: null,
+        },
+      ]);
+    });
+
+    it("tolerates a missing qualification list", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...backendStammdaten, qualifikationen: undefined },
+          }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.get("7");
+
+      expect(result.qualifikationen).toEqual([]);
+    });
+
+    it("throws when the aggregate read is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffStammdatenService.get("7")).rejects.toThrow(
+        "Failed to fetch stammdaten: Forbidden",
+      );
+    });
+
+    it("writes the person section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updatePerson(
+        "7",
+        {
+          firstName: "Max",
+          lastName: "Neu",
+          birthday: "1991-06-02",
+          gender: "diverse",
+        },
+        "Namensänderung",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/person");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body as string)).toEqual({
+        first_name: "Max",
+        last_name: "Neu",
+        birthday: "1991-06-02",
+        gender: "diverse",
+        note: "Namensänderung",
+      });
+    });
+
+    it("writes the kontakt section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateKontakt(
+        "7",
+        {
+          addressStreet: "Musterweg 1",
+          addressPostalCode: "48143",
+          addressCity: "Münster",
+          phone: "+49 251 1",
+          email: "max@example.com",
+          emergencyContactName: "Erika Muster",
+          emergencyContactPhone: null,
+        },
+        "Umzug",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/kontakt");
+      expect(JSON.parse(init.body as string)).toEqual({
+        address_street: "Musterweg 1",
+        address_postal_code: "48143",
+        address_city: "Münster",
+        phone: "+49 251 1",
+        email: "max@example.com",
+        emergency_contact_name: "Erika Muster",
+        emergency_contact_phone: null,
+        note: "Umzug",
+      });
+    });
+
+    it("writes the arbeitsvertrag section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateArbeitsvertrag(
+        "7",
+        {
+          entryDate: "2024-08-01",
+          contractEndDate: null,
+          probationEndDate: "2025-01-31",
+          weeklyHours: 29.5,
+          employmentType: "part_time",
+        },
+        "Vertrag",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/arbeitsvertrag");
+      expect(JSON.parse(init.body as string)).toEqual({
+        entry_date: "2024-08-01",
+        contract_end_date: null,
+        probation_end_date: "2025-01-31",
+        weekly_hours: 29.5,
+        employment_type: "part_time",
+        note: "Vertrag",
+      });
+    });
+
+    it("sends the full qualification list without client-side ids", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateQualifikationen(
+        "7",
+        [
+          {
+            id: "3",
+            name: "Erste-Hilfe-Kurs",
+            acquiredOn: "2023-03-10",
+            expiresOn: "2026-03-10",
+          },
+          {
+            id: null,
+            name: "Schwimmschein",
+            acquiredOn: null,
+            expiresOn: null,
+          },
+        ],
+        "Nachweise",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/qualifikationen");
+      expect(JSON.parse(init.body as string)).toEqual({
+        qualifikationen: [
+          {
+            name: "Erste-Hilfe-Kurs",
+            acquired_on: "2023-03-10",
+            expires_on: "2026-03-10",
+          },
+          { name: "Schwimmschein", acquired_on: null, expires_on: null },
+        ],
+        note: "Nachweise",
+      });
+    });
+
+    it("translates the stammdaten_invalid code into a German hint", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Bad Request",
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "stammdaten_invalid",
+              error: "invalid IBAN checksum",
+            }),
+          ),
+      } as unknown as Response);
+
+      await expect(
+        staffStammdatenService.updatePerson(
+          "7",
+          {
+            firstName: "Max",
+            lastName: "Neu",
+            birthday: null,
+            gender: null,
+          },
+          "",
+        ),
+      ).rejects.toThrow(
+        "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
+      );
+    });
+
+    it("surfaces other backend errors verbatim", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Conflict",
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "Mitarbeiter gesperrt" })),
+      } as unknown as Response);
+
+      await expect(
+        staffStammdatenService.updateKontakt(
+          "7",
+          {
+            addressStreet: null,
+            addressPostalCode: null,
+            addressCity: null,
+            phone: null,
+            email: null,
+            emergencyContactName: null,
+            emergencyContactPhone: null,
+          },
+          "",
+        ),
+      ).rejects.toThrow("Mitarbeiter gesperrt");
+    });
+
+    it("falls back to the generic save message on an empty error body", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Internal Server Error",
+        text: () => Promise.resolve(""),
+      } as unknown as Response);
+
+      await expect(
+        staffStammdatenService.updateArbeitsvertrag(
+          "7",
+          {
+            entryDate: null,
+            contractEndDate: null,
+            probationEndDate: null,
+            weeklyHours: null,
+            employmentType: null,
+          },
+          "",
+        ),
+      ).rejects.toThrow("Stammdaten konnten nicht gespeichert werden");
+    });
+
+    it("reads the masked bank & tax values", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              iban_masked: "•••• 3000",
+              tax_id_masked: "•••• 8911",
+              social_security_number_masked: null,
+            },
+          }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.getFinancial("7");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/7/stammdaten/bank-steuer",
+        expect.any(Object),
+      );
+      expect(result).toEqual({
+        ibanMasked: "•••• 3000",
+        taxIdMasked: "•••• 8911",
+        socialSecurityNumberMasked: null,
+      });
+    });
+
+    it("throws when the masked read is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffStammdatenService.getFinancial("7")).rejects.toThrow(
+        "Failed to fetch financial data: Forbidden",
+      );
+    });
+
+    it("reveals the plaintext values via POST (audited server-side)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              iban: "DE89370400440532013000",
+              tax_id: "12345678911",
+              social_security_number: "65170839J003",
+            },
+          }),
+      } as unknown as Response);
+
+      const result = await staffStammdatenService.revealFinancial("7");
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/bank-steuer/reveal");
+      expect(init.method).toBe("POST");
+      expect(result).toEqual({
+        iban: "DE89370400440532013000",
+        taxId: "12345678911",
+        socialSecurityNumber: "65170839J003",
+      });
+    });
+
+    it("throws when the reveal is refused", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffStammdatenService.revealFinancial("7")).rejects.toThrow(
+        "Failed to reveal financial data: Forbidden",
+      );
+    });
+
+    it("writes the bank & tax section in the backend wire shape", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ ok: true } as Response);
+
+      await staffStammdatenService.updateFinancial(
+        "7",
+        {
+          iban: "DE89370400440532013000",
+          taxId: "12345678911",
+          socialSecurityNumber: null,
+        },
+        "Lohnbüro",
+      );
+
+      const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/staff/7/stammdaten/bank-steuer");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body as string)).toEqual({
+        iban: "DE89370400440532013000",
+        tax_id: "12345678911",
+        social_security_number: null,
+        note: "Lohnbüro",
+      });
     });
   });
 });

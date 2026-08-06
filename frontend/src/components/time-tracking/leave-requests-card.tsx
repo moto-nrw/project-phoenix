@@ -1,12 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { UmbrellaIcon } from "@phosphor-icons/react";
 
 import { Button } from "~/components/ui/button";
-import { SectionHeader } from "~/components/ui/concept-section-header";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
@@ -187,19 +184,13 @@ export function LeaveRequestsCard() {
 
   return (
     <>
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
-        <SectionHeader
-          className="mb-5"
-          title="Urlaub"
-          icon={
-            <MotoDuotoneIcon
-              icon={UmbrellaIcon}
-              tone="timeTracking"
-              size={22}
-            />
-          }
-          actions={<span className="text-xs text-gray-400">{year}</span>}
-        />
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
+            Urlaub
+          </h2>
+          <span className="text-xs text-gray-400">{year}</span>
+        </div>
 
         <div
           className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
@@ -246,14 +237,16 @@ export function LeaveRequestsCard() {
           <p className="text-xs text-gray-500">
             Urlaubsanträge stellen, Status verfolgen und stornieren.
           </p>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => setModalOpen(true)}
             disabled={loading}
-            className="rounded-full bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+            className="!rounded-full"
           >
             Urlaub beantragen
-          </button>
+          </Button>
         </div>
 
         {sortedQuestionedVacations.length > 0 && (
@@ -378,13 +371,15 @@ function AbsenceRequestItem({
         <div className="flex items-center gap-3">
           <StatusDotBadge label={meta.label} color={meta.color} />
           {cancelable && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="compact"
               onClick={() => onCancel(absence)}
-              className="text-moto-red hover:text-moto-red-strong text-xs font-medium"
+              className="px-0 text-red-600 hover:bg-transparent hover:text-red-700"
             >
               Stornieren
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -471,6 +466,8 @@ function Tile({
   readonly hint: string;
   readonly tone: "primary" | "success" | "amber" | "muted";
 }) {
+  // Brand hexes from LOCATION_COLORS (green GROUP_ROOM, orange SCHOOLYARD in
+  // its darkened Alert foreground) — never generic Tailwind hues.
   const valueClass = {
     primary: "text-gray-900",
     success: "text-moto-green-hover",
@@ -478,7 +475,7 @@ function Tile({
     muted: "text-gray-400",
   }[tone];
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/70 p-4">
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
       <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
         {label}
       </p>

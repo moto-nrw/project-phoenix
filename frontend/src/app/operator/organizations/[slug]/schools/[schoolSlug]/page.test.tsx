@@ -13,6 +13,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("~/components/operator/transfer-device-modal", () => ({
+  TransferDeviceModal: () => null,
+}));
 import { Suspense } from "react";
 
 const {
@@ -504,10 +508,12 @@ describe("OperatorSchoolDetailPage", () => {
 
       await renderPage();
 
-      // The devices-table renders a "Löschen" button with title="Gerät löschen"
-      // — the school header's "Löschen" button uses a different title.
-      const rowDelete = await screen.findByTitle("Gerät löschen");
-      fireEvent.click(rowDelete);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /Aktionen für/,
+        }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
       // The DeleteDeviceModal renders "Gerät löschen" as a heading.
       await waitFor(() => {
@@ -524,7 +530,12 @@ describe("OperatorSchoolDetailPage", () => {
 
       await renderPage();
 
-      fireEvent.click(await screen.findByTitle("Gerät löschen"));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /Aktionen für/,
+        }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
       // Two-step confirm: click "Ja, löschen" then "Endgültig löschen"
       fireEvent.click(await screen.findByText("Ja, löschen"));

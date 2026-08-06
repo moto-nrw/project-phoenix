@@ -42,6 +42,7 @@ SELECT
 		FROM iot.devices AS "d"
 		INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
 		WHERE "s".deleted_at IS NULL
+			AND "d".archived_at IS NULL
 	) AS geraete_count
 `
 
@@ -81,6 +82,7 @@ device_agg AS (
 	FROM iot.devices AS "d"
 	INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
 	WHERE "s".deleted_at IS NULL
+		AND "d".archived_at IS NULL
 	GROUP BY "s".organization_id
 ),
 person_agg AS (
@@ -141,6 +143,7 @@ device_agg AS (
 	SELECT "d".tenant_id,
 		COUNT(*) AS geraete_count
 	FROM iot.devices AS "d"
+	WHERE "d".archived_at IS NULL
 	GROUP BY "d".tenant_id
 ),
 person_agg AS (
@@ -223,6 +226,7 @@ SELECT
 		SELECT COUNT(*)
 		FROM iot.devices AS "d"
 		WHERE "d".tenant_id = "s".id
+			AND "d".archived_at IS NULL
 	), 0) AS geraete_count,
 	COALESCE((
 		SELECT COUNT(*)
@@ -334,7 +338,7 @@ INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
 // via their explicit IsDeleted pre-check before reaching this query; the
 // SQL filter is the safety net for the global ListAllDevices path.
 func (r *OperatorSummariesRepository) ListDeviceRows(ctx context.Context, filter platform.OperatorDeviceFilter) ([]platform.OperatorDeviceRow, error) {
-	q := operatorDeviceQuery + ` WHERE "s".deleted_at IS NULL AND "o".deleted_at IS NULL`
+	q := operatorDeviceQuery + ` WHERE "s".deleted_at IS NULL AND "o".deleted_at IS NULL AND "d".archived_at IS NULL`
 	var args []interface{}
 	switch {
 	case filter.DeviceRowID != nil:

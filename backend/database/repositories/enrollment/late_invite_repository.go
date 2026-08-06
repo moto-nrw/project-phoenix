@@ -43,6 +43,21 @@ func (r *LateInviteRepository) FindUsableByTokenHashForUpdate(ctx context.Contex
 	return r.findUsableByTokenHash(ctx, tokenHash, phaseID, now, true)
 }
 
+func (r *LateInviteRepository) FindByUsedRequestID(ctx context.Context, requestID int64) (*enrollment.LateInvite, error) {
+	invite := new(enrollment.LateInvite)
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		Model(invite).
+		ModelTableExpr(lateInviteTableExpr).
+		Where(`"late_invite".used_request_id = ?`, requestID).
+		Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, enrollment.ErrLateInviteNotFound
+		}
+		return nil, fmt.Errorf("failed to find enrollment late invite by used request: %w", err)
+	}
+	return invite, nil
+}
+
 func (r *LateInviteRepository) findUsableByTokenHash(ctx context.Context, tokenHash string, phaseID int64, now time.Time, lock bool) (*enrollment.LateInvite, error) {
 	invite := new(enrollment.LateInvite)
 	q := base.GetDB(ctx, r.db).NewSelect().

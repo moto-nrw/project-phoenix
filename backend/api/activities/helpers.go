@@ -70,6 +70,8 @@ func newCategoryResponse(category *activities.Category) CategoryResponse {
 		Description: category.Description,
 		Color:       category.Color,
 		ShiftTypeID: category.ShiftTypeID,
+		IsSystem:    category.IsSystem,
+		ArchivedAt:  category.ArchivedAt,
 		CreatedAt:   category.CreatedAt,
 		UpdatedAt:   category.UpdatedAt,
 	}

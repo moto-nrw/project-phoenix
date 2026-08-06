@@ -95,6 +95,7 @@ type DuplicateChildKey struct {
 type RequestRepository interface {
 	Create(ctx context.Context, req *Request) error
 	FindByID(ctx context.Context, id int64) (*Request, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*Request, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*Request, error)
 	FindByStatusToken(ctx context.Context, token string) (*Request, error)
 	FindByStatusTokenForUpdate(ctx context.Context, token string) (*Request, error)
@@ -127,6 +128,10 @@ type RequestRepository interface {
 
 	// MarkWithdrawn stamps withdrawn_at and bumps updated_at.
 	MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error
+
+	// ClearWithdrawn is the inverse of MarkWithdrawn: nulls withdrawn_at and
+	// bumps updated_at. Used by the admin restore flow (#2157).
+	ClearWithdrawn(ctx context.Context, requestID int64) error
 
 	// FindActiveDuplicate returns the names of any children for which a
 	// non-terminal-rejected/withdrawn enrollment already exists for the

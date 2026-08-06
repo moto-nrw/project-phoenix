@@ -119,6 +119,11 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
+	// FindBirthdaysOn returns the non-graduated children whose birthday falls
+	// on one of the given annually recurring days (#1542). Children without a
+	// stored birth date are omitted, never rendered as an unknown date.
+	FindBirthdaysOn(ctx context.Context, days []MonthDay) ([]BirthdayEntry, error)
+
 	// ListWithOptions retrieves students with query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
 
@@ -198,6 +203,15 @@ type StudentRepository interface {
 	// Must be called inside a tenant tx; releases on commit/rollback. Take it
 	// BEFORE the recurrence and grade-transition gates.
 	LockStudentClassWrites(ctx context.Context) error
+
+	// LockStudentClassWritesShared acquires the SHARED form of the class-writes
+	// gate. The repository takes it implicitly in front of every student
+	// insert/update/row lock; callers only need it explicitly when they must
+	// acquire ANOTHER tenant-wide gate (e.g. the recurrence gate) before their
+	// first student row lock — the shared gate has to come first to keep the
+	// project-wide order (class-writes → recurrence → rows) acyclic against a
+	// concurrently applying grade transition (#2147 review round 12).
+	LockStudentClassWritesShared(ctx context.Context) error
 
 	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
 	// UPDATE so the caller can re-validate state under the same row
@@ -281,6 +295,20 @@ type StaffRepository interface {
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
 	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)
+
+	// FindBirthdaysOn returns the staff members whose birthday falls on one of
+	// the given annually recurring days, excluding everyone who opted out of
+	// the display (#1542). The opt-out is applied in the query so no caller
+	// can bypass it.
+	FindBirthdaysOn(ctx context.Context, days []MonthDay) ([]BirthdayEntry, error)
+
+	// ListBirthdaysForExport returns every staff member with a stored birth
+	// date, opt-outs included. Backs the administrative Geburtstagsliste,
+	// which is gated on the same permission as the Stammdaten it reads.
+	ListBirthdaysForExport(ctx context.Context) ([]BirthdayEntry, error)
+
+	// SetBirthdayDisplayOptOut flips one staff member's dashboard opt-out.
+	SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
 }
 
 // TeacherRepository defines operations for managing teachers
@@ -383,6 +411,16 @@ type StudentGuardianRepository interface {
 	// the check is correct even under an admin transaction (RLS bypassed). A
 	// deactivated guardian's lingering relationship rows report false.
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
+
+	// FilterAccountsWithStudentAccess is the batched sibling of
+	// AccountHasStudentPermission: it returns the subset of guardianAccountIDs
+	// whose relationship to at least ONE of studentIDs still carries the named
+	// parent_portal.* permission, backed by an ACTIVE account_tenants mapping.
+	// It exists for delivery paths holding a recipient list that was resolved in
+	// an earlier transaction — a notification about a child must be re-checked
+	// where it is SENT, because access can be revoked in between (#1671). The
+	// result keeps the caller's order and can only narrow the input.
+	FilterAccountsWithStudentAccess(ctx context.Context, guardianAccountIDs, studentIDs []int64, tenantID int64, permission string) ([]int64, error)
 
 	// GuardianEmailHasStudentPermission is the accountless sibling of
 	// AccountHasStudentPermission: the same per-child probe keyed on the

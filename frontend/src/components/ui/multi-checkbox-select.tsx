@@ -20,6 +20,8 @@ interface MultiCheckboxSelectProps {
   readonly onChange: (value: string[]) => void;
   readonly id?: string;
   readonly ariaLabel?: string;
+  readonly ariaInvalid?: boolean;
+  readonly ariaDescribedBy?: string;
   readonly emptyLabel?: string;
   readonly unavailableLabel?: string;
   readonly multipleLabel?: (count: number) => string;
@@ -46,6 +48,8 @@ export function MultiCheckboxSelect({
   onChange,
   id,
   ariaLabel,
+  ariaInvalid,
+  ariaDescribedBy,
   emptyLabel = "Keine Auswahl",
   unavailableLabel = "Keine Optionen verfügbar",
   multipleLabel = defaultMultipleLabel,
@@ -58,7 +62,12 @@ export function MultiCheckboxSelect({
   const generatedId = useId();
   const triggerId = id ?? generatedId;
   const menuId = `${triggerId}-menu`;
+  const validationAttributes = {
+    "aria-invalid": ariaInvalid,
+    "aria-describedby": ariaDescribedBy,
+  };
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const selectedValues = new Set(value);
@@ -123,17 +132,31 @@ export function MultiCheckboxSelect({
     setOpen(!open);
   }, [open]);
 
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (!open || event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu();
+      triggerRef.current?.focus();
+    },
+    [closeMenu, open],
+  );
+
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         id={triggerId}
         type="button"
         aria-label={ariaLabel}
-        aria-haspopup="menu"
+        {...validationAttributes}
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         disabled={isDisabled}
         onClick={toggleOpen}
+        onKeyDown={handleKeyDown}
         className={cn(TRIGGER_CLASS, className)}
       >
         <span
@@ -156,71 +179,78 @@ export function MultiCheckboxSelect({
       {open ? (
         <div
           id={menuId}
-          role="menu"
+          role="dialog"
           aria-label={ariaLabel}
+          onKeyDown={handleKeyDown}
           className={cn(
-            "absolute top-full left-0 z-50 mt-1 max-h-72 min-w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg",
+            "absolute top-full left-0 z-50 mt-1 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-lg",
             menuClassName,
           )}
         >
-          {searchable && (
-            <div className="sticky top-0 z-10 space-y-1.5 border-b border-gray-100 bg-white px-3 py-2">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder={searchPlaceholder}
-                aria-label={searchPlaceholder}
-                className="block w-full rounded-lg border-0 bg-white px-3 py-1.5 text-sm text-gray-900 ring-1 ring-gray-200 transition-all ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-              />
-              {selectableVisible.length > 0 && (
-                <button
-                  type="button"
-                  onClick={allVisibleSelected ? clearVisible : selectAllVisible}
-                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
-                >
-                  {allVisibleSelected
-                    ? normalizedTerm
-                      ? "Treffer abwählen"
-                      : "Auswahl aufheben"
-                    : normalizedTerm
-                      ? "Alle Treffer auswählen"
-                      : "Alle auswählen"}
-                </button>
-              )}
-            </div>
-          )}
-          {searchable && visibleOptions.length === 0 && (
-            <p className="px-4 py-2.5 text-sm text-gray-500">Keine Treffer.</p>
-          )}
-          {visibleOptions.map((option) => (
-            <label
-              key={option.value}
-              className={cn(
-                "flex w-full cursor-pointer items-start gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50",
-                option.disabled
-                  ? "cursor-not-allowed text-gray-400"
-                  : "text-gray-700",
-              )}
-            >
-              <Checkbox
-                checked={selectedValues.has(option.value)}
-                disabled={option.disabled}
-                onChange={() => toggleValue(option.value)}
-                className="mt-0.5"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium break-words">
-                  {option.label}
-                </span>
-                {option.badge ? (
-                  <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
-                    {option.badge}
+          <div className="max-h-[17rem] overflow-y-auto overscroll-contain">
+            {searchable && (
+              <div className="sticky top-0 z-10 space-y-1.5 border-b border-gray-100 bg-white px-3 pb-2">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                  className="block w-full rounded-lg border-0 bg-white px-3 py-1.5 text-sm text-gray-900 ring-1 ring-gray-200 transition-all ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                />
+                {selectableVisible.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={
+                      allVisibleSelected ? clearVisible : selectAllVisible
+                    }
+                    className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                  >
+                    {allVisibleSelected
+                      ? normalizedTerm
+                        ? "Treffer abwählen"
+                        : "Auswahl aufheben"
+                      : normalizedTerm
+                        ? "Alle Treffer auswählen"
+                        : "Alle auswählen"}
+                  </button>
+                )}
+              </div>
+            )}
+            {searchable && visibleOptions.length === 0 && (
+              <p className="px-4 py-2.5 text-sm text-gray-500">
+                Keine Treffer.
+              </p>
+            )}
+            {visibleOptions.map((option) => (
+              <label
+                key={option.value}
+                className={cn(
+                  "flex w-full cursor-pointer items-start gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50",
+                  option.disabled
+                    ? "cursor-not-allowed text-gray-400"
+                    : "text-gray-700",
+                )}
+              >
+                <Checkbox
+                  checked={selectedValues.has(option.value)}
+                  disabled={option.disabled}
+                  onChange={() => toggleValue(option.value)}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium break-words">
+                    {option.label}
                   </span>
-                ) : null}
-              </span>
-            </label>
-          ))}
+                  {option.badge ? (
+                    <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                      {option.badge}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>

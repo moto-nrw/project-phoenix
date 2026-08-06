@@ -464,6 +464,20 @@ type StaffVacationQuotaRepository interface {
 	Upsert(ctx context.Context, quota *StaffVacationQuota) error
 }
 
+// StaffVacationOpeningRepository manages per-staff vacation takeover rows
+// (#2132). One row per staff and year, append-only at the service level —
+// corrections are delete + re-create with a deletion tombstone.
+type StaffVacationOpeningRepository interface {
+	base.Repository[*StaffVacationOpening]
+
+	// GetByStaffAndYear returns the opening row for a staff/year, or nil.
+	GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error)
+
+	// GetByStaffIDsAndYear is GetByStaffAndYear batched over many staff
+	// members, keyed by staff ID. Missing rows are absent from the map.
+	GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*StaffVacationOpening, error)
+}
+
 // WorkSessionBreakRepository defines operations for managing work session breaks
 type WorkSessionBreakRepository interface {
 	base.Repository[*WorkSessionBreak]

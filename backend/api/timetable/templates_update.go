@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/go-chi/render"
@@ -15,14 +16,15 @@ import (
 )
 
 type updateTemplateRequest struct {
-	Name            string `json:"name"`
-	Type            string `json:"type"`
-	Weekdays        []int  `json:"weekdays"`
-	StartTime       string `json:"start_time"`
-	EndTime         string `json:"end_time"`
-	RoomID          int64  `json:"room_id"`
-	CategoryID      int64  `json:"category_id"`
-	MaxParticipants *int   `json:"max_participants,omitempty"`
+	Name            string        `json:"name"`
+	Type            string        `json:"type"`
+	Weekdays        []int         `json:"weekdays"`
+	StartTime       string        `json:"start_time"`
+	EndTime         string        `json:"end_time"`
+	RoomID          int64         `json:"room_id"`
+	CategoryID      int64         `json:"category_id"`
+	PlanningTrackID nullableInt64 `json:"planning_track_id"`
+	MaxParticipants *int          `json:"max_participants,omitempty"`
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// omitted/null clears the override (derive from the Betreuungsschlüssel).
 	RequiredStaff    *int   `json:"required_staff,omitempty"`
@@ -30,9 +32,17 @@ type updateTemplateRequest struct {
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
 	// Zielgruppe fields — see createTemplateRequest for the full contract.
-	TargetGroupType   string  `json:"target_group_type,omitempty"`
-	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	TargetGroupType   string                  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	Targets           []templateTargetRequest `json:"targets,omitempty"`
+	// Offering-source rule (#2137) — see createTemplateRequest. Both fields
+	// are presence-aware (#2147 review round 12): an omitted field keeps the
+	// template's stored value, only an explicit null (or explicit empty
+	// filter list) clears it. A client predating these fields must not strip
+	// a template's dynamic Angebots-Belegung by simply not knowing them.
+	SourceCareOfferingID nullableInt64    `json:"source_care_offering_id"`
+	SourceGradeLevels    nullableIntSlice `json:"source_grade_levels"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -41,6 +51,9 @@ type updateTemplateRequest struct {
 	StudentIDs     []int64 `json:"student_ids,omitempty"`
 	StaffIDs       []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID *int64  `json:"primary_staff_id,omitempty"`
+	// WeekdayAssignments overrides the shared roster for individual weekdays
+	// (#2129); omitted/empty resets the series to one shared roster.
+	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -68,17 +81,33 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateTemplateWeekdays(req.Weekdays); err != nil {
 		return err
 	}
-	target := &activitiesModel.Group{
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		EducationGroupID:  req.EducationGroupID,
-	}
-	if err := target.ValidateTargetGroup(); err != nil {
+	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	req.TargetGroupType = target.TargetGroupType
-	req.TargetSchoolClass = target.TargetSchoolClass
+	// The offering-source pair is presence-aware: an omitted source id merges
+	// the STORED source in after bind (applyOfferingSourcePresence / the split
+	// service). Validating a submitted Jahrgangsfilter against the
+	// not-yet-merged nil source here would reject a legitimate filter-only
+	// edit of a sourced template (#2147 review round 14), so the pair enters
+	// the bind-time validation only when the source id itself was submitted.
+	// The merged state is always re-validated service-side
+	// (validateOfferingSourceInput → ErrOfferingSourceInvalid → 400).
+	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
+	if !req.SourceCareOfferingID.Set {
+		sourceGradeLevelsForBind = nil
+	}
+	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
+		req.SourceCareOfferingID.Value, sourceGradeLevelsForBind, req.Targets,
+	)
+	if err != nil {
+		return err
+	}
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
+	if req.SourceCareOfferingID.Set {
+		req.SourceGradeLevels.Value = sourceGradeLevels
+	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -132,7 +161,15 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
-	templates, err := rs.loadTemplates(r.Context(), &id)
+	periodID, ok := templatePeriodIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	if periodID == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id is required when loading a template for editing")))
+		return
+	}
+	templates, err := rs.loadTemplates(r.Context(), &id, periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
@@ -163,7 +200,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	templates, err := rs.loadTemplates(ctx, &id)
+	// Load the existing recurrence independently of the requested target
+	// period. Its schedules still belong to the source period until the update
+	// succeeds, so a target-scoped read would incorrectly report 404 while
+	// moving a template between periods.
+	templates, err := rs.loadTemplates(ctx, &id, nil)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
 		return
@@ -180,7 +221,8 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID)
+	applyOfferingSourcePresence(parsed.req, templates[0])
+	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, nil)
 	if !ok {
 		return
 	}
@@ -202,12 +244,42 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderUpdateTemplateError(w, r, updateErr)
 		return
 	}
-	templates, err = rs.loadTemplates(ctx, &id)
+	templates, err = rs.loadTemplates(ctx, &id, parsed.req.CalendarPeriodID)
 	if err != nil || len(templates) == 0 {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload template failed", err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
+}
+
+// applyOfferingSourcePresence resolves the presence-aware offering-source
+// fields against the stored template (#2147 review round 12): an omitted
+// field keeps the stored value — a client sending the pre-#2137 full update
+// body must not silently strip the dynamic Angebots-Belegung — while an
+// explicit null clears it. Carrying only applies while the update keeps the
+// 'angebot' Zielgruppe; every other type cannot hold a source (DB CHECK), so
+// a type switch drops the rule like a split away from 'angebot' does. The
+// merged result still passes the service validation, so a carried source
+// conflicts loudly (400) with submitted student_ids or weekday_assignments
+// instead of being half-applied.
+func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateResponse) {
+	if req.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
+		return
+	}
+	if !req.SourceCareOfferingID.Set && existing.SourceCareOfferingID != nil {
+		id := *existing.SourceCareOfferingID
+		req.SourceCareOfferingID.Value = &id
+	}
+	if req.SourceGradeLevels.Set {
+		return
+	}
+	// The filter follows the source: a kept or carried source keeps the stored
+	// filter; a source cleared by explicit null takes the filter down with it.
+	if req.SourceCareOfferingID.Value != nil {
+		req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
+	} else {
+		req.SourceGradeLevels.Value = nil
+	}
 }
 
 // validateLegacyTemplateWorkdays permits an update to retain a weekend
@@ -252,42 +324,55 @@ func buildUpdateTemplateInput(
 	return scheduleSvc.TemplateUpdateInput{
 		TemplateID: id,
 		Fields: activitiesModel.TemplateFieldsUpdate{
-			Name:              req.Name,
-			Type:              req.Type,
-			CategoryID:        req.CategoryID,
-			RoomID:            req.RoomID,
-			EducationGroupID:  req.EducationGroupID,
-			MaxParticipants:   parsed.maxParticipants,
-			RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-			CalendarPeriodID:  req.CalendarPeriodID,
-			TargetGroupType:   req.TargetGroupType,
-			TargetGradeLevel:  req.TargetGradeLevel,
-			TargetSchoolClass: req.TargetSchoolClass,
-			ListKind:          req.ListKind,
-			Notes:             normalizeNotes(req.Notes),
+			Name:                    req.Name,
+			Type:                    req.Type,
+			CategoryID:              req.CategoryID,
+			PlanningTrackID:         req.PlanningTrackID.Value,
+			PlanningTrackIDProvided: req.PlanningTrackID.Set,
+			RoomID:                  req.RoomID,
+			EducationGroupID:        req.EducationGroupID,
+			MaxParticipants:         parsed.maxParticipants,
+			RequiredStaff:           normalizeRequiredStaff(req.RequiredStaff),
+			CalendarPeriodID:        req.CalendarPeriodID,
+			TargetGroupType:         req.TargetGroupType,
+			TargetGradeLevel:        req.TargetGradeLevel,
+			TargetSchoolClass:       req.TargetSchoolClass,
+			SourceCareOfferingID:    req.SourceCareOfferingID.Value,
+			SourceGradeLevels:       req.SourceGradeLevels.Value,
+			ListKind:                req.ListKind,
+			Notes:                   normalizeNotes(req.Notes),
 		},
-		Weekdays:         req.Weekdays,
-		TimeframeID:      timeframeID,
-		WeekPattern:      parsed.weekPattern,
-		CalendarPeriodID: req.CalendarPeriodID,
-		RosterValidFrom:  rosterValidFrom,
-		StudentIDs:       req.StudentIDs,
-		StaffIDs:         req.StaffIDs,
-		PrimaryStaffID:   req.PrimaryStaffID,
-		GradeLevelMax:    gradeLevelMax,
+		Weekdays:           req.Weekdays,
+		TimeframeID:        timeframeID,
+		WeekPattern:        parsed.weekPattern,
+		CalendarPeriodID:   req.CalendarPeriodID,
+		RosterValidFrom:    rosterValidFrom,
+		StudentIDs:         req.StudentIDs,
+		StaffIDs:           req.StaffIDs,
+		PrimaryStaffID:     req.PrimaryStaffID,
+		Targets:            targetModels(req.Targets),
+		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
+		GradeLevelMax:      gradeLevelMax,
 	}
 }
 
 // renderUpdateTemplateError maps an UpdateTemplate failure to its HTTP response.
 // A capped/archived segment surfaces as the same 404 as the preflight lookup;
-// the care-offering, roster-rebase, and grade-cap conflicts each carry their
-// own status and code; everything else is a 500.
+// education-group failures and the care-offering, roster-rebase, and grade-cap
+// conflicts each carry their own status and code; everything else is a 500.
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
+	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
+	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):

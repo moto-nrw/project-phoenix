@@ -44,6 +44,54 @@ describe("NotificationPreferencesSection", () => {
     ).toHaveAttribute("aria-checked", "false");
   });
 
+  it("renders every group the backend sends, in its order", async () => {
+    // The card used to render from a hard-coded group list, so a group added in
+    // the backend catalogue silently dropped its types — and with "no row means
+    // off", nobody could ever switch them on.
+    api.fetchNotificationPreferences.mockResolvedValue({
+      tenant_enabled: true,
+      types: [
+        {
+          key: "parent_announcement",
+          label: "Neue Mitteilung der Schule",
+          description: "Wenn die Schule etwas veröffentlicht.",
+          group: "mitteilungen",
+          enabled: false,
+          available: true,
+        },
+        {
+          key: "parent_appointment",
+          label: "Neuer oder geänderter Termin",
+          description: "Wenn ein Termin angelegt wird.",
+          group: "termine",
+          enabled: false,
+          available: true,
+        },
+        {
+          key: "something_new",
+          label: "Ganz neue Art",
+          description:
+            "Aus einer Gruppe, die dieses Frontend noch nicht kennt.",
+          group: "zukunft",
+          enabled: false,
+          available: true,
+        },
+      ],
+    });
+
+    render(<NotificationPreferencesSection portal="parent" />);
+
+    expect(await screen.findByText("Termine")).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Neuer oder geänderter Termin" }),
+    ).toBeInTheDocument();
+    // An unknown group falls back to its raw name rather than vanishing.
+    expect(screen.getByText("zukunft")).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Ganz neue Art" }),
+    ).toBeInTheDocument();
+  });
+
   it("saves a decision when a switch is flipped", async () => {
     render(<NotificationPreferencesSection />);
 

@@ -23,6 +23,7 @@ type mockSummariesRepo struct {
 	schoolsByOrg func(context.Context, int64) ([]*platformModels.SchoolSummary, error)
 	personsBySch func(context.Context, int64) ([]platformModels.OperatorPersonInfo, error)
 	personsByOrg func(context.Context, int64) ([]platformModels.OperatorPersonInfo, error)
+	devicesFn    func(context.Context, platformModels.OperatorDeviceFilter) ([]platformModels.OperatorDeviceRow, error)
 }
 
 func (m *mockSummariesRepo) Stats(ctx context.Context) (*platformModels.ProvisioningStats, error) {

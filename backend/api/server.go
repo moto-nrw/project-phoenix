@@ -78,6 +78,9 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 
 	configureSchedulerServices(sched, api.Services)
 	configureSchedulerRepos(sched, api)
+	if api.Staff != nil {
+		sched.SetStaffDocumentFileCleaner(api.Staff)
+	}
 
 	return sched
 }
@@ -124,6 +127,11 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	// Parent-enrollment PR 5: platform email outbox worker.
 	if svc.EmailOutboxWorker != nil {
 		sched.SetOutboxWorker(svc.EmailOutboxWorker)
+	}
+	// Issue #1671: per-tenant guardian appointment reminders. The calendar
+	// service already satisfies the narrow queuer interface.
+	if svc.Calendar != nil {
+		sched.SetAppointmentReminderQueuer(svc.Calendar)
 	}
 	// Phase rollover slice 1: per-tenant deadline resolver tick.
 	// The adapter narrows the typed return value behind `any` so

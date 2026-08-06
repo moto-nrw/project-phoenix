@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, ShieldCheck, X } from "lucide-react";
 import {
   PhoneIcon,
   EnvelopeSimpleIcon,
@@ -11,7 +11,6 @@ import {
 } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   type ChildGuardian,
   type GuardianContactPayload,
@@ -21,13 +20,14 @@ import {
   updateGuardianContact,
   updateGuardianRelationship,
 } from "~/lib/parent-api";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "GuardiansPanel" });
 
@@ -105,13 +105,9 @@ function resolveGuardianError(
 
 interface GuardiansPanelProps {
   readonly studentId: string;
-  readonly mobile?: boolean;
 }
 
-export default function GuardiansPanel({
-  studentId,
-  mobile = false,
-}: GuardiansPanelProps) {
+export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
   const t = useTranslations("parentChildDetail");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -158,57 +154,39 @@ export default function GuardiansPanel({
   );
 
   return (
-    <section
-      className={
-        mobile
-          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-      }
+    <SectionCard
+      icon={ShieldCheck}
+      title={t("guardians.title")}
+      description={t("guardians.description")}
+      bodyClassName="mt-4 space-y-3"
     >
-      <ConceptSectionHeader
-        title={t("guardians.title")}
-        concept="parents"
-        subtitle={t("guardians.description")}
-      />
-
       {message && (
-        <div
-          className={`mt-4 rounded-xl border p-3 text-sm ${
-            message.kind === "success"
-              ? "border-moto-green/30 bg-moto-green/10 text-moto-green-strong"
-              : "border-moto-red/20 bg-moto-red/10 text-moto-red-strong"
-          }`}
-        >
-          {message.text}
-        </div>
+        <Alert
+          type={message.kind === "success" ? "success" : "error"}
+          message={message.text}
+        />
       )}
 
-      <div className="mt-5 space-y-3">
-        {isLoading ? (
-          <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-500">
-            {t("guardians.loading")}
-          </div>
-        ) : guardians.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-500">
-            {t("guardians.empty")}
-          </div>
-        ) : (
-          guardians.map((g) => (
-            <GuardianRow
-              key={g.guardian_profile_id}
-              guardian={g}
-              onEditContact={() => {
-                setMessage(null);
-                setEditingContact(g);
-              }}
-              onEditPickup={() => {
-                setMessage(null);
-                setEditingPickup(g);
-              }}
-            />
-          ))
-        )}
-      </div>
+      {isLoading ? (
+        <p className="text-sm text-gray-500">{t("guardians.loading")}</p>
+      ) : guardians.length === 0 ? (
+        <p className="text-sm text-gray-500">{t("guardians.empty")}</p>
+      ) : (
+        guardians.map((g) => (
+          <GuardianRow
+            key={g.guardian_profile_id}
+            guardian={g}
+            onEditContact={() => {
+              setMessage(null);
+              setEditingContact(g);
+            }}
+            onEditPickup={() => {
+              setMessage(null);
+              setEditingPickup(g);
+            }}
+          />
+        ))
+      )}
 
       {editingContact && (
         <ContactModal
@@ -226,7 +204,7 @@ export default function GuardiansPanel({
           onSaved={() => handleSaved(t("guardians.pickupSaved"))}
         />
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -251,7 +229,7 @@ function GuardianRow({
     Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
   const hasDetails = hasContact || Boolean(g.pickup_notes);
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+    <div className="rounded-xl bg-gray-50 p-4">
       <div className="flex items-start gap-3">
         <span className="bg-moto-teal/15 text-moto-teal-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
           {initials(g.first_name, g.last_name)}
@@ -266,23 +244,18 @@ function GuardianRow({
               </span>
             )}
           </div>
+          {/* Neutral text chips, not colored dots: "darf abholen" and
+              "Notfallkontakt" are facts about a person, not alert states, and a
+              green/amber dot per contact turned the list into a traffic light. */}
           {(g.can_pickup || g.is_emergency_contact) && (
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: LOCATION_COLORS.GROUP_ROOM }}
-                  />
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
                   {t("guardians.badges.canPickup")}
                 </span>
               )}
               {g.is_emergency_contact && (
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: LOCATION_COLORS.SICK }}
-                  />
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
                   {t("guardians.badges.emergency")}
                 </span>
               )}

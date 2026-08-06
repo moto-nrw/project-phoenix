@@ -12,7 +12,11 @@ import type {
   GuardianFormData,
   PhoneType,
 } from "@/lib/guardian-helpers";
-import { getGuardianFullName } from "@/lib/guardian-helpers";
+import {
+  getGuardianFullName,
+  GUARDIAN_ROLE_OPTIONS,
+} from "@/lib/guardian-helpers";
+import { ConfirmationModal } from "~/components/ui/modal";
 import type { RelationshipFormData } from "./guardian-form-modal";
 import {
   fetchStudentGuardians,
@@ -74,6 +78,13 @@ export default function StudentGuardianManager({
   const [invitingGuardianId, setInvitingGuardianId] = useState<string | null>(
     null,
   );
+  // Restricted-contact upgrade confirmation (#2172): the invite hit an
+  // existing contact whose link has no portal access; ask before upgrading
+  // the role to Erziehungsberechtigte/r.
+  const [upgradeInvite, setUpgradeInvite] = useState<{
+    guardian: GuardianWithRelationship;
+    existingRole?: string;
+  } | null>(null);
   const deletePreviewRequestIdRef = useRef(0);
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -342,11 +353,22 @@ export default function StudentGuardianManager({
   // Invite an existing guardian (info already on file) to the parents portal.
   // Uses their on-file email — no re-typing. The backend resolves the existing
   // profile and either sends an invite or links an account that already exists.
-  const handleInviteGuardian = async (guardian: GuardianWithRelationship) => {
+  const handleInviteGuardian = async (
+    guardian: GuardianWithRelationship,
+    confirmRoleUpgrade = false,
+  ) => {
     if (!guardian.email) return;
     setInvitingGuardianId(guardian.id);
     try {
-      const result = await inviteGuardianToStudent(studentId, guardian.email);
+      const result = await inviteGuardianToStudent(studentId, guardian.email, {
+        confirmRoleUpgrade,
+      });
+      if (result.outcome === "existing_contact_restricted") {
+        // Nothing happened yet: the contact's link carries a restrictive role
+        // without portal access. Confirm the upgrade first (#2172).
+        setUpgradeInvite({ guardian, existingRole: result.existing_role });
+        return;
+      }
       await loadGuardians();
       onUpdate?.();
       const name = getGuardianFullName(guardian);
@@ -354,7 +376,9 @@ export default function StudentGuardianManager({
         result.outcome === "invited"
           ? `Einladung an ${guardian.email} gesendet`
           : result.outcome === "already_linked"
-            ? `${name} ist bereits verbunden`
+            ? confirmRoleUpgrade
+              ? `${name} hat jetzt vollen Zugriff`
+              : `${name} ist bereits verbunden`
             : `${name} wurde mit dem vorhandenen Konto verbunden`;
       toastSuccess(message);
     } catch (err) {
@@ -661,6 +685,33 @@ export default function StudentGuardianManager({
         onConfirmFullDelete={handleConfirmFullDelete}
         onBack={handleBack}
       />
+
+      {/* Restricted-contact upgrade confirmation (#2172) */}
+      <ConfirmationModal
+        isOpen={upgradeInvite !== null}
+        onClose={() => setUpgradeInvite(null)}
+        onConfirm={() => {
+          if (!upgradeInvite) return;
+          const target = upgradeInvite.guardian;
+          setUpgradeInvite(null);
+          void handleInviteGuardian(target, true);
+        }}
+        title="Vollen Zugriff gewähren?"
+        confirmText="Zugriff gewähren"
+        cancelText="Abbrechen"
+      >
+        <p className="text-sm text-gray-600">
+          {upgradeInvite &&
+            `${getGuardianFullName(upgradeInvite.guardian)} ist bisher als ${
+              GUARDIAN_ROLE_OPTIONS.find(
+                (o) => o.value === upgradeInvite.existingRole,
+              )?.label ?? "eingeschränkter Kontakt"
+            } für dieses Kind eingetragen, ohne Zugriff auf die Eltern-App.`}{" "}
+          Mit der Einladung wird die Rolle auf Erziehungsberechtigte/r
+          hochgestuft und die Person erhält vollen Zugriff auf dieses Kind in
+          der Eltern-App.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }

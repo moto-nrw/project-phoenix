@@ -21,6 +21,7 @@ type SchoolRepoMock struct {
 	FindByOrganizationAndSlugFn       func(ctx context.Context, organizationID int64, slug string) (*platform.School, error)
 	FindBySubdomainFn                 func(ctx context.Context, subdomain string) (*platform.School, error)
 	ListFn                            func(ctx context.Context) ([]*platform.School, error)
+	ListNonDeletedFn                  func(ctx context.Context) ([]platform.School, error)
 	ListActiveFn                      func(ctx context.Context) ([]platform.School, error)
 	ListPublicFn                      func(ctx context.Context) ([]platform.School, error)
 	FindActiveByAccountIDFn           func(ctx context.Context, accountID int64) ([]platform.School, error)
@@ -85,6 +86,13 @@ func (m *SchoolRepoMock) FindBySubdomain(ctx context.Context, subdomain string) 
 func (m *SchoolRepoMock) List(ctx context.Context) ([]*platform.School, error) {
 	if m.ListFn != nil {
 		return m.ListFn(ctx)
+	}
+	return nil, nil
+}
+
+func (m *SchoolRepoMock) ListNonDeleted(ctx context.Context) ([]platform.School, error) {
+	if m.ListNonDeletedFn != nil {
+		return m.ListNonDeletedFn(ctx)
 	}
 	return nil, nil
 }
@@ -165,9 +173,33 @@ type StaffRepoMock struct {
 	FindReachableCalendarStaffIDsFn func(ctx context.Context, ids []int64) (map[int64]bool, error)
 	ListAccountIDsByStaffIDsFn      func(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
 	ListAllStaffAccountIDsFn        func(ctx context.Context) (map[int64]int64, error)
+	FindBirthdaysOnFn               func(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error)
+	ListBirthdaysForExportFn        func(ctx context.Context) ([]users.BirthdayEntry, error)
+	SetBirthdayDisplayOptOutFn      func(ctx context.Context, staffID int64, optOut bool) error
 }
 
 var _ users.StaffRepository = (*StaffRepoMock)(nil)
+
+func (m *StaffRepoMock) FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error) {
+	if m.FindBirthdaysOnFn != nil {
+		return m.FindBirthdaysOnFn(ctx, days)
+	}
+	return nil, nil
+}
+
+func (m *StaffRepoMock) ListBirthdaysForExport(ctx context.Context) ([]users.BirthdayEntry, error) {
+	if m.ListBirthdaysForExportFn != nil {
+		return m.ListBirthdaysForExportFn(ctx)
+	}
+	return nil, nil
+}
+
+func (m *StaffRepoMock) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
+	if m.SetBirthdayDisplayOptOutFn != nil {
+		return m.SetBirthdayDisplayOptOutFn(ctx, staffID, optOut)
+	}
+	return nil
+}
 
 func (m *StaffRepoMock) Create(ctx context.Context, entity *users.Staff) error {
 	if m.CreateFn != nil {

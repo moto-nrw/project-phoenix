@@ -80,6 +80,14 @@ type Factory struct {
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
 
+	// Staff Stammdaten (#1423)
+	StaffMasterData    userModels.StaffMasterDataRepository
+	StaffQualification userModels.StaffQualificationRepository
+	StaffFinancialData userModels.StaffFinancialDataRepository
+
+	// Staff documents (#1424)
+	StaffDocument userModels.StaffDocumentRepository
+
 	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
@@ -106,6 +114,8 @@ type Factory struct {
 	StaffShiftSeries          scheduleModels.StaffShiftSeriesRepository
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
+	PlanningTrack             scheduleModels.PlanningTrackRepository
+	TimetableConflictAck      scheduleModels.TimetableConflictAckRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
@@ -134,6 +144,7 @@ type Factory struct {
 	StaffAbsence          activeModels.StaffAbsenceRepository
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
+	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
 
@@ -164,6 +175,7 @@ type Factory struct {
 	DataDeletion                 auditModels.DataDeletionRepository
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
+	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	GuardianChange               auditModels.GuardianChangeRepository
@@ -175,6 +187,7 @@ type Factory struct {
 	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
+	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
@@ -208,8 +221,11 @@ type Factory struct {
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	ChangeRequest        enrollmentModels.ChangeRequestRepository
 	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
-	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
-	Phase                enrollmentModels.PhaseRepository
+	// OfferingChangeRequest carries post-enrollment care/AG change requests
+	// from the parents portal (#1665).
+	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
+	SubmissionRateLimit   enrollmentModels.SubmissionRateLimitRepository
+	Phase                 enrollmentModels.PhaseRepository
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display displayModels.Repository
@@ -278,6 +294,14 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
 
+		// Staff Stammdaten (#1423)
+		StaffMasterData:    users.NewStaffMasterDataRepository(db),
+		StaffQualification: users.NewStaffQualificationRepository(db),
+		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
+
+		// Staff documents (#1424)
+		StaffDocument: users.NewStaffDocumentRepository(db),
+
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
@@ -304,6 +328,8 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
+		PlanningTrack:             schedule.NewPlanningTrackRepository(db),
+		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ClosingDay:                schedule.NewClosingDayRepository(db),
 		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
@@ -332,6 +358,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
+		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
 		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
 
@@ -362,6 +389,7 @@ func NewFactory(db *bun.DB) *Factory {
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
 		StudentDeletionAudit:         audit.NewStudentDeletionRepository(db),
 		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
+		EnrollmentRestorationAudit:   audit.NewEnrollmentRestorationRepository(db),
 		DataAccessLog:                audit.NewDataAccessLogRepository(db),
 		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
 		GuardianChange:               audit.NewGuardianChangeRepository(db),
@@ -373,6 +401,7 @@ func NewFactory(db *bun.DB) *Factory {
 		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
+		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories
@@ -395,18 +424,19 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
-		FormSchema:           enrollment.NewFormSchemaRepository(db),
-		Request:              enrollment.NewRequestRepository(db),
-		EnrollmentDeletion:   enrollment.NewDeletionRepository(db),
-		RequestChild:         enrollment.NewRequestChildRepository(db),
-		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
-		LateInvite:           enrollment.NewLateInviteRepository(db),
-		CareOffering:         enrollment.NewCareOfferingRepository(db),
-		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
-		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
-		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
-		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
-		Phase:                enrollment.NewPhaseRepository(db),
+		FormSchema:            enrollment.NewFormSchemaRepository(db),
+		Request:               enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:    enrollment.NewDeletionRepository(db),
+		RequestChild:          enrollment.NewRequestChildRepository(db),
+		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
+		LateInvite:            enrollment.NewLateInviteRepository(db),
+		CareOffering:          enrollment.NewCareOfferingRepository(db),
+		RequestChildOffering:  enrollment.NewRequestChildOfferingRepository(db),
+		OfferingChangeRequest: enrollment.NewOfferingChangeRequestRepository(db),
+		ChangeRequest:         enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
+		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
+		Phase:                 enrollment.NewPhaseRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),

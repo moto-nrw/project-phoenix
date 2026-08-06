@@ -22,6 +22,20 @@ const (
 	// ResourceTypeEnrollmentStudentExport records an export of enrollment
 	// answers attached to one student profile.
 	ResourceTypeEnrollmentStudentExport = "enrollment_student_export"
+	// ResourceTypeStaffFinancialView records serving the MASKED bank & tax
+	// data of one staff member (#1423). StudentID stays NULL; metadata
+	// carries staff_id.
+	ResourceTypeStaffFinancialView = "staff_financial_view"
+	// ResourceTypeStaffFinancialReveal records serving the FULL (unmasked)
+	// bank & tax data of one staff member after the explicit
+	// "Anzeigen"-toggle (#1423). StudentID stays NULL; metadata carries
+	// staff_id.
+	ResourceTypeStaffFinancialReveal = "staff_financial_reveal"
+	// ResourceTypeStaffDocumentDownload records serving a sensitive staff
+	// document (#1424): AU-Bescheinigungen (Art. 9 health data) and
+	// Lohnabrechnungen. StudentID stays NULL; metadata carries staff_id,
+	// document_id and category.
+	ResourceTypeStaffDocumentDownload = "staff_document_download"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

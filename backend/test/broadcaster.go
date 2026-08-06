@@ -2,8 +2,11 @@ package test
 
 import (
 	"sync"
+	"testing"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // BroadcastCall records one realtime.Broadcaster invocation.
@@ -130,6 +133,69 @@ func (b *RecordingBroadcaster) EventsOfType(t realtime.EventType) []realtime.Eve
 // HasEventType reports whether any recorded event has the given type.
 func (b *RecordingBroadcaster) HasEventType(t realtime.EventType) bool {
 	return len(b.EventsOfType(t)) > 0
+}
+
+// AssertSingleTenantEvent asserts that exactly one event of the given type was
+// broadcast tenant-wide to tenantID, and returns it so the caller can assert
+// its payload. It also pins the shared privacy contract of the tenant-wide
+// invalidation events: they reach every staff client of a school, so they must
+// carry no student or staff identity.
+//
+// Lives here rather than in each API test package because the same five lines
+// were being re-hand-rolled per package, and the copies drifted — each one
+// checked a different identity field, so each covered half the contract.
+func AssertSingleTenantEvent(tb testing.TB, b *RecordingBroadcaster, eventType realtime.EventType, tenantID int64) realtime.Event {
+	tb.Helper()
+
+	events := b.EventsOfType(eventType)
+	require.Len(tb, events, 1, "expected exactly one %s event", eventType)
+
+	event := events[0]
+	assert.Empty(tb, event.ActiveGroupID, "%s is tenant-wide, not group-scoped", eventType)
+	assertCarriesNoIdentity(tb, event)
+
+	calls := b.CallsByMethod("tenant")
+	require.NotEmpty(tb, calls, "expected a tenant-scoped broadcast")
+	assert.Equal(tb, tenantID, calls[0].TenantID)
+
+	return event
+}
+
+// AssertNoTenantWideStudentIdentity asserts that not one of the recorded
+// BroadcastToTenant calls carries a child identifier — the invariant behind
+// #2085. A tenant-scoped broadcast lands on EVERY staff client of the school,
+// including colleagues whose gdpr.student_data_scope keeps that child's data
+// out of their API responses; a student id in the payload hands them the
+// movement fact anyway. Child-identifying payloads belong on the group-scoped
+// topics (BroadcastToGroup) or on a guardian's own channel.
+//
+// Deliberately broader than AssertSingleTenantEvent, which pins one specific
+// event: this one sweeps everything a flow emitted, so a NEW tenant-wide event
+// added to that flow later is covered without anyone remembering to extend the
+// test.
+func AssertNoTenantWideStudentIdentity(tb testing.TB, b *RecordingBroadcaster) {
+	tb.Helper()
+
+	for _, call := range b.CallsByMethod("tenant") {
+		assertCarriesNoIdentity(tb, call.Event)
+	}
+}
+
+// assertCarriesNoIdentity is the single definition of "this payload names
+// nobody", shared by both exported entry points above. It exists because the
+// two of them drifted the moment they were written independently: one checked
+// student id + student ids + supervisor ids, the other student id + student
+// ids + student name, so each covered a different two thirds of the contract
+// and a tenant-wide event carrying a child's NAME passed the older one. That
+// is the exact failure AssertSingleTenantEvent was introduced to stop, so the
+// field list lives here once and both callers inherit every future addition.
+func assertCarriesNoIdentity(tb testing.TB, event realtime.Event) {
+	tb.Helper()
+
+	assert.Nil(tb, event.Data.StudentID, "tenant-wide %s must not carry a student id", event.Type)
+	assert.Nil(tb, event.Data.StudentIDs, "tenant-wide %s must not carry student ids", event.Type)
+	assert.Nil(tb, event.Data.StudentName, "tenant-wide %s must not carry a student name", event.Type)
+	assert.Nil(tb, event.Data.SupervisorIDs, "tenant-wide %s must not carry staff identity", event.Type)
 }
 
 // Reset drops all recorded calls.

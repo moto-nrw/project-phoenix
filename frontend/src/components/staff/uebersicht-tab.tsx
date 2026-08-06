@@ -23,13 +23,13 @@ import {
 } from "recharts";
 
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 import {
   staffAbsenceService,
@@ -384,21 +384,19 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
       {/* B — Zwei Charts side-by-side */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {/* B1 — Tagesvergleich Ist/Soll */}
-        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-          <ConceptSectionHeader
-            className="mb-4"
-            title="Tagesvergleich Ist / Soll"
-            concept="timeTracking"
-            actions={
-              <DateRangePicker
-                value={clampedDailyRange}
-                onChange={setDailyRange}
-                presets={buildDefaultPresets(accountAnchor, today)}
-                fromMin={accountAnchor}
-                toMax={today}
-              />
-            }
-          />
+        <SectionCard
+          title="Tagesvergleich Ist / Soll"
+          headingLevel={3}
+          action={
+            <DateRangePicker
+              value={clampedDailyRange}
+              onChange={setDailyRange}
+              presets={buildDefaultPresets(accountAnchor, today)}
+              fromMin={accountAnchor}
+              toMax={today}
+            />
+          }
+        >
           {!hasTimeTrendData || dailyTrendData.length < 2 ? (
             <p className="py-10 text-center text-sm text-gray-400">
               {hasTimeTrendData
@@ -468,24 +466,22 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
               </LineChart>
             </ChartContainer>
           )}
-        </div>
+        </SectionCard>
 
         {/* B2 — Saldo-Verlauf kumulativ */}
-        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-          <ConceptSectionHeader
-            className="mb-4"
-            title="Saldo-Verlauf"
-            concept="timeTracking"
-            actions={
-              <DateRangePicker
-                value={clampedSaldoRange}
-                onChange={setSaldoRange}
-                presets={buildDefaultPresets(accountAnchor, today)}
-                fromMin={accountAnchor}
-                toMax={today}
-              />
-            }
-          />
+        <SectionCard
+          title="Saldo-Verlauf"
+          headingLevel={3}
+          action={
+            <DateRangePicker
+              value={clampedSaldoRange}
+              onChange={setSaldoRange}
+              presets={buildDefaultPresets(accountAnchor, today)}
+              fromMin={accountAnchor}
+              toMax={today}
+            />
+          }
+        >
           {!hasBalanceTrendData || weeklyTrendData.length < 2 ? (
             <p className="py-10 text-center text-sm text-gray-400">
               {hasBalanceTrendData
@@ -557,25 +553,23 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
               </AreaChart>
             </ChartContainer>
           )}
-        </div>
+        </SectionCard>
       </div>
 
       {/* C — Zeitverteilung (shadcn Donut + vollständige Legende rechts) */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-        <ConceptSectionHeader
-          className="mb-4"
-          title="Zeitverteilung"
-          concept="timeTracking"
-          actions={
-            <DateRangePicker
-              value={clampedDonutRange}
-              onChange={setDonutRange}
-              presets={buildDefaultPresets(accountAnchor, today)}
-              fromMin={accountAnchor}
-              toMax={today}
-            />
-          }
-        />
+      <SectionCard
+        title="Zeitverteilung"
+        headingLevel={3}
+        action={
+          <DateRangePicker
+            value={clampedDonutRange}
+            onChange={setDonutRange}
+            presets={buildDefaultPresets(accountAnchor, today)}
+            fromMin={accountAnchor}
+            toMax={today}
+          />
+        }
+      >
         {distributionTotal === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">
             Noch keine Tage erfasst.
@@ -655,7 +649,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
             </div>
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }

@@ -112,6 +112,9 @@ func (s *internalDeviceRepoStub) FindByID(ctx context.Context, id interface{}) (
 	}
 	return nil, nil
 }
+func (s *internalDeviceRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*iotModels.Device, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalDeviceRepoStub) Update(ctx context.Context, device *iotModels.Device) error {
 	if s.updateFn != nil {
 		return s.updateFn(ctx, device)
@@ -171,8 +174,14 @@ func (s *internalCategoryRepoStub) Create(ctx context.Context, cat *activityMode
 func (s *internalCategoryRepoStub) FindByID(context.Context, interface{}) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (s *internalCategoryRepoStub) FindByIDForShare(context.Context, int64) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (s *internalCategoryRepoStub) Update(context.Context, *activityModels.Category) error {
 	return nil
+}
+func (s *internalCategoryRepoStub) UpdateIfActive(context.Context, *activityModels.Category) (bool, error) {
+	return true, nil
 }
 func (s *internalCategoryRepoStub) Delete(context.Context, interface{}) error { return nil }
 func (s *internalCategoryRepoStub) List(context.Context, *modelBase.QueryOptions) ([]*activityModels.Category, error) {
@@ -181,12 +190,19 @@ func (s *internalCategoryRepoStub) List(context.Context, *modelBase.QueryOptions
 func (s *internalCategoryRepoStub) FindByName(context.Context, string) (*activityModels.Category, error) {
 	return nil, nil
 }
+func (s *internalCategoryRepoStub) FindByNameIncludingArchivedForShare(context.Context, string) (*activityModels.Category, error) {
+	return nil, nil
+}
 func (s *internalCategoryRepoStub) ListAll(context.Context) ([]*activityModels.Category, error) {
 	return nil, nil
 }
 
 func (s *internalCategoryRepoStub) SetShiftTypeForCategories(context.Context, int64, []int64) error {
 	return nil
+}
+
+func (s *internalCategoryRepoStub) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
+	return 1, nil
 }
 
 type internalAuditLogRepoStub struct {
@@ -278,10 +294,10 @@ func TestNormalizeAdminInviteRequest(t *testing.T) {
 }
 
 func TestIsSchoolLookupNotFound(t *testing.T) {
-	assert.True(t, isSchoolLookupNotFound(sql.ErrNoRows))
-	assert.True(t, isSchoolLookupNotFound(&modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}))
-	assert.False(t, isSchoolLookupNotFound(assert.AnError))
-	assert.False(t, isSchoolLookupNotFound(nil))
+	assert.True(t, isLookupNotFound(sql.ErrNoRows))
+	assert.True(t, isLookupNotFound(&modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}))
+	assert.False(t, isLookupNotFound(assert.AnError))
+	assert.False(t, isLookupNotFound(nil))
 }
 
 func TestMapSchoolCreateConflict_NilSchool(t *testing.T) {
@@ -432,7 +448,28 @@ func TestSeedDefaultActivityCategories_UniqueViolationSkipped(t *testing.T) {
 
 	err := svc.seedDefaultActivityCategories(context.Background(), 1)
 	require.NoError(t, err)
-	assert.Equal(t, 9, count)
+	// 10 since issue #2131 added "Mensa" to the default list; the assertion
+	// pins "every default is attempted even after a unique violation", not the
+	// list length itself — TestSeedDefaultActivityCategories_IncludesMensa
+	// covers the content.
+	assert.Equal(t, 10, count)
+}
+
+// TestSeedDefaultActivityCategories_IncludesMensa pins the Essenszeiten
+// requirement from issue #2131: a newly provisioned school must come with a
+// "Mensa" category, otherwise Termine for lunch have no fitting
+// Pflichtkategorie to select.
+func TestSeedDefaultActivityCategories_IncludesMensa(t *testing.T) {
+	var seeded []string
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{CategoryRepo: &internalCategoryRepoStub{
+		createFn: func(_ context.Context, category *activityModels.Category) error {
+			seeded = append(seeded, category.Name)
+			return nil
+		},
+	}}}
+
+	require.NoError(t, svc.seedDefaultActivityCategories(context.Background(), 42))
+	assert.Contains(t, seeded, "Mensa")
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,12 +1041,12 @@ func TestWithAdminTx_ExistingTxInContext(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// isSchoolLookupNotFound — DatabaseError with non-ErrNoRows
+// isLookupNotFound — DatabaseError with non-ErrNoRows
 // ---------------------------------------------------------------------------
 
 func TestIsSchoolLookupNotFound_DatabaseErrorNonNoRows(t *testing.T) {
 	err := &modelBase.DatabaseError{Op: "find", Err: assert.AnError}
-	assert.False(t, isSchoolLookupNotFound(err))
+	assert.False(t, isLookupNotFound(err))
 }
 
 // ---------------------------------------------------------------------------

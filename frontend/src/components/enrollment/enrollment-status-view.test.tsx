@@ -86,11 +86,6 @@ describe("EnrollmentStatusView", () => {
     mockReplyEnrollmentChangeRequest.mockReset();
     mockWithdrawStatus.mockReset();
     mockConfirmRenewal.mockReset();
-    Object.defineProperty(window, "confirm", {
-      value: vi.fn(() => true),
-      configurable: true,
-      writable: true,
-    });
   });
 
   it("shows loading and then a missing-link state", async () => {
@@ -337,14 +332,105 @@ describe("EnrollmentStatusView", () => {
     });
     fireEvent.click(buttons[0]!);
 
+    expect(
+      await screen.findByText("Anmeldung für dieses Kind zurückziehen?"),
+    ).toBeInTheDocument();
+    expect(mockWithdrawStatus).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig zurückziehen" }),
+    );
+
     await waitFor(() => {
-      expect(window.confirm).toHaveBeenCalledWith(
-        "Möchten Sie diese Anmeldung wirklich zurückziehen?",
-      );
       expect(mockWithdrawStatus).toHaveBeenCalledWith("tok", "7");
     });
     expect(
       await screen.findByText("Anmeldung für dieses Kind zurückgezogen."),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the withdraw section directly after submission", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+
+    render(<EnrollmentStatusView token="tok" justSubmitted />);
+
+    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anmeldung zurückziehen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides per-child withdraw buttons directly after submission", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "submitted",
+          },
+          {
+            id: "8",
+            first_name: "Noah",
+            last_name: "Muster",
+            status: "submitted",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" justSubmitted />);
+
+    expect(await screen.findByText("Noah Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dieses Kind zurückziehen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Gesamte Anmeldung zurückziehen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("withdraws everything only after confirming in the modal", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status()).mockResolvedValueOnce(
+      status({
+        withdrawn_at: "2026-01-16T10:00:00Z",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "withdrawn",
+          },
+        ],
+      }),
+    );
+    mockWithdrawStatus.mockResolvedValueOnce();
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldung zurückziehen" }),
+    );
+    expect(
+      await screen.findByText("Gesamte Anmeldung zurückziehen?"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(mockWithdrawStatus).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldung zurückziehen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig zurückziehen" }),
+    );
+
+    await waitFor(() => {
+      expect(mockWithdrawStatus).toHaveBeenCalledWith("tok", undefined);
+    });
+    expect(
+      await screen.findByText("Anmeldung zurückgezogen."),
     ).toBeInTheDocument();
   });
 
@@ -360,6 +446,9 @@ describe("EnrollmentStatusView", () => {
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Anmeldung zurückziehen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig zurückziehen" }),
     );
 
     expect(await screen.findByText("Nicht möglich")).toBeInTheDocument();

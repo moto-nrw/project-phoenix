@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -33,6 +32,8 @@ type spontaneousStartRequest struct {
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 }
+
+var errSpontaneousCategoryArchived = errors.New("spontaneous activity category is archived")
 
 func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	if req.Title == "" {
@@ -185,7 +186,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	createdBy := currentStaffID
 	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
+		renderSpontaneousActivityResolutionError(w, r, err)
 		return
 	}
 
@@ -226,8 +227,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}, "Spontaneous timetable instance created and started")
 }
 
-// validateSpontaneousRoom checks the target room exists, is not the permanent
-// Schulhof room (which has its own supervision flow), and is currently
+// validateSpontaneousRoom checks the target room exists and is currently
 // unoccupied — taking the spontaneous-start room lock in between so the
 // existence-vs-conflict check is serialized. Renders the appropriate error and
 // returns false on any failure.
@@ -243,13 +243,6 @@ func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Reque
 	}
 	if room == nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
-		return false
-	}
-	if room.Name == constants.SchulhofRoomName {
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			scheduleSvc.ErrSchulhofSupervisionRequired,
-			schulhofSupervisionRequiredCode,
-		))
 		return false
 	}
 	if err := rs.lockSpontaneousStartRoom(r.Context(), roomID); err != nil {
@@ -325,6 +318,9 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 		return nil, err
 	}
 	if existing, err := rs.TimetableData.GetActivityCategoryByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
+		if existing.IsArchived() {
+			return nil, errSpontaneousCategoryArchived
+		}
 		return existing, nil
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -540,13 +536,19 @@ func appendUniquePositive(ids []int64, id int64) []int64 {
 	return append(ids, id)
 }
 
+func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errSpontaneousCategoryArchived) {
+		common.RenderError(w, r, common.ErrorConflict(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
+}
+
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {
 	var validationErr *scheduleSvc.TimetableAttendanceValidationError
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, scheduleSvc.ErrSchulhofSupervisionRequired):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):

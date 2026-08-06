@@ -26,6 +26,7 @@ import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
+import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
@@ -101,6 +102,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
+  const [transferDevice, setTransferDevice] = useState<OperatorDevice | null>(
+    null,
+  );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
   const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
@@ -205,6 +209,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const selectedSchoolForTable = useMemo(
     () => (school ? summaryToSchool(school) : null),
     [school],
+  );
+
+  const transferSchools = useMemo(
+    () =>
+      (schools ?? [])
+        .filter((item) => item.active && item.deletedAt == null)
+        .map(summaryToSchool),
+    [schools],
   );
 
   const openCaregiverModal = useCallback(
@@ -522,6 +534,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               <DevicesTable
                 devices={schoolDevices}
                 onSetKey={setSetKeyDevice}
+                onTransfer={setTransferDevice}
                 onDelete={setDeleteDevice}
               />
             ) : (
@@ -665,6 +678,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         onKeySet={() => {
           void mutateSchoolDevices();
         }}
+      />
+
+      <TransferDeviceModal
+        device={transferDevice}
+        schools={transferSchools}
+        onClose={() => setTransferDevice(null)}
+        onTransferred={handleDeviceDeleted}
       />
 
       <DeleteDeviceModal

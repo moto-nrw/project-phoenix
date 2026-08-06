@@ -190,6 +190,23 @@ func (r *SchoolRepository) List(ctx context.Context) ([]*platform.School, error)
 	return schools, nil
 }
 
+// ListNonDeleted returns all tenants that still retain data. Unlike
+// ListActive, it includes inactive schools so maintenance workers can clear
+// sensitive files after user access has been disabled.
+func (r *SchoolRepository) ListNonDeleted(ctx context.Context) ([]platform.School, error) {
+	var schools []platform.School
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&schools).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".deleted_at IS NULL`).
+		OrderExpr(`"school".name ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return schools, nil
+}
+
 // ListActive returns all active, non-deleted schools.
 // Used by the scheduler to iterate tenants — deleted schools must not receive scheduled jobs.
 func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, error) {

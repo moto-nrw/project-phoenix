@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -372,8 +371,9 @@ func (s *service) withSettingsSnapshot(ctx context.Context) (context.Context, er
 }
 
 // errActivityRoomReaderMissing is returned when overdue activity reminders are
-// enabled but no room reader is wired: the Schulhof exemption cannot be decided
-// without it, and guessing would either invent or suppress reminders.
+// enabled but no room reader is wired: the "every wanted room must resolve"
+// guard cannot run without it, and emitting reminders for unresolved rooms
+// would hide a misconfiguration.
 var errActivityRoomReaderMissing = errors.New("activity reminder room reader is not configured")
 
 // assembleResult builds the response from the two reminder groups. Shared by
@@ -724,7 +724,6 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 
 	roomFilter := activityRoomFilter(scope, roomIDs)
 
-	schulhofRoomIDs := make(map[int64]struct{})
 	if overdue {
 		if s.Room == nil {
 			return nil, nextChange, errActivityRoomReaderMissing
@@ -734,15 +733,14 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 		if roomErr != nil {
 			return nil, nextChange, fmt.Errorf("load activity reminder rooms: %w", roomErr)
 		}
-		schulhofRoomIDs, err = resolveActivityRooms(rooms, wanted)
-		if err != nil {
+		if err := resolveActivityRooms(rooms, wanted); err != nil {
 			return nil, nextChange, err
 		}
 	}
 
 	// The single path knows nothing about planned assignments: Compute answers
 	// for the caller in front of it, and its scope is unchanged.
-	out, nextChange := buildActivityReminders(instances, schulhofRoomIDs, activityScopeFilter(roomFilter, nil), activityWindow{
+	out, nextChange := buildActivityReminders(instances, activityScopeFilter(roomFilter, nil), activityWindow{
 		nowMin:           nowMin,
 		lead:             lead,
 		overdueThreshold: overdueThreshold,
@@ -821,28 +819,22 @@ func sortedIDs(set map[int64]struct{}) []int64 {
 	return ids
 }
 
-// resolveActivityRooms classifies the loaded rooms and enforces that every
-// wanted room actually resolved. Pure, and shared by both entry points: the
-// Schulhof exemption and the "a missing room is a hard error" contract belong
-// together and must not drift apart.
-func resolveActivityRooms(rooms []*facilitiesModel.Room, wanted map[int64]struct{}) (map[int64]struct{}, error) {
-	schulhof := make(map[int64]struct{})
+// resolveActivityRooms enforces that every wanted room actually resolved.
+// Pure, and shared by both entry points: a missing room is a hard error.
+func resolveActivityRooms(rooms []*facilitiesModel.Room, wanted map[int64]struct{}) error {
 	resolved := make(map[int64]struct{}, len(rooms))
 	for _, room := range rooms {
 		if room == nil {
 			continue
 		}
 		resolved[room.ID] = struct{}{}
-		if room.Name == constants.SchulhofRoomName {
-			schulhof[room.ID] = struct{}{}
-		}
 	}
 	for _, roomID := range sortedIDs(wanted) {
 		if _, found := resolved[roomID]; !found {
-			return nil, fmt.Errorf("load activity reminder rooms: room %d not found", roomID)
+			return fmt.Errorf("load activity reminder rooms: room %d not found", roomID)
 		}
 	}
-	return schulhof, nil
+	return nil
 }
 
 // buildActivityReminders decides which instances currently deserve a reminder
@@ -852,7 +844,6 @@ func resolveActivityRooms(rooms []*facilitiesModel.Room, wanted map[int64]struct
 // A nil roomFilter means every room; see activityRoomFilter.
 func buildActivityReminders(
 	instances []*scheduleModel.ActivityInstance,
-	schulhofRoomIDs map[int64]struct{},
 	inScope func(*scheduleModel.ActivityInstance) bool,
 	w activityWindow,
 ) ([]Reminder, int) {
@@ -871,7 +862,6 @@ func buildActivityReminders(
 		startMin := minutesOfDay(inst.StartTime)
 		endMin := minutesOfDay(inst.EndTime)
 		diff := startMin - w.nowMin
-		_, isSchulhof := schulhofRoomIDs[inst.RoomID]
 
 		// Track the boundaries at which this instance's reminder state flips, so
 		// the frontend can refetch exactly then instead of waiting for the poll:
@@ -886,7 +876,7 @@ func buildActivityReminders(
 			nextChange = minFuture(nextChange, futureBoundary(startMin-w.lead, w.nowMin))
 			nextChange = minFuture(nextChange, futureBoundary(startMin+1, w.nowMin))
 		}
-		if w.overdue && !isSchulhof {
+		if w.overdue {
 			overdueStart := startMin + w.overdueThreshold
 			if overdueStart < endMin {
 				nextChange = minFuture(nextChange, futureBoundary(overdueStart, w.nowMin))
@@ -905,7 +895,7 @@ func buildActivityReminders(
 			})
 		// Overdue: planned, started late by at least the threshold, and the
 		// slot is not over yet (after end_time a reminder is pointless).
-		case w.overdue && !isSchulhof && diff < 0 && -diff >= w.overdueThreshold && w.nowMin < endMin:
+		case w.overdue && diff < 0 && -diff >= w.overdueThreshold && w.nowMin < endMin:
 			out = append(out, Reminder{
 				Type:               TypeActivityOverdue,
 				ActivityInstanceID: int64String(inst.ID),

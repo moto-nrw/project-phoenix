@@ -11,6 +11,8 @@ interface FileUploadOptions {
   allowedExtensions?: string[];
 }
 
+const MULTIPART_OVERHEAD_BYTES = 2 * 1024 * 1024;
+
 /** Error thrown by file validation with the appropriate HTTP status code. */
 export class FileValidationError extends Error {
   readonly status: number;
@@ -27,7 +29,7 @@ export class FileValidationError extends Error {
  * Throws FileValidationError with a semantically correct HTTP status:
  *   413 — file too large
  *   415 — wrong MIME type or extension
- *   422 — suspicious filename (double extensions, path traversal)
+ *   422 — suspicious filename (path traversal)
  */
 function validateFile(file: File, options: FileUploadOptions): void {
   const {
@@ -71,17 +73,8 @@ function validateFile(file: File, options: FileUploadOptions): void {
     );
   }
 
-  // Additional security checks
-  // Check for double extensions
-  const extensionCount = (fileName.match(/\./g) ?? []).length;
-  if (extensionCount > 1) {
-    throw new FileValidationError(
-      "Files with multiple extensions are not allowed",
-      422,
-    );
-  }
-
-  // Check for suspicious patterns in filename
+  // Reject path traversal. Multiple dots are valid in ordinary display names;
+  // the backend verifies content and replaces the stored name with a UUID.
   if (
     fileName.includes("..") ||
     fileName.includes("/") ||
@@ -89,6 +82,57 @@ function validateFile(file: File, options: FileUploadOptions): void {
   ) {
     throw new FileValidationError("Invalid filename", 422);
   }
+}
+
+async function parseBoundedMultipartFormData(
+  request: NextRequest,
+  maxSizeInBytes: number,
+): Promise<FormData> {
+  const maxBodySize = maxSizeInBytes + MULTIPART_OVERHEAD_BYTES;
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null && Number(contentLength) > maxBodySize) {
+    throw new FileValidationError(
+      `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
+      413,
+    );
+  }
+
+  if (!request.body) {
+    return request.formData();
+  }
+
+  const reader = request.body.getReader();
+  const chunks: ArrayBuffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      size += value.byteLength;
+      if (size > maxBodySize) {
+        await reader.cancel();
+        throw new FileValidationError(
+          `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
+          413,
+        );
+      }
+      const chunk = new Uint8Array(value.byteLength);
+      chunk.set(value);
+      chunks.push(chunk.buffer);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return new Request(request.url, {
+    method: request.method,
+    headers: {
+      "content-type": request.headers.get("content-type") ?? "",
+    },
+    body: new Blob(chunks),
+  }).formData();
 }
 
 /**
@@ -130,7 +174,11 @@ export function createFileUploadHandler<T>(
         }
 
         // Get form data
-        const formData = await request.formData();
+        const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
+        const formData = await parseBoundedMultipartFormData(
+          request,
+          maxSizeInBytes,
+        );
 
         // Validate all files in the form data — return the semantically correct
         // HTTP status (413/415/422) instead of letting validation errors fall

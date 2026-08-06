@@ -68,6 +68,8 @@ interface OverflowMenuProps {
   readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
+  /** Called when the menu is opened from its trigger. */
+  readonly onOpen?: () => void;
   /**
    * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
    * compact 24px kebab with a smaller icon and a more muted default color, for
@@ -100,6 +102,7 @@ interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
+  onOpen,
   triggerSize = "default",
   triggerClassName = "",
   matchContainerSelector,
@@ -246,6 +249,7 @@ export function OverflowMenu({
         setMenuStyle(style);
       }
     }
+    if (!isOpen) onOpen?.();
     setIsOpen((prev) => !prev);
   };
 

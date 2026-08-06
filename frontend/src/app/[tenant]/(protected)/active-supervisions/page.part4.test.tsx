@@ -127,7 +127,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
-    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    claimActiveGroup: vi.fn(() => Promise.resolve()),
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
@@ -338,7 +338,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Schulhof in the room picker without opening a dead-end view when status is unavailable", async () => {
+  it("keeps Schulhof selectable as a normal room when status is unavailable (#2161)", async () => {
     const dashboardResult = {
       data: {
         supervisedGroups: [],
@@ -375,16 +375,14 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     fireEvent.click(await screen.findByRole("combobox", { name: "Raum" }));
 
     expect(
-      await screen.findByRole("option", {
-        name: "Schulhof (Aufsicht nicht verfügbar)",
-      }),
-    ).toBeDisabled();
+      await screen.findByRole("option", { name: "Schulhof" }),
+    ).toBeEnabled();
     expect(mockPush).not.toHaveBeenCalledWith(
       "/active-supervisions?room=schulhof",
     );
   });
 
-  it("clears a stale Schulhof shortcut when dashboard revalidation fails", async () => {
+  it("keeps Schulhof a normal startable option when dashboard revalidation fails (#2161)", async () => {
     const baseDashboardData = {
       supervisedGroups: [],
       unclaimedGroups: [],
@@ -404,6 +402,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     } = {
       data: {
         ...baseDashboardData,
+        capabilities: { webSpontaneousActivitiesEnabled: true },
         schulhofStatus: {
           exists: true,
           roomId: "5",
@@ -463,10 +462,8 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     fireEvent.click(await screen.findByRole("combobox", { name: "Raum" }));
 
     expect(
-      await screen.findByRole("option", {
-        name: "Schulhof (Aufsicht nicht verfügbar)",
-      }),
-    ).toBeDisabled();
+      await screen.findByRole("option", { name: "Schulhof" }),
+    ).toBeEnabled();
   });
 
   it("keeps the spontaneous-activity start button clickable in the Schulhof view (regression #1746 deadlock)", async () => {

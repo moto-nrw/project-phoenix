@@ -6,6 +6,11 @@
 // regardless of where the cards or calendar are rendered.
 
 import { OriginChip } from "~/components/ui/origin-chip";
+import {
+  SegmentedControl,
+  type SegmentedControlItem,
+} from "~/components/ui/segmented-control";
+import { StatCard } from "~/components/ui/stat-card";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 import type { PeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
@@ -17,6 +22,12 @@ export function formatSignedDuration(minutes: number): string {
 
 // ─── KPI Cards ───────────────────────────────────────────────────────────────
 
+/**
+ * Thin adapter over the kit's {@link StatCard}. Kept so the existing callers
+ * keep their prop names (`primary`/`secondary`/`color`) and so
+ * `getDeltaStatus`'s older "amber" spelling maps to the kit tone vocabulary in
+ * exactly one place.
+ */
 export function KpiCard({
   label,
   primary,
@@ -34,40 +45,15 @@ export function KpiCard({
    *  mitten im Wert um. Eine Stufe kleiner und ohne Umbruch. */
   readonly compactPrimary?: boolean;
 }) {
-  const primaryColor = {
-    green: "text-moto-green-hover",
-    amber: "text-moto-amber-strong",
-    gray: "text-gray-700",
-    red: "text-moto-red-strong",
-  }[color ?? "gray"];
-  const barColor = {
-    green: "bg-moto-green",
-    amber: "bg-moto-amber",
-    gray: "bg-gray-400",
-    red: "bg-moto-red",
-  }[color ?? "gray"];
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-bold ${primaryColor} ${
-          compactPrimary ? "text-xl whitespace-nowrap" : "text-2xl"
-        }`}
-      >
-        {primary}
-      </p>
-      {secondary && <p className="mt-1 text-xs text-gray-500">{secondary}</p>}
-      {progressPct !== undefined && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className={`h-full rounded-full ${barColor} transition-all`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-          />
-        </div>
-      )}
-    </div>
+    <StatCard
+      label={label}
+      value={primary}
+      hint={secondary}
+      progressPct={progressPct}
+      tone={color === "amber" ? "orange" : (color ?? "gray")}
+      compactValue={compactPrimary}
+    />
   );
 }
 
@@ -174,6 +160,11 @@ export function KpiCards({
 
 export type ViewMode = "month" | "week";
 
+const VIEW_MODE_ITEMS: readonly SegmentedControlItem<ViewMode>[] = [
+  { value: "month", label: "Monat" },
+  { value: "week", label: "Woche" },
+];
+
 export function ViewToggle({
   value,
   onChange,
@@ -181,26 +172,12 @@ export function ViewToggle({
   readonly value: ViewMode;
   readonly onChange: (v: ViewMode) => void;
 }) {
-  const buttonClass = (active: boolean) =>
-    `px-3 py-1.5 text-xs font-medium transition-colors ${
-      active ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-700"
-    }`;
   return (
-    <div className="inline-flex items-center overflow-hidden rounded-full border border-gray-200 bg-white">
-      <button
-        type="button"
-        onClick={() => onChange("month")}
-        className={buttonClass(value === "month")}
-      >
-        Monat
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("week")}
-        className={buttonClass(value === "week")}
-      >
-        Woche
-      </button>
-    </div>
+    <SegmentedControl
+      ariaLabel="Zeitraum-Ansicht"
+      items={VIEW_MODE_ITEMS}
+      value={value}
+      onChange={onChange}
+    />
   );
 }

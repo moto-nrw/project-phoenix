@@ -33,12 +33,16 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
+import {
+  ParentVisibleBadge,
+  ParentVisibilityLegend,
+} from "~/components/ui/parent-visible-badge";
+import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 
 const logger = createLogger({ component: "StudentDetailComponents" });
 
@@ -737,36 +741,70 @@ export function PersonalInfoReadOnly({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-      <ConceptSectionHeader
-        className="mb-4"
-        title="Persönliche Informationen"
-        concept="children"
-        actions={
-          showEditButton && onEditClick ? (
-            <button
-              type="button"
-              onClick={onEditClick}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              title="Bearbeiten"
-            >
-              Bearbeiten
-            </button>
-          ) : (
-            <ViewOnlyBadge />
-          )
-        }
-      />
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
+            <PersonIcon />
+          </div>
+          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
+            <span className="sm:hidden">Persönliche Infos</span>
+            <span className="hidden sm:inline">Persönliche Informationen</span>
+          </h2>
+        </div>
+        {showEditButton && onEditClick ? (
+          <button
+            type="button"
+            onClick={onEditClick}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            title="Bearbeiten"
+          >
+            Bearbeiten
+          </button>
+        ) : (
+          <ViewOnlyBadge />
+        )}
+      </div>
+      <ParentVisibilityLegend className="mb-4" />
       <div className="space-y-3">
-        <InfoItem label="Vollständiger Name" value={student.name} />
-        <InfoItem label="Klasse" value={student.school_class} />
+        <InfoItem
+          label={
+            <ParentVisibleLabel
+              label="Vollständiger Name"
+              hint={PARENT_VISIBLE_HINTS.name}
+            />
+          }
+          value={student.name}
+        />
+        <InfoItem
+          label={
+            <ParentVisibleLabel
+              label="Klasse"
+              hint={PARENT_VISIBLE_HINTS.schoolClass}
+            />
+          }
+          value={student.school_class}
+        />
         <InfoItem
           label="Gruppe"
           value={student.group_name ?? "Nicht zugewiesen"}
         />
-        <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
+        <InfoItem
+          label={
+            <ParentVisibleLabel
+              label="Geburtsdatum"
+              hint={PARENT_VISIBLE_HINTS.birthday}
+            />
+          }
+          value={birthdayDisplay}
+        />
         {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
         <InfoItem
-          label="Erlaubte Heimwege"
+          label={
+            <ParentVisibleLabel
+              label="Erlaubte Heimwege"
+              hint={PARENT_VISIBLE_HINTS.departure}
+            />
+          }
           value={
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 flex-1">
@@ -839,7 +877,12 @@ export function PersonalInfoReadOnly({
         )}
         {student.health_info && (
           <InfoItem
-            label="Gesundheitsinformationen"
+            label={
+              <ParentVisibleLabel
+                label="Gesundheitsinformationen"
+                hint={PARENT_VISIBLE_HINTS.healthInfo}
+              />
+            }
             value={
               <span className="flex items-start gap-1.5">
                 <span className="min-w-0 flex-1">{student.health_info}</span>
@@ -884,6 +927,19 @@ export function PersonalInfoReadOnly({
         <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
       </div>
     </div>
+  );
+}
+
+/** An InfoItem label carrying the "sichtbar für Eltern" marker (#2163). */
+function ParentVisibleLabel({
+  label,
+  hint,
+}: Readonly<{ label: string; hint: string }>) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <ParentVisibleBadge compact hint={hint} />
+    </span>
   );
 }
 

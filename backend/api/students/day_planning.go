@@ -163,31 +163,41 @@ func liveFilterError(active []string, date timezone.Date, isToday bool) error {
 	)
 }
 
-func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) error {
+// dayPlanningTimes carries the bulk-loaded effective-time maps out of
+// enrichWithDayPlanning so later pipeline stages reuse them instead of
+// re-running the same three SELECTs per kind (#2098). Maps are keyed by
+// student ID and cover every full-access student of the pre-pagination
+// response set; both may be nil when no full-access student exists.
+type dayPlanningTimes struct {
+	arrivals map[int64]*scheduleService.EffectiveArrivalTime
+	pickups  map[int64]*scheduleService.EffectivePickupTime
+}
+
+func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) (dayPlanningTimes, error) {
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if len(fullAccessIDs) == 0 {
-		return nil
+		return dayPlanningTimes{}, nil
 	}
 
 	arrivals, err := rs.loadDayPlanningArrivals(ctx, fullAccessIDs, planningDate)
 	if err != nil {
-		return err
+		return dayPlanningTimes{}, err
 	}
 	pickups, err := rs.loadDayPlanningPickups(ctx, fullAccessIDs, planningDate)
 	if err != nil {
-		return err
+		return dayPlanningTimes{}, err
 	}
 	timetableIDs, err := rs.loadDayPlanningTimetableIDs(ctx, fullAccessIDs, planningDate)
 	if err != nil {
-		return err
+		return dayPlanningTimes{}, err
 	}
 	pendingExcused, err := rs.loadPendingExcusedForDayPlanning(ctx, planningDate)
 	if err != nil {
-		return err
+		return dayPlanningTimes{}, err
 	}
 
 	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, pendingExcused, isToday)
-	return nil
+	return dayPlanningTimes{arrivals: arrivals, pickups: pickups}, nil
 }
 
 func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {

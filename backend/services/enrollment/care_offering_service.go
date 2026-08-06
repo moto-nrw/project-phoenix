@@ -15,6 +15,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ErrCareOfferingNotFound is the sentinel returned by GetByID when the
@@ -68,6 +69,15 @@ type CareOfferingService interface {
 // enrollment endpoint.
 type CareOfferingSeriesValidator interface {
 	ValidateTemplateSeries(ctx context.Context, groupID int64) error
+	// ValidateTemplateOfferingSource guards a template's offering-source rule
+	// (#2137) against a calendar period: the offering must exist and its
+	// phase's service window must lie within the period (nil skips the period
+	// check). The split service calls it before carrying an inherited source
+	// onto a successor pinned to a different Planungszeitraum — create/update
+	// run the same check via the roster resync, and a split must not be able
+	// to persist a state those paths reject. Failures wrap
+	// services/schedule.ErrOfferingSourceInvalid.
+	ValidateTemplateOfferingSource(ctx context.Context, offeringID int64, calendarPeriodID *int64) error
 }
 
 // CareOfferingMaterializationResourceValidator is the narrow cross-domain
@@ -106,8 +116,34 @@ type CareOfferingServiceConfig struct {
 	Logger                 *slog.Logger
 }
 
+// CareOfferingSourcedTemplateResyncer re-reconciles the rosters of every
+// template sourcing an offering (#2137/#2147 review). Implemented by the
+// enrollment decision service; injected via SetSourcedTemplateResyncer
+// because the decision service is constructed after this one.
+// DetachTemplatesSourcedFromOffering is the delete-side counterpart: it
+// retires all offering-derived roster rows and reconciled occurrences before
+// the offering row (or its phase) is deleted, so the FK's ON DELETE SET NULL
+// only ever flips an already-clean template to a manual roster (#2147 review
+// round 11).
+type CareOfferingSourcedTemplateResyncer interface {
+	ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
+	DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
+}
+
+// CareOfferingSourceResyncBinder is the factory-facing setter for the
+// sourced-template resyncer (late-bound wiring, see above).
+type CareOfferingSourceResyncBinder interface {
+	SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer)
+}
+
 type careOfferingService struct {
 	CareOfferingServiceConfig
+	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
+}
+
+// SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
+func (s *careOfferingService) SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer) {
+	s.sourcedTemplateResyncer = resyncer
 }
 
 // NewCareOfferingService builds the service.
@@ -733,7 +769,7 @@ func (s *careOfferingService) offeringRequiresMaterialization(
 	if s.RequestChildOfferingRepo == nil {
 		return false, errors.New("request child offering repository is not configured")
 	}
-	count, err := s.RequestChildOfferingRepo.CountActiveByCareOffering(ctx, offering.ID)
+	count, err := s.RequestChildOfferingRepo.CountMaterializableByCareOffering(ctx, offering.ID)
 	if err != nil {
 		return false, fmt.Errorf("count materializable care offering selections: %w", err)
 	}
@@ -748,6 +784,16 @@ func (s *careOfferingService) lockTemplateRecurrence(ctx context.Context) error 
 		return fmt.Errorf("care offering: lock template recurrence: %w", err)
 	}
 	return nil
+}
+
+// ValidateTemplateOfferingSource implements the split-side offering-source
+// guard declared on CareOfferingSeriesValidator (#2137).
+func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context, offeringID int64, calendarPeriodID *int64) error {
+	if s.Repo == nil || s.PhaseRepo == nil || s.CalendarPeriodRepo == nil {
+		return errors.New("offering source validation dependencies are not configured")
+	}
+	_, _, err := loadValidatedOfferingSource(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringID, calendarPeriodID)
+	return err
 }
 
 // ValidateTemplateSeries checks every care offering linked to any live segment
@@ -927,7 +973,40 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.Repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return err
 	}
+	if err := s.resyncSourcedTemplates(ctx, offering.ID); err != nil {
+		return err
+	}
 	s.Logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
+	return nil
+}
+
+// resyncSourcedTemplates re-reconciles every template sourcing this offering
+// after an update (#2147 review): changed days or a moved phase change the
+// wanted roster, and the sourced enrollment rows plus already-materialized
+// occurrences must follow immediately, not at the next unrelated template
+// save. An edit that makes the source incompatible with a template's planning
+// period is rejected outright (#2147 review round 7): committing it would
+// leave that template's sourced rows and materialized occurrences stranded,
+// with every later resync skipping the template. Runs under the recurrence
+// lock the update already holds; history before today stays untouched.
+func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeringID int64) error {
+	if s.sourcedTemplateResyncer == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.Logger.Warn("care offering update: sourced-template resyncer not configured; sourced rosters may be stale",
+			slog.Int64("offering_id", offeringID))
+		return nil
+	}
+	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+		if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+			// TenantTxMiddleware commits ordinary 4xx responses. Mark the
+			// ambient transaction so the already-written offering update is
+			// discarded together with the rejection.
+			tenant.MarkRollback(ctx)
+			return fmt.Errorf("%w: %w", ErrCareOfferingInvalid, err)
+		}
+		return fmt.Errorf("care offering update: resync sourced templates: %w", err)
+	}
 	return nil
 }
 
@@ -935,10 +1014,37 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return careOfferingInvalidf("id must be positive")
 	}
+	// Retire sourced rosters BEFORE the row delete: the FK's ON DELETE SET
+	// NULL only degrades the templates to manual rosters and would leave
+	// their bounded offering-derived enrollment rows and materialized
+	// occurrences behind (#2147 review round 11). The recurrence lock
+	// serializes the retirement with concurrent approvals/template saves.
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
+	}
+	if err := s.detachSourcedTemplates(ctx, id); err != nil {
+		return err
+	}
 	if err := s.Repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.Logger.Info("care offering deleted", slog.Int64("offering_id", id))
+	return nil
+}
+
+// detachSourcedTemplates retires the rosters of every template sourcing the
+// offering ahead of its deletion; see CareOfferingSourcedTemplateResyncer.
+func (s *careOfferingService) detachSourcedTemplates(ctx context.Context, offeringID int64) error {
+	if s.sourcedTemplateResyncer == nil {
+		// Focused service tests may run without the enrollment decision
+		// wiring; the factory always injects it.
+		s.Logger.Warn("care offering delete: sourced-template resyncer not configured; sourced rosters may be orphaned",
+			slog.Int64("offering_id", offeringID))
+		return nil
+	}
+	if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+		return fmt.Errorf("care offering delete: detach sourced templates: %w", err)
+	}
 	return nil
 }
 

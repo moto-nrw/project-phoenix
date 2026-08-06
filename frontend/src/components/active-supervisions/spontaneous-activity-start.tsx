@@ -20,8 +20,6 @@ import {
 } from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
 
-import { SCHULHOF_ROOM_NAME } from "./view-model";
-
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
 
@@ -44,9 +42,7 @@ interface SpontaneousActivityStartProps {
   readonly disabled?: boolean;
   readonly isStarting?: boolean;
   readonly occupiedRoomIds?: readonly string[];
-  readonly schulhofSupervisionAvailable: boolean;
   readonly onStart: (payload: SpontaneousActivityStartPayload) => void;
-  readonly onOpenSchulhofSupervision: () => void;
 }
 
 function normalizeRooms(rooms: PlannerRoomReference[]): RoomOption[] {
@@ -85,24 +81,11 @@ function consumeListboxEscape(event: KeyboardEvent): void {
   event.nativeEvent.stopImmediatePropagation();
 }
 
-function isSchulhofRoom(room: RoomOption | undefined): boolean {
-  return room?.name === SCHULHOF_ROOM_NAME;
-}
-
-function isUnavailableForActivityStart(
+function isRoomOccupied(
   room: RoomOption,
   occupiedRoomIds: ReadonlySet<string>,
-  schulhofSupervisionAvailable: boolean,
 ): boolean {
-  if (isSchulhofRoom(room)) return !schulhofSupervisionAvailable;
   return occupiedRoomIds.has(room.id);
-}
-
-function isAutomaticActivityRoom(
-  room: RoomOption,
-  occupiedRoomIds: ReadonlySet<string>,
-): boolean {
-  return !isSchulhofRoom(room) && !occupiedRoomIds.has(room.id);
 }
 
 export function SpontaneousActivityStart({
@@ -111,9 +94,7 @@ export function SpontaneousActivityStart({
   disabled = false,
   isStarting = false,
   occupiedRoomIds = EMPTY_OCCUPIED_ROOM_IDS,
-  schulhofSupervisionAvailable,
   onStart,
-  onOpenSchulhofSupervision,
 }: SpontaneousActivityStartProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoadingRefs, setIsLoadingRefs] = useState(false);
@@ -162,8 +143,8 @@ export function SpontaneousActivityStart({
     ])
       .then(([activityData, roomData, staffData]) => {
         if (cancelled) return;
-        // The staff room list includes Schulhof as a planning/navigation
-        // destination while keeping WC infrastructure hidden.
+        // The staff room list includes Schulhof as a regular destination
+        // (#2161) while keeping WC infrastructure hidden.
         const spontaneousRooms = roomData;
         setActivities(
           [...activityData].sort((a, b) => a.name.localeCompare(b.name, "de")),
@@ -176,15 +157,15 @@ export function SpontaneousActivityStart({
         );
         setRoomId((prev) => {
           const firstAvailableRoom =
-            spontaneousRooms.find((room) =>
-              isAutomaticActivityRoom(room, occupiedRoomIdSet),
+            spontaneousRooms.find(
+              (room) => !isRoomOccupied(room, occupiedRoomIdSet),
             ) ?? null;
           const previousRoom = spontaneousRooms.find(
             (room) => room.id === prev,
           );
           if (
             previousRoom &&
-            isAutomaticActivityRoom(previousRoom, occupiedRoomIdSet)
+            !isRoomOccupied(previousRoom, occupiedRoomIdSet)
           ) {
             return prev;
           }
@@ -193,7 +174,7 @@ export function SpontaneousActivityStart({
           );
           if (
             configuredDefaultRoom &&
-            isAutomaticActivityRoom(configuredDefaultRoom, occupiedRoomIdSet)
+            !isRoomOccupied(configuredDefaultRoom, occupiedRoomIdSet)
           ) {
             return configuredDefaultRoom.id;
           }
@@ -229,22 +210,13 @@ export function SpontaneousActivityStart({
   );
   const title = selectedActivity?.name ?? activityInput.trim();
   const selectedRoom = rooms.find((room) => room.id === roomId);
-  const isSchulhofSelected = isSchulhofRoom(selectedRoom);
   const isSelectedRoomOccupied =
     selectedRoom !== undefined &&
-    !isSchulhofSelected &&
-    isUnavailableForActivityStart(
-      selectedRoom,
-      occupiedRoomIdSet,
-      schulhofSupervisionAvailable,
-    );
-  const isSelectedSchulhofUnavailable =
-    isSchulhofSelected && !schulhofSupervisionAvailable;
+    isRoomOccupied(selectedRoom, occupiedRoomIdSet);
   const canSubmit =
-    (isSchulhofSelected || title.length > 0) &&
+    title.length > 0 &&
     roomId.length > 0 &&
     !isSelectedRoomOccupied &&
-    !isSelectedSchulhofUnavailable &&
     !isStarting;
   const suggestedActivities = activities.slice(0, 5);
   const filteredActivities = useMemo(() => {
@@ -262,23 +234,11 @@ export function SpontaneousActivityStart({
       rooms.map((room) => ({
         value: room.id,
         label: `${room.building ? `${room.building} - ` : ""}${room.name}${
-          isSchulhofRoom(room) && !schulhofSupervisionAvailable
-            ? " (Aufsicht nicht verfügbar)"
-            : isUnavailableForActivityStart(
-                  room,
-                  occupiedRoomIdSet,
-                  schulhofSupervisionAvailable,
-                )
-              ? " (belegt)"
-              : ""
+          isRoomOccupied(room, occupiedRoomIdSet) ? " (belegt)" : ""
         }`,
-        disabled: isUnavailableForActivityStart(
-          room,
-          occupiedRoomIdSet,
-          schulhofSupervisionAvailable,
-        ),
+        disabled: isRoomOccupied(room, occupiedRoomIdSet),
       })),
-    [rooms, occupiedRoomIdSet, schulhofSupervisionAvailable],
+    [rooms, occupiedRoomIdSet],
   );
 
   useEffect(() => {
@@ -321,19 +281,8 @@ export function SpontaneousActivityStart({
       setError("Der Raum ist bereits belegt.");
       return;
     }
-    if (isSelectedSchulhofUnavailable) {
-      setError(
-        "Die Schulhof-Aufsicht ist gerade nicht verfügbar. Bitte laden Sie die Seite neu.",
-      );
-      return;
-    }
     if (!canSubmit) {
       setError("Aktivität und Raum sind erforderlich.");
-      return;
-    }
-    if (isSchulhofSelected) {
-      onOpenSchulhofSupervision();
-      resetAndClose();
       return;
     }
     onStart({
@@ -389,13 +338,11 @@ export function SpontaneousActivityStart({
               form="spontaneous-activity-form"
               variant="primary"
               size="md"
-              isLoading={isStarting && !isSchulhofSelected}
+              isLoading={isStarting}
               loadingText="Startet ..."
               disabled={!canSubmit || isLoadingRefs}
             >
-              {isSchulhofSelected
-                ? "Zur Schulhof-Aufsicht"
-                : "Aktivität starten"}
+              Aktivität starten
             </Button>
           </>
         }
@@ -409,7 +356,6 @@ export function SpontaneousActivityStart({
 
           <div
             ref={activityFieldRef}
-            className={isSchulhofSelected ? "hidden" : undefined}
             onBlur={(event) => {
               const nextFocusedNode = event.relatedTarget;
               if (
@@ -500,7 +446,7 @@ export function SpontaneousActivityStart({
                     : undefined
                 }
                 aria-autocomplete="list"
-                required={!isSchulhofSelected}
+                required
               />
               {activityListboxOpen ? (
                 <ul
@@ -545,7 +491,7 @@ export function SpontaneousActivityStart({
             </div>
           </div>
 
-          {!isSchulhofSelected && suggestedActivities.length > 0 ? (
+          {suggestedActivities.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {suggestedActivities.map((activity) => (
                 <button
@@ -581,14 +527,7 @@ export function SpontaneousActivityStart({
             ) : null}
           </div>
 
-          {isSchulhofSelected ? (
-            <Alert
-              type="info"
-              message="Der Schulhof wird über die eigene Schulhof-Aufsicht geführt. Es wird keine spontane Aktivität gestartet."
-            />
-          ) : null}
-
-          {!isSchulhofSelected && staff.length > 0 ? (
+          {staff.length > 0 ? (
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <MotoConceptIcon concept="staff" size={16} />

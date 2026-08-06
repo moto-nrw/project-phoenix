@@ -17,7 +17,8 @@ import {
 } from "~/components/parent/news/news-components";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
-import { ConceptPageHeader } from "~/components/ui/concept-section-header";
+import { EmptyState } from "~/components/ui/empty-state";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { createLogger } from "~/lib/logger";
 import { type ParentAnnouncement, listAnnouncements } from "~/lib/parent-api";
 
@@ -74,15 +75,12 @@ export default function ParentNewsPage() {
   const openItem = items.find((item) => item.id === openId) ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <ConceptPageHeader
-          title={t("newsTitle")}
-          eyebrow={t("newsEyebrow")}
-          concept="news"
-          subtitle={t("newsDescription")}
-        />
-      </header>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("newsEyebrow")}
+        title={t("newsTitle")}
+        description={t("newsDescription")}
+      />
 
       {!loaded ? (
         <div className="space-y-3">
@@ -93,20 +91,13 @@ export default function ParentNewsPage() {
       ) : loadError ? (
         <Alert type="error" message={t("newsActionError")} />
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-              <MotoConceptIcon concept="news" size={22} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-gray-900">
-                {t("noNewsTitle")}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-gray-600">
-                {t("noNewsPageDescription")}
-              </p>
-            </div>
-          </div>
+        <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+          <EmptyState
+            icon={<MotoConceptIcon concept="news" size={32} />}
+            title={t("noNewsTitle")}
+            description={t("noNewsPageDescription")}
+            className="py-8"
+          />
         </div>
       ) : (
         <ul className="space-y-3">
@@ -126,6 +117,6 @@ export default function ParentNewsPage() {
           onStale={refetchOnStale}
         />
       )}
-    </div>
+    </ParentPage>
   );
 }

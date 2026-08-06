@@ -1,4 +1,4 @@
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 
 /**
  * Laufgemeinschaft ("läuft mit"): the children a child walks home with.
@@ -140,7 +140,7 @@ async function authHeaders(): Promise<HeadersInit> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  const session = await getSession();
+  const session = await getCachedSession();
   if (session?.user?.token) {
     headers.Authorization = `Bearer ${session.user.token}`;
   }

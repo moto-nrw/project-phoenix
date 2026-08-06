@@ -685,7 +685,7 @@ describe("StatCard component behavior", () => {
 
     expect(rooms.querySelector("svg")).toHaveAttribute(
       "data-moto-duotone-tone",
-      "blue",
+      "navy",
     );
     expect(schoolyard.querySelector("svg")).toHaveAttribute(
       "data-moto-duotone-tone",
@@ -820,5 +820,86 @@ describe("Activity timestamp key handling", () => {
     const key = generateKey(activities[0]!, 0);
     expect(key).toContain("checkout-Group B-Room 2-");
     expect(key).not.toContain("idx-");
+  });
+});
+
+// Geburtstagskarte (#1542). The card reads its own SWR key, so these tests
+// answer the mock per key instead of returning the analytics payload for both.
+describe("DashboardPage Geburtstage", () => {
+  function mockKeyedSWR(birthdays: unknown) {
+    vi.mocked(useSWRAuth).mockImplementation(((key: string) =>
+      key === "birthday-overview"
+        ? {
+            data: birthdays,
+            isLoading: false,
+            error: undefined,
+            mutate: vi.fn(),
+            isValidating: false,
+          }
+        : mockSWR(mockDashboardData)) as unknown as typeof useSWRAuth);
+  }
+
+  beforeEach(() => {
+    vi.mocked(useSession).mockReturnValue({
+      data: mockSession,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    vi.mocked(isAdmin).mockReturnValue(true);
+  });
+
+  it("renders the birthday card with the celebrating names", async () => {
+    mockKeyedSWR({
+      enabled: true,
+      includeStaff: false,
+      today: "2026-08-03",
+      celebrations: [
+        {
+          kind: "student",
+          id: "1",
+          name: "Lina Adler",
+          groupName: "Delfine",
+          schoolClass: "1a",
+          date: "2026-08-03",
+          age: 8,
+          isToday: true,
+        },
+      ],
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Geburtstage")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Lina Adler")).toBeInTheDocument();
+  });
+
+  it("hides the card entirely when the school switched the display off", async () => {
+    mockKeyedSWR({
+      enabled: false,
+      includeStaff: false,
+      today: "2026-08-03",
+      celebrations: [],
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Geburtstage")).not.toBeInTheDocument();
+  });
+
+  // A failing birthday fetch must not take the dashboard down with it.
+  it("keeps the dashboard usable when the birthday fetch returns nothing", async () => {
+    mockKeyedSWR(undefined);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Geburtstage")).not.toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getInitials } from "~/lib/format-utils";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { cn } from "~/lib/utils";
 
 type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -13,6 +14,9 @@ interface AvatarProps {
   readonly imageUrl?: string | null;
   readonly name: string;
   readonly size?: AvatarSize;
+  readonly shape?: "circle" | "rounded";
+  /** Use when the avatar repeats adjacent visible text. */
+  readonly decorative?: boolean;
   readonly className?: string;
 }
 
@@ -44,6 +48,8 @@ export function Avatar({
   imageUrl,
   name,
   size = "sm",
+  shape = "circle",
+  decorative = false,
   className,
 }: AvatarProps) {
   const initials = getInitials(name);
@@ -60,12 +66,18 @@ export function Avatar({
 
   return (
     <div
-      className={`relative ${sizeClass} flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ${className ?? ""}`}
+      className={cn(
+        "relative flex flex-shrink-0 items-center justify-center overflow-hidden font-semibold",
+        sizeClass,
+        shape === "circle" ? "rounded-full" : "rounded-xl",
+        className,
+      )}
       style={{
         background: showImage ? "transparent" : FALLBACK_BG,
         color: showImage ? undefined : FALLBACK_TEXT,
       }}
-      aria-label={name}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : name}
     >
       {showImage && imageUrl ? (
         <Image

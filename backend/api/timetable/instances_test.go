@@ -224,7 +224,7 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 			Instance:      &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive},
 			ActiveGroupID: 1,
 			Warnings: []scheduleSvc.InstanceConflictWarning{
-				{Kind: scheduleSvc.ConflictKindRoom, ResourceID: 5, Message: "Raum belegt", CanOverride: true},
+				{Kind: scheduleSvc.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
 			},
 		},
 	}
@@ -282,17 +282,6 @@ func TestStartInstance_InvalidTransition(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid_transition")
-}
-
-func TestStartInstance_SchulhofUsesDedicatedConflictCode(t *testing.T) {
-	mock := &mockInstanceService{startErr: scheduleSvc.ErrSchulhofSupervisionRequired}
-	rs := NewResource(Dependencies{InstanceService: mock})
-	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
-
-	w := doPost(t, router, "/instances/1/start", nil)
-
-	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"schulhof_supervision_required"`)
 }
 
 func TestStartInstance_InternalError(t *testing.T) {

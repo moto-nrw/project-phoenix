@@ -109,8 +109,11 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     feature: "changeRequests",
   },
   {
+    // One entry, two jobs: the page itself splits Mitteilungen from Umfragen
+    // (#1371). Both are the same broadcast workflow, so a second nav item would
+    // only make staff guess which one they need.
     href: "/parent-announcements",
-    label: "Elternmitteilungen",
+    label: "Mitteilungen und Umfragen",
     feature: "announcements",
   },
   { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },

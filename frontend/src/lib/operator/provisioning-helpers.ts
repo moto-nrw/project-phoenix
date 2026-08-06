@@ -512,6 +512,53 @@ export function mapOperatorDevice(data: BackendOperatorDevice): OperatorDevice {
   };
 }
 
+interface BackendDeviceTransferSession {
+  id: number;
+  started_at: string;
+  activity_name?: string;
+  room_name?: string;
+}
+
+export interface BackendDeviceTransferStatus {
+  can_transfer: boolean;
+  is_online: boolean;
+  is_protected: boolean;
+  last_seen?: string;
+  active_session?: BackendDeviceTransferSession;
+}
+
+export interface DeviceTransferStatus {
+  canTransfer: boolean;
+  isOnline: boolean;
+  isProtected: boolean;
+  lastSeen: string | null;
+  activeSession: {
+    id: string;
+    startedAt: string;
+    activityName: string;
+    roomName: string;
+  } | null;
+}
+
+export function mapDeviceTransferStatus(
+  data: BackendDeviceTransferStatus,
+): DeviceTransferStatus {
+  return {
+    canTransfer: data.can_transfer,
+    isOnline: data.is_online,
+    isProtected: data.is_protected,
+    lastSeen: data.last_seen ?? null,
+    activeSession: data.active_session
+      ? {
+          id: data.active_session.id.toString(),
+          startedAt: data.active_session.started_at,
+          activityName: data.active_session.activity_name ?? "",
+          roomName: data.active_session.room_name ?? "",
+        }
+      : null,
+  };
+}
+
 // Slug helpers
 
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;

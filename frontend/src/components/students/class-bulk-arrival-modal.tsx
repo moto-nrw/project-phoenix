@@ -100,7 +100,7 @@ export function ClassBulkArrivalModal({
       return;
     }
     if (hasInvalidEntry) {
-      toastError("Ungueltige Uhrzeit. Format HH:MM.");
+      toastError("Ungültige Uhrzeit. Format HH:MM.");
       return;
     }
 

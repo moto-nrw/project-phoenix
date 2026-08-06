@@ -150,6 +150,10 @@ vi.mock("lucide-react", () => ({
   Bell: (props: Record<string, unknown>) => (
     <svg data-testid="bell-icon" {...props} />
   ),
+  // Used by the BirthdayVisibilitySection (#1542).
+  Cake: (props: Record<string, unknown>) => (
+    <svg data-testid="cake-icon" {...props} />
+  ),
 }));
 
 // Mock Next.js Image component

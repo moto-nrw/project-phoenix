@@ -186,6 +186,16 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/scripts/quorum-rerequest.sh\" --stop-hook'"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [

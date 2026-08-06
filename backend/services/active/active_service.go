@@ -213,6 +213,30 @@ const (
 	checkoutTypeWeb    = "web"    // web/staff-UI checkout (CheckOutStudent)
 )
 
+// checkin_type values mirroring the checkout_type set above. They ride the
+// student_checkin SSE event as its `source`; the checkout constants are kept
+// separate because their values are pinned to the checkout_type analytics
+// property.
+const (
+	checkinTypeToggle = "toggle" // kiosk toggle-in (ToggleStudentAttendance)
+	checkinTypeWeb    = "web"    // web/staff-UI check-in (CheckInStudent)
+)
+
+// dailyCheckoutSource is the `source` carried by the student_checkout event of
+// the kiosk daily-checkout flow. Kept as its own value (rather than the
+// checkoutTypeDaily label) because it is a wire field consumers may already
+// match on.
+const dailyCheckoutSource = "daily_checkout"
+
+// checkoutSourceLabel maps an internal checkout_type onto the student_checkout
+// `source` wire field, preserving the historical value of the daily flow.
+func checkoutSourceLabel(checkoutType string) string {
+	if checkoutType == checkoutTypeDaily {
+		return dailyCheckoutSource
+	}
+	return checkoutType
+}
+
 // attendanceMethod derives how an attendance change was triggered: RFID/kiosk
 // requests carry device auth in context, everything else is web/manual.
 func attendanceMethod(ctx context.Context) string {
@@ -502,8 +526,10 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return nil
 	}
 
-	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateActiveGroupExists(ctx, visit.ActiveGroupID); err != nil {
+	// Lock and re-check the target immediately before the visit-side writes.
+	// The lock serializes check-ins with session absorption/end paths, which
+	// take the same active.groups row lock before closing the session.
+	if err := s.validateActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -617,6 +643,22 @@ func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) 
 			return ErrActiveGroupNotFound
 		}
 		return err
+	}
+	return nil
+}
+
+// validateActiveGroupOpenForUpdate locks the target group and rejects ended
+// sessions. Tenant HTTP requests and scheduler operations already run inside a
+// tenant transaction, so the lock remains held through the subsequent visit
+// or supervisor INSERT. This prevents a row selected before a concurrent
+// absorption from attaching to the group after that absorption ends it.
+func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID int64) error {
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if group == nil || group.EndTime != nil {
+		return ErrActiveGroupNotFound
 	}
 	return nil
 }
@@ -871,13 +913,41 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 		return
 	}
 
+	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
+	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, "")
+}
+
+// emitVisitCheckout is broadcastVisitCheckout with the student display data
+// already resolved. Split out so the attendance checkout paths can read the
+// student inside their request transaction and defer only the emission to a
+// tenant.RegisterAfterCommit hook (#2113): by the time hooks run, the tx stored
+// in ctx is closed, so a repository call from inside the hook would fail — and
+// running it outside the tenant tx would be blocked by RLS.
+func (s *service) emitVisitCheckout(
+	ctx context.Context,
+	endedVisit *active.Visit,
+	snapshot *AttendanceSnapshot,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
+	if s.Broadcaster == nil || endedVisit == nil {
+		return
+	}
+
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
-	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
+	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
 		StudentID:   &studentID,
 		StudentName: &studentName,
+	}
+	if source != "" {
+		data.Source = &source
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
 	}
 	applyAttendanceSnapshot(&data, snapshot)
 
@@ -890,9 +960,10 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
-	// Notify all clients so dashboard counts refresh
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
+	// Notify every client of the tenant so dashboard counts refresh, scoped to
+	// the affected educational group when known (#2057).
+	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
 }
 
 // broadcastVisitMoved publishes a checkout from the source active group and a
@@ -965,11 +1036,24 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 		}
 	}
 
-	// One event to the active-group topic carrying every checked-out student.
+	// Every affected educational group id, for scoped client-side invalidation
+	// (#2057). Students without an OGS group contribute no id; they appear in
+	// no ogs-students-{gid} list, so the scope stays correct.
+	allEduGroupIDs := make([]string, 0, len(eduGroups))
+	for gid := range eduGroups {
+		allEduGroupIDs = append(allEduGroupIDs, strconv.FormatInt(gid, 10))
+	}
+
+	// One event to the active-group topic carrying every checked-out student
+	// and every affected educational group.
+	activeData := realtime.EventData{StudentIDs: &allStudentIDs}
+	if len(allEduGroupIDs) > 0 {
+		activeData.GroupIDs = &allEduGroupIDs
+	}
 	activeEvent := realtime.NewEvent(
 		realtime.EventBulkStudentCheckOut,
 		sessionIDStr,
-		realtime.EventData{StudentIDs: &allStudentIDs},
+		activeData,
 	)
 	s.broadcastWithLogging(ctx, sessionIDStr, "", activeEvent, "bulk_student_checkout")
 
@@ -977,18 +1061,20 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// students so each subscribed client invalidates the right detail caches.
 	for gid, ids := range eduGroups {
 		groupIDs := ids
+		eduGroupID := []string{strconv.FormatInt(gid, 10)}
 		eduEvent := realtime.NewEvent(
 			realtime.EventBulkStudentCheckOut,
 			sessionIDStr,
-			realtime.EventData{StudentIDs: &groupIDs},
+			realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
 		)
 		s.broadcastToEducationalGroup(ctx, eduReps[gid], eduEvent)
 	}
 
-	// Single global broadcast for the entire batch.
+	// Single tenant-wide broadcast for the entire batch, scoped to the
+	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
-		_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
-		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
+		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
+		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonStudentMoved)
 	}
 }
 
@@ -1016,9 +1102,11 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 
 	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
 
-	// Notify all clients (including zero-topic) so dashboard refreshes
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
-	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonActivityEnded)
+	// Notify every client of the tenant (including zero-topic) so dashboards
+	// refresh. No group scope: a session end affects room occupancy across
+	// groups, so clients fall back to a broad refresh (#2057).
+	s.broadcastDashboardCountsChanged(ctx, nil)
+	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonActivityEnded)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
@@ -1150,8 +1238,11 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
 
-	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateActiveGroupExists(ctx, supervisor.GroupID); err != nil {
+	// Lock the group and reject ended sessions before INSERT. The same
+	// active.groups row lock serializes this write with session absorption
+	// (absorbUnsupervisedOpenGroups) and ClaimActiveGroup, so a supervisor
+	// cannot attach to a group that a concurrent absorption is ending.
+	if err := s.validateActiveGroupOpenForUpdate(ctx, supervisor.GroupID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
 

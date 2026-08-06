@@ -9,7 +9,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 
 export type PasskeyScope = "tenant" | "operator";
 
@@ -50,7 +50,7 @@ function extractOptions<TOptions>(
 }
 
 async function currentBearerToken(): Promise<string> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const token = session?.user?.token;
   if (!token) {
     throw new PasskeyApiError(401, "Nicht angemeldet.");

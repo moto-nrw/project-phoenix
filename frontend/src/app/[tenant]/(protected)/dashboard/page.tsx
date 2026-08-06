@@ -9,6 +9,9 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import Link from "next/link";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
+import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
+import type { BirthdayOverview } from "~/lib/birthdays-api";
+import { BirthdayList } from "~/components/dashboard/birthday-list";
 import type { DashboardAnalyticsWithHome } from "~/lib/dashboard-helpers";
 import {
   formatRecentActivityTime,
@@ -204,6 +207,17 @@ function DashboardContent() {
     { refreshInterval: 5 * 60 * 1000 },
   );
 
+  // Birthdays live on their own key: they change once a day, while the
+  // analytics key above is revalidated by every check-in via SSE (#1542).
+  // A failure here must never take the dashboard down, so the card simply
+  // stays hidden.
+  const { data: birthdays, isLoading: birthdaysLoading } =
+    useSWRAuth<BirthdayOverview>(
+      "birthday-overview",
+      fetchBirthdayOverviewClient,
+      { refreshInterval: 30 * 60 * 1000 },
+    );
+
   if (swrError) {
     logger.error("dashboard_fetch_failed", {
       error: swrError instanceof Error ? swrError.message : String(swrError),
@@ -340,6 +354,20 @@ function DashboardContent() {
         data-testid="dashboard-info-grid"
         className={`grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2 ${infoGridColumns}`}
       >
+        {/* Geburtstage (#1542) — a full-width strip rather than a half card:
+            the list is short, reads horizontally, and never leaves an odd gap
+            when the room/activity cards below are hidden per presence mode. */}
+        {birthdays?.enabled ? (
+          <div className="lg:col-span-2 xl:col-span-full">
+            <InfoCard title="Geburtstage" concept="birthdays">
+              <BirthdayList
+                celebrations={birthdays.celebrations}
+                isLoading={birthdaysLoading}
+              />
+            </InfoCard>
+          </div>
+        ) : null}
+
         {/* Recent Activity */}
         {showRoomSurfaces ? (
           <InfoCard title="Letzte Bewegungen" concept="changeHistory">

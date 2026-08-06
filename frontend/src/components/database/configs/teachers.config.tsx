@@ -54,11 +54,9 @@ function mapTeacherResponse(data: unknown): Teacher {
     (typedData.avatar as string | null | undefined) ??
     (person?.avatar as string | null | undefined);
 
-  logger.debug("teacher mapping debug", {
-    raw_data: JSON.stringify(typedData),
-    person_data: JSON.stringify(person),
-    extracted_account_id: accountId,
-    email: email,
+  logger.debug("teacher_mapped", {
+    teacher_id: typedData.id?.toString(),
+    account_id: accountId,
   });
 
   return {
@@ -420,11 +418,13 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     create: async (data) => {
       // Teacher creation requires multiple API calls (account, person, staff)
       // Use the teacher service which handles this complex flow
-      logger.debug("creating teacher", { data: JSON.stringify(data) });
       const teacherData = data as Partial<Teacher> & {
         password?: string;
         linkExisting?: boolean;
       };
+      logger.debug("teacher_create_started", {
+        link_existing: Boolean(teacherData.linkExisting),
+      });
       const result = await teacherService.createTeacher(
         teacherData as Omit<
           Teacher,

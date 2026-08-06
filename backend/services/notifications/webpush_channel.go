@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -49,6 +50,10 @@ const (
 	maxConcurrentPushSends = 8
 	pushSendTimeout        = 10 * time.Second
 )
+
+// ErrNoWebPushSubscribers reports that no push service accepted a durable
+// notification because VAPID is unavailable or the audience has no devices.
+var ErrNoWebPushSubscribers = errors.New("no web push subscribers are available")
 
 // webPushChannel delivers notifications as Web Push messages (#2003) to the
 // devices registered in iot.push_subscriptions. Delivery is fire-and-forget:
@@ -132,6 +137,32 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 		c.sendAll(dispatchCtx, event, payload, subs)
 	}()
 	return nil
+}
+
+// DeliverSynchronously waits for the push service to accept every current
+// subscription. It is reserved for durable producers that can retry a failed
+// attempt; normal notifications continue to use Deliver's async path.
+func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) error {
+	if !c.vapid.Configured() {
+		return ErrNoWebPushSubscribers
+	}
+	payload, err := marshalPushPayload(event)
+	if err != nil {
+		return err
+	}
+	var subs []*iot.PushSubscription
+	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var resolveErr error
+		subs, resolveErr = c.resolveSubscriptions(txCtx, event.Audience)
+		return resolveErr
+	})
+	if err != nil {
+		return err
+	}
+	if len(subs) == 0 {
+		return ErrNoWebPushSubscribers
+	}
+	return c.sendAllSynchronously(ctx, event, payload, subs)
 }
 
 // DeliverBatch resolves the devices of every recipient in ONE transaction and
@@ -256,7 +287,11 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 	case ScopeAdmin:
 		return c.repo.FindForTenantAdmins(ctx)
 	case ScopeGuardian:
-		return c.repo.FindForGuardians(ctx, guardianAccountIDs(audience))
+		// Audience.StudentIDs (when set) is re-checked here for the same reason
+		// ScopeStaff re-checks eligibility below: the recipient list was decided
+		// in an earlier transaction, and a guardian's access to those children can
+		// be revoked in between.
+		return c.repo.FindForGuardians(ctx, guardianAccountIDs(audience), audience.StudentIDs)
 	case ScopeStaff:
 		// Eligibility is re-checked here rather than trusted from the recipient
 		// list: that list was assembled in an earlier transaction, and an
@@ -295,6 +330,80 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 		}()
 	}
 	wg.Wait()
+}
+
+func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) error {
+	ttl, urgency := pushOptionsForPriority(event.Priority)
+	var wg sync.WaitGroup
+	var resultsMu sync.Mutex
+	var errs []error
+	succeeded := false
+	for _, sub := range subs {
+		select {
+		case c.sendSlots <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			if succeeded {
+				return nil
+			}
+			if len(errs) > 0 {
+				return errors.Join(errs...)
+			}
+			return ctx.Err()
+		}
+
+		wg.Add(1)
+		go func(sub *iot.PushSubscription) {
+			defer wg.Done()
+			defer func() { <-c.sendSlots }()
+			if err := c.sendOneSynchronously(ctx, event, payload, sub, ttl, urgency); err != nil {
+				resultsMu.Lock()
+				errs = append(errs, err)
+				resultsMu.Unlock()
+				return
+			}
+			resultsMu.Lock()
+			succeeded = true
+			resultsMu.Unlock()
+		}(sub)
+	}
+	wg.Wait()
+	if succeeded {
+		// Claims are per guardian rather than per browser subscription. Once one
+		// of the guardian's devices accepts the reminder, retrying failures would
+		// duplicate it on that successful device.
+		return nil
+	}
+	if len(errs) == 0 {
+		return ctx.Err()
+	}
+	return errors.Join(errs...)
+}
+
+func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, payload []byte, sub *iot.PushSubscription, ttl int, urgency webpush.Urgency) error {
+	if err := iot.ValidatePushEndpoint(sub.Endpoint); err != nil {
+		return err
+	}
+	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
+	defer cancel()
+	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, payload, &webpush.Options{Subscriber: c.vapid.webPushSubscriber(), VAPIDPublicKey: c.vapid.PublicKey, VAPIDPrivateKey: c.vapid.PrivateKey, TTL: ttl, Urgency: urgency})
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return errors.New("web push service returned no response")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+		if _, err := c.deleteExpiredSubscription(ctx, sub); err != nil {
+			return err
+		}
+		return fmt.Errorf("web push subscription expired with status %d", resp.StatusCode)
+	}
+	return fmt.Errorf("web push service rejected notification with status %d", resp.StatusCode)
 }
 
 func (c *webPushChannel) sendOne(

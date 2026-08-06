@@ -1,9 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Clock } from "lucide-react";
+import {
+  CalendarClock,
+  ClipboardList,
+  Clock,
+  HeartPulse,
+  MessageCircle,
+  UserRound,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
@@ -26,17 +32,36 @@ import {
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
 import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
+import { Avatar } from "~/components/ui/avatar";
+import { SectionCard } from "~/components/ui/section-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import {
+  ParentField,
+  ParentFieldGrid,
+  ParentLinkAction,
+  ParentLoadError,
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+  ParentStatusRow,
+} from "~/components/parent/parent-page";
 
-// Quick-actions that are wired to real backend flows. The rest remain
-// "coming soon" stubs until their features ship.
-// Modal-backed quick actions. "message" is handled separately — it opens the
-// new-conversation modal rather than a per-action modal.
+const logger = createLogger({ component: "ChildDetail" });
+
+// The three actions a guardian actually performs from this page. The former
+// six-tile grid also carried three "coming soon" stubs (Abholrecht, Personen,
+// Neuigkeiten) that were permanently disabled and whose real content already
+// lives further down the page or in the sidebar — they were pure noise.
+const CHILD_ACTIONS = [
+  { key: "sick", icon: HeartPulse },
+  { key: "pickupTime", icon: CalendarClock },
+  { key: "message", icon: MessageCircle },
+] as const;
+
+// Modal-backed quick actions. "message" is handled separately — it navigates to
+// the conversation rather than opening a modal.
 const SUPPORTED_ACTIONS: Record<string, "sick" | "pickup"> = {
   sick: "sick",
   pickupTime: "pickup",
@@ -59,24 +84,6 @@ function isActionEnabled(actionKey: string, care: ChildCare): boolean {
   }
   return false;
 }
-
-const logger = createLogger({ component: "ChildDetail" });
-
-// Neutral icon tile shared across the quick actions and the "Heute" panel:
-// gray-100 surface, no border/shadow. Keeps the parents portal calm and
-// consistent with the app-wide gray-tile pattern instead of the old
-// per-action pastel/white tiles. Add size + radius per call site.
-const ACTION_TILE_CLASS =
-  "flex shrink-0 items-center justify-center bg-gray-100";
-
-const CHILD_ACTIONS = [
-  { key: "sick", concept: "sick" },
-  { key: "pickupTime", concept: "pickup" },
-  { key: "message", concept: "parentConversations" },
-  { key: "pickupPermission", concept: "permissions" },
-  { key: "people", concept: "parents" },
-  { key: "news", concept: "news" },
-] as const;
 
 interface Props {
   readonly studentId: string;
@@ -106,10 +113,6 @@ function getServiceRange(
     from: formatDate(child.enrolled_from, locale, t),
     to: formatDate(child.enrolled_until, locale, t),
   });
-}
-
-function getInitials(child: Child): string {
-  return `${child.first_name.at(0) ?? ""}${child.last_name.at(0) ?? ""}`.toUpperCase();
 }
 
 export function ChildDetail({ studentId }: Props) {
@@ -142,29 +145,23 @@ export function ChildDetail({ studentId }: Props) {
   }, [load]);
 
   if (loading) {
-    return <ChildDetailSkeleton />;
+    return <ParentPageSkeleton rows={3} />;
   }
 
   if (error) {
-    return (
-      <div className="mx-auto max-w-7xl">
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
-          {t("loadError")}
-        </div>
-      </div>
-    );
+    return <ParentLoadError message={t("loadError")} />;
   }
 
   if (!child) {
     return (
-      <div className="mx-auto max-w-7xl">
-        <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-          <BackBar />
-          <div className="p-6 text-sm leading-6 text-gray-600">
-            {t("notFound")}
-          </div>
-        </div>
-      </div>
+      <ParentPage>
+        <ParentPageHeader
+          backHref="/parents/children"
+          backLabel={t("back")}
+          title={t("masterDataTitle")}
+          description={t("notFound")}
+        />
+      </ParentPage>
     );
   }
 
@@ -256,115 +253,115 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
     router.push(`/parents/messages/${child.student_id}`);
   }, [router, child.student_id]);
 
-  const summaryItems = useMemo(
-    () => [
-      { label: t("schoolLabel"), value: child.school_name },
-      { label: t("classLabel"), value: child.school_class || t("notSet") },
-      { label: t("careLabel"), value: getServiceRange(child, locale, t) },
-    ],
-    [child, locale, t],
+  const subtitle = useMemo(
+    () =>
+      child.school_class
+        ? `${child.school_name}, ${child.school_class}`
+        : child.school_name,
+    [child.school_name, child.school_class],
   );
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <MobileChildAppView
-        child={child}
-        fullName={fullName}
-        care={care}
-        threads={threads}
-        onAction={openAction}
+    <ParentPage>
+      <ParentPageHeader
+        backHref="/parents/children"
+        backLabel={t("back")}
+        kicker={t("childEyebrow")}
+        title={fullName}
+        description={subtitle}
+        media={
+          <Avatar
+            name={fullName}
+            size="md"
+            shape="rounded"
+            decorative
+            className="h-12 w-12 text-base"
+          />
+        }
       />
 
-      <section className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.8fr)]">
-          <div>
-            <BackBar />
-            <div className="p-5 sm:p-6 lg:p-8">
-              <div className="flex min-w-0 items-start gap-4">
-                <span className="bg-moto-green/15 text-moto-green-strong flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-lg font-semibold">
-                  {getInitials(child) || (
-                    <MotoConceptIcon concept="children" size={30} />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    {t("childEyebrow")}
-                  </p>
-                  <h1 className="mt-1 text-3xl font-semibold break-words text-gray-900 sm:text-4xl">
-                    {fullName}
-                  </h1>
-                  <p className="mt-2 text-sm leading-6 break-words text-gray-600 sm:text-base">
-                    {child.school_name}
-                    {child.school_class ? `, ${child.school_class}` : ""}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-7 grid max-w-3xl grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
-                {CHILD_ACTIONS.slice(0, 3).map((action) => (
-                  <DesktopQuickAction
-                    key={action.key}
-                    action={action}
-                    onClick={
-                      isActionEnabled(action.key, care)
-                        ? () => openAction(action.key)
-                        : undefined
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <TodayPanel care={care} threads={threads} />
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.8fr)]">
-        <section className="moto-content-surface min-w-0 rounded-2xl border shadow-sm max-lg:hidden">
-          <div className="p-5 sm:p-6">
-            <PanelHeader
-              eyebrow={t("masterDataEyebrow")}
-              title={t("masterDataTitle")}
-              description={t("masterDataDescription")}
-              concept="children"
+      <SectionCard
+        icon={ClipboardList}
+        title={t("today.title")}
+        description={t("today.description")}
+        bodyClassName="mt-4 space-y-4"
+      >
+        <div className="grid gap-2 sm:grid-cols-3">
+          <ParentStatusRow icon={HeartPulse} label={t("today.sickLabel")}>
+            <SickStatusSummary
+              sickDays={care.sickDays}
+              excusedRequests={care.excusedRequests}
+              onWithdraw={care.withdrawExcused}
             />
-            {care.features.has_open_change_request && (
-              <div className="mt-3">
-                <OpenRequestBadge />
-              </div>
-            )}
-          </div>
-          <dl className="divide-y divide-gray-100 border-t border-gray-100">
-            {summaryItems.map((item) => (
-              <InfoRow key={item.label} label={item.label} value={item.value} />
-            ))}
-          </dl>
-          <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
-            <Link
-              href={`/parents/children/${child.student_id}/stammdaten`}
-              className="bg-moto-green hover:bg-moto-green-hover inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 shadow-sm transition-colors"
-            >
-              {tMd("openLink")}
-            </Link>
-          </div>
-        </section>
-
-        <div className="grid min-w-0 gap-6 max-lg:hidden">
-          <ChildMessagesPanel
-            studentId={child.student_id}
-            threads={threads}
-            composeDisabled={!care.features.notes_enabled}
-            onCompose={openConversation}
-          />
-          <GuardiansPanel studentId={child.student_id} />
-          <RelatedAccountsPanel
-            studentId={child.student_id}
-            canInvite={care.features.related_accounts_invite_enabled}
-            canRemove={care.features.related_accounts_remove_enabled}
-          />
+          </ParentStatusRow>
+          <ParentStatusRow icon={CalendarClock} label={t("today.pickupLabel")}>
+            <TodayPickupValue pickup={care.todayPickup} t={t} />
+          </ParentStatusRow>
+          <ParentStatusRow
+            icon={MessageCircle}
+            label={t("today.messagesLabel")}
+          >
+            <MessagesSummary threads={threads} t={t} />
+          </ParentStatusRow>
         </div>
-      </div>
+
+        <div className="flex flex-wrap gap-2">
+          {CHILD_ACTIONS.map((action) => (
+            <QuickAction
+              key={action.key}
+              action={action}
+              onClick={
+                isActionEnabled(action.key, care)
+                  ? () => openAction(action.key)
+                  : undefined
+              }
+            />
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        icon={UserRound}
+        kicker={t("masterDataEyebrow")}
+        title={t("masterDataTitle")}
+        description={t("masterDataDescription")}
+        actions={
+          <ParentLinkAction
+            href={`/parents/children/${child.student_id}/stammdaten`}
+          >
+            {tMd("openLink")}
+          </ParentLinkAction>
+        }
+        bodyClassName="mt-4 space-y-3"
+      >
+        {care.features.has_open_change_request && <OpenRequestBadge />}
+        <ParentFieldGrid className="sm:grid-cols-3">
+          <ParentField label={t("schoolLabel")}>
+            {child.school_name}
+          </ParentField>
+          <ParentField label={t("classLabel")}>
+            {child.school_class || t("notSet")}
+          </ParentField>
+          <ParentField label={t("careLabel")}>
+            {getServiceRange(child, locale, t)}
+          </ParentField>
+        </ParentFieldGrid>
+      </SectionCard>
+
+      <ChildMessagesPanel
+        studentId={child.student_id}
+        threads={threads}
+        composeDisabled={!care.features.notes_enabled}
+        onCompose={openConversation}
+      />
+
+      <GuardiansPanel studentId={child.student_id} />
+
+      <RelatedAccountsPanel
+        studentId={child.student_id}
+        canInvite={care.features.related_accounts_invite_enabled}
+        canRemove={care.features.related_accounts_remove_enabled}
+      />
 
       {modal === "sick" && (
         <SickNoteModal
@@ -383,185 +380,36 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
           onRemove={care.removeCareException}
         />
       )}
-    </div>
+    </ParentPage>
   );
 }
 
-function MobileChildAppView({
-  child,
-  fullName,
-  care,
-  threads,
-  onAction,
-}: Readonly<{
-  child: Child;
-  fullName: string;
-  care: ChildCare;
-  threads: ThreadSummary[];
-  onAction: (actionKey: string) => void;
-}>) {
-  const t = useTranslations("parentChildDetail");
-  const tMd = useTranslations("parentMasterData");
-  const locale = useLocale();
-  const primaryActions = CHILD_ACTIONS.slice(0, 3);
-
-  return (
-    <div className="space-y-5 lg:hidden">
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <BackBar />
-        <div className="p-5">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="bg-moto-green/15 text-moto-green-strong flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl text-lg font-semibold">
-              {getInitials(child) || (
-                <MotoConceptIcon concept="children" size={26} />
-              )}
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold break-words text-gray-900">
-                {fullName}
-              </h1>
-              <p className="mt-0.5 text-sm break-words text-gray-600">
-                {child.school_name}
-                {child.school_class ? `, ${child.school_class}` : ""}
-              </p>
-              <span className="bg-moto-green/15 text-moto-green-strong mt-3 inline-flex max-w-full rounded-full px-3 py-1 text-xs font-semibold">
-                {t("careRecorded")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        {primaryActions.map((action) => (
-          <MobileQuickAction
-            key={action.key}
-            action={action}
-            onClick={
-              isActionEnabled(action.key, care)
-                ? () => onAction(action.key)
-                : undefined
-            }
-          />
-        ))}
-      </div>
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("today.sickLabel")}
-        </p>
-        <div className="mt-2">
-          <SickStatusSummary
-            sickDays={care.sickDays}
-            excusedRequests={care.excusedRequests}
-            onWithdraw={care.withdrawExcused}
-          />
-        </div>
-      </section>
-
-      <ChildMessagesPanel
-        studentId={child.student_id}
-        threads={threads}
-        composeDisabled={!care.features.notes_enabled}
-        onCompose={() => onAction("message")}
-        mobile
-      />
-
-      <GuardiansPanel studentId={child.student_id} mobile />
-
-      <RelatedAccountsPanel
-        studentId={child.student_id}
-        canInvite={care.features.related_accounts_invite_enabled}
-        canRemove={care.features.related_accounts_remove_enabled}
-        mobile
-      />
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("careLabel")}
-          </h2>
-          {care.features.has_open_change_request && <OpenRequestBadge />}
-        </div>
-        <dl className="mt-4 space-y-3">
-          <CompactInfoRow
-            label={t("periodLabel")}
-            value={getServiceRange(child, locale, t)}
-          />
-          <CompactInfoRow
-            label={t("classLabel")}
-            value={child.school_class || t("notSet")}
-          />
-        </dl>
-        <Link
-          href={`/parents/children/${child.student_id}/stammdaten`}
-          className="bg-moto-green hover:bg-moto-green-hover mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-gray-950 shadow-sm transition-colors"
-        >
-          {tMd("openLink")}
-        </Link>
-      </section>
-    </div>
-  );
-}
-
-function MobileQuickAction({
+/**
+ * One quick action. A labelled button, not a tile: these are three ordinary
+ * actions, and the old aspect-square icon grid gave them the visual weight of
+ * a dashboard while wrapping their labels over three lines on mobile.
+ */
+function QuickAction({
   action,
   onClick,
 }: Readonly<{ action: ChildAction; onClick?: () => void }>) {
   const t = useTranslations("parentChildDetail");
-  const enabled = Boolean(onClick);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!enabled}
-      className={`flex aspect-square min-h-28 flex-col items-center justify-center gap-3 rounded-3xl border p-3 text-center shadow-sm transition-colors ${
-        enabled
-          ? "border-gray-200 bg-white hover:bg-gray-50"
-          : "cursor-not-allowed border-gray-100 bg-white"
-      }`}
-    >
-      <span className={`${ACTION_TILE_CLASS} h-11 w-11 rounded-xl`}>
-        <MotoConceptIcon concept={action.concept as MotoConceptKey} size={26} />
-      </span>
-      <span className="text-xs leading-4 font-semibold text-gray-900">
-        {t(`actions.${action.key}.label`)}
-      </span>
-    </button>
-  );
-}
-
-function DesktopQuickAction({
-  action,
-  onClick,
-}: Readonly<{ action: ChildAction; onClick?: () => void }>) {
-  const t = useTranslations("parentChildDetail");
+  const Icon = action.icon;
   const label = t(`actions.${action.key}.label`);
   const enabled = Boolean(onClick);
   return (
-    <button
+    <Button
       type="button"
+      variant={enabled ? "outline" : "secondary"}
+      size="md"
       onClick={onClick}
       disabled={!enabled}
-      className={`flex min-h-24 items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
-        enabled
-          ? "border-gray-200 bg-white hover:bg-gray-50"
-          : "cursor-not-allowed border-gray-200 bg-gray-50/70 opacity-80"
-      }`}
+      className="max-sm:w-full"
       aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
-      <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-        <MotoConceptIcon concept={action.concept as MotoConceptKey} size={22} />
-      </span>
-      <span className="min-w-0 [overflow-wrap:anywhere]">
-        <span className="block text-sm font-semibold text-gray-900">
-          {label}
-        </span>
-        <span className="mt-0.5 block text-sm leading-5 text-gray-600">
-          {t(`actions.${action.key}.description`)}
-        </span>
-      </span>
-    </button>
+      <Icon className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
+      {label}
+    </Button>
   );
 }
 
@@ -579,7 +427,7 @@ function TodayPickupValue({
         <>
           {t("today.pickupTime", { time: pickup.time })}
           {pickup.changed && (
-            <span className="ml-1 font-medium text-gray-500">
+            <span className="ml-1 font-normal text-gray-500">
               · {t("today.pickupChanged")}
             </span>
           )}
@@ -594,77 +442,18 @@ function TodayPickupValue({
   }
 }
 
-function TodayPanel({
-  care,
+function MessagesSummary({
   threads,
-}: Readonly<{ care: ChildCare; threads: ThreadSummary[] }>) {
-  const t = useTranslations("parentChildDetail");
+  t,
+}: Readonly<{ threads: ThreadSummary[]; t: ChildDetailTranslator }>) {
   const unread = threads.reduce((sum, thread) => sum + thread.unread, 0);
-  return (
-    <div className="relative z-10 space-y-4">
-      <div>
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("today.title")}
-        </p>
-        <p className="mt-1 text-sm leading-6 text-gray-600">
-          {t("today.description")}
-        </p>
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <MotoConceptIcon concept="sick" size={22} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("today.sickLabel")}
-            </p>
-            <div className="mt-0.5">
-              <SickStatusSummary
-                sickDays={care.sickDays}
-                excusedRequests={care.excusedRequests}
-                onWithdraw={care.withdrawExcused}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <MotoConceptIcon concept="pickup" size={22} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("today.pickupLabel")}
-            </p>
-            <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              <TodayPickupValue pickup={care.todayPickup} t={t} />
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
-            <MotoConceptIcon concept="parentConversations" size={22} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("today.messagesLabel")}
-            </p>
-            <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              {threads.length === 0
-                ? t("today.noConversations")
-                : unread > 0
-                  ? t("today.unreadCount", { count: unread })
-                  : t("today.conversationsCount", { count: threads.length })}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  if (threads.length === 0) return <>{t("today.noConversations")}</>;
+  if (unread > 0) return <>{t("today.unreadCount", { count: unread })}</>;
+  return <>{t("today.conversationsCount", { count: threads.length })}</>;
 }
 
-// Shows this child's OGS conversations (filtered to the child) with an unread
-// pill and last activity. Each row opens the thread; "Neue Nachricht" starts a
+// Shows this child's OGS conversation (filtered to the child) with an unread
+// pill and last activity. The row opens the thread; "Neue Nachricht" starts a
 // new conversation pre-selected to this child. Mirrors the staff-side
 // ParentMessagesCard.
 function ChildMessagesPanel({
@@ -672,13 +461,11 @@ function ChildMessagesPanel({
   threads,
   onCompose,
   composeDisabled = false,
-  mobile = false,
 }: Readonly<{
   studentId: string;
   threads: ThreadSummary[];
   onCompose: () => void;
   composeDisabled?: boolean;
-  mobile?: boolean;
 }>) {
   const t = useTranslations("parentChildDetail");
   const tMsg = useTranslations("parentOgsMessaging");
@@ -699,85 +486,48 @@ function ChildMessagesPanel({
   const previewBody = previewDescriptor
     ? tMsg(previewDescriptor.key, previewDescriptor.values)
     : conversation?.last_message_body;
+
   return (
-    <section
-      className={
-        mobile
-          ? "min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-          : "min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
-      <div className="flex min-w-0 items-start justify-between gap-4">
-        <PanelHeader
-          eyebrow={t("messages.eyebrow")}
-          title={t("messages.title")}
-          description={t("messages.description")}
-          concept="parentConversations"
-        />
-        {!composeDisabled && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onCompose}
-            className="shrink-0"
-          >
-            <MotoConceptIcon
-              concept="parentConversations"
-              size={18}
-              className="mr-1.5"
-            />
+    <SectionCard
+      icon={MessageCircle}
+      title={t("messages.title")}
+      description={t("messages.description")}
+      actions={
+        composeDisabled ? undefined : (
+          <Button type="button" variant="primary" size="md" onClick={onCompose}>
+            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {t("messages.compose")}
           </Button>
-        )}
-      </div>
-      <div className="mt-4">
-        {!conversation || !conversation.last_message_at ? (
-          <p className="text-sm leading-6 text-gray-600">
-            {t("messages.empty")}
-          </p>
-        ) : (
-          <button
-            type="button"
-            onClick={() => router.push(`/parents/messages/${studentId}`)}
-            className="flex w-full items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-left transition-colors hover:bg-gray-100"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-medium text-gray-900">
-                  {conversation.counterpart_name}
-                </span>
-                <UnreadBadge count={conversation.unread} />
+        )
+      }
+    >
+      {!conversation || !conversation.last_message_at ? (
+        <p className="text-sm leading-6 text-gray-600">{t("messages.empty")}</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => router.push(`/parents/messages/${studentId}`)}
+          className="flex w-full items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left transition-colors hover:border-gray-300 hover:bg-gray-50"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-medium text-gray-900">
+                {conversation.counterpart_name}
               </span>
-              {previewBody && (
-                <span className="mt-0.5 block truncate text-sm text-gray-600">
-                  {previewBody}
-                </span>
-              )}
+              <UnreadBadge count={conversation.unread} />
             </span>
-            <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-              {formatChatDateTime(conversation.last_message_at)}
-            </span>
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function CompactInfoRow({
-  label,
-  value,
-}: Readonly<{ label: string; value: string }>) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl bg-gray-50 px-4 py-3">
-      <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {label}
-      </dt>
-      <dd className="text-right text-sm font-semibold break-words text-gray-900">
-        {value}
-      </dd>
-    </div>
+            {previewBody && (
+              <span className="mt-0.5 block truncate text-sm text-gray-600">
+                {previewBody}
+              </span>
+            )}
+          </span>
+          <span className="shrink-0 text-xs whitespace-nowrap text-gray-400">
+            {formatChatDateTime(conversation.last_message_at)}
+          </span>
+        </button>
+      )}
+    </SectionCard>
   );
 }
 
@@ -792,72 +542,5 @@ function OpenRequestBadge() {
       <Clock className="h-3 w-3" aria-hidden="true" />
       {tMd("careSchedule.pendingBadge")}
     </span>
-  );
-}
-
-function BackBar() {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-      <Link
-        href="/parents/children"
-        className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t("back")}
-      </Link>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: Readonly<{ label: string; value: string }>) {
-  return (
-    <div className="grid gap-1 px-5 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:px-6">
-      <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase sm:pt-0.5">
-        {label}
-      </dt>
-      <dd className="mt-1 text-sm font-medium break-words text-gray-900">
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-function PanelHeader({
-  eyebrow,
-  title,
-  description,
-  concept,
-}: Readonly<{
-  eyebrow: string;
-  title: string;
-  description: string;
-  concept?: MotoConceptKey;
-}>) {
-  return (
-    <header className={concept ? "flex min-w-0 items-start gap-3" : undefined}>
-      {concept ? <ConceptIconTile concept={concept} variant="section" /> : null}
-      <div className="min-w-0">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {eyebrow}
-        </p>
-        <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
-          {title}
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
-      </div>
-    </header>
-  );
-}
-
-function ChildDetailSkeleton() {
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-        <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
-      </div>
-    </div>
   );
 }

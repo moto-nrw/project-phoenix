@@ -173,9 +173,24 @@ describe("Parent portal components", () => {
     expect(screen.getByText("Lina Muster")).toBeInTheDocument();
     expect(screen.getByText("Mila Neu")).toBeInTheDocument();
     expect(screen.getByText("Offen")).toBeInTheDocument();
+  });
+
+  it("keeps the account settings off the dashboard", async () => {
+    // They moved to the profile page (#1671). Asserting their absence here is
+    // what stops them from quietly reappearing at the bottom of the start page,
+    // which is where nobody found them.
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.listMyEnrollments.mockResolvedValueOnce([]);
+
+    render(<ParentDashboard />);
+    await screen.findByRole("heading", { name: "Willkommen im Elternportal" });
+
     expect(
-      screen.getByRole("heading", { name: "Push-Benachrichtigungen" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Push-Benachrichtigungen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Benachrichtigungen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the Neue Anmeldung action on the dashboard", async () => {
@@ -210,8 +225,9 @@ describe("Parent portal components", () => {
       "href",
       "/parents/children/42",
     );
+    // School, class and care period share one detail line on the row.
     expect(
-      screen.getByText("Betreuung 01.08.2026 bis 31.07.2027"),
+      screen.getByText(/Betreuung 01\.08\.2026 bis 31\.07\.2027/),
     ).toBeInTheDocument();
 
     cleanup();

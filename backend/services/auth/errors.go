@@ -88,6 +88,12 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
+	// ErrInviteSocialWorkerManaged: the invited email belongs to a contact
+	// linked to this child as a social worker. That is a school-managed
+	// professional contact — the invite flow must never turn it into a legal
+	// guardian, so the invite is refused entirely (mirrors
+	// ErrGuardianSocialWorkerManaged on the parent edit paths).
+	ErrInviteSocialWorkerManaged = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
 )
 
 // AuthError represents an authentication-related error

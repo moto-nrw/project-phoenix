@@ -337,6 +337,33 @@ const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
   },
 ];
 
+/**
+ * Sidebar nav icon. The nav renders icons as raw `<path d>` strings from
+ * `navigationIcons`, so this wraps the identical 8-line `<svg>` every item used
+ * to repeat inline.
+ */
+function NavIcon({
+  d,
+  muted = false,
+}: Readonly<{ d: string; muted?: boolean }>) {
+  return (
+    <svg
+      className={`mr-3 h-5 w-5 shrink-0 ${muted ? "text-gray-300" : "text-gray-400 group-hover:text-gray-500"}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d={d}
+      />
+    </svg>
+  );
+}
+
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -764,30 +791,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   };
 
-  const renderConceptNavIcon = (conceptKey: MotoConceptKey, href: string) => {
-    const concept = MOTO_CONCEPTS[conceptKey];
-    if (isActiveLink(href)) {
-      return (
-        <MotoDuotoneIcon
-          icon={concept.icon}
-          tone={concept.tone}
-          size={22}
-          className="mr-3 h-5 w-5 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5"
-        />
-      );
-    }
-
-    const ConceptIcon = concept.icon;
-    return (
-      <ConceptIcon
-        size={22}
-        weight="regular"
-        className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-        aria-hidden="true"
-      />
-    );
-  };
-
   const renderNavItem = (item: NavItem) => (
     <div key={item.comingSoon ? item.label : item.href}>
       {item.comingSoon ? (
@@ -1090,57 +1093,73 @@ function SidebarContent({ className = "" }: SidebarProps) {
   }
 
   if (mode === "parent") {
+    // One item list instead of eight near-identical hand-written <Link> blocks
+    // with inline <svg><path d={...}> — every item differed only in href, icon
+    // and badge, so a change to the row markup had to be made eight times.
+    const parentNavItems: readonly {
+      href: string;
+      label: string;
+      icon: string;
+      badge?: number;
+      visible?: boolean;
+    }[] = [
+      {
+        href: "/parents",
+        label: tParentNav("start"),
+        icon: navigationIcons.home,
+      },
+      {
+        href: "/parents/children",
+        label: tParentNav("children"),
+        icon: navigationIcons.group,
+      },
+      {
+        href: "/parents/messages",
+        label: tParentNav("messages"),
+        icon: navigationIcons.chat,
+        badge: parentMessagesUnread,
+      },
+      {
+        href: "/parents/calendar",
+        label: tParentNav("calendar"),
+        icon: navigationIcons.calendar,
+      },
+      {
+        href: "/parents/news",
+        label: tParentNav("news"),
+        icon: navigationIcons.newspaper,
+        badge: parentNewsUnread,
+        visible: parentPortalNewsEnabled,
+      },
+      {
+        href: "/parents/meal-plan",
+        label: tParentNav("mealPlan"),
+        icon: navigationIcons.utensils,
+        visible: parentMealPlanEnabled,
+      },
+    ];
+
     return (
       <aside
         className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
           <nav className="flex-1 p-3 lg:p-4 xl:p-3">
-            <Link href="/parents" className={getLinkClasses("/parents")}>
-              {renderConceptNavIcon("dashboard", "/parents")}
-              <span>{tParentNav("start")}</span>
-            </Link>
-            <Link
-              href="/parents/children"
-              className={getLinkClasses("/parents/children")}
-            >
-              {renderConceptNavIcon("children", "/parents/children")}
-              <span>{tParentNav("children")}</span>
-            </Link>
-            <Link
-              href="/parents/messages"
-              className={getLinkClasses("/parents/messages")}
-            >
-              {renderConceptNavIcon("parentConversations", "/parents/messages")}
-              <span>{tParentNav("messages")}</span>
-              <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
-            </Link>
-            <Link
-              href="/parents/calendar"
-              className={getLinkClasses("/parents/calendar")}
-            >
-              {renderConceptNavIcon("calendar", "/parents/calendar")}
-              <span>{tParentNav("calendar")}</span>
-            </Link>
-            {parentPortalNewsEnabled && (
-              <Link
-                href="/parents/news"
-                className={getLinkClasses("/parents/news")}
-              >
-                {renderConceptNavIcon("news", "/parents/news")}
-                <span>{tParentNav("news")}</span>
-                <UnreadBadge count={parentNewsUnread} className="ml-auto" />
-              </Link>
-            )}
-            {parentMealPlanEnabled && (
-              <Link
-                href="/parents/meal-plan"
-                className={getLinkClasses("/parents/meal-plan")}
-              >
-                {renderConceptNavIcon("mealPlan", "/parents/meal-plan")}
-                <span>{tParentNav("mealPlan")}</span>
-              </Link>
-            )}
+            {parentNavItems
+              .filter((item) => item.visible !== false)
+              .map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={getLinkClasses(item.href)}
+                >
+                  <NavIcon d={item.icon} />
+                  <span>{item.label}</span>
+                  {item.badge !== undefined && (
+                    <UnreadBadge count={item.badge} className="ml-auto" />
+                  )}
+                </Link>
+              ))}
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
                 {tParentNav("comingSoon")}
@@ -1152,9 +1171,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     className={getLinkClasses(item.href, true)}
                     aria-disabled="true"
                   >
-                    {item.concept
-                      ? renderConceptNavIcon(item.concept, item.href)
-                      : renderNavIcon(item)}
+                    <NavIcon d={item.icon} muted />
                     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate">{item.label}</span>
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
@@ -1175,7 +1192,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               href="/parents/feedback"
               className={getLinkClasses("/parents/feedback")}
             >
-              {renderConceptNavIcon("feedback", "/parents/feedback")}
+              <NavIcon d={navigationIcons.feedback} />
               <span>{tParentNav("feedback")}</span>
               <UnreadBadge
                 count={parentFeedbackUnread}

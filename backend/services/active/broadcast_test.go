@@ -59,10 +59,14 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-checkin")
 	room := testpkg.CreateTestRoom(t, db, "Broadcast Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Broadcast-Checkin")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Student", "1a")
+	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Staff")
 	iotDevice := testpkg.CreateTestDevice(t, db, "broadcast-device")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
+	// Students before their education group (FK ON DELETE SET NULL nulls
+	// students.tenant_id otherwise — see the edu-batch test below).
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID, staff.ID, iotDevice.ID)
 
 	staffCtx := context.WithValue(testpkg.TenantContext(1), device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
@@ -77,10 +81,39 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
-	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
-		"expected dashboard_counts_changed after CreateVisit")
 	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after CreateVisit")
+
+	// #2057: the dashboard refresh is tenant-scoped (not broadcast to every
+	// school on the deployment) and carries the student's educational group id
+	// so clients can scope their ogs-students-{gid} revalidation.
+	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed after CreateVisit")
+	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
+	assert.NotZero(t, counts[0].TenantID, "tenant id from the request context must reach the broadcast")
+	require.NotNil(t, counts[0].Event.Data.GroupIDs, "dashboard_counts_changed must carry the educational group id")
+	assert.Equal(t, []string{eduGroupIDStr}, *counts[0].Event.Data.GroupIDs)
+
+	// The scoped student_checkin carries the edu group id too, so the client's
+	// backpressure fallback path (checkin delivered, counts event dropped)
+	// stays scoped.
+	checkins := broadcaster.EventsOfType(realtime.EventStudentCheckIn)
+	require.NotEmpty(t, checkins)
+	require.NotNil(t, checkins[0].Data.GroupIDs, "student_checkin must carry the educational group id")
+	assert.Equal(t, []string{eduGroupIDStr}, *checkins[0].Data.GroupIDs)
+}
+
+// dashboardCountsTenantCalls returns every tenant-scoped
+// dashboard_counts_changed broadcast recorded so far.
+func dashboardCountsTenantCalls(broadcaster *testpkg.RecordingBroadcaster) []testpkg.BroadcastCall {
+	out := make([]testpkg.BroadcastCall, 0)
+	for _, c := range broadcaster.CallsByMethod("tenant") {
+		if c.Event.Type == realtime.EventDashboardCountsChanged {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
@@ -91,9 +124,11 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-checkout")
 	room := testpkg.CreateTestRoom(t, db, "Broadcast Checkout Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Broadcast-Checkout")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Checkout", "1b")
+	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID, eduGroup.ID)
 
 	// Clear calls from visit creation
 	broadcaster.Reset()
@@ -101,10 +136,21 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	err := svc.EndVisit(testpkg.TenantContext(1), visit.ID)
 	require.NoError(t, err)
 
-	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
-		"expected dashboard_counts_changed after EndVisit")
 	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after EndVisit")
+
+	// #2057: tenant-scoped, carrying the student's educational group id.
+	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed after EndVisit")
+	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
+	require.NotNil(t, counts[0].Event.Data.GroupIDs, "dashboard_counts_changed must carry the educational group id")
+	assert.Equal(t, []string{eduGroupIDStr}, *counts[0].Event.Data.GroupIDs)
+
+	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
+	require.NotEmpty(t, checkouts)
+	require.NotNil(t, checkouts[0].Data.GroupIDs, "student_checkout must carry the educational group id")
+	assert.Equal(t, []string{eduGroupIDStr}, *checkouts[0].Data.GroupIDs)
 }
 
 func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
@@ -188,16 +234,17 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
 	require.NoError(t, err)
 
-	// Should have dashboard_counts_changed from the batch student checkout
-	calls := broadcaster.Events()
-	found := false
-	for _, call := range calls {
-		if call.Type == realtime.EventDashboardCountsChanged {
-			assert.Empty(t, call.ActiveGroupID, "global events should not leak group IDs")
-			found = true
-		}
+	// Should have dashboard_counts_changed from the batch student checkout,
+	// tenant-scoped (#2057). The student here has no educational group, so
+	// group_ids must be ABSENT (nil, never an empty slice) — clients read the
+	// absence as "scope unknown → refresh broadly".
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.NotEmpty(t, counts, "expected dashboard_counts_changed after EndActivitySession with active visits")
+	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
+	for _, c := range counts {
+		assert.Empty(t, c.Event.ActiveGroupID, "tenant-wide events should not leak group IDs in the topic")
+		assert.Nil(t, c.Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
 	}
-	assert.True(t, found, "expected dashboard_counts_changed after EndActivitySession with active visits")
 	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after EndActivitySession")
 }
@@ -330,7 +377,8 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	assert.ElementsMatch(t, []string{idC}, *groupYCalls[0].Event.Data.StudentIDs,
 		"groupY event must carry only groupY's student")
 
-	// The active-group topic still carries every student.
+	// The active-group topic still carries every student — and every affected
+	// educational group id (#2057).
 	sessionIDStr := strconv.FormatInt(session.ID, 10)
 	var activeTopicBulk *realtime.Event
 	for _, e := range broadcaster.EventsOfType(realtime.EventBulkStudentCheckOut) {
@@ -341,6 +389,27 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	}
 	require.NotNil(t, activeTopicBulk, "active-group topic must carry a bulk event with all students")
 	assert.ElementsMatch(t, []string{idA, idB, idC}, *activeTopicBulk.Data.StudentIDs)
+
+	gidX := strconv.FormatInt(groupX.ID, 10)
+	gidY := strconv.FormatInt(groupY.ID, 10)
+	require.NotNil(t, activeTopicBulk.Data.GroupIDs, "active-topic bulk event must carry the affected edu group ids")
+	assert.ElementsMatch(t, []string{gidX, gidY}, *activeTopicBulk.Data.GroupIDs)
+
+	// Each edu-topic bulk event carries only its own group id.
+	require.NotNil(t, groupXCalls[0].Event.Data.GroupIDs)
+	assert.Equal(t, []string{gidX}, *groupXCalls[0].Event.Data.GroupIDs)
+	require.NotNil(t, groupYCalls[0].Event.Data.GroupIDs)
+	assert.Equal(t, []string{gidY}, *groupYCalls[0].Event.Data.GroupIDs)
+
+	// The batch's single dashboard refresh is tenant-scoped and lists every
+	// affected edu group; the activity-end refresh right after carries none
+	// (session end affects room occupancy across groups -> broad refresh).
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.Len(t, counts, 2, "batch + activity end fire one dashboard refresh each")
+	require.NotNil(t, counts[0].Event.Data.GroupIDs, "batch dashboard refresh must carry the affected edu group ids")
+	assert.ElementsMatch(t, []string{gidX, gidY}, *counts[0].Event.Data.GroupIDs)
+	assert.Nil(t, counts[1].Event.Data.GroupIDs, "activity-end dashboard refresh is deliberately unscoped")
+	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 }
 
 // assignStudentToEducationGroup sets a student's OGS group_id in the DB so the
@@ -356,16 +425,166 @@ func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Contex
 	require.NoError(tb, err, "failed to assign student to education group")
 }
 
-func TestBroadcast_DailyCheckoutSendsDashboardCounts(t *testing.T) {
+// checkOutFixturedStudent opens an attendance row for the student and closes it
+// through the real checkout path, so the roomless broadcast under test is the
+// one production emits. Returns nothing — the assertions read the broadcaster.
+// Returns the cleanup to defer: the caller's own `defer db.Close()` must
+// outlive it, so it cannot hide in t.Cleanup.
+func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) func() {
+	t.Helper()
+
+	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Staff"+label)
+	iotDevice := testpkg.CreateTestDevice(t, db, "roomless-checkout-"+label)
+
+	testpkg.CreateTestAttendance(t, db, studentID, staff.ID, iotDevice.ID, time.Now(), nil)
+
+	_, err := svc.CheckOutStudent(testpkg.TenantContext(1), studentID, staff.ID, true)
+	require.NoError(t, err)
+
+	return func() { testpkg.CleanupActivityFixtures(t, db, staff.ID, iotDevice.ID) }
+}
+
+// TestBroadcast_RoomlessCheckoutSendsDashboardCounts covers the scope fallback:
+// a child without an OGS group produces no group ids, and the contract says the
+// field must then be absent entirely rather than an empty array — clients read
+// an empty array as "scope to nothing" and drop the invalidation (#2057).
+func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	student := testpkg.CreateTestStudent(t, db, "Broadcast", "DailyCheckout", "3a")
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckout", "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	svc.BroadcastDailyCheckout(testpkg.TenantContext(1), student.ID)
+	defer checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")()
 
-	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
-		"expected dashboard_counts_changed after BroadcastDailyCheckout")
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.Len(t, counts, 1, "expected dashboard_counts_changed after the checkout")
+	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
+	assert.Nil(t, counts[0].Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
+}
+
+func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-RoomlessCheckout")
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckoutGrp", "3b")
+	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, eduGroup.ID)
+
+	defer checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")()
+
+	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
+	counts := dashboardCountsTenantCalls(broadcaster)
+	require.Len(t, counts, 1)
+	require.NotNil(t, counts[0].Event.Data.GroupIDs, "dashboard_counts_changed must carry the educational group id")
+	assert.Equal(t, []string{eduGroupIDStr}, *counts[0].Event.Data.GroupIDs)
+
+	// The educational-group student_checkout carries the group id too.
+	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
+	require.NotEmpty(t, checkouts)
+	require.NotNil(t, checkouts[0].Data.GroupIDs)
+	assert.Equal(t, []string{eduGroupIDStr}, *checkouts[0].Data.GroupIDs)
+}
+
+// TestBroadcast_TenantWideEventsCarryNoStudentIdentity pins the two halves of
+// the #2085 contract on the check-in, check-out and whole-session-end paths:
+//
+//  1. nothing broadcast tenant-wide names the child. active_supervision_changed
+//     used to carry a student_id, which handed every staff client of the school
+//     the movement fact for a child their own API responses redact under
+//     gdpr.student_data_scope = group_supervisors_only.
+//  2. the group-scoped student_checkin / student_checkout still do carry it, so
+//     the supervisors entitled to that child's data keep their per-child
+//     detail-cache invalidation and their views stay live.
+func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-gdpr")
+	room := testpkg.CreateTestRoom(t, db, "Broadcast GDPR Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Broadcast-GDPR")
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Gdpr", "1c")
+	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID)
+
+	ctx := testpkg.TenantContext(1)
+	studentIDStr := strconv.FormatInt(student.ID, 10)
+
+	// --- check-in -----------------------------------------------------------
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, svc.CreateVisit(ctx, visit))
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventStudentCheckIn, studentIDStr)
+
+	// --- check-out ----------------------------------------------------------
+	broadcaster.Reset()
+	require.NoError(t, svc.EndVisit(ctx, visit.ID))
+
+	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventStudentCheckOut, studentIDStr)
+
+	// --- whole-session end (bulk path) --------------------------------------
+	broadcaster.Reset()
+	bulkVisit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, bulkVisit.ID)
+	require.NoError(t, svc.EndActivitySession(ctx, activeGroup.ID))
+
+	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventBulkStudentCheckOut, studentIDStr)
+}
+
+// assertBothHalvesOfTheContract checks one flow's broadcasts: nothing
+// tenant-wide names the child, a refresh actually fired (carrying the reason
+// clients branch on instead of an id), and the group-scoped movement event
+// still names the child for the entitled supervisors.
+func assertBothHalvesOfTheContract(
+	tb testing.TB,
+	broadcaster *testpkg.RecordingBroadcaster,
+	groupScopedEvent realtime.EventType,
+	studentIDStr string,
+) {
+	tb.Helper()
+
+	testpkg.AssertNoTenantWideStudentIdentity(tb, broadcaster)
+
+	refreshes := broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged)
+	require.NotEmpty(tb, refreshes, "expected an active_supervision_changed refresh")
+	for _, e := range refreshes {
+		assert.NotNil(tb, e.Data.Reason, "the refresh reason is what clients branch on instead of an id")
+	}
+
+	assertGroupScopedEventNamesStudent(tb, broadcaster, groupScopedEvent, studentIDStr)
+}
+
+// assertGroupScopedEventNamesStudent checks the other half of the contract: the
+// entitled supervisors' topic still receives the child's id, either as
+// student_id (single events) or in student_ids (bulk checkout).
+func assertGroupScopedEventNamesStudent(
+	tb testing.TB,
+	broadcaster *testpkg.RecordingBroadcaster,
+	eventType realtime.EventType,
+	studentIDStr string,
+) {
+	tb.Helper()
+	for _, call := range broadcaster.CallsByMethod("group") {
+		if call.Event.Type != eventType {
+			continue
+		}
+		if call.Event.Data.StudentID != nil && *call.Event.Data.StudentID == studentIDStr {
+			return
+		}
+		if call.Event.Data.StudentIDs != nil {
+			assert.Contains(tb, *call.Event.Data.StudentIDs, studentIDStr)
+			return
+		}
+	}
+	tb.Errorf("expected a group-scoped %s naming student %s", eventType, studentIDStr)
 }

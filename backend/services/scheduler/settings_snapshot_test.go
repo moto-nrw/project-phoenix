@@ -50,6 +50,11 @@ func TestSchedulerPollingSettingKeysAreRegisteredUniqueAndNonSecret(t *testing.T
 	}
 }
 
+func TestSchedulerPollingSettingKeysIncludeAppointmentReminderSettings(t *testing.T) {
+	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderEnabled)
+	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderLeadHours)
+}
+
 func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

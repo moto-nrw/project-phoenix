@@ -5,13 +5,12 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import {
-  getActivityColor,
+  comparePlanningInstances,
   getGermanWeekdayShort,
   groupInstancesByDate,
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
 
@@ -58,7 +57,9 @@ export function MonthPlannerGrid({
       <div className="grid grid-cols-7">
         {days.map((day) => {
           const iso = toISODate(day);
-          const dayInstances = grouped.get(iso) ?? [];
+          const dayInstances = [...(grouped.get(iso) ?? [])].sort(
+            comparePlanningInstances,
+          );
           const isToday = iso === todayISO;
           const outsideMonth = day.getMonth() !== currentMonth;
           const closingReason = closingDays?.get(iso);
@@ -148,22 +149,27 @@ export function MonthPlannerGrid({
                           }`}
                           style={{
                             borderLeftColor: isCancelled
-                              ? MOTO_COLOR_PALETTE.red.base
-                              : getActivityColor(inst.activityType),
+                              ? "#FF3130"
+                              : (inst.planningTrackColor ?? "#D1D5DB"),
                           }}
                         >
                           <span
                             className="h-1.5 w-1.5 shrink-0 rounded-full"
                             style={{
                               backgroundColor: isCancelled
-                                ? MOTO_COLOR_PALETTE.red.base
-                                : getActivityColor(inst.activityType),
+                                ? "#FF3130"
+                                : (inst.planningTrackColor ?? "#D1D5DB"),
                             }}
                             aria-hidden
                           />
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {inst.title}
                           </span>
+                          {inst.planningTrackName && (
+                            <span className="sr-only">
+                              Planungsspur {inst.planningTrackName}
+                            </span>
+                          )}
                           {inst.isSpontaneous && !isCancelled && (
                             <span
                               className="shrink-0 rounded-full bg-gray-100 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -150,7 +151,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	// "checked_out" start a fresh check-in.
 	var result *AttendanceResult
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
 		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
 	}
@@ -226,7 +227,7 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	}
 	now := time.Now()
 	today := timezone.TodayDate()
-	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +363,10 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 // (student_id, date) WHERE check_out_time IS NULL (migration 1.15.42), so a
 // concurrent second "in" call is silently absorbed via ON CONFLICT and we
 // re-fetch the open row to return as the canonical result.
-func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date) (*AttendanceResult, error) {
+//
+// A check-in that actually opened a row fans out over SSE after the request
+// transaction commits (#2113); the absorbed one stays silent.
+func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date, checkinType string) (*AttendanceResult, error) {
 	// Reject (and lock against a concurrent graduation) a graduated alumnus
 	// before writing attendance — the binary-mode / attendance-toggle counterpart
 	// to the CreateVisit guard (#405).
@@ -387,6 +391,9 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	if !inserted {
 		// Another concurrent "in" already created the open attendance row.
 		// Treat as success — the desired end state (open attendance) holds.
+		// Deliberately silent: the winner of the race already broadcast, and
+		// nothing moved here (mirror of the closed == nil path in
+		// performCheckOut).
 		existing, fetchErr := s.AttendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 		if fetchErr != nil {
 			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
@@ -411,6 +418,8 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
 		s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, now)
 	}
+
+	s.registerCheckinBroadcast(ctx, studentID, checkinType)
 
 	s.trackProductEvent(ctx, "student_checked_in", map[string]any{
 		"method": attendanceMethod(ctx),
@@ -465,6 +474,8 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (
 //  3. Any open room visit is ended in the same request transaction (issue
 //     #895) — including on the idempotent no-open-row path, so a checkout of
 //     any kind heals an orphaned visit left behind by older code.
+//  4. A checkout that closed attendance or healed an orphaned visit fans out
+//     over SSE after the request transaction commits (#2113).
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, checkoutType string) (*AttendanceResult, error) {
 	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
 	if err != nil {
@@ -476,6 +487,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("end open visit during checkout: %w", err)}
 	}
 
+	var snapshot *AttendanceSnapshot
 	if s.AttendanceSyncer != nil {
 		if s.GetPresenceMode(ctx) == "binary" {
 			// Binary mode has no visit provenance, so close the latest mirrored
@@ -484,20 +496,26 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 			s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
 		} else if endedVisit != nil {
 			// Detailed mode has exact source provenance through the ended visit.
-			s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
+			snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
 		}
 	}
 
 	if closed == nil {
 		// No open row — student is already checked out (or never checked in
-		// today). Report idempotent success so the caller treats this the
-		// same as an actual close.
+		// today). An orphaned visit may still have moved, so broadcast that
+		// checkout; only a true no-op stays silent.
+		if endedVisit != nil {
+			s.registerCheckoutBroadcast(ctx, studentID, endedVisit, snapshot, checkoutType)
+		}
 		return &AttendanceResult{
 			Action:    "checked_out",
 			StudentID: studentID,
 			Timestamp: now,
 		}, nil
 	}
+
+	s.registerCheckoutBroadcast(ctx, studentID, endedVisit, snapshot, checkoutType)
+
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
 		"method":        attendanceMethod(ctx),
 		"checkout_type": checkoutType,
@@ -509,6 +527,85 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 		StudentID:    studentID,
 		Timestamp:    now,
 	}, nil
+}
+
+// registerCheckoutBroadcast queues the SSE fan-out of an attendance checkout
+// that closed a row or healed an orphaned visit. It covers every entry point
+// into performCheckOut: the staff web checkout
+// (POST /active/visits/student/{id}/checkout), the school check-in/out endpoint
+// used by the binary-mode "Kinder an- und abmelden" flow, the kiosk toggle, and
+// the kiosk daily checkout. None of them emitted anything between 976b32f and
+// #2113 — ending the visit moved from service.EndVisit (which broadcasts) to
+// the repository call above (which does not), so other staff tabs kept showing
+// the child as present indefinitely: the room, search and detail views
+// revalidate on neither focus nor interval.
+//
+// Two invariants:
+//
+//  1. The student display data is read HERE, inside the request transaction.
+//     Only the emission is deferred to tenant.RegisterAfterCommit — by the time
+//     hooks run, the tx carried in ctx is closed, so a repository read from
+//     inside the hook would fail, and reading outside the tenant tx would be
+//     blocked by RLS. Deferring matters because TenantTxMiddleware commits at
+//     the end of the request: a client woken before the commit refetches the
+//     pre-checkout state, and nothing corrects it afterwards.
+//  2. Callers pass endedVisit == nil when no room visit was closed, which
+//     selects the roomless event shape. Broadcaster identity rules follow the
+//     existing helpers: the child id rides only the group-scoped topics, never
+//     the tenant-wide invalidation events (#2085).
+func (s *service) registerCheckoutBroadcast(
+	ctx context.Context,
+	studentID int64,
+	endedVisit *active.Visit,
+	snapshot *AttendanceSnapshot,
+	checkoutType string,
+) {
+	if s.Broadcaster == nil {
+		return
+	}
+
+	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+
+	tenant.RegisterAfterCommit(ctx, func() {
+		if endedVisit != nil {
+			// Ordinary visit checkouts historically had no source. Only carry the
+			// daily checkout's stable wire value onto the visit-shaped heal path.
+			source := ""
+			if checkoutType == checkoutTypeDaily {
+				source = dailyCheckoutSource
+			}
+			s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, source)
+			return
+		}
+		s.emitRoomlessCheckout(ctx, studentID, studentName, studentRec, checkoutSourceLabel(checkoutType))
+	})
+}
+
+// registerCheckinBroadcast queues the SSE fan-out of an attendance check-in
+// that actually opened a row. Mirror of registerCheckoutBroadcast, same two
+// invariants — the display data is read HERE, inside the request transaction,
+// and only the emission is deferred past the commit.
+//
+// Covers the check-in paths that write attendance without a room visit: the
+// school check-in/out endpoint used by the "Kinder an- und abmelden" flow, the
+// binary-mode kiosk scan, and the door kiosk's attendance toggle in either mode.
+// All three were silent, so a colleague's open room, search or detail view kept
+// showing the child as absent — none of them revalidates on focus or interval.
+//
+// Deliberately not gated on presence mode: the detailed-mode ROOM check-in
+// takes the CreateVisit path, which writes its own attendance row and emits
+// broadcastVisitCreated. The two call sets are disjoint, so no request can emit
+// both.
+func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64, checkinType string) {
+	if s.Broadcaster == nil {
+		return
+	}
+
+	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitRoomlessCheckin(ctx, studentID, studentName, studentRec, checkinType)
+	})
 }
 
 // getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
@@ -587,35 +684,80 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	return false, nil
 }
 
-// BroadcastDailyCheckout sends an SSE student_checkout event to the student's
-// educational (OGS) group topic so the "Meine Gruppe" page updates in real time.
-// Called after the daily checkout attendance toggle succeeds.
-func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
+// emitRoomlessCheckout publishes a checkout that has no room context. Used when
+// no visit ended — a binary-mode tenant (which keeps no visit rows at all) or a
+// kiosk daily checkout, where the visit was already closed when the child left
+// the room.
+func (s *service) emitRoomlessCheckout(
+	ctx context.Context,
+	studentID int64,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
+	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckOut, studentID, studentName, studentRec, source)
+}
+
+// emitRoomlessCheckin publishes a check-in that has no room context: attendance
+// opened without the child entering a room. That is every binary-mode check-in
+// (the tenant keeps no visit rows) and the door kiosk's attendance toggle in
+// either mode. The detailed-mode room check-in does NOT come through here — it
+// runs through CreateVisit, which writes its own attendance row and emits
+// broadcastVisitCreated, so the two can never fire for the same request.
+func (s *service) emitRoomlessCheckin(
+	ctx context.Context,
+	studentID int64,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
+	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckIn, studentID, studentName, studentRec, source)
+}
+
+// emitRoomlessAttendanceChange publishes an attendance change with no room
+// context: the student's educational (OGS) group topic plus the tenant-wide
+// dashboard refresh. There is no active group to scope to, hence no active-group
+// topic and no active_supervision_changed — no room roster changed.
+//
+// Takes the display data pre-resolved for the same reason as
+// emitVisitCheckout — see its doc comment.
+func (s *service) emitRoomlessAttendanceChange(
+	ctx context.Context,
+	eventType realtime.EventType,
+	studentID int64,
+	studentName string,
+	studentRec *userModels.Student,
+	source string,
+) {
 	if s.Broadcaster == nil {
 		return
 	}
 
 	studentIDStr := fmt.Sprintf("%d", studentID)
-	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+	eduGroupIDs := eduGroupIDsOf(studentRec)
 
-	source := "daily_checkout"
+	data := realtime.EventData{
+		StudentID:   &studentIDStr,
+		StudentName: &studentName,
+		Source:      &source,
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
+	}
 	event := realtime.NewEvent(
-		realtime.EventStudentCheckOut,
-		"", // no active group — student already left their room
-		realtime.EventData{
-			StudentID:   &studentIDStr,
-			StudentName: &studentName,
-			Source:      &source,
-		},
+		eventType,
+		"", // no active group — the child is not in a room
+		data,
 	)
 
 	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
-	// Notify all clients so dashboard counts and search page refresh —
-	// the educational group broadcast only reaches staff in that group,
-	// but the search page is used by all staff.
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	// Notify every client of the tenant so dashboard counts and the search
+	// page refresh — the educational group broadcast only reaches staff in
+	// that group, but the search page is used by all staff. Scoped to the
+	// student's educational group when known (#2057).
+	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
 }
 
 // ConfirmDailyCheckout processes the deferred daily-checkout confirmation for an
@@ -659,6 +801,11 @@ func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID 
 				slog.Int64("student_id", studentID),
 			)
 		case "checked_in":
+			// CheckOutStudentFromDevice broadcasts the student_checkout /
+			// dashboard_counts_changed pair itself, after the request
+			// transaction commits (#2113) — the explicit BroadcastDailyCheckout
+			// that used to sit here fired before the commit and is now a
+			// duplicate.
 			if _, err := s.CheckOutStudentFromDevice(ctx, studentID, deviceID); err != nil {
 				s.getLogger().ErrorContext(ctx, "failed to update attendance for daily checkout",
 					slog.Int64("student_id", studentID),
@@ -666,9 +813,6 @@ func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID 
 				)
 				return nil, err
 			}
-
-			// Broadcast SSE event so the OGS Groups page updates in real time
-			s.BroadcastDailyCheckout(ctx, studentID)
 		}
 	}
 
@@ -702,9 +846,16 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 // ClaimActiveGroup allows a staff member to claim supervision of an active group
 // This is primarily used for deviceless rooms like Schulhof
 func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
-	// Verify group exists and is still active
-	group, err := s.GroupRepo.FindByID(ctx, groupID)
+	// Lock the group while checking its lifecycle and creating the supervisor.
+	// Planned-session absorption takes the same lock before deciding that an
+	// open, unsupervised group can be folded into the new session. This prevents
+	// a claim from committing on a group that absorption ended while the claim
+	// was in flight.
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
+	}
+	if group == nil {
 		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
 	}
 

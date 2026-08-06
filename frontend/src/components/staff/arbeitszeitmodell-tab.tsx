@@ -2,16 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
-import { ClockIcon } from "@phosphor-icons/react";
 
+import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import {
-  ConceptSectionHeader,
-  SectionHeader,
-} from "~/components/ui/concept-section-header";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { staffScheduleService, workTimeModelService } from "~/lib/staff-api";
@@ -115,42 +112,36 @@ export function ArbeitszeitmodellTab({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <SectionHeader
-          className="mb-5"
-          title="Aktuelles Modell"
-          icon={<MotoDuotoneIcon icon={ClockIcon} tone="neutral" size={22} />}
-          subtitle={
-            <>
-              <p className="text-base font-semibold text-gray-800">
-                {schedule.mode === "template" && schedule.model
-                  ? schedule.model.name
-                  : "Eigenes Modell"}
-              </p>
-              <p className="text-xs text-gray-500">
-                {weeksLabel} · Schnitt{" "}
-                {formatDuration(Math.round(averagePerWeek))} / Woche
-              </p>
-            </>
-          }
-          actions={
-            canEdit ? (
-              <button
-                type="button"
-                onClick={() => setEditorOpen(true)}
-                className="rounded-full bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                Bearbeiten
-              </button>
-            ) : undefined
-          }
-        />
-
+      <SectionCard
+        kicker="Aktuelles Modell"
+        title={
+          schedule.mode === "template" && schedule.model
+            ? schedule.model.name
+            : "Eigenes Modell"
+        }
+        headingLevel={3}
+        description={`${weeksLabel} · Schnitt ${formatDuration(
+          Math.round(averagePerWeek),
+        )} / Woche`}
+        action={
+          canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              className="bg-white"
+              onClick={() => setEditorOpen(true)}
+            >
+              Bearbeiten
+            </Button>
+          ) : undefined
+        }
+      >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {schedule.weeklyTotals.map((total, idx) => (
             <div
               key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}
-              className="rounded-2xl border border-gray-100 bg-white p-4"
+              className="rounded-xl border border-gray-200 bg-white p-4"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
@@ -192,7 +183,7 @@ export function ArbeitszeitmodellTab({
             </div>
           ))}
         </div>
-      </div>
+      </SectionCard>
 
       <FourWeekPreview schedule={schedule} today={today} />
 
@@ -246,22 +237,17 @@ function FourWeekPreview({
   }, [schedule, today]);
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <ConceptSectionHeader
-        className="mb-4"
-        title="Vorschau (nächste 4 Wochen)"
-        concept="calendar"
-      />
+    <SectionCard title="Vorschau (nächste 4 Wochen)" headingLevel={3}>
       <div className="space-y-2">
         {weeks.map((week) => {
           const badge = WEEK_BADGE_LETTERS[week.weekIndex] ?? "?";
           return (
             <div
               key={toDateKey(week.monday)}
-              className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${
+              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
                 week.isCurrent
-                  ? "border-moto-amber/30 bg-moto-amber/10"
-                  : "border-gray-100 bg-white"
+                  ? "border-[#F78C10]/40 bg-[#FFF4E6]"
+                  : "border-gray-200 bg-white"
               }`}
             >
               <span className="w-16 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -292,7 +278,7 @@ function FourWeekPreview({
           );
         })}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -478,24 +464,26 @@ function EditArbeitszeitmodellModal({
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onClose}
         disabled={saving}
-        className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
       >
         Abbrechen
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={() => {
           handleSave();
         }}
         disabled={saving}
-        className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {saving ? "Speichern..." : "Speichern"}
-      </button>
+      </Button>
     </div>
   );
 
@@ -747,22 +735,16 @@ function CustomEditor({
       </div>
 
       {rotationLength > 1 && (
-        <div className="flex gap-1 overflow-x-auto rounded-full border border-gray-200 bg-white p-1">
-          {Array.from({ length: rotationLength }, (_, w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => onActiveWeekTabChange(w)}
-              className={`flex-1 shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                activeWeekTab === w
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              Woche {WEEK_BADGE_LETTERS[w] ?? w + 1}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Woche der Rotation"
+          fullWidth
+          items={Array.from({ length: rotationLength }, (_, w) => ({
+            value: String(w),
+            label: `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1}`,
+          }))}
+          value={String(activeWeekTab)}
+          onChange={(next) => onActiveWeekTabChange(Number(next))}
+        />
       )}
 
       <div className="space-y-2">

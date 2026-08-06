@@ -62,9 +62,11 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 
 	s.broadcastWithLogging(ctx, activeGroupID, "", event, "activity_start")
 
-	// Notify all clients (including zero-topic) so dashboard refreshes
-	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, "", activeSupervisionReasonActivityStarted)
+	// Notify every client of the tenant (including zero-topic) so dashboards
+	// refresh. No group scope: a session start affects room occupancy across
+	// groups, so clients fall back to a broad refresh (#2057).
+	s.broadcastDashboardCountsChanged(ctx, nil)
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonActivityStarted)
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members
@@ -1222,7 +1224,15 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		// Use ProcessSessionTimeoutByID with the session ID directly to prevent TOCTOU race condition
 		// This ensures we end the exact session we identified as abandoned, not whatever
 		// session happens to be current for the device at cleanup time
-		_, err := s.ProcessSessionTimeoutByID(ctx, session.ID)
+		//
+		// Stamp the session's tenant into the context: the CLI cleanup path
+		// (cmd/cleanup.go) calls with context.Background(), and the SSE
+		// broadcasts inside the timeout flow are tenant-scoped
+		// (BroadcastToTenant) — without a tenant id they would be silently
+		// dropped. The scheduler path already carries the same tenant id, so
+		// re-stamping is a no-op there.
+		sessionCtx := tenant.WithTenantID(ctx, session.TenantID)
+		_, err := s.ProcessSessionTimeoutByID(sessionCtx, session.ID)
 		if err != nil {
 			// Log error but continue with other sessions
 			// Note: ErrActiveGroupAlreadyEnded is expected if session was ended between

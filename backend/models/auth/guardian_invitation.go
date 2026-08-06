@@ -36,6 +36,12 @@ type GuardianInvitation struct {
 	// ProfileCreatedForInvitation is true only when this invite flow created
 	// the guardian profile specifically to back this invitation.
 	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
+	// RoleUpgrade is true when approving this invitation must also upgrade the
+	// existing restrictive students_guardians link (emergency_contact/
+	// pickup_only/custom) to legal_guardian, because the invited person was
+	// already a restricted contact and the inviter confirmed the upgrade
+	// (#2172). Direct-mode invites apply the upgrade immediately instead.
+	RoleUpgrade bool `bun:"role_upgrade,notnull,default:false" json:"role_upgrade"`
 
 	// Relations (not stored in database)
 }

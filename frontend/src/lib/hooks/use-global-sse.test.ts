@@ -103,6 +103,10 @@ function fireSSE(event: SSEEvent) {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.clearAllMocks();
+  // Pin the per-burst flush jitter (#2057) to 0 so the existing
+  // advanceTimersByTime(500) timing assertions stay deterministic. Jitter
+  // bounds get their own explicit tests.
+  vi.spyOn(Math, "random").mockReturnValue(0);
   mockUseSession.mockReturnValue(authenticatedSession());
   // Re-wire the useSSE mock after clearAllMocks
   mockUseSSE.mockImplementation(
@@ -120,6 +124,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -580,7 +585,7 @@ describe("useGlobalSSE — companion announcements", () => {
       );
     // Tenant-prefixed by useSWRAuth, hence the prefix in the probe key.
     expect(
-      matchers.some((matcher) => matcher("t1:search-students--all-")),
+      matchers.some((matcher) => matcher("t1:search-students-gall-all-")),
     ).toBe(true);
   });
 
@@ -646,7 +651,7 @@ describe("useGlobalSSE — companion announcements", () => {
       "t1:student-detail-s1",
       "t1:pickup-data-s2",
       "t1:student-detail-s2",
-      "t1:search-students--all-",
+      "t1:search-students-gall-all-",
     ]) {
       expect(
         matchers.some((matcher) => matcher(key)),
@@ -680,6 +685,64 @@ describe("useGlobalSSE — companion announcements", () => {
         `student_updated must invalidate ${key}`,
       ).toBe(true);
     }
+  });
+
+  // The two tests below pin the Aktuelle-Aufsicht bulk time caches. Unlike the
+  // OGS group view — whose aggregated ogs-students-{gid} response carries the
+  // pickup times, so any trigger refreshes them together (#2056) — this page
+  // still fetches pickup and arrival under their own keys. Those keys embed
+  // the room's student-id list and disable focus revalidation, so an SSE
+  // invalidation is their ONLY live update path: nothing but a roster change
+  // or Berlin midnight rotates the key on its own.
+  const AUFSICHT_PICKUP_KEY = "t1:pickup-supervisions-2026-07-22-7,8,9";
+  const AUFSICHT_ARRIVAL_KEY = "t1:arrival-supervisions-2026-07-22-7,8,9";
+
+  // Fires one event, flushes the burst debounce, and asserts that some matcher
+  // handed to mutate() claims each key.
+  function expectEventInvalidates(
+    event: Parameters<typeof fireSSE>[0],
+    keys: readonly string[],
+  ) {
+    renderHook(() => useGlobalSSE());
+    fireSSE(event);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    for (const key of keys) {
+      expect(
+        matchers.some((matcher) => matcher(key)),
+        `${event.type} must invalidate ${key}`,
+      ).toBe(true);
+    }
+  }
+
+  it("refreshes the Aufsicht pickup cache on pickup_schedule_changed", () => {
+    // A staff Gehzeit write (weekly plan or date exception) emits only this
+    // event — see api/students/pickup_schedule_handlers.go. The supervising
+    // staff member watching the room is exactly who must see the new time.
+    expectEventInvalidates(makeEvent("pickup_schedule_changed", {}), [
+      AUFSICHT_PICKUP_KEY,
+    ]);
+  });
+
+  it("refreshes both Aufsicht time caches on student_updated", () => {
+    // A parent care exception (submit AND delete) rewrites that day's pickup
+    // and arrival override under student_updated alone, and an approved care
+    // request rewrites the weekly pickup plan while announcing only
+    // student_updated + arrival_schedule_changed. Both writes can target a
+    // child already standing in the room, so neither rotates the roster-keyed
+    // cache key.
+    expectEventInvalidates(makeEvent("student_updated", { student_id: "7" }), [
+      AUFSICHT_PICKUP_KEY,
+      AUFSICHT_ARRIVAL_KEY,
+    ]);
   });
 
   it("does not revalidate another child whose id merely starts with the event's", () => {

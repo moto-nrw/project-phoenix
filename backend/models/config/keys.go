@@ -142,6 +142,8 @@ const (
 	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
 	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
 	KeyGroupMode                       = "operations.group_mode"
+	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
+	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
@@ -249,6 +251,8 @@ const (
 	KeyEnrollmentNotificationEmails                     = "enrollment.notification_emails"
 	KeyEnrollmentChangeRequestEmailNotificationsEnabled = "enrollment.change_request_email_notifications_enabled"
 	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
+	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
+	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
@@ -344,6 +348,16 @@ const (
 	KeyRemindersActivityStartEnabled      = "reminders.activity_start_enabled"
 	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
 	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
+)
+
+// Appointment reminder settings (issue #1671). Unlike the staff reminders
+// above, these address guardians: a school-configurable lead time before a
+// parent-facing appointment, delivered as the appointment_reminder e-mail and
+// (for guardians who asked for it) a push. Definitions live in
+// defaults/appointment_reminders.go.
+const (
+	KeyCalendarAppointmentReminderEnabled   = "calendar.appointment_reminder_enabled"
+	KeyCalendarAppointmentReminderLeadHours = "calendar.appointment_reminder_lead_hours"
 )
 
 // Payroll foundation settings (#1417 Tranche 2b). Lohnartnummern are

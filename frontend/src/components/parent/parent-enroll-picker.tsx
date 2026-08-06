@@ -79,7 +79,7 @@ export function ParentEnrollPicker() {
   }, [phases]);
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="w-full space-y-6">
       <Link
         href="/parents"
         className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"

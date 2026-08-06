@@ -69,8 +69,39 @@ const (
 	// "instance_delete").
 	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
 
-	// Global refresh event — tells all clients to re-fetch dashboard counts
+	// Tenant-wide refresh event — tells every client of the tenant to re-fetch
+	// dashboard counts. Broadcast via BroadcastToTenant (issue #2057; it was
+	// BroadcastToAll before, which fanned every school's check-in traffic out to
+	// every OTHER school's clients). Carries GroupIDs (educational group ids,
+	// never student identity) when the emitting site knows them, so clients can
+	// scope their ogs-students-{gid} revalidation; without GroupIDs clients fall
+	// back to a broad refresh.
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
+
+	// EventGroupAccessChanged is a tenant-wide signal that WHICH educational
+	// groups a staff member may open in "Meine Gruppe" has changed.
+	//
+	// That set is the union of exactly two tables (usercontext.GetMyGroups):
+	// education.group_teacher — the group's leaders, edited in the group admin
+	// UI — and education.group_substitution, written both by the admin
+	// Vertretungsplan and by the self-service Gruppenübergabe. The event is
+	// named for the invariant rather than for either table, so a new writer of
+	// either one has an obvious signal to reuse instead of inventing a second.
+	//
+	// It exists BECAUSE the affected staff member's own client never made the
+	// write and no other event covers it: a handover or a leader reassignment
+	// changes no attendance, no activity session and no timetable block, so
+	// none of the check-in, activity or instance events fire. Until #2083 the
+	// visibility rode along by accident — the OGS page's BFF was refetched on
+	// every check-in anywhere in the school — and after that refetch herd was
+	// removed, a group handed to someone stayed invisible in their open tab
+	// until the five-minute safety poll or a manual reload (#2084).
+	//
+	// Carries no staff identifier: the event reaches every staff client of the
+	// tenant, and naming the person would tell colleagues outside the affected
+	// group who is standing in for whom. Clients refetch their own
+	// access-filtered views (Source names the emitting flow for log review).
+	EventGroupAccessChanged EventType = "group_access_changed"
 
 	// EventStaffTimeTrackingChanged is a tenant-wide invalidation trigger for
 	// writes that change staff work sessions, absences, balances, contractual
@@ -81,6 +112,19 @@ const (
 	// Active supervision refresh event — tenant-wide signal that the active
 	// supervision view is stale regardless of whether the cause was IoT, NFC,
 	// timetable operations, or another lifecycle action.
+	//
+	// Carries NO child identity (#2085), for the same reason
+	// arrival_schedule_changed and pickup_schedule_changed are id-less: it
+	// reaches every staff client of the school, so a student id would let a
+	// colleague outside gdpr.student_data_scope = group_supervisors_only read
+	// off the raw SSE stream which child had just moved — the very thing the
+	// API responses redact for that person. It may carry the active_group_id,
+	// instance_id and a reason: room/session/instance scope, never who.
+	//
+	// The per-child detail-cache invalidation rides the group-scoped
+	// student_checkin / student_checkout events instead, which are emitted
+	// alongside it to the active-group and edu:{id} topics and therefore reach
+	// exactly the supervisors entitled to that child's data.
 	EventActiveSupervisionChanged EventType = "active_supervision_changed"
 
 	// Arrival schedule events affect derived "not arriving today" badges and
@@ -181,6 +225,18 @@ type EventData struct {
 	// (whole-session end). The client adds each to its per-student
 	// detail-cache invalidation set; the refetch itself is topic-driven.
 	StudentIDs *[]string `json:"student_ids,omitempty"`
+
+	// GroupIDs carries the affected educational (OGS) group ids on
+	// dashboard_counts_changed / student_checkin / student_checkout /
+	// bulk_student_checkout (#2057). Group ids only — NEVER student identity —
+	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
+	// gdpr.student_data_scope: it reveals "counts in group X changed", nothing
+	// about who. Clients scope their ogs-students-{gid} revalidation to these
+	// ids. Contract: absence of the field means "scope unknown → refresh
+	// broadly"; emitters MUST omit the field entirely (nil) instead of sending
+	// an empty array, which clients would read as "scope to nothing" and
+	// silently drop the invalidation.
+	GroupIDs *[]string `json:"group_ids,omitempty"`
 
 	// Activity session fields (for activity_start/end/update events)
 	ActivityName  *string   `json:"activity_name,omitempty"`

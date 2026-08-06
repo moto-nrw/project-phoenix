@@ -126,7 +126,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
-    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    claimActiveGroup: vi.fn(() => Promise.resolve()),
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
@@ -325,6 +325,7 @@ describe("Action button click handlers", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-r1",
@@ -385,6 +386,7 @@ describe("Action button click handlers", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-r1",
@@ -437,9 +439,9 @@ describe("Action button click handlers", () => {
     });
   });
 
-  it("clicking Beaufsichtigen button calls toggleSchulhofSupervision", async () => {
+  it("clicking Beaufsichtigen claims the open Schulhof session", async () => {
     const { activeService } = await import("~/lib/active-api");
-    vi.mocked(activeService.toggleSchulhofSupervision).mockResolvedValue(
+    vi.mocked(activeService.claimActiveGroup).mockResolvedValue(
       undefined as never,
     );
 
@@ -452,15 +454,16 @@ describe("Action button click handlers", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-r1",
             roomName: "Schulhof",
             activityGroupId: "ag-1",
-            activeGroupId: null,
+            activeGroupId: "g-55",
             isUserSupervising: false,
             supervisionId: null,
-            supervisorCount: 0,
+            supervisorCount: 1,
             studentCount: 0,
             supervisors: [],
           },
@@ -485,22 +488,20 @@ describe("Action button click handlers", () => {
       expect(screen.getByText("Beaufsichtigen")).toBeInTheDocument();
     });
 
-    // Click the button - this triggers handleToggleSchulhof() (line 1429)
+    // Click the button - this triggers handleToggleSchulhof()
     const beaufsichtigenButton = screen.getByText("Beaufsichtigen");
     fireEvent.click(beaufsichtigenButton);
 
-    // Should have called toggleSchulhofSupervision with "start"
+    // Joins the running session as an additional supervisor (#2161)
     await waitFor(() => {
-      expect(activeService.toggleSchulhofSupervision).toHaveBeenCalledWith(
-        "start",
-      );
+      expect(activeService.claimActiveGroup).toHaveBeenCalledWith("g-55");
     });
   });
 
   it("clicking Beaufsichtigen shows loading state", async () => {
     const { activeService } = await import("~/lib/active-api");
-    // Make the toggle take time
-    vi.mocked(activeService.toggleSchulhofSupervision).mockImplementation(
+    // Make the claim take time
+    vi.mocked(activeService.claimActiveGroup).mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 100)),
     );
 
@@ -513,15 +514,16 @@ describe("Action button click handlers", () => {
           educationalGroups: [],
           firstRoomVisits: [],
           firstRoomId: null,
+          capabilities: { webSpontaneousActivitiesEnabled: true },
           schulhofStatus: {
             exists: true,
             roomId: "schulhof-r1",
             roomName: "Schulhof",
             activityGroupId: "ag-1",
-            activeGroupId: null,
+            activeGroupId: "g-55",
             isUserSupervising: false,
             supervisionId: null,
-            supervisorCount: 0,
+            supervisorCount: 1,
             studentCount: 0,
             supervisors: [],
           },
@@ -637,6 +639,7 @@ describe("Schulhof tab onTabChange callback", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: "room-1",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "schulhof-r1",
@@ -732,6 +735,7 @@ describe("Schulhof tab onTabChange callback", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: "room-1",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "schulhof-r1",
@@ -804,6 +808,7 @@ describe("Schulhof tab onTabChange callback", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: "room-1",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
         roomId: "schulhof-r1",

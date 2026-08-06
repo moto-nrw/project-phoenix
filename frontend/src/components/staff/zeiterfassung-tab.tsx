@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { Button } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
@@ -269,22 +270,19 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     <div className="space-y-5">
       <KpiCards metrics={metrics} />
 
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <ConceptSectionHeader
-          className="mb-5"
-          title="Zeiterfassung"
-          concept="timeTracking"
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <ViewToggle value={viewMode} onChange={setViewMode} />
-              <StaffExportButton
-                staffId={staffId}
-                yearStart={startOfYear(today)}
-              />
-            </div>
-          }
-        />
-
+      <SectionCard
+        title="Zeiterfassung"
+        headingLevel={3}
+        actions={
+          <>
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+            <StaffExportButton
+              staffId={staffId}
+              yearStart={startOfYear(today)}
+            />
+          </>
+        }
+      >
         <RangeNav
           label={formatRangeLabel(viewMode, monthAnchor, weekAnchor)}
           onPrev={handlePrev}
@@ -388,7 +386,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
             />
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }
@@ -410,34 +408,37 @@ function RangeNav({
     <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
       <div className="hidden sm:block" />
       <div className="flex min-w-0 items-center justify-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={onPrev}
           aria-label="Zurück"
-          className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-        </button>
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </Button>
         <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
           {label}
         </h3>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={onNext}
           aria-label="Vor"
-          className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          <ChevronRight className="h-4 w-4" strokeWidth={2} />
-        </button>
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </Button>
       </div>
       <div className="flex justify-center sm:justify-end">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="compact"
           onClick={onToday}
-          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
         >
           {todayLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );

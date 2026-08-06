@@ -16,8 +16,11 @@ type relatedAccountResponse struct {
 	LastName          string `json:"last_name"`
 	Email             string `json:"email,omitempty"`
 	RelationshipType  string `json:"relationship_type"`
-	IsPrimary         bool   `json:"is_primary"`
-	Status            string `json:"status"`
+	// GuardianRole lets the panel hide the grant-access action for
+	// school-managed social-worker contacts (#2172).
+	GuardianRole string `json:"guardian_role,omitempty"`
+	IsPrimary    bool   `json:"is_primary"`
+	Status       string `json:"status"`
 	// IsSelf marks the requesting parent's own row; the UI hides the remove
 	// action for it since self-removal is rejected by the backend.
 	IsSelf bool `json:"is_self"`
@@ -29,12 +32,18 @@ type inviteRelatedAccountRequest struct {
 	Email     string `json:"email"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
+	// ConfirmRoleUpgrade confirms upgrading an existing restrictive contact
+	// link to full access (#2172).
+	ConfirmRoleUpgrade bool `json:"confirm_role_upgrade"`
 }
 
 // inviteRelatedAccountResponse echoes the resolve outcome.
 type inviteRelatedAccountResponse struct {
 	Outcome           string `json:"outcome"`
 	GuardianProfileID string `json:"guardian_profile_id"`
+	// ExistingRole carries the current guardian role for the
+	// existing_contact_restricted outcome.
+	ExistingRole string `json:"existing_role,omitempty"`
 }
 
 // listRelatedAccounts returns the guardians linked to the parent's child with
@@ -63,6 +72,7 @@ func (rs *Resource) listRelatedAccounts(w http.ResponseWriter, r *http.Request) 
 			LastName:          a.LastName,
 			Email:             a.Email,
 			RelationshipType:  a.RelationshipType,
+			GuardianRole:      a.GuardianRole,
 			IsPrimary:         a.IsPrimary,
 			Status:            string(a.Status),
 			IsSelf:            a.IsSelf,
@@ -88,7 +98,7 @@ func (rs *Resource) inviteRelatedAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	result, err := rs.ParentService.InviteRelatedAccount(r.Context(), accountID, studentID, body.Email, body.FirstName, body.LastName)
+	result, err := rs.ParentService.InviteRelatedAccount(r.Context(), accountID, studentID, body.Email, body.FirstName, body.LastName, body.ConfirmRoleUpgrade)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
@@ -97,6 +107,7 @@ func (rs *Resource) inviteRelatedAccount(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusCreated, inviteRelatedAccountResponse{
 		Outcome:           result.Outcome,
 		GuardianProfileID: strconv.FormatInt(result.GuardianProfileID, 10),
+		ExistingRole:      result.ExistingRole,
 	}, "Guardian invited")
 }
 

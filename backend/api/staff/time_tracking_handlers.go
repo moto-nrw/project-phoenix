@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -258,10 +257,14 @@ func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if body.Year == 0 {
-		body.Year = time.Now().Year()
+		body.Year = timezone.TodayDate().Year
 	}
 	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		if errors.Is(err, activeSvc.ErrVacationQuotaInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, body.Year)
@@ -283,7 +286,7 @@ func parseInt64Param(r *http.Request, name string) (int64, error) {
 func parseYearQuery(r *http.Request) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
-		return time.Now().Year(), nil
+		return timezone.TodayDate().Year, nil
 	}
 	year, err := strconv.Atoi(yearStr)
 	if err != nil || year < 2000 || year > 2100 {

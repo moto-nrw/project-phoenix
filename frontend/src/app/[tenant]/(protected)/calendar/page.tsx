@@ -423,7 +423,7 @@ export default function StaffCalendarPage() {
       setStartTime(base.all_day ? "09:00" : event.start_time);
       setEndTime(base.all_day ? "10:00" : event.end_time);
       setOverviewVisibility(base.overview_visibility);
-      setSendEmail(false);
+      setSendEmail(base.notify_guardians);
       if (detail.recurrence) {
         setFrequency(detail.recurrence.frequency);
         setIntervalCount(detail.recurrence.interval_count);

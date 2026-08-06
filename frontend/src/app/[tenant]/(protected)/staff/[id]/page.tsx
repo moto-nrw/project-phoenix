@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useParams, redirect } from "next/navigation";
+import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -13,18 +13,21 @@ import {
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { Avatar } from "~/components/ui/avatar";
+import { EmptyState } from "~/components/ui/empty-state";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
+import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
@@ -45,7 +48,6 @@ function StaffHeader({
 }) {
   const locationStatus = getStaffLocationStatus(staff);
   const displayType = getStaffDisplayType(staff);
-  const initials = getInitials(`${staff.firstName} ${staff.lastName}`);
   const employmentLabel = staff.employmentType
     ? (employmentTypeLabels[staff.employmentType] ?? staff.employmentType)
     : null;
@@ -60,10 +62,13 @@ function StaffHeader({
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 flex-1 items-start gap-4">
-        {/* Avatar - solid neutral gray, status is shown in badge */}
-        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-base font-semibold text-gray-600 sm:h-16 sm:w-16 sm:text-lg">
-          {initials}
-        </div>
+        {/* Kit avatar: initials fallback in the brand-green tint. The name is
+            rendered right next to it, so the avatar is decorative. */}
+        <Avatar
+          name={`${staff.firstName} ${staff.lastName}`}
+          size="lg"
+          decorative
+        />
 
         {/* Eyebrow + Name + Subheading + meta */}
         <div className="min-w-0 flex-1">
@@ -95,28 +100,18 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
-        <span
-          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
-          style={{
-            backgroundColor: locationStatus.customBgColor,
-            boxShadow: locationStatus.customShadow,
-          }}
-        >
-          <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
-          {locationStatus.label}
-        </span>
+        {/* Kein Glow, kein Pulsieren — dieselbe Entscheidung wie auf den
+            Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
+            (LOCATION_COLORS über getStaffLocationStatus), deshalb
+            StatusDotBadge und nicht StatusBadge. */}
+        {!staff.isLimitedProfile ? (
+          <StatusDotBadge
+            label={locationStatus.label}
+            color={locationStatus.customBgColor}
+          />
+        ) : null}
         {menu}
       </div>
-    </div>
-  );
-}
-
-// ─── Placeholder tab (for disabled tabs) ─────────────────────────────────────
-
-function PlaceholderTab({ title }: { readonly title: string }) {
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-8 text-center shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <p className="text-sm text-gray-400">{title} — kommt bald.</p>
     </div>
   );
 }
@@ -132,24 +127,54 @@ export default function StaffDetailContent() {
   });
   const router = useTenantRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const staffId = params.id as string;
-  const canEdit = isAdmin(session);
+  // Effective admin: the backend grants everything to `admin:*` / `*:*`
+  // holders regardless of the role name, so a custom role carrying the
+  // wildcard must see the same admin-gated UI as the literal admin role
+  // (mirrors the staff list).
+  const canEdit = isAdmin(session) || hasPermission(session, "admin:*");
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canManageAbsences =
+    canEdit ||
+    canManageTimeTracking ||
+    hasPermission(session, "vacation:approve");
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
+  const canEditStammdaten = hasPermission(session, "users:update");
+  // Deliberately NOT users:read: the sections carry HR-file data (birthday,
+  // private address, contract terms), and users:read is held by everyone who
+  // may see the staff list at all — mirrors the backend route gate.
+  const canViewStammdatenSections =
+    canEdit || canManageTimeTracking || canEditStammdaten;
+  const canViewFinancial = hasPermission(session, "staff:financial");
+  const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
+  // Dokumente (#1424): mirrors the backend route gate — any of the three
+  // category permissions opens the tab; the backend then filters the list
+  // to exactly the categories the caller may see.
+  const canViewDocuments =
+    canEdit ||
+    canEditStammdaten ||
+    canViewFinancial ||
+    hasPermission(session, "staff_documents:health");
+  const requestedTab = searchParams.get("tab");
 
   const {
     data: staff,
     isLoading,
     error,
   } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
-    staffService.getStaffById(staffId),
+    canViewFinancial && !canViewStammdatenSections
+      ? staffService.getFinancialProfile(staffId)
+      : canViewDocuments && !canViewTimeTracking && !canViewStammdaten
+        ? staffService.getDocumentProfile(staffId)
+        : staffService.getStaffById(staffId),
   );
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
   const { data: pendingForStaff } = useSWRAuth<number>(
-    `staff-pending-absences-${staffId}`,
+    canManageAbsences ? `staff-pending-absences-${staffId}` : null,
     async () => {
       const year = new Date().getFullYear();
       const rows = await staffAbsenceService.getAbsences(
@@ -181,18 +206,17 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewTimeTracking) {
+  if (!canViewTimeTracking && !canViewStammdaten && !canViewDocuments) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
 
   if (error || !staff) {
     return (
-      <div className="py-12 text-center">
-        <p className="text-gray-500">
-          Mitarbeiter konnte nicht geladen werden.
-        </p>
-      </div>
+      <EmptyState
+        title="Mitarbeiter konnte nicht geladen werden."
+        description="Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr."
+      />
     );
   }
 
@@ -218,7 +242,17 @@ export default function StaffDetailContent() {
 
       {/* Tabs */}
       <Tabs
-        defaultValue={canViewTimeTracking ? "uebersicht" : "abwesenheiten"}
+        defaultValue={
+          requestedTab === "dokumente" && canViewDocuments
+            ? "dokumente"
+            : canViewTimeTracking
+              ? "uebersicht"
+              : canViewStammdaten
+                ? "stammdaten"
+                : canViewDocuments
+                  ? "dokumente"
+                  : "abwesenheiten"
+        }
         className="w-full"
       >
         <TabsList
@@ -236,24 +270,24 @@ export default function StaffDetailContent() {
               Arbeitszeitmodell
             </TabsTrigger>
           ) : null}
-          <TabsTrigger value="abwesenheiten">
-            <span className="inline-flex items-center gap-1.5">
-              Abwesenheiten
-              <NotificationBadge
-                count={pendingCount}
-                tone="staff"
-                size="sm"
-                ariaLabel={`${pendingCount} ${pendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
-              />
-            </span>
-          </TabsTrigger>
-          {canManageTimeTracking ? (
+          {canManageAbsences ? (
+            <TabsTrigger value="abwesenheiten">
+              <span className="inline-flex items-center gap-1.5">
+                Abwesenheiten
+                {pendingCount > 0 && (
+                  <StatusBadge
+                    tone="red"
+                    label={pendingCount > 99 ? "99+" : String(pendingCount)}
+                  />
+                )}
+              </span>
+            </TabsTrigger>
+          ) : null}
+          {canViewStammdaten ? (
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
           ) : null}
-          {canEdit ? (
-            <TabsTrigger value="dokumente" disabled>
-              Dokumente
-            </TabsTrigger>
+          {canViewDocuments ? (
+            <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -275,28 +309,33 @@ export default function StaffDetailContent() {
           </TabsPrimitive.Content>
         ) : null}
 
-        <TabsPrimitive.Content value="abwesenheiten">
-          <AbwesenheitenTab
-            staffId={staffId}
-            canEdit={canEdit}
-            canManageSickReports={canManageTimeTracking}
-            staff={staff}
-          />
-        </TabsPrimitive.Content>
+        {canManageAbsences ? (
+          <TabsPrimitive.Content value="abwesenheiten">
+            <AbwesenheitenTab
+              staffId={staffId}
+              canEdit={canEdit}
+              canManageSickReports={canManageTimeTracking}
+              staff={staff}
+            />
+          </TabsPrimitive.Content>
+        ) : null}
 
-        {canManageTimeTracking ? (
+        {canViewStammdaten ? (
           <TabsPrimitive.Content value="stammdaten">
             <StammdatenTab
               staffId={staffId}
               canManagePayroll={canManageTimeTracking}
               canManagePayrollSettings={canManagePayrollSettings}
+              canViewSections={canViewStammdatenSections}
+              canEditSections={canEditStammdaten}
+              canViewFinancial={canViewFinancial}
             />
           </TabsPrimitive.Content>
         ) : null}
 
-        {canEdit ? (
+        {canViewDocuments ? (
           <TabsPrimitive.Content value="dokumente">
-            <PlaceholderTab title="Dokumente" />
+            <DokumenteTab staffId={staffId} />
           </TabsPrimitive.Content>
         ) : null}
       </Tabs>

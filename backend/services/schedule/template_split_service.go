@@ -33,7 +33,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -94,16 +93,18 @@ func templateCareOfferingValidationError(ctx context.Context, op, action string,
 // provided StaffIDs roster; carried-over supervisors keep their own
 // is_primary flag.
 type TemplateSplitInput struct {
-	TemplateID      int64
-	EffectiveDate   timezone.Date
-	Name            string
-	Type            string // care | activity | external
-	Weekdays        []int  // ISO 8601, Mo=1 … Su=7
-	StartTime       time.Time
-	EndTime         time.Time
-	RoomID          int64
-	CategoryID      int64
-	MaxParticipants *int
+	TemplateID              int64
+	EffectiveDate           timezone.Date
+	Name                    string
+	Type                    string // care | activity | external
+	Weekdays                []int  // ISO 8601, Mo=1 … Su=7
+	StartTime               time.Time
+	EndTime                 time.Time
+	RoomID                  int64
+	CategoryID              int64
+	PlanningTrackID         *int64
+	PlanningTrackIDProvided bool
+	MaxParticipants         *int
 	// RequiredStaff is the manual Personalbedarf override (#1839) for the
 	// successor Group, already normalized (nil = clear/derive). It is only
 	// applied when RequiredStaffProvided is true; otherwise the successor
@@ -116,9 +117,24 @@ type TemplateSplitInput struct {
 	EducationGroupID      *int64
 	// Zielgruppe (target-group) fields, carried onto the successor Group
 	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
-	TargetGroupType   string
-	TargetGradeLevel  *int16
-	TargetSchoolClass *string
+	TargetGroupType    string
+	TargetGradeLevel   *int16
+	TargetSchoolClass  *string
+	Targets            []*activitiesModel.GroupTarget
+	targetsProvided    bool
+	targetsPresenceSet bool
+	// Offering-source rule (#2137), presence-aware like RequiredStaff (#2147
+	// review round 14): an omitted field inherits the old template's source
+	// respectively filter — the pre-#2137 split body must not silently cut the
+	// successor off its Betreuungsangebot feed — while a provided field is
+	// authoritative (nil clears the source). Only meaningful while the split
+	// keeps the 'angebot' Zielgruppe; every other type drops the rule (DB
+	// CHECK). resolveSuccessorOfferingSource merges both pairs against the old
+	// template before anything is written.
+	SourceCareOfferingID         *int64
+	SourceCareOfferingIDProvided bool
+	SourceGradeLevels            []int
+	SourceGradeLevelsProvided    bool
 	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
 	// Group, already normalized (nil = clear). Only applied when NotesProvided
 	// is true; otherwise the successor inherits the source template's note. Same
@@ -137,8 +153,12 @@ type TemplateSplitInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
-	MaterializeFrom  *timezone.Date
-	MaterializeTo    *timezone.Date
+	// WeekdayAssignments carries the per-weekday roster deviations (#2129)
+	// onto the successor. It only applies to the explicit-roster path: a
+	// carried-over roster keeps each row's own weekday scope.
+	WeekdayAssignments []WeekdayRosterAssignment
+	MaterializeFrom    *timezone.Date
+	MaterializeTo      *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -177,13 +197,15 @@ type TemplateEndResult struct {
 // TemplateSplitDependencies aggregates wiring. All fields are required;
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
-	GroupRepo       activitiesModel.GroupRepository
-	ScheduleRepo    activitiesModel.ScheduleRepository
-	EnrollmentRepo  activitiesModel.StudentEnrollmentRepository
-	SupervisorRepo  activitiesModel.SupervisorPlannedRepository
-	InstanceRepo    scheduleModel.ActivityInstanceRepository
-	TimeframeRepo   scheduleModel.TimeframeRepository
-	Materialization MaterializationService
+	GroupRepo         activitiesModel.GroupRepository
+	CategoryRepo      activitiesModel.CategoryRepository
+	PlanningTrackRepo scheduleModel.PlanningTrackRepository
+	ScheduleRepo      activitiesModel.ScheduleRepository
+	EnrollmentRepo    activitiesModel.StudentEnrollmentRepository
+	SupervisorRepo    activitiesModel.SupervisorPlannedRepository
+	InstanceRepo      scheduleModel.ActivityInstanceRepository
+	TimeframeRepo     scheduleModel.TimeframeRepository
+	Materialization   MaterializationService
 	// InstanceService supplies the existing deviation snapshot/reapply machinery.
 	// The constructor narrows it to the package-private capability used by Split.
 	InstanceService InstanceService
@@ -191,6 +213,13 @@ type TemplateSplitDependencies struct {
 	// visible inside the split transaction. It rejects a split that would make
 	// an existing care-offering link impossible to materialize later.
 	ValidateCareOfferingSeries func(context.Context, int64) error
+	// ValidateOfferingSource guards the successor's inherited offering-source
+	// rule (#2137): the offering must exist and its phase must fit the
+	// successor's calendar period. Without it a split into a different
+	// Planungszeitraum could persist a source rule that create/update reject
+	// and later approvals only skip with a warning. Failures wrap
+	// ErrOfferingSourceInvalid.
+	ValidateOfferingSource func(ctx context.Context, offeringID int64, calendarPeriodID *int64) error
 	// Broadcaster is optional (nil → no SSE). Split/end delete planned
 	// instances outside the CRUD broadcast paths, so they must invalidate the
 	// staffing caches themselves (#1844).
@@ -205,6 +234,18 @@ type TemplateSplitService struct {
 	deviations           splitDeviationPreserver
 	lockTenantRecurrence func(context.Context) error
 	runInTx              func(context.Context, func(context.Context) error) error
+	// resyncOfferingRoster clears the offering-derived roster rows the
+	// carry-over copies onto a successor whose split dropped the source rule
+	// (#2137, #2147 review). Late-bound via SetOfferingRosterResync because
+	// the enrollment decision service is constructed after this one.
+	resyncOfferingRoster func(context.Context, OfferingRosterResyncInput) error
+}
+
+// SetOfferingRosterResync wires the enrollment-side source resync used when a
+// split drops the successor's offering source. The factory binds it after
+// constructing the decision service.
+func (s *TemplateSplitService) SetOfferingRosterResync(fn func(context.Context, OfferingRosterResyncInput) error) {
+	s.resyncOfferingRoster = fn
 }
 
 // splitDeviationPreserver is the existing instance-service machinery the split
@@ -220,10 +261,10 @@ type splitDeviationPreserver interface {
 // required dependency is nil — the split has no sensible degraded mode, so
 // the factory must wire it completely at startup.
 func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitService {
-	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
+	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.InstanceService == nil ||
-		deps.ValidateCareOfferingSeries == nil || deps.DB == nil {
+		deps.ValidateCareOfferingSeries == nil || deps.ValidateOfferingSource == nil || deps.DB == nil {
 		panic("schedule.NewTemplateSplitService: required dependency is nil")
 	}
 	deviations, ok := deps.InstanceService.(splitDeviationPreserver)
@@ -248,6 +289,143 @@ func (s *TemplateSplitService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
+// resolveSuccessorOfferingSource merges the presence-aware offering-source
+// request fields with the old template (#2147 review round 14). Omitted
+// fields inherit — the pre-#2137 split body must not silently cut the
+// successor off its Betreuungsangebot feed — while submitted fields are
+// authoritative, so an editor save that changes the Quelle or the
+// Jahrgangsfilter and then picks the "following" scope actually lands on the
+// successor instead of being dropped. The filter follows the source: an
+// omitted filter stays with a kept source and falls with a cleared one, the
+// same contract applyOfferingSourcePresence pins on the template PUT. The
+// merged state then passes the same service validation as create/update
+// (ErrOfferingSourceInvalid → 400), so a source next to explicit student_ids
+// or weekday_assignments is rejected rather than half-applied.
+func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel.Group) error {
+	if in.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
+		// The DB CHECK ties the source to 'angebot': a split away from the
+		// type drops the rule regardless of what the request carried.
+		in.SourceCareOfferingID = nil
+		in.SourceGradeLevels = nil
+	} else {
+		if !in.SourceCareOfferingIDProvided {
+			in.SourceCareOfferingID = cloneOptionalInt64(old.SourceCareOfferingID)
+		}
+		switch {
+		case in.SourceCareOfferingID == nil:
+			in.SourceGradeLevels = nil
+		case !in.SourceGradeLevelsProvided:
+			in.SourceGradeLevels = append([]int(nil), old.SourceGradeLevels...)
+		}
+	}
+	if err := validateOfferingSourceInput(
+		in.SourceCareOfferingID, in.SourceGradeLevels, in.TargetGroupType,
+		in.StudentIDs, in.WeekdayAssignments,
+	); err != nil {
+		return &ScheduleError{Op: "split template: validate offering source", Err: err}
+	}
+	return nil
+}
+
+// validateSuccessorOfferingSource rejects a split whose successor would carry
+// its (merged) offering-source rule (#2137) into a calendar period the
+// offering's phase does not fit, or point it at an unknown/inactive offering.
+// Create and update refuse those combinations (ErrOfferingSourceInvalid →
+// 400); a "this and following" edit must not be the back door that persists
+// them, leaving later approvals to skip the template with only a warning.
+// Skipped entirely when the merge left the successor without a source.
+func (s *TemplateSplitService) validateSuccessorOfferingSource(
+	ctx context.Context,
+	in TemplateSplitInput,
+) error {
+	if in.SourceCareOfferingID == nil {
+		return nil
+	}
+	// Nil only in legacy package-local unit fixtures constructing the struct
+	// directly; NewTemplateSplitService requires the callback in production.
+	if s.deps.ValidateOfferingSource == nil {
+		return nil
+	}
+	if err := s.deps.ValidateOfferingSource(ctx, *in.SourceCareOfferingID, in.CalendarPeriodID); err != nil {
+		// Client-correctable 400: keep TenantTxMiddleware from committing any
+		// provisional split writes that preceded the check.
+		tenant.MarkRollback(ctx)
+		return &ScheduleError{Op: "split template: validate offering source", Err: err}
+	}
+	return nil
+}
+
+// resyncChangedOfferingSource runs when the successor's offering feed differs
+// from the old template's — the source was dropped (split away from
+// 'angebot', explicit null), switched to another offering, added, or its
+// Jahrgangsfilter changed (#2147 review rounds 8 and 14). createStudentRoster
+// carries every provenance-tagged row regardless, so without the resync a
+// changed rule would keep the old feed's children and never seed the new
+// feed's. The resync reconciles the carried rows against the merged rule:
+// stale rows are removed, missing children of the new source are seeded, and
+// rows the legacy CareOffering.ActivityGroupID feed still plans on this
+// series segment are protected by its lineage-wide legacy coverage. The
+// successor has no materialized occurrences yet, so the resync's instance
+// pass is a no-op; the split's own materialization runs afterwards and reads
+// the reconciled roster. An unchanged feed skips the resync — the plain
+// carry-over already produced the identical rows.
+func (s *TemplateSplitService) resyncChangedOfferingSource(
+	ctx context.Context,
+	old, successor *activitiesModel.Group,
+	in TemplateSplitInput,
+) error {
+	if !offeringRosterFeedChanged(old, successor) {
+		return nil
+	}
+	if s.resyncOfferingRoster == nil {
+		return &ScheduleError{Op: "split template: resync offering source", Err: errors.New("offering roster resync is not configured")}
+	}
+	if err := s.resyncOfferingRoster(ctx, OfferingRosterResyncInput{
+		TemplateID:         successor.ID,
+		PreviousOfferingID: cloneOptionalInt64(old.SourceCareOfferingID),
+		OfferingID:         cloneOptionalInt64(successor.SourceCareOfferingID),
+		GradeLevels:        append([]int(nil), successor.SourceGradeLevels...),
+		CalendarPeriodID:   in.CalendarPeriodID,
+		EffectiveFrom:      in.EffectiveDate,
+	}); err != nil {
+		return &ScheduleError{Op: "split template: resync offering source", Err: err}
+	}
+	return nil
+}
+
+// offeringRosterFeedChanged reports whether the successor's offering feed
+// differs from what the roster carry-over copied: source added, removed,
+// switched, or its Jahrgangsfilter changed. The filter comparison is
+// order-insensitive — both sides are duplicate-free by validation.
+func offeringRosterFeedChanged(old, successor *activitiesModel.Group) bool {
+	oldID, newID := old.SourceCareOfferingID, successor.SourceCareOfferingID
+	switch {
+	case oldID == nil && newID == nil:
+		return false
+	case oldID == nil || newID == nil:
+		return true
+	case *oldID != *newID:
+		return true
+	}
+	return !sameGradeLevelSet(old.SourceGradeLevels, successor.SourceGradeLevels)
+}
+
+func sameGradeLevelSet(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[int]struct{}, len(left))
+	for _, level := range left {
+		seen[level] = struct{}{}
+	}
+	for _, level := range right {
+		if _, ok := seen[level]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *TemplateSplitService) validateCareOfferingSeries(ctx context.Context, groupID int64) error {
 	// NewTemplateSplitService requires this callback in production. The nil
 	// guard keeps legacy package-local unit fixtures that construct the service
@@ -264,6 +442,10 @@ func (s *TemplateSplitService) validateCareOfferingSeries(ctx context.Context, g
 // The service reuses an ambient request transaction or creates one when called
 // directly, so the recurrence lock covers the complete operation.
 func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
+	if !in.targetsPresenceSet {
+		in.targetsProvided = in.Targets != nil
+		in.targetsPresenceSet = true
+	}
 	if err := validateSplitInput(&in); err != nil {
 		return nil, err
 	}
@@ -294,15 +476,29 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err := s.lockTenantRecurrence(ctx); err != nil {
 		return nil, &ScheduleError{Op: "split template: lock recurrence", Err: err}
 	}
+	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
+		return nil, err
+	}
 
 	old, sourceValidUntil, activeEnrollments, activeSupervisors, err := s.prepareSplitSource(ctx, &in)
 	if err != nil {
 		return nil, err
 	}
+	if err := s.validateSuccessorOfferingSource(ctx, in); err != nil {
+		return nil, err
+	}
+	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
+		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, old.PlanningTrackID); err != nil {
+			return nil, err
+		}
+	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(
 		ctx, old, in, tenantID, sourceValidUntil, activeEnrollments, activeSupervisors,
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.resyncChangedOfferingSource(ctx, old, newGroup, in); err != nil {
 		return nil, err
 	}
 	if err := s.validateCareOfferingSeries(ctx, newGroup.ID); err != nil {
@@ -395,13 +591,35 @@ func (s *TemplateSplitService) prepareSplitSource(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if err := ValidateTemplateTargetGradeLimit(
-		in.GradeLevelMax,
-		old,
-		in.TargetGroupType,
-		in.TargetGradeLevel,
-	); err != nil {
+	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.GroupRepo, old.ID)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("load existing dynamic targets: %w", err)
+	}
+	if !in.targetsProvided && len(existingTargets) > 0 {
+		in.Targets = existingTargets
+		in.TargetGroupType = existingTargets[0].TargetGroupType
+		in.TargetGradeLevel = existingTargets[0].TargetGradeLevel
+		in.TargetSchoolClass = existingTargets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = existingTargets[0].EducationGroupID
+		}
+	}
+	if err := validateSplitDynamicTargets(in.GradeLevelMax, old, existingTargets, in.Targets); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(in.Targets) > 0 {
+		in.TargetGradeLevel = in.Targets[0].TargetGradeLevel
+		in.TargetSchoolClass = in.Targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = in.Targets[0].EducationGroupID
+		}
+	}
+	// Runs before any write: a rejected merge surfaces as a plain 400 with
+	// nothing to roll back.
+	if err := resolveSuccessorOfferingSource(in, old); err != nil {
+		return nil, nil, nil, nil, err
 	}
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "split template", false)
 	if err != nil {
@@ -424,6 +642,10 @@ func (s *TemplateSplitService) prepareSplitSource(
 		return nil, nil, nil, nil, err
 	}
 	return old, sourceValidUntil, enrollments, supervisors, nil
+}
+
+func validateSplitDynamicTargets(gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+	return ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, existingTargets, targets)
 }
 
 func (s *TemplateSplitService) capSplitSource(
@@ -615,10 +837,26 @@ func validateSplitInput(in *TemplateSplitInput) error {
 	if err := validateSplitRecurrence(*in); err != nil {
 		return err
 	}
+	if err := validateSplitWeekdayAssignments(*in); err != nil {
+		return err
+	}
 	if err := validateSplitTargetGroup(in); err != nil {
 		return err
 	}
 	return validateSplitMaterializationWindow(*in)
+}
+
+func validateSplitWeekdayAssignments(in TemplateSplitInput) error {
+	if len(in.WeekdayAssignments) == 0 {
+		return nil
+	}
+	if in.StudentIDs == nil || in.StaffIDs == nil {
+		return fmt.Errorf("%w: weekday assignments require explicit student and staff rosters", ErrSplitInvalidInput)
+	}
+	if _, err := indexWeekdayAssignments(in.Weekdays, in.WeekdayAssignments); err != nil {
+		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
+	}
+	return nil
 }
 
 func validateSplitTemplateFields(in TemplateSplitInput) error {
@@ -673,10 +911,26 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 }
 
 func validateSplitTargetGroup(in *TemplateSplitInput) error {
-	// Reuses Group.ValidateTargetGroup() rather than re-implementing the
-	// type-conditional invariant here (Rule 10) — the handler's Bind() also
-	// runs this check, but the service defends itself independently since
-	// TemplateSplitInput is a public entry point other callers could reach.
+	targets, err := normalizeDynamicTargets(
+		in.TargetGroupType,
+		in.TargetGradeLevel,
+		in.TargetSchoolClass,
+		in.EducationGroupID,
+		in.Targets,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
+	}
+	in.Targets = targets
+	in.TargetGradeLevel = nil
+	in.TargetSchoolClass = nil
+	if len(targets) > 0 {
+		in.TargetGradeLevel = targets[0].TargetGradeLevel
+		in.TargetSchoolClass = targets[0].TargetSchoolClass
+		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+			in.EducationGroupID = targets[0].EducationGroupID
+		}
+	}
 	target := &activitiesModel.Group{
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
@@ -945,33 +1199,59 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.ListKindProvided {
 		listKind = in.ListKind
 	}
+	planningTrackID := old.PlanningTrackID
+	if in.PlanningTrackIDProvided {
+		planningTrackID = in.PlanningTrackID
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
 	}
+	// Offering source (#2137): resolveSuccessorOfferingSource already merged
+	// the presence-aware request fields with the old template (omitted →
+	// inherit, provided → authoritative, dropped on a Zielgruppe change away
+	// from 'angebot') and validated the result — the successor persists the
+	// merged rule verbatim (#2147 review round 14).
+	sourceCareOfferingID := cloneOptionalInt64(in.SourceCareOfferingID)
+	var sourceGradeLevels []int
+	if sourceCareOfferingID != nil && len(in.SourceGradeLevels) > 0 {
+		sourceGradeLevels = append(sourceGradeLevels, in.SourceGradeLevels...)
+	}
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
-		Name:              in.Name,
-		MaxParticipants:   maxParticipants,
-		RequiredStaff:     requiredStaff,
-		IsOpen:            old.IsOpen,
-		CategoryID:        in.CategoryID,
-		PlannedRoomID:     &roomID,
-		CreatedBy:         old.CreatedBy,
-		Type:              in.Type,
-		EducationGroupID:  in.EducationGroupID,
-		IsTemplate:        true,
-		SeriesRootID:      &seriesRootID,
-		CalendarPeriodID:  in.CalendarPeriodID,
-		TargetGroupType:   in.TargetGroupType,
-		TargetGradeLevel:  in.TargetGradeLevel,
-		TargetSchoolClass: in.TargetSchoolClass,
-		ListKind:          listKind,
-		Notes:             notes,
+		Name:                 in.Name,
+		MaxParticipants:      maxParticipants,
+		RequiredStaff:        requiredStaff,
+		IsOpen:               old.IsOpen,
+		CategoryID:           in.CategoryID,
+		PlanningTrackID:      planningTrackID,
+		PlannedRoomID:        &roomID,
+		CreatedBy:            old.CreatedBy,
+		Type:                 in.Type,
+		EducationGroupID:     in.EducationGroupID,
+		IsTemplate:           true,
+		SeriesRootID:         &seriesRootID,
+		CalendarPeriodID:     in.CalendarPeriodID,
+		TargetGroupType:      in.TargetGroupType,
+		TargetGradeLevel:     in.TargetGradeLevel,
+		TargetSchoolClass:    in.TargetSchoolClass,
+		SourceCareOfferingID: sourceCareOfferingID,
+		SourceGradeLevels:    sourceGradeLevels,
+		ListKind:             listKind,
+		Notes:                notes,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
 		return nil, &ScheduleError{Op: "split template: create successor template", Err: err}
+	}
+	targetRepo, ok := s.deps.GroupRepo.(activitiesModel.GroupTargetRepository)
+	if !ok && len(in.Targets) > 0 {
+		return nil, &ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
+	}
+	if ok {
+		if err := targetRepo.ReplaceTargets(ctx, group.ID, in.Targets); err != nil {
+			return nil, &ScheduleError{Op: "split template: create successor targets", Err: err}
+		}
 	}
 	return group, nil
 }
@@ -1037,8 +1317,15 @@ func (s *TemplateSplitService) createStudentRoster(
 	if err := validateProtectedEnrollmentRebase(protected, in.CalendarPeriodID); err != nil {
 		return &ScheduleError{Op: "split template: rebase protected enrollments", Err: err}
 	}
-	protectedStudents := protectedStudentsForPeriod(protected, in.CalendarPeriodID)
-	rows := buildSuccessorStudentRows(in, manual, protectedStudents, segmentValidUntil)
+	protectedCoverage := buildProtectedStudentCoverage(
+		protected,
+		in.Weekdays,
+		func(row *activitiesModel.StudentEnrollment) bool {
+			return rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) ||
+				(in.CalendarPeriodID != nil && row.CalendarPeriodID != nil)
+		},
+	)
+	rows := buildSuccessorStudentRows(in, manual, protectedCoverage, segmentValidUntil)
 	if err := s.persistSuccessorStudentRows(ctx, groupID, in, rows, tenantID, segmentValidUntil); err != nil {
 		return err
 	}
@@ -1058,20 +1345,6 @@ func partitionCarriedEnrollments(
 		}
 	}
 	return manual, protected
-}
-
-func protectedStudentsForPeriod(
-	rows []*activitiesModel.StudentEnrollment,
-	periodID *int64,
-) map[int64]struct{} {
-	students := make(map[int64]struct{})
-	for _, row := range rows {
-		if rosterPeriodApplies(row.CalendarPeriodID, periodID) ||
-			(periodID != nil && row.CalendarPeriodID != nil) {
-			students[row.StudentID] = struct{}{}
-		}
-	}
-	return students
 }
 
 func validateProtectedEnrollmentRebase(
@@ -1101,16 +1374,21 @@ func validateProtectedEnrollmentRebase(
 func buildSuccessorStudentRows(
 	in TemplateSplitInput,
 	carried []*activitiesModel.StudentEnrollment,
-	protectedStudents map[int64]struct{},
+	protectedCoverage map[int64]protectedStudentCoverage,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
 	if in.StudentIDs != nil {
-		rows := make([]*activitiesModel.StudentEnrollment, 0, len(in.StudentIDs))
-		for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
-			if _, protected := protectedStudents[studentID]; protected {
-				continue
-			}
-			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
+		resolved, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, nil, nil, in.WeekdayAssignments)
+		if err != nil {
+			resolved = resolvedTemplateRoster{Students: sharedRosterRows(in.StudentIDs, nil)}
+		}
+		manualRows := excludeProtectedStudentWeekdays(resolved.Students, protectedCoverage)
+		rows := make([]*activitiesModel.StudentEnrollment, 0, len(manualRows))
+		for _, row := range manualRows {
+			rows = append(rows, &activitiesModel.StudentEnrollment{
+				StudentID: row.PersonID,
+				Weekday:   weekdayScopePtr(row.Weekday),
+			})
 		}
 		return rows
 	}
@@ -1122,23 +1400,27 @@ func carriedStudentRowsByPerson(
 	periodID *int64,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.StudentEnrollment {
-	byStudent := make(map[int64][]*activitiesModel.StudentEnrollment, len(carried))
-	order := make([]int64, 0, len(carried))
+	// Keyed by (student, weekday scope) — see carriedStaffRowsByPerson for why
+	// the weekday must be part of the key (#2129).
+	byStudent := make(map[rosterPersonScope][]*activitiesModel.StudentEnrollment, len(carried))
+	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
-		if _, seen := byStudent[row.StudentID]; !seen {
-			order = append(order, row.StudentID)
+		key := rosterPersonScope{PersonID: row.StudentID, Weekday: weekdayScopeKey(row.Weekday)}
+		if _, seen := byStudent[key]; !seen {
+			order = append(order, key)
 		}
-		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
+		byStudent[key] = append(byStudent[key], row)
 	}
 	rows := make([]*activitiesModel.StudentEnrollment, 0, len(order))
-	for _, studentID := range order {
-		group := byStudent[studentID]
+	for _, key := range order {
+		group := byStudent[key]
 		preferred := preferCarriedRow(group, periodID, func(row *activitiesModel.StudentEnrollment) *int64 { return row.CalendarPeriodID })
 		rows = append(rows, &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        key.PersonID,
 			ValidFrom:        preferred.ValidFrom,
 			ValidUntil:       earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
 			SelectedWeekdays: unionSelectedWeekdays(group, preferred),
+			Weekday:          weekdayScopePtr(preferred.Weekday),
 		})
 	}
 	return rows
@@ -1188,6 +1470,7 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 			CalendarPeriodID:         protectedEnrollmentPeriodAfterRebase(source.CalendarPeriodID, in.CalendarPeriodID),
 			EnrollmentRequestChildID: cloneOptionalInt64(source.EnrollmentRequestChildID),
 			SelectedWeekdays:         append([]int(nil), source.SelectedWeekdays...),
+			Weekday:                  weekdayScopePtr(source.Weekday),
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
@@ -1245,11 +1528,19 @@ func buildSuccessorStaffRows(
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.SupervisorPlanned {
 	if in.StaffIDs != nil {
-		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(in.StaffIDs))
-		for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
+		resolved, err := resolveTemplateRoster(in.Weekdays, nil, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+		if err != nil {
+			// The handler validates the assignments before reaching the split,
+			// so an error here means a caller bypassed that check; fall back to
+			// the shared roster rather than dropping the staff entirely.
+			resolved = resolvedTemplateRoster{Staff: sharedRosterRows(in.StaffIDs, in.PrimaryStaffID)}
+		}
+		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(resolved.Staff))
+		for _, row := range resolved.Staff {
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
-				StaffID:   staffID,
-				IsPrimary: in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
+				StaffID:   row.PersonID,
+				IsPrimary: row.IsPrimary,
+				Weekday:   weekdayScopePtr(row.Weekday),
 			})
 		}
 		return rows
@@ -1262,25 +1553,45 @@ func carriedStaffRowsByPerson(
 	periodID *int64,
 	segmentValidUntil *timezone.Date,
 ) []*activitiesModel.SupervisorPlanned {
-	byStaff := make(map[int64][]*activitiesModel.SupervisorPlanned, len(carried))
-	order := make([]int64, 0, len(carried))
+	// Keyed by (staff, weekday scope), not by staff alone: collapsing a
+	// per-weekday roster (#2129) to one row per person would turn "Anna
+	// montags, Bea dienstags" into "Anna and Bea every day" on the successor.
+	byStaff := make(map[rosterPersonScope][]*activitiesModel.SupervisorPlanned, len(carried))
+	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
-		if _, seen := byStaff[row.StaffID]; !seen {
-			order = append(order, row.StaffID)
+		key := rosterPersonScope{PersonID: row.StaffID, Weekday: weekdayScopeKey(row.Weekday)}
+		if _, seen := byStaff[key]; !seen {
+			order = append(order, key)
 		}
-		byStaff[row.StaffID] = append(byStaff[row.StaffID], row)
+		byStaff[key] = append(byStaff[key], row)
 	}
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(order))
-	for _, staffID := range order {
-		preferred := preferCarriedRow(byStaff[staffID], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
+	for _, key := range order {
+		preferred := preferCarriedRow(byStaff[key], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
 		rows = append(rows, &activitiesModel.SupervisorPlanned{
-			StaffID:    staffID,
+			StaffID:    key.PersonID,
 			IsPrimary:  preferred.IsPrimary,
 			ValidFrom:  preferred.ValidFrom,
 			ValidUntil: earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
+			Weekday:    weekdayScopePtr(preferred.Weekday),
 		})
 	}
 	return rows
+}
+
+// rosterPersonScope keys a carried roster row by person AND weekday scope.
+type rosterPersonScope struct {
+	PersonID int64
+	// Weekday is 0 for the series-wide scope (a real ISO weekday is 1..7),
+	// which makes the struct usable as a map key without a pointer.
+	Weekday int
+}
+
+func weekdayScopeKey(weekday *int) int {
+	if weekday == nil {
+		return 0
+	}
+	return *weekday
 }
 
 // preferCarriedRow picks the carried roster row whose calendar_period_id

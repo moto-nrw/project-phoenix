@@ -37,7 +37,12 @@ type Staff struct {
 	// permission-gated response.
 	PersonnelNumber    *string        `bun:"personnel_number" json:"-"`
 	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
-	DeletedAt          *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
+	// BirthdayDisplayOptOut removes this person from the dashboard birthday
+	// display (#1542). Self-service: the staff member sets it on their own
+	// profile, so the school-wide setting decides whether staff birthdays are
+	// shown at all and this flag lets an individual step out of it.
+	BirthdayDisplayOptOut bool       `bun:"birthday_display_opt_out,notnull" json:"birthday_display_opt_out"`
+	DeletedAt             *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`

@@ -19,6 +19,8 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -141,6 +143,9 @@ export function EnrollmentStatusView({
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [withdrawingChild, setWithdrawingChild] = useState<string | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<{
+    childID?: string;
+  } | null>(null);
   const [confirmingRenewal, setConfirmingRenewal] = useState(false);
   const [replyingChangeRequest, setReplyingChangeRequest] = useState<
     string | null
@@ -254,12 +259,14 @@ export function EnrollmentStatusView({
     }
   };
 
-  const handleWithdraw = async (childID?: string) => {
+  const requestWithdraw = (childID?: string) => {
     if (!status) return;
-    const confirmMessage = childID
-      ? t("confirmWithdrawChild")
-      : t("confirmWithdrawAll");
-    if (!window.confirm(confirmMessage)) return;
+    setWithdrawTarget({ childID });
+  };
+
+  const confirmWithdraw = async () => {
+    if (!status || !withdrawTarget) return;
+    const childID = withdrawTarget.childID;
     setWithdrawingChild(childID ?? "__all__");
     setError(null);
     setInfo(null);
@@ -272,6 +279,7 @@ export function EnrollmentStatusView({
       logger.error("status_withdraw_failed", { error: message });
       setError(message);
     } finally {
+      setWithdrawTarget(null);
       setWithdrawingChild(null);
     }
   };
@@ -306,33 +314,59 @@ export function EnrollmentStatusView({
   }
 
   return (
-    <EnrollmentStatusContent
-      changeRequests={changeRequests}
-      confirmingRenewal={confirmingRenewal}
-      duplicateWarning={duplicateWarning}
-      editFirstName={editFirstName}
-      editLastName={editLastName}
-      editPhone={editPhone}
-      editing={editing}
-      error={error}
-      info={info}
-      justSubmitted={justSubmitted}
-      replyDrafts={replyDrafts}
-      replyingChangeRequest={replyingChangeRequest}
-      savingEdit={savingEdit}
-      status={status}
-      token={token}
-      withdrawingChild={withdrawingChild}
-      onChangeRequestReply={handleChangeRequestReply}
-      onConfirmRenewal={handleConfirmRenewal}
-      onEdit={handleEdit}
-      onWithdraw={handleWithdraw}
-      setEditFirstName={setEditFirstName}
-      setEditLastName={setEditLastName}
-      setEditPhone={setEditPhone}
-      setEditing={setEditing}
-      setReplyDrafts={setReplyDrafts}
-    />
+    <>
+      <EnrollmentStatusContent
+        changeRequests={changeRequests}
+        confirmingRenewal={confirmingRenewal}
+        duplicateWarning={duplicateWarning}
+        editFirstName={editFirstName}
+        editLastName={editLastName}
+        editPhone={editPhone}
+        editing={editing}
+        error={error}
+        info={info}
+        justSubmitted={justSubmitted}
+        replyDrafts={replyDrafts}
+        replyingChangeRequest={replyingChangeRequest}
+        savingEdit={savingEdit}
+        status={status}
+        token={token}
+        withdrawingChild={withdrawingChild}
+        onChangeRequestReply={handleChangeRequestReply}
+        onConfirmRenewal={handleConfirmRenewal}
+        onEdit={handleEdit}
+        onWithdraw={requestWithdraw}
+        setEditFirstName={setEditFirstName}
+        setEditLastName={setEditLastName}
+        setEditPhone={setEditPhone}
+        setEditing={setEditing}
+        setReplyDrafts={setReplyDrafts}
+      />
+      <ConfirmationModal
+        isOpen={withdrawTarget !== null}
+        onClose={() => setWithdrawTarget(null)}
+        onConfirm={confirmWithdraw}
+        title={
+          withdrawTarget?.childID
+            ? t("withdrawModalTitleChild")
+            : t("withdrawModalTitleAll")
+        }
+        confirmText={t("withdrawModalConfirm")}
+        cancelText={t("cancel")}
+        loadingText={t("withdrawing")}
+        closeLabel={t("modalClose")}
+        backdropLabel={t("modalBackdropClose")}
+        isConfirmLoading={withdrawingChild !== null}
+        isDismissDisabled={withdrawingChild !== null}
+        confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+      >
+        <p className="text-sm leading-6 text-gray-600">
+          {withdrawTarget?.childID
+            ? t("withdrawModalBodyChild")
+            : t("withdrawModalBodyAll")}
+        </p>
+      </ConfirmationModal>
+    </>
   );
 }
 
@@ -356,7 +390,7 @@ interface EnrollmentStatusContentProps {
   readonly onChangeRequestReply: (changeRequestId: string) => Promise<void>;
   readonly onConfirmRenewal: () => Promise<void>;
   readonly onEdit: (event: React.FormEvent) => Promise<void>;
-  readonly onWithdraw: (childId?: string) => Promise<void>;
+  readonly onWithdraw: (childId?: string) => void;
   readonly setEditFirstName: (value: string) => void;
   readonly setEditLastName: (value: string) => void;
   readonly setEditPhone: (value: string) => void;
@@ -479,6 +513,7 @@ function EnrollmentStatusContent({
       <EnrollmentChildrenSection
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
+        justSubmitted={justSubmitted}
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
@@ -500,6 +535,7 @@ function EnrollmentStatusContent({
       <WithdrawAllSection
         allWithdrawn={allWithdrawn}
         hasMultipleChildren={hasMultipleChildren}
+        justSubmitted={justSubmitted}
         withdrawingAll={withdrawingChild === "__all__"}
         onWithdraw={onWithdraw}
       />
@@ -621,7 +657,7 @@ interface RenewalBannersProps {
   readonly showOptOutBanner: boolean;
   readonly withdrawingAll: boolean;
   readonly onConfirmRenewal: () => Promise<void>;
-  readonly onWithdraw: (childId?: string) => Promise<void>;
+  readonly onWithdraw: (childId?: string) => void;
 }
 
 function RenewalBanners({
@@ -636,8 +672,8 @@ function RenewalBanners({
   const handleConfirmRenewal = async () => {
     await onConfirmRenewal();
   };
-  const handleWithdraw = async () => {
-    await onWithdraw();
+  const handleWithdraw = () => {
+    onWithdraw();
   };
 
   return (
@@ -705,7 +741,7 @@ interface EnrollmentChildRowProps {
   readonly canWithdraw: boolean;
   readonly child: StatusChild;
   readonly isWithdrawing: boolean;
-  readonly onWithdraw: (childId?: string) => Promise<void>;
+  readonly onWithdraw: (childId?: string) => void;
 }
 
 function EnrollmentChildRow({
@@ -715,8 +751,8 @@ function EnrollmentChildRow({
   onWithdraw,
 }: EnrollmentChildRowProps) {
   const t = useTranslations("enrollmentStatus");
-  const handleWithdraw = async () => {
-    await onWithdraw(child.id);
+  const handleWithdraw = () => {
+    onWithdraw(child.id);
   };
 
   return (
@@ -761,13 +797,15 @@ function EnrollmentChildRow({
 function EnrollmentChildrenSection({
   enrollments,
   hasMultipleChildren,
+  justSubmitted,
   withdrawingChild,
   onWithdraw,
 }: Readonly<{
   enrollments: StatusChild[];
   hasMultipleChildren: boolean;
+  justSubmitted: boolean;
   withdrawingChild: string | null;
-  onWithdraw: (childId?: string) => Promise<void>;
+  onWithdraw: (childId?: string) => void;
 }>) {
   const t = useTranslations("enrollmentStatus");
   return (
@@ -785,7 +823,9 @@ function EnrollmentChildrenSection({
       <ul className="space-y-3">
         {enrollments.map((child) => {
           const canWithdraw =
-            hasMultipleChildren && !TERMINAL_STATUSES.has(child.status);
+            hasMultipleChildren &&
+            !justSubmitted &&
+            !TERMINAL_STATUSES.has(child.status);
           return (
             <EnrollmentChildRow
               key={child.id}
@@ -1000,25 +1040,27 @@ function withdrawButtonLabelKey(
 function WithdrawAllSection({
   allWithdrawn,
   hasMultipleChildren,
+  justSubmitted,
   withdrawingAll,
   onWithdraw,
 }: Readonly<{
   allWithdrawn: boolean;
   hasMultipleChildren: boolean;
+  justSubmitted: boolean;
   withdrawingAll: boolean;
-  onWithdraw: (childId?: string) => Promise<void>;
+  onWithdraw: (childId?: string) => void;
 }>) {
   const t = useTranslations("enrollmentStatus");
-  if (allWithdrawn) return null;
-  const handleWithdraw = async () => {
-    await onWithdraw();
+  if (allWithdrawn || justSubmitted) return null;
+  const handleWithdraw = () => {
+    onWithdraw();
   };
 
   return (
     <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/5 text-[#CC2626] shadow-sm">
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
@@ -1033,14 +1075,16 @@ function WithdrawAllSection({
             </p>
           </div>
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline_danger"
+          size="md"
           onClick={handleWithdraw}
           disabled={withdrawingAll}
-          className="hover:border-moto-red/40 hover:bg-moto-red/5 hover:text-moto-red-strong h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+          className="w-full shrink-0 font-semibold sm:w-auto"
         >
           {t(withdrawButtonLabelKey(withdrawingAll, hasMultipleChildren))}
-        </button>
+        </Button>
       </div>
     </section>
   );

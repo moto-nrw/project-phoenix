@@ -210,18 +210,30 @@ type GuardianWithRelationship struct {
 	PickupNotes        *string           `json:"pickup_notes,omitempty"`
 	EmergencyPriority  int               `json:"emergency_priority"`
 	// AccountStatus is the portal-access state of this guardian for the staff
-	// "Erziehungsberechtigte" tab: "active" (has login), "pending" (invited,
-	// not yet accepted), or "none" (info on file, no account, can be invited).
+	// "Erziehungsberechtigte" tab: "active" (has login with access to this
+	// child), "active_no_access" (has login, but this child's link carries no
+	// parent_portal.access — e.g. a restrictive contact role, #2172),
+	// "pending" (invited, not yet accepted), or "none" (info on file, no
+	// account, can be invited).
 	AccountStatus string `json:"account_status"`
 }
 
 // guardianAccountStatus derives the staff-facing account-status string.
-func guardianAccountStatus(hasAccount, invitationPending bool) string {
+// hasPortalAccess is the per-child parent_portal.access permission on the
+// students_guardians link — an account is only "active" for THIS child when
+// the link actually grants access (#2172). An open invitation outranks
+// "active_no_access": an account holder with a pending-approval role-upgrade
+// request must read as pending, not as an actionable no-access state that
+// invites staff to bypass the approval queue (mirrors the parent-side
+// relatedAccountStatus priority).
+func guardianAccountStatus(hasAccount, hasPortalAccess, invitationPending bool) string {
 	switch {
-	case hasAccount:
+	case hasAccount && hasPortalAccess:
 		return "active"
 	case invitationPending:
 		return "pending"
+	case hasAccount:
+		return "active_no_access"
 	default:
 		return "none"
 	}
@@ -1068,7 +1080,11 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 			CanPickup:          gwr.Relationship.CanPickup,
 			PickupNotes:        gwr.Relationship.PickupNotes,
 			EmergencyPriority:  gwr.Relationship.EmergencyPriority,
-			AccountStatus:      guardianAccountStatus(gwr.Profile.HasAccount, gwr.InvitationPending),
+			AccountStatus: guardianAccountStatus(
+				gwr.Profile.HasAccount,
+				authorize.StudentGuardianHasPermission(gwr.Relationship, authorize.GuardianPermissionPortalAccess),
+				gwr.InvitationPending,
+			),
 		})
 	}
 

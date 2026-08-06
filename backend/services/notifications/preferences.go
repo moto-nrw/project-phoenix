@@ -335,6 +335,7 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 	defs := TypesForPortal(PortalParent)
 	overview := &PreferenceOverview{Types: make([]PreferenceState, 0, len(defs))}
 	enabledTenantCount := make(map[string]int, len(defs))
+	availableTenantCount := make(map[string]int, len(defs))
 	tenantCount := 0
 
 	err := s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, _ int64) error {
@@ -357,6 +358,19 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 		if tenantEnabled {
 			overview.TenantEnabled = true
 		}
+		for _, def := range defs {
+			if def.TenantGate == "" {
+				availableTenantCount[def.Key]++
+				continue
+			}
+			available, err := s.resolveBool(tenantCtx, def.TenantGate)
+			if err != nil {
+				return err
+			}
+			if available {
+				availableTenantCount[def.Key]++
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -370,7 +384,7 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 			Description: def.Description,
 			Group:       def.Group,
 			Enabled:     tenantCount > 0 && enabledTenantCount[def.Key] == tenantCount,
-			Available:   true, // parent types carry no school-wide gate
+			Available:   tenantCount > 0 && availableTenantCount[def.Key] == tenantCount,
 		})
 	}
 	return overview, nil

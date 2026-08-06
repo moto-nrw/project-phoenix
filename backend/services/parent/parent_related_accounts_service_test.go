@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -220,7 +221,7 @@ func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrInviteDisabled))
 	assert.Nil(t, invites.lastInvite, "invite service must not be called when disabled")
@@ -233,7 +234,7 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "Neue", "Person")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "Neue", "Person", false)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastInvite)
 	assert.False(t, invites.lastInvite.RequireApproval, "direct mode must not require approval")
@@ -249,7 +250,7 @@ func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "", "")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastInvite)
 	assert.True(t, invites.lastInvite.RequireApproval, "staff_approval mode must queue for approval")
@@ -267,7 +268,7 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(context.Background())
 	}()
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, other.ID, "x@example.test", "", "")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, other.ID, "x@example.test", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrChildNotLinked))
 	assert.Nil(t, invites.lastInvite, "invite must not fire for an unowned child")
@@ -376,7 +377,7 @@ func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "   ", "", "")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "   ", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrEmailRequired))
 	assert.Nil(t, invites.lastInvite)
@@ -388,7 +389,7 @@ func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "not-an-email", "", "")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "not-an-email", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrInvalidInviteInput))
 	assert.Nil(t, invites.lastInvite)
@@ -403,7 +404,7 @@ func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "")
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 	require.Error(t, err, "invite-mode resolve failure must surface")
 
 	err = svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
@@ -466,7 +467,7 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-		_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "")
+		_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 		require.Error(t, err)
 	})
 
@@ -479,4 +480,94 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 		err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 		require.Error(t, err)
 	})
+}
+
+func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) {
+	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	// Restrictive contact role → empty permission set, no parent_portal.access.
+	link := &userModels.StudentGuardian{
+		StudentID:         chain.StudentID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "other",
+		EmergencyPriority: 1,
+	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
+	link.SetTenantID(1)
+	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+
+	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+
+	var found *parentService.RelatedAccount
+	for _, account := range accounts {
+		if account.GuardianProfileID == profile.ID {
+			found = account
+		}
+	}
+	require.NotNil(t, found)
+	assert.Equal(t, parentService.RelatedAccountActiveNoAccess, found.Status,
+		"an account without parent_portal.access on this child must not report as plainly active")
+}
+
+func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *testing.T) {
+	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	link := &userModels.StudentGuardian{
+		StudentID:         chain.StudentID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "other",
+		EmergencyPriority: 1,
+	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
+	link.SetTenantID(1)
+	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	studentID := chain.StudentID
+	invitation := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("no-access-pending-%d", time.Now().UnixNano()),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         chain.AccountID,
+		ExpiresAt:         time.Now().Add(time.Hour),
+		StudentID:         &studentID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
+		RoleUpgrade:       true,
+	}
+	invitation.SetTenantID(1)
+	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+
+	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+
+	var found *parentService.RelatedAccount
+	for _, account := range accounts {
+		if account.GuardianProfileID == profile.ID {
+			found = account
+		}
+	}
+	require.NotNil(t, found)
+	assert.Equal(t, parentService.RelatedAccountPending, found.Status,
+		"an in-flight upgrade approval must show as pending, not active_no_access")
 }

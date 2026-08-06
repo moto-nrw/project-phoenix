@@ -19,12 +19,12 @@ import { useTranslations } from "next-intl";
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
 import { SuggestionForm } from "~/components/suggestions/suggestion-form";
 import { EmptyState } from "~/components/ui/empty-state";
+import { Button } from "~/components/ui/button";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
-import { ConceptPageHeader } from "~/components/ui/concept-section-header";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -186,32 +186,24 @@ export default function ParentFeedbackPage() {
   const noSchools = schools !== null && schools.length === 0;
   const boardReady = Boolean(schoolId) && !loading && !loadError;
 
-  // Same shell as the other parents-portal pages (see /parents/news): full
-  // width up to max-w-7xl, header in its own card.
+  // Same shell as the other parents-portal pages: header on the page
+  // background, sections below carry the surfaces.
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <ConceptPageHeader
-          title={t("title")}
-          eyebrow={t("kicker")}
-          concept="feedback"
-          subtitle={
-            <>
-              <p>{t("productTeamNotice")}</p>
-              <p className="text-gray-500">{t("pseudonymNotice")}</p>
-            </>
-          }
-        />
-      </header>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={t("title")}
+        description={`${t("productTeamNotice")} ${t("pseudonymNotice")}`}
+      />
 
       {loadError && (
         <div className="flex flex-wrap items-center gap-3">
           <Alert type="error" message={t("loadError")} />
           <Button
             type="button"
-            onClick={() => void loadSchools()}
             variant="outline"
-            size="compact"
+            size="md"
+            onClick={() => void loadSchools()}
           >
             {t("retry")}
           </Button>
@@ -272,12 +264,13 @@ export default function ParentFeedbackPage() {
             {boardReady && (
               <Button
                 type="button"
+                variant="primary"
+                size="md"
+                className="ml-auto"
                 onClick={() => {
                   setEditPost(null);
                   setFormOpen(true);
                 }}
-                className="ml-auto"
-                size="compact"
               >
                 {t("newEntry")}
               </Button>
@@ -299,8 +292,9 @@ export default function ParentFeedbackPage() {
               action={
                 <Button
                   type="button"
+                  variant="primary"
+                  size="md"
                   onClick={() => setFormOpen(true)}
-                  size="compact"
                 >
                   {t("newEntry")}
                 </Button>
@@ -363,6 +357,6 @@ export default function ParentFeedbackPage() {
       >
         <p className="text-sm text-gray-600">{t("deleteBody")}</p>
       </ConfirmationModal>
-    </div>
+    </ParentPage>
   );
 }

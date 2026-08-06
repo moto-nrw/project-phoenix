@@ -7,6 +7,7 @@ import {
   normalizeLocation,
   getLocationColor,
   getLocationBadgeTone,
+  getAccessibleTextColor,
   getLocationDisplay,
   getLocationGlowEffect,
   canSeeDetailedLocation,
@@ -42,7 +43,7 @@ describe("LOCATION_COLORS", () => {
     expect(LOCATION_COLORS.GROUP_ROOM).toBe("#83CD2D");
     expect(LOCATION_COLORS.OTHER_ROOM).toBe("#5080D8");
     expect(LOCATION_COLORS.HOME).toBe("#6B7280");
-    expect(LOCATION_COLORS.SCHOOLYARD).toBe("#EAB308");
+    expect(LOCATION_COLORS.SCHOOLYARD).toBe("#F78C10");
     expect(LOCATION_COLORS.TRANSIT).toBe("#D946EF");
     expect(LOCATION_COLORS.UNKNOWN).toBe("#78716C");
     expect(LOCATION_COLORS.SICK).toBe("#DC2626");
@@ -536,5 +537,90 @@ describe("StudentLocationContext with sick fields", () => {
     };
     expect(student.sick).toBeUndefined();
     expect(student.sick_since).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// ACCESSIBLE TEXT COLOR TESTS
+// =============================================================================
+
+describe("getAccessibleTextColor", () => {
+  // Independent WCAG implementation: the test must not agree with the helper
+  // by sharing its arithmetic.
+  function luminance(hex: string): number {
+    const value = hex.replace("#", "");
+    const channels = [0, 2, 4].map((offset) => {
+      const srgb = Number.parseInt(value.slice(offset, offset + 2), 16) / 255;
+      return srgb <= 0.03928
+        ? srgb / 12.92
+        : Math.pow((srgb + 0.055) / 1.055, 2.4);
+    });
+    return (
+      0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!
+    );
+  }
+
+  function contrast(hex: string, background: string): number {
+    const a = luminance(hex);
+    const b = luminance(background);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  }
+
+  const WHITE = "#FFFFFF";
+  // Die Pillenfläche der StatusDotBadge — die dunklere der beiden Flächen und
+  // damit der Fall, an dem sich der Kontrast entscheidet.
+  const GRAY_50 = "#F9FAFB";
+
+  it("clears 4.5:1 for every palette color on both surfaces", () => {
+    for (const color of Object.values(LOCATION_COLORS)) {
+      for (const surface of [WHITE, GRAY_50]) {
+        const text = getAccessibleTextColor(color, surface);
+        expect(contrast(text, surface)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("darkens a color outside the palette instead of passing it through", () => {
+    // Homeoffice-Blau aus staff-helpers und eine helle Raumfarbe.
+    for (const color of ["#0EA5E9", "#FFD166"]) {
+      for (const surface of [WHITE, GRAY_50]) {
+        const text = getAccessibleTextColor(color, surface);
+        expect(text).not.toBe(color);
+        expect(contrast(text, surface)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("darkens further on gray-50 than on white where the surface decides", () => {
+    // Marken-Orange: die auf Weiß gerechnete Schattierung landet auf gray-50
+    // bei 4,48:1 und reicht dort nicht.
+    const onWhite = getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD, WHITE);
+    const onGray = getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD, GRAY_50);
+    expect(contrast(onWhite, GRAY_50)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(onGray, GRAY_50)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("defaults to white when no surface is given", () => {
+    expect(getAccessibleTextColor(LOCATION_COLORS.HOME)).toBe(
+      getAccessibleTextColor(LOCATION_COLORS.HOME, WHITE),
+    );
+  });
+
+  it("leaves a color that already passes untouched", () => {
+    expect(getAccessibleTextColor(LOCATION_COLORS.EXCUSED)).toBe(
+      LOCATION_COLORS.EXCUSED,
+    );
+  });
+
+  it("is case insensitive", () => {
+    expect(getAccessibleTextColor("#83cd2d")).toBe(
+      getAccessibleTextColor("#83CD2D"),
+    );
+  });
+
+  it("falls back to neutral gray for a missing or unusable color", () => {
+    for (const color of [undefined, null, "", "  ", "currentColor"]) {
+      expect(getAccessibleTextColor(color)).toBe("#374151");
+    }
   });
 });

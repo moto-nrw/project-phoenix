@@ -66,9 +66,9 @@ const backendInstance: BackendEnrichedInstance = {
   assigned_staff_count: 1,
   conflict_warnings: [
     {
-      kind: "room",
+      kind: "staff",
       resource_id: 3,
-      message: "Raum doppelt belegt",
+      message: "Personal doppelt eingeplant",
       can_override: true,
     },
   ],
@@ -295,11 +295,13 @@ describe("timetableService", () => {
         }),
       );
 
-    await expect(timetableService.getTemplate("7")).resolves.toMatchObject({
-      id: "7",
-      name: "Yoga",
-      primaryStaffId: "11",
-    });
+    await expect(timetableService.getTemplate("7", "5")).resolves.toMatchObject(
+      {
+        id: "7",
+        name: "Yoga",
+        primaryStaffId: "11",
+      },
+    );
 
     const splitBody = {
       name: "Yoga",
@@ -335,7 +337,7 @@ describe("timetableService", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/timetable/templates/7",
+      "/api/timetable/templates/7?period_id=5",
       expect.objectContaining({ method: "GET", credentials: "include" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -356,6 +358,59 @@ describe("timetableService", () => {
     );
   });
 
+  it("loads the offering sources with and without a period filter (#2137)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            offerings: [
+              {
+                id: 12,
+                name: "Frühbetreuung",
+                phase_id: 3,
+                phase_name: "Schuljahr 2026/27",
+                total_count: 18,
+                grade_counts: { "0": 2, "1": 9, "2": 7 },
+                sourced_templates: [
+                  { id: 7, name: "Frühbetreuung Jg. 1", grade_levels: [1] },
+                ],
+                legacy_linked_template_id: 7,
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: { offerings: [] } }));
+
+    await expect(timetableService.getOfferingSources("5")).resolves.toEqual([
+      {
+        id: "12",
+        name: "Frühbetreuung",
+        phaseId: "3",
+        phaseName: "Schuljahr 2026/27",
+        totalCount: 18,
+        gradeCounts: { 0: 2, 1: 9, 2: 7 },
+        sourcedTemplates: [
+          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
+        ],
+        legacyLinkedTemplateId: "7",
+      },
+    ]);
+    await expect(timetableService.getOfferingSources()).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/offering-sources?calendar_period_id=5",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    // No period → no query string at all, not a dangling "?".
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/offering-sources",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
   it("checks conflicts with only the provided params in the query string", async () => {
     fetchMock
       .mockResolvedValueOnce(
@@ -366,9 +421,9 @@ describe("timetableService", () => {
             end_time: "13:00",
             warnings: [
               {
-                kind: "room",
+                kind: "staff",
                 resource_id: 3,
-                message: "Raum doppelt belegt",
+                message: "Personal doppelt eingeplant",
                 conflicting_instance_id: 42,
                 conflicting_title: "Mensa",
               },
@@ -403,9 +458,9 @@ describe("timetableService", () => {
       endTime: "13:00",
       warnings: [
         {
-          kind: "room",
+          kind: "staff",
           resourceId: "3",
-          message: "Raum doppelt belegt",
+          message: "Personal doppelt eingeplant",
           conflictingInstanceId: "42",
           conflictingTitle: "Mensa",
         },

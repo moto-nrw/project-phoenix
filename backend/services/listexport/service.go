@@ -59,6 +59,8 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}
 	case PresetBirthdayList:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnBirthday, ColumnAge}
+	case PresetStaffBirthdayList:
+		return []ColumnID{ColumnName, ColumnBirthday}
 	default:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday}
 	}

@@ -537,24 +537,41 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 		result = append(result, &GuardianWithRelationship{
 			Profile:           profile,
 			Relationship:      rel,
-			InvitationPending: !profile.HasAccount && s.hasOpenInvitation(ctx, profile.ID),
+			InvitationPending: s.invitationPendingForStudent(ctx, profile, rel.StudentID),
 		})
 	}
 
 	return result, nil
 }
 
+// invitationPendingForStudent decides whether the staff list should surface
+// "Einladung offen" for this guardian on this child. Guardians without an
+// account keep the historical profile-wide check (any open invite). Guardians
+// WITH an account can still have an open invitation — a pending-approval
+// role-upgrade request (#2172) — but only one anchored to this child counts,
+// so a sibling's invite never marks an unrelated row as pending.
+func (s *GuardianService) invitationPendingForStudent(ctx context.Context, profile *users.GuardianProfile, studentID int64) bool {
+	if !profile.HasAccount {
+		return s.hasOpenInvitation(ctx, profile.ID, 0)
+	}
+	return s.hasOpenInvitation(ctx, profile.ID, studentID)
+}
+
 // hasOpenInvitation reports whether the guardian profile has an invitation that
 // is neither accepted, expired, nor rejected — i.e. an outstanding invite the
-// staff UI should surface as "Einladung offen". Best-effort: a lookup error is
+// staff UI should surface as "Einladung offen". With studentID > 0, only
+// invitations anchored to that child count. Best-effort: a lookup error is
 // treated as "no pending invite" so the guardian list still renders.
-func (s *GuardianService) hasOpenInvitation(ctx context.Context, guardianProfileID int64) bool {
+func (s *GuardianService) hasOpenInvitation(ctx context.Context, guardianProfileID, studentID int64) bool {
 	invitations, err := s.GuardianInvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return false
 	}
 	now := time.Now()
 	for _, inv := range invitations {
+		if studentID > 0 && (inv.StudentID == nil || *inv.StudentID != studentID) {
+			continue
+		}
 		if inv.IsAccepted() {
 			continue
 		}

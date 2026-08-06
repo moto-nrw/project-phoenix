@@ -4,11 +4,12 @@
  */
 
 import { useId } from "react";
+import { Bus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Student } from "@/lib/api";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { GROUP_ROOM_SHADES, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -30,6 +31,11 @@ import {
   formatAllowedDepartureDays,
   normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
+import {
+  ParentVisibleBadge,
+  ParentVisibilityLegend,
+} from "~/components/ui/parent-visible-badge";
+import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { CompanionPicker } from "./companion-picker";
 import type {
   CompanionExtensionConfirmation,
@@ -82,6 +88,7 @@ export function PersonalInfoSection({
         />
         Persönliche Daten
       </h3>
+      <ParentVisibilityLegend className="mb-3 md:mb-4" />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
         <TextInput
           label="Vorname"
@@ -90,6 +97,7 @@ export function PersonalInfoSection({
           error={errors.first_name}
           required={requiredFields.firstName}
           placeholder="Max"
+          parentVisibleHint={PARENT_VISIBLE_HINTS.name}
         />
         <TextInput
           label="Nachname"
@@ -98,6 +106,7 @@ export function PersonalInfoSection({
           error={errors.second_name}
           required={requiredFields.lastName}
           placeholder="Mustermann"
+          parentVisibleHint={PARENT_VISIBLE_HINTS.name}
         />
         <TextInput
           label="Klasse"
@@ -106,6 +115,7 @@ export function PersonalInfoSection({
           error={errors.school_class}
           required={requiredFields.schoolClass}
           placeholder="5A"
+          parentVisibleHint={PARENT_VISIBLE_HINTS.schoolClass}
         />
         <SelectInput
           label="Gruppe"
@@ -117,6 +127,7 @@ export function PersonalInfoSection({
           label="Geburtstag"
           value={formData.birthday ?? ""}
           onChange={(v) => onChange("birthday", v)}
+          parentVisibleHint={PARENT_VISIBLE_HINTS.birthday}
         />
         <TextInput
           label="Straße und Hausnummer"
@@ -151,6 +162,7 @@ function TextInput({
   error,
   required = false,
   placeholder = "",
+  parentVisibleHint,
 }: Readonly<{
   label: string;
   value: string;
@@ -158,17 +170,24 @@ function TextInput({
   error?: string;
   required?: boolean;
   placeholder?: string;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  parentVisibleHint?: string;
 }>) {
   const inputId = useId();
 
   return (
     <div>
-      <label
-        htmlFor={inputId}
-        className="mb-1 block text-xs font-medium text-gray-700"
-      >
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
+      <div className="mb-1 flex items-center gap-1">
+        <label
+          htmlFor={inputId}
+          className="block text-xs font-medium text-gray-700"
+        >
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        {parentVisibleHint && (
+          <ParentVisibleBadge compact hint={parentVisibleHint} />
+        )}
+      </div>
       <input
         id={inputId}
         type="text"
@@ -230,20 +249,28 @@ function DateInput({
   label,
   value,
   onChange,
+  parentVisibleHint,
 }: Readonly<{
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  parentVisibleHint?: string;
 }>) {
   const inputId = useId();
   return (
     <div>
-      <label
-        htmlFor={inputId}
-        className="mb-1 block text-xs font-medium text-gray-700"
-      >
-        {label}
-      </label>
+      <div className="mb-1 flex items-center gap-1">
+        <label
+          htmlFor={inputId}
+          className="block text-xs font-medium text-gray-700"
+        >
+          {label}
+        </label>
+        {parentVisibleHint && (
+          <ParentVisibleBadge compact hint={parentVisibleHint} />
+        )}
+      </div>
       <ISODatePicker
         id={inputId}
         value={value}
@@ -269,6 +296,7 @@ function TextareaField({
   rows = 3,
   iconColor = "blue-600",
   iconPath,
+  parentVisibleHint,
 }: Readonly<{
   label: string;
   value: string | undefined | null;
@@ -277,10 +305,12 @@ function TextareaField({
   rows?: number;
   iconColor?: string;
   iconPath: string;
+  /** Set when the parent portal mirrors this field (see parent-visible-fields). */
+  parentVisibleHint?: string;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+      <h3 className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
           className={`h-3.5 w-3.5 text-${iconColor} md:h-4 md:w-4`}
           fill="none"
@@ -295,6 +325,7 @@ function TextareaField({
           />
         </svg>
         {label}
+        {parentVisibleHint && <ParentVisibleBadge hint={parentVisibleHint} />}
       </h3>
       <textarea
         value={value ?? ""}
@@ -324,6 +355,7 @@ export function HealthInfoSection({
       value={value}
       onChange={onChange}
       placeholder="Allergien, Medikamente, gesundheitliche Einschränkungen..."
+      parentVisibleHint={PARENT_VISIBLE_HINTS.healthInfo}
       iconColor="red-600"
       iconPath="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
     />
@@ -762,9 +794,13 @@ export function DepartureSection({
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
-        <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-          <MotoConceptIcon concept="transport" size={18} />
+        <h3 className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+          <Bus
+            className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
+            style={{ color: GROUP_ROOM_SHADES.text }}
+          />
           Erlaubte Heimwege
+          <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.departure} />
         </h3>
         {anySelected && (
           <span className="bg-moto-green-soft text-moto-green-strong hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline">

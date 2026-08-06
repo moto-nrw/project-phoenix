@@ -4,6 +4,7 @@ import type {
   ActivityType,
   EnrichedInstance,
   TargetGroupType,
+  TemplateProtectedStudentAssignment,
   TimetableListKind,
   TimetableTemplate,
 } from "~/lib/timetable-types";
@@ -11,6 +12,254 @@ import type {
 const STUDENT_PAGE_SIZE = 500;
 
 export type RepeatMode = "none" | "weekly" | "biweekly";
+
+/** One weekday's roster inside the per-weekday editing mode (#2129). */
+export interface WeekdayRosterState {
+  staffIds: string[];
+  primaryStaffId: string;
+  studentIds: string[];
+}
+
+/** German weekday labels for the per-weekday roster tabs, ISO-indexed. */
+export const WEEKDAY_LABELS: Record<number, string> = {
+  1: "Montag",
+  2: "Dienstag",
+  3: "Mittwoch",
+  4: "Donnerstag",
+  5: "Freitag",
+  6: "Samstag",
+  7: "Sonntag",
+};
+
+export const WEEKDAY_SHORT_LABELS: Record<number, string> = {
+  1: "Mo",
+  2: "Di",
+  3: "Mi",
+  4: "Do",
+  5: "Fr",
+  6: "Sa",
+  7: "So",
+};
+
+/** The roster that applies on `weekday`, honouring the per-weekday mode. */
+export function rosterForWeekday(
+  form: EventFormState,
+  weekday: number,
+): WeekdayRosterState {
+  if (!form.perWeekdayRoster) return sharedRoster(form);
+  return form.weekdayRosters[weekday] ?? sharedRoster(form);
+}
+
+export function sharedRoster(form: EventFormState): WeekdayRosterState {
+  return {
+    staffIds: form.staffIds,
+    primaryStaffId: form.primaryStaffId,
+    studentIds: form.studentIds,
+  };
+}
+
+/**
+ * Seeds every weekday of the series, keeping any weekday that already has a
+ * roster. When per-weekday editing is already active, a newly added weekday
+ * copies the first existing scheduled day instead of the top-level aggregate,
+ * which may be the union of several different weekday rosters.
+ */
+export function seedWeekdayRosters(
+  form: EventFormState,
+  weekdays: number[],
+): Record<number, WeekdayRosterState> {
+  const shared = sharedRoster(form);
+  const existing = form.weekdays
+    .map((weekday) => form.weekdayRosters[weekday])
+    .find((roster): roster is WeekdayRosterState => roster !== undefined);
+  const seed = form.perWeekdayRoster && existing ? existing : shared;
+  const seeded: Record<number, WeekdayRosterState> = {};
+  for (const weekday of weekdays) {
+    const existingRoster = form.weekdayRosters[weekday];
+    const roster = existingRoster ?? rosterSeedForWeekday(form, seed, weekday);
+    seeded[weekday] = {
+      staffIds: [...roster.staffIds],
+      primaryStaffId: roster.primaryStaffId,
+      studentIds: [...roster.studentIds],
+    };
+  }
+  return seeded;
+}
+
+/**
+ * Switches between the shared and per-weekday roster representations.
+ * Enabling always rebuilds every day from the current shared controls, so a
+ * previous per-weekday edit cannot reappear after a shared-mode change.
+ * Enrollment-owned children are then restored only on their covered days;
+ * their selected weekdays are not editable through this form.
+ */
+export function changePerWeekdayRosterMode(
+  form: EventFormState,
+  enabled: boolean,
+  activeWeekday: number,
+): EventFormState {
+  if (!enabled) {
+    const source = rosterForWeekday(
+      form,
+      form.weekdays.includes(activeWeekday)
+        ? activeWeekday
+        : (form.weekdays[0] ?? activeWeekday),
+    );
+    return {
+      ...form,
+      staffIds: [...source.staffIds],
+      primaryStaffId: source.primaryStaffId,
+      studentIds: [...source.studentIds],
+      perWeekdayRoster: false,
+      weekdayRosters: {},
+    };
+  }
+
+  const protectedIDs = new Set(
+    form.protectedStudentAssignments.flatMap(
+      (assignment) => assignment.studentIds,
+    ),
+  );
+  const protectedByWeekday = new Map(
+    form.protectedStudentAssignments.map((assignment) => [
+      assignment.weekday,
+      assignment.studentIds,
+    ]),
+  );
+  const weekdayRosters: Record<number, WeekdayRosterState> = {};
+  for (const weekday of form.weekdays) {
+    const covered = protectedByWeekday.get(weekday) ?? [];
+    const coveredIDs = new Set(covered);
+    const studentIds = form.studentIds.filter(
+      (id) => !protectedIDs.has(id) || coveredIDs.has(id),
+    );
+    const included = new Set(studentIds);
+    for (const id of covered) {
+      if (!included.has(id)) {
+        studentIds.push(id);
+        included.add(id);
+      }
+    }
+    weekdayRosters[weekday] = {
+      staffIds: [...form.staffIds],
+      primaryStaffId: form.primaryStaffId,
+      studentIds,
+    };
+  }
+  return { ...form, perWeekdayRoster: true, weekdayRosters };
+}
+
+/**
+ * Replaces the recurrence weekdays without losing the roster state rules.
+ * New days copy one concrete existing day, never the aggregate read model;
+ * collapsing to one day turns the surviving concrete roster into the shared
+ * controls that are serialized by the single-day flow.
+ */
+export function changeRosterWeekdays(
+  form: EventFormState,
+  weekdays: number[],
+  fallbackWeekday: number,
+): EventFormState {
+  const weekdayRosters = form.perWeekdayRoster
+    ? seedWeekdayRosters(form, weekdays)
+    : form.weekdayRosters;
+  if (form.perWeekdayRoster && weekdays.length < 2) {
+    const source =
+      weekdayRosters[weekdays[0] ?? fallbackWeekday] ??
+      rosterForWeekday(form, weekdays[0] ?? fallbackWeekday);
+    return {
+      ...form,
+      weekdays,
+      staffIds: [...source.staffIds],
+      primaryStaffId: source.primaryStaffId,
+      studentIds: [...source.studentIds],
+      perWeekdayRoster: false,
+      weekdayRosters,
+    };
+  }
+  return { ...form, weekdays, weekdayRosters };
+}
+
+/** Copies a roster to a newly introduced day without widening protected rows. */
+export function rosterSeedForWeekday(
+  form: EventFormState,
+  roster: WeekdayRosterState,
+  weekday: number,
+): WeekdayRosterState {
+  const protectedIDs = new Set(
+    form.protectedStudentAssignments.flatMap(
+      (assignment) => assignment.studentIds,
+    ),
+  );
+  const coveredIDs = new Set(
+    form.protectedStudentAssignments.find(
+      (assignment) => assignment.weekday === weekday,
+    )?.studentIds ?? [],
+  );
+  return {
+    staffIds: [...roster.staffIds],
+    primaryStaffId: roster.primaryStaffId,
+    studentIds: roster.studentIds.filter(
+      (id) => !protectedIDs.has(id) || coveredIDs.has(id),
+    ),
+  };
+}
+
+/**
+ * True when `weekday` staffs differently from the series baseline — the signal
+ * behind the "abweichend" badge. The baseline is the first weekday's roster:
+ * with no stored notion of "the shared default" (the writer expands it away),
+ * deviation is a comparison between days, which is also what a planner means
+ * by it.
+ */
+export function weekdayDeviatesFromBaseline(
+  form: EventFormState,
+  weekday: number,
+  weekdays: number[],
+): boolean {
+  if (!form.perWeekdayRoster) return false;
+  const baselineWeekday = weekdays[0];
+  if (baselineWeekday === undefined || baselineWeekday === weekday) {
+    return false;
+  }
+  const baseline = rosterForWeekday(form, baselineWeekday);
+  const current = rosterForWeekday(form, weekday);
+  return (
+    !sameIdSet(baseline.staffIds, current.staffIds) ||
+    !sameIdSet(baseline.studentIds, current.studentIds) ||
+    baseline.primaryStaffId !== current.primaryStaffId
+  );
+}
+
+function sameIdSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const seen = new Set(left);
+  return right.every((id) => seen.has(id));
+}
+
+/**
+ * True when at least one weekday staffs differently from the others. This is
+ * the state an offering source destroys: with a source set, the payload
+ * carries only the shared staff list (the backend rejects
+ * `weekday_assignments` next to a source), so activating one must ask for
+ * explicit confirmation first (#2147 review). Confirming then empties the
+ * shared staffing instead of adopting an aggregated all-weekdays union, so
+ * the replacement Besetzung is picked explicitly (#2147 review round 13).
+ * Child lists are not compared; a sourced roster replaces them by design.
+ */
+export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
+  if (!form.perWeekdayRoster || form.weekdays.length < 2) return false;
+  const [first, ...rest] = form.weekdays;
+  if (first === undefined) return false;
+  const baseline = rosterForWeekday(form, first);
+  return rest.some((weekday) => {
+    const current = rosterForWeekday(form, weekday);
+    return (
+      !sameIdSet(baseline.staffIds, current.staffIds) ||
+      baseline.primaryStaffId !== current.primaryStaffId
+    );
+  });
+}
 
 export interface EventFormState {
   title: string;
@@ -20,6 +269,7 @@ export interface EventFormState {
   roomId: string;
   type: ActivityType;
   categoryId: string;
+  planningTrackId: string;
   /**
    * Listenart (#1565) — classifies the slot for printable daily lists
    * (Randstunden, Lernzeit, AG-Angebote, Mensa). "" = no list kind.
@@ -47,6 +297,18 @@ export interface EventFormState {
   staffIds: string[];
   primaryStaffId: string;
   /**
+   * Per-weekday staffing (#2129). When false the series uses ONE roster on
+   * every weekday and `weekdayRosters` is ignored. When true each weekday of
+   * the series carries its own staff, zuständige Person and child list, and
+   * `studentIds`/`staffIds`/`primaryStaffId` above seed the mode initially;
+   * weekdays added later copy an existing scheduled day's roster.
+   */
+  perWeekdayRoster: boolean;
+  /** Roster per ISO weekday (1 = Mo … 5 = Fr); only read when perWeekdayRoster. */
+  weekdayRosters: Record<number, WeekdayRosterState>;
+  /** Enrollment-owned children and the weekdays on which they are immutable. */
+  protectedStudentAssignments: TemplateProtectedStudentAssignment[];
+  /**
    * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
    * occurrence inherits the series value, otherwise the Betreuungsschlüssel
    * derivation applies. A non-negative integer overrides both (on a single
@@ -62,6 +324,18 @@ export interface EventFormState {
   targetGroupType: TargetGroupType;
   targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
   targetSchoolClass: string; // "", only meaningful for "klasse"
+  targetGradeLevels: string[];
+  targetSchoolClasses: string[];
+  educationGroupIds: string[];
+  /**
+   * Offering-source rule (#2137), only meaningful for "angebot": the
+   * Betreuungsangebot whose approved children feed this Regeltermin, plus the
+   * Jahrgang filter (empty = alle Kinder des Angebots). With a source set the
+   * manual student picker is hidden and studentIds stays empty — the roster
+   * is server-managed.
+   */
+  sourceCareOfferingId: string;
+  sourceGradeLevels: number[];
 }
 
 export interface PersonOption {
@@ -95,6 +369,7 @@ export function emptyForm(
     roomId: "",
     type: "care",
     categoryId: "",
+    planningTrackId: "",
     listKind: "",
     educationGroupId: "",
     notes: "",
@@ -106,10 +381,18 @@ export function emptyForm(
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    perWeekdayRoster: false,
+    weekdayRosters: {},
+    protectedStudentAssignments: [],
     requiredStaff: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
+    targetGradeLevels: [],
+    targetSchoolClasses: [],
+    educationGroupIds: [],
+    sourceCareOfferingId: "",
+    sourceGradeLevels: [],
   };
 }
 
@@ -127,6 +410,7 @@ export function formFromInstance(
     roomId: instance.roomId,
     type: instance.activityType,
     categoryId: "",
+    planningTrackId: instance.planningTrackId ?? "",
     listKind: instance.listKind ?? "",
     educationGroupId: "",
     notes: instance.notes ?? "",
@@ -141,6 +425,11 @@ export function formFromInstance(
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    // A single occurrence has exactly one date, so per-weekday staffing is a
+    // series-only concept here.
+    perWeekdayRoster: false,
+    weekdayRosters: {},
+    protectedStudentAssignments: [],
     requiredStaff:
       instance.requiredStaffOverride !== undefined
         ? String(instance.requiredStaffOverride)
@@ -148,6 +437,11 @@ export function formFromInstance(
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
+    targetGradeLevels: [],
+    targetSchoolClasses: [],
+    educationGroupIds: [],
+    sourceCareOfferingId: "",
+    sourceGradeLevels: [],
   };
 }
 
@@ -156,6 +450,7 @@ export function formFromSeries(
   defaultDate: string,
   defaultCalendarPeriodId?: string | null,
 ): EventFormState {
+  const targets = series.targets ?? [];
   const firstSchedule = series.schedules[0];
   const weekdays = series.schedules.map((schedule) => schedule.weekday);
   const weekPattern =
@@ -173,8 +468,12 @@ export function formFromSeries(
     roomId: series.roomId ?? "",
     type: series.type,
     categoryId: series.categoryId,
+    planningTrackId: series.planningTrackId ?? "",
     listKind: series.listKind ?? "",
-    educationGroupId: series.educationGroupId ?? "",
+    educationGroupId:
+      series.targetGroupType === "gruppe"
+        ? ""
+        : (series.educationGroupId ?? ""),
     notes: "",
     seriesNotes: series.notes ?? "",
     repeat,
@@ -182,9 +481,18 @@ export function formFromSeries(
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
       resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
-    studentIds: series.studentIds,
+    // A sourced roster is server-managed: the backend rejects student_ids
+    // next to a source, and the list's studentIds are exactly the sourced
+    // rows — prefilling them would turn the rule into a snapshot.
+    studentIds: series.sourceCareOfferingId ? [] : series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    // A series that carries weekday assignments was saved in per-weekday mode
+    // and must reopen in it, or saving again would silently flatten it back to
+    // one shared roster.
+    perWeekdayRoster: series.weekdayAssignments.length > 0,
+    weekdayRosters: weekdayRostersFromSeries(series),
+    protectedStudentAssignments: series.protectedStudentAssignments ?? [],
     requiredStaff:
       series.requiredStaffOverride !== undefined
         ? String(series.requiredStaffOverride)
@@ -195,7 +503,47 @@ export function formFromSeries(
         ? String(series.targetGradeLevel)
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
+    sourceCareOfferingId: series.sourceCareOfferingId ?? "",
+    sourceGradeLevels: series.sourceGradeLevels ?? [],
+    targetGradeLevels:
+      targets.length > 0
+        ? targets.flatMap((target) =>
+            target.gradeLevel === undefined ? [] : [String(target.gradeLevel)],
+          )
+        : series.targetGradeLevel === undefined
+          ? []
+          : [String(series.targetGradeLevel)],
+    targetSchoolClasses:
+      targets.length > 0
+        ? targets.flatMap((target) =>
+            target.schoolClass ? [target.schoolClass] : [],
+          )
+        : series.targetSchoolClass
+          ? [series.targetSchoolClass.trim()]
+          : [],
+    educationGroupIds:
+      targets.length > 0
+        ? targets.flatMap((target) =>
+            target.educationGroupId ? [target.educationGroupId] : [],
+          )
+        : series.targetGroupType === "gruppe" && series.educationGroupId
+          ? [series.educationGroupId]
+          : [],
   };
+}
+
+function weekdayRostersFromSeries(
+  series: TimetableTemplate,
+): Record<number, WeekdayRosterState> {
+  const rosters: Record<number, WeekdayRosterState> = {};
+  for (const assignment of series.weekdayAssignments) {
+    rosters[assignment.weekday] = {
+      staffIds: assignment.staffIds,
+      primaryStaffId: assignment.primaryStaffId ?? "",
+      studentIds: assignment.studentIds,
+    };
+  }
+  return rosters;
 }
 
 // parseRequiredStaffOverride maps the "Benötigtes Personal" input to the
@@ -237,9 +585,7 @@ export function targetCohortActionLabel(
   missingMemberCount: number,
 ): string {
   if (memberCount === 0) return `Keine Kinder aus ${label} gefunden`;
-  if (missingMemberCount === 0) {
-    return `Alle Kinder aus ${label} übernommen`;
-  }
+  if (missingMemberCount === 0) return `Alle Kinder aus ${label} übernommen`;
   const childLabel = memberCount === 1 ? "Kind" : "Kinder";
   return `Alle ${memberCount} ${childLabel} aus ${label} übernehmen`;
 }

@@ -213,6 +213,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/news/unread-count", rs.unreadAnnouncementCount)
 		r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
 		r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
+		// Poll answer, one child per call (#1371).
+		r.Post("/me/news/{announcementId}/respond", rs.respondToAnnouncement)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
@@ -224,6 +226,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-schedule", rs.getChildCareSchedule)
 		r.Post("/me/children/{studentId}/care-schedule/requests", rs.createCareScheduleRequest)
 		r.Post("/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw", rs.withdrawCareScheduleRequest)
+
+		// Booked care offerings + activity groups (#1665) — read view plus the
+		// post-enrollment change-request lifecycle. Approved requests are
+		// applied by the enrollment domain on a chosen effective date.
+		r.Get("/me/children/{studentId}/care-offerings", rs.getChildCareOfferings)
+		r.Get("/me/children/{studentId}/care-offerings/catalog", rs.getChildOfferingCatalog)
+		r.Post("/me/children/{studentId}/care-offerings/requests", rs.createOfferingChangeRequest)
+		r.Post("/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw", rs.withdrawOfferingChangeRequest)
 
 		// Stammdaten — structured view of the child's master data plus the
 		// calling guardian's own contact data. Track A direct edits apply

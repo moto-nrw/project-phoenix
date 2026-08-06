@@ -101,6 +101,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       captchaConfig: bootstrap.captcha_config,
       legalTexts: bootstrap.legal_texts,
       profile: bootstrap.profile ?? null,
+      lateInvite: bootstrap.late_invite,
       schoolClass: bootstrap.school_class,
       // Carry the phase audience through so the form can suppress the
       // existing-child reuse panel on a new_students phase — a signed-in

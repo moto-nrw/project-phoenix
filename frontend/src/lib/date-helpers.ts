@@ -12,13 +12,24 @@ const BERLIN_DATE_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "2-digit",
 });
 
+const BERLIN_DATE_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   timeZone: "Europe/Berlin",
 });
 
-const CHAT_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+const BERLIN_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
@@ -89,6 +100,50 @@ export function berlinTodayISO(at: Date = new Date()): string {
 }
 
 /**
+ * The Berlin calendar day an instant falls on, as a Date at LOCAL midnight —
+ * the shape the date pickers render and `endOfBerlinDayISO` reads back.
+ *
+ * Use this to seed a date picker from a cut-off written by
+ * `endOfBerlinDayISO`. Loading it with a plain `new Date(iso)` shows the
+ * FOLLOWING day in any browser east of Berlin (23:59 Berlin is already past
+ * midnight there), so saving an otherwise untouched form would silently push
+ * the date one day out.
+ *
+ * Returns null for an unparseable value so a malformed timestamp renders as
+ * "no date" instead of throwing inside the picker.
+ */
+export function berlinDayFromISO(value: string): Date | null {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return null;
+  return parseISODate(berlinTodayISO(instant));
+}
+
+/**
+ * Serializes the selected calendar day as 23:59:59 in the school's
+ * Europe/Berlin timezone. The Date carries calendar fields from the date
+ * picker, so those fields deliberately remain local to the person selecting
+ * the day; only the resulting deadline instant is pinned to Berlin.
+ */
+export function endOfBerlinDayISO(date: Date): string {
+  const nominalUtc = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
+  );
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(nominalUtc);
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const berlinWallClockAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  const berlinOffsetMs = berlinWallClockAsUtc - nominalUtc.getTime();
+  return new Date(nominalUtc.getTime() - berlinOffsetMs).toISOString();
+}
+
+/**
  * Groups items by date, sorted in descending order (newest first)
  * @param items Array of items with timestamp properties
  * @param timestampKey The key to access the timestamp property
@@ -154,6 +209,26 @@ export function formatDate(dateString: string, includeWeekday = false): string {
 }
 
 /**
+ * Format an instant as the German calendar date of the school's timezone
+ * ("20.07.2026"), regardless of where the viewer sits.
+ *
+ * Use this — not `formatDate` — for a cut-off that was written with
+ * `endOfBerlinDayISO` (Antwortfrist, Ablaufdatum). Such a value is a calendar
+ * day carried as 23:59:59 Berlin; rendering it in the viewer's local timezone
+ * shows the FOLLOWING day east of Berlin, so a guardian in Moscow would read a
+ * deadline that has in fact already passed. Plain instants (published_at,
+ * created_at) keep using `formatDate`.
+ *
+ * Falls back to the raw input for an unparseable value, matching the chat
+ * formatters — a malformed timestamp must not blank the surrounding line.
+ */
+export function formatBerlinDate(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  return BERLIN_DATE_FORMATTER.format(date);
+}
+
+/**
  * Format a time string to German locale format
  * @param dateString ISO date string
  * @returns Formatted time string (e.g., "14:30")
@@ -191,7 +266,7 @@ export function formatChatDateTime(iso: string | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${CHAT_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
+  return `${BERLIN_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
 /**

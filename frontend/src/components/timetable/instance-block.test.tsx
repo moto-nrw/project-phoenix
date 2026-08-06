@@ -8,7 +8,7 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 /**
  * InstanceBlock renders internally via the kit primitive PlanBlock
  * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 2.2/5.1). These
- * tests pin the data-to-PlanBlock mapping: category edge color, the footer
+ * tests pin the data-to-PlanBlock mapping: planning-track edge color, the footer
  * CoverageIndicator numbers (Kriterium 6), cancelled rendering, the
  * acknowledged gray-with-note state, and the single-status-icon priority
  * cancelled > offene Lücke.
@@ -66,12 +66,11 @@ function renderBlock(
 }
 
 describe("InstanceBlock -> PlanBlock mapping", () => {
-  it("renders the 3px category-color edge from the activity type", () => {
+  it("renders the neutral edge when no planning track is assigned", () => {
     renderBlock(makeInstance());
 
-    // activityType "activity" -> LOCATION_COLORS.GROUP_ROOM (#83CD2D)
     expect(screen.getByRole("button")).toHaveStyle({
-      borderLeft: "3px solid #83CD2D",
+      borderLeft: "3px solid #D1D5DB",
     });
   });
 

@@ -55,6 +55,14 @@ const (
 	ActivitiesUpdate = ResourceActivities + ":" + ActionUpdate
 	ActivitiesDelete = ResourceActivities + ":" + ActionDelete
 	ActivitiesList   = ResourceActivities + ":" + ActionList
+
+	// ActivitiesManageCategories gates the category Stammdaten endpoints
+	// (#2131). It cannot be one of the constants above: migration 1.9.4
+	// granted activities:create/update/delete/manage to the plain `user` role,
+	// so every Betreuer holds them. Category Stammdaten are school-wide
+	// configuration and stay with the OGS-Leitung (admin role, migration
+	// 1.15.259).
+	ActivitiesManageCategories = ResourceActivities + ":manage_categories"
 )
 
 // Room permissions
@@ -181,6 +189,31 @@ const (
 	// decision "nur Admins"). This constant is reserved for the future
 	// delegated/scoped announcer role that will enforce per-target limits.
 	CommunicationsAnnounce = ResourceCommunications + ":announce"
+)
+
+// Staff permissions (#1423). staff:financial gates the bank & tax section
+// of the Stammdaten tab (IBAN, Steuer-ID, SV-Nummer) — deliberately its own
+// permission instead of users:update: the directory maintainers are not the
+// Träger payroll office. NOTE: admins still match via the admin:* wildcard;
+// restricting school admins would need an exact-match check, which is a
+// product decision, not taken here.
+const (
+	ResourceStaff = "staff"
+
+	StaffFinancial = ResourceStaff + ":financial"
+)
+
+// Staff document permissions (#1424). staff_documents:health gates the
+// AU-Bescheinigung category — health data is an Art. 9 GDPR special
+// category, so seeing a sick note requires more than maintaining the staff
+// directory. Catalog-only like staff:financial: admins match via the
+// admin:* wildcard, other categories map to existing permissions in the
+// document service (Lohnabrechnung → staff:financial, the rest →
+// users:update).
+const (
+	ResourceStaffDocuments = "staff_documents"
+
+	StaffDocumentsHealth = ResourceStaffDocuments + ":health"
 )
 
 // Grade Transition permissions (admin only)

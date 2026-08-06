@@ -109,6 +109,19 @@ func (c *RequestChild) IsTerminal() bool {
 	}
 }
 
+// StudentCarePeriod is one approved enrollment that materialized into a
+// student, together with the care window of its phase. The parents portal
+// needs the window to decide which care period is the current one for a child
+// that is enrolled across several school years (#1665).
+type StudentCarePeriod struct {
+	RequestChildID   int64         `bun:"request_child_id"`
+	RequestID        int64         `bun:"request_id"`
+	PhaseID          int64         `bun:"phase_id"`
+	PhaseName        string        `bun:"phase_name"`
+	ServiceStartDate timezone.Date `bun:"service_start_date"`
+	ServiceEndDate   timezone.Date `bun:"service_end_date"`
+}
+
 // RequestChildRepository describes the DB operations PR 5/7/8 need. PR 5
 // only implements + tests Create/ListByRequestID/UpdateStatus; PR 8
 // adds LinkCreatedStudent to back-link the row to the student record
@@ -117,6 +130,7 @@ func (c *RequestChild) IsTerminal() bool {
 type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	FindByID(ctx context.Context, id int64) (*RequestChild, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*RequestChild, error)
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
 	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*RequestChild, error)
 
@@ -128,6 +142,13 @@ type RequestChildRepository interface {
 	ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*RequestChild, error)
 
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
+	// RestoreWithdrawnByRequestID flips every withdrawn child of the request
+	// out of withdrawn and clears status_reason/reviewed_at/reviewed_by
+	// (the fields the withdraw path stamped). Children in waitlistedChildIDs
+	// come back as waitlisted (capacity gate), everyone else as submitted.
+	// Returns all restored ids; empty means the request had no withdrawn
+	// children. Admin restore flow only (#2157).
+	RestoreWithdrawnByRequestID(ctx context.Context, requestID int64, waitlistedChildIDs []int64) ([]int64, error)
 	UpdateData(ctx context.Context, child *RequestChild) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 	// UpdateMatchedStudent re-points (or clears, on nil) the already-enrolled
@@ -148,6 +169,14 @@ type RequestChildRepository interface {
 	// students created from the phase's requests. Powers the phase-delete
 	// confirmation modal; these students survive the delete.
 	CountCreatedStudentsByPhaseID(ctx context.Context, phaseID int64) (int, error)
+
+	// ListCarePeriodsByStudentID returns the approved enrollments that
+	// materialized into this student, joined with their phase care window and
+	// ordered by that window (latest first). A plain filter cannot express it:
+	// the phase window lives two joins away (request_child → request → phase),
+	// and the parents portal needs window and child row together to pick the
+	// period that covers today.
+	ListCarePeriodsByStudentID(ctx context.Context, studentID int64) ([]*StudentCarePeriod, error)
 
 	// BulkUpdateStatusByPhaseAndStatus is the deadline-worker
 	// primitive: flip every row in (phaseID, currentStatus) to

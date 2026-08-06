@@ -276,7 +276,7 @@ export const LOCATION_COLORS = {
   GROUP_ROOM: MOTO_COLOR_PALETTE.green.base,
   OTHER_ROOM: MOTO_COLOR_PALETTE.blue.base,
   HOME: MOTO_COLOR_PALETTE.neutral.base,
-  SCHOOLYARD: MOTO_COLOR_PALETTE.amber.base,
+  SCHOOLYARD: MOTO_COLOR_PALETTE.orange.base,
   TRANSIT: MOTO_COLOR_PALETTE.magenta.base,
   UNKNOWN: MOTO_COLOR_PALETTE.stone.base,
   SICK: MOTO_COLOR_PALETTE.red.base,
@@ -300,6 +300,166 @@ export const GROUP_ROOM_SHADES = {
   bgHover: MOTO_COLOR_PALETTE.green.soft,
   bgActive: "#D7E8C3",
 } as const;
+
+/**
+ * Text shades of the palette above, dark enough to carry a label. The raw brand
+ * hexes are fills: on white #83CD2D reaches 2.0:1, #F78C10 2.4:1 and #EAB308
+ * 1.9:1, all far under the WCAG minimum for normal text. These keep the hue and
+ * only take brightness away.
+ *
+ * Calibrated against {@link SURFACE_GRAY_50}, the darker of the two surfaces
+ * they run on (the badge pill; cards are white), so every entry holds on both.
+ * The comments carry the ratio on gray-50 — on white each value is a little
+ * better still.
+ *
+ * Keyed by the lowercased base hex, so a component only knows its brand color
+ * and asks `getAccessibleTextColor()` for the matching label color. Colors that
+ * are not part of the palette (per-room hexes, the Homeoffice blue in
+ * staff-helpers) are darkened arithmetically by the same function, against the
+ * surface they are actually drawn on.
+ *
+ * These are NOT the StatusBadge label colors: those are darkened further to sit
+ * on a tinted pill, which reads muddy on a large figure on white (#8A5600 turns
+ * brown). Both tables exist on purpose.
+ */
+const ACCESSIBLE_TEXT_COLORS: Record<string, string> = {
+  "#83cd2d": GROUP_ROOM_SHADES.text, // 4.9:1 — #4a7a15
+  "#5080d8": "#3d6ab8", // 5.1:1
+  "#ff3130": "#c62826", // 5.4:1
+  "#f78c10": "#a35c0b", // 4.9:1
+  "#d946ef": "#af39c1", // 4.8:1
+  "#eab308": "#8b6a05", // 4.8:1
+  "#6b7280": "#374151", // 9.9:1 — neutral figures read as gray-700, not gray-500
+  // EXCUSED #7C3AED is absent on purpose: at 5.5:1 the raw purple already
+  // clears the target and is returned unchanged.
+};
+
+/** Tailwind gray-50, the badge-pill background. */
+export const SURFACE_GRAY_50 = "#F9FAFB";
+
+const SURFACE_WHITE = "#FFFFFF";
+
+/**
+ * WCAG AA for normal text is 4.5:1; the target sits above it so a shade never
+ * lands on the boundary, where a rounded channel decides pass or fail. Normal
+ * text is the strict case, so one target covers large text too.
+ */
+const TEXT_CONTRAST_TARGET = 4.75;
+
+/** Used when there is no usable color to darken. */
+const NEUTRAL_TEXT_COLOR = "#374151";
+
+const accessibleTextCache = new Map<string, string>();
+
+/**
+ * Returns a text color for `color` that clears {@link TEXT_CONTRAST_TARGET}
+ * against `background` — pass the surface the text actually sits on, since the
+ * same shade passes on white and fails on gray-50. Palette colors start from
+ * {@link ACCESSIBLE_TEXT_COLORS}, anything else (a per-room hex, a status color
+ * outside the palette) from the color itself; either is scaled down
+ * channel-wise until the ratio holds, which keeps the hue. Colors that already
+ * pass are returned unchanged.
+ *
+ * Use it for the LABEL only. Dots, bars, and other fills keep the raw color —
+ * they carry no text and contrast rules do not apply the same way.
+ *
+ * Accepts a missing color: an indexed palette lookup is `string | undefined`
+ * under `noUncheckedIndexedAccess`, and a status the backend adds before the
+ * frontend knows it must not blow up a badge. It falls back to neutral gray.
+ */
+export function getAccessibleTextColor(
+  color: string | null | undefined,
+  background: string = SURFACE_WHITE,
+): string {
+  if (color === null || color === undefined || color.trim() === "") {
+    return NEUTRAL_TEXT_COLOR;
+  }
+
+  const key = `${color.trim().toLowerCase()}|${background.trim().toLowerCase()}`;
+
+  const cached = accessibleTextCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const resolved = resolveAccessibleTextColor(color, background);
+  accessibleTextCache.set(key, resolved);
+  return resolved;
+}
+
+function resolveAccessibleTextColor(color: string, background: string): string {
+  const candidate = ACCESSIBLE_TEXT_COLORS[color.trim().toLowerCase()] ?? color;
+
+  const rgb = hexToRgb(candidate);
+  const backgroundRgb = hexToRgb(background);
+  if (!rgb || !backgroundRgb) {
+    // Non-hex input (a CSS keyword, a var()): darkening it is not possible, so
+    // fall back to the neutral text color rather than passing it through.
+    return NEUTRAL_TEXT_COLOR;
+  }
+
+  if (contrastRatio(rgb, backgroundRgb) >= TEXT_CONTRAST_TARGET) {
+    return candidate;
+  }
+
+  return rgbToHex(darkenToContrast(rgb, backgroundRgb, TEXT_CONTRAST_TARGET));
+}
+
+/**
+ * Largest brightness factor that still clears `target`, found by bisection.
+ * The rounding to integer channels happens inside the predicate — rounding
+ * afterwards can push a borderline result back below the target.
+ */
+function darkenToContrast(
+  rgb: RgbColor,
+  background: RgbColor,
+  target: number,
+): RgbColor {
+  let tooDark = 0;
+  let tooBright = 1;
+
+  for (let i = 0; i < 24; i++) {
+    const factor = (tooDark + tooBright) / 2;
+    if (contrastRatio(scaleChannels(rgb, factor), background) >= target) {
+      tooDark = factor;
+    } else {
+      tooBright = factor;
+    }
+  }
+
+  return scaleChannels(rgb, tooDark);
+}
+
+function scaleChannels(rgb: RgbColor, factor: number): RgbColor {
+  return {
+    r: Math.round(rgb.r * factor),
+    g: Math.round(rgb.g * factor),
+    b: Math.round(rgb.b * factor),
+  };
+}
+
+/** WCAG relative luminance (sRGB). */
+function relativeLuminance({ r, g, b }: RgbColor): number {
+  const channel = (value: number): number => {
+    const srgb = value / 255;
+    return srgb <= 0.03928
+      ? srgb / 12.92
+      : Math.pow((srgb + 0.055) / 1.055, 2.4);
+  };
+
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio between two colors. */
+function contrastRatio(a: RgbColor, b: RgbColor): number {
+  const lumA = relativeLuminance(a);
+  const lumB = relativeLuminance(b);
+  return (Math.max(lumA, lumB) + 0.05) / (Math.min(lumA, lumB) + 0.05);
+}
+
+function rgbToHex({ r, g, b }: RgbColor): string {
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
 
 const LOCATION_SEPARATOR = "-";
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;

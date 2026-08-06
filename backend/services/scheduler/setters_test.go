@@ -261,7 +261,9 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	assert.False(t, task.Running)
 }
 
-func TestRunOverdueForTenant_SkipsSchulhof(t *testing.T) {
+// Since #2161 the Schulhof is a regular plannable room: overdue planned
+// yard blocks emit the same overdue events as any other room's blocks.
+func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	today := timezone.NewDate(2026, 4, 20)
 	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
 	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
@@ -293,8 +295,8 @@ func TestRunOverdueForTenant_SkipsSchulhof(t *testing.T) {
 
 	s.runOverdueForTenant(context.Background(), 1, 5, now)
 
-	assert.Equal(t, 0, spyFilter(spy, schulhofInstance.ID, realtime.EventInstanceOverdue))
-	assert.Equal(t, 0, spyFilter(spy, schulhofInstance.ID, realtime.EventActiveSupervisionChanged))
+	assert.Equal(t, 1, spyFilter(spy, schulhofInstance.ID, realtime.EventInstanceOverdue))
+	assert.Equal(t, 1, spyFilter(spy, schulhofInstance.ID, realtime.EventActiveSupervisionChanged))
 	assert.Equal(t, 1, spyFilter(spy, normalInstance.ID, realtime.EventInstanceOverdue))
 	assert.Equal(t, 1, spyFilter(spy, normalInstance.ID, realtime.EventActiveSupervisionChanged))
 }

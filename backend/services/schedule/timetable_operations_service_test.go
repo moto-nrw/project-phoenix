@@ -84,7 +84,9 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	assert.True(t, result[0].IsOverdue)
 }
 
-func TestTimetableOperationsPlannedNowExcludesSchulhof(t *testing.T) {
+// Since #2161 the Schulhof is a regular plannable room: its planned blocks
+// appear in the "Jetzt starten" list exactly like any other room's.
+func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	const schulhofRoomID int64 = 811
 	deps := newTimetableOpsDeps()
@@ -103,8 +105,9 @@ func TestTimetableOperationsPlannedNowExcludesSchulhof(t *testing.T) {
 	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, int64(331), result[0].ID)
+	require.Len(t, result, 2)
+	ids := []int64{result[0].ID, result[1].ID}
+	assert.ElementsMatch(t, []int64{330, 331}, ids)
 }
 
 func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
@@ -480,6 +483,58 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	assert.Equal(t, actualGroupID, *roster.Rows[0].Warnings[1].CurrentEducationGroup)
 }
 
+func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
+	instanceID := int64(363)
+	activeGroupID := int64(263)
+	activityGroupID := int64(273)
+	firstGroupID := int64(283)
+	secondGroupID := int64(284)
+	studentID := int64(534)
+	outsideStudentID := int64(535)
+	outsideGroupID := int64(285)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 653, 453, 243, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: outsideStudentID, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.activityGroups.byID[activityGroupID] = &activitiesModel.Group{EducationGroupID: &firstGroupID}
+	deps.activityGroups.targetsByGroup[activityGroupID] = []*activitiesModel.GroupTarget{
+		{TargetGroupType: activitiesModel.TargetGroupTypeGruppe, EducationGroupID: &firstGroupID},
+		{TargetGroupType: activitiesModel.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
+	}
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 464, GroupID: &secondGroupID}
+	deps.students.byID[outsideStudentID] = &usersModel.Student{PersonID: 465, GroupID: &outsideGroupID}
+	deps.personService.people[464] = &usersModel.Person{FirstName: "Mia", LastName: "Mehrfach"}
+	deps.personService.people[465] = &usersModel.Person{FirstName: "Noah", LastName: "Außerhalb"}
+
+	roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	rowsByStudent := make(map[int64]OperationRosterRow, len(roster.Rows))
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	for _, warning := range rowsByStudent[studentID].Warnings {
+		assert.NotEqual(t, "template_class_mismatch", warning.Kind)
+	}
+	var mismatch *OperationRosterWarning
+	outsideWarnings := rowsByStudent[outsideStudentID].Warnings
+	for i := range outsideWarnings {
+		if outsideWarnings[i].Kind == "template_class_mismatch" {
+			mismatch = &outsideWarnings[i]
+			break
+		}
+	}
+	require.NotNil(t, mismatch)
+	assert.Nil(t, mismatch.ExpectedGroupID)
+	assert.Nil(t, mismatch.ExpectedGroupName)
+	assert.Equal(t, outsideGroupID, *mismatch.CurrentEducationGroup)
+}
+
 func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 	instanceID := int64(362)
 	activeGroupID := int64(262)
@@ -642,9 +697,19 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 	require.Len(t, deps.studentRepo.updates, 1)
 	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
 	assert.Equal(t, &note, deps.studentRepo.updates[0].patch.Note)
-	require.Len(t, deps.broadcaster.Calls(), 1)
-	assert.Equal(t, int64(721), deps.broadcaster.Calls()[0].TenantID)
-	assert.Equal(t, realtime.EventActiveSupervisionChanged, deps.broadcaster.Calls()[0].Event.Type)
+	calls := deps.broadcaster.Calls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(721), calls[0].TenantID)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, calls[0].Event.Type)
+
+	// #2085: the refresh is tenant-wide, so it must not name the child whose
+	// attendance was patched — every staff client of the school receives it,
+	// including colleagues outside gdpr.student_data_scope. The instance id
+	// (block scope, not child identity) is what clients refetch on.
+	assert.Equal(t, "tenant", calls[0].Method)
+	testpkg.AssertNoTenantWideStudentIdentity(t, deps.broadcaster)
+	require.NotNil(t, calls[0].Event.Data.InstanceID)
+	assert.Equal(t, "403", *calls[0].Event.Data.InstanceID)
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
@@ -1034,14 +1099,14 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.service.(*timetableOperationsService).deps.Broadcaster = nil
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 	})
 
 	t.Run("skips inactive instance without active group", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.instanceRepo.byID[414] = instanceWithTimes(414, scheduleModel.InstanceStatusPlanned, time.Now(), time.Now().Add(time.Hour))
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 
 		assert.Empty(t, deps.broadcaster.Calls())
 	})
@@ -1051,7 +1116,7 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps.broadcaster.Err = errors.New("send failed")
 		deps.instanceRepo.byID[414] = activeInstance(414, 300)
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 
 		require.Len(t, deps.broadcaster.Calls(), 1)
 	})
@@ -1060,7 +1125,7 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.instanceRepo.err = errors.New("instance failed")
 
-		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
 
 		assert.Empty(t, deps.broadcaster.Calls())
 	})
@@ -1253,7 +1318,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*scheduleModel.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*scheduleModel.InstanceStudent{}},
 		instanceService: &fakeOpsInstanceService{},
 		activeGroups:    &fakeOpsActiveGroupRepo{lastActivity: map[int64]time.Time{}},
-		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}},
+		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}, targetsByGroup: map[int64][]*activitiesModel.GroupTarget{}},
 		activeService:   &fakeOpsActiveService{},
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*EffectiveArrivalTime{}},
 		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]CareDayStatus{}},
@@ -1411,8 +1476,17 @@ func (r *fakeOpsActiveGroupRepo) UpdateLastActivity(_ context.Context, id int64,
 
 type fakeOpsActivityGroupRepo struct {
 	activitiesModel.GroupRepository
-	byID map[int64]*activitiesModel.Group
-	err  error
+	byID           map[int64]*activitiesModel.Group
+	targetsByGroup map[int64][]*activitiesModel.GroupTarget
+	err            error
+}
+
+func (r *fakeOpsActivityGroupRepo) FindTargetsByGroupIDs(_ context.Context, groupIDs []int64) (map[int64][]*activitiesModel.GroupTarget, error) {
+	result := make(map[int64][]*activitiesModel.GroupTarget, len(groupIDs))
+	for _, groupID := range groupIDs {
+		result[groupID] = r.targetsByGroup[groupID]
+	}
+	return result, nil
 }
 
 func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (*activitiesModel.Group, error) {

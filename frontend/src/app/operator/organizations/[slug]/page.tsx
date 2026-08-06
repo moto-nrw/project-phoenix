@@ -25,6 +25,7 @@ import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
+import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
@@ -100,6 +101,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
+  const [transferDevice, setTransferDevice] = useState<OperatorDevice | null>(
+    null,
+  );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
 
   const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
@@ -568,6 +572,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 devices={orgDevices}
                 showSchool
                 onSetKey={setSetKeyDevice}
+                onTransfer={setTransferDevice}
                 onDelete={setDeleteDevice}
               />
             ) : (
@@ -676,6 +681,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         onKeySet={() => {
           void mutateOrgDevices();
         }}
+      />
+
+      <TransferDeviceModal
+        device={transferDevice}
+        schools={organizationSchoolsForDeviceModal}
+        onClose={() => setTransferDevice(null)}
+        onTransferred={handleDeviceDeleted}
       />
 
       <DeleteDeviceModal

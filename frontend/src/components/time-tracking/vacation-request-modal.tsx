@@ -3,8 +3,11 @@
 import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import { Modal } from "~/components/ui/modal";
+import { Textarea } from "~/components/ui/textarea";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useToast } from "~/contexts/ToastContext";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
@@ -346,19 +349,22 @@ export function VacationRequestModal({
             )}
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
               onClick={() => {
                 handleReset();
                 onClose();
               }}
               disabled={submitting}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={handleSubmit}
               disabled={
                 submitting ||
@@ -367,14 +373,13 @@ export function VacationRequestModal({
                 workingDays === 0 ||
                 Boolean(overlapMessage)
               }
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting
                 ? "Wird gesendet…"
                 : exceedsBalance && confirmedOverBalance
                   ? "Trotzdem anfragen"
                   : "Antrag senden"}
-            </button>
+            </Button>
           </div>
         </div>
       }
@@ -397,7 +402,7 @@ export function VacationRequestModal({
               modifiers={calendarModifiers}
               modifiersClassNames={{
                 requestedVacation:
-                  "[&>button]:!bg-moto-amber/10 [&>button]:!text-moto-amber-strong [&>button]:!ring-1 [&>button]:!ring-moto-amber/30",
+                  "[&>button]:!bg-[#F78C10]/10 [&>button]:!text-[#8A5600] [&>button]:!ring-1 [&>button]:!ring-[#F78C10]/30",
                 questionVacation:
                   "[&>button]:!bg-moto-purple/15 [&>button]:!text-moto-purple [&>button]:!ring-1 [&>button]:!ring-moto-purple/40",
                 approvedVacation:
@@ -408,7 +413,7 @@ export function VacationRequestModal({
           {blockingVacations.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
               <span className="inline-flex items-center gap-1">
-                <span className="bg-moto-amber/40 h-2 w-2 rounded-full" />
+                <span className="h-2 w-2 rounded-full bg-[#F78C10]/50" />
                 Beantragt
               </span>
               <span className="inline-flex items-center gap-1">
@@ -485,7 +490,7 @@ export function VacationRequestModal({
           ))}
 
         {exceedsBalance && (
-          <div className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-xl border px-4 py-3 text-xs">
+          <div className="rounded-xl border border-[#F78C10]/20 bg-[#F78C10]/10 px-4 py-3 text-xs text-[#8A5600]">
             <p className="font-medium">
               Dieser Antrag liegt {overBalanceDays}{" "}
               {overBalanceDays === 1 ? "Tag" : "Tage"} über deinem Resturlaub.
@@ -505,14 +510,13 @@ export function VacationRequestModal({
           >
             Notiz (optional)
           </label>
-          <textarea
+          <Textarea
             id="vacation-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             maxLength={500}
             placeholder="Zum Beispiel: Vertretung mit Kollegin XY abgestimmt"
-            className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none"
           />
           <p className="mt-1 text-right text-xs text-gray-400">
             {note.length}/500
@@ -520,9 +524,7 @@ export function VacationRequestModal({
         </div>
 
         {(overlapMessage || serverError) && (
-          <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border px-4 py-3 text-xs">
-            {overlapMessage ?? serverError}
-          </div>
+          <Alert type="error" message={overlapMessage ?? serverError ?? ""} />
         )}
       </div>
     </Modal>

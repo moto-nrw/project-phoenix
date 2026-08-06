@@ -243,6 +243,88 @@ func (r *StudentGuardianRepository) AccountHasStudentPermission(ctx context.Cont
 	return granted, nil
 }
 
+// FilterAccountsWithStudentAccess returns the subset of guardianAccountIDs whose
+// relationship to at least ONE of studentIDs still carries the named
+// parent_portal.* permission at the tenant, backed by an ACTIVE
+// auth.account_tenants mapping. It is the batched sibling of
+// AccountHasStudentPermission, for delivery paths that hold a whole recipient
+// list resolved in an earlier transaction and must ask the question again where
+// the sending happens (#1671): between the producer's check and the send, a
+// school can revoke a guardian's access to a child.
+//
+// The result preserves the caller's order and can only ever narrow the input —
+// an account not passed in is never returned.
+//
+// tenant_id is filtered explicitly (not via RLS/TenantWhere) for the same reason
+// AccountHasStudentPermission does it: the caller may run outside a tenant-scoped
+// transaction.
+func (r *StudentGuardianRepository) FilterAccountsWithStudentAccess(ctx context.Context, guardianAccountIDs, studentIDs []int64, tenantID int64, permission string) ([]int64, error) {
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("student guardian: tenant_id must be positive")
+	}
+	if strings.TrimSpace(permission) == "" {
+		return nil, fmt.Errorf("student guardian: permission must not be empty")
+	}
+	if len(guardianAccountIDs) == 0 || len(studentIDs) == 0 {
+		return nil, nil
+	}
+	for _, accountID := range guardianAccountIDs {
+		if accountID <= 0 {
+			return nil, fmt.Errorf("student guardian: account ids must be positive")
+		}
+	}
+	for _, studentID := range studentIDs {
+		if studentID <= 0 {
+			return nil, fmt.Errorf("student guardian: student ids must be positive")
+		}
+	}
+
+	const query = `
+		SELECT DISTINCT gp.account_id AS account_id
+		FROM users.students_guardians AS sg
+		JOIN users.guardian_profiles AS gp
+			ON gp.id = sg.guardian_profile_id
+			AND gp.tenant_id = sg.tenant_id
+		JOIN auth.account_tenants AS act
+			ON act.tenant_id  = gp.tenant_id
+			AND act.account_id = gp.account_id
+			AND act.status     = 'active'
+		WHERE sg.tenant_id   = ?
+			AND sg.student_id  IN (?)
+			AND gp.account_id  IN (?)
+			AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
+	var granted []int64
+	if err := base.GetDB(ctx, r.db).NewRaw(query,
+		tenantID,
+		bun.List(studentIDs),
+		bun.List(guardianAccountIDs),
+		permission,
+	).Scan(ctx, &granted); err != nil {
+		return nil, fmt.Errorf("student guardian: filter accounts with student access: %w", err)
+	}
+	if len(granted) == 0 {
+		return nil, nil
+	}
+
+	grantedSet := make(map[int64]struct{}, len(granted))
+	for _, accountID := range granted {
+		grantedSet[accountID] = struct{}{}
+	}
+	permitted := make([]int64, 0, len(granted))
+	seen := make(map[int64]struct{}, len(granted))
+	for _, accountID := range guardianAccountIDs {
+		if _, ok := grantedSet[accountID]; !ok {
+			continue
+		}
+		if _, duplicate := seen[accountID]; duplicate {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		permitted = append(permitted, accountID)
+	}
+	return permitted, nil
+}
+
 // GuardianEmailHasStudentPermission is the accountless sibling of
 // AccountHasStudentPermission: it reports whether the guardian identified by
 // EMAIL holds the named parent_portal.* permission on its relationship to the
@@ -252,10 +334,10 @@ func (r *StudentGuardianRepository) AccountHasStudentPermission(ctx context.Cont
 //
 // Email is a legitimate identity key here because guardian_profiles is unique
 // on (tenant_id, LOWER(email)) (migration 1.15.145), so at most one profile per
-// school can answer, and because it is the SAME identity the decision service
-// attaches to the student on approval: proving that identity already holds
-// re-enrollment authority over the student is what keeps a renewal from
-// granting anyone new access.
+// school can answer. For late invites the request service passes the address the
+// school issued the invite to, never an unverified replacement entered in the
+// form. That proves the token recipient already holds re-enrollment authority
+// over the student before approval applies any corrected contact data.
 //
 // Unlike the account variant an active auth.account_tenants mapping is not
 // required — an accountless guardian has none — but a profile that DOES carry an

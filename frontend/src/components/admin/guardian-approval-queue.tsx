@@ -32,12 +32,13 @@ export type GuardianInviteModeState =
     }
   | { readonly status: "ready"; readonly mode: GuardianInviteMode };
 
-// Only staff_approval ever puts a request into this queue: "disabled" blocks
-// parent invites outright and "direct" sends them without a review step. An
-// empty list then means "configured away", not "nothing to do yet", so the
-// empty state says which of the two it is instead of leaving an admin to
-// wonder whether the page is broken. Loading and error states are handled
-// separately, so this copy always receives a validated mode.
+// "disabled" blocks parent invites outright and "direct" sends NEW invites
+// without a review step — but a parent-confirmed upgrade of an existing
+// restricted contact is always queued here, regardless of mode (#2172). An
+// empty list in the other two modes therefore mostly means "configured
+// away", so the empty state says which of the two it is instead of leaving
+// an admin to wonder whether the page is broken. Loading and error states
+// are handled separately, so this copy always receives a validated mode.
 function emptyStateCopy(inviteMode: GuardianInviteMode): {
   readonly configuredAway: boolean;
   readonly title: string;
@@ -56,7 +57,7 @@ function emptyStateCopy(inviteMode: GuardianInviteMode): {
       configuredAway: true,
       title: "Einladungen gehen ohne Freigabe raus",
       description:
-        "Eltern laden weitere Bezugspersonen aktuell direkt ein, ohne Bestätigung durch das Team. Diese Liste bleibt deshalb leer.",
+        "Eltern laden neue Bezugspersonen aktuell direkt ein, ohne Bestätigung durch das Team. Nur wenn Eltern einen bestehenden, eingeschränkten Kontakt auf vollen Zugriff hochstufen möchten, erscheint die Anfrage hier zur Freigabe.",
     };
   }
   return {
@@ -276,6 +277,11 @@ export default function GuardianApprovalQueue({
                     <> · angefragt von {req.requestedByEmail}</>
                   )}
                 </p>
+                {req.roleUpgrade && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Stuft einen bestehenden Kontakt auf vollen Zugriff hoch.
+                  </p>
+                )}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <Button

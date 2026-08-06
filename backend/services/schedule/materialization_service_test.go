@@ -258,6 +258,32 @@ func TestIsSupervisorValidOn(t *testing.T) {
 	assert.False(t, isSupervisorValidOn(nil, targetDay, p100), "nil must be invalid")
 }
 
+func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
+	monday := timezone.NewDate(2026, time.April, 20)
+	tuesday := monday.AddDays(1)
+	periodID := int64(100)
+	mondayWeekday := activities.WeekdayMonday
+
+	supervisors := []*activities.SupervisorPlanned{
+		{Model: modelBase.Model{ID: 1}, StaffID: 10, IsPrimary: true},
+		{
+			Model:            modelBase.Model{ID: 2},
+			StaffID:          20,
+			IsPrimary:        true,
+			CalendarPeriodID: &periodID,
+			Weekday:          &mondayWeekday,
+		},
+	}
+
+	mondayPrimary, ok := effectivePrimarySupervisor(supervisors, monday, periodID)
+	require.True(t, ok)
+	assert.Equal(t, int64(20), mondayPrimary, "the exact period and weekday override must win")
+
+	tuesdayPrimary, ok := effectivePrimarySupervisor(supervisors, tuesday, periodID)
+	require.True(t, ok)
+	assert.Equal(t, int64(10), tuesdayPrimary, "the shared legacy primary remains the fallback")
+}
+
 // -----------------------------------------------------------------------------
 // TestApplyException — cancellation skip + partial modify overrides.
 // -----------------------------------------------------------------------------
@@ -1079,4 +1105,23 @@ func TestScheduleEndedOn(t *testing.T) {
 		"dates after valid_until are ended")
 	assert.False(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date.AddDays(-1)),
 		"dates before valid_until still materialize")
+}
+
+// -----------------------------------------------------------------------------
+// TestScheduleNotStartedOn — #2135: schedules with a series start (valid_from,
+// inclusive) produce no instances before that date.
+// -----------------------------------------------------------------------------
+
+func TestScheduleNotStartedOn(t *testing.T) {
+	date := timezone.NewDate(2026, time.August, 13)
+	from := timezone.NewDate(2026, time.August, 13)
+
+	assert.False(t, scheduleNotStartedOn(nil, date), "nil schedule never matches")
+	assert.False(t, scheduleNotStartedOn(&activities.Schedule{}, date), "nil valid_from = open start")
+	assert.False(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date),
+		"valid_from is inclusive: the schedule materializes ON that date")
+	assert.False(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date.AddDays(1)),
+		"dates after valid_from materialize")
+	assert.True(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date.AddDays(-1)),
+		"dates before valid_from must not materialize")
 }

@@ -490,6 +490,43 @@ func init() {
 		SortOrder: 50,
 	})
 
+	// --- Geburtstage (#1542) ---
+	//
+	// Two switches, not one, because the two populations are not comparable.
+	// A child's birthday is everyday OGS business and the display defaults ON;
+	// a colleague's birth date is that person's own data, so putting staff
+	// names on a screen every team member sees is an explicit decision the
+	// school has to make (default OFF). Even then an individual can still
+	// remove themselves via the opt-out on their profile page — the setting
+	// permits the display, it does not compel anyone into it.
+
+	config.Register(config.Definition{
+		Key:             config.KeyBirthdayDisplayEnabled,
+		Label:           "Geburtstage auf der Startseite",
+		Description:     "Zeigt auf der Startseite, wer heute Geburtstag hat. Montags werden zusätzlich die Geburtstage vom Wochenende nachgetragen. Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "geburtstage",
+		SortOrder:       1,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyBirthdayDisplayIncludeStaff,
+		Label:           "Geburtstage von Mitarbeitenden mitanzeigen",
+		Description:     "Zeigt auf der Startseite auch die Geburtstage des Personals, ohne Geburtsjahr. Jede Person kann sich im eigenen Profil davon abmelden.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "geburtstage",
+		SortOrder:       2,
+		DependsOn:       config.DependsOnEq(config.KeyBirthdayDisplayEnabled, true),
+	})
+
 	// --- Elternportal (parents-portal write features) ---
 	//
 	// These gate what guardians may submit through the parents app. Both

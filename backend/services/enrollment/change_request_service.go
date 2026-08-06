@@ -104,11 +104,14 @@ type ChangeRequestService interface {
 }
 
 type ChangeRequestServiceConfig struct {
-	ChangeRequestRepo        enrollmentModels.ChangeRequestRepository
-	MessageRepo              enrollmentModels.ChangeRequestMessageRepository
-	RequestRepo              enrollmentModels.RequestRepository
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
+	ChangeRequestRepo   enrollmentModels.ChangeRequestRepository
+	MessageRepo         enrollmentModels.ChangeRequestMessageRepository
+	RequestRepo         enrollmentModels.RequestRepository
+	RequestChildRepo    enrollmentModels.RequestChildRepository
+	RequestGuardianRepo enrollmentModels.RequestGuardianRepository
+	// LateInviteRepo restores the original invite identity when an accountless
+	// late-invite renewal is re-authorized during change-request approval.
+	LateInviteRepo           enrollmentModels.LateInviteRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
@@ -819,7 +822,9 @@ func (s *changeRequestService) prepareProposed(
 	var offeringCatalogs []map[int64]*enrollmentModels.CareOffering
 	if capabilities.CareOfferingsEnabled {
 		var catalogErr error
-		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(ctx, children, openByID)
+		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(
+			ctx, children, openByID, currentOfferingSelectionDate(phase),
+		)
 		if catalogErr != nil {
 			return editReq, nil, nil, nil, catalogErr
 		}
@@ -848,7 +853,12 @@ func (s *changeRequestService) prepareProposed(
 		for _, child := range children {
 			childIDs = append(childIDs, child.ID)
 		}
-		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+		// The selection this preserves is the one in force now, not every
+		// interval the child ever held: a superseded booking restored here
+		// would be written back as a live one.
+		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
+			ctx, childIDs, currentOfferingSelectionDate(phase),
+		)
 		if linkErr != nil {
 			return editReq, nil, nil, nil, fmt.Errorf("change request: preserve child offerings: %w", linkErr)
 		}
@@ -949,6 +959,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 	ctx context.Context,
 	children []*enrollmentModels.RequestChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
+	onDate timezone.Date,
 ) ([]map[int64]*enrollmentModels.CareOffering, map[int64]*enrollmentModels.CareOffering, error) {
 	childIDs := make([]int64, 0, len(children))
 	childIndexByID := make(map[int64]int, len(children))
@@ -960,7 +971,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		childIndexByID[child.ID] = i
 	}
 
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, onDate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -1122,7 +1133,19 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("change request: load phase for current snapshot: %w", err)
+	}
+	if phase == nil {
+		return nil, ErrEnrollmentDisabled
+	}
+	// Read at today, not at the service start: the snapshot is the base a
+	// staff diff is rendered against and the conflict guard compares an
+	// approval to. Pinned to the phase start it would keep reporting a booking
+	// an approved dated change has already replaced - and the approval would
+	// then write that stale selection back over the newer one.
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, currentOfferingSelectionDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
@@ -1318,7 +1341,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 		selections := materializedSelections[i]
 		if s.approvedChildUsesDecisionSync(existing) {
-			if capabilities.CareOfferingsEnabled {
+			// The proposal's offering capability is frozen when the change
+			// request is created. A later setting change must not silently
+			// discard a valid, already reviewed offering change.
+			if row.CareOfferingsEnabledAtCreation {
 				offeringInput := UpdateChildOfferingsInput{
 					RequestID:      req.ID,
 					ChildID:        existing.ID,
@@ -1441,20 +1467,12 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 		return overrides, nil
 	}
 
-	preservedClaims := make(map[int64]int)
-	existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, preservedChildIDs)
-	if err != nil {
-		return nil, fmt.Errorf("change request approve: load existing child offerings for capacity: %w", err)
-	}
-	for _, link := range existingLinks {
-		preservedClaims[link.CareOfferingID]++
-	}
-
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
 		RequestChildOfferingRepo: s.RequestChildOfferingRepo,
+		CareOfferingRepo:         s.CareOfferingRepo,
 		Settings:                 s.Settings,
 	}}
-	candidateOverrides, err := rs.applyCapacityOverflowWithPreservedClaims(ctx, phase, candidates, openByID, preservedClaims)
+	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, preservedChildIDs)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
 	}
@@ -1610,8 +1628,16 @@ func (s *changeRequestService) reconcileMatchedStudent(
 	if err := assertExistingStudentMatchResolved(phase, pin, eligibilityEnforced, index); err != nil {
 		return err
 	}
+	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
+	if pin != nil {
+		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.LateInviteRepo, req)
+		if err != nil {
+			return fmt.Errorf("change request approve: resolve re-enrollment identity: %w", err)
+		}
+		submitter = resolvedSubmitter
+	}
 	if err := rs.assertGuardianMayReEnrollStudent(ctx,
-		reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail),
+		submitter,
 		pin, req.GetTenantID(), index); err != nil {
 		return err
 	}

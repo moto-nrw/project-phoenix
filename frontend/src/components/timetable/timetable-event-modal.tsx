@@ -28,6 +28,7 @@ import {
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
+import { CategoryManageModal } from "./category-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -112,6 +113,8 @@ interface TimetableEventModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
+  canManageCategories: boolean;
+  canManagePlanningTracks?: boolean;
   /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
    * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
@@ -142,20 +145,29 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
   canCheckShiftCoverage,
+  canManageCategories,
+  canManagePlanningTracks = false,
   closingDayRanges,
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
+  const [categoryDialog, setCategoryDialog] = useState<
+    "list" | "create" | null
+  >(null);
   const {
     form,
     update,
     updateRepeat,
+    selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,
     validationError,
     rooms,
     categories,
+    refreshCategories,
+    planningTracks,
+    refreshPlanningTracks,
     groups,
     students,
     staff,
@@ -204,7 +216,17 @@ export function TimetableEventModal({
     abWeekHint,
     studentBulkOptions,
     targetClassOptions,
-    targetClassDescriptionIDs,
+    offeringSources,
+    offeringSourcesError,
+    selectedOfferingSource,
+    sourceGradeOptions,
+    sourceFilteredCount,
+    sourceOverlapWarnings,
+    changeSourceOffering,
+    pendingSourceOfferingId,
+    confirmPendingSourceOffering,
+    cancelPendingSourceOffering,
+    toggleSourceGradeLevel,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,
@@ -218,6 +240,11 @@ export function TimetableEventModal({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    activeRosterWeekday,
+    setActiveRosterWeekday,
+    setPerWeekdayRoster,
+    setWeekdayRoster,
+    applyActiveWeekdayRosterToAll,
     listKindTouched,
     manualWeekPattern,
   } = useEventForm({
@@ -240,6 +267,13 @@ export function TimetableEventModal({
     canCheckShiftCoverage,
     closingDayRanges,
   });
+
+  const pendingSourceOfferingName =
+    pendingSourceOfferingId !== null
+      ? (offeringSources?.find(
+          (offering) => offering.id === pendingSourceOfferingId,
+        )?.name ?? null)
+      : null;
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
   // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
@@ -269,8 +303,12 @@ export function TimetableEventModal({
     );
     if (!period) return null;
     const today = berlinTodayISO();
-    const from =
-      initialSeries && today > period.startDate ? today : period.startDate;
+    // Serien-Edits schauen ab heute nach vorn. Neue und umgewandelte Serien
+    // beginnen am gewählten Datum (#2135): frühere Slots werden nie
+    // materialisiert und dürfen die Rückfrage nicht auslösen.
+    // materializedRecurrenceDates klemmt beide Untergrenzen auf den
+    // Periodenstart.
+    const from = initialSeries ? today : form.date;
     const validity = initialSeries?.schedules[0];
     const dates = materializedRecurrenceDates({
       period,
@@ -475,11 +513,19 @@ export function TimetableEventModal({
                 fieldErrors={fieldErrors}
                 rooms={rooms}
                 categories={categories}
+                planningTracks={planningTracks}
                 loadingRefs={loadingRefs}
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
+                isEditingSeries={isEditingSeries}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
+                canManageCategories={canManageCategories}
+                onManageCategories={setCategoryDialog}
+                canManagePlanningTracks={canManagePlanningTracks}
+                onPlanningTracksChanged={async (created) => {
+                  await refreshPlanningTracks(created?.id);
+                }}
               />
             )}
 
@@ -488,6 +534,7 @@ export function TimetableEventModal({
                 form={form}
                 update={update}
                 updateRepeat={updateRepeat}
+                selectCalendarPeriod={selectCalendarPeriod}
                 toggleWeekday={toggleWeekday}
                 fieldErrors={fieldErrors}
                 calendarPeriods={calendarPeriods}
@@ -528,17 +575,29 @@ export function TimetableEventModal({
                 preservesGradeAboveTenantCap={preservesGradeAboveTenantCap}
                 studentBulkOptions={studentBulkOptions}
                 targetClassOptions={targetClassOptions}
-                targetClassDescriptionIDs={targetClassDescriptionIDs}
                 targetCohort={targetCohort}
                 missingTargetCohortCount={missingTargetCohortCount}
                 targetCohortButtonLabel={targetCohortButtonLabel}
                 addTargetCohort={addTargetCohort}
+                offeringSources={offeringSources}
+                offeringSourcesError={offeringSourcesError}
+                selectedOfferingSource={selectedOfferingSource}
+                sourceGradeOptions={sourceGradeOptions}
+                sourceFilteredCount={sourceFilteredCount}
+                sourceOverlapWarnings={sourceOverlapWarnings}
+                changeSourceOffering={changeSourceOffering}
+                toggleSourceGradeLevel={toggleSourceGradeLevel}
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}
                 coverageWarningCount={coverageWarningCount}
                 coverageCheckError={coverageCheckError}
                 requiredStaffTouched={requiredStaffTouched}
                 staffRosterTouched={staffRosterTouched}
+                activeRosterWeekday={activeRosterWeekday}
+                setActiveRosterWeekday={setActiveRosterWeekday}
+                setPerWeekdayRoster={setPerWeekdayRoster}
+                setWeekdayRoster={setWeekdayRoster}
+                applyActiveWeekdayRosterToAll={applyActiveWeekdayRosterToAll}
               />
             )}
 
@@ -834,6 +893,46 @@ export function TimetableEventModal({
             </div>
           )}
         </ConfirmationModal>
+
+        {/* #2137 x #2129: ein Angebot als Quelle kennt nur eine gemeinsame
+            Besetzung. Bestehende wochentagsspezifische Personalzuweisungen
+            werden beim Übernehmen entfernt und NICHT zu einer Sammelliste
+            zusammengelegt; die gemeinsame Besetzung muss danach ausdrücklich
+            neu gewählt werden. Das braucht eine ausdrückliche Bestätigung. */}
+        <ConfirmationModal
+          isOpen={pendingSourceOfferingId !== null}
+          onClose={cancelPendingSourceOffering}
+          onConfirm={confirmPendingSourceOffering}
+          title="Besetzung je Wochentag wird ersetzt"
+          confirmText="Angebot als Quelle übernehmen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+        >
+          <p className="text-sm leading-relaxed text-gray-600">
+            Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit
+            {pendingSourceOfferingName
+              ? ` dem Angebot „${pendingSourceOfferingName}“ `
+              : " einem Angebot "}
+            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage. Die
+            bisherigen Zuweisungen je Wochentag werden entfernt; wähle die
+            gemeinsame Besetzung anschließend im Schritt „Personal und Kinder“
+            neu. Die Kinderliste kommt automatisch aus dem Angebot.
+          </p>
+        </ConfirmationModal>
+
+        {/* Kategorien verwalten (#2131): mounted only while open so its fetch
+            and dialog context stay out of every test that never opens it. */}
+        {canManageCategories && categoryDialog && (
+          <CategoryManageModal
+            isOpen
+            initialView={categoryDialog}
+            onClose={() => setCategoryDialog(null)}
+            onChanged={async (created) => {
+              await refreshCategories(created?.id);
+              if (created) setCategoryDialog(null);
+            }}
+          />
+        )}
       </SlideOverContent>
     </SlideOver>
   );
