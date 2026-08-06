@@ -246,14 +246,19 @@ func (r *Repository[T, C]) ListDeletedPendingFileCleanupByOwnerID(ctx context.Co
 // soft_delete tag then hides the row from every subsequent select.
 func (r *Repository[T, C]) SoftDelete(ctx context.Context, document T, deletedBy int64) error {
 	now := time.Now()
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(document).
 		ModelTableExpr(r.tableExpr()).
 		Set("deleted_at = ?", now).
 		Set("deleted_by = ?", deletedBy).
 		Where(r.col("id")+" = ?", document.GetID()).
-		Where(r.col("deleted_at") + " IS NULL").
-		Exec(ctx)
+		Where(r.col("deleted_at") + " IS NULL")
+	// Every other mutation here carries the same filter. RLS already blocks a
+	// cross-tenant match under phoenix_tenant, but not on a superuser or
+	// phoenix_admin connection — a CLI command or maintenance job would delete
+	// by bare id across schools.
+	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
+	res, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: err}
 	}

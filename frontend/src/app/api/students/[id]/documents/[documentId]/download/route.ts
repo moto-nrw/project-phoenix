@@ -51,11 +51,16 @@ async function GETHandler(
   }
 
   const headers = new Headers();
+  // This proxy is the only thing the browser talks to, so a header the backend
+  // sets but this list omits does not exist in production. nosniff is the one
+  // that matters here: an uploaded document must never be re-interpreted as
+  // something executable because a Content-Type looked wrong.
   for (const name of [
     "content-type",
     "content-disposition",
     "cache-control",
     "content-length",
+    "x-content-type-options",
   ]) {
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
