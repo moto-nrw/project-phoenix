@@ -122,9 +122,10 @@ type StudentWithRelationship struct {
 type GuardianWithRelationship struct {
 	Profile      *users.GuardianProfile
 	Relationship *users.StudentGuardian
-	// InvitationPending is true when the guardian has no portal account yet
-	// but an open (not accepted, not expired, not rejected) invitation exists.
-	// Lets the staff UI show "Einladung offen" and offer re-invite instead of
-	// a fresh invite.
+	// InvitationPending is true when an open (not accepted, not expired, not
+	// rejected) invitation exists: profile-wide for guardians without a portal
+	// account, and anchored to this child for guardians WITH an account (a
+	// pending-approval role-upgrade request, #2172). Lets the staff UI show
+	// "Einladung offen" instead of a misleading active/no-access state.
 	InvitationPending bool
 }

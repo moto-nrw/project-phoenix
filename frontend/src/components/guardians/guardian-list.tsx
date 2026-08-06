@@ -133,10 +133,16 @@ export default function GuardianList({
             {!readOnly && (
               <div className="flex flex-shrink-0 items-center gap-1">
                 {/* Social-worker contacts are school-managed: the backend
-                    refuses to invite or upgrade them, so no action is shown. */}
+                    refuses to invite or upgrade them, so no action is shown.
+                    A pending entry for an ACCOUNT holder is a role-upgrade
+                    request awaiting approval in the queue — there is no email
+                    to re-send and acting here would bypass the queue. */}
                 {onInvite &&
                   guardian.accountStatus !== "active" &&
                   guardian.guardianRole !== "social_worker" &&
+                  !(
+                    guardian.accountStatus === "pending" && guardian.hasAccount
+                  ) &&
                   guardian.email && (
                     <button
                       type="button"

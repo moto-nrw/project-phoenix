@@ -240,6 +240,31 @@ describe("GuardianList", () => {
     expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
   });
 
+  it("offers re-invite for a pending guardian without an account", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "pending" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+    expect(screen.getByText("Erneut einladen")).toBeInTheDocument();
+  });
+
+  it("hides the invite action while an account holder's upgrade approval is pending", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      hasAccount: true,
+      accountStatus: "pending" as const,
+      guardianRole: "emergency_contact" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+    expect(screen.queryByText("Erneut einladen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
+  });
+
   it("hides the invite action for school-managed social-worker contacts", () => {
     const guardian = {
       ...mockGuardians[1]!,

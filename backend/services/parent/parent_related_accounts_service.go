@@ -56,8 +56,12 @@ type RelatedAccount struct {
 	LastName          string
 	Email             string
 	RelationshipType  string
-	IsPrimary         bool
-	Status            RelatedAccountStatus
+	// GuardianRole is the per-child role preset on the link. The UI uses it to
+	// hide the grant-access action for school-managed social-worker contacts,
+	// which the invite flow refuses anyway (#2172).
+	GuardianRole string
+	IsPrimary    bool
+	Status       RelatedAccountStatus
 	// IsSelf marks the row belonging to the requesting parent's own account.
 	// The backend rejects self-removal (ErrCannotRemoveOwnAccess), so the UI
 	// uses this to hide the remove action on the caller's own row.
@@ -107,6 +111,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 				LastName:          profile.LastName,
 				Email:             email,
 				RelationshipType:  link.RelationshipType,
+				GuardianRole:      link.GuardianRole,
 				IsPrimary:         link.IsPrimary,
 				Status:            status,
 				IsSelf:            profile.AccountID != nil && *profile.AccountID == accountID,

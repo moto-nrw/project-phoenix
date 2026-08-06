@@ -4,7 +4,9 @@ import "testing"
 
 // TestGuardianAccountStatus locks the per-child derivation of the staff-facing
 // account status: an account only counts as "active" for a child when the
-// students_guardians link actually grants parent_portal.access (#2172).
+// students_guardians link actually grants parent_portal.access, and an open
+// invitation (e.g. a pending-approval role-upgrade request) outranks the
+// actionable "active_no_access" state (#2172).
 func TestGuardianAccountStatus(t *testing.T) {
 	cases := []struct {
 		name                                       string
@@ -13,7 +15,7 @@ func TestGuardianAccountStatus(t *testing.T) {
 	}{
 		{"account with access", true, true, false, "active"},
 		{"account without access on this child", true, false, false, "active_no_access"},
-		{"account without access, stale invite flag", true, false, true, "active_no_access"},
+		{"account without access, pending upgrade approval", true, false, true, "pending"},
 		{"no account, open invitation", false, false, true, "pending"},
 		{"no account, no invitation", false, false, false, "none"},
 	}

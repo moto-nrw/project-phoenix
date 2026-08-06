@@ -221,15 +221,19 @@ type GuardianWithRelationship struct {
 // guardianAccountStatus derives the staff-facing account-status string.
 // hasPortalAccess is the per-child parent_portal.access permission on the
 // students_guardians link — an account is only "active" for THIS child when
-// the link actually grants access (#2172).
+// the link actually grants access (#2172). An open invitation outranks
+// "active_no_access": an account holder with a pending-approval role-upgrade
+// request must read as pending, not as an actionable no-access state that
+// invites staff to bypass the approval queue (mirrors the parent-side
+// relatedAccountStatus priority).
 func guardianAccountStatus(hasAccount, hasPortalAccess, invitationPending bool) string {
 	switch {
 	case hasAccount && hasPortalAccess:
 		return "active"
-	case hasAccount:
-		return "active_no_access"
 	case invitationPending:
 		return "pending"
+	case hasAccount:
+		return "active_no_access"
 	default:
 		return "none"
 	}

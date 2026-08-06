@@ -225,6 +225,9 @@ export interface RelatedAccount {
   readonly last_name: string;
   readonly email?: string;
   readonly relationship_type: string;
+  // Per-child role preset on the link; used to hide the grant-access action
+  // for school-managed social-worker contacts (#2172).
+  readonly guardian_role?: string;
   readonly is_primary: boolean;
   readonly status: "active" | "pending" | "no_account" | "active_no_access";
   // Marks the requesting parent's own row. Self-removal is rejected by the

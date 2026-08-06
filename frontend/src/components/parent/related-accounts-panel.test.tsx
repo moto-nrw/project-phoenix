@@ -294,6 +294,29 @@ describe("RelatedAccountsPanel", () => {
     );
   });
 
+  it("offers no grant-access action for a school-managed social-worker contact", async () => {
+    const socialWorker: RelatedAccount = {
+      guardian_profile_id: "6",
+      first_name: "Sonja",
+      last_name: "Sozialdienst",
+      email: "sonja.sozialdienst@email.de",
+      relationship_type: "other",
+      guardian_role: "social_worker",
+      is_primary: false,
+      status: "active_no_access",
+      is_self: false,
+    };
+    mockList.mockResolvedValue([primaryActive, socialWorker]);
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={true} canRemove={false} />,
+    );
+
+    await waitFor(() => screen.getByText("Sonja Sozialdienst"));
+    expect(
+      screen.queryByRole("button", { name: "Zugriff gewähren" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("asks for confirmation when the invite hits a restricted contact", async () => {
     mockInvite.mockResolvedValueOnce({
       outcome: "existing_contact_restricted",

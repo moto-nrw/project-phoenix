@@ -104,6 +104,8 @@ func TestRelatedAccountsEndpoint_List(t *testing.T) {
 	rr := doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/related-accounts", token, nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Contains(t, rr.Body.String(), `"guardian_profile_id"`)
+	assert.Contains(t, rr.Body.String(), `"guardian_role":"primary_guardian"`,
+		"the per-child role must be exposed so the panel can gate social-worker rows")
 }
 
 func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {

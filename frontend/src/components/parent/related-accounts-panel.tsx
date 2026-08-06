@@ -292,8 +292,11 @@ export default function RelatedAccountsPanel({
                     )}
                   </p>
                 </div>
+                {/* Social-worker contacts are school-managed: the backend
+                    refuses the upgrade, so the action is not offered. */}
                 {canInvite &&
                   acc.status === "active_no_access" &&
+                  acc.guardian_role !== "social_worker" &&
                   acc.email && (
                     <Button
                       type="button"
