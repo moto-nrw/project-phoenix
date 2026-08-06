@@ -10,6 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -42,6 +43,10 @@ const (
 	// RelatedAccountNoAccount: a staff-maintained contact link without portal
 	// access and without an open invite.
 	RelatedAccountNoAccount RelatedAccountStatus = "no_account"
+	// RelatedAccountActiveNoAccess: the guardian has a portal account, but
+	// this child's link carries no parent_portal.access permission (e.g. a
+	// restrictive contact role) — the child is invisible to them (#2172).
+	RelatedAccountActiveNoAccess RelatedAccountStatus = "active_no_access"
 )
 
 // RelatedAccount is one guardian linked to a child, with portal-access status.
@@ -51,8 +56,12 @@ type RelatedAccount struct {
 	LastName          string
 	Email             string
 	RelationshipType  string
-	IsPrimary         bool
-	Status            RelatedAccountStatus
+	// GuardianRole is the per-child role preset on the link. The UI uses it to
+	// hide the grant-access action for school-managed social-worker contacts,
+	// which the invite flow refuses anyway (#2172).
+	GuardianRole string
+	IsPrimary    bool
+	Status       RelatedAccountStatus
 	// IsSelf marks the row belonging to the requesting parent's own account.
 	// The backend rejects self-removal (ErrCannotRemoveOwnAccess), so the UI
 	// uses this to hide the remove action on the caller's own row.
@@ -63,6 +72,9 @@ type RelatedAccount struct {
 type InviteRelatedAccountResult struct {
 	Outcome           string
 	GuardianProfileID int64
+	// ExistingRole carries the current guardian role for the
+	// existing_contact_restricted outcome; empty otherwise.
+	ExistingRole string
 }
 
 // ListRelatedAccounts returns every guardian linked to the child, annotated
@@ -88,7 +100,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 			if profile == nil {
 				continue
 			}
-			status := s.relatedAccountStatus(txCtx, profile, studentID)
+			status := s.relatedAccountStatus(txCtx, profile, link, studentID)
 			email := ""
 			if profile.Email != nil {
 				email = *profile.Email
@@ -99,6 +111,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 				LastName:          profile.LastName,
 				Email:             email,
 				RelationshipType:  link.RelationshipType,
+				GuardianRole:      link.GuardianRole,
 				IsPrimary:         link.IsPrimary,
 				Status:            status,
 				IsSelf:            profile.AccountID != nil && *profile.AccountID == accountID,
@@ -112,25 +125,29 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
-func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, studentID int64) RelatedAccountStatus {
-	if profile.HasAccount {
+func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
+	hasAccess := authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess)
+	if profile.HasAccount && hasAccess {
 		return RelatedAccountActive
 	}
-	if s.GuardianInviteRepo == nil {
-		return RelatedAccountNoAccount
-	}
-	invitations, err := s.GuardianInviteRepo.FindByGuardianProfileID(ctx, profile.ID)
-	if err != nil {
-		return RelatedAccountNoAccount
-	}
-	now := time.Now()
-	for _, inv := range invitations {
-		if inv.StudentID == nil || *inv.StudentID != studentID {
-			continue
+	// An open invitation (e.g. a confirmed upgrade awaiting staff approval)
+	// wins over the stale account states below.
+	if s.GuardianInviteRepo != nil {
+		invitations, err := s.GuardianInviteRepo.FindByGuardianProfileID(ctx, profile.ID)
+		if err == nil {
+			now := time.Now()
+			for _, inv := range invitations {
+				if inv.StudentID == nil || *inv.StudentID != studentID {
+					continue
+				}
+				if authService.GuardianInvitationValid(inv, now) && inv.ApprovalStatus != authModels.GuardianInvitationApprovalRejected {
+					return RelatedAccountPending
+				}
+			}
 		}
-		if authService.GuardianInvitationValid(inv, now) && inv.ApprovalStatus != authModels.GuardianInvitationApprovalRejected {
-			return RelatedAccountPending
-		}
+	}
+	if profile.HasAccount {
+		return RelatedAccountActiveNoAccess
 	}
 	return RelatedAccountNoAccount
 }
@@ -138,7 +155,7 @@ func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.
 // InviteRelatedAccount invites a further guardian to the parent's child by
 // email. Gated by guardians.parent_invite_mode; staff_approval mode queues the
 // request instead of acting immediately.
-func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string) (*InviteRelatedAccountResult, error) {
+func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string, confirmRoleUpgrade bool) (*InviteRelatedAccountResult, error) {
 	if strings.TrimSpace(email) == "" {
 		return nil, ErrEmailRequired
 	}
@@ -170,6 +187,7 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 			CreatedBy:                  accountID,
 			RequestedByParentAccountID: &requestedBy,
 			RequireApproval:            requireApproval,
+			ConfirmRoleUpgrade:         confirmRoleUpgrade,
 		})
 		if inviteErr != nil {
 			return inviteErr
@@ -183,6 +201,7 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 	return &InviteRelatedAccountResult{
 		Outcome:           string(result.Outcome),
 		GuardianProfileID: result.GuardianProfileID,
+		ExistingRole:      result.ExistingRole,
 	}, nil
 }
 

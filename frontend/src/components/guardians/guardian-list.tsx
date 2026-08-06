@@ -35,8 +35,27 @@ const ACCOUNT_STATUS_META: Record<
   { label: string; dot: string }
 > = {
   active: { label: "Konto aktiv", dot: LOCATION_COLORS.GROUP_ROOM },
+  active_no_access: {
+    label: "Konto aktiv, kein Portalzugriff",
+    dot: LOCATION_COLORS.SCHOOLYARD,
+  },
   pending: { label: "Einladung offen", dot: LOCATION_COLORS.SICK },
   none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
+};
+
+// Label + tooltip for the invite action per account status. "active_no_access"
+// reuses the invite flow: the backend answers with the restricted-contact
+// confirmation, so the action reads as granting access, not re-inviting.
+const INVITE_ACTION_META: Record<
+  Exclude<GuardianAccountStatus, "active">,
+  { label: string; title: string }
+> = {
+  active_no_access: {
+    label: "Zugriff gewähren",
+    title: "Vollen Zugriff auf dieses Kind im Elternportal gewähren",
+  },
+  pending: { label: "Erneut einladen", title: "Einladung erneut senden" },
+  none: { label: "Einladen", title: "Zum Elternportal einladen" },
 };
 
 function AccountStatusBadge({
@@ -113,8 +132,17 @@ export default function GuardianList({
 
             {!readOnly && (
               <div className="flex flex-shrink-0 items-center gap-1">
+                {/* Social-worker contacts are school-managed: the backend
+                    refuses to invite or upgrade them, so no action is shown.
+                    A pending entry for an ACCOUNT holder is a role-upgrade
+                    request awaiting approval in the queue — there is no email
+                    to re-send and acting here would bypass the queue. */}
                 {onInvite &&
                   guardian.accountStatus !== "active" &&
+                  guardian.guardianRole !== "social_worker" &&
+                  !(
+                    guardian.accountStatus === "pending" && guardian.hasAccount
+                  ) &&
                   guardian.email && (
                     <button
                       type="button"
@@ -123,16 +151,16 @@ export default function GuardianList({
                       className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-[#f0f9e4] disabled:opacity-50"
                       style={{ color: GROUP_ROOM_SHADES.text }}
                       title={
-                        guardian.accountStatus === "pending"
-                          ? "Einladung erneut senden"
-                          : "Zum Elternportal einladen"
+                        INVITE_ACTION_META[guardian.accountStatus ?? "none"]
+                          .title
                       }
                     >
                       <Send className="h-4 w-4" />
                       <span className="hidden sm:inline">
-                        {guardian.accountStatus === "pending"
-                          ? "Erneut einladen"
-                          : "Einladen"}
+                        {
+                          INVITE_ACTION_META[guardian.accountStatus ?? "none"]
+                            .label
+                        }
                       </span>
                     </button>
                   )}

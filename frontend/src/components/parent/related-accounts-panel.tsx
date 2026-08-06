@@ -6,12 +6,15 @@ import {
   listRelatedAccounts,
   inviteRelatedAccount,
   removeRelatedAccount,
+  ParentApiError,
   type RelatedAccount,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { GUARDIAN_ROLE_OPTIONS } from "~/lib/guardian-helpers";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "RelatedAccountsPanel" });
@@ -20,7 +23,25 @@ const STATUS_META: Record<RelatedAccount["status"], { label: string }> = {
   active: { label: "Konto aktiv" },
   pending: { label: "Einladung offen" },
   no_account: { label: "Kontakt ohne Konto" },
+  active_no_access: { label: "Konto aktiv, kein Portalzugriff" },
 };
+
+function guardianRoleLabel(role: string | undefined): string | null {
+  const option = GUARDIAN_ROLE_OPTIONS.find((o) => o.value === role);
+  return option?.label ?? null;
+}
+
+// Maps a failed invite to a German message. Social-worker contacts are
+// school-managed; the backend refuses to invite or upgrade them (#2172).
+function inviteErrorText(err: unknown, fallback: string): string {
+  if (
+    err instanceof ParentApiError &&
+    err.code === "guardian_social_worker_managed"
+  ) {
+    return "Dieser Kontakt wird von der Schule verwaltet und kann nicht über die Eltern-App eingeladen werden.";
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 function initials(first: string, last: string): string {
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || "?";
@@ -43,6 +64,14 @@ export default function RelatedAccountsPanel({
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // Restricted-contact upgrade confirmation (#2172): set either from an
+  // invite that hit an existing restrictive contact, or from the per-row
+  // "Zugriff gewähren" action on a no-access account.
+  const [upgradePrompt, setUpgradePrompt] = useState<{
+    email: string;
+    name: string;
+    existingRole?: string;
+  } | null>(null);
   const [message, setMessage] = useState<{
     kind: "success" | "error";
     text: string;
@@ -76,6 +105,16 @@ export default function RelatedAccountsPanel({
     setMessage(null);
     try {
       const result = await inviteRelatedAccount(studentId, trimmed);
+      if (result.outcome === "existing_contact_restricted") {
+        // Existing contact without portal access: nothing happened yet, ask
+        // for the upgrade confirmation first.
+        setUpgradePrompt({
+          email: trimmed,
+          name: trimmed,
+          existingRole: result.existing_role,
+        });
+        return;
+      }
       setEmail("");
       setInviteOpen(false);
       await load();
@@ -94,7 +133,46 @@ export default function RelatedAccountsPanel({
       });
       setMessage({
         kind: "error",
-        text: err instanceof Error ? err.message : "Einladung fehlgeschlagen",
+        text: inviteErrorText(err, "Einladung fehlgeschlagen"),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmUpgrade = async () => {
+    if (!upgradePrompt) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await inviteRelatedAccount(
+        studentId,
+        upgradePrompt.email,
+        {
+          confirmRoleUpgrade: true,
+        },
+      );
+      setUpgradePrompt(null);
+      setEmail("");
+      setInviteOpen(false);
+      await load();
+      setMessage({
+        kind: "success",
+        text:
+          result.outcome === "pending_approval"
+            ? "Anfrage gesendet – wird von der Einrichtung geprüft."
+            : result.outcome === "invited"
+              ? `Einladung an ${upgradePrompt.email} gesendet.`
+              : "Zugriff wurde gewährt.",
+      });
+    } catch (err) {
+      logger.error("related_account_upgrade_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setUpgradePrompt(null);
+      setMessage({
+        kind: "error",
+        text: inviteErrorText(err, "Freigabe fehlgeschlagen"),
       });
     } finally {
       setBusy(false);
@@ -214,6 +292,28 @@ export default function RelatedAccountsPanel({
                     )}
                   </p>
                 </div>
+                {/* Social-worker contacts are school-managed: the backend
+                    refuses the upgrade, so the action is not offered. */}
+                {canInvite &&
+                  acc.status === "active_no_access" &&
+                  acc.guardian_role !== "social_worker" &&
+                  acc.email && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="compact"
+                      className="shrink-0"
+                      disabled={busy}
+                      onClick={() =>
+                        setUpgradePrompt({
+                          email: acc.email ?? "",
+                          name: name ?? "",
+                        })
+                      }
+                    >
+                      Zugriff gewähren
+                    </Button>
+                  )}
                 {canRemove &&
                   !acc.is_primary &&
                   !acc.is_self &&
@@ -256,6 +356,26 @@ export default function RelatedAccountsPanel({
           })
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={upgradePrompt !== null}
+        onClose={() => setUpgradePrompt(null)}
+        onConfirm={() => void handleConfirmUpgrade()}
+        title="Vollen Zugriff gewähren?"
+        confirmText="Zugriff gewähren"
+        cancelText="Abbrechen"
+        isConfirmLoading={busy}
+      >
+        <p className="text-sm text-gray-600">
+          {upgradePrompt &&
+            (guardianRoleLabel(upgradePrompt.existingRole)
+              ? `${upgradePrompt.name} ist bereits als ${guardianRoleLabel(upgradePrompt.existingRole)} für dieses Kind eingetragen, bisher ohne Zugriff auf die Eltern-App.`
+              : `${upgradePrompt.name} hat ein Konto, aber bisher keinen Zugriff auf dieses Kind in der Eltern-App.`)}{" "}
+          Mit der Bestätigung wird eine Anfrage an die Einrichtung gesendet.
+          Nach der Freigabe erhält diese Person vollen Zugriff auf dieses Kind
+          in der Eltern-App.
+        </p>
+      </ConfirmationModal>
     </SectionCard>
   );
 }

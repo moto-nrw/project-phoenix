@@ -116,6 +116,38 @@ describe("parent-api related accounts", () => {
         "Einladen deaktiviert",
       );
     });
+
+    it("sends confirm_role_upgrade only when confirming an upgrade", async () => {
+      let body: unknown;
+      mockFetch(async (_input, init) => {
+        body = JSON.parse(String(init?.body));
+        return jsonResponse({
+          data: { outcome: "already_linked", guardian_profile_id: "11" },
+        });
+      });
+      await inviteRelatedAccount("3", "opa@x.de", { confirmRoleUpgrade: true });
+      expect(body).toEqual({
+        email: "opa@x.de",
+        first_name: "",
+        last_name: "",
+        confirm_role_upgrade: true,
+      });
+    });
+
+    it("returns existing_role for the restricted-contact outcome", async () => {
+      mockFetch(async () =>
+        jsonResponse({
+          data: {
+            outcome: "existing_contact_restricted",
+            guardian_profile_id: "11",
+            existing_role: "emergency_contact",
+          },
+        }),
+      );
+      const out = await inviteRelatedAccount("3", "opa@x.de");
+      expect(out.outcome).toBe("existing_contact_restricted");
+      expect(out.existing_role).toBe("emergency_contact");
+    });
   });
 
   describe("removeRelatedAccount", () => {
