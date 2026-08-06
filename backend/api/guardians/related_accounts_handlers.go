@@ -22,6 +22,9 @@ type inviteToStudentRequest struct {
 	FirstName        string `json:"first_name"`
 	LastName         string `json:"last_name"`
 	RelationshipType string `json:"relationship_type"`
+	// ConfirmRoleUpgrade confirms upgrading an existing restrictive contact
+	// link to full access (#2172).
+	ConfirmRoleUpgrade bool `json:"confirm_role_upgrade"`
 }
 
 // inviteToStudentResponse echoes what the resolve did so the UI can show the
@@ -30,6 +33,9 @@ type inviteToStudentResponse struct {
 	Outcome           string `json:"outcome"`
 	GuardianProfileID string `json:"guardian_profile_id"`
 	InvitationID      string `json:"invitation_id,omitempty"`
+	// ExistingRole carries the current guardian role for the
+	// existing_contact_restricted outcome.
+	ExistingRole string `json:"existing_role,omitempty"`
 }
 
 // pendingApprovalResponse is the parent-initiated approval-queue row, with
@@ -44,6 +50,9 @@ type pendingApprovalResponse struct {
 	RequestedByEmail  string    `json:"requested_by_email,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 	ExpiresAt         time.Time `json:"expires_at"`
+	// RoleUpgrade marks a request whose approval also upgrades an existing
+	// restrictive contact link to full portal access (#2172).
+	RoleUpgrade bool `json:"role_upgrade"`
 }
 
 // inviteGuardianToStudent invites a further guardian to a child by email.
@@ -71,16 +80,21 @@ func (rs *Resource) inviteGuardianToStudent(w http.ResponseWriter, r *http.Reque
 	}
 
 	result, err := rs.InvitationService.InviteToStudent(r.Context(), authSvc.InviteToStudentRequest{
-		StudentID:        studentID,
-		Email:            body.Email,
-		FirstName:        body.FirstName,
-		LastName:         body.LastName,
-		RelationshipType: body.RelationshipType,
-		CreatedBy:        accountID,
-		RequireApproval:  false,
+		StudentID:          studentID,
+		Email:              body.Email,
+		FirstName:          body.FirstName,
+		LastName:           body.LastName,
+		RelationshipType:   body.RelationshipType,
+		CreatedBy:          accountID,
+		RequireApproval:    false,
+		ConfirmRoleUpgrade: body.ConfirmRoleUpgrade,
 	})
 	if err != nil {
 		tenant.MarkRollback(r.Context())
+		if errors.Is(err, authSvc.ErrInviteSocialWorkerManaged) {
+			common.RenderError(w, r, common.ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -126,6 +140,10 @@ func (rs *Resource) approveInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rs.InvitationService.ApproveInvitation(r.Context(), invitationID, accountID); err != nil {
 		tenant.MarkRollback(r.Context())
+		if errors.Is(err, authSvc.ErrInviteSocialWorkerManaged) {
+			common.RenderError(w, r, common.ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -166,6 +184,7 @@ func toInviteResponse(result *authSvc.InviteToStudentResult) inviteToStudentResp
 	resp := inviteToStudentResponse{
 		Outcome:           string(result.Outcome),
 		GuardianProfileID: strconv.FormatInt(result.GuardianProfileID, 10),
+		ExistingRole:      result.ExistingRole,
 	}
 	if result.InvitationID != nil {
 		resp.InvitationID = strconv.FormatInt(*result.InvitationID, 10)
@@ -183,6 +202,7 @@ func toPendingApprovalResponse(v *authSvc.PendingApprovalView) pendingApprovalRe
 		RequestedByEmail:  v.RequestedByEmail,
 		CreatedAt:         v.CreatedAt,
 		ExpiresAt:         v.ExpiresAt,
+		RoleUpgrade:       v.RoleUpgrade,
 	}
 	if v.StudentID > 0 {
 		resp.StudentID = strconv.FormatInt(v.StudentID, 10)

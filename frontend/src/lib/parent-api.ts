@@ -225,8 +225,11 @@ export interface RelatedAccount {
   readonly last_name: string;
   readonly email?: string;
   readonly relationship_type: string;
+  // Per-child role preset on the link; used to hide the grant-access action
+  // for school-managed social-worker contacts (#2172).
+  readonly guardian_role?: string;
   readonly is_primary: boolean;
-  readonly status: "active" | "pending" | "no_account";
+  readonly status: "active" | "pending" | "no_account" | "active_no_access";
   // Marks the requesting parent's own row. Self-removal is rejected by the
   // backend, so the panel hides the remove action for it.
   readonly is_self: boolean;
@@ -908,13 +911,20 @@ export async function updateGuardianRelationship(
 export interface InviteRelatedAccountResult {
   readonly outcome: string;
   readonly guardian_profile_id: string;
+  // Current guardian role for the existing_contact_restricted outcome, so the
+  // UI can name it in the upgrade confirmation.
+  readonly existing_role?: string;
 }
 
 /** Invites a further guardian to the child by email. */
 export async function inviteRelatedAccount(
   studentId: string,
   email: string,
-  options?: { firstName?: string; lastName?: string },
+  options?: {
+    firstName?: string;
+    lastName?: string;
+    confirmRoleUpgrade?: boolean;
+  },
 ): Promise<InviteRelatedAccountResult> {
   return postJson<InviteRelatedAccountResult>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
@@ -922,6 +932,9 @@ export async function inviteRelatedAccount(
       email,
       first_name: options?.firstName ?? "",
       last_name: options?.lastName ?? "",
+      // Only sent when confirming an upgrade; a plain invite keeps the
+      // historical three-field body.
+      ...(options?.confirmRoleUpgrade ? { confirm_role_upgrade: true } : {}),
     },
   );
 }

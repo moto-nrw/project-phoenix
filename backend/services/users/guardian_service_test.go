@@ -2565,3 +2565,67 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		})
 	}
 }
+
+// TestGetStudentGuardians_AccountHolderPendingUpgradeApproval verifies the
+// #2172 staff-status fix: a guardian WITH a portal account counts as pending
+// only for an open invitation anchored to this child (a pending-approval
+// role-upgrade request) — never for a sibling's invite.
+func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(db)
+
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
+	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")
+	sibling := testpkg.CreateTestStudent(t, db, "AcctPending", "Sibling", "1a")
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "AcctPending", "Account")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id IN (?, ?)", student.ID, sibling.ID).Exec(context.Background())
+	}()
+
+	require.NoError(t, repoFactory.GuardianProfile.LinkAccount(ctx, guardian.ID, account.ID))
+	_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: guardian.ID,
+		RelationshipType:  "other",
+		GuardianRole:      authorize.GuardianRoleEmergency,
+	})
+	require.NoError(t, err)
+
+	// Open pending-approval upgrade request anchored to the SIBLING → this
+	// child's row must not read as pending.
+	siblingID := sibling.ID
+	inv := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("acct-pending-%d", time.Now().UnixNano()),
+		GuardianProfileID: guardian.ID,
+		CreatedBy:         account.ID,
+		ExpiresAt:         time.Now().Add(48 * time.Hour),
+		StudentID:         &siblingID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
+		RoleUpgrade:       true,
+	}
+	inv.SetTenantID(1)
+	require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
+
+	res, err := service.GetStudentGuardians(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	assert.False(t, res[0].InvitationPending,
+		"sibling-anchored invite must not mark this child pending")
+
+	// Re-anchored to THIS child → pending.
+	studentID := student.ID
+	inv.StudentID = &studentID
+	require.NoError(t, repoFactory.GuardianInvitation.Update(ctx, inv))
+
+	res, err = service.GetStudentGuardians(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	assert.True(t, res[0].InvitationPending,
+		"account holder with a pending upgrade approval for this child must read as pending")
+}

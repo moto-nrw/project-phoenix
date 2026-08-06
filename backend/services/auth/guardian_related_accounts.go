@@ -2,12 +2,14 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -44,6 +46,13 @@ type InviteToStudentRequest struct {
 	// RequireApproval queues the invite for staff approval instead of acting
 	// immediately. The handler decides this from guardians.parent_invite_mode.
 	RequireApproval bool
+	// ConfirmRoleUpgrade confirms upgrading an existing restrictive contact
+	// link (emergency_contact/pickup_only/custom) to legal_guardian. Without
+	// it, such an invite returns InviteOutcomeExistingContactRestricted with
+	// no side effects so the UI can ask first (#2172). A PARENT-initiated
+	// confirmed upgrade is always queued for staff approval, even in direct
+	// invite mode — see InviteToStudent.
+	ConfirmRoleUpgrade bool
 }
 
 // InviteToStudentOutcome describes what the resolve logic did, so the UI can
@@ -61,6 +70,11 @@ const (
 	InviteOutcomeInvited InviteToStudentOutcome = "invited"
 	// InviteOutcomePendingApproval: a parent request was queued for staff.
 	InviteOutcomePendingApproval InviteToStudentOutcome = "pending_approval"
+	// InviteOutcomeExistingContactRestricted: the email belongs to an existing
+	// contact on this child with a restrictive role and no portal access.
+	// Nothing was changed; the caller must confirm the role upgrade
+	// (ConfirmRoleUpgrade) and retry (#2172).
+	InviteOutcomeExistingContactRestricted InviteToStudentOutcome = "existing_contact_restricted"
 )
 
 // InviteToStudentResult is returned by InviteToStudent.
@@ -68,6 +82,9 @@ type InviteToStudentResult struct {
 	Outcome           InviteToStudentOutcome
 	GuardianProfileID int64
 	InvitationID      *int64 // nil for auto-link / already-linked outcomes
+	// ExistingRole carries the current guardian role for the
+	// existing_contact_restricted outcome; empty otherwise.
+	ExistingRole string
 }
 
 type relatedAccountProfileResolution struct {
@@ -103,6 +120,19 @@ func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req Inv
 	}
 
 	tenantID := tenant.FromContext(ctx)
+
+	// An existing restrictive contact link (emergency_contact/pickup_only/
+	// custom) would survive LinkIfNotExists untouched, leaving the invited
+	// account without parent_portal.access (#2172). Detect it up front — with
+	// no side effects — and require an explicit upgrade confirmation.
+	roleUpgrade, restricted, err := s.detectRestrictedContact(ctx, req, email)
+	if err != nil {
+		return nil, err
+	}
+	if restricted != nil {
+		return restricted, nil
+	}
+
 	resolved, err := s.findOrCreateProfileByEmail(ctx, email, req.FirstName, req.LastName, tenantID)
 	if err != nil {
 		return nil, err
@@ -112,13 +142,101 @@ func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req Inv
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: fmt.Errorf("guardian profile resolution failed")}
 	}
 
-	if req.RequireApproval {
-		return s.queuePendingApproval(ctx, req, profile, tenantID, resolved.created)
+	// A confirmed upgrade of an existing restricted contact overrides a
+	// deliberate staff-set restriction (e.g. a custody-motivated pickup_only
+	// or emergency_contact role). When a PARENT asks for it, the request
+	// always goes through staff approval — even in direct invite mode.
+	// Staff-initiated invites keep applying immediately, and parents inviting
+	// brand-new contacts in direct mode are unaffected.
+	requireApproval := req.RequireApproval
+	if roleUpgrade && req.RequestedByParentAccountID != nil {
+		requireApproval = true
+	}
+	if requireApproval {
+		return s.queuePendingApproval(ctx, req, profile, tenantID, resolved.created, roleUpgrade)
 	}
 	if err := s.attachExistingAccountByEmail(ctx, profile, email, tenantID); err != nil {
 		return nil, err
 	}
-	return s.resolveInviteNow(ctx, req, profile, tenantID, resolved.created)
+	return s.resolveInviteNow(ctx, req, profile, tenantID, resolved.created, roleUpgrade)
+}
+
+// detectRestrictedContact checks whether the invited email already belongs to a
+// contact on this child whose link has a restrictive role (no portal access).
+// Returns (roleUpgrade=true, nil, nil) when the caller confirmed the upgrade,
+// or a ready-made existing_contact_restricted result when confirmation is still
+// missing. Lookup-only — no rows are created or modified.
+func (s *guardianInvitationService) detectRestrictedContact(ctx context.Context, req InviteToStudentRequest, email string) (bool, *InviteToStudentResult, error) {
+	existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if isNotFoundError(err) {
+			return false, nil, nil
+		}
+		return false, nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
+	if existing == nil {
+		return false, nil, nil
+	}
+	link, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, req.StudentID, existing.ID)
+	if err != nil {
+		if errors.Is(err, userModels.ErrStudentGuardianNotFound) {
+			return false, nil, nil
+		}
+		return false, nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
+	if authorize.IsFullGuardianRole(link.GuardianRole) {
+		return false, nil, nil
+	}
+	// A social worker is a school-managed professional contact, never a
+	// candidate for the legal-guardian upgrade — the parent edit paths reject
+	// every parent write to such a link (ErrGuardianSocialWorkerManaged), and
+	// the invite flow must not open a side door. Refuse the invite outright,
+	// with or without confirmation.
+	if authorize.NormalizeGuardianRole(link.GuardianRole) == authorize.GuardianRoleSocialWorker {
+		return false, nil, &AuthError{Op: opGuardianInviteToStudent, Err: ErrInviteSocialWorkerManaged}
+	}
+	if !req.ConfirmRoleUpgrade {
+		return false, &InviteToStudentResult{
+			Outcome:           InviteOutcomeExistingContactRestricted,
+			GuardianProfileID: existing.ID,
+			ExistingRole:      link.GuardianRole,
+		}, nil
+	}
+	return true, nil, nil
+}
+
+// upgradeStudentLink promotes an existing restrictive students_guardians link
+// to legal_guardian, recomputing the permission set server-side (#2172).
+// No-op when the link already carries a full guardian role.
+func (s *guardianInvitationService) upgradeStudentLink(ctx context.Context, studentID, guardianProfileID int64, op string) error {
+	link, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
+	if err != nil {
+		return &AuthError{Op: op, Err: err}
+	}
+	if authorize.IsFullGuardianRole(link.GuardianRole) {
+		return nil
+	}
+	// Defense in depth: a persisted RoleUpgrade flag must not promote a link
+	// that became a social-worker contact between request and approval. The
+	// refusal is an error, not a silent skip — otherwise the caller would
+	// report success (and, on approval, send an invitation email) for access
+	// that was never granted.
+	if authorize.NormalizeGuardianRole(link.GuardianRole) == authorize.GuardianRoleSocialWorker {
+		s.getLogger().Warn("guardian contact upgrade refused: social-worker link is school-managed",
+			slog.Int64("student_id", studentID),
+			slog.Int64("guardian_profile_id", guardianProfileID),
+		)
+		return &AuthError{Op: op, Err: ErrInviteSocialWorkerManaged}
+	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleLegalGuardian)
+	if err := s.StudentGuardianRepo.Update(ctx, link); err != nil {
+		return &AuthError{Op: op, Err: err}
+	}
+	s.getLogger().Info("guardian contact link upgraded to full access",
+		slog.Int64("student_id", studentID),
+		slog.Int64("guardian_profile_id", guardianProfileID),
+	)
+	return nil
 }
 
 // findOrCreateProfileByEmail returns the guardian profile for this email,
@@ -175,8 +293,9 @@ func (s *guardianInvitationService) attachExistingAccountByEmail(ctx context.Con
 }
 
 // resolveInviteNow links/invites immediately (staff invites, or parent invites
-// in "direct" mode).
-func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, profileCreated bool) (*InviteToStudentResult, error) {
+// in "direct" mode). roleUpgrade applies a confirmed restrictive-contact
+// upgrade right away, so access does not depend on a later approval.
+func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, profileCreated bool, roleUpgrade bool) (*InviteToStudentResult, error) {
 	rel := req.RelationshipType
 	if rel == "" {
 		rel = defaultRelationshipType
@@ -185,9 +304,17 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 	if err != nil {
 		return nil, err
 	}
+	if roleUpgrade {
+		if err := s.upgradeStudentLink(ctx, req.StudentID, profile.ID, opGuardianInviteToStudent); err != nil {
+			return nil, err
+		}
+	}
 
 	// Existing account → access is granted by the link alone; no token needed.
 	if profile.HasAccount {
+		if err := s.closeSupersededApprovalRequests(ctx, profile.ID, req.StudentID); err != nil {
+			return nil, err
+		}
 		outcome := InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = InviteOutcomeAlreadyLinked
@@ -201,8 +328,9 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 		return &InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID}, nil
 	}
 
-	// No account yet → issue a token invitation for this child.
-	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalNotRequired, profileCreated)
+	// No account yet → issue a token invitation for this child. The upgrade
+	// (if any) was already applied above, so the row's flag stays false.
+	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalNotRequired, profileCreated, false)
 	if err != nil {
 		return nil, err
 	}
@@ -217,9 +345,10 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 
 // queuePendingApproval records a parent-initiated request awaiting staff
 // approval. No link is created and no email is sent until a staff member
-// approves it.
-func (s *guardianInvitationService) queuePendingApproval(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, profileCreated bool) (*InviteToStudentResult, error) {
-	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalPending, profileCreated)
+// approves it. roleUpgrade is persisted on the invitation so the approval
+// step knows it must also upgrade the existing restrictive link.
+func (s *guardianInvitationService) queuePendingApproval(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, profileCreated bool, roleUpgrade bool) (*InviteToStudentResult, error) {
+	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalPending, profileCreated, roleUpgrade)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +385,7 @@ func (s *guardianInvitationService) ensureStudentLink(ctx context.Context, stude
 
 // createStudentInvitation persists a guardian_invitations row carrying the
 // student and (for parent-initiated invites) the requesting account.
-func (s *guardianInvitationService) createStudentInvitation(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, approvalStatus string, profileCreated bool) (*authModels.GuardianInvitation, error) {
+func (s *guardianInvitationService) createStudentInvitation(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, approvalStatus string, profileCreated bool, roleUpgrade bool) (*authModels.GuardianInvitation, error) {
 	studentID := req.StudentID
 	openInvitation, err := s.findOpenStudentInvitation(ctx, profile.ID, studentID)
 	if err != nil {
@@ -276,6 +405,50 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 			}
 		}
+		// Reverse transition, ONLY for a confirmed role upgrade: the upgrade
+		// requires approval-gating, but the open invitation was created
+		// without it — an earlier staff direct invite (not_required) or an
+		// approved-but-not-yet-accepted request. Re-queue it as pending:
+		// otherwise the row never surfaces in the staff queue,
+		// ApproveInvitation (the only consumer of RoleUpgrade) can never
+		// fire, and the still-consumable token would grant an account
+		// without the promised access. Flipping to pending also freezes the
+		// outstanding token until staff decide
+		// (guardianInvitationTokenConsumable refuses pending tokens).
+		// The roleUpgrade gate is load-bearing: in staff_approval mode EVERY
+		// parent invite arrives with approvalStatus=pending, and a plain
+		// duplicate re-invite must not revert an already-resolved invitation
+		// (that would invalidate its live token and force a re-approval).
+		if roleUpgrade &&
+			approvalStatus == authModels.GuardianInvitationApprovalPending &&
+			openInvitation.ApprovalStatus != authModels.GuardianInvitationApprovalPending {
+			openInvitation.ApprovalStatus = authModels.GuardianInvitationApprovalPending
+			openInvitation.ApprovedBy = nil
+			openInvitation.ApprovedAt = nil
+			// The reused row carries the leftover expiry of the older
+			// invitation, and guardianApprovalExpired gates approve/reject on
+			// it — a short remaining lifetime would lock staff out of a
+			// just-submitted request. Restart the window and drop the stale
+			// email tracking, exactly like the pending → not_required branch.
+			openInvitation.ExpiresAt = time.Now().Add(s.resolveTokenExpiry(ctx))
+			openInvitation.EmailSentAt = nil
+			openInvitation.EmailError = nil
+			if req.RequestedByParentAccountID != nil {
+				openInvitation.RequestedByAccountID = req.RequestedByParentAccountID
+			}
+			if err := s.InvitationRepo.Update(ctx, openInvitation); err != nil {
+				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+			}
+		}
+		// A re-invite that confirmed a restrictive-contact upgrade must stick
+		// the flag onto the reused row, or the approval would silently skip
+		// the upgrade (#2172).
+		if roleUpgrade && !openInvitation.RoleUpgrade {
+			openInvitation.RoleUpgrade = true
+			if err := s.InvitationRepo.Update(ctx, openInvitation); err != nil {
+				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+			}
+		}
 		return openInvitation, nil
 	}
 	invitation := &authModels.GuardianInvitation{
@@ -287,12 +460,44 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 		RequestedByAccountID:        req.RequestedByParentAccountID,
 		ApprovalStatus:              approvalStatus,
 		ProfileCreatedForInvitation: profileCreated,
+		RoleUpgrade:                 roleUpgrade,
 	}
 	invitation.SetTenantID(tenantID)
 	if err := s.InvitationRepo.Create(ctx, invitation); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
 	return invitation, nil
+}
+
+// closeSupersededApprovalRequests resolves parent-initiated requests for this
+// child that a direct link just overtook: the account now has access, so a
+// still-pending row would linger in the staff queue forever and approving it
+// later would be a no-op. Closing it mirrors how ApproveInvitation finishes an
+// invitation whose access comes from the link alone (not_required + accepted).
+func (s *guardianInvitationService) closeSupersededApprovalRequests(ctx context.Context, guardianProfileID, studentID int64) error {
+	now := time.Now()
+	open, err := s.openStudentInvitations(ctx, guardianProfileID, studentID, now)
+	if err != nil {
+		return &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
+	for _, inv := range open {
+		if !inv.IsPendingApproval() {
+			continue
+		}
+		inv.ApprovalStatus = authModels.GuardianInvitationApprovalNotRequired
+		inv.ApprovedBy = nil
+		inv.ApprovedAt = nil
+		inv.AcceptedAt = &now
+		if err := s.InvitationRepo.Update(ctx, inv); err != nil {
+			return &AuthError{Op: opGuardianInviteToStudent, Err: err}
+		}
+		s.getLogger().Info("guardian approval request closed: access granted directly",
+			slog.Int64("invitation_id", inv.ID),
+			slog.Int64("student_id", studentID),
+			slog.Int64("guardian_profile_id", guardianProfileID),
+		)
+	}
+	return nil
 }
 
 func (s *guardianInvitationService) findOpenStudentInvitation(ctx context.Context, guardianProfileID, studentID int64) (*authModels.GuardianInvitation, error) {
@@ -308,7 +513,10 @@ func (s *guardianInvitationService) findOpenStudentInvitation(ctx context.Contex
 
 // ApproveInvitation resolves a pending parent-initiated request: it links the
 // child and either grants access to an existing account or dispatches the
-// invitation email.
+// invitation email. A promised role upgrade that can no longer be applied
+// (the link became a school-managed social-worker contact meanwhile) aborts
+// the approval: the request stays pending so staff can reject it, instead of
+// reporting success for access that was never granted.
 func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
 	invitation, err := s.InvitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
@@ -341,6 +549,11 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 	if invitation.StudentID != nil {
 		if _, err := s.ensureStudentLink(ctx, *invitation.StudentID, profile.ID, rel, invitation.TenantID); err != nil {
 			return err
+		}
+		if invitation.RoleUpgrade {
+			if err := s.upgradeStudentLink(ctx, *invitation.StudentID, profile.ID, opGuardianInviteApprove); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -542,6 +755,9 @@ type PendingApprovalView struct {
 	RequestedByEmail  string
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
+	// RoleUpgrade marks a request whose approval also upgrades an existing
+	// restrictive contact link to full portal access (#2172).
+	RoleUpgrade bool
 }
 
 // ListPendingApprovalsDetailed returns the approval queue with guardian, child,
@@ -560,6 +776,7 @@ func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Con
 			GuardianProfileID: inv.GuardianProfileID,
 			CreatedAt:         inv.CreatedAt,
 			ExpiresAt:         inv.ExpiresAt,
+			RoleUpgrade:       inv.RoleUpgrade,
 		}
 		s.fillGuardianFields(ctx, inv.GuardianProfileID, view)
 		if inv.StudentID != nil {

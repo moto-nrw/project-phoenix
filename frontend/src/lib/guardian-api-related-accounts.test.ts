@@ -126,6 +126,41 @@ describe("guardian-api related accounts", () => {
         "Failed to invite guardian",
       );
     });
+
+    it("sends confirm_role_upgrade only when confirming an upgrade", async () => {
+      const cap = mockFetch(
+        okJson({
+          status: "success",
+          data: { outcome: "already_linked", guardian_profile_id: "9" },
+        }),
+      );
+      await inviteGuardianToStudent("5", "a@b.de", {
+        confirmRoleUpgrade: true,
+      });
+      expect(JSON.parse(String(cap.init?.body))).toEqual({
+        email: "a@b.de",
+        first_name: "",
+        last_name: "",
+        relationship_type: "",
+        confirm_role_upgrade: true,
+      });
+    });
+
+    it("returns existing_role for the restricted-contact outcome", async () => {
+      mockFetch(
+        okJson({
+          status: "success",
+          data: {
+            outcome: "existing_contact_restricted",
+            guardian_profile_id: "9",
+            existing_role: "pickup_only",
+          },
+        }),
+      );
+      const result = await inviteGuardianToStudent("5", "a@b.de");
+      expect(result.outcome).toBe("existing_contact_restricted");
+      expect(result.existing_role).toBe("pickup_only");
+    });
   });
 
   describe("listPendingApprovals", () => {

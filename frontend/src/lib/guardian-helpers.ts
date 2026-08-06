@@ -116,9 +116,12 @@ export interface BackendGuardianPickerResponse {
 // Backend Student-Guardian Relationship
 
 // Portal-access state of a guardian, surfaced in the staff guardian list:
-// "active" = has a login account · "pending" = invited, not yet accepted ·
-// "none" = info on file, no account (can be invited).
-export type GuardianAccountStatus = "active" | "pending" | "none";
+// "active" = has a login account with access to this child ·
+// "active_no_access" = has a login account, but this child's link carries no
+// portal access (restrictive contact role, #2172) · "pending" = invited, not
+// yet accepted · "none" = info on file, no account (can be invited).
+export type GuardianAccountStatus =
+  "active" | "active_no_access" | "pending" | "none";
 
 // Guardian with Relationship (for student detail view)
 export interface GuardianWithRelationship extends Guardian {

@@ -62,6 +62,7 @@ const sampleRequest: PendingApproval = {
   requestedByEmail: "karin.klein@email.de",
   createdAt: "2026-06-10T08:00:00Z",
   expiresAt: "2026-06-12T08:00:00Z",
+  roleUpgrade: false,
 };
 
 const staffApprovalMode = {
@@ -85,6 +86,23 @@ describe("GuardianApprovalQueue", () => {
     expect(screen.getByText("julia.schroeder@email.de")).toBeInTheDocument();
     expect(screen.getByText(/Felix Schneider/)).toBeInTheDocument();
     expect(screen.getByText(/karin.klein@email.de/)).toBeInTheDocument();
+    // A plain new-account request carries no upgrade hint.
+    expect(
+      screen.queryByText(/Stuft einen bestehenden Kontakt/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks requests that upgrade an existing contact", async () => {
+    mockList.mockResolvedValue([{ ...sampleRequest, roleUpgrade: true }]);
+    render(<GuardianApprovalQueue inviteModeState={{ status: "loading" }} />);
+    await waitFor(() =>
+      expect(screen.getByText("Julia Schröder")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(
+        "Stuft einen bestehenden Kontakt auf vollen Zugriff hoch.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no requests", async () => {

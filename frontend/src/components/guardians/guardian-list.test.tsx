@@ -209,4 +209,71 @@ describe("GuardianList", () => {
     expect(phoneCounts[0]).toHaveTextContent("2");
     expect(phoneCounts[1]).toHaveTextContent("0");
   });
+
+  it("shows the honest status and a grant-access action for active_no_access", () => {
+    const onInvite = vi.fn();
+    const guardian = {
+      ...mockGuardians[1]!,
+      hasAccount: true,
+      accountStatus: "active_no_access" as const,
+      guardianRole: "emergency_contact" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={onInvite} />);
+
+    expect(
+      screen.getByText("Konto aktiv, kein Portalzugriff"),
+    ).toBeInTheDocument();
+    const grantButton = screen.getByText("Zugriff gewähren");
+    fireEvent.click(grantButton);
+    expect(onInvite).toHaveBeenCalledWith(guardian);
+  });
+
+  it("hides the invite action entirely for active accounts", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      hasAccount: true,
+      accountStatus: "active" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    expect(screen.queryByText("Einladen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
+  });
+
+  it("offers re-invite for a pending guardian without an account", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "pending" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+    expect(screen.getByText("Erneut einladen")).toBeInTheDocument();
+  });
+
+  it("hides the invite action while an account holder's upgrade approval is pending", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      hasAccount: true,
+      accountStatus: "pending" as const,
+      guardianRole: "emergency_contact" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+    expect(screen.queryByText("Erneut einladen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
+  });
+
+  it("hides the invite action for school-managed social-worker contacts", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "active_no_access" as const,
+      guardianRole: "social_worker" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
+    expect(screen.queryByText("Einladen")).not.toBeInTheDocument();
+  });
 });
