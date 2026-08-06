@@ -303,6 +303,17 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// The write finished, but did it finish in time? Everything that keeps this
+	// upload's bookkeeping consistent hangs off the deadline: the queued intent
+	// becomes eligible three minutes after it, and a scheduler pass that
+	// settles the intent while the object is still being written would leave
+	// bytes behind that no sweep can find again. A backend that ignores its
+	// context — a future object store, a stalled mount — is enough for that, so
+	// the deadline is re-checked here rather than trusted.
+	if rs.abortExpiredUpload(w, r, uploadCtx, id, storedName) {
+		return
+	}
+
 	doc, err := rs.StudentDocumentService.CreateStudentDocument(uploadCtx, usersSvc.CreateStudentDocumentInput{
 		StudentID:       id,
 		Category:        category,
@@ -326,6 +337,28 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 
 	resp := newStudentDocumentResponse(doc)
 	common.Respond(w, r, http.StatusCreated, &resp, "Student document uploaded successfully")
+}
+
+// abortExpiredUpload ends an upload whose deadline passed while its bytes were
+// being written, and reports whether it did.
+//
+// The intent is activated rather than left alone: past the deadline the
+// scheduler may be about to settle it, or may already have settled it and
+// removed a half-written object that the write then re-created. Activating
+// while it is still open is what keeps the bytes reachable; if it is already
+// settled the update matches nothing, which is the case the deadline check
+// exists to make rare.
+func (rs *Resource) abortExpiredUpload(w http.ResponseWriter, r *http.Request, uploadCtx context.Context, studentID int64, storedName string) bool {
+	if uploadCtx.Err() == nil {
+		return false
+	}
+	if activateErr := rs.StudentDocumentService.ActivateQueuedCleanup(r.Context(), storedName); activateErr != nil {
+		rs.getLogger().Error("student document cleanup intent activation failed after deadline",
+			"student_id", studentID,
+			"error", activateErr)
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(errors.New("upload exceeded its deadline")))
+	return true
 }
 
 // downloadStudentDocument serves GET /{id}/documents/{documentId}/download.
