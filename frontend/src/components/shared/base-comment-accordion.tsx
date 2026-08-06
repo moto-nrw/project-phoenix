@@ -157,7 +157,7 @@ export function BaseCommentAccordion({
           <span className="flex items-center gap-1.5 font-medium">
             Kommentare{displayCount > 0 ? ` (${displayCount})` : ""}
             {(unreadCount ?? 0) > 0 && (
-              <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              <span className="bg-moto-coral rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 {unreadCount} neu
               </span>
             )}

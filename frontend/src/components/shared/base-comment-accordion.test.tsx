@@ -94,7 +94,7 @@ describe("BaseCommentAccordion", () => {
       />,
     );
 
-    expect(screen.getByText("3 neu")).toBeInTheDocument();
+    expect(screen.getByText("3 neu")).toHaveClass("bg-moto-coral");
   });
 
   it("does not show unread badge when unreadCount is 0", () => {
