@@ -1097,3 +1097,55 @@ func TestApproveInvitation_RoleUpgradeSkipsSocialWorkerLink(t *testing.T) {
 		"persisted upgrade flag must not promote a social-worker link")
 	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 }
+
+// TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval verifies
+// that a PARENT-confirmed upgrade of an existing restricted contact is queued
+// for staff approval even when the school runs direct invite mode: the upgrade
+// overrides a deliberate staff-set restriction, so it never applies without a
+// review step. Staff-shaped invites (no RequestedByParentAccountID) keep
+// resolving immediately — covered by the ConfirmedUpgrade_Direct* tests above.
+func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "ParentDirect", "7i")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-parent-direct")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+
+	// Parent-shaped invite in DIRECT mode (RequireApproval false) with a
+	// confirmed upgrade → queued, nothing applied yet.
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            false,
+		ConfirmRoleUpgrade:         true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.True(t, inv.RoleUpgrade, "queued request must persist the upgrade intent")
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+
+	link := env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRolePickupOnly, link.GuardianRole, "no upgrade before approval")
+	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+
+	// Approval applies the upgrade, exactly like staff_approval mode.
+	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	link = env.fetchLink(t, student.ID, profile.ID)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+}

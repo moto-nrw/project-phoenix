@@ -49,7 +49,9 @@ type InviteToStudentRequest struct {
 	// ConfirmRoleUpgrade confirms upgrading an existing restrictive contact
 	// link (emergency_contact/pickup_only/custom) to legal_guardian. Without
 	// it, such an invite returns InviteOutcomeExistingContactRestricted with
-	// no side effects so the UI can ask first (#2172).
+	// no side effects so the UI can ask first (#2172). A PARENT-initiated
+	// confirmed upgrade is always queued for staff approval, even in direct
+	// invite mode — see InviteToStudent.
 	ConfirmRoleUpgrade bool
 }
 
@@ -140,7 +142,17 @@ func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req Inv
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: fmt.Errorf("guardian profile resolution failed")}
 	}
 
-	if req.RequireApproval {
+	// A confirmed upgrade of an existing restricted contact overrides a
+	// deliberate staff-set restriction (e.g. a custody-motivated pickup_only
+	// or emergency_contact role). When a PARENT asks for it, the request
+	// always goes through staff approval — even in direct invite mode.
+	// Staff-initiated invites keep applying immediately, and parents inviting
+	// brand-new contacts in direct mode are unaffected.
+	requireApproval := req.RequireApproval
+	if roleUpgrade && req.RequestedByParentAccountID != nil {
+		requireApproval = true
+	}
+	if requireApproval {
 		return s.queuePendingApproval(ctx, req, profile, tenantID, resolved.created, roleUpgrade)
 	}
 	if err := s.attachExistingAccountByEmail(ctx, profile, email, tenantID); err != nil {

@@ -371,7 +371,8 @@ export default function RelatedAccountsPanel({
             (guardianRoleLabel(upgradePrompt.existingRole)
               ? `${upgradePrompt.name} ist bereits als ${guardianRoleLabel(upgradePrompt.existingRole)} für dieses Kind eingetragen, bisher ohne Zugriff auf die Eltern-App.`
               : `${upgradePrompt.name} hat ein Konto, aber bisher keinen Zugriff auf dieses Kind in der Eltern-App.`)}{" "}
-          Mit der Bestätigung erhält diese Person vollen Zugriff auf dieses Kind
+          Mit der Bestätigung wird eine Anfrage an die Einrichtung gesendet.
+          Nach der Freigabe erhält diese Person vollen Zugriff auf dieses Kind
           in der Eltern-App.
         </p>
       </ConfirmationModal>

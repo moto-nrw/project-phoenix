@@ -271,8 +271,11 @@ describe("RelatedAccountsPanel", () => {
       is_self: false,
     };
     mockList.mockResolvedValue([primaryActive, noAccess]);
+    // Parent-confirmed upgrades are always queued for staff approval, even in
+    // direct invite mode (#2174 review), so the backend answers with
+    // pending_approval here.
     mockInvite.mockResolvedValue({
-      outcome: "already_linked",
+      outcome: "pending_approval",
       guardian_profile_id: "5",
     });
     render(
@@ -290,7 +293,11 @@ describe("RelatedAccountsPanel", () => {
       }),
     );
     await waitFor(() =>
-      expect(screen.getByText("Zugriff wurde gewährt.")).toBeInTheDocument(),
+      expect(
+        screen.getByText(
+          "Anfrage gesendet – wird von der Einrichtung geprüft.",
+        ),
+      ).toBeInTheDocument(),
     );
   });
 
