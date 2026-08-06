@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -472,6 +473,14 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	if err != nil {
 		return fmt.Errorf("find open groups in room %d: %w", roomID, err)
 	}
+
+	// Lock candidates in ascending ID order. Today every other active.groups
+	// locker takes exactly one row lock per transaction, so no wait cycle can
+	// form regardless of order — but a deterministic order keeps this loop
+	// deadlock-free even if a second multi-row locker appears later.
+	slices.SortFunc(openGroups, func(a, b *activeModel.Group) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 
 	today := timezone.TodayDate()
 	movedTotal := 0
