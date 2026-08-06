@@ -101,11 +101,41 @@ func extractLocationColorsHexes(t *testing.T, source string) map[string]struct{}
 	block := source[startIdx : startIdx+closeIdx]
 
 	hexPattern := regexp.MustCompile(`"(#[0-9A-Fa-f]{3,6})"`)
-	matches := hexPattern.FindAllStringSubmatch(block, -1)
+	literalMatches := hexPattern.FindAllStringSubmatch(block, -1)
+	palettePattern := regexp.MustCompile(`MOTO_COLOR_PALETTE\.([A-Za-z][A-Za-z0-9]*)\.base`)
+	paletteMatches := palettePattern.FindAllStringSubmatch(block, -1)
+	paletteBaseHexes := extractPaletteBaseHexes(t, source)
 
-	out := make(map[string]struct{}, len(matches))
-	for _, m := range matches {
+	out := make(map[string]struct{}, len(literalMatches)+len(paletteMatches))
+	for _, m := range literalMatches {
 		out[strings.ToUpper(m[1])] = struct{}{}
+	}
+	for _, m := range paletteMatches {
+		hex, ok := paletteBaseHexes[m[1]]
+		require.True(t, ok, "could not resolve MOTO_COLOR_PALETTE.%s.base", m[1])
+		out[hex] = struct{}{}
+	}
+	return out
+}
+
+func extractPaletteBaseHexes(t *testing.T, source string) map[string]string {
+	t.Helper()
+
+	startIdx := strings.Index(source, "export const MOTO_COLOR_PALETTE")
+	require.NotEqual(t, -1, startIdx,
+		"could not find MOTO_COLOR_PALETTE export — frontend file structure changed")
+
+	closeIdx := strings.Index(source[startIdx:], "} as const")
+	require.NotEqual(t, -1, closeIdx,
+		"could not find end of MOTO_COLOR_PALETTE block — frontend file structure changed")
+	block := source[startIdx : startIdx+closeIdx]
+
+	basePattern := regexp.MustCompile(`(?ms)^\s*([A-Za-z][A-Za-z0-9]*):\s*\{.*?^\s*base:\s*"(#[0-9A-Fa-f]{3,6})"`)
+	matches := basePattern.FindAllStringSubmatch(block, -1)
+
+	out := make(map[string]string, len(matches))
+	for _, m := range matches {
+		out[m[1]] = strings.ToUpper(m[2])
 	}
 	return out
 }
@@ -128,12 +158,14 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 	knownReserved := []string{
 		"#83CD2D",
 		"#5080D8",
-		"#FF3130",
+		"#6B7280",
 		"#F78C10",
 		"#D946EF",
-		"#EAB308",
+		"#78716C",
+		"#DC2626",
 		"#7C3AED",
-		"#6B7280",
+		"#0891B2",
+		"#365D83",
 	}
 
 	out := make(map[string]struct{}, len(knownReserved))

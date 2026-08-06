@@ -486,15 +486,14 @@ export function StudentAbsenceRow({
  * absence — the child stays "expected" and keeps its normal arrival/pickup rows
  * until the OGS confirms — so this renders as a single compact amber pill
  * alongside them, not in place of them. The parent's note (if any) is kept to
- * the hover title so the card stays as dense as its other rows. Amber hex comes
- * from LOCATION_COLORS.SCHOOLYARD (CLAUDE.md §0). Not LOCATION_COLORS.SICK:
- * this pill is a pending-approval hint, not an illness signal, and SICK is
- * red per the MOTO tone table (Krank = rot).
+ * the hover title so the card stays as dense as its other rows. The amber tone
+ * comes directly from MOTO_COLOR_PALETTE because this is a pending-approval
+ * hint, not a location or illness signal.
  */
 export function StudentPendingExcusedRow({
   note,
 }: Readonly<{ note?: string }>) {
-  const tone = getLocationBadgeTone(LOCATION_COLORS.SCHOOLYARD);
+  const tone = getLocationBadgeTone(MOTO_COLOR_PALETTE.amber.base);
 
   // Leading icon at the row's left edge (aligned with the other StudentInfoRow
   // icons) and the amber pill in the text column, so this line sits in the same
