@@ -327,11 +327,23 @@ func (r *Repository[T, C]) ListQueuedFileCleanups(ctx context.Context) ([]C, err
 }
 
 // listQueuedFileCleanups returns eligible orphan rows and locks them for the
-// caller's transaction. FOR UPDATE SKIP LOCKED is load-bearing: an upload
-// whose metadata transaction has already stamped cleaned_at but not yet
-// committed holds that row lock, and skipping it keeps this pass from
-// deleting the bytes of a document that is about to exist. Concurrent cleanup
-// passes skip each other's rows for the same reason.
+// caller's transaction.
+//
+// CALLER CONTRACT: remove the objects inside the SAME transaction. The row
+// locks are released at COMMIT, so a caller that defers removal to an
+// after-commit hook holds no protection at all by the time it touches a byte.
+//
+// What the lock buys, for a caller that honours the contract: an upload whose
+// metadata transaction has already stamped cleaned_at but not yet committed
+// holds that row lock, and skipping it keeps this pass from deleting the bytes
+// of a document that is about to exist. Concurrent cleanup passes skip each
+// other's rows for the same reason.
+//
+// The lock is the second guard, not the only one. The first is time: an intent
+// stays ineligible for studentDocumentCleanupDelay (5 minutes) while the
+// upload that owns it is cut off after StudentDocumentUploadDeadline (2
+// minutes), so a still-running upload can never appear in this result set to
+// begin with.
 func (r *Repository[T, C]) listQueuedFileCleanups(ctx context.Context, where string, arg any) ([]C, error) {
 	var cleanups []C
 	query := base.GetDB(ctx, r.db).NewSelect().
