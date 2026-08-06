@@ -373,15 +373,22 @@ func (s *studentDocumentService) ResolveStudentDocumentDownload(ctx context.Cont
 				role = "unknown"
 			}
 			now := time.Now()
+			// The child goes in the student_id COLUMN, not into metadata. It
+			// is the column a per-child disclosure report reads, and its FK
+			// carries ON DELETE SET NULL — a copy in the JSONB would survive
+			// the child's deletion, which is the leftover that column exists
+			// to prevent. Staff-document downloads leave it NULL legitimately,
+			// because there no child is involved; here one is.
+			subject := studentID
 			if err := s.accessLog.Create(ctx, &auditModels.DataAccessLog{
 				ActorAccountID: actor.AccountID,
 				ActorRole:      role,
 				ResourceType:   auditModels.ResourceTypeStudentDocumentDownload,
+				StudentID:      &subject,
 				RangeStart:     now,
 				RangeEnd:       now,
 				AccessedAt:     now,
 				Metadata: map[string]interface{}{
-					"student_id":  studentID,
 					"document_id": doc.ID,
 					"category":    doc.Category,
 				},

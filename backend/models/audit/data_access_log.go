@@ -38,7 +38,8 @@ const (
 	ResourceTypeStaffDocumentDownload = "staff_document_download"
 	// ResourceTypeStudentDocumentDownload records serving a sensitive child
 	// document (#777): Attest, Impfnachweis and Medikamentenplan (Art. 9
-	// health data) plus the Sorgerechtsnachweis. Metadata carries student_id,
+	// health data) plus the Sorgerechtsnachweis. Unlike the staff rows above
+	// this one names a child, so StudentID is SET and metadata carries only
 	// document_id and category.
 	ResourceTypeStudentDocumentDownload = "student_document_download"
 )

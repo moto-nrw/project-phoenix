@@ -277,6 +277,16 @@ func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
 	}
 	assert.EqualValues(t, attest.ID, logs[0].Metadata["document_id"])
 	assert.EqualValues(t, custody.ID, logs[1].Metadata["document_id"])
+
+	// The child belongs in the column, which is what a per-child disclosure
+	// report reads and what the FK detaches on deletion. A copy in the JSONB
+	// would outlive the child and defeat that.
+	for _, entry := range logs {
+		require.NotNil(t, entry.StudentID, "a child document download must name its child")
+		assert.Equal(t, s.studentID, *entry.StudentID)
+		assert.NotContains(t, entry.Metadata, "student_id",
+			"the child must not be duplicated into metadata, which no deletion can reach")
+	}
 }
 
 func TestStudentDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
