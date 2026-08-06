@@ -452,6 +452,140 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }));
   };
 
+  const renderSelectField = (
+    field: FormField,
+    hasError: boolean,
+    labelClasses: string,
+  ) => {
+    const selectOptions = Array.isArray(field.options)
+      ? field.options
+      : (asyncOptions[field.name] ?? []);
+    const hasEmptyOption = selectOptions.some((option) => option.value === "");
+
+    return (
+      <div>
+        <label htmlFor={field.name} className={labelClasses}>
+          {field.label}
+          {field.required && "*"}
+        </label>
+        <CustomSelect
+          id={field.name}
+          name={field.name}
+          ariaLabel={field.label}
+          value={(formData[field.name] as string) ?? ""}
+          options={[
+            ...(!hasEmptyOption
+              ? [
+                  {
+                    value: "",
+                    label: loadingOptions[field.name]
+                      ? "Optionen werden geladen..."
+                      : (field.placeholder ?? "Bitte wählen"),
+                  },
+                ]
+              : []),
+            ...selectOptions,
+          ]}
+          onChange={(next) => {
+            if (field.name === "data_retention_days") {
+              dirtyPrivacyFieldsRef.current.add(field.name);
+            }
+            setFormData((prev) => ({ ...prev, [field.name]: next }));
+          }}
+          required={field.required}
+          invalid={hasError}
+          disabled={loadingOptions[field.name]}
+        />
+        {field.helperText && (
+          <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderMultiselectField = (
+    field: FormField,
+    hasError: boolean,
+    labelClasses: string,
+  ) => {
+    const multiselectOptions = Array.isArray(field.options)
+      ? field.options
+      : (asyncOptions[field.name] ?? []);
+    const selectedValues = Array.isArray(formData[field.name])
+      ? (formData[field.name] as string[])
+      : [];
+
+    return (
+      <div>
+        <label htmlFor={field.name} className={labelClasses}>
+          {field.label}
+          {field.required && "*"}
+        </label>
+
+        {selectedValues.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {selectedValues.map((value) => {
+              const option = multiselectOptions.find(
+                (item) => item.value === value,
+              );
+              if (!option) return null;
+
+              return (
+                <span
+                  key={value}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
+                >
+                  {option.label}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleMultiselectRemove(field.name, selectedValues, value)
+                    }
+                    className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
+                    aria-label={`Remove ${option.label}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        <CustomSelect
+          id={field.name}
+          ariaLabel={field.label}
+          value=""
+          placeholder={
+            loadingOptions[field.name]
+              ? "Optionen werden geladen..."
+              : (field.placeholder ?? "Weitere hinzufügen...")
+          }
+          options={multiselectOptions
+            .filter((option) => !selectedValues.includes(option.value))
+            .map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          onChange={(next) => {
+            if (next && !selectedValues.includes(next)) {
+              setFormData((prev) => ({
+                ...prev,
+                [field.name]: [...selectedValues, next],
+              }));
+            }
+          }}
+          invalid={hasError}
+          disabled={loadingOptions[field.name]}
+        />
+
+        {field.helperText && (
+          <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+        )}
+      </div>
+    );
+  };
+
   const renderField = (field: FormField) => {
     const hasError = field.name === errorFieldName;
 
@@ -528,141 +662,11 @@ export function DatabaseForm<T = Record<string, unknown>>({
           </div>
         );
 
-      case "select": {
-        const selectOptions = Array.isArray(field.options)
-          ? field.options
-          : (asyncOptions[field.name] ?? []);
+      case "select":
+        return renderSelectField(field, hasError, labelClasses);
 
-        // Check if options already include an empty-value option (e.g. "Kein Gruppenraum")
-        const hasEmptyOption = selectOptions.some(
-          (option) => option.value === "",
-        );
-
-        return (
-          <div>
-            <label htmlFor={field.name} className={labelClasses}>
-              {field.label}
-              {field.required && "*"}
-            </label>
-            <CustomSelect
-              id={field.name}
-              name={field.name}
-              ariaLabel={field.label}
-              value={(formData[field.name] as string) ?? ""}
-              options={[
-                ...(!hasEmptyOption
-                  ? [
-                      {
-                        value: "",
-                        label: loadingOptions[field.name]
-                          ? "Optionen werden geladen..."
-                          : (field.placeholder ?? "Bitte wählen"),
-                      },
-                    ]
-                  : []),
-                ...selectOptions,
-              ]}
-              onChange={(next) => {
-                if (field.name === "data_retention_days") {
-                  dirtyPrivacyFieldsRef.current.add(field.name);
-                }
-                setFormData((prev) => ({ ...prev, [field.name]: next }));
-              }}
-              required={field.required}
-              invalid={hasError}
-              disabled={loadingOptions[field.name]}
-            />
-            {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
-            )}
-          </div>
-        );
-      }
-
-      case "multiselect": {
-        const multiselectOptions = Array.isArray(field.options)
-          ? field.options
-          : (asyncOptions[field.name] ?? []);
-        const selectedValues = Array.isArray(formData[field.name])
-          ? (formData[field.name] as string[])
-          : [];
-
-        return (
-          <div>
-            <label htmlFor={field.name} className={labelClasses}>
-              {field.label}
-              {field.required && "*"}
-            </label>
-
-            {/* Selected items as tags */}
-            {selectedValues.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {selectedValues.map((value) => {
-                  const option = multiselectOptions.find(
-                    (opt) => opt.value === value,
-                  );
-                  if (!option) return null;
-
-                  return (
-                    <span
-                      key={value}
-                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
-                    >
-                      {option.label}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleMultiselectRemove(
-                            field.name,
-                            selectedValues,
-                            value,
-                          )
-                        }
-                        className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
-                        aria-label={`Remove ${option.label}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Dropdown for adding new selections */}
-            <CustomSelect
-              id={field.name}
-              ariaLabel={field.label}
-              value=""
-              placeholder={
-                loadingOptions[field.name]
-                  ? "Optionen werden geladen..."
-                  : (field.placeholder ?? "Weitere hinzufügen...")
-              }
-              options={multiselectOptions
-                .filter((option) => !selectedValues.includes(option.value))
-                .map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-              onChange={(next) => {
-                if (next && !selectedValues.includes(next)) {
-                  setFormData((prev) => ({
-                    ...prev,
-                    [field.name]: [...selectedValues, next],
-                  }));
-                }
-              }}
-              invalid={hasError}
-              disabled={loadingOptions[field.name]}
-            />
-
-            {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
-            )}
-          </div>
-        );
-      }
+      case "multiselect":
+        return renderMultiselectField(field, hasError, labelClasses);
 
       case "number": {
         // Handle both number and empty string values
