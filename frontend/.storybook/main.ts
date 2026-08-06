@@ -14,15 +14,6 @@ const config: StorybookConfig = {
   stories: ["../src/components/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-a11y"],
   framework: { name: "@storybook/nextjs-vite", options: {} },
-  staticDirs: [
-    {
-      from: path.resolve(
-        dirname,
-        "../node_modules/@fontsource/geist-sans/files",
-      ),
-      to: "/assets/files",
-    },
-  ],
   async viteFinal(viteConfig) {
     viteConfig.publicDir = path.resolve(dirname, "../public");
     viteConfig.define = {
