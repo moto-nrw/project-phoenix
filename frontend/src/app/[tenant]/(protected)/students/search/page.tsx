@@ -2644,14 +2644,15 @@ function SearchPageContent() {
                 }
                 extraContent={
                   <>
+                    {/* Fixed four-row skeleton: every card renders Klasse,
+                        Gruppe and the two time slots so names and rows align
+                        across the grid; missing values show a dash. */}
                     <StudentInfoRow icon={<SchoolClassIcon />}>
-                      {student.school_class}
+                      {student.school_class || "—"}
                     </StudentInfoRow>
-                    {student.group_name && (
-                      <StudentInfoRow icon={<GroupIcon />}>
-                        Gruppe: {student.group_name}
-                      </StudentInfoRow>
-                    )}
+                    <StudentInfoRow icon={<GroupIcon />}>
+                      Gruppe: {student.group_name || "—"}
+                    </StudentInfoRow>
                     {student.has_full_access !== false &&
                       student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow
@@ -2668,12 +2669,26 @@ function SearchPageContent() {
                         const absenceWording = isToday
                           ? undefined
                           : "Kommt nicht";
+                        // Absence rows fill the arrival slot; a neutral
+                        // "Gehzeit: —" row (deliberately without the planned
+                        // time, so no overdue styling can fire for a child
+                        // who is not coming) keeps absent and present cards
+                        // at the same four-row height.
+                        const absencePickupRow = (
+                          <PickupTimeRow
+                            isException={false}
+                            now={planningNow}
+                          />
+                        );
                         if (absence && !student.actual_pickup_time) {
                           return (
-                            <StudentAbsenceRow
-                              label={absence.label}
-                              wording={absenceWording}
-                            />
+                            <>
+                              <StudentAbsenceRow
+                                label={absence.label}
+                                wording={absenceWording}
+                              />
+                              {absencePickupRow}
+                            </>
                           );
                         }
                         const dayPlanningNotComingLabel =
@@ -2685,10 +2700,13 @@ function SearchPageContent() {
                           !student.actual_pickup_time
                         ) {
                           return (
-                            <StudentAbsenceRow
-                              label={dayPlanningNotComingLabel}
-                              wording={absenceWording}
-                            />
+                            <>
+                              <StudentAbsenceRow
+                                label={dayPlanningNotComingLabel}
+                                wording={absenceWording}
+                              />
+                              {absencePickupRow}
+                            </>
                           );
                         }
                         return (

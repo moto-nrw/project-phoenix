@@ -965,10 +965,12 @@ describe("StudentSearchPage", () => {
           screen.getByText("Kommt heute nicht (krank gemeldet)"),
         ).toBeInTheDocument();
       });
-      // The two time rows are replaced by the single absence line, no red
-      // "overdue" arrival/pickup for a child who isn't coming today.
+      // The absence line fills the arrival slot; the pickup row stays as a
+      // neutral dash (four-row card skeleton), never as a red "overdue"
+      // time for a child who isn't coming today.
       expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/Gehzeit:/)).not.toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
     });
 
     it("keeps a sick checked-in student out of the overdue pickup row", async () => {
@@ -1000,7 +1002,8 @@ describe("StudentSearchPage", () => {
           screen.getByText("Kommt heute nicht (krank gemeldet)"),
         ).toBeInTheDocument();
       });
-      expect(screen.queryByText(/Gehzeit:/)).not.toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
     });
 
     it("filters to show only transit students when 'unterwegs' is selected", async () => {
