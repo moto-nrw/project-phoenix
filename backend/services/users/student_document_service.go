@@ -191,13 +191,6 @@ func (s *studentDocumentService) requireStudentAccess(ctx context.Context, stude
 	return student, nil
 }
 
-func (s *studentDocumentService) getLogger() *slog.Logger {
-	if s.logger == nil {
-		return slog.Default()
-	}
-	return s.logger
-}
-
 // studentDocumentCategoryPermission returns the permission a category
 // requires. The mapping is the whole point of the permission design — keep it
 // in one place.
@@ -229,6 +222,25 @@ func visibleStudentDocumentCategories(actor StudentDocumentActor) []string {
 		}
 	}
 	return visible
+}
+
+// CanSeeStudentDocumentCategory reports whether the given permissions cover a
+// document category. Exported so readers of derived data — the per-child
+// change history above all — can apply the same filter the Dokumente tab does,
+// instead of becoming a way around it.
+func CanSeeStudentDocumentCategory(category string, userPermissions []string) bool {
+	return authorize.HasPermission(studentDocumentCategoryPermission(category), userPermissions)
+}
+
+// CanSeeEveryStudentDocumentCategory reports whether the permissions cover
+// every category. Readers use it for rows whose category is unknown.
+func CanSeeEveryStudentDocumentCategory(userPermissions []string) bool {
+	for _, category := range userModels.StudentDocumentCategories {
+		if !CanSeeStudentDocumentCategory(category, userPermissions) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *studentDocumentService) requireCategoryPermission(category string, actor StudentDocumentActor) error {
@@ -296,7 +308,7 @@ func (s *studentDocumentService) CreateStudentDocument(ctx context.Context, inpu
 		if _, err := s.requireStudentAccess(ctx, input.StudentID, actor); err != nil {
 			return err
 		}
-		if err := s.recordAudit(ctx, input.StudentID, actor, "", documentAuditValue(input.Category, input.FilenameDisplay)); err != nil {
+		if err := s.recordAudit(ctx, input.StudentID, actor, input.Category, "", documentAuditValue(input.Category, input.FilenameDisplay)); err != nil {
 			return err
 		}
 		if err := s.documents.Create(ctx, doc); err != nil {
@@ -389,7 +401,7 @@ func (s *studentDocumentService) DeleteStudentDocument(ctx context.Context, stud
 		if err := s.documents.SoftDelete(ctx, doc, actor.AccountID); err != nil {
 			return err
 		}
-		if err := s.recordAudit(ctx, studentID, actor, documentAuditValue(doc.Category, doc.FilenameDisplay), ""); err != nil {
+		if err := s.recordAudit(ctx, studentID, actor, doc.Category, documentAuditValue(doc.Category, doc.FilenameDisplay), ""); err != nil {
 			return err
 		}
 		deleted = doc
@@ -492,7 +504,7 @@ func (s *studentDocumentService) ActivateQueuedCleanup(ctx context.Context, stor
 }
 
 // recordAudit writes one document event into the child's change history.
-func (s *studentDocumentService) recordAudit(ctx context.Context, studentID int64, actor StudentDocumentActor, oldValue, newValue string) error {
+func (s *studentDocumentService) recordAudit(ctx context.Context, studentID int64, actor StudentDocumentActor, category, oldValue, newValue string) error {
 	actorName := strings.TrimSpace(actor.Name)
 	if actorName == "" {
 		actorName = "Unbekannt"
@@ -501,7 +513,7 @@ func (s *studentDocumentService) recordAudit(ctx context.Context, studentID int6
 		StudentID:    studentID,
 		EditedBy:     actor.AccountID,
 		EditedByName: actorName,
-		FieldName:    auditModels.StudentFieldDocument,
+		FieldName:    auditModels.StudentDocumentField(category),
 	}
 	if oldValue != "" {
 		edit.OldValue = &oldValue

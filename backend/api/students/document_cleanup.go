@@ -30,13 +30,17 @@ func (rs *Resource) CleanupOrphanedStudentDocumentFiles(ctx context.Context) (in
 		for _, document := range documents {
 			if err := coordinator.Remove(ctx, document.TenantID, document.FilenameStored); err != nil {
 				rs.getLogger().Warn("student document cleanup failed",
-					"student_id", document.StudentID, "document_id", document.ID, "error", err)
+					"student_id", document.StudentID,
+					"document_id", document.ID,
+					"error", err)
 				cleanupErr = errors.Join(cleanupErr, err)
 				continue
 			}
 			if err := rs.StudentDocumentService.MarkFileDeleted(ctx, document.ID); err != nil {
 				rs.getLogger().Error("student document cleanup status update failed",
-					"student_id", document.StudentID, "document_id", document.ID, "error", err)
+					"student_id", document.StudentID,
+					"document_id", document.ID,
+					"error", err)
 				cleanupErr = errors.Join(cleanupErr, err)
 				continue
 			}
@@ -51,13 +55,17 @@ func (rs *Resource) CleanupOrphanedStudentDocumentFiles(ctx context.Context) (in
 	for _, cleanup := range cleanups {
 		if err := coordinator.Remove(ctx, cleanup.TenantID, cleanup.FilenameStored); err != nil {
 			rs.getLogger().Warn("student document orphan cleanup failed",
-				"student_id", cleanup.OwnerID, "cleanup_id", cleanup.ID, "error", err)
+				"student_id", cleanup.OwnerID,
+				"cleanup_id", cleanup.ID,
+				"error", err)
 			cleanupErr = errors.Join(cleanupErr, err)
 			continue
 		}
 		if err := rs.StudentDocumentService.MarkQueuedCleanupComplete(ctx, cleanup.ID); err != nil {
 			rs.getLogger().Error("student document orphan cleanup status update failed",
-				"student_id", cleanup.OwnerID, "cleanup_id", cleanup.ID, "error", err)
+				"student_id", cleanup.OwnerID,
+				"cleanup_id", cleanup.ID,
+				"error", err)
 			cleanupErr = errors.Join(cleanupErr, err)
 			continue
 		}

@@ -137,15 +137,21 @@ func (c *Coordinator) CleanupDocument(tenantID, ownerID, documentID int64, store
 	ctx := c.NewTenantContext(tenantID)
 	if err := c.Remove(ctx, tenantID, storedName); err != nil {
 		c.logger().Warn("document cleanup failed",
-			"kind", c.Kind, "owner_id", ownerID, "document_id", documentID,
-			"source", source, "error", err,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"document_id", documentID,
+			"source", source,
+			"error", err,
 		)
 		return
 	}
 	if err := c.Store.MarkFileDeleted(ctx, documentID); err != nil {
 		c.logger().Error("document cleanup status update failed",
-			"kind", c.Kind, "owner_id", ownerID, "document_id", documentID,
-			"source", source, "error", err,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"document_id", documentID,
+			"source", source,
+			"error", err,
 		)
 	}
 }
@@ -155,15 +161,21 @@ func (c *Coordinator) CleanupQueued(tenantID, ownerID, cleanupID int64, storedNa
 	ctx := c.NewTenantContext(tenantID)
 	if err := c.Remove(ctx, tenantID, storedName); err != nil {
 		c.logger().Warn("document orphan cleanup failed",
-			"kind", c.Kind, "owner_id", ownerID, "cleanup_id", cleanupID,
-			"source", source, "error", err,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"cleanup_id", cleanupID,
+			"source", source,
+			"error", err,
 		)
 		return
 	}
 	if err := c.Store.MarkQueuedCleanupComplete(ctx, cleanupID); err != nil {
 		c.logger().Error("document orphan cleanup status update failed",
-			"kind", c.Kind, "owner_id", ownerID, "cleanup_id", cleanupID,
-			"source", source, "error", err,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"cleanup_id", cleanupID,
+			"source", source,
+			"error", err,
 		)
 	}
 }
@@ -187,24 +199,32 @@ func (c *Coordinator) CleanupQueued(tenantID, ownerID, cleanupID int64, storedNa
 func (c *Coordinator) ReleaseFailedUpload(ctx context.Context, tenantID, ownerID int64, storedName string, rejectedBeforeCommit bool, cause error) {
 	if !rejectedBeforeCommit {
 		c.logger().Warn("document upload outcome undecided, leaving cleanup to the queued intent",
-			"kind", c.Kind, "owner_id", ownerID, "error", cause,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"error", cause,
 		)
 		return
 	}
 	if err := c.Remove(ctx, tenantID, storedName); err != nil {
 		c.logger().Error("document cleanup failed after upload error",
-			"kind", c.Kind, "owner_id", ownerID, "error", err,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"error", err,
 		)
 		if activateErr := c.Store.ActivateQueuedCleanup(ctx, storedName); activateErr != nil {
 			c.logger().Error("document cleanup intent activation failed",
-				"kind", c.Kind, "owner_id", ownerID, "error", activateErr,
+				"kind", c.Kind,
+				"owner_id", ownerID,
+				"error", activateErr,
 			)
 		}
 		return
 	}
 	if err := c.Store.MarkQueuedCleanupCompleteByFilename(ctx, storedName); err != nil {
 		c.logger().Warn("document cleanup intent completion failed",
-			"kind", c.Kind, "owner_id", ownerID, "error", err,
+			"kind", c.Kind,
+			"owner_id", ownerID,
+			"error", err,
 		)
 	}
 }

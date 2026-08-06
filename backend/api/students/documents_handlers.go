@@ -204,7 +204,8 @@ func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID 
 	documents, err := rs.StudentDocumentService.ListDeletedStudentDocumentsPendingFileCleanup(ctx, studentID, actor)
 	if err != nil {
 		rs.getLogger().Warn("student document cleanup retry lookup failed",
-			"student_id", studentID, "error", err)
+			"student_id", studentID,
+			"error", err)
 		return
 	}
 	for _, document := range documents {
@@ -256,7 +257,8 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 
 	if err := rs.StudentDocumentService.QueueStudentDocumentFileCleanup(r.Context(), id, storedName); err != nil {
 		rs.getLogger().Error("student document upload cleanup intent failed",
-			"student_id", id, "error", err)
+			"student_id", id,
+			"error", err)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -280,7 +282,8 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 		// Activating costs one no-op removal when the object really is gone.
 		if activateErr := rs.StudentDocumentService.ActivateQueuedCleanup(r.Context(), storedName); activateErr != nil {
 			rs.getLogger().Error("student document cleanup intent activation failed after write error",
-				"student_id", id, "error", activateErr)
+				"student_id", id,
+				"error", activateErr)
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
