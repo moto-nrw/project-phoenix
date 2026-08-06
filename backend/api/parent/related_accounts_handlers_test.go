@@ -155,3 +155,61 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	})
 }
+
+// relAcctCaptureInvites records the invite request and returns a canned result,
+// so the handler's confirm_role_upgrade/existing_role passthrough is testable.
+type relAcctCaptureInvites struct {
+	authService.GuardianInvitationService
+	lastReq *authService.InviteToStudentRequest
+	result  *authService.InviteToStudentResult
+}
+
+func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
+	s.lastReq = &req
+	return s.result, nil
+}
+
+func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.GuardianInvitationService) http.Handler {
+	t.Helper()
+	viper.Set("auth_jwt_secret", testJWTSecret)
+	viper.Set("auth_jwt_expiry", time.Hour)
+	repos := repositories.NewFactory(db)
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		Settings:            relAcctHandlerSettings{inviteMode: configModels.ParentInviteModeDirect},
+		GuardianInvites:     invites,
+		StudentGuardianRepo: repos.StudentGuardian,
+		GuardianProfileRepo: repos.GuardianProfile,
+		DB:                  db,
+		Logger:              slog.Default(),
+	})
+	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
+	return rs.Router()
+}
+
+func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	invites := &relAcctCaptureInvites{result: &authService.InviteToStudentResult{
+		Outcome:           authService.InviteOutcomeExistingContactRestricted,
+		GuardianProfileID: chain.GuardianProfileID,
+		ExistingRole:      "emergency_contact",
+	}}
+	router := newRelAcctRouterWithInvites(t, db, invites)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
+		map[string]any{"email": "contact@example.test", "confirm_role_upgrade": true})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	require.NotNil(t, invites.lastReq)
+	assert.True(t, invites.lastReq.ConfirmRoleUpgrade, "confirm_role_upgrade must reach the invite service")
+	assert.Contains(t, rr.Body.String(), `"outcome":"existing_contact_restricted"`)
+	assert.Contains(t, rr.Body.String(), `"existing_role":"emergency_contact"`)
+}

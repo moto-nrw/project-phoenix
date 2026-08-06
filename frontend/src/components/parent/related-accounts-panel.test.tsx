@@ -9,12 +9,48 @@ const mockRemove = vi.fn();
 
 vi.mock("~/lib/parent-api", () => ({
   listRelatedAccounts: (studentId: string): unknown => mockList(studentId),
-  inviteRelatedAccount: (studentId: string, email: string): unknown =>
-    mockInvite(studentId, email),
+  // Forward the options argument only when present, so the older two-argument
+  // assertions keep matching plain invites.
+  inviteRelatedAccount: (
+    studentId: string,
+    email: string,
+    options?: unknown,
+  ): unknown =>
+    options === undefined
+      ? mockInvite(studentId, email)
+      : mockInvite(studentId, email, options),
   removeRelatedAccount: (
     studentId: string,
     guardianProfileId: string,
   ): unknown => mockRemove(studentId, guardianProfileId),
+}));
+
+vi.mock("~/components/ui/modal", () => ({
+  ConfirmationModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+    title,
+    children,
+  }: {
+    isOpen: boolean;
+    onConfirm: () => void;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div data-testid="upgrade-modal">
+        <h3>{title}</h3>
+        {children}
+        <button type="button" onClick={onConfirm} data-testid="confirm-upgrade">
+          Zugriff gewähren
+        </button>
+        <button type="button" onClick={onClose} data-testid="cancel-upgrade">
+          Abbrechen
+        </button>
+      </div>
+    ) : null,
 }));
 
 const primaryActive: RelatedAccount = {
@@ -155,5 +191,134 @@ describe("RelatedAccountsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
 
     await waitFor(() => expect(mockRemove).toHaveBeenCalledWith("1", "2"));
+  });
+
+  it("labels accounts without portal access honestly", async () => {
+    const noAccess: RelatedAccount = {
+      guardian_profile_id: "5",
+      first_name: "Nils",
+      last_name: "Notfall",
+      email: "nils.notfall@email.de",
+      relationship_type: "other",
+      is_primary: false,
+      status: "active_no_access",
+      is_self: false,
+    };
+    mockList.mockResolvedValue([primaryActive, noAccess]);
+    render(
+      <RelatedAccountsPanel
+        studentId="1"
+        canInvite={false}
+        canRemove={false}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Nils Notfall")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(/Konto aktiv, kein Portalzugriff/),
+    ).toBeInTheDocument();
+    // Without invite rights there is no upgrade affordance.
+    expect(
+      screen.queryByRole("button", { name: "Zugriff gewähren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("grants access to a no-access account via the row action", async () => {
+    const noAccess: RelatedAccount = {
+      guardian_profile_id: "5",
+      first_name: "Nils",
+      last_name: "Notfall",
+      email: "nils.notfall@email.de",
+      relationship_type: "other",
+      is_primary: false,
+      status: "active_no_access",
+      is_self: false,
+    };
+    mockList.mockResolvedValue([primaryActive, noAccess]);
+    mockInvite.mockResolvedValue({
+      outcome: "already_linked",
+      guardian_profile_id: "5",
+    });
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={true} canRemove={false} />,
+    );
+
+    await waitFor(() => screen.getByText("Nils Notfall"));
+    fireEvent.click(screen.getByRole("button", { name: "Zugriff gewähren" }));
+    expect(screen.getByTestId("upgrade-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("confirm-upgrade"));
+    await waitFor(() =>
+      expect(mockInvite).toHaveBeenCalledWith("1", "nils.notfall@email.de", {
+        confirmRoleUpgrade: true,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Zugriff wurde gewährt.")).toBeInTheDocument(),
+    );
+  });
+
+  it("asks for confirmation when the invite hits a restricted contact", async () => {
+    mockInvite.mockResolvedValueOnce({
+      outcome: "existing_contact_restricted",
+      guardian_profile_id: "7",
+      existing_role: "emergency_contact",
+    });
+    mockInvite.mockResolvedValueOnce({
+      outcome: "invited",
+      guardian_profile_id: "7",
+    });
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={true} canRemove={false} />,
+    );
+    await waitFor(() => screen.getByText("Sabine Schneider"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Einladen/ }));
+    fireEvent.change(screen.getByPlaceholderText("E-Mail-Adresse"), {
+      target: { value: "opa@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Senden/ }));
+
+    // First call is the plain invite; it comes back restricted → modal names
+    // the existing role.
+    await waitFor(() =>
+      expect(screen.getByTestId("upgrade-modal")).toBeInTheDocument(),
+    );
+    expect(mockInvite).toHaveBeenNthCalledWith(1, "1", "opa@example.test");
+    expect(screen.getByText(/Notfallkontakt/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("confirm-upgrade"));
+    await waitFor(() =>
+      expect(mockInvite).toHaveBeenNthCalledWith(2, "1", "opa@example.test", {
+        confirmRoleUpgrade: true,
+      }),
+    );
+  });
+
+  it("cancelling the upgrade confirmation performs no second call", async () => {
+    mockInvite.mockResolvedValueOnce({
+      outcome: "existing_contact_restricted",
+      guardian_profile_id: "7",
+      existing_role: "pickup_only",
+    });
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={true} canRemove={false} />,
+    );
+    await waitFor(() => screen.getByText("Sabine Schneider"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Einladen/ }));
+    fireEvent.change(screen.getByPlaceholderText("E-Mail-Adresse"), {
+      target: { value: "opa@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Senden/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId("upgrade-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("cancel-upgrade"));
+    expect(screen.queryByTestId("upgrade-modal")).not.toBeInTheDocument();
+    expect(mockInvite).toHaveBeenCalledTimes(1);
   });
 });

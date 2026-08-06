@@ -15,6 +15,8 @@ interface InviteBody {
   email: string;
   first_name?: string;
   last_name?: string;
+  // Confirms upgrading an existing restrictive contact link (#2172).
+  confirm_role_upgrade?: boolean;
 }
 
 // GET /api/parent/me/children/{studentId}/related-accounts

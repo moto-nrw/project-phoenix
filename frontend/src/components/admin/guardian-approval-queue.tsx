@@ -280,6 +280,11 @@ export default function GuardianApprovalQueue({
                     <> · angefragt von {req.requestedByEmail}</>
                   )}
                 </p>
+                {req.roleUpgrade && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Stuft einen bestehenden Kontakt auf vollen Zugriff hoch.
+                  </p>
+                )}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <Button

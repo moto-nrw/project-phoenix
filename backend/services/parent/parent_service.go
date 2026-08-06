@@ -142,7 +142,9 @@ type Service interface {
 
 	// InviteRelatedAccount invites a further guardian to the child by email.
 	// Gated by guardians.parent_invite_mode; staff_approval queues the request.
-	InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string) (*InviteRelatedAccountResult, error)
+	// confirmRoleUpgrade confirms upgrading an existing restrictive contact
+	// link to full access (#2172).
+	InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string, confirmRoleUpgrade bool) (*InviteRelatedAccountResult, error)
 
 	// RemoveRelatedAccount removes another account's access to the child.
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
