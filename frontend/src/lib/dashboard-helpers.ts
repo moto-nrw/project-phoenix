@@ -7,10 +7,16 @@ export interface DashboardAnalytics {
   studentsInRooms: number; // Students in indoor rooms (excluding playground)
   studentsSick: number; // Students currently flagged as sick
   studentsExcused: number; // Students currently flagged as excused
+  /**
+   * Active students who are neither checked in nor covered by an absence
+   * status. The backend derives it as the remainder of the other buckets
+   * (see calculateStudentsHome in services/active/analytics_service.go), so
+   * this tile and the Krank/Entschuldigt tiles do not double count.
+   */
+  studentsHome: number;
 
   // Activities & Rooms
   activeActivities: number;
-  freeRooms: number;
   totalRooms: number;
   capacityUtilization: number;
   activityCategories: number;
@@ -32,17 +38,6 @@ export interface DashboardAnalytics {
 
   // Timestamp
   lastUpdated: Date;
-}
-
-export interface DashboardAnalyticsWithHome extends DashboardAnalytics {
-  /**
-   * Null when the student counts could not be read — the two /api/students
-   * calls behind this number are gated on `users:read` while the rest of the
-   * dashboard only needs `groups:read`, so the count can legitimately be
-   * unavailable while every other figure is fine. Callers must render the
-   * absence rather than substituting 0.
-   */
-  studentsHome: number | null;
 }
 
 interface RecentActivity {
@@ -78,7 +73,13 @@ export interface DashboardAnalyticsResponse {
   students_in_rooms: number; // Students in indoor rooms (excluding playground)
   students_sick: number;
   students_excused: number;
+  students_home: number;
   active_activities: number;
+  /**
+   * Still sent by the backend, deliberately not mapped: the "Freie Räume"
+   * StatCard was dropped from the dashboard, and nothing else consumed the
+   * number. Kept here so the wire contract stays documented.
+   */
   free_rooms: number;
   total_rooms: number;
   capacity_utilization: number;
@@ -123,8 +124,8 @@ export function mapDashboardAnalyticsResponse(
     studentsInRooms: data.students_in_rooms,
     studentsSick: data.students_sick ?? 0,
     studentsExcused: data.students_excused ?? 0,
+    studentsHome: data.students_home ?? 0,
     activeActivities: data.active_activities,
-    freeRooms: data.free_rooms,
     totalRooms: data.total_rooms,
     capacityUtilization: data.capacity_utilization,
     activityCategories: data.activity_categories,

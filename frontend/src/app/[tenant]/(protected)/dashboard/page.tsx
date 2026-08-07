@@ -12,7 +12,7 @@ import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import { BirthdayList } from "~/components/dashboard/birthday-list";
-import type { DashboardAnalyticsWithHome } from "~/lib/dashboard-helpers";
+import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import {
   formatRecentActivityTime,
   getActivityStatusColor,
@@ -201,7 +201,7 @@ function DashboardContent() {
     data: dashboardData,
     isLoading,
     error: swrError,
-  } = useSWRAuth<DashboardAnalyticsWithHome>(
+  } = useSWRAuth<DashboardAnalytics>(
     "dashboard-analytics",
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },

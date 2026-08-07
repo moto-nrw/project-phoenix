@@ -7,8 +7,8 @@ export type NotificationBadgeSize = "sm" | "md";
 // See the contrast note on ACCESSIBLE_TEXT_COLORS in lib/location-helper.ts.
 const TONE_CLASSES: Record<NotificationBadgeTone, string> = {
   staff: "bg-moto-orange-strong text-white",
-  parents: "bg-moto-blue text-white",
-  feedback: "bg-moto-coral text-white",
+  parents: "bg-moto-blue-strong text-white",
+  feedback: "bg-moto-coral-strong text-white",
 };
 
 const SIZE_CLASSES: Record<NotificationBadgeSize, string> = {

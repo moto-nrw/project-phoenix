@@ -157,7 +157,11 @@ export function PlannedNowSection({
             <SummaryPill concept="children" label={`${expectedCount} Kinder`} />
           )}
           {overdueCount > 0 ? (
-            <SummaryPill label={`${overdueCount} überfällig`} tone="warning" />
+            <SummaryPill
+              concept="emergency"
+              label={`${overdueCount} überfällig`}
+              tone="warning"
+            />
           ) : soonCount > 0 ? (
             <SummaryPill
               concept="careTimes"
@@ -328,6 +332,20 @@ function SlotStatusBadge({
   );
 }
 
+/**
+ * Mirrors the label ranking below field for field. Branching on a different
+ * field than the label does leaves "Zuständig" wearing the same icon as
+ * "Zugewiesen" and "Info", which is what happened when this moved from a
+ * ShieldCheck/UserCheck pair to the concept system.
+ */
+function responsibilityConcept(
+  instance: PlannedTimetableInstance,
+): MotoConceptKey {
+  if (instance.isPrimary) return "responsibility";
+  if (instance.isSubstitute) return "substitution";
+  return "supervision";
+}
+
 function ResponsibilityBadge({
   instance,
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
@@ -345,10 +363,7 @@ function ResponsibilityBadge({
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
     >
-      <MotoConceptIcon
-        concept={instance.isSubstitute ? "substitution" : "supervision"}
-        size={16}
-      />
+      <MotoConceptIcon concept={responsibilityConcept(instance)} size={16} />
       {label}
     </span>
   );
@@ -464,6 +479,13 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
   );
 }
 
+/**
+ * Tailwind gray-300. The "Erwartet" dot is the one roster state with no
+ * standing in the location palette — it says "nothing has happened yet", so it
+ * stays a light neutral rather than borrowing a status hue.
+ */
+const EXPECTED_DOT_COLOR = "#D1D5DB";
+
 function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
     return LOCATION_COLORS.GROUP_ROOM;
@@ -477,7 +499,11 @@ function rosterDotColor(row: TimetableRosterRow) {
   if (row.status === "absent") {
     return LOCATION_COLORS.DANGER;
   }
-  return LOCATION_COLORS.UNKNOWN;
+  // "Erwartet" — deliberately NOT LOCATION_COLORS.UNKNOWN, which the
+  // isNotScheduled branch above already owns. Sharing the hex would make a
+  // child that is merely expected indistinguishable from one the care plan
+  // leaves out today.
+  return EXPECTED_DOT_COLOR;
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {

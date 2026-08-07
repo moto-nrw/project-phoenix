@@ -21,8 +21,10 @@ export function RoomStatusBadge({
       className={cn(
         "inline-flex items-center rounded-full font-semibold",
         size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-xs",
+        // Both labels take the -strong ramp step: the base hue on its own 15%
+        // tint is 3.81:1, under the 4.5:1 AA bar the "Frei" side already meets.
         isOccupied
-          ? "bg-moto-red/15 text-moto-red"
+          ? "bg-moto-red/15 text-moto-red-strong"
           : "bg-moto-green/15 text-moto-green-strong",
         className,
       )}

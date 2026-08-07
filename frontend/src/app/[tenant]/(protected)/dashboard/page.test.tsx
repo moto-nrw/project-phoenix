@@ -68,7 +68,6 @@ const mockDashboardData = {
   studentsHome: 33,
   activeOGSGroups: 8,
   activeActivities: 5,
-  freeRooms: 12,
   capacityUtilization: 0.75,
   supervisorsToday: 10,
   recentActivity: [

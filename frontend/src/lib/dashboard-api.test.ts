@@ -20,25 +20,10 @@ vi.mock("./fetch-with-auth", () => ({
   fetchWithAuth: vi.fn(),
 }));
 
-function mockDashboardResponses(
-  dashboardResponse: { data: unknown },
-  studentsHome = 33,
-) {
-  vi.mocked(apiGet).mockImplementation((endpoint) => {
-    if (endpoint.includes("location_state=present")) {
-      return Promise.resolve({
-        data: [],
-        pagination: { total_records: 17 },
-      });
-    }
-    if (endpoint.startsWith("/api/students?")) {
-      return Promise.resolve({
-        data: [],
-        pagination: { total_records: studentsHome + 17 },
-      });
-    }
-    return Promise.resolve(dashboardResponse);
-  });
+function mockDashboardResponses(dashboardResponse: { data: unknown }) {
+  vi.mocked(apiGet).mockImplementation(() =>
+    Promise.resolve(dashboardResponse),
+  );
 }
 
 describe("fetchDashboardAnalytics", () => {
@@ -56,6 +41,7 @@ describe("fetchDashboardAnalytics", () => {
       students_in_house: 42,
       students_in_wc: 5,
       students_in_school_yard: 10,
+      students_home: 33,
       active_groups: 3,
       rooms_occupied: 8,
     };
@@ -77,7 +63,6 @@ describe("fetchDashboardAnalytics", () => {
     expect(result).toEqual({
       ...mockBackendData,
       mapped: true,
-      studentsHome: 33,
     });
   });
 
@@ -101,15 +86,14 @@ describe("fetchDashboardAnalytics", () => {
       "/api/active/analytics/dashboard",
       token,
     );
-    expect(apiGet).toHaveBeenCalledWith(
-      "/api/students?page=1&page_size=1",
-      token,
+    // Exactly one call, and never /api/students: that endpoint is gated on
+    // users:read while this one needs only groups:read, so pulling counts
+    // from it would 403 the whole dashboard for a groups-only role.
+    expect(apiGet).toHaveBeenCalledTimes(1);
+    expect(apiGet).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/students"),
+      expect.anything(),
     );
-    expect(apiGet).toHaveBeenCalledWith(
-      "/api/students?location_state=present&page=1&page_size=1",
-      token,
-    );
-    expect(apiGet).toHaveBeenCalledTimes(3);
   });
 
   it("extracts data from response wrapper", async () => {
@@ -130,67 +114,6 @@ describe("fetchDashboardAnalytics", () => {
     await fetchDashboardAnalytics("token");
 
     expect(mapDashboardAnalyticsResponse).toHaveBeenCalledWith(innerData);
-  });
-
-  it("keeps the dashboard alive when the student counts are forbidden", async () => {
-    // /api/students is gated on users:read while the analytics endpoint only
-    // needs groups:read, so a role holding just the latter 403s here. That
-    // must cost the "Zuhause" tile, not every figure on the page.
-    const analytics = {
-      students_in_house: 42,
-      students_in_wc: 5,
-      students_in_school_yard: 10,
-      active_groups: 3,
-      rooms_occupied: 8,
-    };
-
-    vi.mocked(apiGet).mockImplementation((endpoint) => {
-      if (endpoint.startsWith("/api/students")) {
-        return Promise.reject({ message: "Forbidden", status: 403 });
-      }
-      return Promise.resolve({ data: analytics });
-    });
-
-    const result = await fetchDashboardAnalytics("token");
-
-    expect(result).toEqual({ ...analytics, mapped: true, studentsHome: null });
-  });
-
-  it("reads pagination out of the wrapped student envelope", async () => {
-    // /api/students ships both { data, pagination } and
-    // { data: { data, pagination } } — see parseStudentsPaginatedResponse.
-    vi.mocked(apiGet).mockImplementation((endpoint) => {
-      if (endpoint.includes("location_state=present")) {
-        return Promise.resolve({
-          data: { data: [], pagination: { total_records: 17 } },
-        });
-      }
-      if (endpoint.startsWith("/api/students?")) {
-        return Promise.resolve({
-          data: { data: [], pagination: { total_records: 50 } },
-        });
-      }
-      return Promise.resolve({ data: { active_groups: 1 } });
-    });
-
-    const result = await fetchDashboardAnalytics("token");
-
-    expect(result.studentsHome).toBe(33);
-  });
-
-  it("reports no home count when a student response omits pagination", async () => {
-    // pagination is optional on both envelopes; an unguarded deref would throw
-    // a TypeError that the catch re-raises as if it were the 401 it preserves.
-    vi.mocked(apiGet).mockImplementation((endpoint) => {
-      if (endpoint.startsWith("/api/students")) {
-        return Promise.resolve({ data: [] });
-      }
-      return Promise.resolve({ data: { active_groups: 1 } });
-    });
-
-    const result = await fetchDashboardAnalytics("token");
-
-    expect(result.studentsHome).toBeNull();
   });
 
   it("re-throws error when API call fails", async () => {

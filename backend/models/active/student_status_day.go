@@ -60,6 +60,12 @@ type StudentStatusDay struct {
 type StudentStatusCounts struct {
 	Sick    int `bun:"sick_count"`
 	Excused int `bun:"excused_count"`
+	// Total is every active student of the tenant, absent or not. The
+	// dashboard needs it to derive "at home" as the remainder after presence
+	// and the absence buckets, which is why it comes from the same query —
+	// counting it separately would let the two drift apart under a concurrent
+	// write.
+	Total int `bun:"total_count"`
 }
 
 // StudentStatusDayRepository persists broad day statuses (sick / excused /

@@ -31,7 +31,7 @@ describe("NotificationBadge", () => {
     );
 
     expect(screen.getByLabelText("120 ungelesene Nachrichten")).toHaveClass(
-      "bg-moto-blue",
+      "bg-moto-blue-strong",
       "text-white",
     );
     expect(screen.getByText("99+")).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("NotificationBadge", () => {
     );
 
     expect(screen.getByLabelText("3 neue Feedbackeinträge")).toHaveClass(
-      "bg-moto-coral",
+      "bg-moto-coral-strong",
       "text-white",
     );
   });

@@ -95,6 +95,17 @@ export const MOTO_CONCEPTS = {
   parents: concept("Eltern", UsersIcon, "blue", "core", "people"),
   activities: concept("Aktivitäten", ListChecksIcon, "coral", "core", "people"),
   supervision: concept("Aufsicht", EyeIcon, "purple", "core", "people"),
+  // Primary responsibility for a slot, as opposed to merely supervising it.
+  // Carries the ShieldCheck the ResponsibilityBadge used before the concept
+  // system existed; "function" kind keeps it out of the unique-primary-color
+  // rule that only governs core and status concepts.
+  responsibility: concept(
+    "Zuständig",
+    ShieldCheckIcon,
+    "teal",
+    "function",
+    "people",
+  ),
   organizations: concept(
     "Träger",
     BuildingsIcon,

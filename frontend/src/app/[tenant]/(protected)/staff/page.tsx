@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { BellSimpleRingingIcon } from "@phosphor-icons/react";
+import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Alert } from "~/components/ui/alert";
@@ -829,9 +829,9 @@ function StaffPageContent() {
                                 {staffMember.firstName} {staffMember.lastName}
                               </h3>
                               {canNavigateToStaff && (
-                                <svg
+                                <CaretRightIcon
                                   className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
-                                  strokeWidth={2}
+                                  aria-hidden="true"
                                 />
                               )}
                             </div>
