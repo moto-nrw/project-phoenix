@@ -87,7 +87,7 @@ describe("StaffPendingInbox refresh", () => {
     render(<StaffPendingInbox rows={[requestedRow()]} staffList={[]} />);
 
     expect(screen.getByLabelText("1 offener Abwesenheitsantrag")).toHaveClass(
-      "bg-moto-orange",
+      "bg-moto-orange-strong",
     );
   });
 });

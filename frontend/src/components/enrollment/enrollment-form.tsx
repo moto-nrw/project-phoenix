@@ -2549,8 +2549,10 @@ function OfferingCard({
           />
           {inputLocked ? (
             <span
-              className={`flex h-5 w-5 items-center justify-center rounded-md text-white ${
-                autoIncluded ? "bg-moto-green" : "bg-gray-400"
+              className={`flex h-5 w-5 items-center justify-center rounded-md ${
+                autoIncluded
+                  ? "bg-moto-green text-gray-950"
+                  : "bg-gray-400 text-gray-900"
               }`}
             >
               {autoIncluded ? (

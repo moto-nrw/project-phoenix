@@ -35,7 +35,9 @@ describe("getStaffLocationStatus", () => {
 
     expect(result.label).toBe("Abwesend");
     expect(result.customBgColor).toBe("#DC2626");
-    expect(result.customShadow).toContain("255, 49, 48");
+    // The glow must be the same red as the badge it sits under — #DC2626 is
+    // rgb(220, 38, 38), not the retired #FF3130.
+    expect(result.customShadow).toContain("220, 38, 38");
   });
 
   it("returns Anwesend status with green styling for present staff", () => {

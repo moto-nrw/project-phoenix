@@ -35,7 +35,14 @@ export interface DashboardAnalytics {
 }
 
 export interface DashboardAnalyticsWithHome extends DashboardAnalytics {
-  studentsHome: number;
+  /**
+   * Null when the student counts could not be read — the two /api/students
+   * calls behind this number are gated on `users:read` while the rest of the
+   * dashboard only needs `groups:read`, so the count can legitimately be
+   * unavailable while every other figure is fine. Callers must render the
+   * absence rather than substituting 0.
+   */
+  studentsHome: number | null;
 }
 
 interface RecentActivity {

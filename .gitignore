@@ -500,3 +500,7 @@ tmp-screens-1841/
 /output/
 /outputs/
 /tmp/
+
+# IoT simulator config written by the seed command — carries per-device API
+# keys for the local dev fleet and is regenerated on every seed
+backend/simulator/iot/simulator.yaml

@@ -189,6 +189,26 @@ func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 			"migration 1.15.45 / room_colors.go for the rationale")
 }
 
+// TestReservedRoomColors_RetiredStatusColors pins the hexes that used to be
+// frontend status colors. They are backend-only now — LOCATION_COLORS no
+// longer carries them, so exposedReservedHexes deliberately excludes them and
+// nothing else would fail if they were dropped from reservedRoomColors.
+//
+// They must stay reserved regardless: rooms created while these were the live
+// HOME/SICK colors are still out there, and re-opening the hexes for picking
+// would let a room masquerade as a status for anyone whose client still maps
+// the old palette.
+func TestReservedRoomColors_RetiredStatusColors(t *testing.T) {
+	for _, hex := range []string{
+		"#FF3130", // previous HOME status color
+		"#EAB308", // previous SICK status color
+	} {
+		require.True(t, facilities.IsReservedRoomColor(hex),
+			"retired status color %s must remain reserved — see the "+
+				"reservedRoomColors comment in room_colors.go", hex)
+	}
+}
+
 func setDiff(a, b map[string]struct{}) []string {
 	out := make([]string, 0)
 	for k := range a {

@@ -22,7 +22,9 @@ const LOCATION_COLORS: Record<string, LocationColorConfig> = {
   Abwesend: [
     "from-moto-red-soft to-white",
     MOTO_COLOR_PALETTE.red.base,
-    "255, 49, 48",
+    // Must track red.base (#DC2626); the retired #FF3130 left the card glow a
+    // visibly different red from the badge it sits under.
+    "220, 38, 38",
   ],
   Anwesend: [
     "from-moto-green-soft to-white",

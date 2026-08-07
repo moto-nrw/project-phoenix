@@ -322,7 +322,7 @@ function DashboardContent() {
           icon={MOTO_CONCEPTS.home.icon}
           tone={MOTO_CONCEPTS.home.tone}
           loading={isLoading}
-          href="/students/search?status=zuhause"
+          href="/students/search?status=abwesend"
         />
         {showActivitySurfaces ? (
           <StatCard

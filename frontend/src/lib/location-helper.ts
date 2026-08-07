@@ -262,12 +262,28 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
   },
 };
 
-export function getLocationBadgeTone(color: string): LocationBadgeTone {
+/**
+ * Accepts a missing color on purpose: an indexed palette lookup is
+ * `string | undefined` under `noUncheckedIndexedAccess`, and a status the
+ * backend adds before the frontend knows it must not blow up a badge. Falls
+ * back to the neutral tone rather than throwing on `.toUpperCase()`.
+ */
+export function getLocationBadgeTone(
+  color: string | null | undefined,
+): LocationBadgeTone {
+  if (color === null || color === undefined || color.trim() === "") {
+    return {
+      backgroundColor: "#F9FAFB",
+      dotColor: "#9CA3AF",
+      textColor: NEUTRAL_TEXT_COLOR,
+    };
+  }
+
   return (
     LOCATION_BADGE_TONES[color.toUpperCase()] ?? {
       backgroundColor: "#F9FAFB",
       dotColor: color,
-      textColor: "#374151",
+      textColor: NEUTRAL_TEXT_COLOR,
     }
   );
 }

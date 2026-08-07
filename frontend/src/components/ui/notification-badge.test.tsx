@@ -13,8 +13,10 @@ describe("NotificationBadge", () => {
       />,
     );
 
+    // -strong, not the raw brand orange: white on #F78C10 is 2.41:1, under
+    // even the 3:1 non-text floor.
     expect(screen.getByLabelText("2 offene Abwesenheitsanträge")).toHaveClass(
-      "bg-moto-orange",
+      "bg-moto-orange-strong",
       "text-white",
     );
   });
