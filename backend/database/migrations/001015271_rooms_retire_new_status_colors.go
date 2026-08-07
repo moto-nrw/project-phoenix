@@ -98,7 +98,7 @@ func roomsRetireNewStatusColorsUp(ctx context.Context, db *bun.DB) error {
 		FROM facilities.rooms
 		WHERE color IS NOT NULL
 		  AND LOWER(color) IN (?);
-	`, bun.In(lowerHexes(newlyReservedStatusHexes))).Exec(ctx)
+	`, bun.List(lowerHexes(newlyReservedStatusHexes))).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
@@ -111,7 +111,7 @@ func roomsRetireNewStatusColorsUp(ctx context.Context, db *bun.DB) error {
 		SET color = NULL
 		WHERE color IS NOT NULL
 		  AND LOWER(color) IN (?);
-	`, bun.In(lowerHexes(newlyReservedStatusHexes))).Exec(ctx)
+	`, bun.List(lowerHexes(newlyReservedStatusHexes))).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed clearing newly reserved room colors: %w", err)
 	}
