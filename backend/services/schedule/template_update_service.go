@@ -73,6 +73,12 @@ type TemplateUpdateInput struct {
 	// drop predecessor-only members. Empty scopes = nothing to mirror.
 	SeriesRosterScopeStudentIDs []int64
 	SeriesRosterScopeStaffIDs   []int64
+	// SeriesRosterScopeWeekdays narrows the mirroring to the weekdays this
+	// edit describes. The occurrence editor of a per-weekday series (#2129)
+	// shows ONE weekday's roster, so the predecessor's other weekdays must not
+	// be judged against it. Empty = every weekday the segment shares with the
+	// submitted recurrence.
+	SeriesRosterScopeWeekdays []int
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster

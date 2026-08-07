@@ -139,6 +139,26 @@ func segmentIsReconcilablePredecessor(
 	return true
 }
 
+// weekdayScope carries the weekdays a reconciliation pass may act on: the ones
+// this edit describes (edited) and every weekday the segment shares with the
+// submitted recurrence (segment). They differ only for a per-weekday series
+// (#2129), whose occurrence editor shows exactly one weekday's roster.
+type weekdayScope struct {
+	edited  []int
+	segment []int
+}
+
+// reachesBeyondEdit reports whether a roster row also covers weekdays this
+// edit does not describe. Such a row is left alone entirely: retiring it to
+// satisfy the edited weekday would silently change the others too, while the
+// create loop only writes rows for the edited weekdays.
+func (w weekdayScope) reachesBeyondEdit(rowWeekday *int, segmentWeekdays, covered []int) bool {
+	if len(w.edited) == len(w.segment) {
+		return false
+	}
+	return len(coveredSeriesWeekdays(rowWeekday, segmentWeekdays, w.segment)) != len(covered)
+}
+
 // seriesWeekdayPerson keys a desired or satisfied roster membership.
 type seriesWeekdayPerson struct {
 	weekday  int
@@ -166,11 +186,21 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 	if !rowFrom.Before(*rowUntil) {
 		return nil
 	}
-	scoped := intersectWeekdays(seg.Weekdays, in.Weekdays)
-	if len(scoped) == 0 {
+	segmentWeekdays := intersectWeekdays(seg.Weekdays, in.Weekdays)
+	if len(segmentWeekdays) == 0 {
 		// The predecessor runs on none of the submitted weekdays — weekday
 		// changes are a non-roster edit and never retro-apply.
 		return nil
+	}
+	// A per-weekday series (#2129) is edited one weekday at a time, so the
+	// submitted roster describes only that weekday. Judging the predecessor's
+	// other weekdays against it would retire rows nobody touched.
+	scoped := segmentWeekdays
+	if len(in.SeriesRosterScopeWeekdays) > 0 {
+		scoped = intersectWeekdays(segmentWeekdays, in.SeriesRosterScopeWeekdays)
+		if len(scoped) == 0 {
+			return nil
+		}
 	}
 
 	// Snapshots BEFORE any write: they classify the existing rows and double
@@ -200,13 +230,17 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 	wantStaff := desiredSeriesRoster(roster.Staff, scoped)
 
 	touchedStudents, err := s.reconcilePredecessorEnrollmentRows(
-		ctx, in, tenantID, seg, rowFrom, rowUntil, scoped, wantStudents, priorEnrollments, studentScope,
+		ctx, in, tenantID, seg, rowFrom, rowUntil,
+		weekdayScope{edited: scoped, segment: segmentWeekdays},
+		wantStudents, priorEnrollments, studentScope,
 	)
 	if err != nil {
 		return err
 	}
 	touchedStaff, err := s.reconcilePredecessorSupervisorRows(
-		ctx, in, tenantID, seg, rowFrom, rowUntil, scoped, roster.Staff, wantStaff, priorSupervisors, staffScope,
+		ctx, in, tenantID, seg, rowFrom, rowUntil,
+		weekdayScope{edited: scoped, segment: segmentWeekdays},
+		roster.Staff, wantStaff, priorSupervisors, staffScope,
 	)
 	if err != nil {
 		return err
@@ -239,11 +273,12 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 	seg *templateSeriesSegment,
 	rowFrom timezone.Date,
 	rowUntil *timezone.Date,
-	scoped []int,
+	weekdays weekdayScope,
 	want map[seriesWeekdayPerson]bool,
 	priorRows []*activitiesModel.StudentEnrollment,
 	scope map[int64]struct{},
 ) ([]int64, error) {
+	scoped := weekdays.edited
 	satisfied := make(map[seriesWeekdayPerson]bool)
 	touched := make(map[int64]bool)
 	for _, row := range priorRows {
@@ -257,7 +292,7 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 			continue
 		}
 		covered := coveredSeriesWeekdays(row.Weekday, seg.Weekdays, scoped)
-		if len(covered) == 0 {
+		if len(covered) == 0 || weekdays.reachesBeyondEdit(row.Weekday, seg.Weekdays, covered) {
 			continue
 		}
 		if !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) {
@@ -321,12 +356,13 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 	seg *templateSeriesSegment,
 	rowFrom timezone.Date,
 	rowUntil *timezone.Date,
-	scoped []int,
+	weekdays weekdayScope,
 	staffRows []resolvedRosterRow,
 	want map[seriesWeekdayPerson]bool,
 	priorRows []*activitiesModel.SupervisorPlanned,
 	scope map[int64]struct{},
 ) ([]int64, error) {
+	scoped := weekdays.edited
 	primaryWanted := make(map[seriesWeekdayPerson]bool)
 	for _, row := range staffRows {
 		for _, weekday := range coveredSeriesWeekdays(row.Weekday, scoped, scoped) {
@@ -349,7 +385,7 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 			continue
 		}
 		covered := coveredSeriesWeekdays(row.Weekday, seg.Weekdays, scoped)
-		if len(covered) == 0 {
+		if len(covered) == 0 || weekdays.reachesBeyondEdit(row.Weekday, seg.Weekdays, covered) {
 			continue
 		}
 		if !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) {

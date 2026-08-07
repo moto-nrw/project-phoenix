@@ -509,6 +509,59 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 		"the Wednesday occurrence after the anchor must stay unchanged")
 }
 
+// TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone: a per-weekday
+// series is edited one weekday at a time, so the submitted roster describes
+// only that weekday. The predecessor's rows for the other weekdays must not be
+// judged against it — neither a weekday-explicit row nor a shared one that
+// also covers days this edit says nothing about.
+func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	defer c.runCleanup(t)
+
+	added := c.students[2]
+	wednesday := activitiesModels.WeekdayWednesday
+	// The child already stands on the predecessor's WEDNESDAY, and no longer
+	// on the successor at all.
+	wednesdayOnly := c.insertPredecessorEnrollment(t, added, func(row *activitiesModels.StudentEnrollment) {
+		row.Weekday = &wednesday
+	})
+	sharedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, c.students[1])
+	require.NotEmpty(t, sharedRows, "the carried roster row spans both weekdays")
+
+	shared := []int64{c.students[0]}
+	in := c.livingUpdateInput(t, shared, []int64{c.staffID}, &c.staffID)
+	in.WeekdayAssignments = []scheduleSvc.WeekdayRosterAssignment{{
+		Weekday:        activitiesModels.WeekdayMonday,
+		StudentIDs:     []int64{c.students[0], added},
+		StaffIDs:       []int64{c.staffID},
+		PrimaryStaffID: &c.staffID,
+	}}
+	in.SeriesRosterFrom = &c.anchor
+	// The planner opened a MONDAY occurrence: they added one child there and
+	// the shared list no longer names students[1].
+	in.SeriesRosterScopeStudentIDs = []int64{added, c.students[1]}
+	in.SeriesRosterScopeWeekdays = []int{activitiesModels.WeekdayMonday}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+
+	kept := c.reloadEnrollment(t, wednesdayOnly.ID)
+	assert.Equal(t, wednesdayOnly.ValidFrom, kept.ValidFrom,
+		"the child's Wednesday row belongs to a weekday this edit does not describe")
+	assert.Equal(t, wednesdayOnly.ValidUntil, kept.ValidUntil)
+
+	assert.Equal(t, sharedRows, enrollmentsFor(t, c.scenarioSetup, c.middleID, c.students[1]),
+		"a shared row covering Wednesday too is left alone rather than half-retired")
+
+	mondayRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
+	var mondayRow *activitiesModels.StudentEnrollment
+	for _, row := range mondayRows {
+		if row.Weekday != nil && *row.Weekday == activitiesModels.WeekdayMonday {
+			mondayRow = row
+		}
+	}
+	require.NotNil(t, mondayRow, "the edited weekday still gains its row")
+	assert.Equal(t, c.anchor, mondayRow.ValidFrom)
+}
+
 // TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor covers the staff twin
 // of the roster pass, including the rule that an instance_staff row carrying a
 // real decision (here: an absence) is never removed.

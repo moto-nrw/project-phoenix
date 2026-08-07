@@ -102,6 +102,24 @@ func TestCoveredSeriesWeekdays(t *testing.T) {
 		"a shared row covers its own universe intersected with the scope")
 }
 
+func TestWeekdayScopeReachesBeyondEdit(t *testing.T) {
+	segment := []int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}
+	monday := activitiesModel.WeekdayMonday
+	wednesday := activitiesModel.WeekdayWednesday
+
+	full := weekdayScope{edited: segment, segment: segment}
+	assert.False(t, full.reachesBeyondEdit(nil, segment, segment),
+		"an edit describing every weekday can act on a shared row")
+
+	narrow := weekdayScope{edited: []int{monday}, segment: segment}
+	assert.True(t, narrow.reachesBeyondEdit(nil, segment, []int{monday}),
+		"a shared row also covers the weekday this edit says nothing about")
+	assert.False(t, narrow.reachesBeyondEdit(&monday, segment, []int{monday}),
+		"a row explicit to the edited weekday covers nothing else")
+	assert.True(t, narrow.reachesBeyondEdit(&wednesday, segment, nil),
+		"and one explicit to another weekday is not this edit's business")
+}
+
 func TestWantedOnAllWeekdays(t *testing.T) {
 	const personID = 77
 	want := map[seriesWeekdayPerson]bool{

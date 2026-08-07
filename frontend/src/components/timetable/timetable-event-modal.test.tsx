@@ -4804,6 +4804,57 @@ describe("TimetableEventModal", () => {
       expect(mockSplitTemplate).not.toHaveBeenCalled();
     });
 
+    it("keeps the successor's Hauptbetreuung when only the staff list changed", async () => {
+      // The predecessor occurrence is led by 11, the successor by 12 — a
+      // deliberate change made at the split. Adding a third supervisor marks
+      // the staff roster as touched but says nothing about the Hauptbetreuung.
+      mockGetAllStaff.mockResolvedValue([
+        { id: "11", name: "Ada Staff" },
+        { id: "12", name: "Bo Staff" },
+        { id: "13", name: "Cem Staff" },
+      ]);
+      mockGetTemplate.mockResolvedValue({
+        ...resolvedSuccessor,
+        staffIds: ["11", "12"],
+        primaryStaffId: "12",
+      });
+      renderModal({
+        initialInstance: {
+          ...chainInstance,
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Cem Staff");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Cem Staff/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            primary_staff_id: 12,
+            staff_ids: [11, 12, 13],
+            // Only the added supervisor is reconciled on the predecessor.
+            series_roster_scope_staff_ids: [13],
+          }),
+        ),
+      );
+    });
+
     it("still writes a scalar field the user actually edited", async () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       renderModal({ initialInstance: chainInstance });

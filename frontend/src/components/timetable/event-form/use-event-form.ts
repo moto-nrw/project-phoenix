@@ -1446,13 +1446,22 @@ export function useEventForm({
   };
 
   /**
+   * Whether the user changed the Hauptbetreuung in this session. The staff
+   * roster is marked "touched" by any membership edit (#2187 review), so on
+   * the chain path this narrower predicate decides whether the form's value
+   * may overwrite the successor's own choice.
+   */
+  const primaryStaffTouched = () =>
+    form.primaryStaffId !== initialPrimaryStaffIDSnapshot;
+
+  /**
    * Staff scope for the chain reconciliation: membership changes plus both
    * sides of a changed Hauptbetreuung, whose is_primary flag has to be
    * rewritten on the predecessor rows as well.
    */
   const changedStaffIDs = (): number[] => {
     const changed = changedRosterIDs(form.staffIds, initialStaffIDsSnapshot);
-    if (form.primaryStaffId !== initialPrimaryStaffIDSnapshot) {
+    if (primaryStaffTouched()) {
       for (const id of [form.primaryStaffId, initialPrimaryStaffIDSnapshot]) {
         const numeric = Number(id);
         if (
@@ -1480,30 +1489,52 @@ export function useEventForm({
    */
   const chainPreservedScalars = (
     template: TimetableTemplate,
-  ): Partial<UpdateTemplateBody> => {
-    if (!initialInstance) return {};
+  ): { preserved: Partial<UpdateTemplateBody>; edited: boolean } => {
+    if (!initialInstance) return { preserved: {}, edited: false };
     const schedule = template.schedules[0];
     const preserved: Partial<UpdateTemplateBody> = {};
-    if (form.title.trim() === initialInstance.title.trim()) {
-      preserved.name = template.name;
+    let edited = false;
+    const keep = <K extends keyof UpdateTemplateBody>(
+      untouched: boolean,
+      key: K,
+      value: UpdateTemplateBody[K],
+    ) => {
+      if (untouched) {
+        preserved[key] = value;
+      } else {
+        edited = true;
+      }
+    };
+    keep(
+      form.title.trim() === initialInstance.title.trim(),
+      "name",
+      template.name,
+    );
+    if (schedule) {
+      keep(
+        form.startTime === initialInstance.startTime,
+        "start_time",
+        schedule.startTime,
+      );
+      keep(
+        form.endTime === initialInstance.endTime,
+        "end_time",
+        schedule.endTime,
+      );
     }
-    if (form.startTime === initialInstance.startTime && schedule) {
-      preserved.start_time = schedule.startTime;
+    if (template.roomId) {
+      keep(
+        form.roomId === initialInstance.roomId,
+        "room_id",
+        Number(template.roomId),
+      );
     }
-    if (form.endTime === initialInstance.endTime && schedule) {
-      preserved.end_time = schedule.endTime;
-    }
-    if (form.roomId === initialInstance.roomId && template.roomId) {
-      preserved.room_id = Number(template.roomId);
-    }
-    if (
-      (form.planningTrackId || "") === (initialInstance.planningTrackId ?? "")
-    ) {
-      preserved.planning_track_id = template.planningTrackId
-        ? Number(template.planningTrackId)
-        : null;
-    }
-    return preserved;
+    keep(
+      (form.planningTrackId || "") === (initialInstance.planningTrackId ?? ""),
+      "planning_track_id",
+      template.planningTrackId ? Number(template.planningTrackId) : null,
+    );
+    return { preserved, edited };
   };
 
   /**
@@ -1563,13 +1594,20 @@ export function useEventForm({
             )
           : studentIDs
         : assignment.studentIds;
+      // #2187 review: same rule as for the shared roster — an untouched
+      // Hauptbetreuung must not travel from the predecessor's occurrence onto
+      // this weekday of the successor.
+      const weekdayPrimary =
+        chainResolved && !primaryStaffTouched()
+          ? assignment.primaryStaffId
+          : primaryStaffId;
       return {
         weekday: assignment.weekday,
         staff_ids: weekdayStaffIDs.map(Number),
         student_ids: weekdayStudentIDs.map(Number),
         primary_staff_id: staffWasEdited
-          ? primaryStaffId && weekdayStaffIDs.includes(primaryStaffId)
-            ? Number(primaryStaffId)
+          ? weekdayPrimary && weekdayStaffIDs.includes(weekdayPrimary)
+            ? Number(weekdayPrimary)
             : undefined
           : assignment.primaryStaffId
             ? Number(assignment.primaryStaffId)
@@ -1620,9 +1658,17 @@ export function useEventForm({
             )
           : form.staffIds
         : template.staffIds;
+    // #2187 review: the Hauptbetreuung is a scalar, not a delta — and the form
+    // holds the PREDECESSOR occurrence's value. Any staff membership edit sets
+    // staffRosterTouched, so without the narrower "did they change the primary"
+    // check a chain save would silently revert a Hauptbetreuung the split set
+    // deliberately (or clear it, when the old primary is no longer on the
+    // successor's roster).
     const primaryStaffId =
       staffRosterEditable && staffRosterTouched.current
-        ? form.primaryStaffId || template.primaryStaffId
+        ? chainResolved && !primaryStaffTouched()
+          ? template.primaryStaffId
+          : form.primaryStaffId || template.primaryStaffId
         : template.primaryStaffId;
     return {
       name: form.title.trim(),
@@ -2150,11 +2196,11 @@ export function useEventForm({
     const chainResolved = template.resolvedFromTemplateId !== undefined;
     // #2187: on the chain path the write targets the living successor, whose
     // untouched fields must survive the save — see chainPreservedScalars.
+    const chainScalars = chainResolved
+      ? chainPreservedScalars(template)
+      : { preserved: {}, edited: false };
     const body = chainResolved
-      ? {
-          ...templateBodyFromForm(template, roomId),
-          ...chainPreservedScalars(template),
-        }
+      ? { ...templateBodyFromForm(template, roomId), ...chainScalars.preserved }
       : templateBodyFromForm(template, roomId);
     const scopeProbes = seriesCoverageProbes(
       template,
@@ -2180,6 +2226,14 @@ export function useEventForm({
         : [];
       const staffScope = staffRosterTouched.current ? changedStaffIDs() : [];
       const rosterChanged = studentScope.length > 0 || staffScope.length > 0;
+      // #2187 review: with per-weekday rosters this form describes exactly ONE
+      // weekday, so the mirroring must not judge the predecessor's other
+      // weekdays against it. A series with one shared roster sends no weekday
+      // scope — there the edit really does describe every weekday.
+      const scopeWeekdays =
+        template.weekdayAssignments.length > 0
+          ? [isoWeekday(initialInstance.date)]
+          : [];
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
         ...(rosterChanged
@@ -2191,15 +2245,24 @@ export function useEventForm({
               ...(staffScope.length > 0
                 ? { series_roster_scope_staff_ids: staffScope }
                 : {}),
+              ...(scopeWeekdays.length > 0
+                ? { series_roster_scope_weekdays: scopeWeekdays }
+                : {}),
             }
           : {}),
       });
       if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
-        // No Stichdatum in the message: on the chain path the roster change
-        // reaches back to rosterFrom, but title/time/room only apply from the
-        // successor's own start — naming one date would claim more than was
-        // written.
-        toastSuccess("Regeltermin gespeichert");
+        // The roster change reaches back to rosterFrom, but title, time, room
+        // and Planungsschiene belong to the successor's own window and start
+        // where it starts. Naming rosterFrom for all of them would claim more
+        // than was written, so an edited scalar says which date it takes
+        // effect from (#2187 review) and everything else stays generic.
+        const successorFrom = template.schedules[0]?.validFrom;
+        toastSuccess(
+          chainScalars.edited && successorFrom
+            ? `Regeltermin gespeichert. Zeit, Raum und Titel gelten ab ${formatDate(successorFrom)}.`
+            : "Regeltermin gespeichert",
+        );
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }

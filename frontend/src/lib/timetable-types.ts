@@ -1019,6 +1019,13 @@ export type UpdateTemplateBody = Omit<
    */
   series_roster_scope_student_ids?: number[];
   series_roster_scope_staff_ids?: number[];
+  /**
+   * The ISO weekdays this edit describes. Sent only for a series that staffs
+   * each weekday separately (#2129), where the occurrence editor shows one
+   * weekday's roster: the predecessor's other weekdays must not be judged
+   * against it. Omitted for a shared roster, which really does cover them all.
+   */
+  series_roster_scope_weekdays?: number[];
 };
 
 /**

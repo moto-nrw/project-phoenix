@@ -67,6 +67,11 @@ type updateTemplateRequest struct {
 	// Without a scope, series_roster_from mirrors nothing.
 	SeriesRosterScopeStudentIDs []int64 `json:"series_roster_scope_student_ids,omitempty"`
 	SeriesRosterScopeStaffIDs   []int64 `json:"series_roster_scope_staff_ids,omitempty"`
+	// SeriesRosterScopeWeekdays narrows the mirroring to the weekdays this
+	// edit describes. A series that staffs each weekday separately (#2129) is
+	// edited one weekday at a time, so the predecessor's other weekdays must
+	// not be reconciled against it. Omitted = every weekday of the segment.
+	SeriesRosterScopeWeekdays []int `json:"series_roster_scope_weekdays,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -433,6 +438,7 @@ func buildUpdateTemplateInput(
 
 		SeriesRosterScopeStudentIDs: req.SeriesRosterScopeStudentIDs,
 		SeriesRosterScopeStaffIDs:   req.SeriesRosterScopeStaffIDs,
+		SeriesRosterScopeWeekdays:   req.SeriesRosterScopeWeekdays,
 	}
 }
 
