@@ -752,6 +752,11 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	if err != nil {
 		return nil, err
 	}
+	// The raw requested date drives the predecessor cascade below: normalize
+	// clamps to THIS segment's valid_from, but "diesen und alle folgenden
+	// löschen" from a date inside an earlier bounded segment must also cap that
+	// segment (#2187).
+	requestedFrom := in.EffectiveDate
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "end template", true)
 	if err != nil {
 		return nil, err
@@ -801,6 +806,11 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
+	cascadeDeleted, err := s.cascadeEndToSeriesPredecessors(ctx, old.ID, requestedFrom)
+	if err != nil {
+		return nil, err
+	}
+	deleted += cascadeDeleted
 
 	// Ending a series deletes planned instances outside the CRUD broadcast
 	// paths — invalidate the staffing caches (#1844).
@@ -826,6 +836,60 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 		CappedEnrollments: cappedEnrollments,
 		CappedSupervisors: cappedSupervisors,
 	}, nil
+}
+
+// cascadeEndToSeriesPredecessors caps every already-bounded segment of the
+// same split series whose window still reaches into [requestedFrom, ∞) and
+// removes its planned occurrences (#2187). "Diesen und alle folgenden
+// löschen" must not leave live occurrences at or after the chosen date on a
+// predecessor segment the grid still renders as clickable. capAt never
+// inverts a window: a date before the segment start degrades the segment to
+// an empty window (valid_until == valid_from), the same shape a same-day
+// split leaves behind. Returns the planned instances deleted across all
+// cascaded segments.
+func (s *TemplateSplitService) cascadeEndToSeriesPredecessors(
+	ctx context.Context,
+	templateID int64,
+	requestedFrom timezone.Date,
+) (int64, error) {
+	segments, err := loadTemplateSeriesSegments(ctx, s.deps.GroupRepo, s.deps.ScheduleRepo, s.getLogger(), templateID)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	for i := range segments {
+		seg := &segments[i]
+		if seg.Group == nil || seg.Group.ID == templateID || seg.ValidUntil == nil {
+			continue
+		}
+		capAt := requestedFrom
+		if seg.ValidFrom != nil && capAt.Before(*seg.ValidFrom) {
+			capAt = *seg.ValidFrom
+		}
+		if !capAt.Before(*seg.ValidUntil) {
+			continue // the segment already ends at or before the requested date
+		}
+		enrollments, supervisors, err := s.loadSegmentRosterCandidates(ctx, seg.Group.ID, capAt, seg.ValidUntil)
+		if err != nil {
+			return deleted, err
+		}
+		if err := s.capSplitSource(ctx, seg.Group.ID, capAt, enrollments, supervisors, seg.ValidUntil); err != nil {
+			return deleted, err
+		}
+		segmentID := seg.Group.ID
+		n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, capAt, nil, &segmentID, false)
+		if err != nil {
+			return deleted, &ScheduleError{Op: "end template: delete predecessor planned instances", Err: err}
+		}
+		deleted += n
+		s.getLogger().Info("end cascade capped series predecessor",
+			slog.Int64("template_id", templateID),
+			slog.Int64("segment_id", segmentID),
+			slog.String("cap_at", capAt.String()),
+			slog.Int64("deleted_instances", n),
+		)
+	}
+	return deleted, nil
 }
 
 // validateSplitInput checks the semantic rules the handler's Bind cannot:

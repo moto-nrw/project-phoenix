@@ -57,6 +57,13 @@ type TemplateUpdateInput struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
+	// SeriesRosterFrom extends the saved roster backwards over the split
+	// series (#2187): when set, the roster is additionally reconciled onto the
+	// bounded predecessor segments overlapping [SeriesRosterFrom, this
+	// segment's valid_from). It does NOT change the living segment's own
+	// roster anchor (RosterValidFrom stays authoritative there). Nil = the
+	// update touches only this segment, exactly as before.
+	SeriesRosterFrom *timezone.Date
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster
@@ -219,6 +226,9 @@ func (s *TimetableDataService) updateTemplateLocked(
 		return err
 	}
 	if err := s.reconcileManualRosterInstances(ctx, in, previousSourceOfferingID, validFrom, retiredStudentIDs); err != nil {
+		return err
+	}
+	if err := s.reconcileSeriesPredecessorRoster(ctx, in, tenantID, validFrom); err != nil {
 		return err
 	}
 	if s.deps.ValidateCareOfferingSeries == nil {

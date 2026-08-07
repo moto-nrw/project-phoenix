@@ -128,6 +128,13 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	if req.EffectiveDate == "" {
 		return errors.New("effective_date is required (YYYY-MM-DD)")
 	}
+	// series_roster_from (#2187) belongs to the in-place update of a chain-
+	// resolved living segment. A split's effective date lies inside its own
+	// open segment, so no predecessor reconciliation can apply — reject the
+	// field loudly instead of silently ignoring it.
+	if req.SeriesRosterFrom != nil {
+		return errors.New("series_roster_from is not supported on a split")
+	}
 	// req.Notes (nullableStr) shadows the embedded updateTemplateRequest.Notes,
 	// so the create/update length guard in the embedded Bind never sees the
 	// split note. Enforce the same 2000-char limit here (#1837 follow-up).
@@ -351,7 +358,7 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 	}
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		renderTemplateNotFound(w, r)
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
