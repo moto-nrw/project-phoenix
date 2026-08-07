@@ -87,9 +87,28 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ type, message }: { type: string; message: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  Alert: ({
+    type,
+    message,
+    action,
+  }: {
+    type: string;
+    message: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
+}));
+
+// parentsPortalLoginUrl() reads NEXT_PUBLIC_PARENTS_HOSTNAME and throws when
+// it is unset, which no unit-test env provides. URL construction itself is
+// covered by parent-url.test.ts.
+vi.mock("~/lib/parent-url", () => ({
+  parentsPortalLoginUrl: (search?: string) =>
+    `https://parents.example.test/login${search ?? ""}`,
 }));
 
 // Mock next/image
@@ -413,6 +432,117 @@ describe("HomePage (Login)", () => {
     });
     expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
       reason: "invalid_credentials",
+    });
+  });
+
+  describe("guardian-only account at the staff login", () => {
+    // Backend answers 403 + code "use_parent_portal" once the password was
+    // accepted but the account only exists as a guardian. Regression guard
+    // for the support case where parents read the old generic error as a
+    // password problem and reset their password over and over.
+    const guardianOnly403 = () =>
+      mockFetchResponse(403, {
+        status: "error",
+        error: "guardian accounts must log in at the parents portal",
+        code: "use_parent_portal",
+      });
+
+    async function submitLogin() {
+      render(<HomePage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("input-email")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId("input-email"), {
+          target: { value: "parent@example.com" },
+        });
+        fireEvent.change(screen.getByTestId("input-password"), {
+          target: { value: "correct-password" },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+      });
+    }
+
+    it("explains the portal mix-up instead of blaming the password", async () => {
+      global.fetch = guardianOnly403();
+
+      await submitLogin();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Dieses Konto ist ein Elternkonto/),
+        ).toBeInTheDocument();
+      });
+      // The old behaviour — must not come back.
+      expect(
+        screen.queryByText("Ungültige E-Mail oder Passwort"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Anmeldung fehlgeschlagen. Bitte erneut versuchen."),
+      ).not.toBeInTheDocument();
+      expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
+        reason: "use_parent_portal",
+      });
+    });
+
+    it("offers a manual link to the parents portal", async () => {
+      global.fetch = guardianOnly403();
+
+      await submitLogin();
+
+      const link = await screen.findByRole("link", {
+        name: /Jetzt zum Elternportal/,
+      });
+      expect(link).toHaveAttribute(
+        "href",
+        "https://parents.example.test/login?from=staff",
+      );
+    });
+
+    it("sends the browser to the parents portal after the grace period", async () => {
+      global.fetch = guardianOnly403();
+      const assign = vi.fn();
+
+      // Override ONLY the href setter, leaving the rest of Location (search,
+      // pathname, origin — used by other code on this page) intact. Replacing
+      // the whole object leaks a broken Location into every later test.
+      const ownHref = Object.getOwnPropertyDescriptor(window.location, "href");
+      const currentHref = window.location.href;
+      Object.defineProperty(window.location, "href", {
+        configurable: true,
+        get: () => currentHref,
+        set: (value: string) => assign(value),
+      });
+
+      // shouldAdvanceTime keeps waitFor/findBy usable under fake timers.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      try {
+        await submitLogin();
+
+        // Still on the page — the hint must be readable before the jump.
+        expect(assign).not.toHaveBeenCalled();
+
+        await act(async () => {
+          vi.advanceTimersByTime(2000);
+        });
+
+        expect(assign).toHaveBeenCalledWith(
+          "https://parents.example.test/login?from=staff",
+        );
+      } finally {
+        vi.useRealTimers();
+        if (ownHref) {
+          Object.defineProperty(window.location, "href", ownHref);
+        } else {
+          delete (window.location as unknown as Record<string, unknown>).href;
+        }
+      }
     });
   });
 

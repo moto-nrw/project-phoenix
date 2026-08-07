@@ -192,3 +192,36 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 		})
 	}
 }
+
+// TestLogin_GuardianOnlyReturnsParentPortalCode pins the wire contract the
+// tenant login page branches on. The frontend must NOT match on the English
+// message text, so the stable code has to be in the body — without it a
+// guardian-only account is indistinguishable from any other 403 and the user
+// gets a generic "login failed" that reads like a password problem.
+//
+// Safe to be this specific: LoginWithAudit only reaches
+// ErrParentMustUseParentPortal after validateLoginCredentials accepted the
+// password, so the caller already owns the account.
+func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
+	rs := &Resource{
+		AuthService: &loginGateStub{
+			err: &authService.AuthError{
+				Op:  "login",
+				Err: authService.ErrParentMustUseParentPortal,
+			},
+		},
+	}
+
+	rr := httptest.NewRecorder()
+	rs.login(rr, newLoginRequest(t, "parent@example.com", "Test1234%"))
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+
+	var body struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+		Code   string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "use_parent_portal", body.Code)
+}

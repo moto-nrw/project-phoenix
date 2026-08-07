@@ -413,10 +413,13 @@
     "submitting": "Signing in...",
     "submit": "Sign in",
     "forgotPassword": "Forgot your password?",
+    "fromStaffBanner": "Parent accounts sign in here. Please enter your password once more.",
+    "staffLoginLink": "Go to the school login",
     "errors": {
       "accountInactive": "Your account is disabled. Please contact the school.",
       "rateLimited": "Too many login attempts. Please try again later.",
-      "invalidCredentials": "Login is not possible. Please check your credentials or use the school login if you are staff.",
+      "invalidCredentials": "Login is not possible. Please check your credentials.",
+      "notAGuardian": "This account belongs to school staff. Please sign in through the school login.",
       "invalid": "Invalid login details",
       "generic": "Login error. Please try again."
     }

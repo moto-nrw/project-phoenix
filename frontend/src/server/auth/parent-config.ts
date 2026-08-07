@@ -90,13 +90,21 @@ export const parentAuthConfig = {
           // Backend body codes:
           //   "invalid_credentials" → wrong password OR unknown email (masked)
           //   "account_inactive"    → parent account disabled by the school
-          //   "not_a_guardian"      → staff account hitting the parent portal;
-          //                           we mask this as invalid_credentials so we
-          //                           don't confirm the email belongs to staff.
-          //                           The German copy includes a staff-login
-          //                           hint, so the legit case still gets help.
+          //   "not_a_guardian"      → staff account hitting the parent portal
+          //
+          // not_a_guardian used to be masked as invalid_credentials to avoid
+          // confirming the email belongs to staff. That mask protected
+          // nothing: LoginParentWithAudit runs validateLoginCredentials
+          // (including the password check) BEFORE findGuardianTenantForAccount
+          // (backend/services/auth/auth_login_parent.go), so this code is only
+          // ever reachable by someone who already proved they own the account.
+          // Meanwhile the mask cost real users the one hint they needed, and
+          // parents hitting the mirror case on the staff login were resetting
+          // their password over and over.
           if (code === "account_inactive")
             throw await createOperatorLoginError("account_inactive");
+          if (code === "not_a_guardian")
+            throw await createOperatorLoginError("not_a_guardian");
           throw await createOperatorLoginError("invalid_credentials");
         }
 
