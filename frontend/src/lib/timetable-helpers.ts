@@ -983,6 +983,11 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
         weekday: assignment.weekday,
         studentIds: (assignment.student_ids ?? []).map(String),
       })),
+      resolvedFromTemplateId:
+        template.resolved_from_template_id !== undefined &&
+        template.resolved_from_template_id !== null
+          ? String(template.resolved_from_template_id)
+          : undefined,
     })),
   };
 }

@@ -30,6 +30,7 @@ import {
   type PlanningTrack,
 } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
+import { timetableSeriesErrorMessage } from "./scope-error-message";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
@@ -281,7 +282,10 @@ export function useEventForm({
     roomId: number;
     template: TimetableTemplate;
     periodEnd: string | undefined;
-    groupId: string;
+    // The RESOLVED series template id (#2187): after a split chain
+    // resolution this is the living successor, not the clicked occurrence's
+    // own activityGroupId.
+    seriesTemplateId: string;
   } | null>(null);
   // #1875: a series edit that would discard single-occurrence changes is
   // deferred here until the user confirms the loss (with the concrete dates).
@@ -1398,6 +1402,28 @@ export function useEventForm({
     id ? calendarPeriods.find((period) => period.id === id) : undefined;
 
   /**
+   * Applies what the user changed in THIS session (next vs. before) on top of
+   * a base roster (#2187). Used when the fetched template is the split
+   * chain's living successor rather than the clicked occurrence's own
+   * template: the form's list describes the PREDECESSOR's occurrence, so
+   * writing it wholesale would overwrite the successor's roster and promote
+   * per-occurrence overrides into the permanent series. Keep = base minus the
+   * ids the user removed; plus the ids the user added.
+   */
+  const applyRosterDelta = (
+    base: readonly string[],
+    next: readonly string[],
+    before: readonly string[],
+  ): string[] => {
+    const removed = new Set(before.filter((id) => !next.includes(id)));
+    const kept = base.filter((id) => !removed.has(id));
+    const added = next.filter(
+      (id) => !before.includes(id) && !kept.includes(id),
+    );
+    return [...kept, ...added];
+  };
+
+  /**
    * Weekday assignments to send from the occurrence-scope editor (#2129).
    *
    * That editor shows ONE roster because it was opened on one occurrence, so
@@ -1418,6 +1444,10 @@ export function useEventForm({
       : undefined;
     const staffWasEdited = staffRosterTouched.current;
     const studentsWereEdited = studentRosterTouched.current;
+    // #2187: against a chain-resolved successor the form lists describe the
+    // predecessor's occurrence — apply only the user's delta on top of the
+    // successor's own weekday roster instead of replacing it.
+    const chainResolved = template.resolvedFromTemplateId !== undefined;
     return template.weekdayAssignments.map((assignment) => {
       if (
         (!staffWasEdited && !studentsWereEdited) ||
@@ -1432,17 +1462,30 @@ export function useEventForm({
             : undefined,
         };
       }
+      const weekdayStaffIDs = staffWasEdited
+        ? chainResolved
+          ? applyRosterDelta(
+              assignment.staffIds,
+              form.staffIds,
+              initialStaffIDsSnapshot,
+            )
+          : staffIDs
+        : assignment.staffIds;
+      const weekdayStudentIDs = studentsWereEdited
+        ? chainResolved
+          ? applyRosterDelta(
+              assignment.studentIds,
+              form.studentIds,
+              initialStudentIDsSnapshot,
+            )
+          : studentIDs
+        : assignment.studentIds;
       return {
         weekday: assignment.weekday,
-        staff_ids: (staffWasEdited ? staffIDs : assignment.staffIds).map(
-          Number,
-        ),
-        student_ids: (studentsWereEdited
-          ? studentIDs
-          : assignment.studentIds
-        ).map(Number),
+        staff_ids: weekdayStaffIDs.map(Number),
+        student_ids: weekdayStudentIDs.map(Number),
         primary_staff_id: staffWasEdited
-          ? primaryStaffId && staffIDs.includes(primaryStaffId)
+          ? primaryStaffId && weekdayStaffIDs.includes(primaryStaffId)
             ? Number(primaryStaffId)
             : undefined
           : assignment.primaryStaffId
@@ -1470,13 +1513,29 @@ export function useEventForm({
     // users:read is unavailable, the occurrence snapshot is authoritative only
     // for the single-instance scope; an all/following write targets the fetched
     // template and must preserve that template's own roster instead.
+    // #2187: when the template was chain-resolved to the living successor,
+    // the form lists were seeded from the PREDECESSOR's occurrence — apply
+    // only the user's delta on top of the successor's roster.
+    const chainResolved = template.resolvedFromTemplateId !== undefined;
     const templateStudentIDs =
       studentRosterEditable && studentRosterTouched.current
-        ? form.studentIds
+        ? chainResolved
+          ? applyRosterDelta(
+              template.studentIds,
+              form.studentIds,
+              initialStudentIDsSnapshot,
+            )
+          : form.studentIds
         : template.studentIds;
     const templateStaffIDs =
       staffRosterEditable && staffRosterTouched.current
-        ? form.staffIds
+        ? chainResolved
+          ? applyRosterDelta(
+              template.staffIds,
+              form.staffIds,
+              initialStaffIDsSnapshot,
+            )
+          : form.staffIds
         : template.staffIds;
     const primaryStaffId =
       staffRosterEditable && staffRosterTouched.current
@@ -1883,10 +1942,15 @@ export function useEventForm({
       return [];
     }
     // #2135: never probe before the segment's own series start (validFrom).
+    // #2187: a chain-resolved save also covers the predecessor window BEFORE
+    // the successor's validFrom — clamping to it would skip exactly the days
+    // being edited.
     const from = latestISODate(
       period.startDate,
       fromISO,
-      template.schedules[0]?.validFrom ?? "",
+      template.resolvedFromTemplateId !== undefined
+        ? ""
+        : (template.schedules[0]?.validFrom ?? ""),
     );
     // Without replanActivityGroupId the backend cannot apply the segment's
     // validity envelope, so the probe caps itself at the schedules'
@@ -1960,7 +2024,12 @@ export function useEventForm({
       fromISO,
       weekdays: body.weekdays,
       weekPattern: body.week_pattern ?? 0,
-      validFrom: validity?.validFrom,
+      // #2187: a chain-resolved save also covers the predecessor window
+      // before the successor's validFrom.
+      validFrom:
+        template.resolvedFromTemplateId !== undefined
+          ? undefined
+          : validity?.validFrom,
       validUntil: validity?.validUntil,
     });
     return findFirstClosingDayConflict(closingDayRanges, dates);
@@ -1971,15 +2040,10 @@ export function useEventForm({
       scope,
       error: err instanceof Error ? err.message : String(err),
     });
-    const raw =
-      err instanceof Error
-        ? err.message
-        : "Termin konnte nicht gespeichert werden";
-    // Backend rejects splits whose effective date already passed; the
-    // raw English message is meaningless to school staff.
-    const msg = raw.includes("effective_date must not be in the past")
-      ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
-      : raw;
+    const msg = timetableSeriesErrorMessage(
+      err,
+      "Termin konnte nicht gespeichert werden",
+    );
     setPendingSeriesEdit(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
@@ -1997,7 +2061,7 @@ export function useEventForm({
     roomId: number,
     template: TimetableTemplate,
     periodEnd: string | undefined,
-    groupId: string,
+    seriesTemplateId: string,
   ) => {
     if (!initialInstance) return;
     const body = templateBodyFromForm(template, roomId);
@@ -2005,9 +2069,38 @@ export function useEventForm({
       template,
       body,
       typedScope === "following" ? initialInstance.date : berlinTodayISO(),
-      typedScope === "all" ? groupId : undefined,
+      typedScope === "all" ? seriesTemplateId : undefined,
     );
     await checkCoverageBeforeSave(scopeProbes);
+    // #2187: the clicked occurrence belonged to a capped predecessor segment
+    // and the backend resolved the template to the living successor. That
+    // successor cannot be split at the occurrence date (it lies before the
+    // successor's valid_from), and it does not need to be: "from D on" IS the
+    // whole remaining series. Update it in place; a touched roster addition-
+    // ally carries series_roster_from so the backend mirrors the roster
+    // change onto the predecessor's remaining occurrences (the clicked one
+    // included).
+    if (template.resolvedFromTemplateId !== undefined) {
+      const rosterFrom =
+        typedScope === "following" ? initialInstance.date : berlinTodayISO();
+      const rosterTouched =
+        studentRosterTouched.current || staffRosterTouched.current;
+      await timetableService.updateTemplate(seriesTemplateId, {
+        ...body,
+        ...(rosterTouched ? { series_roster_from: rosterFrom } : {}),
+      });
+      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
+        toastSuccess(
+          typedScope === "following"
+            ? `Regeltermin ab ${formatDate(rosterFrom)} geändert`
+            : "Regeltermin gespeichert",
+        );
+      } else {
+        toastWarning(FOLLOW_UP_WARNING);
+      }
+      onSaved({ kind: "series", seriesId: seriesTemplateId });
+      return;
+    }
     if (typedScope === "following") {
       const effectiveDate = initialInstance.date;
       const chunks = chunkDateRange(
@@ -2015,7 +2108,7 @@ export function useEventForm({
         periodEnd ?? weekTo ?? effectiveDate,
         MATERIALIZE_CHUNK_DAYS,
       );
-      const split = await timetableService.splitTemplate(groupId, {
+      const split = await timetableService.splitTemplate(seriesTemplateId, {
         ...body,
         effective_date: effectiveDate,
         materialize_from: effectiveDate,
@@ -2032,14 +2125,14 @@ export function useEventForm({
           const result = await timetableService.replanWeek(
             chunk.from,
             chunk.to,
-            groupId,
+            seriesTemplateId,
           );
           if (result.warnings.some((w) => w.code === "no_active_period")) {
             break;
           }
         } catch (chunkErr) {
           logger.error("series_replan_chunk_failed", {
-            template_id: groupId,
+            template_id: seriesTemplateId,
             from: chunk.from,
             to: chunk.to,
             error:
@@ -2056,13 +2149,13 @@ export function useEventForm({
       }
       onSaved({ kind: "series", seriesId: split.newTemplateId });
     } else {
-      await timetableService.updateTemplate(groupId, body);
-      if (await replanTemplateFuture(groupId, periodEnd)) {
+      await timetableService.updateTemplate(seriesTemplateId, body);
+      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
         toastSuccess("Regeltermin gespeichert");
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
-      onSaved({ kind: "series", seriesId: groupId });
+      onSaved({ kind: "series", seriesId: seriesTemplateId });
     }
   };
 
@@ -2071,28 +2164,32 @@ export function useEventForm({
     roomId,
     template,
     periodEnd,
-    groupId,
+    seriesTemplateId,
   }: {
     typedScope: "all" | "following";
     roomId: number;
     template: TimetableTemplate;
     periodEnd: string | undefined;
-    groupId: string;
+    seriesTemplateId: string;
   }) => {
     if (!initialInstance) return;
     // #1875: before rebuilding the series, check whether single-occurrence
     // edits in the affected window would be discarded. "following" also
     // rematerializes individually-deleted occurrences; "all" preserves them.
+    // A chain-resolved save (#2187) is a same-template update, not a split —
+    // it preserves individually-deleted occurrences, so counting them would
+    // warn about losses that cannot happen.
     const editsFrom =
       typedScope === "following" ? initialInstance.date : berlinTodayISO();
     const editsTo = periodEnd ?? weekTo ?? editsFrom;
     let lost: EditedInWindowResult | null = null;
     try {
       const probe = await timetableService.countEditedInWindow(
-        groupId,
+        seriesTemplateId,
         editsFrom,
         editsTo,
-        typedScope === "following",
+        typedScope === "following" &&
+          template.resolvedFromTemplateId === undefined,
       );
       if (probe.count > 0) lost = probe;
     } catch (probeErr) {
@@ -2107,12 +2204,24 @@ export function useEventForm({
         scope: typedScope,
         result: lost,
         onConfirm: () =>
-          performSeriesEdit(typedScope, roomId, template, periodEnd, groupId),
+          performSeriesEdit(
+            typedScope,
+            roomId,
+            template,
+            periodEnd,
+            seriesTemplateId,
+          ),
       });
       return;
     }
 
-    await performSeriesEdit(typedScope, roomId, template, periodEnd, groupId);
+    await performSeriesEdit(
+      typedScope,
+      roomId,
+      template,
+      periodEnd,
+      seriesTemplateId,
+    );
     setPendingSeriesEdit(null);
     onClose();
   };
@@ -2151,6 +2260,17 @@ export function useEventForm({
         groupId,
         form.calendarPeriodId,
       );
+      // #2187: the occurrence may belong to a capped predecessor of a split
+      // chain; the backend then returns the living successor. Every series-
+      // scope write from here on targets THAT template, never the
+      // occurrence's own activityGroupId.
+      const seriesTemplateId = template.id;
+      if (template.resolvedFromTemplateId !== undefined) {
+        logger.info("series_template_chain_resolved", {
+          occurrence_template_id: groupId,
+          resolved_template_id: seriesTemplateId,
+        });
+      }
       const templateCalendarPeriodId =
         resolveTemplateCalendarPeriodId(template);
       const periodEnd =
@@ -2171,7 +2291,7 @@ export function useEventForm({
           roomId: pending.roomId,
           template,
           periodEnd,
-          groupId,
+          seriesTemplateId,
         });
         return;
       }
@@ -2181,7 +2301,7 @@ export function useEventForm({
         roomId: pending.roomId,
         template,
         periodEnd,
-        groupId,
+        seriesTemplateId,
       });
     } catch (err) {
       handleScopeError(scope, err);
@@ -2202,7 +2322,7 @@ export function useEventForm({
         roomId: warning.roomId,
         template: warning.template,
         periodEnd: warning.periodEnd,
-        groupId: warning.groupId,
+        seriesTemplateId: warning.seriesTemplateId,
       });
     } catch (err) {
       handleScopeError(warning.scope, err);

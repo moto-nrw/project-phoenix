@@ -462,6 +462,12 @@ export interface TimetableTemplate {
   weekdayAssignments: TemplateWeekdayAssignment[];
   /** Read-only enrollment-owned child coverage, used when changing roster mode. */
   protectedStudentAssignments?: TemplateProtectedStudentAssignment[];
+  /**
+   * Set when the backend resolved a capped predecessor segment of a split
+   * series forward to this living successor (#2187); holds the id the client
+   * originally requested.
+   */
+  resolvedFromTemplateId?: string;
 }
 
 /** One weekday's staff and child roster of a Regeltermin (#2129). */
@@ -537,6 +543,7 @@ export interface BackendTimetableTemplate {
   weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
   protected_student_assignments?:
     BackendTemplateProtectedStudentAssignment[] | null;
+  resolved_from_template_id?: number | null;
 }
 
 interface BackendTemplateWeekdayAssignment {
@@ -997,6 +1004,13 @@ export type UpdateTemplateBody = Omit<
    * `null`, not `undefined`, to be honored (#1565).
    */
   list_kind?: TimetableListKind | null;
+  /**
+   * Roster changes in this body additionally take effect from this calendar
+   * day (YYYY-MM-DD) and are reconciled across the split chain's capped
+   * predecessor segments (#2187). Sent only when the template was
+   * chain-resolved.
+   */
+  series_roster_from?: string;
 };
 
 /**

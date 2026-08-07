@@ -271,6 +271,32 @@ describe("timetableService", () => {
     );
   });
 
+  it("passes series_roster_from through to the update body (#2187)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: backendTemplate }));
+
+    const body = {
+      name: "Yoga",
+      type: "activity" as const,
+      weekdays: [1],
+      start_time: "14:00",
+      end_time: "15:00",
+      room_id: 3,
+      category_id: 2,
+      calendar_period_id: 5,
+      series_roster_from: "2026-06-01",
+    };
+
+    await timetableService.updateTemplate("7", body);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/templates/7",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    );
+  });
+
   it("loads a single template, splits a template, and ends it from an effective date", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: backendTemplate }))
