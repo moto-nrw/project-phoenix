@@ -2225,15 +2225,25 @@ export function useEventForm({
         ? changedRosterIDs(form.studentIds, initialStudentIDsSnapshot)
         : [];
       const staffScope = staffRosterTouched.current ? changedStaffIDs() : [];
-      const rosterChanged = studentScope.length > 0 || staffScope.length > 0;
       // #2187 review: with per-weekday rosters this form describes exactly ONE
       // weekday, so the mirroring must not judge the predecessor's other
       // weekdays against it. A series with one shared roster sends no weekday
       // scope — there the edit really does describe every weekday.
-      const scopeWeekdays =
-        template.weekdayAssignments.length > 0
-          ? [isoWeekday(initialInstance.date)]
-          : [];
+      const editedWeekday = isoWeekday(initialInstance.date);
+      const perWeekdaySeries = template.weekdayAssignments.length > 0;
+      const scopeWeekdays = perWeekdaySeries ? [editedWeekday] : [];
+      // A per-weekday successor only carries assignments for the weekdays it
+      // still runs. When the split moved it off the clicked one, the body says
+      // nothing about that day, so there is nothing to mirror — sending the
+      // anchor anyway would judge the predecessor against a roster that never
+      // mentioned the weekday.
+      const weekdayDescribed =
+        !perWeekdaySeries ||
+        template.weekdayAssignments.some(
+          (assignment) => assignment.weekday === editedWeekday,
+        );
+      const rosterChanged =
+        weekdayDescribed && (studentScope.length > 0 || staffScope.length > 0);
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
         ...(rosterChanged
@@ -2247,6 +2257,11 @@ export function useEventForm({
                 : {}),
               ...(scopeWeekdays.length > 0
                 ? { series_roster_scope_weekdays: scopeWeekdays }
+                : {}),
+              // primary_staff_id names the successor's Hauptbetreuung; it may
+              // only reach a predecessor row when the user moved it.
+              ...(primaryStaffTouched()
+                ? { series_roster_primary_changed: true }
                 : {}),
             }
           : {}),

@@ -72,6 +72,10 @@ type updateTemplateRequest struct {
 	// edited one weekday at a time, so the predecessor's other weekdays must
 	// not be reconciled against it. Omitted = every weekday of the segment.
 	SeriesRosterScopeWeekdays []int `json:"series_roster_scope_weekdays,omitempty"`
+	// SeriesRosterPrimaryChanged marks the Hauptbetreuung as part of this
+	// edit. primary_staff_id always names THIS segment's lead, so it may only
+	// travel to a predecessor row when the user actually moved it.
+	SeriesRosterPrimaryChanged bool `json:"series_roster_primary_changed,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -439,6 +443,7 @@ func buildUpdateTemplateInput(
 		SeriesRosterScopeStudentIDs: req.SeriesRosterScopeStudentIDs,
 		SeriesRosterScopeStaffIDs:   req.SeriesRosterScopeStaffIDs,
 		SeriesRosterScopeWeekdays:   req.SeriesRosterScopeWeekdays,
+		SeriesRosterPrimaryChanged:  req.SeriesRosterPrimaryChanged,
 	}
 }
 

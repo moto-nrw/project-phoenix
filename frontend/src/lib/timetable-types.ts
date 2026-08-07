@@ -1026,6 +1026,12 @@ export type UpdateTemplateBody = Omit<
    * against it. Omitted for a shared roster, which really does cover them all.
    */
   series_roster_scope_weekdays?: number[];
+  /**
+   * Set when this edit moved the Hauptbetreuung. `primary_staff_id` always
+   * names the living segment's lead, so it may only be stamped onto a
+   * predecessor row when the user actually changed it (#2187).
+   */
+  series_roster_primary_changed?: boolean;
 };
 
 /**

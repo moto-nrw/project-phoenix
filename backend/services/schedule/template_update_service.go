@@ -79,6 +79,11 @@ type TemplateUpdateInput struct {
 	// be judged against it. Empty = every weekday the segment shares with the
 	// submitted recurrence.
 	SeriesRosterScopeWeekdays []int
+	// SeriesRosterPrimaryChanged marks the Hauptbetreuung itself as part of
+	// this edit. PrimaryStaffID always names the LIVING segment's lead, so
+	// without this flag a newly mirrored supervisor row would stamp that lead
+	// onto the predecessor and outrank its own.
+	SeriesRosterPrimaryChanged bool
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster

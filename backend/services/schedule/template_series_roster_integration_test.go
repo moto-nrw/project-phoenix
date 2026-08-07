@@ -562,6 +562,161 @@ func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 	assert.Equal(t, c.anchor, mondayRow.ValidFrom)
 }
 
+// dropLivingScheduleWeekday narrows the LIVING segment's recurrence while the
+// capped predecessor keeps running that weekday — the shape a split that moves
+// the series to fewer days leaves behind. The predecessor's occurrences still
+// exist on the dropped weekday, so a click can land on one.
+func (c *seriesChain) dropLivingScheduleWeekday(t *testing.T, weekday int) {
+	t.Helper()
+	res, err := c.db.NewDelete().
+		TableExpr(`activities.schedules`).
+		Where(`activity_group_id = ?`, c.livingID).
+		Where(`weekday = ?`, weekday).
+		Where(`tenant_id = ?`, c.tenantID).
+		Exec(c.ctx)
+	require.NoError(t, err)
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), affected)
+}
+
+// TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns: the
+// predecessor's own recurrence decides which weekdays its rows cover. When the
+// split narrowed the successor to Monday, a Wednesday occurrence of the
+// predecessor is still clickable — and the child added there has to land on
+// Wednesday, not on Monday.
+func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	defer c.runCleanup(t)
+
+	c.dropLivingScheduleWeekday(t, activitiesModels.WeekdayWednesday)
+	added := c.students[2]
+	wednesdayAfterAnchor := c.anchor.AddDays(2)
+	require.Equal(t, time.Wednesday, wednesdayAfterAnchor.Weekday())
+
+	in := c.livingUpdateInput(t,
+		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
+	// The body carries the SUCCESSOR's recurrence, which no longer runs Wednesday.
+	in.Weekdays = []int{activitiesModels.WeekdayMonday}
+	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{added}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+
+	weekdays := make([]int, 0, 2)
+	for _, row := range enrollmentsFor(t, c.scenarioSetup, c.middleID, added) {
+		require.NotNil(t, row.Weekday)
+		weekdays = append(weekdays, *row.Weekday)
+	}
+	assert.ElementsMatch(t,
+		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday}, weekdays,
+		"the predecessor's own weekdays decide the coverage, not the successor's")
+
+	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, wednesdayAfterAnchor), added,
+		"the clicked Wednesday occurrence gains the child")
+}
+
+// TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact: with a
+// per-weekday edit against a successor that no longer runs Wednesday, a shared
+// predecessor row still covering Wednesday must be left alone instead of being
+// closed for a Monday-only change.
+func TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	defer c.runCleanup(t)
+
+	c.dropLivingScheduleWeekday(t, activitiesModels.WeekdayWednesday)
+	removed := c.students[1]
+	sharedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
+	require.NotEmpty(t, sharedRows, "the carried row spans both weekdays")
+
+	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
+	in.Weekdays = []int{activitiesModels.WeekdayMonday}
+	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{removed}
+	in.SeriesRosterScopeWeekdays = []int{activitiesModels.WeekdayMonday}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+
+	assert.Equal(t, sharedRows, enrollmentsFor(t, c.scenarioSetup, c.middleID, removed),
+		"a shared row covering the untouched Wednesday is not half-retired")
+	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor.AddDays(2)), removed,
+		"and the Wednesday occurrence keeps the child")
+}
+
+// TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead: primary_staff_id
+// names the LIVING segment's Hauptbetreuung. Mirroring a membership change must
+// not hand the predecessor's lead to that person.
+func TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	newLead := c.addStaff(t, "Lead")
+	students := []int64{c.students[0], c.students[1]}
+
+	in := c.livingUpdateInput(t, students, []int64{c.staffID, newLead}, &newLead)
+	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStaffIDs = []int64{newLead}
+	// The Hauptbetreuung itself was NOT part of this edit.
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+
+	rows := supervisorsFor(t, c.scenarioSetup, c.middleID, newLead)
+	require.Len(t, rows, 1)
+	assert.False(t, rows[0].IsPrimary,
+		"the successor's lead does not become the predecessor's by joining its roster")
+
+	for _, row := range supervisorsFor(t, c.scenarioSetup, c.middleID, c.staffID) {
+		assert.True(t, row.IsPrimary, "the predecessor keeps its own Hauptbetreuung")
+	}
+}
+
+// TestSeriesRoster_PrimaryChangeReachesMaterializedOccurrences: a pure
+// Hauptbetreuung move changes no membership, so the occurrence rows are only
+// corrected when the reconciler also updates existing ones.
+func TestSeriesRoster_PrimaryChangeReachesMaterializedOccurrences(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	newLead := c.addStaff(t, "Wechsel")
+	students := []int64{c.students[0], c.students[1]}
+
+	joined := c.livingUpdateInput(t, students, []int64{c.staffID, newLead}, &c.staffID)
+	joined.SeriesRosterFrom = &c.anchor
+	joined.SeriesRosterScopeStaffIDs = []int64{newLead}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, joined))
+	require.Equal(t, c.staffID, instanceStaffPrimaryOn(t, c.scenarioSetup, c.middleID, c.anchor))
+
+	moved := c.livingUpdateInput(t, students, []int64{c.staffID, newLead}, &newLead)
+	moved.SeriesRosterFrom = &c.anchor
+	moved.SeriesRosterScopeStaffIDs = []int64{c.staffID, newLead}
+	moved.SeriesRosterPrimaryChanged = true
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, moved))
+
+	assert.Equal(t, newLead, instanceStaffPrimaryOn(t, c.scenarioSetup, c.middleID, c.anchor),
+		"the already-planned occurrence follows the moved Hauptbetreuung")
+	assert.Equal(t, c.staffID, instanceStaffPrimaryOn(t, c.scenarioSetup, c.middleID, c.earlier),
+		"occurrences before the anchor keep the old lead")
+}
+
+// instanceStaffPrimaryOn returns the staff id flagged primary on the group's
+// occurrence of that date; 0 when none is.
+func instanceStaffPrimaryOn(t *testing.T, s *scenarioSetup, groupID int64, date timezone.Date) int64 {
+	t.Helper()
+	ids := make([]int64, 0)
+	err := s.db.NewSelect().
+		TableExpr(`schedule.instance_staff AS "row"`).
+		ColumnExpr(`"row".staff_id`).
+		Join(`JOIN schedule.activity_instances AS "inst" ON "inst".id = "row".instance_id`).
+		Where(`"inst".activity_group_id = ?`, groupID).
+		Where(`"inst".date = ?`, date).
+		Where(`"inst".tenant_id = ?`, s.tenantID).
+		Where(`"row".is_primary`).
+		Scan(s.ctx, &ids)
+	require.NoError(t, err)
+	require.LessOrEqual(t, len(ids), 1, "an occurrence must not carry two leads")
+	if len(ids) == 0 {
+		return 0
+	}
+	return ids[0]
+}
+
 // TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor covers the staff twin
 // of the roster pass, including the rule that an instance_staff row carrying a
 // real decision (here: an absence) is never removed.

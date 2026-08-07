@@ -4855,6 +4855,43 @@ describe("TimetableEventModal", () => {
       );
     });
 
+    it("omits series_roster_primary_changed unless the Hauptbetreuung moved", async () => {
+      mockGetAllStaff.mockResolvedValue([
+        { id: "11", name: "Ada Staff" },
+        { id: "13", name: "Cem Staff" },
+      ]);
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({
+        initialInstance: {
+          ...chainInstance,
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Cem Staff");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Cem Staff/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      const body = mockUpdateTemplate.mock.calls[0]?.[1] as unknown;
+      // A pure membership change must not let the successor's lead travel onto
+      // the predecessor's rows.
+      expect(body).not.toHaveProperty("series_roster_primary_changed");
+    });
+
     it("still writes a scalar field the user actually edited", async () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       renderModal({ initialInstance: chainInstance });

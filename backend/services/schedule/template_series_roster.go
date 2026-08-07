@@ -186,10 +186,12 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 	if !rowFrom.Before(*rowUntil) {
 		return nil
 	}
-	segmentWeekdays := intersectWeekdays(seg.Weekdays, in.Weekdays)
+	// The weekday universe is the PREDECESSOR's own recurrence. in.Weekdays
+	// describes the living successor, which a split may have moved to other
+	// days entirely — intersecting with it wrote a Monday row for a clicked
+	// Wednesday, or skipped the segment outright (#2187 review).
+	segmentWeekdays := uniqueSortedWeekdays(seg.Weekdays)
 	if len(segmentWeekdays) == 0 {
-		// The predecessor runs on none of the submitted weekdays — weekday
-		// changes are a non-roster edit and never retro-apply.
 		return nil
 	}
 	// A per-weekday series (#2129) is edited one weekday at a time, so the
@@ -363,11 +365,19 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 	scope map[int64]struct{},
 ) ([]int64, error) {
 	scoped := weekdays.edited
+	// in.PrimaryStaffID names the LIVING segment's Hauptbetreuung. Stamping it
+	// onto a predecessor row would silently make the successor's lead the
+	// predecessor's too — the weekday- and period-scoped row outranks the
+	// existing shared one, and the ensure_single_primary_supervisor trigger
+	// clears the old flag outright. The flag therefore only travels when the
+	// edit actually changed the Hauptbetreuung (#2187 review).
 	primaryWanted := make(map[seriesWeekdayPerson]bool)
-	for _, row := range staffRows {
-		for _, weekday := range coveredSeriesWeekdays(row.Weekday, scoped, scoped) {
-			if row.IsPrimary {
-				primaryWanted[seriesWeekdayPerson{weekday: weekday, personID: row.PersonID}] = true
+	if in.SeriesRosterPrimaryChanged {
+		for _, row := range staffRows {
+			for _, weekday := range coveredSeriesWeekdays(row.Weekday, scoped, scoped) {
+				if row.IsPrimary {
+					primaryWanted[seriesWeekdayPerson{weekday: weekday, personID: row.PersonID}] = true
+				}
 			}
 		}
 	}
@@ -393,7 +403,8 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 		}
 		if seriesRowStaysCorrect(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) &&
 			wantedOnAllWeekdays(want, covered, row.StaffID, false) &&
-			primaryFlagMatches(primaryWanted, covered, row.StaffID, row.IsPrimary) {
+			(!in.SeriesRosterPrimaryChanged ||
+				primaryFlagMatches(primaryWanted, covered, row.StaffID, row.IsPrimary)) {
 			for _, weekday := range covered {
 				satisfied[seriesWeekdayPerson{weekday: weekday, personID: row.StaffID}] = true
 			}
@@ -500,7 +511,7 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 		existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StaffID}] = row
 	}
 
-	created, removed := 0, 0
+	created, removed, repointed := 0, 0, 0
 	for _, inst := range instances {
 		periodID := int64(0)
 		if inst.CalendarPeriodID != nil {
@@ -528,6 +539,19 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 				}
 				existing[key] = fresh
 				created++
+			case desired && exists && instanceStaffRowIsStillPlanned(row):
+				// A moved Hauptbetreuung changes no membership, so without this
+				// branch the occurrence kept pointing at the old lead while the
+				// template rows already named the new one (#2187 review).
+				wantPrimary := hasPrimary && staffID == primaryStaffID
+				if row.IsPrimary == wantPrimary {
+					continue
+				}
+				row.IsPrimary = wantPrimary
+				if _, err := s.deps.InstanceStaffRepo.UpdateColumns(ctx, row, "is_primary"); err != nil {
+					return &ScheduleError{Op: "reconcile predecessor staff: update primary", Err: err}
+				}
+				repointed++
 			case !desired && exists && instanceStaffRowIsStillPlanned(row):
 				if err := s.deps.InstanceStaffRepo.Delete(ctx, row.ID); err != nil {
 					return &ScheduleError{Op: "reconcile predecessor staff: remove staff", Err: err}
@@ -537,12 +561,13 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 			}
 		}
 	}
-	if created > 0 || removed > 0 {
+	if created > 0 || removed > 0 || repointed > 0 {
 		s.getLogger().Info("reconciled materialized staff after series roster change",
 			slog.Int64("template_id", templateID),
 			slog.Int("staff", len(staffIDs)),
 			slog.Int("rows_created", created),
 			slog.Int("rows_removed", removed),
+			slog.Int("rows_repointed", repointed),
 		)
 	}
 	return nil
