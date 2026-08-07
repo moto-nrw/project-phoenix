@@ -462,6 +462,12 @@ export interface TimetableTemplate {
   weekdayAssignments: TemplateWeekdayAssignment[];
   /** Read-only enrollment-owned child coverage, used when changing roster mode. */
   protectedStudentAssignments?: TemplateProtectedStudentAssignment[];
+  /**
+   * Set when the backend resolved a capped predecessor segment of a split
+   * series forward to this living successor (#2187); holds the id the client
+   * originally requested.
+   */
+  resolvedFromTemplateId?: string;
 }
 
 /** One weekday's staff and child roster of a Regeltermin (#2129). */
@@ -537,6 +543,7 @@ export interface BackendTimetableTemplate {
   weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
   protected_student_assignments?:
     BackendTemplateProtectedStudentAssignment[] | null;
+  resolved_from_template_id?: number | null;
 }
 
 interface BackendTemplateWeekdayAssignment {
@@ -997,6 +1004,34 @@ export type UpdateTemplateBody = Omit<
    * `null`, not `undefined`, to be honored (#1565).
    */
   list_kind?: TimetableListKind | null;
+  /**
+   * Roster changes in this body additionally take effect from this calendar
+   * day (YYYY-MM-DD) and are reconciled across the split chain's capped
+   * predecessor segments (#2187). Sent only when the template was
+   * chain-resolved.
+   */
+  series_roster_from?: string;
+  /**
+   * The people whose membership this edit actually changed. Only they are
+   * reconciled on the capped predecessor segments — `student_ids`/`staff_ids`
+   * describe the living segment, whose roster may legitimately differ from a
+   * predecessor's, so they are not the predecessor's target set (#2187).
+   */
+  series_roster_scope_student_ids?: number[];
+  series_roster_scope_staff_ids?: number[];
+  /**
+   * The ISO weekdays this edit describes. Sent only for a series that staffs
+   * each weekday separately (#2129), where the occurrence editor shows one
+   * weekday's roster: the predecessor's other weekdays must not be judged
+   * against it. Omitted for a shared roster, which really does cover them all.
+   */
+  series_roster_scope_weekdays?: number[];
+  /**
+   * Set when this edit moved the Hauptbetreuung. `primary_staff_id` always
+   * names the living segment's lead, so it may only be stamped onto a
+   * predecessor row when the user actually changed it (#2187).
+   */
+  series_roster_primary_changed?: boolean;
 };
 
 /**

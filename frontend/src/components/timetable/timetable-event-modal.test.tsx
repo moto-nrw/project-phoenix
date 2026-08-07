@@ -4710,4 +4710,377 @@ describe("TimetableEventModal", () => {
       screen.getByRole("option", { name: "Benutzerdefiniert …" }),
     ).toBeInTheDocument();
   });
+
+  // #2187: a series that was already split is a CHAIN of templates. The
+  // clicked occurrence can still carry the id of a capped predecessor
+  // segment; the backend then resolves it forward and returns the living
+  // successor, flagged via `resolvedFromTemplateId`. Every series-scope write
+  // must target that successor — and must update it in place instead of
+  // splitting it, because the occurrence date lies before the successor's
+  // valid_from and cannot be a split point.
+  describe("#2187 split-chain resolution", () => {
+    /** What the backend returns for the capped predecessor id "87". */
+    const resolvedSuccessor: TimetableTemplate = {
+      ...template,
+      id: "88",
+      resolvedFromTemplateId: "87",
+    };
+
+    /** An occurrence still pointing at the capped predecessor segment. */
+    const chainInstance: EnrichedInstance = {
+      ...savedInstance,
+      activityGroupId: "87",
+    };
+
+    it("updates the resolved successor instead of splitting for 'Ab jetzt dauerhaft'", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      const { onSaved } = renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Max Kind");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            // The successor's OWN title and time survive: the form was seeded
+            // from the predecessor's occurrence ("Mensa", 12:00), and a split
+            // may have changed these fields for the future on purpose. Only a
+            // field the user actually edits may overwrite them.
+            name: "Yoga",
+            start_time: "14:00",
+            end_time: "15:00",
+            // The clicked occurrence's date, so the backend mirrors the roster
+            // change onto the predecessor's remaining occurrences.
+            series_roster_from: "2026-05-04",
+            // ...restricted to the child the user actually added — everyone
+            // else keeps their predecessor rows.
+            series_roster_scope_student_ids: [21],
+          }),
+        ),
+      );
+      // The successor IS the whole remaining series — nothing left to split.
+      expect(mockSplitTemplate).not.toHaveBeenCalled();
+      // The template was fetched via the occurrence's own (stale) id.
+      expect(mockGetTemplate).toHaveBeenCalledWith("87", "5");
+      // The follow-up re-plan runs against the RESOLVED id, not "87".
+      await waitFor(() => expect(mockReplanWeek).toHaveBeenCalled());
+      for (const call of mockReplanWeek.mock.calls) {
+        expect(call[2]).toBe("88");
+      }
+      expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "88" });
+    });
+
+    it("sends today's series_roster_from for 'Alle Termine der Serie'", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-05-06T10:00:00"));
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Max Kind");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          // "Alle Termine" starts at today, not at the clicked occurrence.
+          expect.objectContaining({ series_roster_from: "2026-05-06" }),
+        ),
+      );
+      expect(mockSplitTemplate).not.toHaveBeenCalled();
+    });
+
+    it("keeps the successor's Hauptbetreuung when only the staff list changed", async () => {
+      // The predecessor occurrence is led by 11, the successor by 12 — a
+      // deliberate change made at the split. Adding a third supervisor marks
+      // the staff roster as touched but says nothing about the Hauptbetreuung.
+      mockGetAllStaff.mockResolvedValue([
+        { id: "11", name: "Ada Staff" },
+        { id: "12", name: "Bo Staff" },
+        { id: "13", name: "Cem Staff" },
+      ]);
+      mockGetTemplate.mockResolvedValue({
+        ...resolvedSuccessor,
+        staffIds: ["11", "12"],
+        primaryStaffId: "12",
+      });
+      renderModal({
+        initialInstance: {
+          ...chainInstance,
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Cem Staff");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Cem Staff/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            primary_staff_id: 12,
+            staff_ids: [11, 12, 13],
+            // Only the added supervisor is reconciled on the predecessor.
+            series_roster_scope_staff_ids: [13],
+          }),
+        ),
+      );
+    });
+
+    it("omits series_roster_primary_changed unless the Hauptbetreuung moved", async () => {
+      mockGetAllStaff.mockResolvedValue([
+        { id: "11", name: "Ada Staff" },
+        { id: "13", name: "Cem Staff" },
+      ]);
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({
+        initialInstance: {
+          ...chainInstance,
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: false,
+              isSubstitute: false,
+            },
+          ],
+        },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Cem Staff");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Cem Staff/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      const body = mockUpdateTemplate.mock.calls[0]?.[1] as unknown;
+      // A pure membership change must not let the successor's lead travel onto
+      // the predecessor's rows.
+      expect(body).not.toHaveProperty("series_roster_primary_changed");
+    });
+
+    it("still writes a scalar field the user actually edited", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      fireEvent.change(screen.getByLabelText("Start*"), {
+        target: { value: "12:30" },
+      });
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            // Edited → the user's value wins.
+            start_time: "12:30",
+            // Untouched → the successor keeps its own.
+            end_time: "15:00",
+            name: "Yoga",
+          }),
+        ),
+      );
+    });
+
+    it("scopes the reconciliation to a removed child only", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({
+        initialInstance: { ...chainInstance, studentIds: ["21"] },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Max Kind");
+      // The child was on the occurrence — this click removes them.
+      fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            series_roster_from: "2026-05-04",
+            series_roster_scope_student_ids: [21],
+            student_ids: [],
+          }),
+        ),
+      );
+    });
+
+    it("omits series_roster_from when the roster was not touched", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      fireEvent.change(screen.getByLabelText("Titel*"), {
+        target: { value: "Mensa neu" },
+      });
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({ name: "Mensa neu" }),
+        ),
+      );
+      // A title-only edit must not ask the backend to rewrite past rosters.
+      const body = mockUpdateTemplate.mock.calls[0]?.[1] as unknown;
+      expect(body).not.toHaveProperty("series_roster_from");
+      expect(mockSplitTemplate).not.toHaveBeenCalled();
+    });
+
+    it("still splits when the backend did not resolve a chain", async () => {
+      // Control case: no resolvedFromTemplateId → the pre-#2187 split path.
+      mockGetTemplate.mockResolvedValue(template);
+      renderModal({
+        initialInstance: { ...savedInstance, activityGroupId: "7" },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockSplitTemplate).toHaveBeenCalledWith(
+          "7",
+          expect.objectContaining({ effective_date: "2026-05-04" }),
+        ),
+      );
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
+    });
+
+    it("merges an added child into the successor roster instead of overwriting it", async () => {
+      // 999 exists only on the successor — the occurrence snapshot (101, 105)
+      // predates it. Writing the form list wholesale would delete that child.
+      mockFetchStudents.mockResolvedValue({
+        students: [
+          { id: "101", name: "Anna Alt", school_class: "1a" },
+          { id: "105", name: "Bea Alt", school_class: "1a" },
+          { id: "7", name: "Cem Neu", school_class: "1b" },
+        ],
+      });
+      mockGetTemplate.mockResolvedValue({
+        ...resolvedSuccessor,
+        studentIds: ["101", "105", "999"],
+      });
+      renderModal({
+        initialInstance: { ...chainInstance, studentIds: ["101", "105"] },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Cem Neu");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Cem Neu/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          // Successor roster kept in full, the user's addition appended.
+          expect.objectContaining({ student_ids: [101, 105, 999, 7] }),
+        ),
+      );
+    });
+
+    it("shows the German message when the series template cannot be loaded", async () => {
+      mockGetTemplate.mockRejectedValue(
+        Object.assign(new Error("template not found"), {
+          httpStatus: 404,
+          code: "template_not_found",
+        }),
+      );
+      const { onClose } = renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+      );
+
+      const message =
+        "Der Regeltermin konnte nicht geladen werden. Bitte laden Sie die Seite neu und öffnen Sie den Termin erneut.";
+      await waitFor(() => expect(mockToastError).toHaveBeenCalledWith(message));
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
+      expect(mockSplitTemplate).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("passes the resolved id and no deletion count to the lost-edits probe", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      // In-place update, not a split: individually deleted occurrences survive,
+      // so counting them would warn about a loss that cannot happen.
+      await waitFor(() =>
+        expect(mockCountEditedInWindow).toHaveBeenCalledWith(
+          "88",
+          expect.any(String),
+          expect.any(String),
+          false,
+        ),
+      );
+    });
+  });
 });

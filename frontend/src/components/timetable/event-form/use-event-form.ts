@@ -30,6 +30,7 @@ import {
   type PlanningTrack,
 } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
+import { timetableSeriesErrorMessage } from "./scope-error-message";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
@@ -281,7 +282,10 @@ export function useEventForm({
     roomId: number;
     template: TimetableTemplate;
     periodEnd: string | undefined;
-    groupId: string;
+    // The RESOLVED series template id (#2187): after a split chain
+    // resolution this is the living successor, not the clicked occurrence's
+    // own activityGroupId.
+    seriesTemplateId: string;
   } | null>(null);
   // #1875: a series edit that would discard single-occurrence changes is
   // deferred here until the user confirms the loss (with the concrete dates).
@@ -1398,6 +1402,142 @@ export function useEventForm({
     id ? calendarPeriods.find((period) => period.id === id) : undefined;
 
   /**
+   * Applies what the user changed in THIS session (next vs. before) on top of
+   * a base roster (#2187). Used when the fetched template is the split
+   * chain's living successor rather than the clicked occurrence's own
+   * template: the form's list describes the PREDECESSOR's occurrence, so
+   * writing it wholesale would overwrite the successor's roster and promote
+   * per-occurrence overrides into the permanent series. Keep = base minus the
+   * ids the user removed; plus the ids the user added.
+   */
+  const applyRosterDelta = (
+    base: readonly string[],
+    next: readonly string[],
+    before: readonly string[],
+  ): string[] => {
+    const removed = new Set(before.filter((id) => !next.includes(id)));
+    const kept = base.filter((id) => !removed.has(id));
+    const added = next.filter(
+      (id) => !before.includes(id) && !kept.includes(id),
+    );
+    return [...kept, ...added];
+  };
+
+  /**
+   * The ids whose membership actually changed in this session (#2187). This
+   * is what the backend needs to reconcile the split chain's capped
+   * predecessors: the submitted roster describes the LIVING segment, whose
+   * membership may legitimately differ from a predecessor's, so it is not the
+   * predecessor's target set — reconciling against it would drop children who
+   * only ever stood on the predecessor.
+   */
+  const changedRosterIDs = (
+    next: readonly string[],
+    before: readonly string[],
+  ): number[] => {
+    const nextSet = new Set(next);
+    const beforeSet = new Set(before);
+    const changed = new Set<string>();
+    for (const id of next) if (!beforeSet.has(id)) changed.add(id);
+    for (const id of before) if (!nextSet.has(id)) changed.add(id);
+    return [...changed]
+      .map(Number)
+      .filter((id) => Number.isFinite(id) && id > 0);
+  };
+
+  /**
+   * Whether the user changed the Hauptbetreuung in this session. The staff
+   * roster is marked "touched" by any membership edit (#2187 review), so on
+   * the chain path this narrower predicate decides whether the form's value
+   * may overwrite the successor's own choice.
+   */
+  const primaryStaffTouched = () =>
+    form.primaryStaffId !== initialPrimaryStaffIDSnapshot;
+
+  /**
+   * Staff scope for the chain reconciliation: membership changes plus both
+   * sides of a changed Hauptbetreuung, whose is_primary flag has to be
+   * rewritten on the predecessor rows as well.
+   */
+  const changedStaffIDs = (): number[] => {
+    const changed = changedRosterIDs(form.staffIds, initialStaffIDsSnapshot);
+    if (primaryStaffTouched()) {
+      for (const id of [form.primaryStaffId, initialPrimaryStaffIDSnapshot]) {
+        const numeric = Number(id);
+        if (
+          id &&
+          Number.isFinite(numeric) &&
+          numeric > 0 &&
+          !changed.includes(numeric)
+        ) {
+          changed.push(numeric);
+        }
+      }
+    }
+    return changed;
+  };
+
+  /**
+   * Scalar fields to echo back from the fetched template on the chain path
+   * (#2187). The form was seeded from a PREDECESSOR occurrence while the PUT
+   * targets the living successor, which the split may have deliberately given
+   * a different time, room, name or Planungsschiene. Only fields the user
+   * actually edited may overwrite the successor's values; the rest are sent
+   * back unchanged so a roster save cannot silently revert that future change.
+   * (Predecessor windows keep their own values either way — non-roster fields
+   * never retro-apply.)
+   */
+  const chainPreservedScalars = (
+    template: TimetableTemplate,
+  ): { preserved: Partial<UpdateTemplateBody>; edited: boolean } => {
+    if (!initialInstance) return { preserved: {}, edited: false };
+    const schedule = template.schedules[0];
+    const preserved: Partial<UpdateTemplateBody> = {};
+    let edited = false;
+    const keep = <K extends keyof UpdateTemplateBody>(
+      untouched: boolean,
+      key: K,
+      value: UpdateTemplateBody[K],
+    ) => {
+      if (untouched) {
+        preserved[key] = value;
+      } else {
+        edited = true;
+      }
+    };
+    keep(
+      form.title.trim() === initialInstance.title.trim(),
+      "name",
+      template.name,
+    );
+    if (schedule) {
+      keep(
+        form.startTime === initialInstance.startTime,
+        "start_time",
+        schedule.startTime,
+      );
+      keep(
+        form.endTime === initialInstance.endTime,
+        "end_time",
+        schedule.endTime,
+      );
+    }
+    if (template.roomId) {
+      keep(
+        form.roomId === initialInstance.roomId,
+        "room_id",
+        Number(template.roomId),
+      );
+    }
+    keep(
+      (form.planningTrackId || "") === (initialInstance.planningTrackId ?? ""),
+      "planning_track_id",
+      template.planningTrackId ? Number(template.planningTrackId) : null,
+    );
+    return { preserved, edited };
+  };
+
+  /**
    * Weekday assignments to send from the occurrence-scope editor (#2129).
    *
    * That editor shows ONE roster because it was opened on one occurrence, so
@@ -1418,6 +1558,10 @@ export function useEventForm({
       : undefined;
     const staffWasEdited = staffRosterTouched.current;
     const studentsWereEdited = studentRosterTouched.current;
+    // #2187: against a chain-resolved successor the form lists describe the
+    // predecessor's occurrence — apply only the user's delta on top of the
+    // successor's own weekday roster instead of replacing it.
+    const chainResolved = template.resolvedFromTemplateId !== undefined;
     return template.weekdayAssignments.map((assignment) => {
       if (
         (!staffWasEdited && !studentsWereEdited) ||
@@ -1432,18 +1576,38 @@ export function useEventForm({
             : undefined,
         };
       }
+      const weekdayStaffIDs = staffWasEdited
+        ? chainResolved
+          ? applyRosterDelta(
+              assignment.staffIds,
+              form.staffIds,
+              initialStaffIDsSnapshot,
+            )
+          : staffIDs
+        : assignment.staffIds;
+      const weekdayStudentIDs = studentsWereEdited
+        ? chainResolved
+          ? applyRosterDelta(
+              assignment.studentIds,
+              form.studentIds,
+              initialStudentIDsSnapshot,
+            )
+          : studentIDs
+        : assignment.studentIds;
+      // #2187 review: same rule as for the shared roster — an untouched
+      // Hauptbetreuung must not travel from the predecessor's occurrence onto
+      // this weekday of the successor.
+      const weekdayPrimary =
+        chainResolved && !primaryStaffTouched()
+          ? assignment.primaryStaffId
+          : primaryStaffId;
       return {
         weekday: assignment.weekday,
-        staff_ids: (staffWasEdited ? staffIDs : assignment.staffIds).map(
-          Number,
-        ),
-        student_ids: (studentsWereEdited
-          ? studentIDs
-          : assignment.studentIds
-        ).map(Number),
+        staff_ids: weekdayStaffIDs.map(Number),
+        student_ids: weekdayStudentIDs.map(Number),
         primary_staff_id: staffWasEdited
-          ? primaryStaffId && staffIDs.includes(primaryStaffId)
-            ? Number(primaryStaffId)
+          ? weekdayPrimary && weekdayStaffIDs.includes(weekdayPrimary)
+            ? Number(weekdayPrimary)
             : undefined
           : assignment.primaryStaffId
             ? Number(assignment.primaryStaffId)
@@ -1470,17 +1634,41 @@ export function useEventForm({
     // users:read is unavailable, the occurrence snapshot is authoritative only
     // for the single-instance scope; an all/following write targets the fetched
     // template and must preserve that template's own roster instead.
+    // #2187: when the template was chain-resolved to the living successor,
+    // the form lists were seeded from the PREDECESSOR's occurrence — apply
+    // only the user's delta on top of the successor's roster.
+    const chainResolved = template.resolvedFromTemplateId !== undefined;
     const templateStudentIDs =
       studentRosterEditable && studentRosterTouched.current
-        ? form.studentIds
+        ? chainResolved
+          ? applyRosterDelta(
+              template.studentIds,
+              form.studentIds,
+              initialStudentIDsSnapshot,
+            )
+          : form.studentIds
         : template.studentIds;
     const templateStaffIDs =
       staffRosterEditable && staffRosterTouched.current
-        ? form.staffIds
+        ? chainResolved
+          ? applyRosterDelta(
+              template.staffIds,
+              form.staffIds,
+              initialStaffIDsSnapshot,
+            )
+          : form.staffIds
         : template.staffIds;
+    // #2187 review: the Hauptbetreuung is a scalar, not a delta — and the form
+    // holds the PREDECESSOR occurrence's value. Any staff membership edit sets
+    // staffRosterTouched, so without the narrower "did they change the primary"
+    // check a chain save would silently revert a Hauptbetreuung the split set
+    // deliberately (or clear it, when the old primary is no longer on the
+    // successor's roster).
     const primaryStaffId =
       staffRosterEditable && staffRosterTouched.current
-        ? form.primaryStaffId || template.primaryStaffId
+        ? chainResolved && !primaryStaffTouched()
+          ? template.primaryStaffId
+          : form.primaryStaffId || template.primaryStaffId
         : template.primaryStaffId;
     return {
       name: form.title.trim(),
@@ -1883,10 +2071,15 @@ export function useEventForm({
       return [];
     }
     // #2135: never probe before the segment's own series start (validFrom).
+    // #2187: a chain-resolved save also covers the predecessor window BEFORE
+    // the successor's validFrom — clamping to it would skip exactly the days
+    // being edited.
     const from = latestISODate(
       period.startDate,
       fromISO,
-      template.schedules[0]?.validFrom ?? "",
+      template.resolvedFromTemplateId !== undefined
+        ? ""
+        : (template.schedules[0]?.validFrom ?? ""),
     );
     // Without replanActivityGroupId the backend cannot apply the segment's
     // validity envelope, so the probe caps itself at the schedules'
@@ -1960,7 +2153,12 @@ export function useEventForm({
       fromISO,
       weekdays: body.weekdays,
       weekPattern: body.week_pattern ?? 0,
-      validFrom: validity?.validFrom,
+      // #2187: a chain-resolved save also covers the predecessor window
+      // before the successor's validFrom.
+      validFrom:
+        template.resolvedFromTemplateId !== undefined
+          ? undefined
+          : validity?.validFrom,
       validUntil: validity?.validUntil,
     });
     return findFirstClosingDayConflict(closingDayRanges, dates);
@@ -1971,15 +2169,10 @@ export function useEventForm({
       scope,
       error: err instanceof Error ? err.message : String(err),
     });
-    const raw =
-      err instanceof Error
-        ? err.message
-        : "Termin konnte nicht gespeichert werden";
-    // Backend rejects splits whose effective date already passed; the
-    // raw English message is meaningless to school staff.
-    const msg = raw.includes("effective_date must not be in the past")
-      ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
-      : raw;
+    const msg = timetableSeriesErrorMessage(
+      err,
+      "Termin konnte nicht gespeichert werden",
+    );
     setPendingSeriesEdit(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
@@ -1997,17 +2190,100 @@ export function useEventForm({
     roomId: number,
     template: TimetableTemplate,
     periodEnd: string | undefined,
-    groupId: string,
+    seriesTemplateId: string,
   ) => {
     if (!initialInstance) return;
-    const body = templateBodyFromForm(template, roomId);
+    const chainResolved = template.resolvedFromTemplateId !== undefined;
+    // #2187: on the chain path the write targets the living successor, whose
+    // untouched fields must survive the save — see chainPreservedScalars.
+    const chainScalars = chainResolved
+      ? chainPreservedScalars(template)
+      : { preserved: {}, edited: false };
+    const body = chainResolved
+      ? { ...templateBodyFromForm(template, roomId), ...chainScalars.preserved }
+      : templateBodyFromForm(template, roomId);
     const scopeProbes = seriesCoverageProbes(
       template,
       body,
       typedScope === "following" ? initialInstance.date : berlinTodayISO(),
-      typedScope === "all" ? groupId : undefined,
+      typedScope === "all" ? seriesTemplateId : undefined,
     );
     await checkCoverageBeforeSave(scopeProbes);
+    // #2187: the clicked occurrence belonged to a capped predecessor segment
+    // and the backend resolved the template to the living successor. That
+    // successor cannot be split at the occurrence date (it lies before the
+    // successor's valid_from), and it does not need to be: "from D on" IS the
+    // whole remaining series. Update it in place; a changed roster addition-
+    // ally carries series_roster_from plus the ids that actually changed, so
+    // the backend mirrors exactly that change onto the predecessor's
+    // remaining occurrences (the clicked one included) and leaves everyone
+    // else on those occurrences alone.
+    if (chainResolved) {
+      const rosterFrom =
+        typedScope === "following" ? initialInstance.date : berlinTodayISO();
+      const studentScope = studentRosterTouched.current
+        ? changedRosterIDs(form.studentIds, initialStudentIDsSnapshot)
+        : [];
+      const staffScope = staffRosterTouched.current ? changedStaffIDs() : [];
+      // #2187 review: with per-weekday rosters this form describes exactly ONE
+      // weekday, so the mirroring must not judge the predecessor's other
+      // weekdays against it. A series with one shared roster sends no weekday
+      // scope — there the edit really does describe every weekday.
+      const editedWeekday = isoWeekday(initialInstance.date);
+      const perWeekdaySeries = template.weekdayAssignments.length > 0;
+      const scopeWeekdays = perWeekdaySeries ? [editedWeekday] : [];
+      // A per-weekday successor only carries assignments for the weekdays it
+      // still runs. When the split moved it off the clicked one, the body says
+      // nothing about that day, so there is nothing to mirror — sending the
+      // anchor anyway would judge the predecessor against a roster that never
+      // mentioned the weekday.
+      const weekdayDescribed =
+        !perWeekdaySeries ||
+        template.weekdayAssignments.some(
+          (assignment) => assignment.weekday === editedWeekday,
+        );
+      const rosterChanged =
+        weekdayDescribed && (studentScope.length > 0 || staffScope.length > 0);
+      await timetableService.updateTemplate(seriesTemplateId, {
+        ...body,
+        ...(rosterChanged
+          ? {
+              series_roster_from: rosterFrom,
+              ...(studentScope.length > 0
+                ? { series_roster_scope_student_ids: studentScope }
+                : {}),
+              ...(staffScope.length > 0
+                ? { series_roster_scope_staff_ids: staffScope }
+                : {}),
+              ...(scopeWeekdays.length > 0
+                ? { series_roster_scope_weekdays: scopeWeekdays }
+                : {}),
+              // primary_staff_id names the successor's Hauptbetreuung; it may
+              // only reach a predecessor row when the user moved it.
+              ...(primaryStaffTouched()
+                ? { series_roster_primary_changed: true }
+                : {}),
+            }
+          : {}),
+      });
+      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
+        // The roster change reaches back to rosterFrom, but title, time, room
+        // and Planungsschiene belong to the successor's own window and start
+        // where it starts. Naming rosterFrom for all of them would claim more
+        // than was written, so an edited scalar says which date it takes
+        // effect from (#2187 review) and everything else stays generic.
+        const successorFrom = template.schedules[0]?.validFrom;
+        toastSuccess(
+          chainScalars.edited && successorFrom
+            ? `Regeltermin gespeichert. Zeit, Raum und Titel gelten ab ${formatDate(successorFrom)}.`
+            : "Regeltermin gespeichert",
+        );
+      } else {
+        toastWarning(FOLLOW_UP_WARNING);
+      }
+      onSaved({ kind: "series", seriesId: seriesTemplateId });
+      return;
+    }
     if (typedScope === "following") {
       const effectiveDate = initialInstance.date;
       const chunks = chunkDateRange(
@@ -2015,7 +2291,7 @@ export function useEventForm({
         periodEnd ?? weekTo ?? effectiveDate,
         MATERIALIZE_CHUNK_DAYS,
       );
-      const split = await timetableService.splitTemplate(groupId, {
+      const split = await timetableService.splitTemplate(seriesTemplateId, {
         ...body,
         effective_date: effectiveDate,
         materialize_from: effectiveDate,
@@ -2032,14 +2308,14 @@ export function useEventForm({
           const result = await timetableService.replanWeek(
             chunk.from,
             chunk.to,
-            groupId,
+            seriesTemplateId,
           );
           if (result.warnings.some((w) => w.code === "no_active_period")) {
             break;
           }
         } catch (chunkErr) {
           logger.error("series_replan_chunk_failed", {
-            template_id: groupId,
+            template_id: seriesTemplateId,
             from: chunk.from,
             to: chunk.to,
             error:
@@ -2056,13 +2332,13 @@ export function useEventForm({
       }
       onSaved({ kind: "series", seriesId: split.newTemplateId });
     } else {
-      await timetableService.updateTemplate(groupId, body);
-      if (await replanTemplateFuture(groupId, periodEnd)) {
+      await timetableService.updateTemplate(seriesTemplateId, body);
+      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
         toastSuccess("Regeltermin gespeichert");
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
-      onSaved({ kind: "series", seriesId: groupId });
+      onSaved({ kind: "series", seriesId: seriesTemplateId });
     }
   };
 
@@ -2071,28 +2347,32 @@ export function useEventForm({
     roomId,
     template,
     periodEnd,
-    groupId,
+    seriesTemplateId,
   }: {
     typedScope: "all" | "following";
     roomId: number;
     template: TimetableTemplate;
     periodEnd: string | undefined;
-    groupId: string;
+    seriesTemplateId: string;
   }) => {
     if (!initialInstance) return;
     // #1875: before rebuilding the series, check whether single-occurrence
     // edits in the affected window would be discarded. "following" also
     // rematerializes individually-deleted occurrences; "all" preserves them.
+    // A chain-resolved save (#2187) is a same-template update, not a split —
+    // it preserves individually-deleted occurrences, so counting them would
+    // warn about losses that cannot happen.
     const editsFrom =
       typedScope === "following" ? initialInstance.date : berlinTodayISO();
     const editsTo = periodEnd ?? weekTo ?? editsFrom;
     let lost: EditedInWindowResult | null = null;
     try {
       const probe = await timetableService.countEditedInWindow(
-        groupId,
+        seriesTemplateId,
         editsFrom,
         editsTo,
-        typedScope === "following",
+        typedScope === "following" &&
+          template.resolvedFromTemplateId === undefined,
       );
       if (probe.count > 0) lost = probe;
     } catch (probeErr) {
@@ -2107,12 +2387,24 @@ export function useEventForm({
         scope: typedScope,
         result: lost,
         onConfirm: () =>
-          performSeriesEdit(typedScope, roomId, template, periodEnd, groupId),
+          performSeriesEdit(
+            typedScope,
+            roomId,
+            template,
+            periodEnd,
+            seriesTemplateId,
+          ),
       });
       return;
     }
 
-    await performSeriesEdit(typedScope, roomId, template, periodEnd, groupId);
+    await performSeriesEdit(
+      typedScope,
+      roomId,
+      template,
+      periodEnd,
+      seriesTemplateId,
+    );
     setPendingSeriesEdit(null);
     onClose();
   };
@@ -2151,6 +2443,17 @@ export function useEventForm({
         groupId,
         form.calendarPeriodId,
       );
+      // #2187: the occurrence may belong to a capped predecessor of a split
+      // chain; the backend then returns the living successor. Every series-
+      // scope write from here on targets THAT template, never the
+      // occurrence's own activityGroupId.
+      const seriesTemplateId = template.id;
+      if (template.resolvedFromTemplateId !== undefined) {
+        logger.info("series_template_chain_resolved", {
+          occurrence_template_id: groupId,
+          resolved_template_id: seriesTemplateId,
+        });
+      }
       const templateCalendarPeriodId =
         resolveTemplateCalendarPeriodId(template);
       const periodEnd =
@@ -2171,7 +2474,7 @@ export function useEventForm({
           roomId: pending.roomId,
           template,
           periodEnd,
-          groupId,
+          seriesTemplateId,
         });
         return;
       }
@@ -2181,7 +2484,7 @@ export function useEventForm({
         roomId: pending.roomId,
         template,
         periodEnd,
-        groupId,
+        seriesTemplateId,
       });
     } catch (err) {
       handleScopeError(scope, err);
@@ -2202,7 +2505,7 @@ export function useEventForm({
         roomId: warning.roomId,
         template: warning.template,
         periodEnd: warning.periodEnd,
-        groupId: warning.groupId,
+        seriesTemplateId: warning.seriesTemplateId,
       });
     } catch (err) {
       handleScopeError(warning.scope, err);
