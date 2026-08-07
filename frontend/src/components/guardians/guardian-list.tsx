@@ -38,7 +38,7 @@ const ACCOUNT_STATUS_META: Record<
     label: "Konto aktiv, kein Portalzugriff",
     dot: LOCATION_COLORS.SCHOOLYARD,
   },
-  pending: { label: "Einladung offen", dot: LOCATION_COLORS.SICK },
+  pending: { label: "Einladung offen", dot: LOCATION_COLORS.WARNING },
   none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
 };
 

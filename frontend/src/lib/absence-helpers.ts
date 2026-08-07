@@ -132,7 +132,9 @@ export function absenceStatusMeta(
     case "requested":
       return {
         label: options?.requestedLabel ?? "Wartet",
-        color: LOCATION_COLORS.SICK,
+        // WARNING, not SICK: SICK is red now and "declined" below is DANGER,
+        // so a pending request and a rejected one would render identically.
+        color: LOCATION_COLORS.WARNING,
       };
     case "question":
       return { label: "Rückfrage", color: LOCATION_COLORS.EXCUSED };

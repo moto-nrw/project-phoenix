@@ -121,7 +121,9 @@ export const DAY_LOG_STATUS_COLORS: Record<DayLogStatus, string> = {
   class_trip: LOCATION_COLORS.CLASS_TRIP,
   excused: LOCATION_COLORS.EXCUSED,
   not_scheduled: LOCATION_COLORS.UNKNOWN,
-  absent: LOCATION_COLORS.HOME,
+  // DANGER, not HOME: HOME is grey now and not_scheduled above is already
+  // grey, so an unexplained absence would lose its flag.
+  absent: LOCATION_COLORS.DANGER,
 };
 
 /** Sources that came from the parents portal get a short origin hint. */

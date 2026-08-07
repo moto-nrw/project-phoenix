@@ -166,6 +166,7 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 		"#7C3AED",
 		"#0891B2",
 		"#365D83",
+		"#EAB308",
 	}
 
 	out := make(map[string]struct{}, len(knownReserved))
@@ -201,7 +202,6 @@ func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 func TestReservedRoomColors_RetiredStatusColors(t *testing.T) {
 	for _, hex := range []string{
 		"#FF3130", // previous HOME status color
-		"#EAB308", // previous SICK status color
 	} {
 		require.True(t, facilities.IsReservedRoomColor(hex),
 			"retired status color %s must remain reserved — see the "+

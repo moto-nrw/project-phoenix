@@ -43,6 +43,6 @@ export const timetableToneColors: Record<TimetableTone, string> = {
   neutral: LOCATION_COLORS.UNKNOWN,
   success: LOCATION_COLORS.GROUP_ROOM,
   info: LOCATION_COLORS.OTHER_ROOM,
-  warning: LOCATION_COLORS.SICK,
+  warning: LOCATION_COLORS.WARNING,
   danger: LOCATION_COLORS.DANGER,
 } as const;

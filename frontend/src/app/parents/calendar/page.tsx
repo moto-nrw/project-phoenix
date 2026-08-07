@@ -149,6 +149,8 @@ export default function ParentCalendarPage() {
   return (
     <ParentPage>
       <PersonalCalendar
+        title="Familienkalender"
+        subtitle="Termine, Einladungen und Betreuungsangebote Ihrer Kinder."
         events={data?.events ?? []}
         referenceDate={referenceDate}
         viewMode={viewMode}

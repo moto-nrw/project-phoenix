@@ -11,9 +11,15 @@
  * text, soft for tinted surfaces, with separate interactive shades.
  */
 @theme inline {
+  /* The fallback lives inside var() on purpose: --font-inter is defined by
+     next/font in the root layout, which Storybook never renders. Without it
+     the whole declaration is invalid at computed-value time when the variable
+     is missing — the trailing families are siblings in the stack, not a
+     fallback for an undefined custom property — and stories drop to the
+     browser default serif. */
   --font-sans:
-    var(--font-inter), Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
+    var(--font-inter, Arial), Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 @theme {

@@ -31,6 +31,14 @@ import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 export type CalendarViewMode = "day" | "week" | "month";
 
 interface PersonalCalendarProps {
+  /**
+   * The page's h1. Both calendar routes render this component as their whole
+   * page body, so dropping the heading left them with no top-level heading at
+   * all and made the subscribe panel's h2 the first landmark a screen reader
+   * reaches.
+   */
+  readonly title: string;
+  readonly subtitle?: string;
   readonly events: readonly CalendarEvent[];
   readonly referenceDate?: Date;
   readonly weekStart?: Date;
@@ -373,6 +381,8 @@ function nextLabel(viewMode: CalendarViewMode): string {
 }
 
 export function PersonalCalendar({
+  title,
+  subtitle,
   events,
   referenceDate: rawReferenceDate,
   weekStart,
@@ -446,6 +456,12 @@ export function PersonalCalendar({
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+        {subtitle ? (
+          <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
+        ) : null}
+      </div>
       <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">

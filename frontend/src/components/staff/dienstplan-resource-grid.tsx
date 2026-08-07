@@ -157,7 +157,9 @@ function absenceNoteForStaff(
 // of a read-only Betreuungsplan assignment card.
 function assignmentAccentColor(assignment: StaffScheduleAssignment): string {
   if (assignment.isAbsent) return LOCATION_COLORS.DANGER;
-  if (assignment.coverageStatus === "uncovered") return LOCATION_COLORS.SICK;
+  // WARNING, not SICK: SICK is red now, which would match the isAbsent
+  // DANGER accent one line above and flatten the two states into one.
+  if (assignment.coverageStatus === "uncovered") return LOCATION_COLORS.WARNING;
   if (assignment.isSubstitute) return LOCATION_COLORS.OTHER_ROOM;
   return LOCATION_COLORS.UNKNOWN;
 }

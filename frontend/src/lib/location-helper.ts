@@ -260,6 +260,16 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     dotColor: "#9CA3AF",
     textColor: "#4B5563",
   },
+  // Homeoffice. Not a LOCATION_COLORS entry — staff-helpers emits this hex
+  // directly — but it reaches StatusDotBadge all the same, and without a row
+  // here it falls through to the neutral gray label and reads exactly like the
+  // Krank/Urlaub badges. The base hue carries text at 2.65:1, the -strong step
+  // at 5.68:1.
+  [MOTO_COLOR_PALETTE.timeTracking.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.timeTracking.soft,
+    dotColor: MOTO_COLOR_PALETTE.timeTracking.base,
+    textColor: MOTO_COLOR_PALETTE.timeTracking.strong,
+  },
 };
 
 /**
@@ -300,6 +310,11 @@ export const LOCATION_COLORS = {
   CLASS_TRIP: MOTO_COLOR_PALETTE.cyan.base,
   NOT_ARRIVAL: MOTO_COLOR_PALETTE.navy.base,
   DANGER: MOTO_COLOR_PALETTE.red.base,
+  // Amber "needs attention, but nothing is wrong yet": a pending request, an
+  // unstaffed slot, an open invitation. Exists because SICK used to be amber
+  // and half the app borrowed it as the warning hue; SICK is red now, so those
+  // call sites would otherwise be indistinguishable from DANGER.
+  WARNING: MOTO_COLOR_PALETTE.amber.base,
 } as const;
 
 /**

@@ -54,7 +54,7 @@ var reservedRoomColors = map[string]struct{}{
 	"#0891B2":           {}, // CLASS_TRIP (Klassenfahrt)
 	"#365D83":           {}, // NOT_ARRIVAL (Kommt heute nicht)
 	"#FF3130":           {}, // previous HOME status color
-	"#EAB308":           {}, // previous SICK status color
+	"#EAB308":           {}, // WARNING (Wartet / unbesetzt) — was the SICK color before the palette move
 	legacyBugDefaultHex: {}, // see migration 1.15.45 / room_colors.go header comment
 }
 
