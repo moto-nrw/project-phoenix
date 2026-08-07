@@ -259,6 +259,97 @@ func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 		"the child the edit did touch is still closed at the anchor")
 }
 
+// TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart covers the two
+// clamps a real "Alle Termine der Serie" save runs into: history is never
+// rewritten (a stale client anchor degrades to today), and a row may not start
+// before the segment it belongs to.
+func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	added := c.students[2]
+	staleAnchor := timezone.TodayDate().AddDays(-7)
+
+	in := c.livingUpdateInput(t,
+		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
+	in.SeriesRosterFrom = &staleAnchor
+	in.SeriesRosterScopeStudentIDs = []int64{added}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+
+	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
+	require.Len(t, rows, 1)
+	assert.Equal(t, c.firstBoundary, rows[0].ValidFrom,
+		"the row starts with the segment, never before it and never in the past")
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, c.secondBoundary, *rows[0].ValidUntil)
+
+	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.earlier), added,
+		"the whole predecessor window is covered from its own start")
+}
+
+// TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched pins that the pass is
+// idempotent: rows that already cover the window exactly are recognised as
+// satisfied instead of being closed and rewritten on every save.
+func TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	added := c.students[2]
+	extraStaff := c.addStaff(t, "Twice")
+	roster := []int64{c.students[0], c.students[1], added}
+
+	save := func() {
+		in := c.livingUpdateInput(t, roster, []int64{c.staffID, extraStaff}, &c.staffID)
+		in.SeriesRosterFrom = &c.anchor
+		in.SeriesRosterScopeStudentIDs = []int64{added}
+		in.SeriesRosterScopeStaffIDs = []int64{extraStaff}
+		require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+	}
+
+	save()
+	studentRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
+	staffRows := supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
+	require.Len(t, studentRows, 1)
+	require.Len(t, staffRows, 1)
+
+	save()
+
+	assert.Equal(t, studentRows, enrollmentsFor(t, c.scenarioSetup, c.middleID, added),
+		"an already-correct enrollment row survives the second save unchanged")
+	assert.Equal(t, staffRows, supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff),
+		"and so does the supervisor row")
+	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), added)
+	assert.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff)
+}
+
+// TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows is the counterpart to
+// the absence case: a purely planned instance_staff row carries no decision, so
+// removing the supervisor from the series must clear it from the predecessor's
+// occurrences too.
+func TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	extraStaff := c.addStaff(t, "Planned")
+	students := []int64{c.students[0], c.students[1]}
+
+	added := c.livingUpdateInput(t, students, []int64{c.staffID, extraStaff}, &c.staffID)
+	added.SeriesRosterFrom = &c.anchor
+	added.SeriesRosterScopeStaffIDs = []int64{extraStaff}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, added))
+	require.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff)
+
+	removed := c.livingUpdateInput(t, students, []int64{c.staffID}, &c.staffID)
+	removed.SeriesRosterFrom = &c.anchor
+	removed.SeriesRosterScopeStaffIDs = []int64{extraStaff}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, removed))
+
+	assert.NotContains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff,
+		"a plan-only assignment is removed from the occurrence as well")
+	assert.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), c.staffID,
+		"the remaining supervisor keeps theirs")
+}
+
 func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
