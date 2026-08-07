@@ -1011,6 +1011,14 @@ export type UpdateTemplateBody = Omit<
    * chain-resolved.
    */
   series_roster_from?: string;
+  /**
+   * The people whose membership this edit actually changed. Only they are
+   * reconciled on the capped predecessor segments — `student_ids`/`staff_ids`
+   * describe the living segment, whose roster may legitimately differ from a
+   * predecessor's, so they are not the predecessor's target set (#2187).
+   */
+  series_roster_scope_student_ids?: number[];
+  series_roster_scope_staff_ids?: number[];
 };
 
 /**

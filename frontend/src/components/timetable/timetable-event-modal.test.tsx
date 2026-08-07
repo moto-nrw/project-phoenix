@@ -4750,10 +4750,19 @@ describe("TimetableEventModal", () => {
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
           "88",
           expect.objectContaining({
-            name: "Mensa",
+            // The successor's OWN title and time survive: the form was seeded
+            // from the predecessor's occurrence ("Mensa", 12:00), and a split
+            // may have changed these fields for the future on purpose. Only a
+            // field the user actually edits may overwrite them.
+            name: "Yoga",
+            start_time: "14:00",
+            end_time: "15:00",
             // The clicked occurrence's date, so the backend mirrors the roster
             // change onto the predecessor's remaining occurrences.
             series_roster_from: "2026-05-04",
+            // ...restricted to the child the user actually added — everyone
+            // else keeps their predecessor rows.
+            series_roster_scope_student_ids: [21],
           }),
         ),
       );
@@ -4793,6 +4802,63 @@ describe("TimetableEventModal", () => {
         ),
       );
       expect(mockSplitTemplate).not.toHaveBeenCalled();
+    });
+
+    it("still writes a scalar field the user actually edited", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({ initialInstance: chainInstance });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      fireEvent.change(screen.getByLabelText("Start*"), {
+        target: { value: "12:30" },
+      });
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            // Edited → the user's value wins.
+            start_time: "12:30",
+            // Untouched → the successor keeps its own.
+            end_time: "15:00",
+            name: "Yoga",
+          }),
+        ),
+      );
+    });
+
+    it("scopes the reconciliation to a removed child only", async () => {
+      mockGetTemplate.mockResolvedValue(resolvedSuccessor);
+      renderModal({
+        initialInstance: { ...chainInstance, studentIds: ["21"] },
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(3);
+      await screen.findByText("Max Kind");
+      // The child was on the occurrence — this click removes them.
+      fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+      await clickSave();
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            series_roster_from: "2026-05-04",
+            series_roster_scope_student_ids: [21],
+            student_ids: [],
+          }),
+        ),
+      );
     });
 
     it("omits series_roster_from when the roster was not touched", async () => {
