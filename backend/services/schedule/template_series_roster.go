@@ -6,9 +6,9 @@
 // segment of the same split series: a child enrolled from Tue 18.08. has to
 // stand on the 18.08. list even when the first school week still materialized
 // from the capped predecessor. PUT /timetable/templates/{id} therefore accepts
-// an optional series_roster_from anchor; when set, the roster saved onto the
-// living segment is additionally mirrored onto the bounded predecessor
-// segments overlapping [anchor, living valid_from):
+// an optional series_roster_from anchor plus the scope of people the edit
+// actually changed; when both are set, that change is mirrored onto the
+// bounded predecessor segments overlapping [anchor, living valid_from):
 //
 //   - added people gain a bounded, weekday-explicit row
 //     [max(anchor, segment valid_from), segment valid_until)
@@ -17,6 +17,11 @@
 //   - already-correct rows, protected rows (enrollment_request_child_id,
 //     selected_weekdays), other-period rows, and unrelated bounded windows are
 //     never touched
+//
+// Everyone outside the submitted scope is left alone on purpose: the roster
+// written to the living segment describes THAT segment (a split may have
+// changed it), so it is not the predecessor's target set. Reconciling against
+// it wholesale would retire predecessor-only members nobody touched.
 //
 // The anchor does NOT change how the living segment itself is written —
 // templateRosterValidFrom stays authoritative there; this pass only extends
@@ -58,6 +63,14 @@ func (s *TimetableDataService) reconcileSeriesPredecessorRoster(
 	if in.SeriesRosterFrom == nil {
 		return nil
 	}
+	studentScope := int64Set(in.SeriesRosterScopeStudentIDs)
+	staffScope := int64Set(in.SeriesRosterScopeStaffIDs)
+	if len(studentScope) == 0 && len(staffScope) == 0 {
+		// The anchor alone says nothing about WHO changed, and the submitted
+		// roster is not the predecessor's target set — without a scope there is
+		// nothing that may safely be mirrored.
+		return nil
+	}
 	anchor := *in.SeriesRosterFrom
 	if today := timezone.TodayDate(); anchor.Before(today) {
 		// History is never rewritten; a stale client anchor degrades to "from
@@ -85,7 +98,7 @@ func (s *TimetableDataService) reconcileSeriesPredecessorRoster(
 		if !segmentIsReconcilablePredecessor(seg, in.TemplateID, anchor, livingValidFrom) {
 			continue
 		}
-		if err := s.reconcilePredecessorSegmentRoster(ctx, in, tenantID, seg, anchor, roster); err != nil {
+		if err := s.reconcilePredecessorSegmentRoster(ctx, in, tenantID, seg, anchor, roster, studentScope, staffScope); err != nil {
 			return err
 		}
 		reconciled++
@@ -135,7 +148,7 @@ type seriesWeekdayPerson struct {
 // reconcilePredecessorSegmentRoster aligns ONE bounded predecessor segment's
 // enrollment and supervisor rows (and their already-materialized occurrences)
 // with the desired roster, inside [max(anchor, segment valid_from), segment
-// valid_until).
+// valid_until) — restricted to the people the edit actually changed.
 func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
@@ -143,6 +156,7 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 	seg *templateSeriesSegment,
 	anchor timezone.Date,
 	roster resolvedTemplateRoster,
+	studentScope, staffScope map[int64]struct{},
 ) error {
 	rowFrom := anchor
 	if seg.ValidFrom != nil && rowFrom.Before(*seg.ValidFrom) {
@@ -159,9 +173,6 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 		return nil
 	}
 
-	wantStudents := desiredSeriesRoster(roster.Students, scoped)
-	wantStaff := desiredSeriesRoster(roster.Staff, scoped)
-
 	// Snapshots BEFORE any write: they classify the existing rows and double
 	// as the prior state for the instance reconcilers, which is what keeps a
 	// child staff had hand-removed from one occurrence from being resurrected.
@@ -174,14 +185,28 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 		return &ScheduleError{Op: "update template: load predecessor supervisors", Err: err}
 	}
 
+	// A weekday already supplied by an externally-owned row (care offering,
+	// weekday selection) must not gain a second, editor-owned row — the same
+	// rule the canonical template write applies.
+	protectedCoverage := buildProtectedStudentCoverage(
+		protectedPredecessorEnrollments(priorEnrollments, rowFrom, rowUntil),
+		scoped,
+		func(row *activitiesModel.StudentEnrollment) bool {
+			return rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID)
+		},
+	)
+	wantStudents := desiredSeriesRoster(
+		excludeProtectedStudentWeekdays(roster.Students, protectedCoverage), scoped)
+	wantStaff := desiredSeriesRoster(roster.Staff, scoped)
+
 	touchedStudents, err := s.reconcilePredecessorEnrollmentRows(
-		ctx, in, tenantID, seg, rowFrom, rowUntil, scoped, wantStudents, priorEnrollments,
+		ctx, in, tenantID, seg, rowFrom, rowUntil, scoped, wantStudents, priorEnrollments, studentScope,
 	)
 	if err != nil {
 		return err
 	}
 	touchedStaff, err := s.reconcilePredecessorSupervisorRows(
-		ctx, in, tenantID, seg, rowFrom, rowUntil, scoped, roster.Staff, wantStaff, priorSupervisors,
+		ctx, in, tenantID, seg, rowFrom, rowUntil, scoped, roster.Staff, wantStaff, priorSupervisors, staffScope,
 	)
 	if err != nil {
 		return err
@@ -205,7 +230,8 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 
 // reconcilePredecessorEnrollmentRows diffs the segment's enrollment rows
 // against the desired student roster and returns the students whose coverage
-// changed (rows created, closed, or deleted).
+// changed (rows created, closed, or deleted). Students outside scope — the
+// people this edit actually changed — are ignored entirely.
 func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 	ctx context.Context,
 	in TemplateUpdateInput,
@@ -216,11 +242,15 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 	scoped []int,
 	want map[seriesWeekdayPerson]bool,
 	priorRows []*activitiesModel.StudentEnrollment,
+	scope map[int64]struct{},
 ) ([]int64, error) {
 	satisfied := make(map[seriesWeekdayPerson]bool)
 	touched := make(map[int64]bool)
 	for _, row := range priorRows {
 		if row == nil || enrollmentIsProtected(row) {
+			continue
+		}
+		if _, inScope := scope[row.StudentID]; !inScope {
 			continue
 		}
 		if !rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) {
@@ -260,6 +290,9 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 		if satisfied[key] {
 			continue
 		}
+		if _, inScope := scope[key.personID]; !inScope {
+			continue
+		}
 		weekday := key.weekday
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        key.personID,
@@ -292,6 +325,7 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 	staffRows []resolvedRosterRow,
 	want map[seriesWeekdayPerson]bool,
 	priorRows []*activitiesModel.SupervisorPlanned,
+	scope map[int64]struct{},
 ) ([]int64, error) {
 	primaryWanted := make(map[seriesWeekdayPerson]bool)
 	for _, row := range staffRows {
@@ -306,6 +340,9 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 	touched := make(map[int64]bool)
 	for _, row := range priorRows {
 		if row == nil {
+			continue
+		}
+		if _, inScope := scope[row.StaffID]; !inScope {
 			continue
 		}
 		if !rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) {
@@ -344,6 +381,9 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 
 	for _, key := range sortedSeriesWants(want) {
 		if satisfied[key] {
+			continue
+		}
+		if _, inScope := scope[key.personID]; !inScope {
 			continue
 		}
 		weekday := key.weekday
@@ -570,6 +610,39 @@ func sortedSeriesWants(want map[seriesWeekdayPerson]bool) []seriesWeekdayPerson 
 		return keys[i].personID < keys[j].personID
 	})
 	return keys
+}
+
+// int64Set indexes the submitted reconciliation scope; non-positive ids are
+// dropped so a malformed payload cannot widen it.
+func int64Set(ids []int64) map[int64]struct{} {
+	set := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			set[id] = struct{}{}
+		}
+	}
+	return set
+}
+
+// protectedPredecessorEnrollments returns the externally-owned rows of a
+// segment that overlap the reconciliation window — the rows whose weekday
+// coverage the editor may not duplicate.
+func protectedPredecessorEnrollments(
+	rows []*activitiesModel.StudentEnrollment,
+	rowFrom timezone.Date,
+	rowUntil *timezone.Date,
+) []*activitiesModel.StudentEnrollment {
+	out := make([]*activitiesModel.StudentEnrollment, 0, len(rows))
+	for _, row := range rows {
+		if row == nil || !enrollmentIsProtected(row) {
+			continue
+		}
+		if !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 func sortedInt64Keys(set map[int64]bool) []int64 {

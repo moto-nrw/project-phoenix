@@ -64,6 +64,15 @@ type TemplateUpdateInput struct {
 	// roster anchor (RosterValidFrom stays authoritative there). Nil = the
 	// update touches only this segment, exactly as before.
 	SeriesRosterFrom *timezone.Date
+	// SeriesRosterScopeStudentIDs / SeriesRosterScopeStaffIDs name the people
+	// whose membership this edit actually changed. Only they are reconciled on
+	// the predecessor segments; everyone else keeps their predecessor rows.
+	// StudentIDs/StaffIDs describe the LIVING segment and may legitimately
+	// differ from a predecessor's roster (a split can change the roster), so
+	// treating them as the predecessor's absolute target set would silently
+	// drop predecessor-only members. Empty scopes = nothing to mirror.
+	SeriesRosterScopeStudentIDs []int64
+	SeriesRosterScopeStaffIDs   []int64
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster

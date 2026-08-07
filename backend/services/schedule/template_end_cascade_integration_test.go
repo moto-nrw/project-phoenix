@@ -55,6 +55,48 @@ func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 		"occurrences before the clicked date stay as history")
 }
 
+// TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor covers the path
+// the client actually takes: the grid renders an occurrence with the id of the
+// segment that materialized it, so "diesen und alle folgenden löschen" on a
+// first-week occurrence arrives on the CAPPED predecessor. The living
+// successor carries every later occurrence and must be ended along with it.
+func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	livingDay := c.secondBoundary
+	_, err := c.svc.MaterializeForTenant(
+		c.ctx, c.secondBoundary, c.secondBoundary.AddDays(6), scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	registerSplitInstancesForCleanup(t, c.scenarioSetup,
+		[]int64{c.livingID}, []timezone.Date{livingDay})
+	require.Len(t, listInstancesForDate(t, c.db, c.livingID, livingDay), 1)
+
+	result, err := c.factory.TemplateSplit.EndFromDate(c.ctx, scheduleSvc.TemplateEndInput{
+		TemplateID:    c.middleID,
+		EffectiveDate: c.anchor,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, c.middleID, result.TemplateID)
+
+	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.middleID) {
+		require.NotNil(t, row.ValidUntil)
+		assert.Equal(t, c.anchor, *row.ValidUntil,
+			"the clicked segment ends at the clicked date")
+	}
+	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
+		require.NotNil(t, row.ValidUntil)
+		assert.Equal(t, c.secondBoundary, *row.ValidUntil,
+			"and the living successor is ended too")
+	}
+
+	assert.Empty(t, listInstancesForDate(t, c.db, c.middleID, c.anchor))
+	assert.Empty(t, listInstancesForDate(t, c.db, c.livingID, livingDay),
+		"no live occurrence may survive on the successor")
+	assert.Len(t, listInstancesForDate(t, c.db, c.middleID, c.earlier), 1,
+		"occurrences before the clicked date stay as history")
+}
+
 func TestTemplateEnd_CascadeLeavesUnrelatedSeriesAlone(t *testing.T) {
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)

@@ -180,6 +180,7 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 
 	in := c.livingUpdateInput(t, append(append([]int64{}, kept...), added), []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{added}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
 
 	predecessorRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
@@ -213,6 +214,7 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 
 	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{removed}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
@@ -225,6 +227,36 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 		"the anchor occurrence loses the child")
 	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.earlier), removed,
 		"the occurrence before the anchor keeps them")
+}
+
+// TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope pins the rule that
+// makes the mirroring safe: the saved roster describes the LIVING segment, so
+// a child who only ever stood on the predecessor (a split may have dropped
+// them) must survive a save that removes somebody else.
+func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
+	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	defer c.runCleanup(t)
+
+	predecessorOnly := c.insertPredecessorEnrollment(t, c.students[2], func(*activitiesModels.StudentEnrollment) {})
+	removed := c.students[1]
+
+	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
+	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{removed}
+	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
+
+	kept := c.reloadEnrollment(t, predecessorOnly.ID)
+	assert.Equal(t, predecessorOnly.ValidFrom, kept.ValidFrom,
+		"a child outside the edit's scope keeps their predecessor row")
+	assert.Equal(t, predecessorOnly.ValidUntil, kept.ValidUntil)
+	require.Len(t, enrollmentsFor(t, c.scenarioSetup, c.middleID, c.students[2]), 1,
+		"and gains no second row either")
+
+	removedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
+	require.Len(t, removedRows, 1)
+	require.NotNil(t, removedRows[0].ValidUntil)
+	assert.Equal(t, c.anchor, *removedRows[0].ValidUntil,
+		"the child the edit did touch is still closed at the anchor")
 }
 
 func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
@@ -263,6 +295,7 @@ func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
 	in := c.livingUpdateInput(t,
 		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{added, c.students[0]}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
 
 	for _, want := range []*activitiesModels.StudentEnrollment{protectedByRequest, protectedByWeekdays} {
@@ -273,6 +306,12 @@ func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
 		assert.Equal(t, want.SelectedWeekdays, got.SelectedWeekdays)
 		assert.Equal(t, want.EnrollmentRequestChildID, got.EnrollmentRequestChildID)
 	}
+
+	// The weekday the protected row already supplies must not gain a second,
+	// editor-owned row — a duplicate would keep the child in the group after
+	// the Betreuungsanfrage is withdrawn.
+	assert.Len(t, enrollmentsFor(t, c.scenarioSetup, c.middleID, added), 1,
+		"a protected row is not supplemented on the weekday it already covers")
 }
 
 // insertPredecessorEnrollment writes one bounded [firstBoundary, secondBoundary)
@@ -322,6 +361,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 
 	first := c.livingUpdateInput(t, roster, []int64{c.staffID}, &c.staffID)
 	first.SeriesRosterFrom = &c.anchor
+	first.SeriesRosterScopeStudentIDs = []int64{added}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, first))
 	require.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), added)
 
@@ -332,6 +372,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 	// child's predecessor row is rewritten, so the instance pass runs again.
 	second := c.livingUpdateInput(t, roster, []int64{c.staffID}, &c.staffID)
 	second.SeriesRosterFrom = &c.firstBoundary
+	second.SeriesRosterScopeStudentIDs = []int64{added}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, second))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
@@ -363,6 +404,7 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 		PrimaryStaffID: &c.staffID,
 	}}
 	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{added}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, in))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
@@ -388,6 +430,7 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 
 	added := c.livingUpdateInput(t, students, []int64{c.staffID, extraStaff}, &c.staffID)
 	added.SeriesRosterFrom = &c.anchor
+	added.SeriesRosterScopeStaffIDs = []int64{extraStaff}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, added))
 
 	rows := supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
@@ -410,6 +453,7 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 
 	removed := c.livingUpdateInput(t, students, []int64{c.staffID}, &c.staffID)
 	removed.SeriesRosterFrom = &c.anchor
+	removed.SeriesRosterScopeStaffIDs = []int64{extraStaff}
 	require.NoError(t, c.factory.TimetableData.UpdateTemplate(c.ctx, removed))
 
 	rows = supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)

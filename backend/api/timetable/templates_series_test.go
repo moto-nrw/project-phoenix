@@ -4,8 +4,9 @@
 //     already-capped predecessor segment to the living successor and reports
 //     the resolution via resolved_from_template_id; a genuine miss stays a 404
 //     carrying the stable code "template_not_found".
-//   - PUT /templates/{id} accepts series_roster_from (YYYY-MM-DD) and mirrors
-//     the saved roster onto the predecessor segment; a malformed value is a 400.
+//   - PUT /templates/{id} accepts series_roster_from (YYYY-MM-DD) plus the
+//     scope of changed people and mirrors exactly that change onto the
+//     predecessor segment; a malformed date is a 400.
 //   - POST /templates/{id}/split rejects series_roster_from outright.
 //
 // Hermetic: real repos + real split service against the test DB, fixtures via
@@ -154,6 +155,7 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 	body := createTemplateBody(s.templateSetup, "Tpl-SeriesRoster-Update")
 	body["student_ids"] = []int64{s.studentA, s.studentB, latecomer.ID}
 	body["series_roster_from"] = anchor.String()
+	body["series_roster_scope_student_ids"] = []int64{latecomer.ID}
 
 	w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d", s.newID), body)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())

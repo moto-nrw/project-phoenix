@@ -60,6 +60,13 @@ type updateTemplateRequest struct {
 	// same roster change. Sent by the editor only when it resolved a capped
 	// predecessor to this living segment AND the roster was edited.
 	SeriesRosterFrom *string `json:"series_roster_from,omitempty"`
+	// SeriesRosterScope* name the people whose membership this edit actually
+	// changed. Only they are reconciled on the predecessor segments:
+	// student_ids / staff_ids above describe THIS segment and may legitimately
+	// differ from a predecessor's roster, so they are not its target set.
+	// Without a scope, series_roster_from mirrors nothing.
+	SeriesRosterScopeStudentIDs []int64 `json:"series_roster_scope_student_ids,omitempty"`
+	SeriesRosterScopeStaffIDs   []int64 `json:"series_roster_scope_staff_ids,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -423,6 +430,9 @@ func buildUpdateTemplateInput(
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		GradeLevelMax:      gradeLevelMax,
 		SeriesRosterFrom:   parsed.seriesRosterFrom,
+
+		SeriesRosterScopeStudentIDs: req.SeriesRosterScopeStudentIDs,
+		SeriesRosterScopeStaffIDs:   req.SeriesRosterScopeStaffIDs,
 	}
 }
 
