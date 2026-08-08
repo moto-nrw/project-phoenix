@@ -259,7 +259,7 @@ export default function NfcQuickstartPage() {
                   </p>
                   <Link
                     href="/help/nfc"
-                    className="bg-moto-green mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-gray-950 transition-colors hover:bg-[#74b827] active:bg-[#669f21] print:hidden"
+                    className="bg-moto-green hover:bg-moto-green-hover active:bg-moto-green-active mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-gray-950 transition-colors print:hidden"
                   >
                     NFC-Betriebsbuch öffnen
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />

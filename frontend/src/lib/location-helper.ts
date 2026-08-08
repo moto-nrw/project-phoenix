@@ -247,24 +247,27 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     dotColor: MOTO_COLOR_PALETTE.stone.base,
     textColor: MOTO_COLOR_PALETTE.stone.strong,
   },
-  "#EAB308": {
+  [MOTO_COLOR_PALETTE.amber.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
     dotColor: MOTO_COLOR_PALETTE.amber.base,
     textColor: MOTO_COLOR_PALETTE.amber.strong,
   },
-  "#7C3AED": {
+  [MOTO_COLOR_PALETTE.purple.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.purple.soft,
     dotColor: MOTO_COLOR_PALETTE.purple.base,
     textColor: MOTO_COLOR_PALETTE.purple.strong,
   },
-  "#D946EF": {
+  [MOTO_COLOR_PALETTE.magenta.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.magenta.soft,
     dotColor: MOTO_COLOR_PALETTE.magenta.base,
     textColor: MOTO_COLOR_PALETTE.magenta.strong,
   },
-  "#6B7280": {
-    backgroundColor: "#F3F4F6",
-    dotColor: "#9CA3AF",
+  [MOTO_COLOR_PALETTE.neutral.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
+    dotColor: MOTO_COLOR_PALETTE.neutral.light,
+    // gray-600, bewusst heller als neutral.strong (gray-700): das neutrale
+    // Badge soll zurueckhaltender wirken als ein Statuslabel. StatusBadge
+    // tone="gray" fuehrt denselben Wert.
     textColor: "#4B5563",
   },
   // Homeoffice. Not a LOCATION_COLORS entry — staff-helpers emits this hex
@@ -351,7 +354,7 @@ export const GROUP_ROOM_SHADES = {
   active: MOTO_COLOR_PALETTE.green.active,
   text: MOTO_COLOR_PALETTE.green.strong,
   bgHover: MOTO_COLOR_PALETTE.green.soft,
-  bgActive: "#D7E8C3",
+  bgActive: MOTO_COLOR_PALETTE.green.muted,
 } as const;
 
 /**
@@ -376,7 +379,7 @@ export const GROUP_ROOM_SHADES = {
  * brown). Both tables exist on purpose.
  */
 const ACCESSIBLE_TEXT_COLORS: Record<string, string> = {
-  "#83cd2d": GROUP_ROOM_SHADES.text, // 4.9:1 — #4a7a15
+  "#83cd2d": GROUP_ROOM_SHADES.text, // 6.0:1 — green.strong #3F6F12
   "#5080d8": "#3d6ab8", // 5.1:1
   "#ff3130": "#c62826", // 5.4:1
   "#f78c10": "#a35c0b", // 4.9:1

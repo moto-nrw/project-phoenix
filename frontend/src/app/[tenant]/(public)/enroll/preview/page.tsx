@@ -100,14 +100,14 @@ function EnrollmentPreviewPageContent() {
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
-          className: "bg-moto-green/10 text-[#5F9F20]",
+          className: "bg-moto-green/10 text-moto-green-strong",
           dotClassName: "bg-moto-green",
         }
       : assignedPhaseCount > 0
         ? {
             label: "In Phase verwendet",
             hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-            className: "bg-moto-green/10 text-[#5F9F20]",
+            className: "bg-moto-green/10 text-moto-green-strong",
             dotClassName: "bg-moto-green",
           }
         : {

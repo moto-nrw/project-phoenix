@@ -31,7 +31,13 @@ const TONES: Record<
     dot: MOTO_COLOR_PALETTE.red.base,
     text: MOTO_COLOR_PALETTE.red.strong,
   },
-  gray: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
+  // Muss mit LOCATION_BADGE_TONES[neutral.base] uebereinstimmen, sonst
+  // driften der graue StatusBadge und der graue StatusDotBadge auseinander.
+  gray: {
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
+    dot: MOTO_COLOR_PALETTE.neutral.light,
+    text: "#4B5563",
+  },
 };
 
 export function StatusBadge({

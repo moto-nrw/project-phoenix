@@ -116,7 +116,7 @@ export default function EnrollPhasePickerPage() {
 
             <div className="mt-8">
               {!phases || phases.length === 0 ? (
-                <div className="border-moto-orange/20 bg-moto-orange/10 rounded-2xl border p-5 text-sm leading-6 text-[#9A570A]">
+                <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-2xl border p-5 text-sm leading-6">
                   {enrollmentDisabled ? t("disabled") : t("noPhase")}
                 </div>
               ) : (
@@ -144,13 +144,13 @@ export default function EnrollPhasePickerPage() {
                               </span>
                             )}
                             {phase.audience === "new_students" && (
-                              <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-[#3D63B0]">
+                              <span className="bg-moto-blue/10 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold">
                                 <UserPlus className="h-3.5 w-3.5" />
                                 {t("audienceNewStudents")}
                               </span>
                             )}
                             {phase.audience === "existing_students" && (
-                              <span className="bg-moto-blue/10 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-[#3D63B0]">
+                              <span className="bg-moto-blue/10 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold">
                                 <RefreshCw className="h-3.5 w-3.5" />
                                 {t("audienceExistingStudents")}
                               </span>

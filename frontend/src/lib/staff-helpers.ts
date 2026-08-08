@@ -51,7 +51,7 @@ const ABSENCE_LOCATIONS = new Set([
 ]);
 const ABSENCE_COLOR: LocationColorConfig = [
   "from-gray-50/80 to-slate-100/80",
-  "#6B7280",
+  MOTO_COLOR_PALETTE.neutral.base,
   "107, 114, 128",
 ];
 
