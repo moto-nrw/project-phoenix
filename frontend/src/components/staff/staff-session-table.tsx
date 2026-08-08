@@ -892,7 +892,7 @@ function deltaClass(delta: number): string {
   if (delta > 0) return "text-moto-amber-strong font-medium";
   if (delta < -15) return "text-moto-red-strong font-medium";
   if (delta < 0) return "font-medium text-gray-500";
-  return "font-medium text-[#70b525]";
+  return "text-moto-green-strong font-medium";
 }
 
 function toDateKey(d: Date): string {

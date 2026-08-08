@@ -808,48 +808,57 @@ function buildDistribution(
   sessionDays: { present: number; homeOffice: number },
   absenceDays: AbsenceDayCounts,
 ): DistributionBucket[] {
+  // Colors come from distributionConfig rather than being repeated here. The
+  // two lists mirror each other key for key, and the Pie renders THIS one
+  // (<Cell fill={d.color}>) while the legend and tooltip read the config — so
+  // a value changed in only one place silently splits the chart from its own
+  // legend. That is exactly what happened when Homeoffice was moved off the
+  // blue that also means "Urlaub" in the sibling tabs.
+  const color = (key: keyof typeof distributionConfig) =>
+    distributionConfig[key].color;
+
   return [
     {
       key: "ogs",
       label: "OGS",
       value: sessionDays.present,
-      color: MOTO_COLOR_PALETTE.green.base,
+      color: color("ogs"),
     },
     {
       key: "homeoffice",
       label: "Homeoffice",
       value: sessionDays.homeOffice,
-      color: MOTO_COLOR_PALETTE.blue.base,
+      color: color("homeoffice"),
     },
     {
       key: "urlaub",
       label: "Urlaub",
       value: absenceDays.vacation,
-      color: MOTO_COLOR_PALETTE.orange.base,
+      color: color("urlaub"),
     },
     {
       key: "krank",
       label: "Krank",
       value: absenceDays.sick,
-      color: MOTO_COLOR_PALETTE.red.base,
+      color: color("krank"),
     },
     {
       key: "fortbildung",
       label: "Fortbildung",
       value: absenceDays.training,
-      color: MOTO_COLOR_PALETTE.purple.base,
+      color: color("fortbildung"),
     },
     {
       key: "freizeitausgleich",
       label: "Freizeitausgleich",
       value: absenceDays.compTime,
-      color: MOTO_COLOR_PALETTE.magenta.base,
+      color: color("freizeitausgleich"),
     },
     {
       key: "sonstige",
       label: "Sonstige",
       value: absenceDays.other,
-      color: MOTO_COLOR_PALETTE.neutral.base,
+      color: color("sonstige"),
     },
   ];
 }

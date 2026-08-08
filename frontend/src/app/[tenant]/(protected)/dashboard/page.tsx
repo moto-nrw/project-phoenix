@@ -262,7 +262,7 @@ function DashboardContent() {
       {/* Main Stats Grid */}
       <div
         data-testid="dashboard-stats-grid"
-        className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:gap-4 xl:grid-cols-4"
+        className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4"
       >
         <StatCard
           title="Kinder anwesend"

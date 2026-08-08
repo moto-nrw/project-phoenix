@@ -58,7 +58,6 @@ import {
   mergeSchedulesWithTemplate as mergePickupSchedulesWithTemplate,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import type {
   StudentStatusDay,
   StudentStatusKind,
@@ -106,7 +105,6 @@ interface CareBoundaryItem {
   readonly value: string;
   readonly description?: string;
   readonly marker: string | null;
-  readonly color: string;
   readonly icon: React.ReactNode;
   readonly onEdit?: () => void;
 }
@@ -853,7 +851,7 @@ export function CareScheduleManager({
         confirmText="Entfernen"
         cancelText="Abbrechen"
         isConfirmLoading={deletingStatusDayId === statusDayToDelete?.id}
-        confirmButtonClass="bg-moto-red-strong hover:bg-moto-red-hover"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
       >
         <p className="text-sm leading-6 text-gray-600">
           {statusDayToDelete
@@ -1005,7 +1003,7 @@ function MobileDayButton({
       <span
         className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
           day.isToday
-            ? "bg-moto-red text-white"
+            ? "bg-moto-orange text-white"
             : isSelected
               ? "bg-white text-gray-900"
               : "bg-gray-100 text-gray-700"
@@ -1249,13 +1247,12 @@ function CareBoundaryRow({
   return (
     <div className="flex flex-1 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <span
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
-          style={{
-            backgroundColor: `${boundary.color}14`,
-            color: boundary.color,
-          }}
-        >
+        {/* Neutrale Kachel, wie bei AbsencePlaceholder in derselben Datei:
+            MotoConceptIcon setzt seine Farbe selbst aus MOTO_CONCEPTS und
+            ueberschreibt ein geerbtes color. Eine getoente Kachel ergab
+            deshalb eine indigofarbene Uhr auf Gruen und ein petrolfarbenes
+            Auto auf Orange. */}
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 shadow-sm">
           {boundary.icon}
         </span>
         <div className="min-w-0 flex-1">
@@ -1394,7 +1391,6 @@ function getCareBoundaries(
       value: getArrivalValue(day.arrival),
       description: getArrivalDescription(day.arrival),
       marker: getArrivalMarker(day.arrival),
-      color: LOCATION_COLORS.GROUP_ROOM,
       icon: <MotoConceptIcon concept="careTimes" size={18} />,
       onEdit: actions.onEditArrival,
     },
@@ -1404,7 +1400,6 @@ function getCareBoundaries(
       value: getPickupValue(day.pickup),
       description: getPickupDescription(day.pickup),
       marker: getPickupMarker(day.pickup),
-      color: LOCATION_COLORS.SCHOOLYARD,
       icon: <MotoConceptIcon concept="pickup" size={18} />,
       onEdit: actions.onEditPickup,
     },

@@ -21,7 +21,7 @@ export function DashboardSkeleton() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:gap-4 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
         {[0, 1, 2, 3, 4, 5, 6, 7].map((item) => (
           <div
             key={item}

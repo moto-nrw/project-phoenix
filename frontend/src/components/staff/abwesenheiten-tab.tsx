@@ -635,7 +635,11 @@ function PendingAbsences({
         <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
           Eingehende Anfragen
         </h3>
-        <StatusBadge tone="red" label={String(rows.length)} />
+        {/* Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe
+            Tripel auf wie StatusDotBadge(LOCATION_COLORS.SICK), und direkt
+            darunter stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler
+            offener Anfragen ist ausserdem keine Fehlermeldung. */}
+        <StatusBadge tone="gray" label={String(rows.length)} />
       </div>
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
