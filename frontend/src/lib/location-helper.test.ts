@@ -9,7 +9,6 @@ import {
   getLocationBadgeTone,
   getAccessibleTextColor,
   getLocationDisplay,
-  getLocationGlowEffect,
   canSeeDetailedLocation,
   isPresentLocation,
   isHomeLocation,
@@ -503,24 +502,6 @@ describe("location check helpers", () => {
 // =============================================================================
 // GLOW EFFECT TESTS
 // =============================================================================
-
-describe("getLocationGlowEffect", () => {
-  it("returns valid box-shadow for valid hex color", () => {
-    const result = getLocationGlowEffect("#FF0000");
-    expect(result).toContain("rgba(255, 0, 0,");
-    expect(result).toContain("0 8px 25px");
-  });
-
-  it("returns gray glow for invalid color", () => {
-    const result = getLocationGlowEffect("invalid");
-    expect(result).toContain("rgba(120, 113, 108,"); // Stone-gray fallback
-  });
-
-  it("handles SICK color correctly", () => {
-    const result = getLocationGlowEffect(LOCATION_COLORS.SICK);
-    expect(result).toContain("rgba(220, 38, 38,");
-  });
-});
 
 // =============================================================================
 // STUDENT LOCATION CONTEXT WITH SICK FIELDS

@@ -766,17 +766,6 @@ export function canSeeDetailedLocation(
 }
 
 /**
- * Generates a soft glow box-shadow string for the provided hex color.
- */
-export function getLocationGlowEffect(color: string): string {
-  const rgb = hexToRgb(color) ?? hexToRgb(LOCATION_COLORS.UNKNOWN);
-  if (!rgb) {
-    return "0 8px 25px rgba(107, 114, 128, 0.4)";
-  }
-  return `0 8px 25px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`;
-}
-
-/**
  * Indicates whether the provided location means the student is present in the building.
  */
 export function isPresentLocation(location?: string | null): boolean {
