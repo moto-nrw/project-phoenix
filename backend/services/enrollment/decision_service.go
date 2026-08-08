@@ -211,7 +211,7 @@ type DecisionService interface {
 	// every child under requestID, joined to the offering's name +
 	// description so the admin detail page can render labels without
 	// a second per-offering fetch. Map key is request_child_id.
-	ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error)
+	ListChildOfferings(ctx context.Context, requestID int64) (map[int64]ChildOfferingSet, error)
 
 	// ExportPhase loads every request of a phase with its fully-resolved
 	// children + offerings + form schema(s) in a fixed handful of
@@ -326,15 +326,20 @@ type ChildOfferingRow struct {
 	// approved change scheduled for a future date. Those rows are
 	// informational: they describe what will be booked, not what is.
 	StartsLater bool
-	// IsCurrentSelection marks the rows the correction editor replaces —
-	// exactly the set UpdateChildOfferings reads as "current" via
-	// currentOfferingSelectionDate. It is NOT the negation of StartsLater:
-	// before the phase starts, every booking is both "not yet in effect"
-	// (what a guardian is told) and "the selection on file" (what a
-	// correction overwrites). Seeding the editor from StartsLater would
-	// hand it an empty selection and the save would delete the family's
-	// bookings.
-	IsCurrentSelection bool
+}
+
+// ChildOfferingSet separates the two questions a reader asks about a
+// child's bookings. Two slices rather than one slice plus a flag: a
+// forgotten flag would silently route a booking into the wrong group,
+// and the wrong group is either a deletion (the editor seeds empty) or
+// an early application (a future change is pre-checked). A row cannot
+// be in no slice and cannot be in both.
+type ChildOfferingSet struct {
+	// Current is the selection on file — exactly what UpdateChildOfferings
+	// replaces. Seed a correction editor from this and nothing else.
+	Current []ChildOfferingRow
+	// Upcoming only takes effect on a later date. Display only.
+	Upcoming []ChildOfferingRow
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -545,7 +550,7 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 // portal has always shown those; listing only the currently effective
 // selection left staff unable to see an approved change before its
 // effective date and unable to answer the family's questions about it.
-func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error) {
+func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int64) (map[int64]ChildOfferingSet, error) {
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
@@ -562,25 +567,48 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
 	onDate := BookingViewDate(timezone.TodayDate(), phase.ServiceEndDate)
-	// The date the WRITE path treats as "now" — deliberately the same helper
-	// UpdateChildOfferings uses, so the rows flagged IsCurrentSelection are
-	// exactly the rows a correction would replace.
+	// The date the WRITE path treats as "now".
 	selectionDate := currentOfferingSelectionDate(phase)
-	out := make(map[int64][]ChildOfferingRow, len(children))
+	out := make(map[int64]ChildOfferingSet, len(children))
 	for _, child := range children {
 		links, lerr := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, child.ID)
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
+		// Which rows count as "current" is NOT re-derived here. This is the
+		// very call UpdateChildOfferings makes to read the selection it is
+		// about to replace, so the two agree by construction — including the
+		// repository's pre-phase-start fallback, which a hand-written
+		// predicate would miss. Getting this wrong deletes bookings.
+		currentLinks, cerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, selectionDate)
+		if cerr != nil {
+			return nil, fmt.Errorf("decision: list current offerings for child %d: %w", child.ID, cerr)
+		}
+		isCurrent := make(map[int64]bool, len(currentLinks))
+		for _, link := range currentLinks {
+			if link != nil {
+				isCurrent[link.ID] = true
+			}
+		}
+
 		offeringByID := s.careOfferingsByID(ctx, links)
-		rows := make([]ChildOfferingRow, 0, len(links))
+		set := ChildOfferingSet{}
 		for _, link := range links {
 			if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(onDate)) {
 				continue
 			}
-			rows = append(rows, childOfferingRow(link, offeringByID[link.CareOfferingID], onDate, selectionDate))
+			row := childOfferingRow(link, offeringByID[link.CareOfferingID], onDate)
+			switch {
+			case isCurrent[link.ID]:
+				set.Current = append(set.Current, row)
+			case link.ValidFrom != nil && link.ValidFrom.After(selectionDate):
+				set.Upcoming = append(set.Upcoming, row)
+			default:
+				// Neither on file nor ahead: a superseded interval that only
+				// describes the past. Showing it would read as a booking.
+			}
 		}
-		out[child.ID] = rows
+		out[child.ID] = set
 	}
 	return out, nil
 }
@@ -636,7 +664,7 @@ func (s *decisionService) careOfferingsByID(
 func childOfferingRow(
 	link *enrollmentModels.RequestChildOffering,
 	offering *enrollmentModels.CareOffering,
-	onDate, selectionDate timezone.Date,
+	onDate timezone.Date,
 ) ChildOfferingRow {
 	row := ChildOfferingRow{
 		OfferingID:            link.CareOfferingID,
@@ -646,9 +674,6 @@ func childOfferingRow(
 		ValidFrom:             link.ValidFrom,
 		ValidUntil:            link.ValidUntil,
 		StartsLater:           link.ValidFrom != nil && link.ValidFrom.After(onDate),
-		// Mirrors ListByRequestChildIDAtDate's predicate at selectionDate.
-		IsCurrentSelection: (link.ValidFrom == nil || !link.ValidFrom.After(selectionDate)) &&
-			(link.ValidUntil == nil || link.ValidUntil.After(selectionDate)),
 	}
 	if offering != nil {
 		row.OfferingName = offering.Name

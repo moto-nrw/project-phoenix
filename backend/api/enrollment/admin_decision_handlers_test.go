@@ -44,7 +44,7 @@ type mockDecisionService struct {
 	getResult         *enrollmentService.RequestSummary
 	getErr            error
 
-	listChildOffResult map[int64][]enrollmentService.ChildOfferingRow
+	listChildOffResult map[int64]enrollmentService.ChildOfferingSet
 	listChildOffErr    error
 
 	updateChildOffResult *enrollmentModels.RequestChild
@@ -116,7 +116,7 @@ func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, _ enrollme
 	return m.updateChildOffResult, m.updateChildOffErr
 }
 
-func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
+func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64]enrollmentService.ChildOfferingSet, error) {
 	return m.listChildOffResult, m.listChildOffErr
 }
 
@@ -411,14 +411,14 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
 		),
-		listChildOffResult: map[int64][]enrollmentService.ChildOfferingRow{
-			99: {{
+		listChildOffResult: map[int64]enrollmentService.ChildOfferingSet{
+			99: {Current: []enrollmentService.ChildOfferingRow{{
 				OfferingID:     7777,
 				OfferingName:   "OGS-Nachmittag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 				SelectedDays:   nil,
 				AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
-			}},
+			}}},
 		},
 	}
 	router := buildAdminDecisionRouter(mock)
@@ -428,6 +428,13 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 	assert.Contains(t, body, `"offering_id":"7777"`,
 		"per-child offerings must be stitched onto the detail response")
 	assert.Contains(t, body, `"offering_name":"OGS-Nachmittag"`)
+	// Which ARRAY the row lands in decides whether a correction replaces it,
+	// so grepping for the id alone would pass with the booking in the wrong
+	// group — the state that seeds an empty editor and deletes bookings.
+	assert.Contains(t, body, `"offerings":[{"offering_id":"7777"`,
+		"the selection on file must ship under offerings")
+	assert.NotContains(t, body, `"upcoming_offerings"`,
+		"nothing here starts later")
 }
 
 // #2185: valid_until goes over the wire as the INCLUSIVE last covered day,
@@ -439,15 +446,14 @@ func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		),
-		listChildOffResult: map[int64][]enrollmentService.ChildOfferingRow{
-			99: {{
-				OfferingID:         7777,
-				OfferingName:       "OGS-Nachmittag",
-				DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
-				AvailableDays:      []string{"mon"},
-				ValidUntil:         &exclusiveEnd,
-				IsCurrentSelection: true,
-			}},
+		listChildOffResult: map[int64]enrollmentService.ChildOfferingSet{
+			99: {Current: []enrollmentService.ChildOfferingRow{{
+				OfferingID:     7777,
+				OfferingName:   "OGS-Nachmittag",
+				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+				AvailableDays:  []string{"mon"},
+				ValidUntil:     &exclusiveEnd,
+			}}},
 		},
 	}
 	router := buildAdminDecisionRouter(mock)
@@ -470,21 +476,19 @@ func TestGetAdminRequestHandler_SeparatesUpcomingOfferings(t *testing.T) {
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		),
-		listChildOffResult: map[int64][]enrollmentService.ChildOfferingRow{
+		listChildOffResult: map[int64]enrollmentService.ChildOfferingSet{
 			99: {
-				{
-					OfferingID:         7777,
-					OfferingName:       "Jetzt gebucht",
-					DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
-					IsCurrentSelection: true,
-				},
-				{
-					OfferingID:         8888,
-					OfferingName:       "Ab September",
-					DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
-					StartsLater:        true,
-					IsCurrentSelection: false,
-				},
+				Current: []enrollmentService.ChildOfferingRow{{
+					OfferingID:     7777,
+					OfferingName:   "Jetzt gebucht",
+					DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+				}},
+				Upcoming: []enrollmentService.ChildOfferingRow{{
+					OfferingID:     8888,
+					OfferingName:   "Ab September",
+					DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+					StartsLater:    true,
+				}},
 			},
 		},
 	}

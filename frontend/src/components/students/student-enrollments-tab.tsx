@@ -214,6 +214,7 @@ function EnrollmentRequestCard({
             <ChildOfferings
               offerings={child.offerings}
               upcomingOfferings={child.upcoming_offerings}
+              unavailable={child.offerings_unavailable}
               phaseName={request.phase_name}
             />
             {child.status === "approved" ? (

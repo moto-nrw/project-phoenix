@@ -566,6 +566,7 @@ function ChildInformationCard({
         <ChildOfferings
           offerings={child.offerings}
           upcomingOfferings={child.upcoming_offerings}
+          unavailable={child.offerings_unavailable}
           phaseName={phaseName}
         />
         {child.status === "approved" ? (
@@ -985,14 +986,34 @@ const DAY_LABEL_DE: Record<string, string> = {
 export function ChildOfferings({
   offerings,
   upcomingOfferings,
+  unavailable,
   phaseName,
 }: Readonly<{
   offerings?: AdminRequestChildOffering[];
   /** Rendered alongside the current selection, flagged "gilt ab …". */
   upcomingOfferings?: AdminRequestChildOffering[];
+  /**
+   * The lookup failed. Rendered as a warning rather than nothing: staff
+   * decide on this screen, and an absent block reads as "the family booked
+   * nothing" — which is how the wrong decision gets made (#2185).
+   */
+  unavailable?: boolean;
   phaseName?: string;
 }>) {
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
+  if (unavailable) {
+    return (
+      <div className="mt-3 rounded-lg border border-[#F78C10]/30 bg-[#FFF4E6] p-3">
+        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+          Betreuungsangebote
+        </h4>
+        <p className="mt-1.5 text-sm text-[#8A5600]">
+          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
+          neu laden, bevor Sie über dieses Kind entscheiden.
+        </p>
+      </div>
+    );
+  }
   if (rows.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">

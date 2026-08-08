@@ -626,6 +626,22 @@ describe("ChildOfferings", () => {
       screen.getByText(/Anmeldephase „Schuljahr 2026\/2027“/),
     ).toBeVisible();
   });
+
+  // #2185: staff decide on this screen. A failed lookup renders no block at
+  // all, which reads as "the family booked nothing" — and the decision gets
+  // made on that. The warning has to reach children of every status, not
+  // only approved ones (where the correction panel lives).
+  it("warns instead of staying silent when the lookup failed", () => {
+    render(<ChildOfferings unavailable />);
+
+    expect(screen.getByText(/konnten nicht geladen werden/)).toBeVisible();
+  });
+
+  it("renders nothing for a child that simply has no bookings", () => {
+    const { container } = render(<ChildOfferings offerings={[]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });
 
 describe("ChildOfferingAdjustment", () => {

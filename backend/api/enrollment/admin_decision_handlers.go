@@ -381,32 +381,33 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentModels.RequestChild, childOfferings map[int64][]enrollmentService.ChildOfferingRow) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentModels.RequestChild, childOfferings map[int64]enrollmentService.ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
 		}
-		rows := childOfferings[summaryChildren[i].ID]
-		if len(rows) == 0 {
+		set := childOfferings[summaryChildren[i].ID]
+		if len(set.Current) == 0 && len(set.Upcoming) == 0 {
 			continue
 		}
-		children[i].Offerings, children[i].UpcomingOfferings = splitChildOfferings(rows)
+		children[i].Offerings = toAdminChildOfferings(set.Current)
+		children[i].UpcomingOfferings = toAdminChildOfferings(set.Upcoming)
 	}
 }
 
-// splitChildOfferings separates the selection on file from bookings that
-// only start later. Keeping them in two fields — rather than one list plus
-// a flag — means a client that never learned about the second field cannot
-// mistake a scheduled future booking for the current selection.
-func splitChildOfferings(rows []enrollmentService.ChildOfferingRow) (current, upcoming []AdminRequestChildOffering) {
-	for _, row := range rows {
-		if row.IsCurrentSelection {
-			current = append(current, toAdminChildOffering(row))
-			continue
-		}
-		upcoming = append(upcoming, toAdminChildOffering(row))
+// toAdminChildOfferings maps one group of the service's split. The split
+// itself belongs to the service: a client must not have to re-derive which
+// bookings a correction replaces, and a nil slice must stay a nil slice so
+// "no upcoming bookings" never ships as an empty array.
+func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminRequestChildOffering {
+	if len(rows) == 0 {
+		return nil
 	}
-	return current, upcoming
+	out := make([]AdminRequestChildOffering, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toAdminChildOffering(row))
+	}
+	return out
 }
 
 func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
@@ -739,7 +740,9 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		if listErr != nil {
 			return listErr
 		}
-		out.Offerings, out.UpcomingOfferings = splitChildOfferings(rowsByChild[childID])
+		set := rowsByChild[childID]
+		out.Offerings = toAdminChildOfferings(set.Current)
+		out.UpcomingOfferings = toAdminChildOfferings(set.Upcoming)
 		return nil
 	}); err != nil {
 		out.OfferingsUnavailable = true
