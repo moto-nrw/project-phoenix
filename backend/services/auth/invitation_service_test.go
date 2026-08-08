@@ -184,6 +184,24 @@ func TestInvitationEmailFailureRecordsError(t *testing.T) {
 	require.Len(t, flaky.Messages(), 0)
 }
 
+func TestCreateInvitationRejectsLehrkraftCaregiverCombo(t *testing.T) {
+	service, _, _, roleRepo, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	// The lehrkraft system role (#1772) holds only class_day:read; the
+	// caregiver upgrade would add the full user role plus a caregiver
+	// profile, so the combination must be refused at creation.
+	roleRepo.roles[3] = &authModel.Role{Model: baseModel.Model{ID: 3}, Name: "lehrkraft", IsSystem: true}
+
+	_, err := service.CreateInvitation(context.Background(), InvitationRequest{
+		Email:            "lehrkraft@example.com",
+		RoleID:           3,
+		CreatedBy:        42,
+		CaregiverEnabled: true,
+	})
+	require.ErrorIs(t, err, ErrLehrkraftNoCaregiver)
+}
+
 func TestCreateInvitationInvalidatesExistingTokens(t *testing.T) {
 	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
@@ -524,6 +542,21 @@ func TestShouldCreateTeacherForRole(t *testing.T) {
 	require.True(t, shouldCreateTeacherForRole("Teacher"))
 	require.True(t, shouldCreateTeacherForRole("user"))
 	require.False(t, shouldCreateTeacherForRole("admin"))
+	// A Lehrkraft (#1772) gets the staff record every system role gets, but
+	// deliberately no users.teachers caregiver profile: it supervises no OGS
+	// group, its scope comes from education.class_teachers.
+	require.False(t, shouldCreateTeacherForRole("lehrkraft"))
+}
+
+// The caregiver upgrade (#1772) is refused for the lehrkraft SYSTEM role in
+// both acceptance branches; a school's custom role sharing the label is a
+// different role and stays eligible.
+func TestIsLehrkraftSystemRole(t *testing.T) {
+	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
+	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: " Lehrkraft ", IsSystem: true}))
+	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: false}))
+	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "user", IsSystem: true}))
+	require.False(t, IsLehrkraftSystemRole(nil))
 }
 
 func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(t *testing.T) {

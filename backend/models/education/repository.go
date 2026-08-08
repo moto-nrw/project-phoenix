@@ -72,6 +72,19 @@ type GroupTeacherRepository interface {
 	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]users.BlockerGroup, error)
 }
 
+// ClassTeacherRepository defines operations for managing staff-to-school-class
+// assignments (#1772). School classes are free-text strings; every class
+// comparison uses LOWER(BTRIM(...)) — see models/education.ClassTeacher.
+type ClassTeacherRepository interface {
+	base.CRUDRepository[*ClassTeacher]
+	// FindByStaff returns the class assignments of one staff member.
+	FindByStaff(ctx context.Context, staffID int64) ([]*ClassTeacher, error)
+	// DeleteByStaffID removes all class assignments for a staff member
+	// (staff offboarding cleanup — staff rows are only soft-deleted, so the
+	// FK cascade never fires).
+	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
+}
+
 // GroupSubstitutionRepository defines operations for managing group substitutions
 type GroupSubstitutionRepository interface {
 	base.CRUDRepository[*GroupSubstitution]

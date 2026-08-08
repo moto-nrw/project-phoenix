@@ -34,6 +34,7 @@ func setupVisitAccessServices(t *testing.T, db *bun.DB) (education.Service, user
 	eduService := education.NewService(
 		repos.Group,
 		repos.GroupTeacher,
+		repos.ClassTeacher,
 		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,

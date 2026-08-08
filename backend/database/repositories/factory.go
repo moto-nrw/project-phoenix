@@ -97,6 +97,7 @@ type Factory struct {
 	// Education domain
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
+	ClassTeacher      educationModels.ClassTeacherRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
 	GradeTransition   educationModels.GradeTransitionRepository
 
@@ -312,6 +313,7 @@ func NewFactory(db *bun.DB) *Factory {
 		// Education repositories
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
+		ClassTeacher:      education.NewClassTeacherRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 

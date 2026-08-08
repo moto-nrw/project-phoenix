@@ -190,8 +190,10 @@ type GradeTransitionService struct {
 	transitionRepo         education.GradeTransitionRepository
 	studentRepo            users.StudentRepository
 	personRepo             users.PersonRepository
+	staffRepo              users.StaffRepository
 	visitRepo              activeModels.VisitRepository
 	attendanceRepo         activeModels.AttendanceRepository
+	classTeacherRepo       education.ClassTeacherRepository
 	rosterReconciler       RosterReconciler
 	offeringSourceResyncer OfferingSourceResyncer
 	db                     *bun.DB
@@ -213,6 +215,15 @@ type GradeTransitionServiceDependencies struct {
 	// tests that don't exercise the check can leave them nil.
 	VisitRepo      activeModels.VisitRepository
 	AttendanceRepo activeModels.AttendanceRepository
+	// ClassTeacherRepo lets apply/revert follow the class renames for the
+	// Klassenlehrer assignments (#1772) — without it a "1a" assignment would
+	// silently point at next year's incoming cohort after 1a→2a. Optional;
+	// nil disables the remap for tests that don't exercise it. StaffRepo is
+	// its companion: the revert consults it (soft-delete-filtered) so a
+	// staff member offboarded since the apply gets no assignment
+	// resurrected. Wire both together.
+	ClassTeacherRepo education.ClassTeacherRepository
+	StaffRepo        users.StaffRepository
 	// RosterReconciler reconciles already-materialized future timetable rosters
 	// on apply (drop graduates) and revert (restore reactivated students).
 	// Optional; nil disables reconciliation for tests that don't exercise it.
@@ -226,8 +237,10 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTr
 		transitionRepo:   deps.TransitionRepo,
 		studentRepo:      deps.StudentRepo,
 		personRepo:       deps.PersonRepo,
+		staffRepo:        deps.StaffRepo,
 		visitRepo:        deps.VisitRepo,
 		attendanceRepo:   deps.AttendanceRepo,
+		classTeacherRepo: deps.ClassTeacherRepo,
 		rosterReconciler: deps.RosterReconciler,
 		db:               deps.DB,
 	}
@@ -857,6 +870,15 @@ func (s *GradeTransitionService) executeApply(
 	}
 
 	if err := s.applyPromotions(ctx, transition.Mappings, promotions, result); err != nil {
+		return err
+	}
+
+	// The Klassenlehrer assignments (#1772) follow the same renames as the
+	// student rows: promoted classes keep their teachers, graduating classes
+	// lose them. Left untouched, a "1a" assignment would point at next
+	// year's incoming cohort after this apply. Every rewrite lands in the
+	// transition's class-teacher ledger so the revert can replay it exactly.
+	if err := s.remapClassTeacherAssignments(ctx, transition.ID, transition.Mappings); err != nil {
 		return err
 	}
 
@@ -1498,6 +1520,15 @@ func (s *GradeTransitionService) executeRevert(
 	// rows are still capped at this point, so those instances are covered by
 	// the resync's own occurrence reconciliation right after.
 	if err := s.reconcileRestoredRosters(ctx, transition, reactivated); err != nil {
+		return err
+	}
+
+	// Mirror of the apply-side remap (#1772): replay the recorded ledger
+	// backwards — created rows are deleted, removed rows (promotions AND
+	// graduations) are restored. Pre-existing assignments the apply never
+	// touched have no ledger entry and stay untouched, and rows the admin
+	// deliberately removed since the apply stay removed.
+	if err := s.revertClassTeacherAssignments(ctx, transition.ID, transition.Mappings); err != nil {
 		return err
 	}
 

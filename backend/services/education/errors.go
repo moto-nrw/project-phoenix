@@ -9,6 +9,8 @@ import (
 var (
 	ErrGroupNotFound           = errors.New("education group not found")
 	ErrTeacherNotFound         = errors.New("teacher not found")
+	ErrStaffNotFound           = errors.New("staff member not found")
+	ErrEmptySchoolClass        = errors.New("Klassenname darf nicht leer sein") //nolint:staticcheck // ST1005: user-facing German message
 	ErrGroupTeacherNotFound    = errors.New("group-teacher relationship not found")
 	ErrSubstitutionNotFound    = errors.New("substitution not found")
 	ErrRoomNotFound            = errors.New("room not found")

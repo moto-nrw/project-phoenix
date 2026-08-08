@@ -318,6 +318,7 @@ GET /api/staff/{id}/documents/{documentId}/download
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
+GET /api/staff/{id}/school-classes
 GET /api/staff/{id}/stammdaten
 GET /api/staff/{id}/stammdaten/bank-steuer
 GET /api/staff/{id}/substitutions
@@ -849,6 +850,7 @@ PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule
+PUT /api/staff/{id}/school-classes
 PUT /api/staff/{id}/stammdaten/arbeitsvertrag
 PUT /api/staff/{id}/stammdaten/bank-steuer
 PUT /api/staff/{id}/stammdaten/kontakt

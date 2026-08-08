@@ -74,6 +74,10 @@ func (m *mockUserContextService) GetMyGroups(ctx context.Context) ([]*education.
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockUserContextService) GetMySchoolClasses(ctx context.Context) ([]string, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockUserContextService) ResolveSSESubscription(context.Context) (*usercontextsvc.SSESubscription, error) {
 	return nil, errors.New("not implemented")
 }

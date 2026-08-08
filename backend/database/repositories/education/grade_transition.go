@@ -535,6 +535,56 @@ func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID
 	return history, nil
 }
 
+// CreateClassTeacherHistoryBatch records what an apply did to
+// education.class_teachers (#1772). One transition applies at most once
+// (a reverted transition can never be re-applied), so entries are never
+// cleared or rewritten.
+func (r *GradeTransitionRepository) CreateClassTeacherHistoryBatch(ctx context.Context, history []*education.GradeTransitionClassTeacher) error {
+	if len(history) == 0 {
+		return nil
+	}
+
+	for _, h := range history {
+		if err := h.Validate(); err != nil {
+			return err
+		}
+		base.EnsureTenantID(ctx, h)
+	}
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(&history).
+		ModelTableExpr(`education.grade_transition_class_teachers`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create class teacher history batch",
+			Err: err,
+		}
+	}
+	return nil
+}
+
+// GetClassTeacherHistory retrieves the class-teacher ledger of a transition.
+func (r *GradeTransitionRepository) GetClassTeacherHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionClassTeacher, error) {
+	var history []*education.GradeTransitionClassTeacher
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`education.grade_transition_class_teachers AS "gtct"`).
+		ColumnExpr(`"gtct".*`).
+		Where(`"gtct".`+whereTransitionID, transitionID).
+		Order("created_at ASC")
+
+	query = base.WithTenantFilter(ctx, query, "gtct")
+
+	if err := query.Scan(ctx, &history); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get class teacher history",
+			Err: err,
+		}
+	}
+
+	return history, nil
+}
+
 // GetDistinctClasses retrieves all distinct school_class values from students
 func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]string, error) {
 	var classes []string
