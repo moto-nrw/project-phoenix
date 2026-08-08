@@ -178,7 +178,7 @@ function ClassCard({
       aria-pressed={selected}
       className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
         selected
-          ? "border-gray-900 ring-1 ring-gray-900"
+          ? "border-[#5080D8] ring-1 ring-[#5080D8]/30"
           : "border-gray-200 hover:border-gray-300"
       }`}
     >
