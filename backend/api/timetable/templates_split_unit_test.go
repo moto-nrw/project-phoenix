@@ -187,37 +187,36 @@ func TestBuildTemplateSplitInput_SourceFieldsThreeState(t *testing.T) {
 		in, err := buildTemplateSplitInput(100, req)
 		require.NoError(t, err)
 
-		assert.False(t, in.SourceCareOfferingIDProvided)
+		assert.False(t, in.SourceCareOfferingIDsProvided)
 		assert.False(t, in.SourceGradeLevelsProvided)
-		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceCareOfferingIDs)
 		assert.Nil(t, in.SourceGradeLevels)
 	})
 
 	t.Run("explicit null -> clear (provided, nil)", func(t *testing.T) {
 		req := &splitTemplateRequest{}
 		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(
-			`"source_care_offering_id": null, "source_grade_levels": null`)), req))
+			`"source_care_offering_ids": null, "source_grade_levels": null`)), req))
 
 		in, err := buildTemplateSplitInput(100, req)
 		require.NoError(t, err)
 
-		assert.True(t, in.SourceCareOfferingIDProvided)
+		assert.True(t, in.SourceCareOfferingIDsProvided)
 		assert.True(t, in.SourceGradeLevelsProvided)
-		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceCareOfferingIDs)
 		assert.Nil(t, in.SourceGradeLevels)
 	})
 
 	t.Run("values -> set (provided)", func(t *testing.T) {
 		req := &splitTemplateRequest{}
 		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON(
-			`"source_care_offering_id": 7, "source_grade_levels": [2, 3]`)), req))
+			`"source_care_offering_ids": [7, 9], "source_grade_levels": [2, 3]`)), req))
 
 		in, err := buildTemplateSplitInput(100, req)
 		require.NoError(t, err)
 
-		require.True(t, in.SourceCareOfferingIDProvided)
-		require.NotNil(t, in.SourceCareOfferingID)
-		assert.EqualValues(t, 7, *in.SourceCareOfferingID)
+		require.True(t, in.SourceCareOfferingIDsProvided)
+		assert.Equal(t, []int64{7, 9}, in.SourceCareOfferingIDs)
 		assert.True(t, in.SourceGradeLevelsProvided)
 		assert.Equal(t, []int{2, 3}, in.SourceGradeLevels)
 	})

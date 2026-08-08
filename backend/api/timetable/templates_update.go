@@ -39,10 +39,10 @@ type updateTemplateRequest struct {
 	// Offering-source rule (#2137) — see createTemplateRequest. Both fields
 	// are presence-aware (#2147 review round 12): an omitted field keeps the
 	// template's stored value, only an explicit null (or explicit empty
-	// filter list) clears it. A client predating these fields must not strip
-	// a template's dynamic Angebots-Belegung by simply not knowing them.
-	SourceCareOfferingID nullableInt64    `json:"source_care_offering_id"`
-	SourceGradeLevels    nullableIntSlice `json:"source_grade_levels"`
+	// list) clears it. A client predating these fields must not strip a
+	// template's dynamic Angebots-Belegung by simply not knowing them.
+	SourceCareOfferingIDs nullableInt64Slice `json:"source_care_offering_ids"`
+	SourceGradeLevels     nullableIntSlice   `json:"source_grade_levels"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -115,19 +115,19 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	// The merged state is always re-validated service-side
 	// (validateOfferingSourceInput → ErrOfferingSourceInvalid → 400).
 	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
-	if !req.SourceCareOfferingID.Set {
+	if !req.SourceCareOfferingIDs.Set {
 		sourceGradeLevelsForBind = nil
 	}
 	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
 		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingID.Value, sourceGradeLevelsForBind, req.Targets,
+		req.SourceCareOfferingIDs.Value, sourceGradeLevelsForBind, req.Targets,
 	)
 	if err != nil {
 		return err
 	}
 	req.TargetGroupType = targetType
 	req.TargetSchoolClass = schoolClass
-	if req.SourceCareOfferingID.Set {
+	if req.SourceCareOfferingIDs.Set {
 		req.SourceGradeLevels.Value = sourceGradeLevels
 	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
@@ -351,16 +351,15 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	if req.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
 		return
 	}
-	if !req.SourceCareOfferingID.Set && existing.SourceCareOfferingID != nil {
-		id := *existing.SourceCareOfferingID
-		req.SourceCareOfferingID.Value = &id
+	if !req.SourceCareOfferingIDs.Set && len(existing.SourceCareOfferingIDs) > 0 {
+		req.SourceCareOfferingIDs.Value = slices.Clone(existing.SourceCareOfferingIDs)
 	}
 	if req.SourceGradeLevels.Set {
 		return
 	}
 	// The filter follows the source: a kept or carried source keeps the stored
 	// filter; a source cleared by explicit null takes the filter down with it.
-	if req.SourceCareOfferingID.Value != nil {
+	if len(req.SourceCareOfferingIDs.Value) > 0 {
 		req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
 	} else {
 		req.SourceGradeLevels.Value = nil
@@ -422,7 +421,7 @@ func buildUpdateTemplateInput(
 			TargetGroupType:         req.TargetGroupType,
 			TargetGradeLevel:        req.TargetGradeLevel,
 			TargetSchoolClass:       req.TargetSchoolClass,
-			SourceCareOfferingID:    req.SourceCareOfferingID.Value,
+			SourceCareOfferingIDs:   req.SourceCareOfferingIDs.Value,
 			SourceGradeLevels:       req.SourceGradeLevels.Value,
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),

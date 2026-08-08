@@ -20,10 +20,11 @@ const (
 // Target-group ("Zielgruppe") type constants for Betreuungsplan templates.
 // "gruppe" deliberately has no dedicated value column - it reuses
 // EducationGroupID. "angebot" (UI label "Angebot") has two sourcing modes:
-// with SourceCareOfferingID set the template declares the offering (plus an
-// optional SourceGradeLevels filter) as its dynamic roster source (#2137);
-// without it the roster comes from the legacy CareOffering.ActivityGroupID
-// bridge (#1651), where the offering points at the template instead.
+// with SourceCareOfferingIDs set the template declares one or more offerings
+// (plus an optional SourceGradeLevels filter) as its dynamic roster source
+// (#2137, multi-source follow-up); without it the roster comes from the
+// legacy CareOffering.ActivityGroupID bridge (#1651), where the offering
+// points at the template instead.
 const (
 	TargetGroupTypeJahrgang = "jahrgang"
 	TargetGroupTypeKlasse   = "klasse"
@@ -106,7 +107,7 @@ type Group struct {
 	//   jahrgang -> TargetGradeLevel
 	//   klasse   -> TargetSchoolClass
 	//   gruppe   -> EducationGroupID (existing field, no new column)
-	//   angebot  -> SourceCareOfferingID (+ optional SourceGradeLevels), or
+	//   angebot  -> SourceCareOfferingIDs (+ optional SourceGradeLevels), or
 	//               none for the legacy CareOffering.ActivityGroupID bridge
 	//   none     -> none (today's default: manually curated roster)
 	TargetGroupType   string  `bun:"target_group_type,notnull,default:'none'" json:"target_group_type"`
@@ -114,13 +115,19 @@ type Group struct {
 	TargetSchoolClass *string `bun:"target_school_class" json:"target_school_class,omitempty"`
 
 	// Offering-source fields (#2137): an "angebot" template may declare one
-	// care offering as its dynamic roster source plus an optional grade
-	// filter, so one Betreuungsangebot can feed several parallel Regeltermine
-	// (one per Jahrgang). Empty/nil SourceGradeLevels means "all enrolled
-	// children of the offering". An "angebot" template WITHOUT a source keeps
-	// the legacy behavior (roster fed via CareOffering.ActivityGroupID).
-	SourceCareOfferingID *int64 `bun:"source_care_offering_id" json:"source_care_offering_id,omitempty"`
-	SourceGradeLevels    []int  `bun:"source_grade_levels,type:jsonb,nullzero" json:"source_grade_levels,omitempty"`
+	// or more care offerings as its dynamic roster source plus an optional
+	// grade filter — one Betreuungsangebot can feed several parallel
+	// Regeltermine (one per Jahrgang), and one Regeltermin can union several
+	// offerings (a block holding the bis-14:30 AND bis-16:00 children at
+	// once). The union never plans a child twice: overlapping weekday×date
+	// contributions of later offerings are subtracted in array order by the
+	// roster resync. All source offerings must belong to the same enrollment
+	// phase (enforced by the resync/validation, not the DB). Empty/nil
+	// SourceGradeLevels means "all enrolled children of the offerings". An
+	// "angebot" template WITHOUT a source keeps the legacy behavior (roster
+	// fed via CareOffering.ActivityGroupID).
+	SourceCareOfferingIDs []int64 `bun:"source_care_offering_ids,type:jsonb,nullzero" json:"source_care_offering_ids,omitempty"`
+	SourceGradeLevels     []int   `bun:"source_grade_levels,type:jsonb,nullzero" json:"source_grade_levels,omitempty"`
 
 	// Notes is the durable Wochennotiz for a recurring template (issue #1837
 	// follow-up). NULL means no series note. It is joined onto every
@@ -213,22 +220,32 @@ func (g *Group) ValidateTargetGroup() error {
 }
 
 // validateOfferingSource mirrors the DB CHECK
-// chk_activities_groups_offering_source plus grade-range sanity: a source
-// offering only on 'angebot' templates, a grade filter only with a source,
-// filter values within the supported grade bounds and free of duplicates.
+// chk_activities_groups_offering_source plus grade-range sanity: source
+// offerings only on 'angebot' templates, a grade filter only with a source,
+// ids positive and free of duplicates, filter values within the supported
+// grade bounds and free of duplicates. An empty id list is canonicalized to
+// nil ("no source") so it satisfies the DB's non-empty-array CHECK.
 func (g *Group) validateOfferingSource() error {
-	if g.SourceCareOfferingID == nil {
+	if len(g.SourceCareOfferingIDs) == 0 {
+		g.SourceCareOfferingIDs = nil
 		if len(g.SourceGradeLevels) > 0 {
-			return errors.New("source_grade_levels requires source_care_offering_id")
+			return errors.New("source_grade_levels requires source_care_offering_ids")
 		}
 		g.SourceGradeLevels = nil
 		return nil
 	}
-	if *g.SourceCareOfferingID <= 0 {
-		return errors.New("source_care_offering_id must be positive when set")
-	}
 	if g.TargetGroupType != TargetGroupTypeAngebot {
-		return errors.New("source_care_offering_id requires target group type 'angebot'")
+		return errors.New("source_care_offering_ids requires target group type 'angebot'")
+	}
+	seenIDs := make(map[int64]bool, len(g.SourceCareOfferingIDs))
+	for _, offeringID := range g.SourceCareOfferingIDs {
+		if offeringID <= 0 {
+			return errors.New("source_care_offering_ids entries must be positive")
+		}
+		if seenIDs[offeringID] {
+			return errors.New("source_care_offering_ids must not contain duplicates")
+		}
+		seenIDs[offeringID] = true
 	}
 	seen := make(map[int]bool, len(g.SourceGradeLevels))
 	for _, level := range g.SourceGradeLevels {

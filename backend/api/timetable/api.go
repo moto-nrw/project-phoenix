@@ -336,6 +336,10 @@ func (rs *Resource) Router() chi.Router {
 		// Jahrgangs-Zählern für den Regeltermin-Editor.
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Get("/offering-sources", rs.listOfferingSources)
+		// Deduplizierte Kinderzahl über eine Auswahl mehrerer Angebote
+		// (Mehrfach-Quelle): exakte Vorschau für den Regeltermin-Editor.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Get("/offering-sources/combined-counts", rs.getCombinedOfferingSourceCounts)
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/templates/{id}", rs.getTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
