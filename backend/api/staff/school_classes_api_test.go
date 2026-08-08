@@ -45,9 +45,13 @@ func TestSchoolClassesAPI(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"school_classes":["3c"]`)
 
-	// Blank class names are caller errors.
+	// Blank class names are caller errors; the message is the bare German
+	// sentinel, not the "education: {Op}: …" wrapper (rendered via
+	// UnwrapRenderer — the UI shows this string verbatim).
 	rec = ctx.put(base, `{"school_classes":["  "]}`, "users:update")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"Klassenname darf nicht leer sein"`)
+	assert.NotContains(t, rec.Body.String(), "education:")
 
 	// Missing field is a caller error too.
 	rec = ctx.put(base, `{}`, "users:update")

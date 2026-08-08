@@ -31,10 +31,11 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 	personRepo := usersRepo.NewPersonRepository(db)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: transitionRepo,
-		StudentRepo:    studentRepo,
-		PersonRepo:     personRepo,
-		DB:             db,
+		TransitionRepo:   transitionRepo,
+		StudentRepo:      studentRepo,
+		PersonRepo:       personRepo,
+		ClassTeacherRepo: educationRepo.NewClassTeacherRepository(db),
+		DB:               db,
 	})
 
 	cleanup := func() {

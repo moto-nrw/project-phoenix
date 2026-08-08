@@ -337,6 +337,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:       repos.Person,
 		VisitRepo:        repos.ActiveVisit,
 		AttendanceRepo:   repos.Attendance,
+		ClassTeacherRepo: repos.ClassTeacher,
 		RosterReconciler: rosterReconciler,
 		DB:               db,
 	})

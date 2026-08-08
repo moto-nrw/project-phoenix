@@ -32,6 +32,12 @@ func (req *SchoolClassesRequest) Bind(_ *http.Request) error {
 
 // schoolClassErrorRules classifies the class-teacher service sentinels:
 // unknown staff → 404, empty class name → 400.
+//
+// Rendered through common.UnwrapRenderer so the user-facing branches carry
+// just the sentinel message (ErrEmptySchoolClass is a deliberate German
+// string) instead of EducationError's "education: {Op}: …" prefix; the 500
+// fallback keeps the wrapped error for the logs. Same pattern as
+// api/groups/errors.go.
 var schoolClassErrorRules = []common.ErrorRule{
 	{Target: educationSvc.ErrStaffNotFound, Render: func(error) render.Renderer {
 		return common.ErrorNotFound(errors.New(common.MsgStaffNotFound))
@@ -39,8 +45,10 @@ var schoolClassErrorRules = []common.ErrorRule{
 	{Target: educationSvc.ErrEmptySchoolClass, Render: common.ErrorInvalidRequest},
 }
 
+var renderSchoolClass = common.UnwrapRenderer[*educationSvc.EducationError](schoolClassErrorRules, common.ErrorInternalServer)
+
 func renderSchoolClassError(w http.ResponseWriter, r *http.Request, err error) {
-	common.RenderError(w, r, common.RenderWithRules(err, schoolClassErrorRules, common.ErrorInternalServer))
+	common.RenderError(w, r, renderSchoolClass(err))
 }
 
 // getStaffSchoolClasses returns the school classes assigned to a staff member.
