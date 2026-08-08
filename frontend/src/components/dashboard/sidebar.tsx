@@ -1181,14 +1181,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       (item) => item.href === "/klassen",
     );
     const helpItem = filteredNavItems.find((item) => item.href === "/help");
-    // Mein Profil ist ohne Berechtigung nutzbar (/api/me/*) und gibt der
-    // Lehrkraft Passwort, Passkeys und vertrauenswürdige Geräte in die Hand.
-    const profileItem: NavItem = {
-      href: "/profile",
-      label: "Mein Profil",
-      icon: navigationIcons.profile,
-      activeColor: "text-gray-500",
-    };
     return (
       <aside
         className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
@@ -1196,7 +1188,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
           <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
             {klassenItem && renderNavItem(klassenItem)}
-            {renderNavItem(profileItem)}
           </nav>
           <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
             {helpItem && renderNavItem(helpItem)}

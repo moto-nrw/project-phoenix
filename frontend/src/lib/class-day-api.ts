@@ -15,7 +15,7 @@ export interface ClassDayRow {
   arrival?: string;
   pickup?: string;
   departure?: string;
-  status?: "sick" | "excused" | "class_trip" | "";
+  status?: "sick" | "excused" | "class_trip" | "cancelled" | "";
 }
 
 export interface ClassDayTotals {

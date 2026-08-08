@@ -57,7 +57,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	}
 	statuses := map[int64]string{3: activeModels.StudentStatusDaySick}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses, map[int64]string{1: "Abholung"})
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses, map[int64]string{1: "Abholung"}, nil, map[int64]string{1: "16:00"})
 
 	require.Len(t, report.Rows, 3)
 	assert.Equal(t, "wed", report.Weekday)
@@ -66,7 +66,8 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 
 	assert.True(t, report.Rows[0].StaysToday)
 	assert.Equal(t, []string{"Ganztag"}, report.Rows[0].Offerings)
-	assert.Equal(t, "15:00", report.Rows[0].Pickup)
+	// The effective (materialized-plan) pickup time beats the form answer.
+	assert.Equal(t, "16:00", report.Rows[0].Pickup)
 	assert.Equal(t, "07:30", report.Rows[0].Arrival)
 	// The day-specific departure replaces the roster's week summary.
 	assert.Equal(t, "Abholung", report.Rows[0].Departure)
@@ -90,7 +91,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil)
 
 	assert.False(t, report.SchoolDay)
 	assert.Equal(t, "", report.Weekday)

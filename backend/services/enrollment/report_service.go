@@ -21,6 +21,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 var (
@@ -201,6 +202,14 @@ type ReportServiceConfig struct {
 	// excused / class trip) the class day view (#1772) marks students with.
 	// Optional: unconfigured only costs the status column, never the view.
 	StudentStatusDayRepo activeModels.StudentStatusDayRepository
+	// PickupScheduleSvc / ArrivalScheduleSvc supply the effective per-date
+	// times (weekly plan + day exceptions) for the class day view. They are
+	// the CURRENT truth — the enrollment form answer is only the snapshot the
+	// plan was materialized from — and a pickup exception without a time
+	// means "kommt heute nicht". Optional: unconfigured falls back to the
+	// form-answer times.
+	PickupScheduleSvc  scheduleService.PickupScheduleService
+	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
 }
 
 type reportService struct {

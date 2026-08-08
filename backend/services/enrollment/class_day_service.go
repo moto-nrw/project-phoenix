@@ -12,6 +12,11 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// StudentStatusDayCancelled is the class-day-only marker for a pickup
+// exception without a time: the care for this day was called off ("kommt
+// heute nicht"). Not a persisted active.student_status_days status.
+const StudentStatusDayCancelled = "cancelled"
+
 // ClassDayRow is one student of the class on the requested day, reduced to
 // what the handoff after lessons needs (#1772). Deliberately NO guardian
 // names or contact details: the Lehrkraft view is a privacy-reduced
@@ -27,8 +32,9 @@ type ClassDayRow struct {
 	Arrival    string   `json:"arrival,omitempty"`
 	Pickup     string   `json:"pickup,omitempty"`
 	Departure  string   `json:"departure,omitempty"`
-	// Status is the scheduled day status ("sick" / "excused" / "class_trip"),
-	// empty when none is reported. The free-text note stays private.
+	// Status is the scheduled day status ("sick" / "excused" / "class_trip",
+	// plus the derived "cancelled" when a pickup exception calls the care day
+	// off), empty when none is reported. The free-text note stays private.
 	Status string `json:"status,omitempty"`
 }
 
@@ -222,8 +228,19 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	if err != nil {
 		return nil, err
 	}
+	arrivals, pickups, cancelled, err := s.classDayEffectiveTimes(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	for studentID := range cancelled {
+		// A stronger reported status (sick / class trip / excused) keeps
+		// precedence over the plain "kommt heute nicht" cancellation.
+		if statuses[studentID] == "" {
+			statuses[studentID] = StudentStatusDayCancelled
+		}
+	}
 
-	report := buildClassDayReport(schoolClass, date, phaseName, rosterRows, statuses, departures)
+	report := buildClassDayReport(schoolClass, date, phaseName, rosterRows, statuses, departures, arrivals, pickups)
 
 	if err := s.recordClassDayViewAudit(ctx, report, actorAccountID); err != nil {
 		return nil, err
@@ -238,6 +255,48 @@ var classDayModeLabels = map[userModels.DepartureMode]string{
 	userModels.DepartureBus:         "Bus",
 	userModels.DeparturePickup:      "Abholung",
 	userModels.DepartureAccompanied: "Mit anderem Kind",
+}
+
+// classDayEffectiveTimes loads the effective arrival/pickup times of the
+// students for the date from the materialized schedule tables (weekly plan
+// plus day exceptions) — the current truth the roster's form-answer snapshot
+// may lag behind. A pickup exception WITHOUT a time cancels the care day.
+func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (arrivals, pickups map[int64]string, cancelled map[int64]bool, err error) {
+	arrivals = map[int64]string{}
+	pickups = map[int64]string{}
+	cancelled = map[int64]bool{}
+	if len(studentIDs) == 0 {
+		return arrivals, pickups, cancelled, nil
+	}
+	if s.PickupScheduleSvc != nil {
+		effective, err := s.PickupScheduleSvc.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("class day report: load effective pickup times: %w", err)
+		}
+		for studentID, entry := range effective {
+			if entry == nil {
+				continue
+			}
+			switch {
+			case entry.PickupTime != nil:
+				pickups[studentID] = entry.PickupTime.Format("15:04")
+			case entry.IsException:
+				cancelled[studentID] = true
+			}
+		}
+	}
+	if s.ArrivalScheduleSvc != nil {
+		effective, err := s.ArrivalScheduleSvc.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("class day report: load effective arrival times: %w", err)
+		}
+		for studentID, entry := range effective {
+			if entry != nil && entry.ArrivalTime != nil {
+				arrivals[studentID] = entry.ArrivalTime.Format("15:04")
+			}
+		}
+	}
+	return arrivals, pickups, cancelled, nil
 }
 
 // classDayDepartures renders the departure plan of every student REDUCED to
@@ -302,10 +361,10 @@ func classDayDeparture(student *userModels.Student, weekday string, companions [
 
 // buildClassDayReport projects full roster rows onto one calendar day: the
 // weekday's offerings decide who stays, a reported day status wins over any
-// enrollment, and everyone else goes home after lessons. A day-specific
-// departure (from the live student row) replaces the roster's week summary
-// when available.
-func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string, departures map[int64]string) *ClassDayReport {
+// enrollment, and everyone else goes home after lessons. Day-specific
+// departures and effective arrival/pickup times (from the live plans)
+// replace the roster's form-answer values when available.
+func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string, departures, arrivals, pickups map[int64]string) *ClassDayReport {
 	weekday := classDayWeekdayKey(date)
 	report := &ClassDayReport{
 		SchoolClass: schoolClass,
@@ -322,6 +381,12 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 			offerings = append(offerings, row.OfferingsByDay[weekday]...)
 			arrival = strings.TrimSpace(row.ArrivalByDay[weekday])
 			pickup = strings.TrimSpace(row.PickupByDay[weekday])
+			if effective := arrivals[row.StudentID]; effective != "" {
+				arrival = effective
+			}
+			if effective := pickups[row.StudentID]; effective != "" {
+				pickup = effective
+			}
 		}
 		status := statuses[row.StudentID]
 		stays := len(offerings) > 0 && status == ""

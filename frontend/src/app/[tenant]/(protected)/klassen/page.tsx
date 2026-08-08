@@ -39,14 +39,17 @@ const STATUS_LABELS: Record<string, string> = {
   sick: "Krank",
   excused: "Entschuldigt",
   class_trip: "Klassenfahrt",
+  // Abhol-Ausnahme ohne Zeit: die Betreuung für diesen Tag wurde abgesagt.
+  cancelled: "Heute abgemeldet",
 };
 
 // Muted status colors from the brand table (LOCATION_COLORS semantics):
-// SICK amber, CLASS_TRIP blue, EXCUSED purple.
+// SICK amber, CLASS_TRIP blue, EXCUSED purple, CANCELLED neutral gray.
 const STATUS_COLORS: Record<string, string> = {
   sick: "#EAB308",
   class_trip: "#5080D8",
   excused: "#7C3AED",
+  cancelled: "#6B7280",
 };
 
 // Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
@@ -104,7 +107,9 @@ function StudentRow({ row }: { readonly row: ClassDayRow }) {
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {row.pickup ? (
+        {/* "bis HH:MM" nur für Kinder, die bleiben — bei Heimgehern und
+            Abgemeldeten wäre die Abholzeit irreführend. */}
+        {row.stays_today && row.pickup ? (
           <span className="text-xs font-medium text-gray-600 tabular-nums">
             bis {row.pickup}
           </span>
