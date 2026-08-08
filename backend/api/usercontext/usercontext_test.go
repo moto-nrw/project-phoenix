@@ -764,7 +764,12 @@ func TestUploadAvatar_Success(t *testing.T) {
 	assert.Contains(t, found.Avatar, "/uploads/avatars/global/")
 	assert.Equal(t, ".png", filepath.Ext(found.Avatar))
 
-	avatarFilePath := filepath.Join("public", filepath.FromSlash(found.Avatar[1:]))
+	// The upload goes through the storage backend, which resolves a relative
+	// upload directory against the discovered public dir. Rebuilding the path
+	// from the working directory would look for the avatar in the test
+	// package's directory instead of where the handler just wrote it.
+	avatarFilePath, err := common.ResolveStoredPath("public", found.Avatar, "/uploads/avatars/global/")
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = os.Remove(avatarFilePath)
 	})
