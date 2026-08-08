@@ -25,6 +25,7 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 	return educationSvc.NewService(
 		repoFactory.Group,
 		repoFactory.GroupTeacher,
+		repoFactory.ClassTeacher,
 		repoFactory.GroupSubstitution,
 		repoFactory.Room,
 		repoFactory.Teacher,

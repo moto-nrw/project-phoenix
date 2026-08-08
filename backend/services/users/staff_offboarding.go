@@ -35,6 +35,7 @@ type StaffOffboardingServiceDependencies struct {
 	TeacherRepo            userModels.TeacherRepository
 	GroupSupervisorRepo    activeModels.GroupSupervisorRepository
 	GroupTeacherRepo       educationModels.GroupTeacherRepository
+	ClassTeacherRepo       educationModels.ClassTeacherRepository
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	InstanceStaffRepo      scheduleModels.InstanceStaffRepository
@@ -178,6 +179,12 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 			return nil, &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("failed to delete teacher record: %w", err)}
 		}
 	}
+
+	classAssignments, err := s.ClassTeacherRepo.DeleteByStaffID(ctx, staffID)
+	if err != nil {
+		return nil, &UsersError{Op: opOffboardStaff, Err: err}
+	}
+	counts["class_teachers"] = classAssignments
 
 	supervisions, err := s.ActivitySupervisorRepo.DeleteByStaffID(ctx, staffID)
 	if err != nil {

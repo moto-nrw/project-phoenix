@@ -737,7 +737,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 	phase *enrollmentModels.Phase,
 	effectiveFrom timezone.Date,
 ) error {
-	drafts, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, replacement, phase)
+	drafts, multiSource, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, replacement, phase)
 	if err != nil {
 		return err
 	}
@@ -760,7 +760,16 @@ func (s *decisionService) splitAdjustedEnrollments(
 	if err := s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, &effectiveFrom); err != nil {
 		return err
 	}
-	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, affectedGroups, enrollmentRewriteBoundary(&effectiveFrom))
+	if err := s.reconcileEnrollmentInstanceRosters(ctx, studentID, affectedGroups, enrollmentRewriteBoundary(&effectiveFrom)); err != nil {
+		return err
+	}
+	// Multi-source templates were deliberately not drafted (see
+	// addSourcedTemplateDrafts); the resync re-establishes the child's union
+	// coverage from the switch date onward — including templates the child
+	// keeps through ANOTHER of the template's source offerings after leaving
+	// this one. Scoped to this child: a dated switch must not reconcile other
+	// children's rows as a side effect.
+	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(&effectiveFrom), []int64{requestChildID})
 }
 
 func (s *decisionService) reconcileAdjustedEnrollment(

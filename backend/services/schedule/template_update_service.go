@@ -202,13 +202,13 @@ func (s *TimetableDataService) updateTemplateLocked(
 	// instance propagation can tell an untouched occurrence (still carrying the
 	// series value) from a per-occurrence override.
 	previousListKind := existing.ListKind
-	previousSourceOfferingID := cloneOptionalInt64(existing.SourceCareOfferingID)
+	previousSourceOfferingIDs := append([]int64(nil), existing.SourceCareOfferingIDs...)
 	previousCalendarPeriodID := cloneOptionalInt64(existing.CalendarPeriodID)
 	// Same pre-write guard as on create: the merged source must resolve before
 	// the field write stamps it onto the group row, otherwise an unknown
 	// offering trips the FK (500) before the resync can classify it as
 	// ErrOfferingSourceInvalid (400) (#2147 review round 18).
-	if err := s.validateOfferingSourceReference(ctx, in.Fields.SourceCareOfferingID, in.CalendarPeriodID, "update template: validate offering source"); err != nil {
+	if err := s.validateOfferingSourceReference(ctx, in.Fields.SourceCareOfferingIDs, previousSourceOfferingIDs, in.CalendarPeriodID, "update template: validate offering source"); err != nil {
 		return err
 	}
 	if err := s.updateTemplateFields(ctx, in); err != nil {
@@ -232,7 +232,7 @@ func (s *TimetableDataService) updateTemplateLocked(
 	// rows first or a manually re-picked child would end up with no row at
 	// all (the protected row suppresses the manual create, then a later
 	// cleanup would delete it).
-	if err := s.resyncUpdatedTemplateOfferingRoster(ctx, in, previousSourceOfferingID, validFrom); err != nil {
+	if err := s.resyncUpdatedTemplateOfferingRoster(ctx, in, previousSourceOfferingIDs, validFrom); err != nil {
 		return err
 	}
 	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
@@ -245,7 +245,7 @@ func (s *TimetableDataService) updateTemplateLocked(
 	if err != nil {
 		return err
 	}
-	if err := s.reconcileManualRosterInstances(ctx, in, previousSourceOfferingID, validFrom, retiredStudentIDs); err != nil {
+	if err := s.reconcileManualRosterInstances(ctx, in, previousSourceOfferingIDs, validFrom, retiredStudentIDs); err != nil {
 		return err
 	}
 	if err := s.reconcileSeriesPredecessorRoster(ctx, in, tenantID, validFrom); err != nil {
@@ -271,22 +271,21 @@ func (s *TimetableDataService) updateTemplateLocked(
 func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
-	previousSourceOfferingID *int64,
+	previousSourceOfferingIDs []int64,
 	scheduleValidFrom *timezone.Date,
 ) error {
-	if in.Fields.SourceCareOfferingID == nil && previousSourceOfferingID == nil {
+	if len(in.Fields.SourceCareOfferingIDs) == 0 && len(previousSourceOfferingIDs) == 0 {
 		return nil
 	}
 	if s.deps.ResyncOfferingRoster == nil {
 		return &ScheduleError{Op: updateTemplateOp, Err: errors.New("offering roster resync is not configured")}
 	}
 	if err := s.deps.ResyncOfferingRoster(ctx, OfferingRosterResyncInput{
-		TemplateID:         in.TemplateID,
-		PreviousOfferingID: previousSourceOfferingID,
-		OfferingID:         in.Fields.SourceCareOfferingID,
-		GradeLevels:        in.Fields.SourceGradeLevels,
-		CalendarPeriodID:   in.CalendarPeriodID,
-		EffectiveFrom:      offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
+		TemplateID:       in.TemplateID,
+		OfferingIDs:      in.Fields.SourceCareOfferingIDs,
+		GradeLevels:      in.Fields.SourceGradeLevels,
+		CalendarPeriodID: in.CalendarPeriodID,
+		EffectiveFrom:    offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
 	}); err != nil {
 		return &ScheduleError{Op: "update template: resync offering roster", Err: err}
 	}
@@ -333,11 +332,11 @@ func offeringResyncBoundary(rosterValidFrom timezone.Date, scheduleValidFrom *ti
 func (s *TimetableDataService) reconcileManualRosterInstances(
 	ctx context.Context,
 	in TemplateUpdateInput,
-	previousSourceOfferingID *int64,
+	previousSourceOfferingIDs []int64,
 	scheduleValidFrom *timezone.Date,
 	retiredStudentIDs []int64,
 ) error {
-	if in.Fields.SourceCareOfferingID == nil && previousSourceOfferingID == nil {
+	if len(in.Fields.SourceCareOfferingIDs) == 0 && len(previousSourceOfferingIDs) == 0 {
 		return nil
 	}
 	if s.deps.ActivityInstanceRepo == nil || s.deps.InstanceStudentRepo == nil || s.deps.StudentEnrollmentRepo == nil {
@@ -620,7 +619,7 @@ func validateTemplateUpdateInput(in TemplateUpdateInput) error {
 		return err
 	}
 	if err := validateOfferingSourceInput(
-		in.Fields.SourceCareOfferingID,
+		in.Fields.SourceCareOfferingIDs,
 		in.Fields.SourceGradeLevels,
 		in.Fields.TargetGroupType,
 		in.StudentIDs,

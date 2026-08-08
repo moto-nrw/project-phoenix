@@ -25,23 +25,22 @@ func decodeUpdateSourceFields(t *testing.T, raw string) *updateTemplateRequest {
 func TestUpdateTemplateRequestSourceFieldPresence(t *testing.T) {
 	t.Run("omitted fields are unset", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, `{"name":"Tpl"}`)
-		assert.False(t, req.SourceCareOfferingID.Set)
+		assert.False(t, req.SourceCareOfferingIDs.Set)
 		assert.False(t, req.SourceGradeLevels.Set)
 	})
 
 	t.Run("explicit null is set with nil value", func(t *testing.T) {
-		req := decodeUpdateSourceFields(t, `{"source_care_offering_id":null,"source_grade_levels":null}`)
-		assert.True(t, req.SourceCareOfferingID.Set)
-		assert.Nil(t, req.SourceCareOfferingID.Value)
+		req := decodeUpdateSourceFields(t, `{"source_care_offering_ids":null,"source_grade_levels":null}`)
+		assert.True(t, req.SourceCareOfferingIDs.Set)
+		assert.Nil(t, req.SourceCareOfferingIDs.Value)
 		assert.True(t, req.SourceGradeLevels.Set)
 		assert.Nil(t, req.SourceGradeLevels.Value)
 	})
 
 	t.Run("explicit values are set", func(t *testing.T) {
-		req := decodeUpdateSourceFields(t, `{"source_care_offering_id":7,"source_grade_levels":[2,3]}`)
-		require.True(t, req.SourceCareOfferingID.Set)
-		require.NotNil(t, req.SourceCareOfferingID.Value)
-		assert.EqualValues(t, 7, *req.SourceCareOfferingID.Value)
+		req := decodeUpdateSourceFields(t, `{"source_care_offering_ids":[7,9],"source_grade_levels":[2,3]}`)
+		require.True(t, req.SourceCareOfferingIDs.Set)
+		assert.Equal(t, []int64{7, 9}, req.SourceCareOfferingIDs.Value)
 		assert.True(t, req.SourceGradeLevels.Set)
 		assert.Equal(t, []int{2, 3}, req.SourceGradeLevels.Value)
 	})
@@ -74,80 +73,76 @@ func TestUpdateTemplateBind_DefersSourceValidationUntilMerge(t *testing.T) {
 		req := decodeUpdateSourceFields(t, validUpdateBodyJSON(
 			`"target_group_type":"angebot","source_grade_levels":[2]`))
 		require.NoError(t, req.Bind(nil))
-		assert.False(t, req.SourceCareOfferingID.Set)
+		assert.False(t, req.SourceCareOfferingIDs.Set)
 		assert.Equal(t, []int{2}, req.SourceGradeLevels.Value)
 	})
 
 	t.Run("explicit null source next to a filter fails at bind", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, validUpdateBodyJSON(
-			`"target_group_type":"angebot","source_care_offering_id":null,"source_grade_levels":[2]`))
-		require.ErrorContains(t, req.Bind(nil), "source_grade_levels requires source_care_offering_id")
+			`"target_group_type":"angebot","source_care_offering_ids":null,"source_grade_levels":[2]`))
+		require.ErrorContains(t, req.Bind(nil), "source_grade_levels requires source_care_offering_ids")
 	})
 
 	t.Run("submitted source on a non-angebot type fails at bind", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, validUpdateBodyJSON(
-			`"target_group_type":"klasse","target_school_class":"1a","source_care_offering_id":7`))
+			`"target_group_type":"klasse","target_school_class":"1a","source_care_offering_ids":[7]`))
 		require.ErrorContains(t, req.Bind(nil), "requires target group type 'angebot'")
 	})
 }
 
-func sourcedExistingTemplate(offeringID int64, gradeLevels []int) templateResponse {
+func sourcedExistingTemplate(offeringIDs []int64, gradeLevels []int) templateResponse {
 	return templateResponse{
-		TargetGroupType:      activitiesModel.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offeringID,
-		SourceGradeLevels:    gradeLevels,
+		TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: offeringIDs,
+		SourceGradeLevels:     gradeLevels,
 	}
 }
 
 func TestApplyOfferingSourcePresence(t *testing.T) {
-	const storedOfferingID int64 = 41
+	storedOfferingIDs := []int64{41, 43}
 
-	t.Run("omitted fields carry the stored source and filter", func(t *testing.T) {
+	t.Run("omitted fields carry the stored sources and filter", func(t *testing.T) {
 		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
-		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingID, []int{1, 2}))
-		require.NotNil(t, req.SourceCareOfferingID.Value)
-		assert.Equal(t, storedOfferingID, *req.SourceCareOfferingID.Value)
+		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
+		assert.Equal(t, storedOfferingIDs, req.SourceCareOfferingIDs.Value)
 		assert.Equal(t, []int{1, 2}, req.SourceGradeLevels.Value)
 	})
 
-	t.Run("explicit null clears source and drags the omitted filter along", func(t *testing.T) {
+	t.Run("explicit null clears sources and drags the omitted filter along", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:      activitiesModel.TargetGroupTypeAngebot,
-			SourceCareOfferingID: nullableInt64{Set: true, Value: nil},
+			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: nil},
 		}
-		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingID, []int{1, 2}))
-		assert.Nil(t, req.SourceCareOfferingID.Value)
+		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
+		assert.Nil(t, req.SourceCareOfferingIDs.Value)
 		assert.Nil(t, req.SourceGradeLevels.Value,
 			"a source cleared by explicit null must not leave the stored filter behind (DB CHECK)")
 	})
 
 	t.Run("provided values win over the stored ones", func(t *testing.T) {
-		newOfferingID := storedOfferingID + 1
 		req := &updateTemplateRequest{
-			TargetGroupType:      activitiesModel.TargetGroupTypeAngebot,
-			SourceCareOfferingID: nullableInt64{Set: true, Value: &newOfferingID},
-			SourceGradeLevels:    nullableIntSlice{Set: true, Value: []int{4}},
+			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: []int64{44}},
+			SourceGradeLevels:     nullableIntSlice{Set: true, Value: []int{4}},
 		}
-		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingID, []int{1, 2}))
-		require.NotNil(t, req.SourceCareOfferingID.Value)
-		assert.Equal(t, newOfferingID, *req.SourceCareOfferingID.Value)
+		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
+		assert.Equal(t, []int64{44}, req.SourceCareOfferingIDs.Value)
 		assert.Equal(t, []int{4}, req.SourceGradeLevels.Value)
 	})
 
 	t.Run("omitted filter follows a provided source", func(t *testing.T) {
-		newOfferingID := storedOfferingID + 1
 		req := &updateTemplateRequest{
-			TargetGroupType:      activitiesModel.TargetGroupTypeAngebot,
-			SourceCareOfferingID: nullableInt64{Set: true, Value: &newOfferingID},
+			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: []int64{44}},
 		}
-		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingID, []int{1, 2}))
+		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
 		assert.Equal(t, []int{1, 2}, req.SourceGradeLevels.Value)
 	})
 
 	t.Run("leaving the angebot Zielgruppe drops the rule instead of carrying it", func(t *testing.T) {
 		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeKlasse}
-		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingID, []int{1, 2}))
-		assert.Nil(t, req.SourceCareOfferingID.Value,
+		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
+		assert.Nil(t, req.SourceCareOfferingIDs.Value,
 			"a source cannot exist outside 'angebot' (DB CHECK); the type switch removes it like a split does")
 		assert.Nil(t, req.SourceGradeLevels.Value)
 	})
@@ -155,7 +150,7 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 	t.Run("no stored source stays no source", func(t *testing.T) {
 		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
 		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: activitiesModel.TargetGroupTypeAngebot})
-		assert.Nil(t, req.SourceCareOfferingID.Value)
+		assert.Nil(t, req.SourceCareOfferingIDs.Value)
 		assert.Nil(t, req.SourceGradeLevels.Value)
 	})
 }

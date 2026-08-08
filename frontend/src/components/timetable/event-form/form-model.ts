@@ -334,7 +334,7 @@ export interface EventFormState {
    * manual student picker is hidden and studentIds stays empty — the roster
    * is server-managed.
    */
-  sourceCareOfferingId: string;
+  sourceCareOfferingIds: string[];
   sourceGradeLevels: number[];
 }
 
@@ -391,7 +391,7 @@ export function emptyForm(
     targetGradeLevels: [],
     targetSchoolClasses: [],
     educationGroupIds: [],
-    sourceCareOfferingId: "",
+    sourceCareOfferingIds: [],
     sourceGradeLevels: [],
   };
 }
@@ -440,7 +440,7 @@ export function formFromInstance(
     targetGradeLevels: [],
     targetSchoolClasses: [],
     educationGroupIds: [],
-    sourceCareOfferingId: "",
+    sourceCareOfferingIds: [],
     sourceGradeLevels: [],
   };
 }
@@ -484,7 +484,8 @@ export function formFromSeries(
     // A sourced roster is server-managed: the backend rejects student_ids
     // next to a source, and the list's studentIds are exactly the sourced
     // rows — prefilling them would turn the rule into a snapshot.
-    studentIds: series.sourceCareOfferingId ? [] : series.studentIds,
+    studentIds:
+      (series.sourceCareOfferingIds?.length ?? 0) > 0 ? [] : series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
     // A series that carries weekday assignments was saved in per-weekday mode
@@ -503,7 +504,7 @@ export function formFromSeries(
         ? String(series.targetGradeLevel)
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
-    sourceCareOfferingId: series.sourceCareOfferingId ?? "",
+    sourceCareOfferingIds: series.sourceCareOfferingIds ?? [],
     sourceGradeLevels: series.sourceGradeLevels ?? [],
     targetGradeLevels:
       targets.length > 0

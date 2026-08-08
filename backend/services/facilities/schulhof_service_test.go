@@ -79,6 +79,7 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 	educationService := educationSvc.NewService(
 		repoFactory.Group,
 		repoFactory.GroupTeacher,
+		repoFactory.ClassTeacher,
 		repoFactory.GroupSubstitution,
 		repoFactory.Room,
 		repoFactory.Teacher,

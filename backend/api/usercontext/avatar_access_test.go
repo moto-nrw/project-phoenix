@@ -41,6 +41,10 @@ func (m *mockAvatarUserContextService) GetMyGroups(context.Context) ([]*educatio
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockAvatarUserContextService) GetMySchoolClasses(context.Context) ([]string, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockAvatarUserContextService) ResolveSSESubscription(context.Context) (*usercontextsvc.SSESubscription, error) {
 	return nil, errors.New("not implemented")
 }

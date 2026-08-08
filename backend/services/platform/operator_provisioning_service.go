@@ -517,6 +517,13 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			if strings.EqualFold(role.Name, "teacher") {
 				return &InvalidDataError{Err: fmt.Errorf("legacy teacher role is no longer assignable; use the user role for caregiver accounts")}
 			}
+			// Same invariant the invitation flow enforces (#1772): the
+			// caregiver upgrade would hand a Lehrkraft the full user role
+			// plus a caregiver profile, defeating its class-scoped
+			// read-only design.
+			if req.CaregiverEnabled && authSvc.IsLehrkraftSystemRole(role) {
+				return &InvalidDataError{Err: fmt.Errorf("the lehrkraft role cannot be combined with caregiver capability")}
+			}
 			selectedRole = role
 		}
 

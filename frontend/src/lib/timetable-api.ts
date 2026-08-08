@@ -32,7 +32,9 @@ import type {
   MoveStaffInput,
   MoveStaffResponse,
   StaffPoolResponse,
+  BackendCombinedOfferingCountsResponse,
   BackendOfferingSourcesResponse,
+  CombinedOfferingCounts,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
   OfferingSourceOption,
@@ -83,6 +85,7 @@ import {
   mapEditedInWindowResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
+  mapCombinedOfferingCounts,
   mapOfferingSourceOptions,
   mapTemplates,
   mapWeeklyInstances,
@@ -225,6 +228,31 @@ class TimetableService {
     );
     const raw = await unwrap<BackendOfferingSourcesResponse>(response);
     return mapOfferingSourceOptions(raw);
+  }
+
+  /**
+   * GET /api/timetable/offering-sources/combined-counts — deduplizierte
+   * Kinderzahl über eine Auswahl mehrerer Angebote (Mehrfach-Quelle): ein
+   * Kind in zwei gewählten Angeboten zählt einmal, damit der Editor die
+   * exakte Belegung der Vereinigung anzeigt.
+   */
+  async getCombinedOfferingCounts(
+    offeringIds: string[],
+    calendarPeriodId?: string | null,
+  ): Promise<CombinedOfferingCounts> {
+    const params = new URLSearchParams();
+    params.set("ids", offeringIds.join(","));
+    if (calendarPeriodId) params.set("calendar_period_id", calendarPeriodId);
+    const response = await fetch(
+      `/api/timetable/offering-sources/combined-counts?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    const raw = await unwrap<BackendCombinedOfferingCountsResponse>(response);
+    return mapCombinedOfferingCounts(raw);
   }
 
   async getTemplates(periodId?: string | null): Promise<TemplatesResponse> {

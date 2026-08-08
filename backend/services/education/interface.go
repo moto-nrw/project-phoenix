@@ -32,6 +32,13 @@ type Service interface {
 	GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*users.Teacher, error)
 	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error)
 
+	// Class-Teacher operations (#1772): staff-to-school-class assignments
+	// that scope the Lehrkraft day view. Classes are free-text strings
+	// matched via schoolclass.Normalize; there is no class entity. changedBy
+	// is the authenticated account ID for the audit trail.
+	GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]string, error)
+	SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string, changedBy int64) error
+
 	// Substitution operations
 	CreateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
 

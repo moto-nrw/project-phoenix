@@ -69,21 +69,30 @@ describe("useEventForm offering source roster stash", () => {
       result.current.update("studentIds", ["11", "12"]);
     });
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
     expect(result.current.form.studentIds).toEqual([]);
 
-    // Switching between offerings keeps the stash from before the first one.
+    // Adding a second offering keeps the stash from before the first one.
     act(() => {
-      result.current.changeSourceOffering("6");
+      result.current.changeSourceOfferings(["5", "6"]);
     });
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["5", "6"]);
     expect(result.current.form.studentIds).toEqual([]);
 
-    // Clearing the source must restore the manual picks — submitting the
-    // emptied array would wipe the shared manual roster on save.
+    // Removing one of two sources keeps the sourced roster.
     act(() => {
-      result.current.changeSourceOffering("");
+      result.current.changeSourceOfferings(["6"]);
     });
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["6"]);
+    expect(result.current.form.studentIds).toEqual([]);
+
+    // Clearing the LAST source must restore the manual picks — submitting
+    // the emptied array would wipe the shared manual roster on save.
+    act(() => {
+      result.current.changeSourceOfferings([]);
+    });
+    expect(result.current.form.sourceCareOfferingIds).toEqual([]);
     expect(result.current.form.studentIds).toEqual(["11", "12"]);
   });
 
@@ -107,7 +116,7 @@ describe("useEventForm offering source roster stash", () => {
       isOpen: true,
       maxParticipants: 20,
       targetGroupType: "angebot",
-      sourceCareOfferingId: "9",
+      sourceCareOfferingIds: ["9"],
       enrollmentCount: 0,
       supervisorCount: 0,
       requiredStaffCount: 0,
@@ -155,7 +164,7 @@ describe("useEventForm offering source roster stash", () => {
       result.current.update("studentIds", ["11", "12"]);
     });
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
     expect(result.current.form.studentIds).toEqual([]);
 
@@ -163,9 +172,9 @@ describe("useEventForm offering source roster stash", () => {
     // not adopt (and later save) session 1's stashed roster.
     rerender(props(false, sourcedSeries));
     rerender(props(true, sourcedSeries));
-    expect(result.current.form.sourceCareOfferingId).toBe("9");
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["9"]);
     act(() => {
-      result.current.changeSourceOffering("");
+      result.current.changeSourceOfferings([]);
     });
     expect(result.current.form.studentIds).toEqual([]);
   });
@@ -214,25 +223,25 @@ describe("useEventForm offering source roster stash", () => {
     // The pick is parked, not applied — saving now would silently replace
     // the deviating weekday staffing with the shared list.
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
-    expect(result.current.pendingSourceOfferingId).toBe("5");
-    expect(result.current.form.sourceCareOfferingId).toBe("");
+    expect(result.current.pendingSourceOfferingIds).toEqual(["5"]);
+    expect(result.current.form.sourceCareOfferingIds).toEqual([]);
 
     act(() => {
       result.current.cancelPendingSourceOffering();
     });
-    expect(result.current.pendingSourceOfferingId).toBeNull();
-    expect(result.current.form.sourceCareOfferingId).toBe("");
+    expect(result.current.pendingSourceOfferingIds).toBeNull();
+    expect(result.current.form.sourceCareOfferingIds).toEqual([]);
 
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
     act(() => {
       result.current.confirmPendingSourceOffering();
     });
-    expect(result.current.pendingSourceOfferingId).toBeNull();
-    expect(result.current.form.sourceCareOfferingId).toBe("5");
+    expect(result.current.pendingSourceOfferingIds).toBeNull();
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
   });
 
   it("restores the manual roster when the target group leaves 'angebot'", () => {
@@ -269,7 +278,7 @@ describe("useEventForm offering source roster stash", () => {
       result.current.changeTargetGroupType("angebot");
     });
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
     expect(result.current.form.studentIds).toEqual([]);
 
@@ -279,7 +288,7 @@ describe("useEventForm offering source roster stash", () => {
     act(() => {
       result.current.changeTargetGroupType("klasse");
     });
-    expect(result.current.form.sourceCareOfferingId).toBe("");
+    expect(result.current.form.sourceCareOfferingIds).toEqual([]);
     expect(result.current.form.studentIds).toEqual(["11", "12"]);
   });
 
@@ -328,7 +337,7 @@ describe("useEventForm offering source roster stash", () => {
     });
 
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
     act(() => {
       result.current.confirmPendingSourceOffering();
@@ -336,7 +345,7 @@ describe("useEventForm offering source roster stash", () => {
 
     // Nobody chose an all-weekdays union: per-weekday mode ends and the
     // shared Besetzung starts empty until it is picked explicitly.
-    expect(result.current.form.sourceCareOfferingId).toBe("5");
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
     expect(result.current.form.perWeekdayRoster).toBe(false);
     expect(result.current.form.staffIds).toEqual([]);
     expect(result.current.form.primaryStaffId).toBe("");
@@ -384,13 +393,13 @@ describe("useEventForm offering source roster stash", () => {
     });
 
     act(() => {
-      result.current.changeSourceOffering("5");
+      result.current.changeSourceOfferings(["5"]);
     });
 
     // No deviation between days, so no confirmation — and the collapse takes
     // the concrete day staffing, not the stale shared list.
-    expect(result.current.pendingSourceOfferingId).toBeNull();
-    expect(result.current.form.sourceCareOfferingId).toBe("5");
+    expect(result.current.pendingSourceOfferingIds).toBeNull();
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
     expect(result.current.form.perWeekdayRoster).toBe(false);
     expect(result.current.form.staffIds).toEqual(["7"]);
   });

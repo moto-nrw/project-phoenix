@@ -37,9 +37,13 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
   },
 }));
 
-vi.mock("~/lib/auth-helpers", () => ({
-  getRoleDisplayName: (name: string) => name,
-}));
+vi.mock("~/lib/auth-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/auth-helpers")>();
+  return {
+    ...actual,
+    getRoleDisplayName: (name: string) => name,
+  };
+});
 
 vi.mock("~/lib/hooks/use-scroll-to-error", () => ({
   useScrollToError: () => vi.fn(),
@@ -66,6 +70,7 @@ const defaultRoles = [
   { id: "2", name: "user" },
   { id: "3", name: "teacher" },
   { id: "4", name: "guardian" },
+  { id: "5", name: "lehrkraft" },
 ];
 
 function renderModal(
@@ -173,6 +178,9 @@ describe("CreateAccountModal", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: "guardian" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "lehrkraft" }),
     ).not.toBeInTheDocument();
   });
 
