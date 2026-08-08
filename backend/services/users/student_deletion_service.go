@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -61,7 +62,54 @@ type studentDeletionService struct {
 	transitionRepo educationModels.GradeTransitionRepository
 	dataAuditRepo  auditModels.DataDeletionRepository
 	auditRepo      auditModels.StudentDeletionRepository
+	documentRepo   userModels.StudentDocumentRepository
 	txHandler      *modelBase.TxHandler
+}
+
+// WireStudentDocumentCleanup attaches the child-document repository to a
+// deletion service so deleting a child also queues storage cleanup for their
+// documents (#777). A service that does not support it is left untouched.
+func WireStudentDocumentCleanup(svc StudentDeletionService, repo userModels.StudentDocumentRepository) {
+	if setter, ok := svc.(interface {
+		SetDocumentRepository(userModels.StudentDocumentRepository)
+	}); ok {
+		setter.SetDocumentRepository(repo)
+	}
+}
+
+// SetDocumentRepository wires the child-document repository so a deletion can
+// queue storage cleanup intents for the child's documents (#777).
+//
+// This has to happen inside the deletion transaction. The document rows
+// cascade away with the child, so queueing afterwards would race a crash and
+// strand the bytes forever; queueing beforehand outside the transaction would
+// make the scheduler delete the documents of a child whose deletion then
+// failed. Nil keeps the pre-#777 behaviour for bare test services.
+func (s *studentDeletionService) SetDocumentRepository(repo userModels.StudentDocumentRepository) {
+	s.documentRepo = repo
+}
+
+// queueDocumentCleanup records an immediately-eligible cleanup intent for
+// every document of the child whose bytes still exist. The intents carry no
+// student foreign key, so they survive the cascade that removes the rows.
+func (s *studentDeletionService) queueDocumentCleanup(ctx context.Context, studentID int64) error {
+	if s.documentRepo == nil {
+		return nil
+	}
+	docs, err := s.documentRepo.ListPendingFileCleanupByOwnerID(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	for _, doc := range docs {
+		cleanup := &userModels.StudentDocumentFileCleanup{}
+		cleanup.OwnerID = studentID
+		cleanup.FilenameStored = doc.FilenameStored
+		cleanup.RetryAfter = time.Now()
+		if err := s.documentRepo.QueueFileCleanup(ctx, cleanup); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func NewStudentDeletionService(
@@ -158,6 +206,11 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 			return err
 		}
 
+		// Before the cascade: the document rows go with the child, the
+		// queued intents do not, and they are what gets the bytes off disk.
+		if err := s.queueDocumentCleanup(txCtx, input.StudentID); err != nil {
+			return err
+		}
 		if err := s.studentRepo.Delete(txCtx, input.StudentID); err != nil {
 			return err
 		}

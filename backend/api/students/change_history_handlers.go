@@ -10,7 +10,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // changeHistoryEntry is the per-child change-history row returned to the
@@ -93,8 +95,18 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Document rows name a category and a filename ("Ärztliches Attest:
+	// Attest_Epilepsie.pdf"). Full access is not enough to read those: the
+	// Dokumente tab gates health and custody paperwork behind their own
+	// permissions, and a history that showed them anyway would simply be the
+	// way around that gate.
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+
 	entries := make([]changeHistoryEntry, 0, len(edits))
 	for _, e := range edits {
+		if !canSeeChangeHistoryEntry(e.FieldName, userPermissions) {
+			continue
+		}
 		entries = append(entries, changeHistoryEntry{
 			ID:        strconv.FormatInt(e.ID, 10),
 			Field:     e.FieldName,
@@ -106,6 +118,24 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 	}
 
 	common.Respond(w, r, http.StatusOK, entries, "Change history retrieved successfully")
+}
+
+// canSeeChangeHistoryEntry filters document rows by the same per-category
+// permissions the document endpoints enforce. Everything else passes: those
+// fields are covered by the full-access gate above.
+//
+// A row whose category cannot be determined (the categoryless form written
+// before the category moved into the field name) is shown only to a caller who
+// may see every category — an unreadable label must not default to visible.
+func canSeeChangeHistoryEntry(fieldName string, userPermissions []string) bool {
+	if !auditModels.IsStudentDocumentField(fieldName) {
+		return true
+	}
+	category := auditModels.StudentDocumentCategoryFromField(fieldName)
+	if category == "" {
+		return usersSvc.CanSeeEveryStudentDocumentCategory(userPermissions)
+	}
+	return usersSvc.CanSeeStudentDocumentCategory(category, userPermissions)
 }
 
 func derefOrEmpty(p *string) string {

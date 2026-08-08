@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -40,12 +41,49 @@ const (
 	StudentFieldDepartureDays          = "departure_days"
 	StudentFieldDepartureCompanionNote = "departure_companion_note"
 
+	// StudentFieldDocumentPrefix marks an upload or deletion in the child's
+	// document file (#777). The full field name carries the category
+	// ("document_attest"), because the reader of a change history must be
+	// filtered by the same per-category permissions the Dokumente tab
+	// enforces — otherwise the history becomes a side channel around them.
+	//
+	// The value carries the category label and the display filename, never
+	// the document's content: the trail must survive the file it describes,
+	// and must not become a second copy of what a deletion removed.
+	StudentFieldDocumentPrefix = "document_"
+
+	// StudentFieldDocument is the categoryless form. Nothing writes it any
+	// more; readers treat it as "category unknown" and show it only to a
+	// caller who may see every category.
+	StudentFieldDocument = "document"
+
 	// StudentFieldEditSystemActor identifies automated changes. edited_by has
 	// no foreign key so zero can safely represent the scheduler without
 	// attributing its work to a real account.
 	StudentFieldEditSystemActorID   int64 = 0
 	StudentFieldEditSystemActorName       = "System"
 )
+
+// StudentDocumentField builds the field name for a document event.
+func StudentDocumentField(category string) string {
+	return StudentFieldDocumentPrefix + category
+}
+
+// StudentDocumentCategoryFromField returns the category encoded in a document
+// field name, or "" when the field is not a categorised document field (a
+// non-document field, or the legacy categoryless form).
+func StudentDocumentCategoryFromField(field string) string {
+	if !strings.HasPrefix(field, StudentFieldDocumentPrefix) {
+		return ""
+	}
+	return strings.TrimPrefix(field, StudentFieldDocumentPrefix)
+}
+
+// IsStudentDocumentField reports whether the field records a document event,
+// in either the categorised or the legacy form.
+func IsStudentDocumentField(field string) bool {
+	return field == StudentFieldDocument || strings.HasPrefix(field, StudentFieldDocumentPrefix)
+}
 
 // Validate ensures the edit record is well-formed before persistence.
 func (e *StudentFieldEdit) Validate() error {
@@ -66,10 +104,15 @@ func (e *StudentFieldEdit) Validate() error {
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
 		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays,
-		StudentFieldDepartureCompanionNote:
+		StudentFieldDepartureCompanionNote, StudentFieldDocument:
 		// Valid field names
 	default:
-		return errors.New("invalid field name")
+		// Document fields carry their category in the name. The vocabulary of
+		// categories belongs to the users domain, so only the shape is checked
+		// here.
+		if StudentDocumentCategoryFromField(e.FieldName) == "" {
+			return errors.New("invalid field name")
+		}
 	}
 
 	if e.CreatedAt.IsZero() {

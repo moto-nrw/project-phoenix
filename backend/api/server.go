@@ -81,6 +81,9 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 	if api.Staff != nil {
 		sched.SetStaffDocumentFileCleaner(api.Staff)
 	}
+	if api.Students != nil {
+		sched.SetStudentDocumentFileCleaner(api.Students)
+	}
 
 	return sched
 }
