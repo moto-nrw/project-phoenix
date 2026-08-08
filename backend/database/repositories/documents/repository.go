@@ -32,11 +32,6 @@ type Config struct {
 	Alias string
 	// OwnerColumn names the owning entity's FK column ("student_id").
 	OwnerColumn string
-	// OwnerTable and OwnerAlias support the "owner was deleted" cleanup
-	// sweep. OwnerTable empty disables that sweep for domains whose owner
-	// cannot be soft-deleted.
-	OwnerTable string
-	OwnerAlias string
 	// CleanupTable and CleanupAlias name the durable cleanup-intent table.
 	CleanupTable string
 	CleanupAlias string
@@ -168,35 +163,6 @@ func (r *Repository[T, C]) ListPendingFileCleanupByOwnerID(ctx context.Context, 
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending " + r.cfg.Alias + " cleanup", Err: err}
-	}
-	return rows, nil
-}
-
-// ListOrphanedOwnerPendingFileCleanups returns every document whose owner is
-// soft-deleted and whose stored bytes still need removal. Domains without a
-// soft-deletable owner get an empty result.
-func (r *Repository[T, C]) ListOrphanedOwnerPendingFileCleanups(ctx context.Context) ([]T, error) {
-	if r.cfg.OwnerTable == "" {
-		return []T{}, nil
-	}
-	var rows []T
-	join := fmt.Sprintf(
-		`JOIN %s AS "%s" ON "%s".tenant_id = "%s".tenant_id AND "%s".id = "%s".%s`,
-		r.cfg.OwnerTable, r.cfg.OwnerAlias,
-		r.cfg.OwnerAlias, r.cfg.Alias,
-		r.cfg.OwnerAlias, r.cfg.Alias, r.cfg.OwnerColumn,
-	)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(r.tableExpr()).
-		Join(join).
-		Where(fmt.Sprintf(`"%s".deleted_at IS NOT NULL`, r.cfg.OwnerAlias)).
-		Where(r.col("file_deleted_at") + " IS NULL").
-		WhereAllWithDeleted()
-	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
-
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list orphaned " + r.cfg.Alias + " cleanup", Err: err}
 	}
 	return rows, nil
 }

@@ -19,10 +19,10 @@ type StudentDocumentRepository struct {
 // NewStudentDocumentRepository creates the student document metadata
 // repository.
 //
-// OwnerTable is intentionally left empty: children are hard-deleted, so there
-// is no "owner is soft-deleted" sweep to run. Their documents cascade away
-// and the stored bytes are reclaimed through cleanup intents queued before
-// the delete, which survive the cascade because they carry no student FK.
+// There is no "owner is soft-deleted" sweep here because children are
+// hard-deleted: their documents cascade away, and the stored bytes are
+// reclaimed through cleanup intents queued before the delete, which survive the
+// cascade because they carry no student FK.
 func NewStudentDocumentRepository(db *bun.DB) users.StudentDocumentRepository {
 	return &StudentDocumentRepository{
 		Repository: documents.NewRepository[*users.StudentDocument, *users.StudentDocumentFileCleanup](db, documents.Config{
