@@ -87,14 +87,19 @@ func templateMultiOfferingSourceUp(ctx context.Context, db *bun.DB) error {
 	// Same invariant as 1.15.266, expressed over the array: a source only on
 	// the 'angebot' Zielgruppe, a grade filter only together with a source,
 	// and never an empty array (empty means "no source" and must be NULL so
-	// the IS NOT NULL lookups stay honest).
+	// the IS NOT NULL lookups stay honest). The explicit IS NOT NULL conjunct
+	// is load-bearing: without it, NULL ids next to a non-NULL filter make
+	// jsonb_typeof(NULL) evaluate the branch to NULL, which a CHECK treats as
+	// satisfied — the filter-without-source row 1.15.266 rejected would slip
+	// through.
 	_, err = db.NewRaw(`
 		ALTER TABLE activities.groups
 			ADD CONSTRAINT chk_activities_groups_offering_source
 			CHECK (
 				(source_care_offering_ids IS NULL AND source_grade_levels IS NULL)
 				OR (
-					jsonb_typeof(source_care_offering_ids) = 'array'
+					source_care_offering_ids IS NOT NULL
+					AND jsonb_typeof(source_care_offering_ids) = 'array'
 					AND jsonb_array_length(source_care_offering_ids) > 0
 					AND target_group_type = 'angebot'
 				)

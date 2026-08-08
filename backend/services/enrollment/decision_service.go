@@ -2645,6 +2645,12 @@ func (s *decisionService) careEnrollmentDraftsForLinks(
 // status flipped to approved (see the Decide call site): the union resync
 // resolves children through their approved status, so the resync inside the
 // approval's materialization pass cannot see the child yet.
+//
+// Mirrors applyApproval's careOfferingsEnabled gate: with the setting off the
+// approval wrote no enrollment rows, so this post-flip pass must not start
+// materializing either. It also takes the tenant recurrence lock itself,
+// because with the setting off the locking materialization pass never ran in
+// this transaction.
 func (s *decisionService) resyncMultiSourceTemplatesForChild(
 	ctx context.Context,
 	requestChildID int64,
@@ -2652,6 +2658,16 @@ func (s *decisionService) resyncMultiSourceTemplatesForChild(
 ) error {
 	if !s.hasEnrollmentMaterializationDependencies() {
 		return nil
+	}
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return nil
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
 	}
 	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
 	if err != nil {

@@ -151,6 +151,19 @@ export function StepPersonalKinder({
     isSeriesFlow &&
     form.targetGroupType === "angebot" &&
     form.sourceCareOfferingIds.length > 0;
+  // Stored sources missing from the fetched list (deactivated offering,
+  // other calendar period, load error) must stay removable: rendered as
+  // checked entries, they keep the select enabled and uncheckable, so a
+  // template can always be cleared back to a manual roster.
+  const knownOfferingIds = new Set(
+    (offeringSources ?? []).map((offering) => offering.id),
+  );
+  const unknownSelectedOfferingOptions = form.sourceCareOfferingIds
+    .filter((id) => !knownOfferingIds.has(id))
+    .map((id) => ({
+      value: id,
+      label: `Nicht mehr verfügbares Angebot (ID ${id})`,
+    }));
   // Per-weekday rosters only make sense for a recurring series, and only once
   // the people lists have actually loaded — otherwise a save would write the
   // empty placeholder lists onto every weekday. An offering-sourced template
@@ -417,16 +430,19 @@ export function StepPersonalKinder({
                   id="event_source_offerings"
                   ariaLabel="Angebote als Quelle"
                   value={form.sourceCareOfferingIds}
-                  options={(offeringSources ?? []).map((offering) => ({
-                    value: offering.id,
-                    label: `${offering.name} (${offering.phaseName || "ohne Phase"}, ${offering.totalCount} ${offering.totalCount === 1 ? "Kind" : "Kinder"})`,
-                    // The union requires one shared enrollment phase; the
-                    // first selection locks the rest of the list to it.
-                    disabled:
-                      sourcePhaseLockId !== null &&
-                      offering.phaseId !== sourcePhaseLockId &&
-                      !form.sourceCareOfferingIds.includes(offering.id),
-                  }))}
+                  options={[
+                    ...unknownSelectedOfferingOptions,
+                    ...(offeringSources ?? []).map((offering) => ({
+                      value: offering.id,
+                      label: `${offering.name} (${offering.phaseName || "ohne Phase"}, ${offering.totalCount} ${offering.totalCount === 1 ? "Kind" : "Kinder"})`,
+                      // The union requires one shared enrollment phase; the
+                      // first selection locks the rest of the list to it.
+                      disabled:
+                        sourcePhaseLockId !== null &&
+                        offering.phaseId !== sourcePhaseLockId &&
+                        !form.sourceCareOfferingIds.includes(offering.id),
+                    })),
+                  ]}
                   onChange={changeSourceOfferings}
                   disabled={offeringSources === null}
                   emptyLabel="Kein Angebot als Quelle"

@@ -309,9 +309,9 @@ func (s *decisionService) ResyncTemplatesSourcedFromOffering(ctx context.Context
 // this call is the ONLY thing keeping the array free of deleted ids. The
 // care-offering and phase delete flows call it BEFORE the row delete (#2147
 // review round 11), while the provenance tags still exist. A remaining
-// source that has itself drifted invalid degrades the template to a plain
-// roster instead of blocking the delete. The caller must hold the tenant
-// recurrence lock.
+// source that has itself drifted invalid keeps the template's remaining
+// sources and skips only the roster resync instead of blocking the delete.
+// The caller must hold the tenant recurrence lock.
 func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error {
 	if !s.hasEnrollmentMaterializationDependencies() {
 		s.Logger.Warn("offering roster detach: enrollment repositories not configured; skipping sourced-template detach")
@@ -341,22 +341,16 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 			if len(remaining) > 0 && errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
 				// A remaining source drifted invalid (e.g. a sibling offering of
 				// the same phase delete that is still queued for its own detach).
-				// The delete must not be blocked: degrade to the cleanup-only
-				// resync; the sibling's later detach — or the admin — sorts out
-				// the rest.
-				s.Logger.Warn("offering roster detach: remaining sources invalid; degrading template to manual roster",
+				// The delete must not be blocked, but the remaining sources are
+				// valid data — only their combination with the period pin failed.
+				// Keep them and skip just this resync, mirroring the tenant-wide
+				// resync's drift handling; the sibling's later detach (or the
+				// next template save) reconciles the rows.
+				s.Logger.Warn("offering roster detach: remaining sources invalid; keeping sources and skipping resync",
 					slog.Int64("template_id", tmpl.ID),
 					slog.Int64("care_offering_id", offeringID),
 					slog.String("error", err.Error()),
 				)
-				remaining, gradeLevels = nil, nil
-				if err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
-					TemplateID:       tmpl.ID,
-					CalendarPeriodID: tmpl.CalendarPeriodID,
-					EffectiveFrom:    effectiveFrom,
-				}); err != nil {
-					return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
-				}
 			} else {
 				return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
 			}

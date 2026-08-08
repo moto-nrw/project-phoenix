@@ -802,6 +802,31 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	assert.Empty(t, degraded.SourceGradeLevels)
 }
 
+// Migration 1.15.281 guard: the jsonb id array carries no FK and the
+// orphaned-filter trigger of 1.15.266 is gone, so the CHECK constraint is the
+// only DB-level line keeping "a grade filter never outlives its source" true
+// for writes that bypass the service layer (generic Update, data migrations).
+// NULL ids next to a non-NULL filter must be rejected: jsonb_typeof(NULL) is
+// NULL, and without the explicit IS NOT NULL conjunct the CHECK would treat
+// that branch as satisfied.
+func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "CheckQuelle", nil)
+	template := createSourcedTemplate(t, env, "CheckTermin", offering.ID, []int{2}, period)
+
+	_, err := env.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("source_care_offering_ids = NULL").
+		Where("id = ?", template.ID).
+		Exec(ctx)
+	require.Error(t, err, "clearing the source while a grade filter remains must violate the CHECK")
+	require.ErrorContains(t, err, "chk_activities_groups_offering_source")
+}
+
 // Multi-source follow-up: detaching ONE of two source offerings must keep the
 // template sourced by the remainder — only the departing offering's children
 // leave the roster.
@@ -842,6 +867,43 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	require.Len(t, rows, 1, "only offering B's child may remain planned")
 	assert.Equal(t, studentB, rows[0].StudentID)
 	assert.NotEqual(t, studentA, rows[0].StudentID)
+}
+
+// A remaining source that has drifted invalid (here: the template re-pinned
+// to a period the phase's service window cannot fit) must not strip the
+// template's remaining sources on detach — the sibling is valid data, only
+// its combination with the period pin failed. The detach keeps the source
+// columns and skips only the resync.
+func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offeringA := createSourceOffering(t, env, "DriftQuelleA", nil)
+	offeringB := createSourceOffering(t, env, "DriftQuelleB", nil)
+	template := createSourcedTemplate(t, env, "DriftTermin", offeringA.ID, []int{2}, period)
+	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	// Drift: re-pin the template to a period the phase window lies outside of,
+	// so validating the remaining source fails with ErrOfferingSourceInvalid.
+	shortPeriod := createCareOfferingTestPeriod(t, env.db, "drift-short",
+		timezone.NewDate(2030, 1, 1),
+		timezone.NewDate(2030, 1, 31))
+	template.CalendarPeriodID = &shortPeriod.ID
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok)
+	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, timezone.TodayDate()))
+
+	kept, err := repositories.NewFactory(env.db).ActivityGroup.FindByID(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs,
+		"a drifted sibling must not strip the remaining valid source")
+	assert.Equal(t, []int{2}, kept.SourceGradeLevels,
+		"the grade filter belongs to the kept source and must survive the detach")
 }
 
 // Multi-source follow-up: a child enrolled in TWO of the template's source
@@ -950,6 +1012,29 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1, "the approval must seed the multi-source template via the union resync")
 	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
+// The post-flip multi-source resync must honor the care-offerings feature
+// gate: with the setting off, applyApproval writes no enrollment rows, so
+// pre-existing offering links must not start materializing through the union
+// resync either.
+func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
+	disabled := false
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offeringA := createSourceOffering(t, env, "GateQuelleA", nil)
+	offeringB := createSourceOffering(t, env, "GateQuelleB", nil)
+	template := createSourcedTemplate(t, env, "GateMultiTermin", offeringA.ID, nil, period)
+	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	submitAndApproveOfferingChild(t, env, offeringB.ID, "gate-multi@example.com", "Gero", 2)
+
+	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
+		"with care offerings disabled the approval must not materialize the multi-source union")
 }
 
 // #2147 review round 11: deleting a phase cascades its care offerings away
