@@ -279,15 +279,22 @@ const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set([
 ]);
 
 /**
+ * Whether a system role may be assigned to a staff account. Shared by every
+ * role picker (invitation form, teacher-creation form, role-management modal,
+ * operator account creation) so the exclusion list lives in one place.
+ */
+export function isAssignableStaffRole(roleName: string): boolean {
+  return !NON_ASSIGNABLE_STAFF_ROLE_NAMES.has(roleName.toLowerCase());
+}
+
+/**
  * Filters a role list down to staff-assignable roles and maps them to
  * display options. Shared by the invitation form, teacher-creation form,
  * and the staff role-management modal to avoid re-deriving this list.
  */
 export function toAssignableRoleOptions(roles: Role[]): RoleOption[] {
   return roles
-    .filter(
-      (role) => !NON_ASSIGNABLE_STAFF_ROLE_NAMES.has(role.name.toLowerCase()),
-    )
+    .filter((role) => isAssignableStaffRole(role.name))
     .map((role) => ({
       id: Number(role.id),
       name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
