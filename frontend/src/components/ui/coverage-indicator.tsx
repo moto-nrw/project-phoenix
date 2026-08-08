@@ -48,9 +48,9 @@ interface CoverageIndicatorProps {
 }
 
 const DOT_COLOR: Record<CoverageState, string> = {
-  covered: "#9CA3AF",
+  covered: MOTO_COLOR_PALETTE.neutral.light,
   gap: MOTO_COLOR_PALETTE.orange.base,
-  acknowledged: "#6B7280",
+  acknowledged: MOTO_COLOR_PALETTE.neutral.base,
 };
 
 const DOT_SIZE_PX: Record<CoverageIndicatorSize, string> = {
@@ -75,7 +75,7 @@ const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
 /** Delta tint of the free-form label, text color only, never a fill. */
 const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
   under: MOTO_COLOR_PALETTE.red.base,
-  over: "#EAB308",
+  over: MOTO_COLOR_PALETTE.amber.base,
 };
 
 function defaultDescription({

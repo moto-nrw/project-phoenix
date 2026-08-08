@@ -60,7 +60,7 @@ describe("PageHeader", () => {
       <PageHeader title="Test" statusIndicator={{ color: "yellow" }} />,
     );
 
-    expect(container.querySelector(".bg-\\[\\#EAB308\\]")).toBeInTheDocument();
+    expect(container.querySelector(".bg-moto-amber")).toBeInTheDocument();
   });
 
   it("renders status indicator with red color", () => {

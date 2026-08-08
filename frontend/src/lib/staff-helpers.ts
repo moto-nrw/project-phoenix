@@ -31,7 +31,15 @@ const LOCATION_COLORS: Record<string, LocationColorConfig> = {
     MOTO_COLOR_PALETTE.green.base,
     "131, 205, 45",
   ],
-  Homeoffice: ["from-sky-50/80 to-sky-100/80", "#0EA5E9", "14, 165, 233"],
+  // Der Hex muss byte-gleich zu MOTO_COLOR_PALETTE.timeTracking.base bleiben,
+  // denn LOCATION_BADGE_TONES ist genau auf diesen Wert geschluesselt. Als
+  // Literal wuerde das Badge nach einer Palettenaenderung stumm auf den
+  // generischen Fallback zurueckfallen.
+  Homeoffice: [
+    "from-sky-50/80 to-sky-100/80",
+    MOTO_COLOR_PALETTE.timeTracking.base,
+    "14, 165, 233",
+  ],
 };
 
 // Absence types all share the same gray styling

@@ -18,7 +18,7 @@ describe("StatusIndicator", () => {
     const { container } = render(<StatusIndicator color="yellow" />);
     const indicator = container.firstChild;
 
-    expect(indicator).toHaveClass("bg-[#EAB308]");
+    expect(indicator).toHaveClass("bg-moto-amber");
     expect(indicator).not.toHaveClass("animate-pulse");
   });
 

@@ -367,7 +367,7 @@ function DayCard({
         </div>
         <div className="flex items-center gap-2">
           {day.attendance && (
-            <span className="bg-moto-green/10 text-moto-green-hover rounded-full px-2 py-0.5 text-xs font-medium">
+            <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
               {formatDuration(day.attendance.durationMinutes)}
             </span>
           )}
@@ -575,7 +575,7 @@ function HistoryTable({
                         </td>
                         <td className="px-6 py-3">
                           {day.attendance ? (
-                            <span className="bg-moto-green/10 text-moto-green-hover rounded-full px-2.5 py-0.5 text-xs font-medium">
+                            <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2.5 py-0.5 text-xs font-medium">
                               {formatDuration(day.attendance.durationMinutes)}
                             </span>
                           ) : (

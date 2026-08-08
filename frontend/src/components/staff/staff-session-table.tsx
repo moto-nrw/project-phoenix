@@ -464,7 +464,7 @@ export function StaffSessionTable({
                         {session?.check_out_time ? (
                           formatTimeOnly(session.check_out_time)
                         ) : session ? (
-                          <span className="bg-moto-green/10 text-moto-green-hover inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
+                          <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
                             <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
                             eingestempelt
                           </span>

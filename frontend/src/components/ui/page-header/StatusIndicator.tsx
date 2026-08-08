@@ -28,12 +28,13 @@ export function StatusIndicator({
 }
 
 function getColorClass(color: StatusIndicatorProps["color"]): string {
-  // Brand hexes from LOCATION_COLORS: green GROUP_ROOM, amber SICK, red DANGER.
+  // Brand hexes from LOCATION_COLORS: green GROUP_ROOM, amber WARNING,
+  // red DANGER.
   switch (color) {
     case "green":
       return "animate-pulse bg-moto-green";
     case "yellow":
-      return "bg-[#EAB308]";
+      return "bg-moto-amber";
     case "red":
       return "bg-moto-red";
     default:
