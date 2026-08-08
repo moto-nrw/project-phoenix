@@ -51,6 +51,8 @@ export function DatabaseFormModal<T>({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <DatabaseForm<Partial<T>>
+        // Modal rendert seinen Titel als h3.
+        sectionLevel={4}
         sections={sections}
         initialData={initialData ?? config.form.defaultValues}
         onSubmit={onSubmit}

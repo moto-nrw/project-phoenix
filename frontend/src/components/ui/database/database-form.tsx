@@ -212,6 +212,20 @@ export interface FormSection {
   concept?: MotoConceptKey;
 }
 
+/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie ConceptSectionHeader. */
+function SectionTitle({
+  level,
+  className,
+  children,
+}: Readonly<{
+  level: 2 | 3 | 4;
+  className?: string;
+  children: React.ReactNode;
+}>) {
+  const Heading = `h${level}` as const;
+  return <Heading className={className}>{children}</Heading>;
+}
+
 interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly sections: FormSection[];
   readonly onSubmit: (data: T) => Promise<void>;
@@ -221,6 +235,13 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly error?: string | null;
   readonly submitLabel: string;
   readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
+  /**
+   * Ueberschriftenebene der Abschnittstitel. Default 2 fuer die
+   * Master-Detail-Ansicht, wo das Formular direkt im Inhaltsbereich steht.
+   * DatabaseFormModal setzt 4, weil Modal seinen Titel als h3 rendert und die
+   * Abschnitte sonst ueber dem Dialog stehen, in dem sie liegen.
+   */
+  readonly sectionLevel?: 2 | 3 | 4;
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({
@@ -232,6 +253,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   error: externalError,
   submitLabel,
   stickyActions = false,
+  sectionLevel = 2,
 }: DatabaseFormProps<T>) {
   const privacyStudentId =
     initialData &&
@@ -750,15 +772,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
               {section.concept ? (
                 <ConceptSectionHeader
                   className="mb-2.5 md:mb-3"
+                  level={sectionLevel}
                   title={section.title}
                   concept={section.concept}
                   subtitle={section.subtitle}
                 />
               ) : (
                 <>
-                  <h2 className="mb-2.5 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm">
+                  <SectionTitle
+                    level={sectionLevel}
+                    className="mb-2.5 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm"
+                  >
                     {section.title}
-                  </h2>
+                  </SectionTitle>
                   {section.subtitle && (
                     <p className="mb-2.5 text-xs text-gray-600 md:mb-3">
                       {section.subtitle}
