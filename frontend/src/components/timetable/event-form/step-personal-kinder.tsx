@@ -77,7 +77,7 @@ export interface StepPersonalKinderProps {
   sourceGradeCounts: Record<number, number>;
   sourceFilteredCount: number;
   sourceOverlapWarnings: string[];
-  toggleSourceOffering: (offeringId: string) => void;
+  changeSourceOfferings: (offeringIds: string[]) => void;
   toggleSourceGradeLevel: (grade: number) => void;
   conflictWarnings: ConflictWarningItem[];
   coverageWarnings: ShiftCoverageWarningItem[];
@@ -133,7 +133,7 @@ export function StepPersonalKinder({
   sourceGradeCounts,
   sourceFilteredCount,
   sourceOverlapWarnings,
-  toggleSourceOffering,
+  changeSourceOfferings,
   toggleSourceGradeLevel,
   conflictWarnings,
   coverageWarnings,
@@ -409,73 +409,46 @@ export function StepPersonalKinder({
 
           {form.targetGroupType === "angebot" && (
             <div className="mt-1 flex flex-col gap-2">
-              <fieldset className="flex flex-col gap-1">
-                <legend className="text-xs font-semibold text-gray-700">
-                  Angebote als Quelle
-                </legend>
-                <p className="text-xs text-gray-500">
+              <Field
+                label="Angebote als Quelle"
+                htmlFor="event_source_offerings"
+              >
+                <MultiCheckboxSelect
+                  id="event_source_offerings"
+                  ariaLabel="Angebote als Quelle"
+                  value={form.sourceCareOfferingIds}
+                  options={(offeringSources ?? []).map((offering) => ({
+                    value: offering.id,
+                    label: `${offering.name} (${offering.phaseName || "ohne Phase"}, ${offering.totalCount} ${offering.totalCount === 1 ? "Kind" : "Kinder"})`,
+                    // The union requires one shared enrollment phase; the
+                    // first selection locks the rest of the list to it.
+                    disabled:
+                      sourcePhaseLockId !== null &&
+                      offering.phaseId !== sourcePhaseLockId &&
+                      !form.sourceCareOfferingIds.includes(offering.id),
+                  }))}
+                  onChange={changeSourceOfferings}
+                  disabled={offeringSources === null}
+                  emptyLabel="Kein Angebot als Quelle"
+                />
+                <p className="mt-1 text-xs text-gray-500">
                   Mehrere Angebote lassen sich kombinieren – die Kinder aller
                   gewählten Angebote werden zusammengeführt, jedes Kind zählt
                   dabei nur einmal. Alle Angebote müssen zur selben Anmeldephase
                   gehören.
                 </p>
-                {offeringSources === null ? (
-                  <p className="text-xs text-gray-500">
-                    Angebote werden geladen …
-                  </p>
-                ) : (
-                  <div className="mt-1 flex flex-col gap-1.5">
-                    {(offeringSources ?? []).map((offering) => {
-                      const checked = form.sourceCareOfferingIds.includes(
-                        offering.id,
-                      );
-                      const phaseLocked =
-                        sourcePhaseLockId !== null &&
-                        offering.phaseId !== sourcePhaseLockId &&
-                        !checked;
-                      return (
-                        <label
-                          key={offering.id}
-                          className={`flex items-center gap-2 text-sm ${
-                            phaseLocked
-                              ? "cursor-not-allowed text-gray-400"
-                              : "cursor-pointer text-gray-700"
-                          }`}
-                        >
-                          <Checkbox
-                            checked={checked}
-                            disabled={phaseLocked}
-                            onChange={() => toggleSourceOffering(offering.id)}
-                          />
-                          <span>
-                            {offering.name} (
-                            {offering.phaseName || "ohne Phase"},{" "}
-                            {offering.totalCount}{" "}
-                            {offering.totalCount === 1 ? "Kind" : "Kinder"})
-                          </span>
-                        </label>
-                      );
-                    })}
-                    {(offeringSources ?? []).length === 0 && (
-                      <p className="text-xs text-gray-500">
-                        Keine aktiven Betreuungsangebote im gewählten
-                        Planungszeitraum.
-                      </p>
-                    )}
-                  </div>
-                )}
                 {sourcePhaseLockId !== null &&
                   (offeringSources ?? []).some(
                     (offering) =>
                       offering.phaseId !== sourcePhaseLockId &&
                       !form.sourceCareOfferingIds.includes(offering.id),
                   ) && (
-                    <p className="text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-gray-500">
                       Angebote anderer Anmeldephasen sind ausgegraut, solange
                       eine Quelle gewählt ist.
                     </p>
                   )}
-              </fieldset>
+              </Field>
               {offeringSourcesError ? (
                 <Alert type="warning" message={offeringSourcesError} />
               ) : null}

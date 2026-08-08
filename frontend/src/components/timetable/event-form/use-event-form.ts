@@ -2975,17 +2975,18 @@ export function useEventForm({
     setValidationError(null);
   };
 
-  // Offering pick awaiting explicit confirmation because applying it removes
-  // a deliberate per-weekday staffing (#2147 review): with a source set, the
-  // payload carries only the shared staff list (the backend rejects
+  // Offering selection awaiting explicit confirmation because applying it
+  // removes a deliberate per-weekday staffing (#2147 review): with a source
+  // set, the payload carries only the shared staff list (the backend rejects
   // weekday_assignments next to a source). Confirming empties the shared
   // Besetzung, so the replacement staffing is an explicit choice, never an
-  // implicit all-weekdays union (#2147 review round 13).
-  const [pendingSourceOfferingId, setPendingSourceOfferingId] = useState<
-    string | null
+  // implicit all-weekdays union (#2147 review round 13). A list because the
+  // MultiCheckboxSelect's "Alle auswählen" can add several offerings at once.
+  const [pendingSourceOfferingIds, setPendingSourceOfferingIds] = useState<
+    string[] | null
   >(null);
   useEffect(() => {
-    setPendingSourceOfferingId(null);
+    setPendingSourceOfferingIds(null);
     // A new modal session must not inherit the previous session's stashed
     // manual roster: clearing a source in a freshly opened, already sourced
     // template would otherwise restore (and save) another template's picks
@@ -2993,34 +2994,25 @@ export function useEventForm({
     preSourceStudentIdsRef.current = [];
   }, [isOpen]);
 
-  const toggleSourceOffering = (offeringId: string) => {
-    const selected = form.sourceCareOfferingIds;
-    const nextIds = selected.includes(offeringId)
-      ? selected.filter((id) => id !== offeringId)
-      : [...selected, offeringId];
+  const changeSourceOfferings = (nextIds: string[]) => {
     if (
       nextIds.length > 0 &&
-      selected.length === 0 &&
+      form.sourceCareOfferingIds.length === 0 &&
       hasPerWeekdayStaffDeviation(form)
     ) {
-      setPendingSourceOfferingId(offeringId);
+      setPendingSourceOfferingIds(nextIds);
       return;
     }
     applySourceOfferingIds(nextIds);
   };
 
   const confirmPendingSourceOffering = () => {
-    if (pendingSourceOfferingId === null) return;
-    applySourceOfferingIds([
-      ...form.sourceCareOfferingIds.filter(
-        (id) => id !== pendingSourceOfferingId,
-      ),
-      pendingSourceOfferingId,
-    ]);
-    setPendingSourceOfferingId(null);
+    if (pendingSourceOfferingIds === null) return;
+    applySourceOfferingIds(pendingSourceOfferingIds);
+    setPendingSourceOfferingIds(null);
   };
 
-  const cancelPendingSourceOffering = () => setPendingSourceOfferingId(null);
+  const cancelPendingSourceOffering = () => setPendingSourceOfferingIds(null);
 
   const toggleSourceGradeLevel = (grade: number) => {
     setForm((current) => ({
@@ -3208,8 +3200,8 @@ export function useEventForm({
     sourceGradeCounts,
     sourceFilteredCount,
     sourceOverlapWarnings,
-    toggleSourceOffering,
-    pendingSourceOfferingId,
+    changeSourceOfferings,
+    pendingSourceOfferingIds,
     confirmPendingSourceOffering,
     cancelPendingSourceOffering,
     toggleSourceGradeLevel,
