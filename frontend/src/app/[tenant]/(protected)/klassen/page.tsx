@@ -12,7 +12,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -34,6 +34,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "KlassenPage" });
 
@@ -231,113 +232,55 @@ function isWeekendISO(dateISO: string): boolean {
   return day === 0 || day === 6;
 }
 
-// Cache-Einträge verfallen nach 2 Minuten: schnelles Vor- und Zurückblättern
-// lädt nicht neu (keine doppelte GDPR-Logzeile), aber eine um 11:30 gemeldete
-// Krankmeldung erscheint spätestens beim nächsten Blättern — nicht erst nach
-// einem vollen Reload.
-const REPORT_CACHE_TTL_MS = 2 * 60 * 1000;
+// Die Ansicht bleibt bei Übergaben lange offen — sie muss sich selbst
+// aktualisieren, damit z. B. eine um 11:30 gemeldete Krankmeldung nicht
+// bis zum Reload unsichtbar bleibt. Kein SSE für diese Daten (Lehrkräfte
+// betreuen keine aktiven Gruppen), daher Intervall plus Fokus-Revalidierung.
+const REPORT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export default function KlassenPage() {
   const { data: session } = useSession();
-  const [classes, setClasses] = useState<string[] | null>(null);
-  const [selectedClass, setSelectedClass] = useState<string>("");
+  const [selectedClassState, setSelectedClass] = useState<string>("");
   const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
-  const [reports, setReports] = useState<Record<string, ClassDayReport>>({});
-  const [failedClasses, setFailedClasses] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // Session-lokaler Cache pro (Klasse, Datum) mit TTL: Zurückblättern lädt
-  // nicht sofort neu, veraltete Stände (z. B. eine zwischenzeitliche
-  // Krankmeldung) verfallen aber nach REPORT_CACHE_TTL_MS.
-  const reportCacheRef = useRef(
-    new Map<string, { report: ClassDayReport; fetchedAt: number }>(),
-  );
   const weekend = isWeekendISO(dateISO);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchMyClasses()
-      .then((list) => {
-        if (cancelled) return;
-        setClasses(list);
-        setSelectedClass((current) => current || (list[0] ?? ""));
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        // Fehler ist NICHT "keine Klassen zugewiesen": sonst rennt die
-        // Lehrkraft bei einem transienten 500 der Verwaltung hinterher.
-        setError("Die Klassenansicht konnte nicht geladen werden.");
-        setLoading(false);
-        logger.error("class_day_classes_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: classes,
+    error: classesError,
+    isLoading: classesLoading,
+  } = useSWRAuth("class-day-my-classes", fetchMyClasses);
+
+  const selectedClass = selectedClassState || (classes?.[0] ?? "");
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Karten oben
   // zeigen jede Klasse, die Listen darunter die ausgewählte. allSettled,
   // damit EINE fehlschlagende Klasse (z. B. 403 nach entzogener Zuweisung)
-  // nicht die gesunden Klassen mit wegwischt. Wochenenden laden gar nicht.
-  useEffect(() => {
-    if (!classes || classes.length === 0) {
-      if (classes !== null) setLoading(false);
-      return;
-    }
-    if (isWeekendISO(dateISO)) {
-      setReports({});
-      setFailedClasses(new Set());
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    const cachedEntries: Record<string, ClassDayReport> = {};
-    const missing: string[] = [];
-    for (const klass of classes) {
-      const key = `${klass}|${dateISO}`;
-      const hit = reportCacheRef.current.get(key);
-      if (hit && Date.now() - hit.fetchedAt < REPORT_CACHE_TTL_MS) {
-        cachedEntries[klass] = hit.report;
-      } else {
-        if (hit) reportCacheRef.current.delete(key);
-        missing.push(klass);
-      }
-    }
-    setReports(cachedEntries);
-    setFailedClasses(new Set());
-    setError(null);
-    if (missing.length === 0) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const load = async () => {
+  // nicht die gesunden Klassen mit wegwischt. Wochenenden laden gar nicht
+  // (spart pro Klasse den vollen Report samt GDPR-Logzeile). SWR liefert
+  // stale-while-revalidate beim Zurückblättern und hält die offene Ansicht
+  // per Intervall und Fokus-Revalidierung aktuell.
+  const { data: dayData, isLoading: reportsLoading } = useSWRAuth(
+    classes && classes.length > 0 && !weekend
+      ? `class-day-reports-${dateISO}-${classes.join("|")}`
+      : null,
+    async () => {
+      const list = classes ?? [];
       const results = await Promise.allSettled(
-        missing.map((klass) =>
+        list.map((klass) =>
           fetchClassDay(klass, dateISO).then(
             (response) => [klass, response] as const,
           ),
         ),
       );
-      if (cancelled) return;
-      const next = { ...cachedEntries };
-      const failed = new Set<string>();
+      const loaded: Record<string, ClassDayReport> = {};
+      const failed: string[] = [];
       for (const [index, result] of results.entries()) {
         if (result.status === "fulfilled") {
           const [klass, response] = result.value;
-          next[klass] = response;
-          reportCacheRef.current.set(`${klass}|${dateISO}`, {
-            report: response,
-            fetchedAt: Date.now(),
-          });
+          loaded[klass] = response;
         } else {
-          const klass = missing[index];
-          if (klass) failed.add(klass);
+          const klass = list[index];
+          if (klass) failed.push(klass);
           logger.error("class_day_fetch_failed", {
             date: dateISO,
             error:
@@ -347,22 +290,38 @@ export default function KlassenPage() {
           });
         }
       }
-      setReports(next);
-      setFailedClasses(failed);
-      if (failed.size > 0 && Object.keys(next).length === 0) {
-        setError("Die Klassenansicht konnte nicht geladen werden.");
-      } else if (failed.size > 0) {
-        setError(
-          "Nicht alle Klassen konnten geladen werden. Bitte laden Sie die Seite neu.",
-        );
-      }
-      setLoading(false);
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [classes, dateISO]);
+      return { reports: loaded, failed };
+    },
+    {
+      refreshInterval: REPORT_REFRESH_INTERVAL_MS,
+      revalidateOnFocus: true,
+      // Beim Datumswechsel Skeleton statt der Daten des alten Tages zeigen;
+      // bereits besuchte Tage kommen trotzdem sofort aus dem SWR-Cache.
+      keepPreviousData: false,
+    },
+  );
+
+  const reports = useMemo(() => dayData?.reports ?? {}, [dayData]);
+  const failedClasses = useMemo(
+    () => new Set(dayData?.failed ?? []),
+    [dayData],
+  );
+  const loading =
+    classesLoading ||
+    (!weekend &&
+      (classes?.length ?? 0) > 0 &&
+      dayData === undefined &&
+      reportsLoading);
+  // Fehler beim Laden der Klassenliste ist NICHT "keine Klassen zugewiesen":
+  // sonst rennt die Lehrkraft bei einem transienten 500 der Verwaltung
+  // hinterher.
+  const error = classesError
+    ? "Die Klassenansicht konnte nicht geladen werden."
+    : failedClasses.size > 0
+      ? Object.keys(reports).length === 0
+        ? "Die Klassenansicht konnte nicht geladen werden."
+        : "Nicht alle Klassen konnten geladen werden. Bitte laden Sie die Seite neu."
+      : null;
 
   const report = selectedClass ? (reports[selectedClass] ?? null) : null;
 
@@ -392,7 +351,7 @@ export default function KlassenPage() {
     [report],
   );
 
-  const noClasses = classes !== null && classes.length === 0;
+  const noClasses = classes !== undefined && classes.length === 0;
 
   return (
     <div className="w-full">

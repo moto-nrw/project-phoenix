@@ -64,6 +64,18 @@ export function TeacherForm({
   // Store a reference to track when we need to reset the form
   const prevIdRef = useRef(initialData?.id);
 
+  // Position (Teacher.Role) lebt auf users.teachers. Ohne Betreuungsprofil
+  // kann der Wert nirgends gespeichert werden — UpdateStaffWithTeacher
+  // schreibt die Teacher-Felder bei is_teacher=false gar nicht erst. Das
+  // Feld auszublenden ist ehrlicher als ein Speichern, das kommentarlos
+  // verworfen wird. Edit: entscheidet der geladene Datensatz; Anlegen:
+  // die gewählte System-Rolle.
+  const selectedRoleIsLehrkraft =
+    roles.find((option) => option.id === roleId)?.systemName === "lehrkraft";
+  const hidePosition = initialData.id
+    ? initialData.is_teacher === false
+    : selectedRoleIsLehrkraft;
+
   // Fetch roles on mount (only for new teachers)
   useEffect(() => {
     if (initialData.id) return; // Skip for editing existing teachers
@@ -188,9 +200,6 @@ export function TeacherForm({
     try {
       // Lehrkraft (#1772) bekommt KEIN Betreuungsprofil (users.teachers) —
       // dieselbe Invariante wie Einladungs-Flow und Operator-Provisioning.
-      const selectedIsLehrkraft =
-        roles.find((option) => option.id === roleId)?.systemName ===
-        "lehrkraft";
       // Prepare data for submission
       const formData: Partial<Teacher> & {
         password?: string;
@@ -199,7 +208,9 @@ export function TeacherForm({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim() || undefined,
-        role: role.trim() || null,
+        // Ohne Betreuungsprofil gibt es kein Position-Feld — den Wert dann
+        // auch nicht mitschicken, das Backend würde ihn ohnehin verwerfen.
+        ...(!hidePosition && { role: role.trim() || null }),
         tag_id: tagId || null, // Use the TagID directly
         // Preserve existing IDs when editing
         ...(initialData.id && { id: initialData.id }),
@@ -209,7 +220,7 @@ export function TeacherForm({
         // immer true und würde einer Lehrkraft beim Speichern eines
         // Tippfehlers ein Betreuungsprofil anlegen. updateTeacher erhält
         // stattdessen den bestehenden Zustand.
-        ...(!initialData.id && { is_teacher: !selectedIsLehrkraft }),
+        ...(!initialData.id && { is_teacher: !selectedRoleIsLehrkraft }),
       };
 
       // Submit the form data
@@ -483,53 +494,57 @@ export function TeacherForm({
           </div>
         </div>
 
-        {/* Professional Information Section */}
-        <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
-          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-            <svg
-              className="h-3.5 w-3.5 text-orange-600 md:h-4 md:w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            Berufliche Informationen
-          </h4>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-            {/* Position */}
-            <div>
-              <label
-                htmlFor="role"
-                className="mb-1 block text-xs font-medium text-gray-700"
+        {/* Professional Information Section — nur mit Betreuungsprofil:
+            Position lebt auf users.teachers und kann für Lehrkräfte
+            nirgends gespeichert werden. */}
+        {hidePosition ? null : (
+          <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
+            <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+              <svg
+                className="h-3.5 w-3.5 text-orange-600 md:h-4 md:w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                Position
-              </label>
-              <input
-                type="text"
-                id="role"
-                list="teacher-position-suggestions"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
-                placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
-                disabled={isLoading}
-              />
-              {existingPositions.length > 0 && (
-                <datalist id="teacher-position-suggestions">
-                  {existingPositions.map((pos) => (
-                    <option key={pos} value={pos} />
-                  ))}
-                </datalist>
-              )}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              Berufliche Informationen
+            </h4>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+              {/* Position */}
+              <div>
+                <label
+                  htmlFor="role"
+                  className="mb-1 block text-xs font-medium text-gray-700"
+                >
+                  Position
+                </label>
+                <input
+                  type="text"
+                  id="role"
+                  list="teacher-position-suggestions"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                  placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
+                  disabled={isLoading}
+                />
+                {existingPositions.length > 0 && (
+                  <datalist id="teacher-position-suggestions">
+                    {existingPositions.map((pos) => (
+                      <option key={pos} value={pos} />
+                    ))}
+                  </datalist>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Form Actions */}
         <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:pt-4 md:pb-4">

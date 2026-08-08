@@ -267,6 +267,31 @@ func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *test
 	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID))
 }
 
+func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	// Granting the caregiver role materializes the local person/staff/teacher
+	// identity at the target school.
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "user")}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	// Switching that account to Lehrkraft would strand the users.teachers
+	// profile and its supervisions — the UI blocks it, the service must too.
+	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+		systemRoleID(t, db, "lehrkraft"), operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid, "a caregiver profile must block the switch to lehrkraft")
+}
+
 func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

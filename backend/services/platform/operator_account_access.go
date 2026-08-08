@@ -225,6 +225,22 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		// Server-side mirror of the UI guards (role-management-modal,
+		// account-tenant-access-modal): switching an account whose school
+		// identity includes a caregiver profile to Lehrkraft would strand
+		// users.teachers and its active group supervisions on an account
+		// whose JWT only carries class_day permissions. The profile is
+		// removed through the school's own staff offboarding, never through
+		// a role swap — so a direct endpoint call must be rejected too.
+		if authSvc.IsLehrkraftSystemRole(role) {
+			hasCaregiverProfile, profErr := s.hasSchoolCaregiverProfile(tenantCtx, accountID)
+			if profErr != nil {
+				return profErr
+			}
+			if hasCaregiverProfile {
+				return &InvalidDataError{Err: fmt.Errorf("cannot assign the lehrkraft role: the account has a caregiver profile at this school; remove it via staff offboarding first")}
+			}
+		}
 		// A caregiver requires a local person, staff and teacher record; a
 		// Lehrkraft (#1772) requires person and staff (no teacher profile) so
 		// the school can assign classes under Mitarbeiter. The role-change
@@ -531,6 +547,34 @@ func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context
 		}
 	}
 	return selected, nil
+}
+
+// hasSchoolCaregiverProfile reports whether the account's identity at the
+// school in ctx includes a live caregiver profile (users.teachers). Walks the
+// same person → staff → teacher chain ensureSchoolIdentity maintains.
+func (s *operatorProvisioningService) hasSchoolCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return false, nil
+	}
+	staff, err := s.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if staff == nil || staff.DeletedAt != nil {
+		return false, nil
+	}
+	teacher, err := s.TeacherRepo.FindByStaffID(ctx, staff.ID)
+	if err != nil {
+		return false, err
+	}
+	return teacher != nil && teacher.DeletedAt == nil, nil
 }
 
 // ensureSchoolIdentity creates the person, staff and (for caregiver roles)

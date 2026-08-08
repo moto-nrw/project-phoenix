@@ -485,8 +485,9 @@ func (s *reportService) classDayDepartures(ctx context.Context, schoolClass stri
 // plan data for the day means UNKNOWN, never "Geht alleine": on a sheet
 // whose purpose is "wer geht wie nach Hause", missing data must not read as
 // the instruction to let the child leave unaccompanied. The empty string
-// lets the report fall back to the roster's form answer, then to
-// classDayDepartureUnknown.
+// makes buildClassDayReport render classDayDepartureUnknown — deliberately
+// NOT the roster's form answer, whose week summary is never empty and
+// floors at "Geht alleine" itself.
 func classDayDeparture(student *userModels.Student, weekday string, companions []userModels.CompanionLink) string {
 	allowed := student.AllowedDepartureModes.Normalize()
 	if !allowed.HasAny() {
@@ -522,8 +523,9 @@ func classDayDeparture(student *userModels.Student, weekday string, companions [
 // weekday's offerings decide who stays, a reported day status wins over any
 // enrollment, a not-scheduled care day (materialized plan says "an dem Tag
 // nicht gebucht") overrides the offering, and everyone else goes home after
-// lessons. Day-specific departures and effective arrival/pickup times (from
-// the live plans) replace the roster's form-answer values when available.
+// lessons. Effective arrival/pickup times (from the live plans) replace the
+// roster's form-answer values when available; the departure column comes
+// exclusively from the per-day plan (or "Keine Angabe") on school days.
 func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string, departures, arrivals, pickups map[int64]string, notScheduled map[int64]bool) *ClassDayReport {
 	weekday := classDayWeekdayKey(date)
 	report := &ClassDayReport{
@@ -554,13 +556,18 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		// same source the effective times above already come from.
 		stays := len(offerings) > 0 && status == "" && !notScheduled[row.StudentID]
 		departure := row.Departure
-		if dayDeparture, ok := departures[row.StudentID]; ok && dayDeparture != "" {
-			departure = dayDeparture
-		}
-		if weekday != "" && departure == "" {
-			// No live plan and no form answer: say so explicitly instead of
-			// leaving a blank the reader could fill with an assumption.
-			departure = classDayDepartureUnknown
+		if weekday != "" {
+			// On a school day the per-day plan is the ONLY departure
+			// source. The roster's week summary (row.Departure) is never
+			// empty — classRosterFormatDeparture floors at "Geht alleine" —
+			// so falling back to it would fabricate an unaccompanied
+			// departure for a child without any plan, or print the whole
+			// week ("Mo: Bus, Di: Abholung") on a sheet that answers one
+			// day. Missing data renders as explicit "Keine Angabe".
+			departure = departures[row.StudentID]
+			if departure == "" {
+				departure = classDayDepartureUnknown
+			}
 		}
 		dayRow := ClassDayRow{
 			StudentID:  row.StudentID,

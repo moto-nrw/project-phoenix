@@ -70,11 +70,12 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	// The effective (materialized-plan) pickup time beats the form answer.
 	assert.Equal(t, "16:00", report.Rows[0].Pickup)
 	assert.Equal(t, "07:30", report.Rows[0].Arrival)
-	// The day-specific departure replaces the roster's week summary.
+	// The day-specific departure is the ONLY source on a school day.
 	assert.Equal(t, "Abholung", report.Rows[0].Departure)
-	assert.Equal(t, "Geht alleine", report.Rows[1].Departure)
-	// No live plan and no form answer: rendered as explicit "Keine Angabe",
-	// never as a default departure mode.
+	// The roster's week summary ("Geht alleine" here) must NOT leak onto the
+	// day sheet: it is never empty and floors at "Geht alleine", so a child
+	// without any per-day plan renders as explicit "Keine Angabe" instead.
+	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)
 	assert.Equal(t, "Keine Angabe", report.Rows[2].Departure)
 
 	assert.False(t, report.Rows[1].StaysToday)
@@ -366,6 +367,35 @@ func TestClassDayDepartureRendersSingleDay(t *testing.T) {
 		DepartureCompanionNote: &note,
 	}
 	assert.Equal(t, "Mit anderem Kind (mit Bruder Max)", classDayDeparture(accompanied, "fri", nil))
+}
+
+func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
+	// Real classDayDeparture output, not a hand-built impossible state: the
+	// roster row carries the never-empty week summary the real builder
+	// produces, the day map carries what classDayDeparture actually returns
+	// for a day the plan does not cover.
+	monOnly := &userModels.Student{
+		AllowedDepartureModes: userModels.AllowedDepartureModes{
+			"mon": {userModels.DepartureBus},
+		},
+	}
+	noPlan := &userModels.Student{}
+	rows := []ClassRosterRow{
+		{StudentID: 1, Registered: true, Departure: "Mo: Bus"},
+		{StudentID: 2, Registered: true, Departure: "Geht alleine"},
+	}
+	departures := map[int64]string{
+		1: classDayDeparture(monOnly, "wed", nil),
+		2: classDayDeparture(noPlan, "wed", nil),
+	}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, departures, nil, nil, nil)
+
+	require.Len(t, report.Rows, 2)
+	// A Wednesday sheet must neither print the Monday-only week summary nor
+	// fabricate "Geht alleine" for a child without any plan.
+	assert.Equal(t, "Keine Angabe", report.Rows[0].Departure)
+	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)
 }
 
 func TestClassDayRequiresSchoolClass(t *testing.T) {
