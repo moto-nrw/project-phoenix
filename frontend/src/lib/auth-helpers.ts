@@ -232,6 +232,10 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
     name: "Erziehungsberechtigter",
     description: "Eingeschränkter Zugriff auf Daten der eigenen Kinder",
   },
+  lehrkraft: {
+    name: "Lehrkraft",
+    description: "Lesezugriff auf die Tagesansicht der zugewiesenen Klassen",
+  },
 };
 
 /**
@@ -261,8 +265,18 @@ export interface RoleOption {
   name: string;
 }
 
-/** System roles that are legacy/relationship-derived and not assignable to staff accounts. */
-const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
+/**
+ * System roles that are legacy/relationship-derived and not assignable to
+ * staff accounts. "lehrkraft" (#1772) stays hidden until the class day view
+ * ships — the backend seeds the role with PR 1, but inviting someone into a
+ * role whose only permission gates a not-yet-existing page would strand them
+ * in an empty app. Remove it here in the PR that lands the day view.
+ */
+const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set([
+  "guardian",
+  "teacher",
+  "lehrkraft",
+]);
 
 /**
  * Filters a role list down to staff-assignable roles and maps them to

@@ -84,6 +84,24 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		}
 	})
 
+	t.Run("case-only edit updates the stored display form in place", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "CaseEdit")
+		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		defer cleanupClassAssignments(t, db, staff.ID)
+
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}))
+		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
+		require.NoError(t, err)
+		require.Len(t, before, 1)
+
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1A"}))
+		after, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
+		require.NoError(t, err)
+		require.Len(t, after, 1)
+		assert.Equal(t, before[0].ID, after[0].ID, "a case edit must not recreate the row")
+		assert.Equal(t, "1A", after[0].SchoolClass, "the submitted casing must win")
+	})
+
 	t.Run("replaces the set with a diff", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Replace")
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
