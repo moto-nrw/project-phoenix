@@ -108,9 +108,14 @@ func (rs *Resource) Router() chi.Router {
 
 		// School class assignments (#1772): which classes a Lehrkraft is
 		// responsible for. Reading rides on users:read like the other staff
-		// detail reads; replacing the set is a staff-admin write.
+		// detail reads. Replacing the set is deliberately users:manage, NOT
+		// users:update: the ordinary user role holds users:update, and these
+		// rows scope the Lehrkraft student day view — a self-service PUT
+		// would be a self-granted widening of future student-data access
+		// (same reasoning as /payroll-number and /stammdaten/bank-steuer
+		// using a stricter tier).
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/school-classes", rs.getStaffSchoolClasses)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/school-classes", rs.updateStaffSchoolClasses)
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Put("/{id}/school-classes", rs.updateStaffSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available", rs.getAvailableStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available-for-substitution", rs.getAvailableForSubstitution)

@@ -93,6 +93,103 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 		"revert must restore the graduated class assignment from the ledger, like it reactivates the students")
 }
 
+// Teacher rows move under exactly the same condition as the students: an
+// EXACT (trimmed) from-class match. A teacher assigned "1A" must stay put
+// when the mapping renames "1a" — the "1A" children do not move either, and
+// remapping the teacher would take away sight of their own class.
+func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-exactmatch@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	classLower := fmt.Sprintf("1a-%s", suffix)
+	classUpper := fmt.Sprintf("1A-%s", suffix)
+	classTarget := fmt.Sprintf("2a-%s", suffix)
+
+	// The moving cohort sits in the lower-case class; the teacher holds the
+	// case-variant the mapping does NOT name.
+	student := testpkg.CreateTestStudent(t, db, "Exact", "Child", classLower)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	teacher := testpkg.CreateTestStaff(t, db, "Exact", "CaseTeacher")
+	defer testpkg.CleanupStaffFixtures(t, db, teacher.ID)
+	defer func() {
+		tenantCtx := testpkg.TenantContext(1)
+		_, _ = db.NewDelete().TableExpr("education.class_teachers").
+			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
+	}()
+	testpkg.CreateTestClassTeacher(t, db, teacher.ID, classUpper)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, classLower, testpkg.StrPtr(classTarget))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{classUpper}, staffClassNames(t, db, ctx, teacher.ID),
+		"a case-variant assignment must stay put, exactly like its students do")
+}
+
+// A staff member offboarded between apply and revert must not get assignments
+// resurrected: offboarding cleared their class rows, and the soft-deleted
+// staff row would satisfy the FK even though the normal write path 404s on it.
+func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-offboard@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class1 := fmt.Sprintf("1a-%s", suffix)
+	class2 := fmt.Sprintf("2a-%s", suffix)
+
+	student := testpkg.CreateTestStudent(t, db, "Offboard", "Child", class1)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	teacher := testpkg.CreateTestStaff(t, db, "Offboard", "Teacher")
+	defer testpkg.CleanupStaffFixtures(t, db, teacher.ID)
+	defer func() {
+		tenantCtx := testpkg.TenantContext(1)
+		_, _ = db.NewDelete().TableExpr("education.class_teachers").
+			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
+	}()
+	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class1)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{class2}, staffClassNames(t, db, ctx, teacher.ID))
+
+	// Offboarding: assignments cleared, staff row soft-deleted.
+	_, err = db.NewDelete().TableExpr("education.class_teachers").
+		Where("staff_id = ?", teacher.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().TableExpr("users.staff").
+		Set("deleted_at = NOW()").
+		Where("id = ?", teacher.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Empty(t, staffClassNames(t, db, ctx, teacher.ID),
+		"revert must not resurrect assignments for an offboarded staff member")
+}
+
 // The revert replays the recorded ledger, not a reverse rename — a
 // pre-existing assignment of a rename target that the apply never touched
 // must survive the revert untouched, and a merge (teacher held both the from-

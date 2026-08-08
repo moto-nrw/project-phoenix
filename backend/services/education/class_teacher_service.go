@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
@@ -50,7 +52,12 @@ func (s *service) GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]s
 // and a case-only edit ("1a" -> "1A") updates the stored display form in
 // place. Class names are deliberately NOT validated against the current
 // student classes: assignments may be created before students are imported.
-func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string) error {
+//
+// changedBy is the authenticated account ID; every actual change lands as one
+// audit.staff_master_data_changes row in the same transaction — these
+// assignments scope the Lehrkraft student day view, so no rewrite may happen
+// without a trace.
+func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string, changedBy int64) error {
 	const op = "SetStaffSchoolClasses"
 
 	if err := s.requireStaff(ctx, op, staffID); err != nil {
@@ -98,7 +105,59 @@ func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, clas
 		}
 	}
 
+	if err := s.auditSchoolClassChange(ctx, staffID, changedBy, current, wanted); err != nil {
+		return &EducationError{Op: op, Err: err}
+	}
+
 	return nil
+}
+
+// auditSchoolClassChange records one audit row per actual change of the
+// assignment set, in the same transaction as the writes. No-op when nothing
+// changed or no audit trail is wired (tests, CLI).
+func (s *service) auditSchoolClassChange(
+	ctx context.Context,
+	staffID, changedBy int64,
+	current []*education.ClassTeacher,
+	wanted map[string]string,
+) error {
+	if s.masterDataAudit == nil {
+		return nil
+	}
+
+	oldClasses := make([]string, 0, len(current))
+	for _, assignment := range current {
+		oldClasses = append(oldClasses, assignment.SchoolClass)
+	}
+	newClasses := make([]string, 0, len(wanted))
+	for _, display := range wanted {
+		newClasses = append(newClasses, display)
+	}
+	sortSchoolClasses(oldClasses)
+	sortSchoolClasses(newClasses)
+
+	oldValue := strings.Join(oldClasses, ", ")
+	newValue := strings.Join(newClasses, ", ")
+	if oldValue == newValue {
+		return nil
+	}
+
+	return s.masterDataAudit.Create(ctx, &auditModels.StaffMasterDataChange{
+		StaffID:   staffID,
+		ChangedBy: changedBy,
+		Section:   auditModels.StammdatenSectionSchoolClasses,
+		FieldName: "school_classes",
+		OldValue:  oldValue,
+		NewValue:  newValue,
+	})
+}
+
+// sortSchoolClasses orders class names by their normalized identity so the
+// audit old/new values are stable regardless of input order.
+func sortSchoolClasses(classes []string) {
+	sort.Slice(classes, func(i, j int) bool {
+		return schoolclass.Normalize(classes[i]) < schoolclass.Normalize(classes[j])
+	})
 }
 
 // dedupeSchoolClasses trims the submitted class names and dedupes them by

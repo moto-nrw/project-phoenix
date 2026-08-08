@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,13 @@ func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *
 		repos.Staff,
 		repos.Student,
 	)
+	// Same duck-typed wiring the service factory uses: assignment rewrites
+	// must land in the Stammdaten audit trail.
+	if auditAware, ok := svc.(interface {
+		SetMasterDataAudit(auditModels.StaffMasterDataChangeCreator)
+	}); ok {
+		auditAware.SetMasterDataAudit(repos.StaffMasterDataChange)
+	}
 	return svc, repos
 }
 
@@ -41,12 +49,15 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	svc, repos := setupClassTeacherService(t, db)
 	ctx := testpkg.TenantContext(1)
 
+	actor := testpkg.CreateTestAccount(t, db, "class-teacher-actor@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
+
 	t.Run("assigns and reads classes", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Assign")
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}, actor.ID))
 
 		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
 		require.NoError(t, err)
@@ -58,7 +69,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", " 1A ", "2b"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", " 1A ", "2b"}, actor.ID))
 
 		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
 		require.NoError(t, err)
@@ -70,11 +81,11 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}, actor.ID))
 		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}, actor.ID))
 		after, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 
@@ -89,12 +100,12 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
 		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 		require.Len(t, before, 1)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1A"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1A"}, actor.ID))
 		after, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 		require.Len(t, after, 1)
@@ -107,8 +118,8 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}))
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "3c"}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}, actor.ID))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "3c"}, actor.ID))
 
 		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
 		require.NoError(t, err)
@@ -120,19 +131,67 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}))
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{}))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{}, actor.ID))
 
 		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
 		require.NoError(t, err)
 		assert.Empty(t, classes)
 	})
 
+	t.Run("audits every actual change, skips no-ops", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Audit")
+		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		defer cleanupClassAssignments(t, db, staff.ID)
+		defer func() {
+			tenantCtx := testpkg.TenantContext(1)
+			_, _ = db.NewDelete().TableExpr("audit.staff_master_data_changes").
+				Where("staff_id = ?", staff.ID).Exec(tenantCtx)
+		}()
+
+		auditCount := func() int {
+			count, err := db.NewSelect().
+				TableExpr("audit.staff_master_data_changes").
+				Where("staff_id = ?", staff.ID).
+				Where("section = ?", auditModels.StammdatenSectionSchoolClasses).
+				Count(ctx)
+			require.NoError(t, err)
+			return count
+		}
+
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
+		assert.Equal(t, 1, auditCount(), "the initial assignment is a change")
+
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
+		assert.Equal(t, 1, auditCount(), "a no-op resubmit must not write a row")
+
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b"}, actor.ID))
+		assert.Equal(t, 2, auditCount(), "a replace is a change")
+
+		var row struct {
+			ChangedBy int64  `bun:"changed_by"`
+			OldValue  string `bun:"old_value"`
+			NewValue  string `bun:"new_value"`
+		}
+		err := db.NewSelect().
+			TableExpr("audit.staff_master_data_changes").
+			Column("changed_by", "old_value", "new_value").
+			Where("staff_id = ?", staff.ID).
+			Where("section = ?", auditModels.StammdatenSectionSchoolClasses).
+			OrderExpr("id DESC").
+			Limit(1).
+			Scan(ctx, &row)
+		require.NoError(t, err)
+		assert.Equal(t, actor.ID, row.ChangedBy)
+		assert.Equal(t, "1a", row.OldValue)
+		assert.Equal(t, "2b", row.NewValue)
+	})
+
 	t.Run("rejects blank class names", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Blank")
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
-		err := svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "   "})
+		err := svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "   "}, actor.ID)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, educationSvc.ErrEmptySchoolClass))
 	})
@@ -142,7 +201,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		ghostID := ghost.ID
 		testpkg.CleanupStaffFixtures(t, db, ghost.ID)
 
-		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"})
+		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"}, actor.ID)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, educationSvc.ErrStaffNotFound))
 

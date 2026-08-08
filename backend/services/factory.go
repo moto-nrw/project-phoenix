@@ -320,6 +320,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
+	// Class assignment rewrites scope the Lehrkraft student day view (#1772)
+	// and land in the Stammdaten audit trail.
+	if auditAware, ok := educationService.(interface {
+		SetMasterDataAudit(auditModels.StaffMasterDataChangeCreator)
+	}); ok {
+		auditAware.SetMasterDataAudit(repos.StaffMasterDataChange)
+	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
@@ -338,6 +345,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:        repos.ActiveVisit,
 		AttendanceRepo:   repos.Attendance,
 		ClassTeacherRepo: repos.ClassTeacher,
+		StaffRepo:        repos.Staff,
 		RosterReconciler: rosterReconciler,
 		DB:               db,
 	})

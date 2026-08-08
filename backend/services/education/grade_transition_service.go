@@ -190,6 +190,7 @@ type GradeTransitionService struct {
 	transitionRepo         education.GradeTransitionRepository
 	studentRepo            users.StudentRepository
 	personRepo             users.PersonRepository
+	staffRepo              users.StaffRepository
 	visitRepo              activeModels.VisitRepository
 	attendanceRepo         activeModels.AttendanceRepository
 	classTeacherRepo       education.ClassTeacherRepository
@@ -217,8 +218,12 @@ type GradeTransitionServiceDependencies struct {
 	// ClassTeacherRepo lets apply/revert follow the class renames for the
 	// Klassenlehrer assignments (#1772) — without it a "1a" assignment would
 	// silently point at next year's incoming cohort after 1a→2a. Optional;
-	// nil disables the remap for tests that don't exercise it.
+	// nil disables the remap for tests that don't exercise it. StaffRepo is
+	// its companion: the revert consults it (soft-delete-filtered) so a
+	// staff member offboarded since the apply gets no assignment
+	// resurrected. Wire both together.
 	ClassTeacherRepo education.ClassTeacherRepository
+	StaffRepo        users.StaffRepository
 	// RosterReconciler reconciles already-materialized future timetable rosters
 	// on apply (drop graduates) and revert (restore reactivated students).
 	// Optional; nil disables reconciliation for tests that don't exercise it.
@@ -232,6 +237,7 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTr
 		transitionRepo:   deps.TransitionRepo,
 		studentRepo:      deps.StudentRepo,
 		personRepo:       deps.PersonRepo,
+		staffRepo:        deps.StaffRepo,
 		visitRepo:        deps.VisitRepo,
 		attendanceRepo:   deps.AttendanceRepo,
 		classTeacherRepo: deps.ClassTeacherRepo,

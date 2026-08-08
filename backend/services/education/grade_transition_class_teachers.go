@@ -3,18 +3,28 @@ package education
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
 // classTeacherRenames builds the rename map an apply implies for the
-// Klassenlehrer assignments: normalized from-class → to-class display form,
+// Klassenlehrer assignments: trimmed from-class → to-class display form,
 // where an empty target means the class graduates and its assignments are
-// dropped. There is deliberately no reverse variant — the revert replays the
-// recorded ledger instead, because a reverse rename cannot distinguish a row
-// the apply renamed into a class from a pre-existing assignment of that class
-// it never touched.
+// dropped.
+//
+// Keys are EXACT (trimmed) matches, deliberately NOT schoolclass.Normalize:
+// the student side promotes on exact school_class equality
+// (PromoteStudentsByIDs), so the teacher rows must move under precisely the
+// same condition. With normalized keys a teacher assigned "1A" would be
+// remapped while the "1A" children stay put, and two mappings normalizing
+// identically ("1a"→"2a" and "1A"→"2B") would collapse to one entry.
+//
+// There is deliberately no reverse variant — the revert replays the recorded
+// ledger instead, because a reverse rename cannot distinguish a row the apply
+// renamed into a class from a pre-existing assignment of that class it never
+// touched.
 func classTeacherRenames(mappings []*education.GradeTransitionMapping) map[string]string {
 	renames := make(map[string]string, len(mappings))
 	for _, mapping := range mappings {
@@ -22,10 +32,10 @@ func classTeacherRenames(mappings []*education.GradeTransitionMapping) map[strin
 			continue
 		}
 		if mapping.IsGraduating() {
-			renames[schoolclass.Normalize(mapping.FromClass)] = ""
+			renames[strings.TrimSpace(mapping.FromClass)] = ""
 			continue
 		}
-		renames[schoolclass.Normalize(mapping.FromClass)] = *mapping.ToClass
+		renames[strings.TrimSpace(mapping.FromClass)] = *mapping.ToClass
 	}
 	return renames
 }
@@ -66,11 +76,13 @@ func (s *GradeTransitionService) remapClassTeacherAssignments(
 	}
 
 	// Normalized class names each staff member keeps untouched — renamed rows
-	// must not collide with these on re-insert.
+	// must not collide with these on re-insert. Affected-row matching is
+	// exact (trimmed), mirroring the student promotion; only the collision
+	// bookkeeping is normalized, because that is what the unique index sees.
 	kept := make(map[int64]map[string]bool, len(assignments))
 	var affected []*education.ClassTeacher
 	for _, assignment := range assignments {
-		if _, hit := renames[schoolclass.Normalize(assignment.SchoolClass)]; hit {
+		if _, hit := renames[strings.TrimSpace(assignment.SchoolClass)]; hit {
 			affected = append(affected, assignment)
 			continue
 		}
@@ -98,7 +110,7 @@ func (s *GradeTransitionService) remapClassTeacherAssignments(
 	}
 
 	for _, assignment := range affected {
-		target := renames[schoolclass.Normalize(assignment.SchoolClass)]
+		target := renames[strings.TrimSpace(assignment.SchoolClass)]
 		if target == "" {
 			continue // graduated — assignment is dropped
 		}
@@ -135,7 +147,10 @@ func (s *GradeTransitionService) remapClassTeacherAssignments(
 // ledger entry and stay untouched, which is exactly what the mapping-derived
 // reverse rename could not guarantee. Assignments the admin changed between
 // apply and revert win: a created row already deleted is skipped, a restore
-// colliding with a current assignment is skipped.
+// colliding with a current assignment is skipped, and a restore for a staff
+// member offboarded since the apply is skipped too (offboarding cleared
+// their assignments; the soft-deleted staff row would otherwise satisfy the
+// FK and resurrect scope for a person the normal write path 404s on).
 func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Context, transitionID int64) error {
 	if s.classTeacherRepo == nil {
 		return nil
@@ -147,6 +162,11 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Conte
 	}
 	if len(ledger) == 0 {
 		return nil
+	}
+
+	liveStaff, err := s.liveLedgerStaff(ctx, ledger)
+	if err != nil {
+		return err
 	}
 
 	assignments, err := s.classTeacherRepo.List(ctx, nil)
@@ -180,6 +200,9 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Conte
 		if entry.Action != education.ClassTeacherActionRemoved {
 			continue
 		}
+		if !liveStaff[entry.StaffID] {
+			continue // offboarded since the apply — do not resurrect scope
+		}
 		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
 		if _, taken := current[key]; taken {
 			continue
@@ -192,4 +215,32 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Conte
 	}
 
 	return nil
+}
+
+// liveLedgerStaff resolves which staff members named in the ledger still
+// exist as live (non-soft-deleted) rows. FindByIDs filters soft deletes, so
+// an offboarded staff member simply drops out of the map.
+func (s *GradeTransitionService) liveLedgerStaff(ctx context.Context, ledger []*education.GradeTransitionClassTeacher) (map[int64]bool, error) {
+	staffIDs := make([]int64, 0, len(ledger))
+	seen := make(map[int64]bool, len(ledger))
+	for _, entry := range ledger {
+		if entry.Action != education.ClassTeacherActionRemoved || seen[entry.StaffID] {
+			continue
+		}
+		seen[entry.StaffID] = true
+		staffIDs = append(staffIDs, entry.StaffID)
+	}
+	if len(staffIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+
+	staffRows, err := s.staffRepo.FindByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve ledger staff: %w", err)
+	}
+	live := make(map[int64]bool, len(staffRows))
+	for id := range staffRows {
+		live[id] = true
+	}
+	return live, nil
 }

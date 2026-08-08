@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -30,12 +31,24 @@ type service struct {
 	// that decides group access (#2084). Optional: services constructed without
 	// one (tests, CLI) simply emit nothing, they never fail the write.
 	broadcaster realtime.Broadcaster
+
+	// masterDataAudit records class assignment rewrites (#1772) in
+	// audit.staff_master_data_changes. Optional like the broadcaster.
+	masterDataAudit auditModels.StaffMasterDataChangeCreator
 }
 
 // SetBroadcaster wires the SSE hub after construction, matching the
 // duck-typed SetBroadcaster block the service factory already uses for every
 // other broadcasting service.
 func (s *service) SetBroadcaster(b realtime.Broadcaster) { s.broadcaster = b }
+
+// SetMasterDataAudit wires the append-only Stammdaten audit trail after
+// construction (#1772): class assignment rewrites scope the Lehrkraft student
+// day view, so SetStaffSchoolClasses records every change. Optional like the
+// broadcaster — services constructed without it (tests, CLI) skip the trail.
+func (s *service) SetMasterDataAudit(creator auditModels.StaffMasterDataChangeCreator) {
+	s.masterDataAudit = creator
+}
 
 // announceGroupAccessChanged queues the tenant-wide invalidation for a write
 // that changed who may open which group. Education writes funnel through here,

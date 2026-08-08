@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 )
 
@@ -83,7 +84,15 @@ func (rs *Resource) updateStaffSchoolClasses(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := rs.EducationService.SetStaffSchoolClasses(r.Context(), id, req.SchoolClasses); err != nil {
+	// The audit actor is the authenticated account (like bank-steuer): a
+	// users:manage holder need not have a staff mapping.
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+
+	if err := rs.EducationService.SetStaffSchoolClasses(r.Context(), id, req.SchoolClasses, int64(claims.ID)); err != nil {
 		renderSchoolClassError(w, r, err)
 		return
 	}
