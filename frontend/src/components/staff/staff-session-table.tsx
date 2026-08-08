@@ -12,6 +12,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -767,7 +768,17 @@ function computeRowStatus(
 // tooltip prop and does not need one.
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
-    return <StatusBadge label="Homeoffice" tone="blue" />;
+    // Not StatusBadge tone="blue": that resolves to the same blue.soft/base/
+    // strong triple getLocationBadgeTone returns for ABSENCE_TYPE_HEX.vacation
+    // (#5080D8), so "Homeoffice" and "Urlaub" rendered as identical pills in
+    // this very column. #0EA5E9 is the hue staff-helpers already uses for
+    // Homeoffice.
+    return (
+      <StatusDotBadge
+        label="Homeoffice"
+        color={MOTO_COLOR_PALETTE.timeTracking.base}
+      />
+    );
   }
   if (status.kind === "present") {
     return <StatusBadge label="OGS" tone="green" />;

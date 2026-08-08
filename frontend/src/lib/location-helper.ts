@@ -204,6 +204,13 @@ export interface LocationBadgeTone {
   textColor: string;
 }
 
+/**
+ * Tailwind gray-50 — the pill background every badge outside the palette
+ * falls back to, and the surface its label contrast has to be measured
+ * against (white would overstate it).
+ */
+const SURFACE_GRAY_50 = "#F9FAFB";
+
 const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
   [MOTO_COLOR_PALETTE.green.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.green.soft,
@@ -270,6 +277,15 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     dotColor: MOTO_COLOR_PALETTE.timeTracking.base,
     textColor: MOTO_COLOR_PALETTE.timeTracking.strong,
   },
+  // Rejected absence requests. Deliberately NOT LOCATION_COLORS.DANGER: the
+  // absence list puts the type pill and the status pill in one row, and
+  // ABSENCE_TYPE_HEX.sick is already that red — a denied sick note would show
+  // two identical red pills. Deep red still reads as a refusal.
+  [MOTO_COLOR_PALETTE.wine.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.wine.soft,
+    dotColor: MOTO_COLOR_PALETTE.wine.base,
+    textColor: MOTO_COLOR_PALETTE.wine.strong,
+  },
 };
 
 /**
@@ -283,17 +299,23 @@ export function getLocationBadgeTone(
 ): LocationBadgeTone {
   if (color === null || color === undefined || color.trim() === "") {
     return {
-      backgroundColor: "#F9FAFB",
+      backgroundColor: SURFACE_GRAY_50,
       dotColor: "#9CA3AF",
       textColor: NEUTRAL_TEXT_COLOR,
     };
   }
 
+  // Anything outside the table is a per-room hex (#1324). Those can never
+  // match a row by construction — the backend reserves exactly the status
+  // hexes, so an admin-picked room color is always something else. Darkening
+  // the room's own hue keeps the badge distinguishable; a flat neutral label
+  // would collapse every custom room onto the same pill and leave only the
+  // 6px dot to tell them apart.
   return (
     LOCATION_BADGE_TONES[color.toUpperCase()] ?? {
-      backgroundColor: "#F9FAFB",
+      backgroundColor: SURFACE_GRAY_50,
       dotColor: color,
-      textColor: NEUTRAL_TEXT_COLOR,
+      textColor: getAccessibleTextColor(color, SURFACE_GRAY_50),
     }
   );
 }

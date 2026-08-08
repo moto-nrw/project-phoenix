@@ -1331,7 +1331,7 @@ function StatusPill({ status }: { readonly status: StudentStatusKind }) {
     <span
       className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
         isSick
-          ? "border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong"
+          ? "border-moto-red/30 bg-moto-red/10 text-moto-red-strong"
           : "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong"
       }`}
     >

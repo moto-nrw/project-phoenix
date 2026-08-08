@@ -202,12 +202,25 @@ describe("getLocationBadgeTone", () => {
     });
   });
 
-  it("keeps custom room colors on a neutral readable badge", () => {
+  it("keeps a custom room color's hue in the label, not just the dot", () => {
+    // Room colors (#1324) can never match a LOCATION_BADGE_TONES row: the
+    // backend reserves exactly the status hexes, so an admin-picked color is
+    // always something else. A flat neutral label would collapse every custom
+    // room onto one pill and leave only the 6px dot to tell them apart, which
+    // is the differentiation the feature exists for. #5b7842 is #A3D977
+    // darkened to 4.77:1 on the gray-50 pill.
     expect(getLocationBadgeTone("#A3D977")).toEqual({
       backgroundColor: "#F9FAFB",
       dotColor: "#A3D977",
-      textColor: "#374151",
+      textColor: "#5b7842",
     });
+  });
+
+  it("gives two different room colors two different labels", () => {
+    const a = getLocationBadgeTone("#A3D977");
+    const b = getLocationBadgeTone("#D97AA3");
+
+    expect(a.textColor).not.toBe(b.textColor);
   });
 });
 

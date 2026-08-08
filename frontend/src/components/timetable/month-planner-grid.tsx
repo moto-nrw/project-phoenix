@@ -10,6 +10,7 @@ import {
   groupInstancesByDate,
   toISODate,
 } from "~/lib/timetable-helpers";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
@@ -149,7 +150,7 @@ export function MonthPlannerGrid({
                           }`}
                           style={{
                             borderLeftColor: isCancelled
-                              ? "#FF3130"
+                              ? MOTO_COLOR_PALETTE.red.base
                               : (inst.planningTrackColor ?? "#D1D5DB"),
                           }}
                         >
@@ -157,7 +158,7 @@ export function MonthPlannerGrid({
                             className="h-1.5 w-1.5 shrink-0 rounded-full"
                             style={{
                               backgroundColor: isCancelled
-                                ? "#FF3130"
+                                ? MOTO_COLOR_PALETTE.red.base
                                 : (inst.planningTrackColor ?? "#D1D5DB"),
                             }}
                             aria-hidden
