@@ -870,8 +870,9 @@ func (s *GradeTransitionService) executeApply(
 	// The Klassenlehrer assignments (#1772) follow the same renames as the
 	// student rows: promoted classes keep their teachers, graduating classes
 	// lose them. Left untouched, a "1a" assignment would point at next
-	// year's incoming cohort after this apply.
-	if err := s.remapClassTeacherAssignments(ctx, classTeacherRenames(transition.Mappings, false)); err != nil {
+	// year's incoming cohort after this apply. Every rewrite lands in the
+	// transition's class-teacher ledger so the revert can replay it exactly.
+	if err := s.remapClassTeacherAssignments(ctx, transition.ID, transition.Mappings); err != nil {
 		return err
 	}
 
@@ -1516,10 +1517,11 @@ func (s *GradeTransitionService) executeRevert(
 		return err
 	}
 
-	// Mirror of the apply-side remap (#1772): promoted classes carry their
-	// teachers back (2a→1a). Assignments of graduated classes were deleted on
-	// apply and have no history — the admin re-creates them if needed.
-	if err := s.remapClassTeacherAssignments(ctx, classTeacherRenames(transition.Mappings, true)); err != nil {
+	// Mirror of the apply-side remap (#1772): replay the recorded ledger
+	// backwards — created rows are deleted, removed rows (promotions AND
+	// graduations) are restored. Pre-existing assignments the apply never
+	// touched have no ledger entry and stay untouched.
+	if err := s.revertClassTeacherAssignments(ctx, transition.ID); err != nil {
 		return err
 	}
 

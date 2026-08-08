@@ -89,6 +89,65 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 
 	assert.Equal(t, []string{class1, class2}, staffClassNames(t, db, ctx, chainTeacher.ID),
 		"revert must carry the promoted assignments back")
-	assert.Empty(t, staffClassNames(t, db, ctx, graduateTeacher.ID),
-		"graduated assignments have no history and stay gone after revert")
+	assert.Equal(t, []string{class3}, staffClassNames(t, db, ctx, graduateTeacher.ID),
+		"revert must restore the graduated class assignment from the ledger, like it reactivates the students")
+}
+
+// The revert replays the recorded ledger, not a reverse rename — a
+// pre-existing assignment of a rename target that the apply never touched
+// must survive the revert untouched, and a merge (teacher held both the from-
+// and the to-class) must round-trip without losing the surviving assignment.
+func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-ledger@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class1 := fmt.Sprintf("1a-%s", suffix)
+	class2 := fmt.Sprintf("2a-%s", suffix)
+
+	// Only 1a → 2a is mapped; 2a itself is NOT a from-class.
+	student := testpkg.CreateTestStudent(t, db, "Ledger", "Child", class1)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	// mergeTeacher holds BOTH classes (apply drops 1a, keeps 2a);
+	// bystander holds only the pre-existing 2a the apply never touches.
+	mergeTeacher := testpkg.CreateTestStaff(t, db, "Ledger", "MergeTeacher")
+	bystander := testpkg.CreateTestStaff(t, db, "Ledger", "Bystander")
+	defer testpkg.CleanupStaffFixtures(t, db, mergeTeacher.ID, bystander.ID)
+	defer func() {
+		tenantCtx := testpkg.TenantContext(1)
+		_, _ = db.NewDelete().TableExpr("education.class_teachers").
+			Where("staff_id IN (?)", bun.List([]int64{mergeTeacher.ID, bystander.ID})).
+			Exec(tenantCtx)
+	}()
+
+	testpkg.CreateTestClassTeacher(t, db, mergeTeacher.ID, class1)
+	testpkg.CreateTestClassTeacher(t, db, mergeTeacher.ID, class2)
+	testpkg.CreateTestClassTeacher(t, db, bystander.ID, class2)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class2}, staffClassNames(t, db, ctx, mergeTeacher.ID),
+		"merge: the 1a assignment folds into the already-held 2a")
+	assert.Equal(t, []string{class2}, staffClassNames(t, db, ctx, bystander.ID),
+		"apply must not touch the bystander's pre-existing 2a")
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class1, class2}, staffClassNames(t, db, ctx, mergeTeacher.ID),
+		"round trip must restore 1a without losing the surviving 2a")
+	assert.Equal(t, []string{class2}, staffClassNames(t, db, ctx, bystander.ID),
+		"revert must not rewrite an assignment the apply never touched")
 }
