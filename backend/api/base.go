@@ -26,6 +26,7 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
+	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -120,6 +121,7 @@ type API struct {
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
+	ClassDay         *classdayAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
@@ -583,6 +585,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
+	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -855,6 +858,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
+
+		// Mount the Lehrkraft class-day view (#1772)
+		r.Mount("/class-day", a.ClassDay.Router())
 
 		// Mount substitutions resources
 		r.Mount("/substitutions", a.Substitutions.Router())

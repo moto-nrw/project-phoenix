@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -174,6 +175,9 @@ type ReportService interface {
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
 	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
 	ExportClassRoster(ctx context.Context, filters ClassRosterFilters, actorAccountID int64, actorRole, format string) (*ClassRosterReport, error)
+	// ClassDay is the read-only per-class day view for the Lehrkraft handoff
+	// (#1772). Every call writes a GDPR access-log row for the actor.
+	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64) (*ClassDayReport, error)
 }
 
 type ReportServiceConfig struct {
@@ -193,6 +197,10 @@ type ReportServiceConfig struct {
 	StudentCompanionRepo userModels.StudentCompanionRepository
 	PersonRepo           userModels.PersonRepository
 	EducationGroupRepo   educationModels.GroupRepository
+	// StudentStatusDayRepo supplies the scheduled day statuses (sick /
+	// excused / class trip) the class day view (#1772) marks students with.
+	// Optional: unconfigured only costs the status column, never the view.
+	StudentStatusDayRepo activeModels.StudentStatusDayRepository
 }
 
 type reportService struct {
