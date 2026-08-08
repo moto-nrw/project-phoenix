@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -128,6 +129,11 @@ type AdminRequestChild struct {
 // SelectedDays is non-empty only for offerings whose
 // days_of_week_mode is "parent_choice"; otherwise it's omitted and
 // the offering's AvailableDays describes the (admin-fixed) schedule.
+//
+// The attribute and validity fields carry the same facts the parent
+// portal renders for this booking (#2185). StartsLater marks a row
+// that is not in effect yet — clients must not treat those as the
+// child's current booking.
 type AdminRequestChildOffering struct {
 	OfferingID            string   `json:"offering_id"`
 	OfferingName          string   `json:"offering_name"`
@@ -136,6 +142,12 @@ type AdminRequestChildOffering struct {
 	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
 	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
 	AvailableDays         []string `json:"available_days,omitempty"`
+	IncludesLunch         bool     `json:"includes_lunch"`
+	IncludesHolidayCare   bool     `json:"includes_holiday_care"`
+	PriceCents            *int     `json:"price_cents,omitempty"`
+	ValidFrom             string   `json:"valid_from,omitempty"`
+	ValidUntil            string   `json:"valid_until,omitempty"`
+	StartsLater           bool     `json:"starts_later,omitempty"`
 }
 
 type AdminOfferingAdjustment struct {
@@ -695,6 +707,15 @@ func optionalInt64String(value *int64) string {
 	return strconv.FormatInt(*value, 10)
 }
 
+// optionalDateString renders a nullable calendar date as ISO
+// "YYYY-MM-DD", or "" so the field drops out of the JSON payload.
+func optionalDateString(value *timezone.Date) string {
+	if value == nil || value.IsZero() {
+		return ""
+	}
+	return value.String()
+}
+
 func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *http.Request) {
 	if rs.DecisionService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
@@ -740,6 +761,12 @@ func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminReq
 			ManualSelectedDays:    row.ManualSelectedDays,
 			AutomaticSelectedDays: row.AutomaticSelectedDays,
 			AvailableDays:         row.AvailableDays,
+			IncludesLunch:         row.IncludesLunch,
+			IncludesHolidayCare:   row.IncludesHolidayCare,
+			PriceCents:            row.PriceCents,
+			ValidFrom:             optionalDateString(row.ValidFrom),
+			ValidUntil:            optionalDateString(row.ValidUntil),
+			StartsLater:           row.StartsLater,
 		})
 	}
 	return out

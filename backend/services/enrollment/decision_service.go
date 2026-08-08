@@ -301,6 +301,11 @@ type ExportChildRow struct {
 // surfaced by ListChildOfferings. SelectedDays mirrors the DB column
 // — nil when the offering runs in admin-fixed mode, non-nil only when
 // the parent picked specific days.
+//
+// The attribute fields (price, lunch, holiday care) and the validity
+// interval mirror what the parent portal already shows for the same
+// booking (#2185): staff answering a guardian's question must see the
+// same facts, or they contradict the family's own app.
 type ChildOfferingRow struct {
 	OfferingID            int64
 	OfferingName          string
@@ -309,6 +314,18 @@ type ChildOfferingRow struct {
 	ManualSelectedDays    []string
 	AutomaticSelectedDays []string
 	AvailableDays         []string
+	IncludesLunch         bool
+	IncludesHolidayCare   bool
+	// PriceCents is nil when the school configured no price.
+	PriceCents *int
+	// ValidFrom is nil for a booking effective since the start of the
+	// care period; ValidUntil is exclusive, mirroring the stored interval.
+	ValidFrom  *timezone.Date
+	ValidUntil *timezone.Date
+	// StartsLater marks a booking that has not taken effect yet — an
+	// approved change scheduled for a future date. Those rows are
+	// informational: they describe what will be booked, not what is.
+	StartsLater bool
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -513,6 +530,12 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 // missing a parent_choice day picker land with SelectedDays == nil.
 // Used by the admin detail endpoint to render the Betreuungsangebote
 // next to each child for the decision UI.
+//
+// Rows that have already expired are dropped, but rows that take
+// effect later are kept and flagged StartsLater (#2185). The parent
+// portal has always shown those; listing only the currently effective
+// selection left staff unable to see an approved change before its
+// effective date and unable to answer the family's questions about it.
 func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error) {
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
@@ -529,32 +552,88 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
+	onDate := reportOfferingDate(phase)
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
-		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, reportOfferingDate(phase))
+		links, lerr := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, child.ID)
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
+		offeringByID, oerr := s.careOfferingsByID(ctx, links)
+		if oerr != nil {
+			return nil, oerr
+		}
 		rows := make([]ChildOfferingRow, 0, len(links))
 		for _, link := range links {
-			row := ChildOfferingRow{
-				OfferingID:            link.CareOfferingID,
-				SelectedDays:          link.SelectedDays,
-				ManualSelectedDays:    link.ManualSelectedDays,
-				AutomaticSelectedDays: link.AutomaticSelectedDays,
+			if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(onDate)) {
+				continue
 			}
-			if s.CareOfferingRepo != nil {
-				if off, err := s.CareOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
-					row.OfferingName = off.Name
-					row.DaysOfWeekMode = off.DaysOfWeekMode
-					row.AvailableDays = off.AvailableDays
-				}
-			}
-			rows = append(rows, row)
+			rows = append(rows, childOfferingRow(link, offeringByID[link.CareOfferingID], onDate))
 		}
 		out[child.ID] = rows
 	}
 	return out, nil
+}
+
+// careOfferingsByID resolves the catalog entries behind a child's
+// offering links in one query. Returns an empty map when no catalog
+// repo is wired, leaving rows with their link-side fields only.
+func (s *decisionService) careOfferingsByID(
+	ctx context.Context,
+	links []*enrollmentModels.RequestChildOffering,
+) (map[int64]*enrollmentModels.CareOffering, error) {
+	byID := make(map[int64]*enrollmentModels.CareOffering, len(links))
+	if s.CareOfferingRepo == nil || len(links) == 0 {
+		return byID, nil
+	}
+	seen := make(map[int64]bool, len(links))
+	ids := make([]int64, 0, len(links))
+	for _, link := range links {
+		if link == nil || link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
+			continue
+		}
+		seen[link.CareOfferingID] = true
+		ids = append(ids, link.CareOfferingID)
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list care offerings: %w", err)
+	}
+	for _, offering := range offerings {
+		if offering != nil {
+			byID[offering.ID] = offering
+		}
+	}
+	return byID, nil
+}
+
+// childOfferingRow merges the link (what the child booked, from when)
+// with the catalog entry (what the offering is). A missing catalog
+// entry — deleted offering — still yields a row so the admin sees the
+// booking exists, unlike the parent view which skips it.
+func childOfferingRow(
+	link *enrollmentModels.RequestChildOffering,
+	offering *enrollmentModels.CareOffering,
+	onDate timezone.Date,
+) ChildOfferingRow {
+	row := ChildOfferingRow{
+		OfferingID:            link.CareOfferingID,
+		SelectedDays:          link.SelectedDays,
+		ManualSelectedDays:    link.ManualSelectedDays,
+		AutomaticSelectedDays: link.AutomaticSelectedDays,
+		ValidFrom:             link.ValidFrom,
+		ValidUntil:            link.ValidUntil,
+		StartsLater:           link.ValidFrom != nil && link.ValidFrom.After(onDate),
+	}
+	if offering != nil {
+		row.OfferingName = offering.Name
+		row.DaysOfWeekMode = offering.DaysOfWeekMode
+		row.AvailableDays = offering.AvailableDays
+		row.IncludesLunch = offering.IncludesLunch
+		row.IncludesHolidayCare = offering.IncludesHolidayCare
+		row.PriceCents = offering.PriceCents
+	}
+	return row
 }
 
 // ExportPhase loads the export payload (exportData) and records the

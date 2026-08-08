@@ -38,6 +38,9 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { availableCareOfferings } from "~/lib/care-offering-availability";
+import { formatOfferingPrice } from "~/lib/care-offering-format";
+import { FeaturePill } from "~/components/enrollment/feature-pill";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
@@ -288,6 +291,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   key={child.id}
                   requestId={data.id}
                   phaseId={data.phase_id}
+                  phaseName={data.phase_name}
                   child={child}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
@@ -474,6 +478,7 @@ function ChildInformationCard({
   onReasonChange,
   onDelete,
   phaseId,
+  phaseName,
   reason,
   requestId,
   schemaFields,
@@ -483,6 +488,7 @@ function ChildInformationCard({
   child: AdminRequestChild;
   requestId: string;
   phaseId: string;
+  phaseName?: string;
   onDecide: (status: DecisionStatus) => void;
   onDataCorrected: (correctedChild: AdminRequestChild) => void;
   onOfferingsChanged: () => void;
@@ -557,7 +563,7 @@ function ChildInformationCard({
             />
           </div>
         ) : null}
-        <ChildOfferings offerings={child.offerings} />
+        <ChildOfferings offerings={child.offerings} phaseName={phaseName} />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
             requestId={requestId}
@@ -974,7 +980,8 @@ const DAY_LABEL_DE: Record<string, string> = {
 
 export function ChildOfferings({
   offerings,
-}: Readonly<{ offerings?: AdminRequestChildOffering[] }>) {
+  phaseName,
+}: Readonly<{ offerings?: AdminRequestChildOffering[]; phaseName?: string }>) {
   if (!offerings || offerings.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
@@ -988,26 +995,70 @@ export function ChildOfferings({
             ? formatAdminOfferingDaySource(o)
             : formatAdminDays(o.available_days ?? []);
           return (
-            <li
-              key={o.offering_id}
-              className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
-            >
-              <span className="font-medium text-gray-900">
-                {o.offering_name || `Angebot #${o.offering_id}`}
-              </span>
-              {dayDetails ? (
-                <span className="text-xs text-gray-600">
-                  {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
+            <li key={`${o.offering_id}-${o.valid_from ?? "current"}`}>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-medium text-gray-900">
+                  {o.offering_name || `Angebot #${o.offering_id}`}
                 </span>
-              ) : parentChoice ? (
-                <span className="text-xs text-[#CC2626] italic">
-                  Keine Tage gewählt
-                </span>
-              ) : null}
+                {dayDetails ? (
+                  <span className="text-xs text-gray-600">
+                    {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
+                  </span>
+                ) : parentChoice ? (
+                  <span className="text-xs text-[#CC2626] italic">
+                    Keine Tage gewählt
+                  </span>
+                ) : null}
+              </div>
+              <OfferingAttributePills offering={o} />
             </li>
           );
         })}
       </ul>
+      {/* Where the attributes come from. The support case behind #2185 was a
+          coordinator who could not place the "mit Mittagessen" the parents app
+          showed — naming the phase turns the badges into something staff can
+          act on instead of another mystery. */}
+      <p className="mt-2 text-xs text-gray-500">
+        Angaben stammen aus der Angebots-Konfiguration
+        {phaseName
+          ? ` der Anmeldephase „${phaseName}“`
+          : " der Anmeldephase"}{" "}
+        (Anmeldungen → Betreuungsangebote).
+      </p>
+    </div>
+  );
+}
+
+// The offering's attributes and validity, phrased exactly as the parents app
+// phrases them for the same booking (#2185) — "mit Mittagessen", not
+// "Mittagessen" — so a guardian quoting their screen and the staff member
+// reading this row use the same words.
+function OfferingAttributePills({
+  offering,
+}: Readonly<{ offering: AdminRequestChildOffering }>) {
+  const price = formatOfferingPrice(offering.price_cents);
+  const pills: string[] = [];
+  if (offering.includes_lunch) pills.push("mit Mittagessen");
+  if (offering.includes_holiday_care) pills.push("mit Ferienbetreuung");
+  if (price) pills.push(`${price} pro Monat`);
+  if (offering.valid_until) {
+    pills.push(`bis ${formatPlainDate(offering.valid_until)}`);
+  }
+  const startsLater = offering.starts_later === true && !!offering.valid_from;
+  if (pills.length === 0 && !startsLater) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      {startsLater ? (
+        <StatusBadge
+          tone="blue"
+          label={`gilt ab ${formatPlainDate(offering.valid_from ?? "")}`}
+          title="Diese Buchung ist noch nicht wirksam, sie beginnt erst zum genannten Datum."
+        />
+      ) : null}
+      {pills.map((label) => (
+        <FeaturePill key={label} label={label} />
+      ))}
     </div>
   );
 }
@@ -1383,11 +1434,21 @@ export function ChildOfferingAdjustment({
   );
 }
 
+// The offering rows that describe what the child is booked into TODAY.
+// Since #2185 the payload also carries bookings that only take effect later;
+// those are informational for the reader and must never seed the correction
+// editor, which replaces the currently effective selection.
+function effectiveOfferings(
+  offerings?: AdminRequestChildOffering[],
+): AdminRequestChildOffering[] {
+  return (offerings ?? []).filter((offering) => offering.starts_later !== true);
+}
+
 function initialManualOfferingIDs(
   offerings?: AdminRequestChildOffering[],
 ): Set<string> {
   const ids = new Set<string>();
-  for (const offering of offerings ?? []) {
+  for (const offering of effectiveOfferings(offerings)) {
     const automaticOnly =
       (offering.automatic_selected_days?.length ?? 0) > 0 &&
       (offering.manual_selected_days?.length ?? 0) === 0;
@@ -1400,7 +1461,7 @@ function initialManualOfferingDays(
   offerings?: AdminRequestChildOffering[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
-  for (const offering of offerings ?? []) {
+  for (const offering of effectiveOfferings(offerings)) {
     const manual =
       (offering.manual_selected_days?.length ?? 0) > 0
         ? offering.manual_selected_days
@@ -1428,7 +1489,7 @@ function adjustmentPayloadOfferings(
           : undefined,
     }));
   const catalogIDs = new Set(catalog.map((offering) => offering.id));
-  for (const offering of existingOfferings ?? []) {
+  for (const offering of effectiveOfferings(existingOfferings)) {
     if (
       catalogIDs.has(offering.offering_id) ||
       !selected.has(offering.offering_id)

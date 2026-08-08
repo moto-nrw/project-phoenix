@@ -211,7 +211,10 @@ function EnrollmentRequestCard({
               </div>
             ) : null}
 
-            <ChildOfferings offerings={child.offerings} />
+            <ChildOfferings
+              offerings={child.offerings}
+              phaseName={request.phase_name}
+            />
             {child.status === "approved" ? (
               <ChildOfferingAdjustment
                 requestId={request.id}

@@ -46,6 +46,24 @@ export interface AdminRequestChildOffering {
    * authoritative schedule; for parent_choice it bounds the picker.
    */
   available_days?: string[];
+  /**
+   * Offering attributes as configured on the phase's care offering. The
+   * parents app renders these for the same booking, so staff must see them
+   * too — otherwise a guardian describes something staff cannot find (#2185).
+   */
+  includes_lunch?: boolean;
+  includes_holiday_care?: boolean;
+  price_cents?: number;
+  /** ISO "YYYY-MM-DD". Set when the booking starts later than the period. */
+  valid_from?: string;
+  /** ISO "YYYY-MM-DD", exclusive end of the booking interval. */
+  valid_until?: string;
+  /**
+   * True for a booking that has not taken effect yet (an approved change
+   * scheduled for a future date). Such a row describes what WILL be booked —
+   * never treat it as the child's current selection.
+   */
+  starts_later?: boolean;
 }
 
 interface AdminOfferingAdjustmentSnapshot {

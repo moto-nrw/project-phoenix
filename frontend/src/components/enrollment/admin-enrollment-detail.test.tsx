@@ -537,6 +537,94 @@ describe("ChildOfferings", () => {
       ),
     ).toBeVisible();
   });
+
+  // #2185: staff must read the same attributes the parents app shows for the
+  // same booking, worded the same way, or a guardian's question is
+  // unanswerable from the staff view.
+  it("renders the offering attributes the parents app shows", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Ganztagsbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon", "tue"],
+            includes_lunch: true,
+            includes_holiday_care: true,
+            price_cents: 8550,
+            valid_until: "2027-07-31",
+          },
+        ]}
+        phaseName="Schuljahr 2026/2027"
+      />,
+    );
+
+    expect(screen.getByText("mit Mittagessen")).toBeVisible();
+    expect(screen.getByText("mit Ferienbetreuung")).toBeVisible();
+    expect(screen.getByText("85,50 € pro Monat")).toBeVisible();
+    expect(screen.getByText("bis 31.07.2027")).toBeVisible();
+  });
+
+  it("omits attribute pills the offering does not carry", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Frühbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+            includes_lunch: false,
+            includes_holiday_care: false,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.queryByText("mit Mittagessen")).toBeNull();
+    expect(screen.queryByText("mit Ferienbetreuung")).toBeNull();
+    expect(screen.queryByText(/pro Monat/)).toBeNull();
+  });
+
+  it("marks a booking that only takes effect later", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Ganztagsbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+            valid_from: "2026-09-01",
+            starts_later: true,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("gilt ab 01.09.2026")).toBeVisible();
+  });
+
+  it("names the phase the attributes are configured in", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Ganztagsbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+          },
+        ]}
+        phaseName="Schuljahr 2026/2027"
+      />,
+    );
+
+    expect(
+      screen.getByText(/Anmeldephase „Schuljahr 2026\/2027“/),
+    ).toBeVisible();
+  });
 });
 
 describe("ChildOfferingAdjustment", () => {
@@ -872,6 +960,84 @@ describe("ChildOfferingAdjustment", () => {
     fireEvent.click(save);
     await waitFor(() => {
       expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
+    });
+  });
+
+  // #2185 added not-yet-effective bookings to the payload so staff can SEE
+  // them. They describe a future state, so the correction editor — which
+  // replaces the currently effective selection — must ignore them; otherwise
+  // an untouched save would silently pull a future booking into the present.
+  it("keeps a not-yet-effective booking out of the correction payload", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      {
+        id: "offering-now",
+        phase_id: "phase-1",
+        name: "Ganztag",
+        days_of_week_mode: "fixed",
+        available_days: ["mon"],
+        includes_holiday_care: false,
+        includes_lunch: false,
+        is_active: true,
+        is_required: false,
+        sort_order: 1,
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+      {
+        id: "offering-later",
+        phase_id: "phase-1",
+        name: "Ganztag mit Mittagessen",
+        days_of_week_mode: "fixed",
+        available_days: ["mon"],
+        includes_holiday_care: false,
+        includes_lunch: true,
+        is_active: true,
+        is_required: false,
+        sort_order: 2,
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-now",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+          },
+          {
+            offering_id: "offering-later",
+            offering_name: "Ganztag mit Mittagessen",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+            valid_from: "2026-09-01",
+            starts_later: true,
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [
+            { offering_id: "offering-now", selected_days: undefined },
+          ],
+        }),
+      );
     });
   });
 });

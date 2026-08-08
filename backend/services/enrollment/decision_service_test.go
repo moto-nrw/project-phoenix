@@ -3475,6 +3475,76 @@ func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testin
 	assert.Empty(t, rows[childID])
 }
 
+// #2185: the parent portal shows lunch/holiday/price and the validity of every
+// booking, including one that only takes effect later. Staff answering a
+// guardian's question must see the same facts, so ListChildOfferings carries
+// the offering attributes and keeps future rows (flagged), dropping only rows
+// whose interval has already ended.
+func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	today := timezone.TodayDate()
+	setSourcePhaseServiceStartDate(t, env, today.AddDays(-30))
+	reqID, childID := submitOneChild(t, env, "lco-attrs@example.com", "Lina", "Attrs")
+
+	price := 8550
+	current := createAdjustmentCareOfferingWith(t, env, "Ganztag aktuell", func(o *enrollmentModels.CareOffering) {
+		o.IncludesLunch = true
+		o.IncludesHolidayCare = true
+		o.PriceCents = &price
+	})
+	upcoming := createAdjustmentCareOfferingWith(t, env, "Ganztag ab Herbst", nil)
+	ended := createAdjustmentCareOfferingWith(t, env, "Randstunde beendet", nil)
+
+	futureStart := today.AddDays(30)
+	endedUntil := today
+	createChildOfferingLink(t, env, childID, current.ID, nil, nil)
+	createChildOfferingLink(t, env, childID, upcoming.ID, &futureStart, nil)
+	createChildOfferingLink(t, env, childID, ended.ID, nil, &endedUntil)
+
+	rows, err := env.decision.ListChildOfferings(ctx, reqID)
+	require.NoError(t, err)
+
+	byOffering := map[int64]enrollmentService.ChildOfferingRow{}
+	for _, row := range rows[childID] {
+		byOffering[row.OfferingID] = row
+	}
+	require.Len(t, byOffering, 2, "the ended booking must be dropped, the future one kept")
+
+	currentRow := byOffering[current.ID]
+	assert.True(t, currentRow.IncludesLunch)
+	assert.True(t, currentRow.IncludesHolidayCare)
+	require.NotNil(t, currentRow.PriceCents)
+	assert.Equal(t, price, *currentRow.PriceCents)
+	assert.False(t, currentRow.StartsLater)
+
+	upcomingRow := byOffering[upcoming.ID]
+	assert.True(t, upcomingRow.StartsLater, "a booking starting in the future must be flagged")
+	require.NotNil(t, upcomingRow.ValidFrom)
+	assert.Equal(t, futureStart, *upcomingRow.ValidFrom)
+}
+
+func createChildOfferingLink(
+	t *testing.T,
+	env *decisionTestEnv,
+	requestChildID, careOfferingID int64,
+	validFrom, validUntil *timezone.Date,
+) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	link := &enrollmentModels.RequestChildOffering{
+		RequestChildID: requestChildID,
+		CareOfferingID: careOfferingID,
+		SelectedDays:   []string{"mon"},
+		ValidFrom:      validFrom,
+		ValidUntil:     validUntil,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
+}
+
 // ---- Offering adjustments ----------------------------------------------
 
 func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing.T) {
