@@ -453,6 +453,259 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 	assert.True(t, usersSvc.CanSeeEveryStudentDocumentCategory([]string{"admin:*"}))
 }
 
+// TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail pins the rule
+// that makes the Dokumente tab defensible: a service wired without its audit
+// repository must refuse the change rather than perform it silently. An
+// unlogged upload or deletion of a child's paperwork is worse than a failed
+// request.
+func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	repos := repositories.NewFactory(s.db)
+	unaudited := usersSvc.NewStudentDocumentService(
+		s.db,
+		repos.StudentDocument,
+		repos.Student,
+		nil,
+		repos.DataAccessLog,
+		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID}},
+		nil,
+	)
+	office := s.actor("users:update")
+
+	_, err := unaudited.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategorySonstiges), office)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing unaudited change")
+
+	doc := s.create(t, userModels.StudentDocumentCategorySonstiges, office)
+	_, err = unaudited.DeleteStudentDocument(s.ctx, s.studentID, doc.ID, office)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing unaudited change")
+
+	// The document survived the refused deletion.
+	docs, _, err := s.svc.ListStudentDocuments(s.ctx, s.studentID, "", office)
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+
+	// The same holds for a sensitive download without a data-access log: no
+	// row, no file.
+	unlogged := usersSvc.NewStudentDocumentService(
+		s.db,
+		repos.StudentDocument,
+		repos.Student,
+		repos.StudentFieldEdit,
+		nil,
+		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID}},
+		nil,
+	)
+	health := s.actor("student_documents:health")
+	attest := s.create(t, userModels.StudentDocumentCategoryAttest, health)
+	_, err = unlogged.ResolveStudentDocumentDownload(s.ctx, s.studentID, attest.ID, health)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing unaudited document download")
+
+	// An everyday category needs no access-log row, so it is still served.
+	everyday := s.create(t, userModels.StudentDocumentCategoryAbholvollmacht, office)
+	_, err = unlogged.ResolveStudentDocumentDownload(s.ctx, s.studentID, everyday.ID, office)
+	require.NoError(t, err)
+}
+
+// TestStudentDocumentService_RequiresAnActingAccount covers the other half of
+// the audit contract: every write and every logged download has to name the
+// person who performed it, so an anonymous actor is refused up front.
+func TestStudentDocumentService_RequiresAnActingAccount(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	office := s.actor("users:update")
+	anonymous := usersSvc.StudentDocumentActor{Permissions: []string{"admin:*"}}
+
+	_, err := s.svc.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategorySonstiges), anonymous)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "actor account id is required")
+
+	doc := s.create(t, userModels.StudentDocumentCategoryAttest, s.actor("student_documents:health"))
+	_, err = s.svc.DeleteStudentDocument(s.ctx, s.studentID, doc.ID, anonymous)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "actor account id is required")
+
+	_, err = s.svc.ResolveStudentDocumentDownload(s.ctx, s.studentID, doc.ID, anonymous)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "actor account id is required")
+
+	// An everyday document is downloadable without an account, because nothing
+	// has to be logged for it.
+	everyday := s.create(t, userModels.StudentDocumentCategoryAbholvollmacht, office)
+	_, err = s.svc.ResolveStudentDocumentDownload(s.ctx, s.studentID, everyday.ID, anonymous)
+	require.NoError(t, err)
+}
+
+// TestStudentDocumentService_RejectsMalformedInput covers the payload checks
+// that keep an unusable row out of the table. A document whose display name is
+// blank cannot be identified in the UI, and a category outside the enum would
+// map to the weakest of the three permissions.
+func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	office := s.actor("users:update")
+
+	unknown := s.input(userModels.StudentDocumentCategorySonstiges)
+	unknown.Category = "erfundene_kategorie"
+	_, err := s.svc.CreateStudentDocument(s.ctx, unknown, office)
+	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+
+	blank := s.input(userModels.StudentDocumentCategorySonstiges)
+	blank.FilenameDisplay = "   "
+	_, err = s.svc.CreateStudentDocument(s.ctx, blank, office)
+	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+
+	// Passes the input checks but fails the model's own validation, which is
+	// the last guard before the insert.
+	nameless := s.input(userModels.StudentDocumentCategorySonstiges)
+	nameless.FilenameStored = ""
+	_, err = s.svc.CreateStudentDocument(s.ctx, nameless, office)
+	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+
+	// The list filter validates its category too, before it decides whether the
+	// caller may see it.
+	_, _, err = s.svc.ListStudentDocuments(s.ctx, s.studentID, "erfundene_kategorie", office)
+	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+
+	// A cleanup intent needs both halves or it can never be acted on.
+	require.ErrorIs(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, 0, "x.pdf"), usersSvc.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, "  "), usersSvc.ErrStudentDocumentInvalid)
+
+	// None of it reached the table.
+	docs, _, err := s.svc.ListStudentDocuments(s.ctx, s.studentID, "", s.actor("admin:*"))
+	require.NoError(t, err)
+	assert.Empty(t, docs)
+}
+
+// TestStudentDocumentService_UnknownChildAndGrouplessChild covers the two ways
+// the per-child gate closes for a non-admin: the child does not exist, or the
+// child sits in no group and therefore has no supervisor to be.
+func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	office := s.actor("users:update")
+
+	_, _, err := s.svc.ListStudentDocuments(s.ctx, s.studentID+9_000_000, "", office)
+	require.Error(t, err, "an unknown child must not read as an empty document list")
+
+	groupless := testpkg.CreateTestStudent(t, s.db, "Ohne", fmt.Sprintf("Gruppe-%d", time.Now().UnixNano()), "1c")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, groupless.ID) })
+
+	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", office)
+	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+
+	// An admin still reaches them — the office role is exactly who handles a
+	// child that is not assigned to a group yet.
+	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", s.actor("admin:*"))
+	require.NoError(t, err)
+}
+
+// TestStudentDocumentService_CleanupRetryPathIsAuthorized covers the retry a
+// page view performs after a failed unlink. It has to reach a soft-deleted row,
+// and it has to apply the same category authority the tab does — otherwise
+// "retry the cleanup" becomes a way to confirm that a document exists.
+func TestStudentDocumentService_CleanupRetryPathIsAuthorized(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	office := s.actor("users:update")
+	health := s.actor("student_documents:health")
+
+	attest := s.create(t, userModels.StudentDocumentCategoryAttest, health)
+	_, err := s.svc.DeleteStudentDocument(s.ctx, s.studentID, attest.ID, health)
+	require.NoError(t, err)
+
+	resolved, err := s.svc.ResolveStudentDocumentCleanup(s.ctx, s.studentID, attest.ID, health)
+	require.NoError(t, err)
+	assert.Equal(t, attest.FilenameStored, resolved.FilenameStored)
+
+	_, err = s.svc.ResolveStudentDocumentCleanup(s.ctx, s.studentID, attest.ID, office)
+	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+
+	_, err = s.svc.ResolveStudentDocumentCleanup(s.ctx, s.studentID, attest.ID+9_000_000, health)
+	require.Error(t, err)
+
+	// The tenant-wide sweep the scheduler runs sees the same row without any
+	// actor at all — it works on behalf of nobody.
+	sweep, err := s.svc.ListDeletedStudentDocumentsPendingFileCleanups(s.ctx)
+	require.NoError(t, err)
+	assert.Contains(t, documentIDsOf(sweep), attest.ID)
+
+	// Marking the bytes gone retires it from both views.
+	require.NoError(t, s.svc.MarkFileDeleted(s.ctx, attest.ID))
+	sweep, err = s.svc.ListDeletedStudentDocumentsPendingFileCleanups(s.ctx)
+	require.NoError(t, err)
+	assert.NotContains(t, documentIDsOf(sweep), attest.ID)
+	retry, err := s.svc.ListDeletedStudentDocumentsPendingFileCleanup(s.ctx, s.studentID, health)
+	require.NoError(t, err)
+	assert.Empty(t, retry)
+}
+
+// TestStudentDocumentService_SettlesIntentsByIDAndName covers the two ways the
+// coordinator retires an intent: by ID after the scheduler unlinked the object,
+// and by stored name when the upload that owns it committed.
+func TestStudentDocumentService_SettlesIntentsByIDAndName(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+
+	byName := fmt.Sprintf("settle-name-%d.pdf", time.Now().UnixNano())
+	byID := fmt.Sprintf("settle-id-%d.pdf", time.Now().UnixNano())
+	require.NoError(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, byName))
+	require.NoError(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, byID))
+	// Both are queued five minutes out; activating makes them visible to a
+	// sweep, which is the state the coordinator settles them from.
+	require.NoError(t, s.svc.ActivateQueuedCleanup(s.ctx, byName))
+	require.NoError(t, s.svc.ActivateQueuedCleanup(s.ctx, byID))
+
+	queued, err := s.svc.ListQueuedStudentDocumentFileCleanups(s.ctx)
+	require.NoError(t, err)
+	require.Contains(t, cleanupNamesOf(queued), byName)
+	var target int64
+	for _, cleanup := range queued {
+		if cleanup.FilenameStored == byID {
+			target = cleanup.ID
+		}
+	}
+	require.NotZero(t, target)
+
+	require.NoError(t, s.svc.MarkQueuedCleanupCompleteByFilename(s.ctx, byName))
+	require.NoError(t, s.svc.MarkQueuedCleanupComplete(s.ctx, target))
+
+	queued, err = s.svc.ListQueuedStudentDocumentFileCleanups(s.ctx)
+	require.NoError(t, err)
+	assert.NotContains(t, cleanupNamesOf(queued), byName)
+	assert.NotContains(t, cleanupNamesOf(queued), byID)
+}
+
+// TestStudentDocumentService_AuditNamesAnUnknownActor pins the fallback for an
+// actor whose display name never reached the service. The trail must still say
+// who acted, and "" in a history column reads as a bug rather than as a person.
+func TestStudentDocumentService_AuditNamesAnUnknownActor(t *testing.T) {
+	s := newStudentDocumentScenario(t)
+	nameless := usersSvc.StudentDocumentActor{
+		AccountID:   s.account,
+		Permissions: []string{"users:update"},
+	}
+
+	s.create(t, userModels.StudentDocumentCategorySonstiges, nameless)
+
+	rows := s.auditRows(t)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "Unbekannt", rows[0].EditedByName)
+}
+
+func documentIDsOf(docs []*userModels.StudentDocument) []int64 {
+	ids := make([]int64, 0, len(docs))
+	for _, doc := range docs {
+		ids = append(ids, doc.ID)
+	}
+	return ids
+}
+
+func cleanupNamesOf(cleanups []*userModels.StudentDocumentFileCleanup) []string {
+	names := make([]string, 0, len(cleanups))
+	for _, cleanup := range cleanups {
+		names = append(names, cleanup.FilenameStored)
+	}
+	return names
+}
+
 // TestStudentDocumentService_AuthorizeUploadWritesNothing pins the guard the
 // upload handler relies on: it must answer before any byte or cleanup row
 // exists, and it must answer the same way the transaction later does.

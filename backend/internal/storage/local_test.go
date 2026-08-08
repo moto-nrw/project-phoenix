@@ -16,6 +16,11 @@ func TestKeyRejectsTraversal(t *testing.T) {
 		{"staff-documents", "..", "etc"},
 		{"staff-documents", "a/b"},
 		{"staff-documents", ""},
+		{"staff-documents", "."},
+		{"staff-documents", `a\b`},
+		// Not a segment of its own, but still a traversal payload once the
+		// operating system normalises the path.
+		{"staff-documents", "a..b"},
 		{},
 	} {
 		if _, err := Key(segments...); !errors.Is(err, ErrInvalidKey) {
@@ -189,6 +194,94 @@ func TestLocalSaveStopsMidStream(t *testing.T) {
 		t.Fatal("an aborted write must not leave its partial object behind")
 	}
 }
+
+// TestLocalRefusesAFileAsADirectory covers the failure a stray key produces on
+// every operation: the caller must get an error rather than a half-written
+// object, because an upload that reports success without storing bytes leaves a
+// metadata row pointing at nothing.
+func TestLocalRefusesAFileAsADirectory(t *testing.T) {
+	root := t.TempDir()
+	backend := NewLocal(root)
+	ctx := context.Background()
+
+	if _, err := backend.Save(ctx, "blocker", bytes.NewReader([]byte("x")), SaveOptions{}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if _, err := backend.Save(ctx, "blocker/child.pdf", bytes.NewReader([]byte("x")), SaveOptions{}); err == nil {
+		t.Fatal("Save below a plain file must fail")
+	}
+	if _, err := backend.Open(ctx, "blocker/child.pdf"); err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("Open below a plain file = %v, want a real failure", err)
+	}
+	if _, err := backend.Stat(ctx, "blocker/child.pdf"); err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("Stat below a plain file = %v, want a real failure", err)
+	}
+}
+
+// TestLocalRefusesADirectoryAsAnObject pins that a key naming a directory never
+// reads as an object. Open must say "not found" rather than hand
+// http.ServeContent a directory handle.
+func TestLocalRefusesADirectoryAsAnObject(t *testing.T) {
+	root := t.TempDir()
+	backend := NewLocal(root)
+	ctx := context.Background()
+
+	if _, err := backend.Save(ctx, "docs/9/file.pdf", bytes.NewReader([]byte("x")), SaveOptions{}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if _, err := backend.Open(ctx, "docs/9"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Open of a directory = %v, want ErrNotFound", err)
+	}
+	if _, err := backend.Save(ctx, "docs/9", bytes.NewReader([]byte("x")), SaveOptions{}); err == nil {
+		t.Fatal("Save over a directory must fail")
+	}
+	// A non-empty directory cannot be unlinked, and that failure has to reach
+	// the caller: cleanup marks an object done only when Remove succeeded.
+	if err := backend.Remove(ctx, "docs/9"); err == nil {
+		t.Fatal("Remove of a non-empty directory must fail")
+	}
+}
+
+// TestLocalSaveSurfacesReadFailure separates a broken source from a passed
+// deadline. Both abort the write, but only the deadline case may be reported as
+// a context error — the upload path decides its cleanup bookkeeping from it.
+func TestLocalSaveSurfacesReadFailure(t *testing.T) {
+	root := t.TempDir()
+	backend := NewLocal(root)
+
+	broken := errors.New("connection reset")
+	_, err := backend.Save(context.Background(), "docs/1/broken.pdf", failingReader{err: broken}, SaveOptions{})
+	if err == nil {
+		t.Fatal("Save with a failing source must fail")
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Save = %v, must not be reported as a context error", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "docs", "1", "broken.pdf")); !os.IsNotExist(statErr) {
+		t.Fatal("a failed write must not leave its partial object behind")
+	}
+}
+
+// TestLocalRemoveAndStatRejectEscapingKey completes the traversal guard: Save
+// and Open already refuse to leave the root, and so must the two operations
+// that a cleanup sweep uses.
+func TestLocalRemoveAndStatRejectEscapingKey(t *testing.T) {
+	backend := NewLocal(t.TempDir())
+	ctx := context.Background()
+
+	if err := backend.Remove(ctx, "../escaped.txt"); !errors.Is(err, ErrInvalidKey) {
+		t.Fatalf("Remove outside root = %v, want ErrInvalidKey", err)
+	}
+	if _, err := backend.Stat(ctx, "/etc/passwd"); !errors.Is(err, ErrInvalidKey) {
+		t.Fatalf("Stat of an absolute key = %v, want ErrInvalidKey", err)
+	}
+}
+
+type failingReader struct{ err error }
+
+func (f failingReader) Read([]byte) (int, error) { return 0, f.err }
 
 type cancelAfterFirstRead struct {
 	reader *bytes.Reader
