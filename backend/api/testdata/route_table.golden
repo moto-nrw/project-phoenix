@@ -48,6 +48,7 @@ DELETE /api/staff/{id}/vacation/opening
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
+DELETE /api/students/{id}/documents/{documentId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
 DELETE /api/students/{id}/pickup-notes/{noteId}
@@ -346,6 +347,8 @@ GET /api/students/{id}/companions
 GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
 GET /api/students/{id}/delete-impact
+GET /api/students/{id}/documents
+GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/in-group-room
 GET /api/students/{id}/photo/{filename}
@@ -663,6 +666,7 @@ POST /api/students/pickup-times/bulk
 POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
+POST /api/students/{id}/documents
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes

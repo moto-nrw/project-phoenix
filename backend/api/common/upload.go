@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
+	"github.com/moto-nrw/project-phoenix/internal/storage"
 )
 
 // AllowedImageTypes maps MIME types detected by http.DetectContentType to allowed image formats.
@@ -149,62 +151,33 @@ func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, er
 // filename (callers generate collision-free names, e.g. UUIDs). It creates
 // targetDir if it doesn't exist. Returns the full file path on disk.
 func SaveNamedFile(file io.Reader, targetDir, filename string) (string, error) {
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return "", errors.New("failed to create upload directory")
-	}
-
-	filePath := filepath.Join(targetDir, filename)
-	dst, err := os.Create(filePath)
-	if err != nil {
-		return "", errors.New("failed to save file")
-	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			slog.Default().Error("file close error", slog.String("error", err.Error()))
-		}
-	}()
-
-	if _, err := io.Copy(dst, file); err != nil {
-		// Clean up the partially written file
-		_ = os.Remove(filePath)
-		return "", errors.New("failed to save file")
-	}
-
-	return filePath, nil
+	return saveThroughStorage(file, targetDir, filename, storage.SaveOptions{})
 }
 
 // SavePrivateNamedFile writes a file that must never be exposed through a
 // static mount. Both the directory and file are owner-only so access remains
 // mediated by the authenticated download handler.
 func SavePrivateNamedFile(file io.Reader, targetDir, filename string) (string, error) {
-	if err := os.MkdirAll(targetDir, 0700); err != nil {
+	return saveThroughStorage(file, targetDir, filename, storage.SaveOptions{Private: true})
+}
+
+// saveThroughStorage funnels every write into the storage backend and keeps
+// returning an on-disk path so existing callers stay unchanged. The path is
+// derived from the same root the backend uses, so path and key can never
+// point at different files.
+func saveThroughStorage(file io.Reader, targetDir, filename string, opts storage.SaveOptions) (string, error) {
+	backend, dir, err := fileStore(targetDir)
+	if err != nil {
 		return "", errors.New("failed to create upload directory")
 	}
-	if err := os.Chmod(targetDir, 0700); err != nil {
-		return "", errors.New("failed to secure upload directory")
-	}
-
-	filePath := filepath.Join(targetDir, filename)
-	dst, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	key, err := storage.Key(filename)
 	if err != nil {
 		return "", errors.New("failed to save file")
 	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			slog.Default().Error("file close error", slog.String("error", err.Error()))
-		}
-	}()
-	if err := dst.Chmod(0600); err != nil {
-		_ = os.Remove(filePath)
-		return "", errors.New("failed to secure uploaded file")
-	}
-
-	if _, err := io.Copy(dst, file); err != nil {
-		_ = os.Remove(filePath)
+	if _, err := backend.Save(context.Background(), key, file, opts); err != nil {
 		return "", errors.New("failed to save file")
 	}
-
-	return filePath, nil
+	return filepath.Join(dir, filename), nil
 }
 
 // ServeFile serves a file from baseDir, validating the path stays within baseDir.
@@ -227,57 +200,92 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, baseDir, filename, 
 		return
 	}
 
-	// Resolve relative paths using the discovered public directory
-	if !filepath.IsAbs(baseDir) {
-		if pubDir, err := ResolvePublicDir(); err == nil {
-			// Strip leading "public/" since pubDir already points to it
-			rel := strings.TrimPrefix(baseDir, "public/")
-			rel = strings.TrimPrefix(rel, "public")
-			if rel != "" {
-				baseDir = filepath.Join(pubDir, rel)
-			} else {
-				baseDir = pubDir
-			}
-		}
+	backend, _, err := fileStore(baseDir)
+	if err != nil {
+		http.NotFound(w, r)
+		return
 	}
-
-	absBase, err := filepath.Abs(baseDir)
+	key, err := storage.Key(filename)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	absPath := filepath.Join(absBase, filename)
-	if !strings.HasPrefix(absPath, absBase+string(os.PathSeparator)) {
-		http.NotFound(w, r)
-		return
-	}
-
-	file, err := os.Open(absPath)
+	object, err := backend.Open(r.Context(), key)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer func() {
-		if err := file.Close(); err != nil {
+		if err := object.Close(); err != nil {
 			slog.Default().Error("file close error", slog.String("error", err.Error()))
 		}
 	}()
 
 	w.Header().Set("Cache-Control", cacheControl)
-	http.ServeContent(w, r, filename, modTime(file), file)
+	http.ServeContent(w, r, filename, object.ModTime(), object)
 }
 
 // RemoveImage deletes a file from disk, logging any error.
-func RemoveImage(path string) {
-	if path == "" {
+func RemoveImage(filePath string) {
+	if filePath == "" {
 		return
 	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	backend, _, err := fileStore(filepath.Dir(filePath))
+	if err != nil {
 		slog.Default().Error("failed to remove file",
-			slog.String("path", path),
+			slog.String("path", filePath),
+			slog.String("error", err.Error()))
+		return
+	}
+	key, err := storage.Key(filepath.Base(filePath))
+	if err != nil {
+		slog.Default().Error("failed to remove file",
+			slog.String("path", filePath),
+			slog.String("error", err.Error()))
+		return
+	}
+	if err := backend.Remove(context.Background(), key); err != nil {
+		slog.Default().Error("failed to remove file",
+			slog.String("path", filePath),
 			slog.String("error", err.Error()))
 	}
+}
+
+// fileStore returns the storage backend for one upload directory plus the
+// absolute directory it resolved to. Relative directories ("public/uploads/x")
+// are resolved against the discovered public directory; absolute ones are used
+// as given. This is the single place that answers "where do these bytes live",
+// and every read, write and delete of an upload goes through the backend it
+// returns — save, serve and remove therefore cannot disagree.
+func fileStore(baseDir string) (storage.Backend, string, error) {
+	dir := baseDir
+	if !filepath.IsAbs(dir) {
+		if pubDir, err := ResolvePublicDir(); err == nil {
+			// Strip leading "public/" since pubDir already points to it
+			rel := strings.TrimPrefix(dir, "public/")
+			rel = strings.TrimPrefix(rel, "public")
+			if rel != "" {
+				dir = filepath.Join(pubDir, rel)
+			} else {
+				dir = pubDir
+			}
+		}
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, "", errors.New("failed to resolve directory")
+	}
+	return storage.NewLocal(absDir), absDir, nil
+}
+
+// UploadsBackend returns the storage backend rooted at the uploads
+// directory. Document features address objects inside it by key
+// ({kind}/{tenant}/{name}) instead of assembling paths of their own.
+func UploadsBackend() (storage.Backend, error) {
+	backend, _, err := fileStore("public/uploads")
+	return backend, err
 }
 
 // ValidateFilename rejects filenames containing path traversal characters.

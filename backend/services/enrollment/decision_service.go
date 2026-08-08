@@ -211,7 +211,7 @@ type DecisionService interface {
 	// every child under requestID, joined to the offering's name +
 	// description so the admin detail page can render labels without
 	// a second per-offering fetch. Map key is request_child_id.
-	ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error)
+	ListChildOfferings(ctx context.Context, requestID int64) (map[int64]ChildOfferingSet, error)
 
 	// ExportPhase loads every request of a phase with its fully-resolved
 	// children + offerings + form schema(s) in a fixed handful of
@@ -301,6 +301,11 @@ type ExportChildRow struct {
 // surfaced by ListChildOfferings. SelectedDays mirrors the DB column
 // — nil when the offering runs in admin-fixed mode, non-nil only when
 // the parent picked specific days.
+//
+// The attribute fields (price, lunch, holiday care) and the validity
+// interval mirror what the parent portal already shows for the same
+// booking (#2185): staff answering a guardian's question must see the
+// same facts, or they contradict the family's own app.
 type ChildOfferingRow struct {
 	OfferingID            int64
 	OfferingName          string
@@ -309,6 +314,32 @@ type ChildOfferingRow struct {
 	ManualSelectedDays    []string
 	AutomaticSelectedDays []string
 	AvailableDays         []string
+	IncludesLunch         bool
+	IncludesHolidayCare   bool
+	// PriceCents is nil when the school configured no price.
+	PriceCents *int
+	// ValidFrom is nil for a booking effective since the start of the
+	// care period; ValidUntil is exclusive, mirroring the stored interval.
+	ValidFrom  *timezone.Date
+	ValidUntil *timezone.Date
+	// StartsLater marks a booking that has not taken effect yet — an
+	// approved change scheduled for a future date. Those rows are
+	// informational: they describe what will be booked, not what is.
+	StartsLater bool
+}
+
+// ChildOfferingSet separates the two questions a reader asks about a
+// child's bookings. Two slices rather than one slice plus a flag: a
+// forgotten flag would silently route a booking into the wrong group,
+// and the wrong group is either a deletion (the editor seeds empty) or
+// an early application (a future change is pre-checked). A row cannot
+// be in no slice and cannot be in both.
+type ChildOfferingSet struct {
+	// Current is the selection on file — exactly what UpdateChildOfferings
+	// replaces. Seed a correction editor from this and nothing else.
+	Current []ChildOfferingRow
+	// Upcoming only takes effect on a later date. Display only.
+	Upcoming []ChildOfferingRow
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -513,7 +544,13 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 // missing a parent_choice day picker land with SelectedDays == nil.
 // Used by the admin detail endpoint to render the Betreuungsangebote
 // next to each child for the decision UI.
-func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error) {
+//
+// Rows that have already expired are dropped, but rows that take
+// effect later are kept and flagged StartsLater (#2185). The parent
+// portal has always shown those; listing only the currently effective
+// selection left staff unable to see an approved change before its
+// effective date and unable to answer the family's questions about it.
+func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int64) (map[int64]ChildOfferingSet, error) {
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
@@ -529,32 +566,124 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
-	out := make(map[int64][]ChildOfferingRow, len(children))
+	onDate := BookingViewDate(timezone.TodayDate(), phase.ServiceEndDate)
+	// The date the WRITE path treats as "now".
+	selectionDate := currentOfferingSelectionDate(phase)
+	out := make(map[int64]ChildOfferingSet, len(children))
 	for _, child := range children {
-		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, reportOfferingDate(phase))
+		links, lerr := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, child.ID)
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
-		rows := make([]ChildOfferingRow, 0, len(links))
-		for _, link := range links {
-			row := ChildOfferingRow{
-				OfferingID:            link.CareOfferingID,
-				SelectedDays:          link.SelectedDays,
-				ManualSelectedDays:    link.ManualSelectedDays,
-				AutomaticSelectedDays: link.AutomaticSelectedDays,
-			}
-			if s.CareOfferingRepo != nil {
-				if off, err := s.CareOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
-					row.OfferingName = off.Name
-					row.DaysOfWeekMode = off.DaysOfWeekMode
-					row.AvailableDays = off.AvailableDays
-				}
-			}
-			rows = append(rows, row)
+		// Which rows count as "current" is NOT re-derived here. This is the
+		// very call UpdateChildOfferings makes to read the selection it is
+		// about to replace, so the two agree by construction — including the
+		// repository's pre-phase-start fallback, which a hand-written
+		// predicate would miss. Getting this wrong deletes bookings.
+		currentLinks, cerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, selectionDate)
+		if cerr != nil {
+			return nil, fmt.Errorf("decision: list current offerings for child %d: %w", child.ID, cerr)
 		}
-		out[child.ID] = rows
+		isCurrent := make(map[int64]bool, len(currentLinks))
+		for _, link := range currentLinks {
+			if link != nil {
+				isCurrent[link.ID] = true
+			}
+		}
+
+		offeringByID := s.careOfferingsByID(ctx, links)
+		set := ChildOfferingSet{}
+		for _, link := range links {
+			if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(onDate)) {
+				continue
+			}
+			row := childOfferingRow(link, offeringByID[link.CareOfferingID], onDate)
+			switch {
+			case isCurrent[link.ID]:
+				set.Current = append(set.Current, row)
+			case link.ValidFrom != nil && link.ValidFrom.After(selectionDate):
+				set.Upcoming = append(set.Upcoming, row)
+			default:
+				// Neither on file nor ahead: a superseded interval that only
+				// describes the past. Showing it would read as a booking.
+			}
+		}
+		out[child.ID] = set
 	}
 	return out, nil
+}
+
+// careOfferingsByID resolves the catalog entries behind a child's
+// offering links in one query. Returns an empty map when no catalog
+// repo is wired, leaving rows with their link-side fields only.
+//
+// A failed catalog lookup degrades instead of failing the call, and
+// deliberately so: the caller's error is best-effort at the handler,
+// which would render the child with NO Betreuungsangebote at all. An
+// admin then opens the correction editor on an empty selection, and an
+// untouched save replaces the family's real bookings with nothing. A
+// row with a missing name is recoverable; a silently emptied booking
+// list is not.
+func (s *decisionService) careOfferingsByID(
+	ctx context.Context,
+	links []*enrollmentModels.RequestChildOffering,
+) map[int64]*enrollmentModels.CareOffering {
+	byID := make(map[int64]*enrollmentModels.CareOffering, len(links))
+	if s.CareOfferingRepo == nil || len(links) == 0 {
+		return byID
+	}
+	seen := make(map[int64]bool, len(links))
+	ids := make([]int64, 0, len(links))
+	for _, link := range links {
+		if link == nil || link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
+			continue
+		}
+		seen[link.CareOfferingID] = true
+		ids = append(ids, link.CareOfferingID)
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	if err != nil {
+		s.Logger.Warn("decision: care offering catalog lookup failed, rendering bookings without catalog data",
+			slog.String("error", err.Error()),
+			slog.Int("offering_count", len(ids)),
+		)
+		return byID
+	}
+	for _, offering := range offerings {
+		if offering != nil {
+			byID[offering.ID] = offering
+		}
+	}
+	return byID
+}
+
+// childOfferingRow merges the link (what the child booked, from when)
+// with the catalog entry (what the offering is). A missing catalog
+// entry — deleted offering — still yields a row so the admin sees the
+// booking exists, unlike the parent view which skips it.
+func childOfferingRow(
+	link *enrollmentModels.RequestChildOffering,
+	offering *enrollmentModels.CareOffering,
+	onDate timezone.Date,
+) ChildOfferingRow {
+	row := ChildOfferingRow{
+		OfferingID:            link.CareOfferingID,
+		SelectedDays:          link.SelectedDays,
+		ManualSelectedDays:    link.ManualSelectedDays,
+		AutomaticSelectedDays: link.AutomaticSelectedDays,
+		ValidFrom:             link.ValidFrom,
+		ValidUntil:            link.ValidUntil,
+		StartsLater:           link.ValidFrom != nil && link.ValidFrom.After(onDate),
+	}
+	if offering != nil {
+		row.OfferingName = offering.Name
+		row.DaysOfWeekMode = offering.DaysOfWeekMode
+		row.AvailableDays = offering.AvailableDays
+		row.IncludesLunch = offering.IncludesLunch
+		row.IncludesHolidayCare = offering.IncludesHolidayCare
+		row.PriceCents = offering.PriceCents
+	}
+	return row
 }
 
 // ExportPhase loads the export payload (exportData) and records the

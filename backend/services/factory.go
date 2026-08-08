@@ -118,6 +118,7 @@ type Factory struct {
 	Users                    users.PersonService
 	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
+	StudentDocuments         users.StudentDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -1666,6 +1667,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentDeletionAudit,
 		db,
 	)
+	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
+
+	// Child documents (#777): metadata, per-category authority and the
+	// per-child access gate for the Dokumente tab. Needs the user context to
+	// answer "does this caller supervise this child", so it is wired after it.
+	studentDocumentService := users.NewStudentDocumentService(
+		db,
+		repos.StudentDocument,
+		repos.Student,
+		repos.StudentFieldEdit,
+		repos.DataAccessLog,
+		userContextService,
+		logger.With("service", "student_documents"),
+	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
@@ -2095,6 +2110,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Users:                    usersService,
 		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
+		StudentDocuments:         studentDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

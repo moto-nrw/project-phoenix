@@ -808,7 +808,7 @@ func (f *fakeApproveDecisionService) Get(_ context.Context, _ int64) (*enrollmen
 	return nil, nil
 }
 
-func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
+func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64]enrollmentService.ChildOfferingSet, error) {
 	return nil, nil
 }
 

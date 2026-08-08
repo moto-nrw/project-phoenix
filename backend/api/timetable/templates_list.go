@@ -227,8 +227,14 @@ func educationGroupIDFromRow(row templateRow) *int64 {
 }
 
 type templateResponse struct {
-	ID                     int64  `json:"id"`
-	Name                   string `json:"name"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	// ResolvedFromTemplateID is set when the requested id belonged to an
+	// already-capped predecessor segment of a split series and this response
+	// carries the living successor instead (#2187). The editor must write to
+	// `id` and pass the clicked occurrence's date as series_roster_from so a
+	// roster change reaches the predecessor's remaining occurrences.
+	ResolvedFromTemplateID *int64 `json:"resolved_from_template_id,omitempty"`
 	Type                   string `json:"type"`
 	CategoryID             int64  `json:"category_id"`
 	CategoryName           string `json:"category_name"`

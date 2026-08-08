@@ -86,7 +86,8 @@ type Factory struct {
 	StaffFinancialData userModels.StaffFinancialDataRepository
 
 	// Staff documents (#1424)
-	StaffDocument userModels.StaffDocumentRepository
+	StaffDocument   userModels.StaffDocumentRepository
+	StudentDocument userModels.StudentDocumentRepository
 
 	NotificationPreference userModels.NotificationPreferenceRepository
 
@@ -300,7 +301,8 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
 
 		// Staff documents (#1424)
-		StaffDocument: users.NewStaffDocumentRepository(db),
+		StaffDocument:   users.NewStaffDocumentRepository(db),
+		StudentDocument: users.NewStudentDocumentRepository(db),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 

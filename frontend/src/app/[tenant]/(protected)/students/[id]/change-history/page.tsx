@@ -54,9 +54,17 @@ const FIELD_LABELS: Record<string, string> = {
   pickup_status: "Abholung",
   departure_days: "Wochenplan (Abholung)",
   departure_companion_note: "Geht außerdem mit",
+  document: "Dokument",
 };
 
+// Document rows carry their category in the field name ("document_attest") so
+// the backend can filter the history by the same per-category permissions the
+// Dokumente tab uses. The readable category is already part of the value, so
+// every variant renders under one label.
 function fieldLabel(field: string): string {
+  if (field.startsWith("document_")) {
+    return "Dokument";
+  }
   return FIELD_LABELS[field] ?? field;
 }
 

@@ -216,6 +216,19 @@ const (
 	StaffDocumentsHealth = ResourceStaffDocuments + ":health"
 )
 
+// Student document permissions (#777). student_documents:health gates
+// Attest, Impfnachweis and Medikamentenplan (Art. 9 GDPR health data);
+// student_documents:legal gates the Sorgerechtsnachweis, which is not Art. 9
+// but is at least as damaging in the wrong hands. Catalog-only like
+// staff_documents:health: admins match via the admin:* wildcard, and every
+// remaining category rides on users:update in the document service.
+const (
+	ResourceStudentDocuments = "student_documents"
+
+	StudentDocumentsHealth = ResourceStudentDocuments + ":health"
+	StudentDocumentsLegal  = ResourceStudentDocuments + ":legal"
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"

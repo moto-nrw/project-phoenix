@@ -3471,8 +3471,235 @@ func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testin
 
 	rows, err := env.decision.ListChildOfferings(ctx, reqID)
 	require.NoError(t, err)
-	// Child exists in the map with an empty slice; no offerings selected.
-	assert.Empty(t, rows[childID])
+	// Child exists in the map with both groups empty; no offerings selected.
+	assert.Empty(t, rows[childID].Current)
+	assert.Empty(t, rows[childID].Upcoming)
+}
+
+// #2185: the parent portal shows lunch/holiday/price and the validity of every
+// booking, including one that only takes effect later. Staff answering a
+// guardian's question must see the same facts, so ListChildOfferings carries
+// the offering attributes and keeps future rows (flagged), dropping only rows
+// whose interval has already ended.
+func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	today := timezone.TodayDate()
+	setSourcePhaseServiceStartDate(t, env, today.AddDays(-30))
+	reqID, childID := submitOneChild(t, env, "lco-attrs@example.com", "Lina", "Attrs")
+
+	price := 8550
+	current := createAdjustmentCareOfferingWith(t, env, "Ganztag aktuell", func(o *enrollmentModels.CareOffering) {
+		o.IncludesLunch = true
+		o.IncludesHolidayCare = true
+		o.PriceCents = &price
+	})
+	upcoming := createAdjustmentCareOfferingWith(t, env, "Ganztag ab Herbst", nil)
+	ended := createAdjustmentCareOfferingWith(t, env, "Randstunde beendet", nil)
+
+	futureStart := today.AddDays(30)
+	endedUntil := today
+	createChildOfferingLink(t, env, childID, current.ID, nil, nil)
+	createChildOfferingLink(t, env, childID, upcoming.ID, &futureStart, nil)
+	createChildOfferingLink(t, env, childID, ended.ID, nil, &endedUntil)
+
+	rows, err := env.decision.ListChildOfferings(ctx, reqID)
+	require.NoError(t, err)
+
+	byOffering := map[int64]enrollmentService.ChildOfferingRow{}
+	for _, row := range rows[childID].Current {
+		byOffering[row.OfferingID] = row
+	}
+	require.Len(t, byOffering, 1, "only the effective booking is the selection on file")
+	require.Len(t, rows[childID].Upcoming, 1, "the future booking is kept, separately")
+	assert.Equal(t, upcoming.ID, rows[childID].Upcoming[0].OfferingID)
+
+	currentRow := byOffering[current.ID]
+	assert.True(t, currentRow.IncludesLunch)
+	assert.True(t, currentRow.IncludesHolidayCare)
+	require.NotNil(t, currentRow.PriceCents)
+	assert.Equal(t, price, *currentRow.PriceCents)
+	assert.False(t, currentRow.StartsLater)
+
+	upcomingRow := rows[childID].Upcoming[0]
+	assert.True(t, upcomingRow.StartsLater, "a booking starting in the future must be flagged")
+	require.NotNil(t, upcomingRow.ValidFrom)
+	assert.Equal(t, futureStart, *upcomingRow.ValidFrom)
+}
+
+// #2185 parity guard: the editor seeds from ListChildOfferings' Current
+// group, the save replaces whatever UpdateChildOfferings reads as current.
+// If those two ever answer differently, an untouched save deletes the
+// difference.
+//
+// Scope, honestly: this pins agreement for the states reachable today. It
+// does NOT by itself prove the read path may re-derive the rule — a
+// hand-written predicate passes this test, because the repository's
+// pre-phase-start fallback is unreachable while currentOfferingSelectionDate
+// clamps up to the service start (see
+// TestRequestChildOfferingRepo_AtDateBeforeServiceStart for the branch a
+// copy would miss). That is exactly why the read path asks the repository
+// instead of copying the predicate: the two are then the same code, and no
+// future change to the clamp can separate them.
+func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	today := timezone.TodayDate()
+	for _, tc := range []struct {
+		name         string
+		slug         string
+		serviceStart timezone.Date
+	}{
+		{"phase still ahead", "ahead", today.AddDays(45)},
+		{"phase running", "running", today.AddDays(-30)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setSourcePhaseServiceStartDate(t, env, tc.serviceStart)
+			reqID, childID := submitOneChild(t, env,
+				"lco-parity-"+tc.slug+"@example.com", "Lina", "Parity")
+
+			current := createAdjustmentCareOfferingWith(t, env, "Aktuell "+tc.name, nil)
+			later := createAdjustmentCareOfferingWith(t, env, "Später "+tc.name, nil)
+			laterStart := tc.serviceStart.AddDays(60)
+			createChildOfferingLink(t, env, childID, current.ID, nil, &laterStart)
+			createChildOfferingLink(t, env, childID, later.ID, &laterStart, nil)
+
+			rows, err := env.decision.ListChildOfferings(ctx, reqID)
+			require.NoError(t, err)
+
+			// What the save would replace, read exactly as the write path reads it.
+			phase, err := env.repos.Phase.FindByID(ctx, env.sourcePhase.ID)
+			require.NoError(t, err)
+			writeLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(
+				ctx, childID, enrollmentService.WriteSelectionDateForTest(phase))
+			require.NoError(t, err)
+
+			readIDs := make([]int64, 0, len(rows[childID].Current))
+			for _, row := range rows[childID].Current {
+				readIDs = append(readIDs, row.OfferingID)
+			}
+			writeIDs := make([]int64, 0, len(writeLinks))
+			for _, link := range writeLinks {
+				writeIDs = append(writeIDs, link.CareOfferingID)
+			}
+			assert.ElementsMatch(t, writeIDs, readIDs,
+				"the editor must seed exactly the selection the save replaces")
+		})
+	}
+}
+
+// catalogFailureRepo makes only the catalog batch lookup fail; every other
+// method keeps the real behaviour through the embedded repository.
+type catalogFailureRepo struct {
+	enrollmentModels.CareOfferingRepository
+}
+
+func (catalogFailureRepo) ListByIDs(_ context.Context, _ []int64) ([]*enrollmentModels.CareOffering, error) {
+	return nil, errors.New("synthetic catalog outage")
+}
+
+// #2185: a catalog outage must NOT swallow the child's bookings. The admin
+// detail handler treats ListChildOfferings as best-effort, so an error there
+// renders the child with no Betreuungsangebote at all — the admin then
+// corrects on top of an empty selection and the save deletes the family's
+// real bookings. Degrading to rows without catalog data keeps that from
+// happening.
+func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "lco-catalog@example.com", "Lina", "Catalog")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
+	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
+
+	repoFactory := repositories.NewFactory(env.db)
+	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		RequestRepo:              repoFactory.Request,
+		RequestChildRepo:         repoFactory.RequestChild,
+		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
+		CareOfferingRepo:         catalogFailureRepo{repoFactory.CareOffering},
+		PhaseRepo:                repoFactory.Phase,
+	})
+
+	rows, err := degraded.ListChildOfferings(ctx, reqID)
+	require.NoError(t, err, "a catalog outage must not fail the whole lookup")
+	require.Len(t, rows[childID].Current, 1,
+		"the booking must survive without its catalog entry")
+	assert.Equal(t, offering.ID, rows[childID].Current[0].OfferingID)
+}
+
+func createChildOfferingLink(
+	t *testing.T,
+	env *decisionTestEnv,
+	requestChildID, careOfferingID int64,
+	validFrom, validUntil *timezone.Date,
+) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	link := &enrollmentModels.RequestChildOffering{
+		RequestChildID: requestChildID,
+		CareOfferingID: careOfferingID,
+		SelectedDays:   []string{"mon"},
+		ValidFrom:      validFrom,
+		ValidUntil:     validUntil,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
+}
+
+// #2185: the staff view and the parent portal must judge "starts later" from
+// the SAME day. Clamping the staff reference date up to the service start
+// (what reportOfferingDate does, for reports) hid exactly the badge the
+// parents app shows during the whole pre-start review period — a guardian on
+// the phone saw "ab 06.10." on every booking, staff saw none.
+//
+// Only the badge half of that divergence is reachable: a row cannot end
+// before the service start (the repository defaults valid_from to the phase
+// start and request_child_offerings_nonempty_validity requires
+// valid_from < valid_until), so no pre-start row can be dropped either way.
+func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	today := timezone.TodayDate()
+	serviceStart := today.AddDays(45)
+	setSourcePhaseServiceStartDate(t, env, serviceStart)
+	reqID, childID := submitOneChild(t, env, "lco-prestart@example.com", "Lina", "PreStart")
+
+	fromStart := createAdjustmentCareOfferingWith(t, env, "Ab Periodenstart", nil)
+	createChildOfferingLink(t, env, childID, fromStart.ID, &serviceStart, nil)
+
+	rows, err := env.decision.ListChildOfferings(ctx, reqID)
+	require.NoError(t, err)
+
+	// The write path clamps its selection date up to the service start, so
+	// this very row IS what a correction replaces. Grouping it as "upcoming"
+	// would let the editor seed empty and the save delete the family's
+	// bookings.
+	require.Len(t, rows[childID].Current, 1,
+		"a pre-start booking is not yet in effect but is still the selection on file")
+	assert.Equal(t, fromStart.ID, rows[childID].Current[0].OfferingID)
+	assert.True(t, rows[childID].Current[0].StartsLater,
+		"a booking effective from the service start has not started while the phase is still ahead")
+	assert.Empty(t, rows[childID].Upcoming)
+}
+
+func TestBookingViewDate(t *testing.T) {
+	today := timezone.NewDate(2026, 8, 8)
+
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
+		"inside or ahead of the period the reference date is simply today")
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date{}),
+		"a missing period end must not move the reference date")
+	assert.Equal(t, timezone.NewDate(2026, 7, 31),
+		enrollmentService.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),
+		"after the period ended the final state is what a reader needs")
 }
 
 // ---- Offering adjustments ----------------------------------------------

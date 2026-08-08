@@ -510,13 +510,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
 		},
-		Broadcaster:        api.Services.RealtimeHub,
-		ParentEventEmitter: api.Services.ParentEventEmitter,
-		AbsenceNotifier:    api.Services.AbsenceNotifier,
-		StudentPhotos:      api.Services.StudentPhotos,
-		ListExportService:  api.Services.ListExport,
-		Logger:             logger.With("handler", "students"),
-		DB:                 db,
+		Broadcaster:            api.Services.RealtimeHub,
+		ParentEventEmitter:     api.Services.ParentEventEmitter,
+		AbsenceNotifier:        api.Services.AbsenceNotifier,
+		StudentPhotos:          api.Services.StudentPhotos,
+		StudentDocumentService: api.Services.StudentDocuments,
+		ListExportService:      api.Services.ListExport,
+		Logger:                 logger.With("handler", "students"),
+		DB:                     db,
 	})
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))

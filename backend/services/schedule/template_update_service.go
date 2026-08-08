@@ -57,6 +57,33 @@ type TemplateUpdateInput struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
+	// SeriesRosterFrom extends the saved roster backwards over the split
+	// series (#2187): when set, the roster is additionally reconciled onto the
+	// bounded predecessor segments overlapping [SeriesRosterFrom, this
+	// segment's valid_from). It does NOT change the living segment's own
+	// roster anchor (RosterValidFrom stays authoritative there). Nil = the
+	// update touches only this segment, exactly as before.
+	SeriesRosterFrom *timezone.Date
+	// SeriesRosterScopeStudentIDs / SeriesRosterScopeStaffIDs name the people
+	// whose membership this edit actually changed. Only they are reconciled on
+	// the predecessor segments; everyone else keeps their predecessor rows.
+	// StudentIDs/StaffIDs describe the LIVING segment and may legitimately
+	// differ from a predecessor's roster (a split can change the roster), so
+	// treating them as the predecessor's absolute target set would silently
+	// drop predecessor-only members. Empty scopes = nothing to mirror.
+	SeriesRosterScopeStudentIDs []int64
+	SeriesRosterScopeStaffIDs   []int64
+	// SeriesRosterScopeWeekdays narrows the mirroring to the weekdays this
+	// edit describes. The occurrence editor of a per-weekday series (#2129)
+	// shows ONE weekday's roster, so the predecessor's other weekdays must not
+	// be judged against it. Empty = every weekday the segment shares with the
+	// submitted recurrence.
+	SeriesRosterScopeWeekdays []int
+	// SeriesRosterPrimaryChanged marks the Hauptbetreuung itself as part of
+	// this edit. PrimaryStaffID always names the LIVING segment's lead, so
+	// without this flag a newly mirrored supervisor row would stamp that lead
+	// onto the predecessor and outrank its own.
+	SeriesRosterPrimaryChanged bool
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster
@@ -219,6 +246,9 @@ func (s *TimetableDataService) updateTemplateLocked(
 		return err
 	}
 	if err := s.reconcileManualRosterInstances(ctx, in, previousSourceOfferingID, validFrom, retiredStudentIDs); err != nil {
+		return err
+	}
+	if err := s.reconcileSeriesPredecessorRoster(ctx, in, tenantID, validFrom); err != nil {
 		return err
 	}
 	if s.deps.ValidateCareOfferingSeries == nil {

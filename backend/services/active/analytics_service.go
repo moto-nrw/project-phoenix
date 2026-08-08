@@ -53,7 +53,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Phase 6: Process active groups and calculate group metrics
 	activeGroupsCount, ogsGroupsCount, uniqueStudentsInRoomsOverall := processActiveGroups(
-		baseData.activeGroups, baseData.visitsByGroupID, baseData.educationGroupsByID, roomData,
+		baseData.activeGroups, baseData.visitsByGroupID, baseData.activityGroupsByID, roomData,
 	)
 	analytics.ActiveActivities = activeGroupsCount
 	analytics.ActiveOGSGroups = ogsGroupsCount
@@ -72,9 +72,9 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.StudentsInHomeRoom = locationData.studentsInHomeRoom
 
 	// Phase 9: Build summary lists (using pre-loaded maps for O(1) name lookups)
-	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
+	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, roomData)
 	analytics.CurrentActivities = buildCurrentActivities(baseData.allActivityGroups, baseData.activeGroups, roomData)
-	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
+	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, roomData)
 
 	return analytics, nil
 }

@@ -117,6 +117,7 @@ async function postJson<T>(
     const err = new MFAApiError(
       response.status,
       extractErrorMessage(data) ?? `Request failed (${response.status})`,
+      extractErrorCode(data) ?? undefined,
     );
     throw err;
   }
@@ -141,10 +142,26 @@ function extractErrorMessage(data: unknown): string | null {
   return null;
 }
 
+/**
+ * Pulls the backend's stable `code` off an error body. Callers branch on
+ * this instead of the human-readable `error` string, which is English,
+ * unstable, and not a contract.
+ */
+function extractErrorCode(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const rec = data as Record<string, unknown>;
+  return typeof rec.code === "string" ? rec.code : null;
+}
+
 export class MFAApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /**
+     * Stable backend error code (`api/common.ErrResponse.Code`), when the
+     * endpoint sets one. Optional because most endpoints don't.
+     */
+    public code?: string,
   ) {
     super(message);
     this.name = "MFAApiError";

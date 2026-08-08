@@ -2014,11 +2014,15 @@ describe("authConfig", () => {
       ).rejects.toMatchObject({ code: "account_inactive" });
     });
 
-    it("should throw invalid_credentials when backend returns code not_a_guardian", async () => {
-      // This is the regression test for the ORIGINAL reported bug:
-      // staff account hitting the parent portal. The code MUST be
-      // masked to invalid_credentials at this layer so the UI
-      // doesn't confirm the email is a known staff account.
+    it("should throw not_a_guardian when backend returns code not_a_guardian", async () => {
+      // Staff account hitting the parent portal. This code used to be
+      // masked to invalid_credentials so the UI would not confirm the
+      // email belongs to staff. The mask was dropped deliberately: the
+      // backend only reaches this branch AFTER validateLoginCredentials
+      // accepted the password (services/auth/auth_login_parent.go), so
+      // the caller already owns the account and learns nothing new. The
+      // mask did cost real users the one hint they needed — parents
+      // stuck on the wrong portal kept resetting their password instead.
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 403,
@@ -2036,7 +2040,7 @@ describe("authConfig", () => {
           { email: "staff@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "invalid_credentials" });
+      ).rejects.toMatchObject({ code: "not_a_guardian" });
     });
 
     it("should throw invalid_credentials when backend returns code invalid_credentials", async () => {
