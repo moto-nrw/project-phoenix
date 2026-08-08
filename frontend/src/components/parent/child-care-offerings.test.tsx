@@ -88,6 +88,32 @@ describe("ChildCareOfferingsSection", () => {
     ).toBeInTheDocument();
   });
 
+  // #2185: valid_until is exclusive on both offerings and group memberships.
+  // "bis 31.07.2027" would promise a day of care that the row no longer covers.
+  it("shows the last covered day for an exclusive end date", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        offerings: [
+          {
+            id: "5",
+            name: "Regelbetreuung",
+            weekdays: [1, 2, 3],
+            includes_lunch: true,
+            includes_holiday_care: false,
+            valid_until: "2027-07-31",
+          },
+        ],
+      }),
+    );
+
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    await screen.findByText("Regelbetreuung");
+    // Once for the offering, once for the group membership.
+    expect(screen.getAllByText("bis 30.07.2027")).toHaveLength(2);
+    expect(screen.queryByText("bis 31.07.2027")).toBeNull();
+  });
+
   it("refreshes when the parent SSE bridge invalidates this child's care state", async () => {
     mockGet.mockResolvedValueOnce(view()).mockResolvedValueOnce(
       view({

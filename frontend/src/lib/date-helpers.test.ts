@@ -16,6 +16,7 @@ import {
   formatChatTime,
   formatChatDateTime,
   formatBerlinDate,
+  formatExclusiveEndDate,
 } from "./date-helpers";
 
 describe("toISODate", () => {
@@ -579,5 +580,30 @@ describe("formatChatDateTime", () => {
     const result = formatChatDateTime("2026-06-10");
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+// #2185: validity intervals store an EXCLUSIVE valid_until. Rendering it
+// verbatim claims one day of care too many, and on that day the row is
+// already gone from the list.
+describe("formatExclusiveEndDate", () => {
+  it("renders the last covered day, not the exclusive bound", () => {
+    expect(formatExclusiveEndDate("2026-10-01")).toBe("30.09.2026");
+  });
+
+  it("steps across a month boundary", () => {
+    expect(formatExclusiveEndDate("2026-01-01")).toBe("31.12.2025");
+  });
+
+  it("steps across a DST change without shifting a day", () => {
+    // 2026-03-29 is the Berlin DST switch; naive 24h arithmetic lands on the
+    // 27th here, calendar arithmetic on the 28th.
+    expect(formatExclusiveEndDate("2026-03-29")).toBe("28.03.2026");
+  });
+
+  it("falls back to plain formatting for a non-date-only value", () => {
+    expect(formatExclusiveEndDate("nicht-ein-datum")).toBe(
+      formatDate("nicht-ein-datum"),
+    );
   });
 });

@@ -563,7 +563,8 @@ describe("ChildOfferings", () => {
     expect(screen.getByText("mit Mittagessen")).toBeVisible();
     expect(screen.getByText("mit Ferienbetreuung")).toBeVisible();
     expect(screen.getByText("85,50 € pro Monat")).toBeVisible();
-    expect(screen.getByText("bis 31.07.2027")).toBeVisible();
+    // valid_until is exclusive: 2027-07-31 means the last covered day is the 30th.
+    expect(screen.getByText("bis 30.07.2027")).toBeVisible();
   });
 
   it("omits attribute pills the offering does not carry", () => {

@@ -172,10 +172,9 @@ func (s *service) loadChildCareOfferings(
 		view.PeriodName = period.PhaseName
 		view.PeriodStart = period.ServiceStartDate
 		view.PeriodEnd = period.ServiceEndDate
-		offeringDate := today
-		if period.ServiceEndDate.Before(today) {
-			offeringDate = period.ServiceEndDate
-		}
+		// Shared with the staff views so both sides answer "what is booked,
+		// what starts later" from the same day (#2185).
+		offeringDate := enrollmentSvc.BookingViewDate(today, period.ServiceEndDate)
 		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, offeringDate)
 		if err != nil {
 			return nil, err

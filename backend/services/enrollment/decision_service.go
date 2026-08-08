@@ -552,7 +552,7 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
-	onDate := reportOfferingDate(phase)
+	onDate := BookingViewDate(timezone.TodayDate(), phase.ServiceEndDate)
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
 		links, lerr := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, child.ID)

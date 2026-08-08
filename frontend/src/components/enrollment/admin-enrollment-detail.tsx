@@ -43,6 +43,7 @@ import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
+import { formatExclusiveEndDate } from "~/lib/date-helpers";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
@@ -1043,7 +1044,8 @@ function OfferingAttributePills({
   if (offering.includes_holiday_care) pills.push("mit Ferienbetreuung");
   if (price) pills.push(`${price} pro Monat`);
   if (offering.valid_until) {
-    pills.push(`bis ${formatPlainDate(offering.valid_until)}`);
+    // valid_until is exclusive — show the last day the booking actually covers.
+    pills.push(`bis ${formatExclusiveEndDate(offering.valid_until)}`);
   }
   const startsLater = offering.starts_later === true && !!offering.valid_from;
   if (pills.length === 0 && !startsLater) return null;

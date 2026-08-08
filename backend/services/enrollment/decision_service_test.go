@@ -3545,6 +3545,54 @@ func createChildOfferingLink(
 	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
 }
 
+// #2185: the staff view and the parent portal must judge "starts later" from
+// the SAME day. Clamping the staff reference date up to the service start
+// (what reportOfferingDate does, for reports) hid exactly the badge the
+// parents app shows during the whole pre-start review period — a guardian on
+// the phone saw "ab 06.10." on every booking, staff saw none.
+//
+// Only the badge half of that divergence is reachable: a row cannot end
+// before the service start (the repository defaults valid_from to the phase
+// start and request_child_offerings_nonempty_validity requires
+// valid_from < valid_until), so no pre-start row can be dropped either way.
+func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	today := timezone.TodayDate()
+	serviceStart := today.AddDays(45)
+	setSourcePhaseServiceStartDate(t, env, serviceStart)
+	reqID, childID := submitOneChild(t, env, "lco-prestart@example.com", "Lina", "PreStart")
+
+	fromStart := createAdjustmentCareOfferingWith(t, env, "Ab Periodenstart", nil)
+	createChildOfferingLink(t, env, childID, fromStart.ID, &serviceStart, nil)
+
+	rows, err := env.decision.ListChildOfferings(ctx, reqID)
+	require.NoError(t, err)
+
+	byOffering := map[int64]enrollmentService.ChildOfferingRow{}
+	for _, row := range rows[childID] {
+		byOffering[row.OfferingID] = row
+	}
+
+	require.Contains(t, byOffering, fromStart.ID)
+	assert.True(t, byOffering[fromStart.ID].StartsLater,
+		"a booking effective from the service start has not started while the phase is still ahead")
+}
+
+func TestBookingViewDate(t *testing.T) {
+	today := timezone.NewDate(2026, 8, 8)
+
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
+		"inside or ahead of the period the reference date is simply today")
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date{}),
+		"a missing period end must not move the reference date")
+	assert.Equal(t, timezone.NewDate(2026, 7, 31),
+		enrollmentService.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),
+		"after the period ended the final state is what a reader needs")
+}
+
 // ---- Offering adjustments ----------------------------------------------
 
 func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing.T) {

@@ -209,6 +209,26 @@ export function formatDate(dateString: string, includeWeekday = false): string {
 }
 
 /**
+ * Format an EXCLUSIVE end date as the last day it actually covers.
+ *
+ * The backend stores validity intervals with an exclusive `valid_until`
+ * (`enrollment.request_child_offerings`, `activities.student_enrollments`):
+ * a row ending 2026-10-01 is already over ON October 1. Rendering that value
+ * as "bis 01.10.2026" claims a day of care that does not exist, and on that
+ * very day the row disappears from the list entirely — so staff would quote
+ * an end date on which the booking is already gone.
+ *
+ * Returns the German date of the day BEFORE, i.e. the last covered day.
+ * Falls back to the raw input for an unparseable value, matching formatDate.
+ */
+export function formatExclusiveEndDate(dateString: string): string {
+  if (!isValidISODate(dateString)) return formatDate(dateString);
+  const lastDay = parseISODate(dateString);
+  lastDay.setDate(lastDay.getDate() - 1);
+  return formatDate(toISODate(lastDay));
+}
+
+/**
  * Format an instant as the German calendar date of the school's timezone
  * ("20.07.2026"), regardless of where the viewer sits.
  *
