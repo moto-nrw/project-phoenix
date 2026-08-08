@@ -208,7 +208,7 @@ func (s *TimetableDataService) updateTemplateLocked(
 	// the field write stamps it onto the group row, otherwise an unknown
 	// offering trips the FK (500) before the resync can classify it as
 	// ErrOfferingSourceInvalid (400) (#2147 review round 18).
-	if err := s.validateOfferingSourceReference(ctx, in.Fields.SourceCareOfferingIDs, in.CalendarPeriodID, "update template: validate offering source"); err != nil {
+	if err := s.validateOfferingSourceReference(ctx, in.Fields.SourceCareOfferingIDs, previousSourceOfferingIDs, in.CalendarPeriodID, "update template: validate offering source"); err != nil {
 		return err
 	}
 	if err := s.updateTemplateFields(ctx, in); err != nil {

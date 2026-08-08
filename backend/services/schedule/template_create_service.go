@@ -247,7 +247,7 @@ func (s *TimetableDataService) createTemplateLocked(
 	// Before any write: an unknown or period-incompatible source would
 	// otherwise only fail on the group insert's FK (500) instead of the
 	// client-correctable 400 the resync produces (#2147 review round 18).
-	if err := s.validateOfferingSourceReference(ctx, in.SourceCareOfferingIDs, in.CalendarPeriodID, "create template: validate offering source"); err != nil {
+	if err := s.validateOfferingSourceReference(ctx, in.SourceCareOfferingIDs, nil, in.CalendarPeriodID, "create template: validate offering source"); err != nil {
 		return err
 	}
 

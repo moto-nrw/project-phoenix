@@ -1416,7 +1416,7 @@ func (s *decisionService) applyApproval(
 		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
 	}
 	if careOfferingsEnabled {
-		if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
+		if err := s.materializeEnrollmentsForApproval(ctx, child.ID, student.ID, phase); err != nil {
 			return nil, err
 		}
 	}
@@ -1760,7 +1760,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
 	}
 	if careOfferingsEnabled {
-		if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
+		if err := s.materializeEnrollmentsForApproval(ctx, child.ID, studentID, phase); err != nil {
 			return nil, err
 		}
 	}
@@ -2496,18 +2496,35 @@ func (s *decisionService) materializeEnrollments(
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 ) error {
-	return s.materializeEnrollmentsFrom(ctx, requestChildID, studentID, phase, nil)
+	return s.materializeEnrollmentsFrom(ctx, requestChildID, studentID, phase, nil, true)
+}
+
+// materializeEnrollmentsForApproval is materializeEnrollments minus the
+// multi-source union resync. The approval paths run BEFORE the child's
+// status flips to approved, so the union — which resolves children by their
+// approved status — cannot see the child yet; Decide re-runs the scoped
+// resync after the flip (resyncMultiSourceTemplatesForChild). Running it
+// here too would only repeat every full-roster scan of the source offerings
+// under the recurrence lock, guaranteed without effect.
+func (s *decisionService) materializeEnrollmentsForApproval(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+) error {
+	return s.materializeEnrollmentsFrom(ctx, requestChildID, studentID, phase, nil, false)
 }
 
 // materializeEnrollmentsFrom is materializeEnrollments with an optional start
 // override. startFrom is set when a dated adjustment replaces only the part of
 // the phase window from that date onward; the rows before it were capped, not
-// deleted, so the new rows must not reach back over them.
+// deleted, so the new rows must not reach back over them. resyncMultiSource
+// is false only on the approval paths (see materializeEnrollmentsForApproval).
 func (s *decisionService) materializeEnrollmentsFrom(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 	startFrom *timezone.Date,
+	resyncMultiSource bool,
 ) error {
 	if !s.hasEnrollmentMaterializationDependencies() {
 		// Wired without the offering repos: skip silently. Approvals
@@ -2543,6 +2560,9 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	// running phase must not lose the already-elapsed window. The scope keeps
 	// the early boundary away from other children's capped history, and the
 	// occurrence reconcile clamps to today internally.
+	if !resyncMultiSource {
+		return nil
+	}
 	multiSourceFrom := phase.ServiceStartDate
 	if startFrom != nil && startFrom.After(multiSourceFrom) {
 		multiSourceFrom = *startFrom

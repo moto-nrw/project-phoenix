@@ -78,7 +78,14 @@ type CareOfferingSeriesValidator interface {
 	// run the same check via the roster resync, and a split must not be able
 	// to persist a state those paths reject. Failures wrap
 	// services/schedule.ErrOfferingSourceInvalid.
-	ValidateTemplateOfferingSource(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) error
+	//
+	// storedOfferingIDs are the ids ALREADY persisted on the template being
+	// validated (nil on create). An id that does not resolve is rejected
+	// unless it is stored: the jsonb array carries no FK, so a stored id may
+	// have legitimately outlived its offering and must not wedge later edits
+	// — but a NEW unknown id is client garbage that would otherwise persist
+	// as a dead source with a permanently empty roster.
+	ValidateTemplateOfferingSource(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 }
 
 // CareOfferingMaterializationResourceValidator is the narrow cross-domain
@@ -787,22 +794,37 @@ func (s *careOfferingService) lockTemplateRecurrence(ctx context.Context) error 
 	return nil
 }
 
-// ValidateTemplateOfferingSource implements the split-side offering-source
-// guard declared on CareOfferingSeriesValidator (#2137). Vanished offerings
-// are tolerated (logged, not rejected): the resync drops them the same way,
-// and rejecting here would wedge every edit of a template whose stored array
-// carries a dangling id.
-func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) error {
+// ValidateTemplateOfferingSource implements the pre-write offering-source
+// guard declared on CareOfferingSeriesValidator (#2137). Vanished ids are
+// tolerated ONLY when they are already stored on the template (rejecting
+// those would wedge every edit of a template whose array carries a dangling
+// id); a newly submitted unknown id is rejected — without the FK of the
+// single-source era, accepting it would persist a dead source with a
+// permanently empty roster.
+func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error {
 	if s.Repo == nil || s.PhaseRepo == nil || s.CalendarPeriodRepo == nil {
 		return errors.New("offering source validation dependencies are not configured")
 	}
-	_, _, dropped, err := loadValidatedOfferingSources(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
-	if len(dropped) > 0 {
-		s.Logger.Warn("offering source validation: ignoring vanished source offerings",
-			slog.Any("care_offering_ids", dropped),
-		)
+	_, _, dropped, err := loadValidatedOfferingSources(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, false)
+	if err != nil {
+		return err
 	}
-	return err
+	if len(dropped) == 0 {
+		return nil
+	}
+	stored := make(map[int64]bool, len(storedOfferingIDs))
+	for _, id := range storedOfferingIDs {
+		stored[id] = true
+	}
+	for _, id := range dropped {
+		if !stored[id] {
+			return fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, id)
+		}
+	}
+	s.Logger.Warn("offering source validation: ignoring vanished stored source offerings",
+		slog.Any("care_offering_ids", dropped),
+	)
+	return nil
 }
 
 // ValidateTemplateSeries checks every care offering linked to any live segment

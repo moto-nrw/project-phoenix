@@ -218,9 +218,10 @@ type TemplateSplitDependencies struct {
 	// rule (#2137): the offering must exist and its phase must fit the
 	// successor's calendar period. Without it a split into a different
 	// Planungszeitraum could persist a source rule that create/update reject
-	// and later approvals only skip with a warning. Failures wrap
-	// ErrOfferingSourceInvalid.
-	ValidateOfferingSource func(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) error
+	// and later approvals only skip with a warning. storedOfferingIDs are the
+	// old template's persisted ids: an inherited vanished id passes, a newly
+	// submitted unknown one rejects. Failures wrap ErrOfferingSourceInvalid.
+	ValidateOfferingSource func(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 	// Broadcaster is optional (nil → no SSE). Split/end delete planned
 	// instances outside the CRUD broadcast paths, so they must invalidate the
 	// staffing caches themselves (#1844).
@@ -339,6 +340,7 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 func (s *TemplateSplitService) validateSuccessorOfferingSource(
 	ctx context.Context,
 	in TemplateSplitInput,
+	storedOfferingIDs []int64,
 ) error {
 	if len(in.SourceCareOfferingIDs) == 0 {
 		return nil
@@ -348,7 +350,7 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 	if s.deps.ValidateOfferingSource == nil {
 		return nil
 	}
-	if err := s.deps.ValidateOfferingSource(ctx, in.SourceCareOfferingIDs, in.CalendarPeriodID); err != nil {
+	if err := s.deps.ValidateOfferingSource(ctx, in.SourceCareOfferingIDs, storedOfferingIDs, in.CalendarPeriodID); err != nil {
 		// Client-correctable 400: keep TenantTxMiddleware from committing any
 		// provisional split writes that preceded the check.
 		tenant.MarkRollback(ctx)
@@ -485,7 +487,7 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateSuccessorOfferingSource(ctx, in); err != nil {
+	if err := s.validateSuccessorOfferingSource(ctx, in, old.SourceCareOfferingIDs); err != nil {
 		return nil, err
 	}
 	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {

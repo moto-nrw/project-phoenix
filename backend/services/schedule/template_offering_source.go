@@ -30,19 +30,23 @@ const MaxOfferingSourcesPerTemplate = 50
 // Without this pre-check an invalid source id set fails only inside the
 // roster resync AFTER the row write; pulling the verdict forward keeps the
 // 400/500 classification clean and rejects same-phase violations before any
-// write happens. The resync stays the authoritative guard; this call only
-// pulls the same verdict forward. Read-only test facades may leave the hook
-// nil, in which case the resync remains the only check.
+// write happens. storedOfferingIDs are the template's currently persisted
+// ids (nil on create) — a vanished id is tolerated only when stored, a newly
+// submitted unknown id rejects (see CareOfferingSeriesValidator). The resync
+// stays the authoritative guard; this call only pulls the same verdict
+// forward. Read-only test facades may leave the hook nil, in which case the
+// resync remains the only check.
 func (s *TimetableDataService) validateOfferingSourceReference(
 	ctx context.Context,
 	offeringIDs []int64,
+	storedOfferingIDs []int64,
 	calendarPeriodID *int64,
 	op string,
 ) error {
 	if len(offeringIDs) == 0 || s.deps.ValidateOfferingSource == nil {
 		return nil
 	}
-	if err := s.deps.ValidateOfferingSource(ctx, offeringIDs, calendarPeriodID); err != nil {
+	if err := s.deps.ValidateOfferingSource(ctx, offeringIDs, storedOfferingIDs, calendarPeriodID); err != nil {
 		return &ScheduleError{Op: op, Err: err}
 	}
 	return nil
@@ -81,4 +85,11 @@ type OfferingRosterResyncInput struct {
 	// to today on its own, so a past EffectiveFrom never rewrites attended
 	// instances.
 	ScopeRequestChildIDs []int64
+	// TolerateDriftedSources loads the source offerings without the IsActive
+	// and phase-within-period rejections. Detach-fallback only: when a
+	// remaining source has drifted invalid, the departing offering's
+	// contribution must still be retired against the remaining sources' link
+	// coverage before the delete cascades its provenance away. Never set on
+	// a save path — drifted rules must keep rejecting there.
+	TolerateDriftedSources bool
 }

@@ -59,7 +59,7 @@ func attachSplitServiceWithValidator(
 		// NewTemplateSplitService requires the offering-source guard; these
 		// API tests exercise splits without a source rule, so a no-op keeps
 		// the wiring honest without pulling in the enrollment service.
-		ValidateOfferingSource: func(context.Context, []int64, *int64) error { return nil },
+		ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error { return nil },
 		DB:                     s.db,
 	})
 }

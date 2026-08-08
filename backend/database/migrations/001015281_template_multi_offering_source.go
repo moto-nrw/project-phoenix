@@ -148,6 +148,7 @@ func templateMultiOfferingSourceDown(ctx context.Context, db *bun.DB) error {
 				WITH ORDINALITY AS elem(value, ord)
 			INNER JOIN enrollment.care_offerings AS c
 				ON c.id = (elem.value)::BIGINT
+				AND c.tenant_id = g.tenant_id
 			ORDER BY elem.ord
 			LIMIT 1
 		)

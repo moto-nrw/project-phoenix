@@ -90,7 +90,7 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 	var phase *enrollmentModels.Phase
 	wanted := make(map[int64][]*sourcedRosterTarget)
 	if len(in.OfferingIDs) > 0 {
-		offerings, offeringPhase, dropped, err := s.loadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID)
+		offerings, offeringPhase, dropped, err := s.loadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID, in.TolerateDriftedSources)
 		if err != nil {
 			return err
 		}
@@ -375,15 +375,14 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 				// offering's rows cannot wait for a later repair: the delete
 				// behind this detach cascades their request-child provenance
 				// away, after which no resync can ever attribute them again.
-				// Retire them now via a cleanup scoped to the children only the
-				// departing offering fed; shared children stay for the kept
-				// sibling's eventual resync.
-				s.Logger.Warn("offering roster detach: remaining sources invalid; keeping sources, retiring only the departing offering's rows",
+				// Retire them now with a drift-tolerant resync scoped to the
+				// departing offering's children (see retireDepartingSourcedRows).
+				s.Logger.Warn("offering roster detach: remaining sources invalid; keeping sources, retiring only the departing offering's contribution",
 					slog.Int64("template_id", tmpl.ID),
 					slog.Int64("care_offering_id", offeringID),
 					slog.String("error", err.Error()),
 				)
-				if err := s.retireDepartingSourcedRows(ctx, tmpl, offeringID, remaining, effectiveFrom); err != nil {
+				if err := s.retireDepartingSourcedRows(ctx, tmpl, offeringID, remaining, gradeLevels, effectiveFrom); err != nil {
 					return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
 				}
 			} else {
@@ -397,62 +396,52 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 	return nil
 }
 
-// retireDepartingSourcedRows caps/deletes the template rows of children whom
-// ONLY the departing offering fed, via a cleanup-only resync scoped to those
-// request children. Used when the remaining sources are too drifted for the
-// full union resync: the offering delete behind the detach is about to
-// cascade the departing children's provenance away, so their rows must be
-// retired NOW or they linger as unattributable orphans (#2147 round 11's
-// pre-delete ordering). Children also approved in a remaining offering are
-// left untouched — the kept sibling still claims them.
+// retireDepartingSourcedRows removes the departing offering's contribution
+// from the template when the remaining sources are too drifted for the full
+// union resync: the offering delete behind the detach is about to cascade
+// the departing children's provenance away, so their rows must be retired
+// NOW or they linger as unattributable orphans (#2147 round 11's pre-delete
+// ordering). It runs the union resync against the REMAINING sources with
+// drift-tolerant loading, scoped to the departing offering's children: a
+// child only the departing offering fed loses their rows, and a shared
+// child's rows are reshaped to exactly the remaining sources' link coverage
+// — skipping shared children wholesale would leave the departing offering's
+// exclusive weekday×date footprint (e.g. A's Di–Fr next to B's Mo) planned
+// forever. Children of only the remaining sources are outside the scope and
+// stay untouched.
 func (s *decisionService) retireDepartingSourcedRows(
 	ctx context.Context,
 	tmpl *activities.Group,
 	offeringID int64,
 	remaining []int64,
+	gradeLevels []int,
 	effectiveFrom timezone.Date,
 ) error {
 	departing, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offeringID}, effectiveFrom)
 	if err != nil {
 		return fmt.Errorf("list departing offering children: %w", err)
 	}
-	if len(departing) == 0 {
-		return nil
-	}
-	kept := make(map[int64]bool)
-	if len(remaining) > 0 {
-		keptChildren, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, remaining, effectiveFrom)
-		if err != nil {
-			return fmt.Errorf("list remaining offering children: %w", err)
-		}
-		for _, child := range keptChildren {
-			if child != nil && child.Link != nil {
-				kept[child.Link.RequestChildID] = true
-			}
-		}
-	}
 	scope := make([]int64, 0, len(departing))
 	seen := make(map[int64]bool, len(departing))
 	for _, child := range departing {
-		if child == nil || child.Link == nil {
+		if child == nil || child.Link == nil || seen[child.Link.RequestChildID] {
 			continue
 		}
-		childID := child.Link.RequestChildID
-		if kept[childID] || seen[childID] {
-			continue
-		}
-		seen[childID] = true
-		scope = append(scope, childID)
+		seen[child.Link.RequestChildID] = true
+		scope = append(scope, child.Link.RequestChildID)
 	}
 	if len(scope) == 0 {
 		return nil
 	}
 	slices.Sort(scope)
 	return s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
-		TemplateID:           tmpl.ID,
-		CalendarPeriodID:     tmpl.CalendarPeriodID,
-		EffectiveFrom:        effectiveFrom,
-		ScopeRequestChildIDs: scope,
+		TemplateID:             tmpl.ID,
+		OfferingIDs:            remaining,
+		GradeLevels:            gradeLevels,
+		CalendarPeriodID:       tmpl.CalendarPeriodID,
+		EffectiveFrom:          effectiveFrom,
+		ScopeRequestChildIDs:   scope,
+		TolerateDriftedSources: true,
 	})
 }
 
@@ -512,8 +501,9 @@ func (s *decisionService) loadOfferingSources(
 	ctx context.Context,
 	offeringIDs []int64,
 	calendarPeriodID *int64,
+	tolerateDrift bool,
 ) ([]*enrollmentModels.CareOffering, *enrollmentModels.Phase, []int64, error) {
-	return loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
+	return loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, tolerateDrift)
 }
 
 // loadValidatedOfferingSources runs the offering-source guard (#2137) per id
@@ -548,6 +538,12 @@ func (s *decisionService) loadOfferingSources(
 // is loaded once, not per id — the ids arrive from unauthenticated-shaped
 // query strings (combined counts) and from the stored array on every resync,
 // so the per-id work must stay bounded.
+//
+// tolerateDrift skips the IsActive and phase-within-period rejections (the
+// existence, duplicate, cap, and same-phase checks stay). Only the detach
+// fallback sets it: retiring a deleted offering's contribution needs the
+// remaining sources' link coverage as a fact, even while their drifted state
+// blocks the regular resync.
 func loadValidatedOfferingSources(
 	ctx context.Context,
 	offeringRepo enrollmentModels.CareOfferingRepository,
@@ -555,6 +551,7 @@ func loadValidatedOfferingSources(
 	periodRepo scheduleModels.CalendarPeriodRepository,
 	offeringIDs []int64,
 	calendarPeriodID *int64,
+	tolerateDrift bool,
 ) (offerings []*enrollmentModels.CareOffering, phase *enrollmentModels.Phase, droppedIDs []int64, err error) {
 	if len(offeringIDs) == 0 {
 		return nil, nil, nil, fmt.Errorf("%w: at least one care offering is required", scheduleService.ErrOfferingSourceInvalid)
@@ -594,7 +591,7 @@ func loadValidatedOfferingSources(
 			droppedIDs = append(droppedIDs, offeringID)
 			continue
 		}
-		if !offering.IsActive {
+		if !offering.IsActive && !tolerateDrift {
 			return nil, nil, nil, fmt.Errorf("%w: care offering %d is inactive", scheduleService.ErrOfferingSourceInvalid, offeringID)
 		}
 		if phase != nil && offering.PhaseID != phase.ID {
@@ -613,7 +610,7 @@ func loadValidatedOfferingSources(
 				}
 				return nil, nil, nil, fmt.Errorf("offering roster resync: load phase: %w", err)
 			}
-			if period != nil {
+			if period != nil && !tolerateDrift {
 				if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
 					return nil, nil, nil, fmt.Errorf("%w: %s", scheduleService.ErrOfferingSourceInvalid, err.Error())
 				}
@@ -1403,7 +1400,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 	if s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.RequestChildOfferingRepo == nil {
 		return nil, fmt.Errorf("offering source counts: repositories are not configured")
 	}
-	offerings, _, _, err := loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
+	offerings, _, _, err := loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, false)
 	if err != nil {
 		return nil, err
 	}

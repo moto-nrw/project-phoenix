@@ -915,6 +915,35 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	assert.NotEqual(t, studentA, rows[0].StudentID)
 }
 
+// A NEWLY submitted unknown source id must be rejected: without the
+// single-source era's FK, accepting it would persist a dead source with a
+// permanently empty roster (and the editor re-submits it on every save). A
+// vanished id that is ALREADY stored on the template stays tolerated so
+// edits of an orphaned template do not wedge.
+func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	offering := createSourceOffering(t, env, "PruefQuelle", nil)
+	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
+		Repo:               env.repos.CareOffering,
+		PhaseRepo:          env.repos.Phase,
+		CalendarPeriodRepo: env.repos.CalendarPeriod,
+	})
+	validator, ok := svc.(enrollmentService.CareOfferingSeriesValidator)
+	require.True(t, ok, "care offering service must implement the pre-write source validator")
+
+	missing := int64(999999999)
+	err := validator.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, nil, nil)
+	require.Error(t, err, "a new unknown id must not be accepted")
+	require.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid)
+	require.ErrorContains(t, err, "not found")
+
+	require.NoError(t, validator.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, []int64{missing}, nil),
+		"a stored dangling id must keep the template editable")
+}
+
 // A remaining source that has drifted invalid (here: the template re-pinned
 // to a period the phase's service window cannot fit) must not strip the
 // template's remaining sources on detach — the sibling is valid data, only
@@ -1079,6 +1108,99 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1, "the approval must seed the multi-source template via the union resync")
 	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
+// A child in BOTH the departing and a remaining offering must not keep the
+// departing offering's exclusive weekday footprint when the drift fallback
+// runs: the fallback reconciles the child against the remaining sources'
+// link coverage (drift-tolerant), so A's Di–Fr disappear while B's Montag
+// survives. Skipping shared children wholesale would leave the Di–Fr rows
+// planned forever, with the regular resync permanently blocked by the drift.
+func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offeringA := &enrollmentModels.CareOffering{
+		PhaseID:        env.sourcePhase.ID,
+		Name:           uniqueSchemaName("DriftBreitQuelleA-" + t.Name()),
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+	}
+	offeringA.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offeringA))
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.care_offerings").
+			Where("id = ?", offeringA.ID).
+			Exec(context.Background())
+	})
+	offeringB := createSourceOffering(t, env, "DriftBreitQuelleB", nil) // Montag only
+
+	template := createSourcedTemplate(t, env, "DriftBreitTermin", offeringA.ID, nil, period)
+	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	// One child holds BOTH offerings; the approval fan-out seeds the union
+	// row shaped by A (first in the array): Mo–Fr.
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Breit",
+		GuardianEmail:     "drift-breit@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Bea",
+			LastName:         "Breit",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.student_enrollments").
+			Where("student_id = ?", *outcome.Child.CreatedStudentID).
+			Exec(context.Background())
+	})
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.Equal(t, []int{1, 2, 3, 4, 5}, rows[0].SelectedWeekdays,
+		"the union row must carry A's Mo–Fr before the detach")
+
+	// Drift: B turns inactive behind the guard's back (direct write — the
+	// service-level deactivation is rejected while B feeds templates).
+	_, err = env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ?`, offeringB.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok)
+	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, timezone.TodayDate()))
+
+	kept, err := repositories.NewFactory(env.db).ActivityGroup.FindByID(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs)
+
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1, "the shared child stays planned through B")
+	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays,
+		"A's exclusive Di–Fr contribution must be retired with the detach")
 }
 
 // The multi-source fan-out must seed the child's rows from the phase's

@@ -411,13 +411,13 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	t.Run("no source skips the hook", func(t *testing.T) {
 		called := false
 		svc := NewTimetableDataService(TimetableDataDependencies{
-			ValidateOfferingSource: func(context.Context, []int64, *int64) error {
+			ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error {
 				called = true
 				return nil
 			},
 		})
 
-		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), nil, &periodID, "create template: validate offering source"))
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), nil, nil, &periodID, "create template: validate offering source"))
 		assert.False(t, called, "a template without a source must not resolve an offering")
 	})
 
@@ -425,25 +425,25 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 		var gotOfferings []int64
 		var gotPeriod *int64
 		svc := NewTimetableDataService(TimetableDataDependencies{
-			ValidateOfferingSource: func(_ context.Context, ids []int64, period *int64) error {
+			ValidateOfferingSource: func(_ context.Context, ids, _ []int64, period *int64) error {
 				gotOfferings, gotPeriod = ids, period
 				return nil
 			},
 		})
 
-		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12, 13}, &periodID, "create template: validate offering source"))
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12, 13}, nil, &periodID, "create template: validate offering source"))
 		assert.Equal(t, []int64{12, 13}, gotOfferings)
 		assert.Equal(t, &periodID, gotPeriod)
 	})
 
 	t.Run("an unknown source surfaces as ErrOfferingSourceInvalid before any write", func(t *testing.T) {
 		svc := NewTimetableDataService(TimetableDataDependencies{
-			ValidateOfferingSource: func(context.Context, []int64, *int64) error {
+			ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error {
 				return fmt.Errorf("%w: care offering %d not found", ErrOfferingSourceInvalid, int64(12))
 			},
 		})
 
-		err := svc.validateOfferingSourceReference(t.Context(), []int64{12}, nil, "update template: validate offering source")
+		err := svc.validateOfferingSourceReference(t.Context(), []int64{12}, nil, nil, "update template: validate offering source")
 
 		require.ErrorIs(t, err, ErrOfferingSourceInvalid,
 			"the handler maps this sentinel to 400 — an FK violation during the write would render 500 instead")
@@ -453,6 +453,6 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	t.Run("an unwired hook leaves the resync as the only guard", func(t *testing.T) {
 		svc := NewTimetableDataService(TimetableDataDependencies{})
 
-		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12}, &periodID, "create template: validate offering source"))
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12}, nil, &periodID, "create template: validate offering source"))
 	})
 }
