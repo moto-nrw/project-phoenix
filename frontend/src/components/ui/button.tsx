@@ -65,7 +65,7 @@ function buttonClassName({
     outline_danger:
       "bg-moto-red-soft text-moto-red-strong ring-moto-red/30 shadow-md ring-1 hover:bg-moto-red/20 hover:ring-moto-red/50",
     danger:
-      "bg-moto-red text-gray-950 shadow-md hover:bg-moto-red-strong hover:text-white hover:shadow-lg",
+      "bg-moto-red text-white shadow-md hover:bg-moto-red-strong hover:shadow-lg",
     success:
       "bg-moto-green text-gray-950 shadow-md hover:bg-moto-green-hover hover:shadow-lg active:scale-95",
     ghost: "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900",

@@ -413,7 +413,7 @@ export default function StaffImportPage() {
           <button
             type="button"
             onClick={() => setError(null)}
-            className="text-moto-red-strong hover:text-moto-red-hover absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />

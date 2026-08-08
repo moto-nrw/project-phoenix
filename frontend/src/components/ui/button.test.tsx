@@ -85,9 +85,11 @@ describe("Button", () => {
 
     const button = screen.getByRole("button");
     expect(button.className).toContain("bg-moto-red");
-    expect(button.className).toContain("text-gray-950");
+    // Weiss, nicht gray-950: gray-950 auf moto-red ergibt 4,17:1 und verfehlt
+    // AA fuer normalen Text. Weiss erreicht 4,83:1 und behaelt es auch im
+    // Hover ueber moto-red-strong (6,47:1).
+    expect(button.className).toContain("text-white");
     expect(button.className).toContain("hover:bg-moto-red-strong");
-    expect(button.className).toContain("hover:text-white");
   });
 
   it("applies success variant styles", () => {

@@ -241,7 +241,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
           <button
             type="button"
             onClick={() => setSaveError(null)}
-            className="text-moto-red-strong hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <svg
