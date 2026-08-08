@@ -86,6 +86,9 @@ export function StudentEnrollmentsTab({
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-sm sm:p-6">
       <ConceptSectionHeader
         className="mb-4"
+        // Die Phasenkarten darunter bringen h4 und h5 mit; als h2 entstuende
+        // ein Sprung ueber Ebene 3.
+        level={3}
         title="Anmeldungen"
         concept="enrollments"
         subtitle="Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte."

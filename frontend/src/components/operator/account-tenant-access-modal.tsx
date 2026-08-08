@@ -338,7 +338,12 @@ export function AccountTenantAccessModal({
             </p>
 
             <section className="space-y-2">
-              <ConceptSectionHeader title="Aktive Zugänge" concept="schools" />
+              <ConceptSectionHeader
+                title="Aktive Zugänge"
+                concept="schools"
+                // FormModal rendert seinen Titel als h3.
+                level={4}
+              />
               {activeEntries.length === 0 ? (
                 <EmptyState
                   icon={<MotoConceptIcon concept="schools" size={22} />}
@@ -519,6 +524,8 @@ export function AccountTenantAccessModal({
                 <ConceptSectionHeader
                   title="Frühere Zugänge"
                   concept="changeHistory"
+                  // FormModal rendert seinen Titel als h3.
+                  level={4}
                 />
                 <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
                   {formerEntries.map((entry) => (

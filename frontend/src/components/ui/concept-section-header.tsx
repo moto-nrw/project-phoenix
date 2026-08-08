@@ -3,12 +3,23 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
 
+/**
+ * Ueberschriftenebene des Abschnitts. Default 2, weil der haeufigste Fall ein
+ * Abschnitt direkt unter dem h1 der Seite ist. Muss dort mitgegeben werden, wo
+ * die Umgebung eine andere Ebene vorgibt: in einem Dialog steht der Titel als
+ * h3 (form-modal, modal), und Karten innerhalb eines Abschnitts bringen
+ * eigene Unterebenen mit. Eine feste h2 erzeugt sonst Ebenenspruenge, die
+ * Screenreader als fehlende Zwischenebene vorlesen.
+ */
+type SectionHeadingLevel = 2 | 3 | 4;
+
 interface ConceptSectionHeaderProps {
   readonly title: string;
   readonly concept: MotoConceptKey;
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
   readonly className?: string;
+  readonly level?: SectionHeadingLevel;
 }
 
 interface ConceptPageHeaderProps {
@@ -25,6 +36,7 @@ interface SectionHeaderProps {
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
   readonly className?: string;
+  readonly level?: SectionHeadingLevel;
 }
 
 interface SectionHeaderShellProps {
@@ -33,6 +45,7 @@ interface SectionHeaderShellProps {
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
   readonly className?: string;
+  readonly level?: SectionHeadingLevel;
 }
 
 function SectionHeaderShell({
@@ -41,7 +54,9 @@ function SectionHeaderShell({
   subtitle,
   actions,
   className,
+  level = 2,
 }: SectionHeaderShellProps) {
+  const Heading = `h${level}` as const;
   return (
     <div
       className={cn(
@@ -52,9 +67,9 @@ function SectionHeaderShell({
       <div className="flex min-w-0 items-start gap-3">
         {iconTile}
         <div className="min-w-0 pt-0.5">
-          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+          <Heading className="text-base font-semibold text-gray-900 sm:text-lg">
             {title}
-          </h2>
+          </Heading>
           {subtitle ? (
             <div className="mt-1 text-sm text-gray-600">{subtitle}</div>
           ) : null}
@@ -71,6 +86,7 @@ export function SectionHeader({
   subtitle,
   actions,
   className,
+  level,
 }: SectionHeaderProps) {
   return (
     <SectionHeaderShell
@@ -83,6 +99,7 @@ export function SectionHeader({
       subtitle={subtitle}
       actions={actions}
       className={className}
+      level={level}
     />
   );
 }
@@ -93,6 +110,7 @@ export function ConceptSectionHeader({
   subtitle,
   actions,
   className,
+  level,
 }: ConceptSectionHeaderProps) {
   return (
     <SectionHeaderShell
@@ -101,6 +119,7 @@ export function ConceptSectionHeader({
       subtitle={subtitle}
       actions={actions}
       className={className}
+      level={level}
     />
   );
 }
