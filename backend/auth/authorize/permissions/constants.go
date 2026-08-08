@@ -237,3 +237,15 @@ const (
 	GradeTransitionsDelete = "grade_transitions:delete"
 	GradeTransitionsApply  = "grade_transitions:apply"
 )
+
+// Class day view permission (#1772). class_day:read gates the read-only
+// per-class daily handoff view for the lehrkraft system role. It is
+// deliberately NOT users:read: holders see only students of the school
+// classes assigned to them via education.class_teachers, never the
+// tenant-wide student directory, so the generic /api/students routes stay
+// closed to them.
+const (
+	ResourceClassDay = "class_day"
+
+	ClassDayRead = ResourceClassDay + ":read"
+)

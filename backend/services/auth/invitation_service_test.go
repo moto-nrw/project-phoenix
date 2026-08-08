@@ -524,6 +524,10 @@ func TestShouldCreateTeacherForRole(t *testing.T) {
 	require.True(t, shouldCreateTeacherForRole("Teacher"))
 	require.True(t, shouldCreateTeacherForRole("user"))
 	require.False(t, shouldCreateTeacherForRole("admin"))
+	// A Lehrkraft (#1772) gets the staff record every system role gets, but
+	// deliberately no users.teachers caregiver profile: it supervises no OGS
+	// group, its scope comes from education.class_teachers.
+	require.False(t, shouldCreateTeacherForRole("lehrkraft"))
 }
 
 func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(t *testing.T) {

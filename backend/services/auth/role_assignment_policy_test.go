@@ -78,6 +78,16 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		assert.Equal(t, roleID, role.ID)
 	})
 
+	t.Run("accepts the lehrkraft system role", func(t *testing.T) {
+		// Seeded by migration 1.15.278 (#1772): assignable like every other
+		// platform system role — the name-based block hits only "teacher".
+		lehrkraftRole := testpkg.GetOrCreateTestRole(t, db, "lehrkraft")
+
+		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, lehrkraftRole.ID, homeTenantID)
+		require.NoError(t, err)
+		assert.Equal(t, lehrkraftRole.ID, role.ID)
+	})
+
 	t.Run("rejects the retired teacher role", func(t *testing.T) {
 		// The fixtures suffix role names to keep them unique, so the legacy
 		// role has to be inserted under its exact historical name.
