@@ -1080,7 +1080,7 @@ function CareDayCard({
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
             {day.isToday ? (
               <>
-                <span className="bg-moto-red flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
+                <span className="bg-moto-orange flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
                   {day.date.getDate()}
                 </span>
                 <span>.</span>
@@ -1325,14 +1325,20 @@ function CareNotesSection({ notes }: { readonly notes: CareNoteItem[] }) {
   );
 }
 
+// Muss dieselbe Dreiteilung tragen wie AbsencePlaceholder in derselben Karte,
+// sonst zeigt ein Klassenfahrt-Tag eine lila Pille ueber einem cyanfarbenen
+// Icon und ist ausserdem nicht von "Entschuldigt" zu unterscheiden.
+const STATUS_PILL_CLASSES: Record<StudentStatusKind, string> = {
+  sick: "border-moto-red/30 bg-moto-red/10 text-moto-red-strong",
+  class_trip: "border-moto-cyan/30 bg-moto-cyan/10 text-moto-cyan-strong",
+  excused: "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong",
+};
+
 function StatusPill({ status }: { readonly status: StudentStatusKind }) {
-  const isSick = status === "sick";
   return (
     <span
       className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-        isSick
-          ? "border-moto-red/30 bg-moto-red/10 text-moto-red-strong"
-          : "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong"
+        STATUS_PILL_CLASSES[status]
       }`}
     >
       {getStatusLabel(status)}

@@ -881,11 +881,13 @@ function HintBadges({
   );
 }
 
-// Saldo values sit as plain text on a white row, so they follow the app's tone
-// map — identical to KpiCard in staff-time-views, which prices the same figure
-// on /staff/[id]. The kit's darkened badge foregrounds (#8A5600 / #9F1F1E) are
-// for TINTED surfaces and read brown/maroon on white. Green is the brand green
-// because it is legible and unambiguous at this size.
+// Saldo values sit as plain text on a white row — identical to KpiCard in
+// staff-time-views, which prices the same figure on /staff/[id]. The -strong
+// ramp steps are used deliberately even though they read brownish: amber only
+// becomes legible on white once it is that dark. The previous text-amber-600
+// (#D97706) sat at 3.19:1 and missed AA for normal text, moto-amber-strong
+// (#92400E) reaches 7.09:1. Green is the brand green because it is legible and
+// unambiguous at this size.
 function deltaClass(delta: number): string {
   if (delta > 0) return "text-moto-amber-strong font-medium";
   if (delta < -15) return "text-moto-red-strong font-medium";

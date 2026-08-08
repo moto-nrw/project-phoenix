@@ -14,7 +14,9 @@ import {
  * PresenceBadge — simplified binary-mode counterpart to LocationBadge.
  *
  * Renders only three visual states: Anwesend (green), Schulhof (orange),
- * Abwesend (red). No room details, no "Unterwegs", no display-mode switching.
+ * Abwesend (gray — LOCATION_COLORS.HOME is the neutral #6B7280 since the
+ * palette move; red now means SICK/DANGER). No room details, no "Unterwegs",
+ * no display-mode switching.
  * Sick / excused overlays mirror LocationBadge so those students still look
  * right in binary-mode tenants.
  *

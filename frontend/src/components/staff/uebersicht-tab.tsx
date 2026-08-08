@@ -681,7 +681,13 @@ const dailyConfig = {
 // verbindlichen Ton-Zuordnung (Krank = rot), nicht der Bernstein-Optik.
 const distributionConfig = {
   ogs: { label: "OGS", color: MOTO_COLOR_PALETTE.green.base },
-  homeoffice: { label: "Homeoffice", color: MOTO_COLOR_PALETTE.blue.base },
+  // Muss dem RowStatusBadge in staff-session-table folgen: blue.base ist der
+  // Ton, den getLocationBadgeTone fuer ABSENCE_TYPE_HEX.vacation liefert, und
+  // Uebersicht, Zeiterfassung und Abwesenheiten sind Tabs derselben Seite.
+  homeoffice: {
+    label: "Homeoffice",
+    color: MOTO_COLOR_PALETTE.timeTracking.base,
+  },
   urlaub: { label: "Urlaub", color: MOTO_COLOR_PALETTE.orange.base },
   krank: { label: "Krank", color: MOTO_COLOR_PALETTE.red.base },
   fortbildung: { label: "Fortbildung", color: MOTO_COLOR_PALETTE.purple.base },
