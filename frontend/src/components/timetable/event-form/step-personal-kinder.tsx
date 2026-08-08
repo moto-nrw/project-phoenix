@@ -71,7 +71,6 @@ export interface StepPersonalKinderProps {
   addTargetCohort: () => void;
   offeringSources: OfferingSourceOption[] | null;
   offeringSourcesError: string | null;
-  selectedOfferingSources: OfferingSourceOption[];
   sourcePhaseLockId: string | null;
   sourceGradeOptions: number[];
   sourceGradeCounts: Record<number, number>;
@@ -127,7 +126,6 @@ export function StepPersonalKinder({
   addTargetCohort,
   offeringSources,
   offeringSourcesError,
-  selectedOfferingSources,
   sourcePhaseLockId,
   sourceGradeOptions,
   sourceGradeCounts,
@@ -477,7 +475,11 @@ export function StepPersonalKinder({
                   „Regeltermin“).
                 </p>
               )}
-              {selectedOfferingSources.length > 0 && (
+              {/* Gate on the FORM selection, matching hasOfferingSource: a
+                  stored source missing from the fetched list still hides the
+                  manual picker, so the filter fieldset must stay visible and
+                  editable — otherwise neither roster control is reachable. */}
+              {form.sourceCareOfferingIds.length > 0 && (
                 <>
                   <fieldset className="flex flex-col gap-1">
                     <legend className="text-xs font-semibold text-gray-700">

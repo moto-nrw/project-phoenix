@@ -39,7 +39,6 @@ function renderStep(
       addTargetCohort={vi.fn()}
       offeringSources={[]}
       offeringSourcesError={null}
-      selectedOfferingSources={[]}
       sourcePhaseLockId={null}
       sourceGradeOptions={[]}
       sourceGradeCounts={{}}
@@ -91,6 +90,31 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     expect(entry).toBeChecked();
     fireEvent.click(entry);
     expect(changeSourceOfferings).toHaveBeenCalledWith([]);
+  });
+
+  it("keeps the grade filter editable when the stored source is missing from the list", () => {
+    // With a stored-but-unlisted source, hasOfferingSource still hides the
+    // manual student picker — so the grade fieldset must render (gated on the
+    // form selection, not on the resolved options) or no roster control is
+    // reachable at all.
+    const toggleSourceGradeLevel = vi.fn();
+    renderStep({
+      form: {
+        ...emptyForm("2026-08-03"),
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["42"],
+        sourceGradeLevels: [2],
+      },
+      offeringSources: [],
+      sourceGradeOptions: [2],
+      toggleSourceGradeLevel,
+    });
+
+    expect(screen.getByText("Nach Jahrgang filtern")).toBeInTheDocument();
+    const grade = screen.getByRole("checkbox", { name: "Jahrgang 2 (0)" });
+    expect(grade).toBeChecked();
+    fireEvent.click(grade);
+    expect(toggleSourceGradeLevel).toHaveBeenCalledWith(2);
   });
 
   it("does not invent entries when every stored source is in the list", () => {

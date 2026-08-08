@@ -218,7 +218,6 @@ export function TimetableEventModal({
     targetClassOptions,
     offeringSources,
     offeringSourcesError,
-    selectedOfferingSources,
     sourcePhaseLockId,
     sourceGradeOptions,
     sourceGradeCounts,
@@ -584,7 +583,6 @@ export function TimetableEventModal({
                 addTargetCohort={addTargetCohort}
                 offeringSources={offeringSources}
                 offeringSourcesError={offeringSourcesError}
-                selectedOfferingSources={selectedOfferingSources}
                 sourcePhaseLockId={sourcePhaseLockId}
                 sourceGradeOptions={sourceGradeOptions}
                 sourceGradeCounts={sourceGradeCounts}

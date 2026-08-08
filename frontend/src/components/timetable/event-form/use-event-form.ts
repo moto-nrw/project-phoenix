@@ -2808,8 +2808,11 @@ export function useEventForm({
     useState<CombinedOfferingCounts | null>(null);
   const combinedCountsKey = form.sourceCareOfferingIds.join(",");
   useEffect(() => {
+    // Reset FIRST: after adding or removing an offering the previous exact
+    // counts describe the old selection — until the new answer lands, the
+    // per-offering sums must serve as the preview again.
+    setCombinedSourceCounts(null);
     if (!wantsOfferingSources || combinedCountsKey === "") {
-      setCombinedSourceCounts(null);
       return;
     }
     let cancelled = false;
