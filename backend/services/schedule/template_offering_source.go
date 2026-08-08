@@ -72,4 +72,13 @@ type OfferingRosterResyncInput struct {
 	CalendarPeriodID *int64
 	// EffectiveFrom bounds the rewrite: history before it is never touched.
 	EffectiveFrom timezone.Date
+	// ScopeRequestChildIDs restricts the rewrite to the rows and wanted
+	// windows of the given request children (empty = whole template). The
+	// per-child flows (approval fan-out, offering adjustments) use it to
+	// (re)establish ONE child's coverage from the phase start — mirroring the
+	// single-source drafts — without treating every other child's capped
+	// history as reconcilable. The materialized-occurrence reconcile clamps
+	// to today on its own, so a past EffectiveFrom never rewrites attended
+	// instances.
+	ScopeRequestChildIDs []int64
 }

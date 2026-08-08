@@ -767,8 +767,9 @@ func (s *decisionService) splitAdjustedEnrollments(
 	// addSourcedTemplateDrafts); the resync re-establishes the child's union
 	// coverage from the switch date onward — including templates the child
 	// keeps through ANOTHER of the template's source offerings after leaving
-	// this one.
-	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(&effectiveFrom))
+	// this one. Scoped to this child: a dated switch must not reconcile other
+	// children's rows as a side effect.
+	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(&effectiveFrom), []int64{requestChildID})
 }
 
 func (s *decisionService) reconcileAdjustedEnrollment(

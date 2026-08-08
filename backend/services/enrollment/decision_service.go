@@ -2537,8 +2537,17 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	}
 	// Multi-source templates were deliberately not drafted above; the resync
 	// unions their offerings' children (including this one) and reconciles
-	// materialized occurrences itself.
-	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(startFrom))
+	// materialized occurrences itself. Scoped to THIS child with a
+	// phase-anchored boundary, so its rows start at the phase's service start
+	// like the single-source drafts — an approval or undated correction into a
+	// running phase must not lose the already-elapsed window. The scope keeps
+	// the early boundary away from other children's capped history, and the
+	// occurrence reconcile clamps to today internally.
+	multiSourceFrom := phase.ServiceStartDate
+	if startFrom != nil && startFrom.After(multiSourceFrom) {
+		multiSourceFrom = *startFrom
+	}
+	return s.resyncMultiSourceTemplates(ctx, multiSource, multiSourceFrom, []int64{requestChildID})
 }
 
 // enrollmentRewriteBoundary is the date from which a decision/adjustment flow
@@ -2685,19 +2694,27 @@ func (s *decisionService) resyncMultiSourceTemplatesForChild(
 			}
 		}
 	}
-	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(nil))
+	// Same scoped, phase-anchored boundary as the materialization pass: the
+	// child's union rows must start at the phase start even when the phase is
+	// already running, matching the single-source drafts.
+	return s.resyncMultiSourceTemplates(ctx, multiSource, phase.ServiceStartDate, []int64{requestChildID})
 }
 
 // resyncMultiSourceTemplates reconciles the multi-source templates a decision
 // or adjustment flow touched, AFTER its drafts were persisted: the resync is
 // the single authoritative writer of the union roster (see
-// addSourcedTemplateDrafts). Drifted-invalid templates are skipped with a
-// warning, mirroring the single-source fan-out — one broken template must
-// not fail an approval. The caller must hold the tenant recurrence lock.
+// addSourcedTemplateDrafts). scopeRequestChildIDs restricts the rewrite to
+// the flow's own child(ren) — the per-child flows pass a phase-anchored
+// effectiveFrom so the child's rows match the single-source drafts, and the
+// scope keeps that early boundary away from every other child's capped
+// history. Drifted-invalid templates are skipped with a warning, mirroring
+// the single-source fan-out — one broken template must not fail an approval.
+// The caller must hold the tenant recurrence lock.
 func (s *decisionService) resyncMultiSourceTemplates(
 	ctx context.Context,
 	templates map[int64]*activities.Group,
 	effectiveFrom timezone.Date,
+	scopeRequestChildIDs []int64,
 ) error {
 	if len(templates) == 0 {
 		return nil
@@ -2710,11 +2727,12 @@ func (s *decisionService) resyncMultiSourceTemplates(
 	for _, templateID := range templateIDs {
 		tmpl := templates[templateID]
 		err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
-			TemplateID:       tmpl.ID,
-			OfferingIDs:      tmpl.SourceCareOfferingIDs,
-			GradeLevels:      tmpl.SourceGradeLevels,
-			CalendarPeriodID: tmpl.CalendarPeriodID,
-			EffectiveFrom:    effectiveFrom,
+			TemplateID:           tmpl.ID,
+			OfferingIDs:          tmpl.SourceCareOfferingIDs,
+			GradeLevels:          tmpl.SourceGradeLevels,
+			CalendarPeriodID:     tmpl.CalendarPeriodID,
+			EffectiveFrom:        effectiveFrom,
+			ScopeRequestChildIDs: scopeRequestChildIDs,
 		})
 		if err != nil {
 			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {

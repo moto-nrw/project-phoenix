@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -121,6 +122,18 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 		}
 	}
 
+	scope := make(map[int64]bool, len(in.ScopeRequestChildIDs))
+	for _, childID := range in.ScopeRequestChildIDs {
+		scope[childID] = true
+	}
+	if len(scope) > 0 {
+		for childID := range wanted {
+			if !scope[childID] {
+				delete(wanted, childID)
+			}
+		}
+	}
+
 	protectedChildren, err := s.legacyLinkedChildCoverage(ctx, in.TemplateID, in.EffectiveFrom)
 	if err != nil {
 		return err
@@ -150,6 +163,9 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 		return fmt.Errorf("offering roster resync: load template enrollments: %w", err)
 	}
 	for _, row := range rows {
+		if len(scope) > 0 && (row == nil || row.EnrollmentRequestChildID == nil || !scope[*row.EnrollmentRequestChildID]) {
+			continue
+		}
 		changed, err := s.reconcileSourcedRosterRow(ctx, row, wanted, protectedChildren, in.EffectiveFrom)
 		if err != nil {
 			return err
@@ -351,18 +367,25 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 		})
 		if err != nil {
 			if len(remaining) > 0 && errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
-				// A remaining source drifted invalid (e.g. a sibling offering of
-				// the same phase delete that is still queued for its own detach).
-				// The delete must not be blocked, but the remaining sources are
-				// valid data — only their combination with the period pin failed.
-				// Keep them and skip just this resync, mirroring the tenant-wide
-				// resync's drift handling; the sibling's later detach (or the
-				// next template save) reconciles the rows.
-				s.Logger.Warn("offering roster detach: remaining sources invalid; keeping sources and skipping resync",
+				// A remaining source drifted invalid (e.g. it turned inactive or
+				// its phase no longer fits the period pin). The delete must not
+				// be blocked, and the remaining sources are valid data — only
+				// their combination with the period pin failed — so they are
+				// kept and the full union resync is skipped. But the DEPARTING
+				// offering's rows cannot wait for a later repair: the delete
+				// behind this detach cascades their request-child provenance
+				// away, after which no resync can ever attribute them again.
+				// Retire them now via a cleanup scoped to the children only the
+				// departing offering fed; shared children stay for the kept
+				// sibling's eventual resync.
+				s.Logger.Warn("offering roster detach: remaining sources invalid; keeping sources, retiring only the departing offering's rows",
 					slog.Int64("template_id", tmpl.ID),
 					slog.Int64("care_offering_id", offeringID),
 					slog.String("error", err.Error()),
 				)
+				if err := s.retireDepartingSourcedRows(ctx, tmpl, offeringID, remaining, effectiveFrom); err != nil {
+					return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
+				}
 			} else {
 				return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
 			}
@@ -372,6 +395,65 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 		}
 	}
 	return nil
+}
+
+// retireDepartingSourcedRows caps/deletes the template rows of children whom
+// ONLY the departing offering fed, via a cleanup-only resync scoped to those
+// request children. Used when the remaining sources are too drifted for the
+// full union resync: the offering delete behind the detach is about to
+// cascade the departing children's provenance away, so their rows must be
+// retired NOW or they linger as unattributable orphans (#2147 round 11's
+// pre-delete ordering). Children also approved in a remaining offering are
+// left untouched — the kept sibling still claims them.
+func (s *decisionService) retireDepartingSourcedRows(
+	ctx context.Context,
+	tmpl *activities.Group,
+	offeringID int64,
+	remaining []int64,
+	effectiveFrom timezone.Date,
+) error {
+	departing, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offeringID}, effectiveFrom)
+	if err != nil {
+		return fmt.Errorf("list departing offering children: %w", err)
+	}
+	if len(departing) == 0 {
+		return nil
+	}
+	kept := make(map[int64]bool)
+	if len(remaining) > 0 {
+		keptChildren, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, remaining, effectiveFrom)
+		if err != nil {
+			return fmt.Errorf("list remaining offering children: %w", err)
+		}
+		for _, child := range keptChildren {
+			if child != nil && child.Link != nil {
+				kept[child.Link.RequestChildID] = true
+			}
+		}
+	}
+	scope := make([]int64, 0, len(departing))
+	seen := make(map[int64]bool, len(departing))
+	for _, child := range departing {
+		if child == nil || child.Link == nil {
+			continue
+		}
+		childID := child.Link.RequestChildID
+		if kept[childID] || seen[childID] {
+			continue
+		}
+		seen[childID] = true
+		scope = append(scope, childID)
+	}
+	if len(scope) == 0 {
+		return nil
+	}
+	slices.Sort(scope)
+	return s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+		TemplateID:           tmpl.ID,
+		CalendarPeriodID:     tmpl.CalendarPeriodID,
+		EffectiveFrom:        effectiveFrom,
+		ScopeRequestChildIDs: scope,
+	})
 }
 
 // removeOfferingID returns ids without the given offering, preserving order.

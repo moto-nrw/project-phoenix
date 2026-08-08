@@ -127,17 +127,37 @@ func templateMultiOfferingSourceUp(ctx context.Context, db *bun.DB) error {
 func templateMultiOfferingSourceDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.281: Restoring single source_care_offering_id column...")
 
-	// Multi-source templates collapse to their FIRST source on rollback; the
-	// remaining ids cannot be represented in the single-FK shape.
+	// Multi-source templates collapse to their first STILL-EXISTING source on
+	// rollback; the remaining ids cannot be represented in the single-FK
+	// shape. The existence filter is load-bearing: the jsonb array carries no
+	// FK and may legitimately hold ids of offerings deleted without the
+	// detach flow (the validation paths drop them instead of failing), so a
+	// naive "element 0" backfill would hit the freshly restored FK with 23503
+	// and abort the whole rollback. Templates with no surviving id stay NULL;
+	// their stranded grade filter is cleared below so the restored CHECK can
+	// be added.
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			ADD COLUMN IF NOT EXISTS source_care_offering_id BIGINT
 				REFERENCES enrollment.care_offerings(id) ON DELETE SET NULL;
 
+		UPDATE activities.groups AS g
+		SET source_care_offering_id = (
+			SELECT (elem.value)::BIGINT
+			FROM jsonb_array_elements_text(g.source_care_offering_ids)
+				WITH ORDINALITY AS elem(value, ord)
+			INNER JOIN enrollment.care_offerings AS c
+				ON c.id = (elem.value)::BIGINT
+			ORDER BY elem.ord
+			LIMIT 1
+		)
+		WHERE g.source_care_offering_ids IS NOT NULL
+		  AND jsonb_array_length(g.source_care_offering_ids) > 0;
+
 		UPDATE activities.groups
-		SET source_care_offering_id = (source_care_offering_ids ->> 0)::BIGINT
-		WHERE source_care_offering_ids IS NOT NULL
-		  AND jsonb_array_length(source_care_offering_ids) > 0;
+		SET source_grade_levels = NULL
+		WHERE source_care_offering_id IS NULL
+		  AND source_grade_levels IS NOT NULL;
 
 		DROP INDEX IF EXISTS activities.idx_activities_groups_source_offerings;
 

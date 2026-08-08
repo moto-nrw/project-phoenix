@@ -919,7 +919,10 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 // to a period the phase's service window cannot fit) must not strip the
 // template's remaining sources on detach — the sibling is valid data, only
 // its combination with the period pin failed. The detach keeps the source
-// columns and skips only the resync.
+// columns and skips the full union resync, but the DEPARTING offering's rows
+// must still be retired: the delete behind the detach cascades their
+// provenance away, after which no later resync could ever attribute them.
+// Children the kept sibling also feeds stay planned.
 func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -931,6 +934,19 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	template := createSourcedTemplate(t, env, "DriftTermin", offeringA.ID, []int{2}, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
 	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	onlyA, _ := submitAndApproveOfferingChild(t, env, offeringA.ID, "drift-only-a@example.com", "Anke", 2)
+	onlyB, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "drift-only-b@example.com", "Bern", 2)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
+			GradeLevels:      []int{2},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		}))
+	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
+		"both offerings' children must be planned before the drift")
 
 	// Drift: re-pin the template to a period the phase window lies outside of,
 	// so validating the remaining source fails with ErrOfferingSourceInvalid.
@@ -950,6 +966,11 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 		"a drifted sibling must not strip the remaining valid source")
 	assert.Equal(t, []int{2}, kept.SourceGradeLevels,
 		"the grade filter belongs to the kept source and must survive the detach")
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1, "the departing offering's child must be retired before its provenance is deleted")
+	assert.Equal(t, onlyB, rows[0].StudentID, "the kept sibling's child stays planned")
+	assert.NotEqual(t, onlyA, rows[0].StudentID)
 }
 
 // Multi-source follow-up: a child enrolled in TWO of the template's source
@@ -1058,6 +1079,87 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1, "the approval must seed the multi-source template via the union resync")
 	assert.Equal(t, studentID, rows[0].StudentID)
+}
+
+// The multi-source fan-out must seed the child's rows from the phase's
+// service start — like the single-source drafts — even when the phase is
+// already running. With the old today-anchored boundary, an approval on day N
+// of a running phase silently lost [phase start, N) for multi-source
+// templates only.
+func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// The phase started a week ago; the period is built around it so the
+	// template pin stays valid regardless of the real date.
+	phaseStart := timezone.TodayDate().AddDays(-7)
+	setSourcePhaseServiceStartDate(t, env, phaseStart)
+	period := createCareOfferingTestPeriod(t, env.db, "running-phase-fanout",
+		phaseStart.AddDays(-5),
+		env.sourcePhase.ServiceEndDate.AddDays(30))
+
+	offeringA := createSourceOffering(t, env, "LaufendQuelleA", nil)
+	offeringB := createSourceOffering(t, env, "LaufendQuelleB", nil)
+	template := createSourcedTemplate(t, env, "LaufendMultiTermin", offeringA.ID, nil, period)
+	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	submitAndApproveOfferingChild(t, env, offeringB.ID, "laufend-multi@example.com", "Lars", 2)
+
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, phaseStart, rows[0].ValidFrom,
+		"the union row must start at the phase's service start, not at the approval date")
+}
+
+// An UNDATED offering correction deletes the child's rows and rematerializes
+// the whole phase window. Multi-source templates must come back from the
+// phase start like the single-source drafts do — with the old today-anchored
+// resync boundary, the correction permanently truncated the already-elapsed
+// window, including the roster basis of recorded attendance.
+func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phaseStart := timezone.TodayDate().AddDays(-7)
+	setSourcePhaseServiceStartDate(t, env, phaseStart)
+	period := createCareOfferingTestPeriod(t, env.db, "running-phase-correction",
+		phaseStart.AddDays(-5),
+		env.sourcePhase.ServiceEndDate.AddDays(30))
+
+	offeringA := createSourceOffering(t, env, "KorrekturQuelleA", nil)
+	offeringB := createSourceOffering(t, env, "KorrekturQuelleB", nil)
+	template := createSourcedTemplate(t, env, "KorrekturMultiTermin", offeringA.ID, nil, period)
+	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(ctx, template))
+
+	_, childID := submitAndApproveOfferingChild(t, env, offeringA.ID, "korrektur-multi@example.com", "Kim", 2)
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1)
+	require.Equal(t, phaseStart, rows[0].ValidFrom)
+
+	// Undated correction: the selection was wrong from the start, switch the
+	// child from offering A to B (both feed the same template).
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      child.RequestID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Tippfehler in der Anmeldung",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: offeringB.ID},
+		},
+	})
+	require.NoError(t, err)
+
+	rows = loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1, "the child still feeds the template through offering B")
+	assert.Equal(t, phaseStart, rows[0].ValidFrom,
+		"the rematerialized union row must cover the whole phase window again")
 }
 
 // The post-flip multi-source resync must honor the care-offerings feature
