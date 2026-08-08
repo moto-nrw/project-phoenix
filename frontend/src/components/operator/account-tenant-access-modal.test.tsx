@@ -223,8 +223,7 @@ describe("AccountTenantAccessModal", () => {
     mockListAssignableRoles.mockResolvedValue([
       { id: "1", name: "admin" },
       { id: "2", name: "user" },
-      // The backend admits lehrkraft (#1772); the modal must hide it until
-      // the class day view ships.
+      // lehrkraft (#1772) is assignable since the class day view shipped.
       { id: "9", name: "lehrkraft" },
     ]);
   });
@@ -287,7 +286,7 @@ describe("AccountTenantAccessModal", () => {
     expect(options).not.toContain("OGS Nord (Träger Köln)");
   });
 
-  it("never offers the guardian or lehrkraft role", async () => {
+  it("offers lehrkraft but never the guardian role", async () => {
     renderModal();
 
     const schoolSelect = await screen.findByLabelText("account-access-school");
@@ -305,8 +304,10 @@ describe("AccountTenantAccessModal", () => {
 
     expect(options).toContain("Verwaltung");
     expect(options).toContain("Betreuung");
+    // lehrkraft (#1772) is assignable since the class day view shipped —
+    // offered under its German label.
+    expect(options).toContain("Lehrkraft");
     expect(options).not.toContain("guardian");
-    expect(options).not.toContain("lehrkraft");
   });
 
   it("grants access with the selected school and role", async () => {

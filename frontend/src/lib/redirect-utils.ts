@@ -16,12 +16,13 @@ export interface SupervisionState {
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
- * 1. Binary-mode caregivers: /students/search
- * 2. Open-care caregivers: /students/search (no group concept, #1544)
- * 3. Caregivers with groups: /ogs-groups
- * 4. Caregivers actively supervising: /active-supervisions
- * 5. Other caregivers: /ogs-groups
- * 6. Admin-only users: /dashboard
+ * 1. Lehrkraft-only accounts: /klassen (their single reachable area, #1772)
+ * 2. Binary-mode caregivers: /students/search
+ * 3. Open-care caregivers: /students/search (no group concept, #1544)
+ * 4. Caregivers with groups: /ogs-groups
+ * 5. Caregivers actively supervising: /active-supervisions
+ * 6. Other caregivers: /ogs-groups
+ * 7. Admin-only users: /dashboard
  */
 export function getSmartRedirectPath(
   session: Session | null,
@@ -31,6 +32,17 @@ export function getSmartRedirectPath(
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
+
+  // A pure Lehrkraft account (#1772) holds only class_day:read — every other
+  // landing page would 403 or render empty. Dual-role accounts (also
+  // caregiver or admin) keep their richer flows below.
+  if (
+    hasRole(session, "lehrkraft") &&
+    !canUseCaregiverFlows &&
+    !canUseAdminFlows
+  ) {
+    return "/klassen";
+  }
 
   if (canUseCaregiverFlows) {
     if (presenceMode === "binary" || openCareGroupMode) {

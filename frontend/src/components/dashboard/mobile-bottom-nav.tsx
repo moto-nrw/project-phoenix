@@ -125,6 +125,17 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
   },
 ];
 
+// Reines Lehrkraft-Konto (#1772): nur die Klassenansicht ist erreichbar,
+// alles andere würde 403 antworten. Hilfe kommt über das Overflow-Menü.
+const LEHRKRAFT_MAIN_ITEMS: NavItem[] = [
+  {
+    href: "/klassen",
+    label: "Klassen",
+    iconKey: "academicCap",
+    alwaysShow: true,
+  },
+];
+
 // Order mirrors the desktop sidebar sections: VERWALTUNG → KOMMUNIKATION → TEAM.
 const OPERATOR_MAIN_ITEMS: NavItem[] = [
   {
@@ -547,16 +558,23 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [tParentNav],
   );
+  // Reines Lehrkraft-Konto (#1772): weder Betreuungs- noch Admin-Flows.
+  const isLehrkraftOnly =
+    hasRole(session, "lehrkraft") &&
+    !isCaregiver(session) &&
+    !hasRole(session, "admin");
   const baseMain =
     mode === "parent"
       ? parentMainItems
       : mode === "operator"
         ? resolvedOperatorMainItems
-        : isCaregiver(session)
-          ? STAFF_MAIN_ITEMS
-          : hasRole(session, "admin")
-            ? ADMIN_MAIN_ITEMS
-            : STAFF_MAIN_ITEMS;
+        : isLehrkraftOnly
+          ? LEHRKRAFT_MAIN_ITEMS
+          : isCaregiver(session)
+            ? STAFF_MAIN_ITEMS
+            : hasRole(session, "admin")
+              ? ADMIN_MAIN_ITEMS
+              : STAFF_MAIN_ITEMS;
   // Admins with supervision overview: inject "Aufsicht" tab dynamically.
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
@@ -628,6 +646,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
+    // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
+    // jede andere Seite würde 403 antworten.
+    if (isLehrkraftOnly) return item.href === "/help";
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;

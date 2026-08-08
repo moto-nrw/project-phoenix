@@ -27,6 +27,7 @@ import {
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
+import { KlassenTab } from "~/components/staff/klassen-tab";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
@@ -280,6 +281,7 @@ export default function StaffDetailContent() {
           {canViewDocuments ? (
             <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
           ) : null}
+          {canEdit ? <TabsTrigger value="klassen">Klassen</TabsTrigger> : null}
         </TabsList>
 
         {canViewTimeTracking ? (
@@ -327,6 +329,15 @@ export default function StaffDetailContent() {
         {canViewDocuments ? (
           <TabsPrimitive.Content value="dokumente">
             <DokumenteTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
+
+        {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
+            Das Ersetzen des Sets ist im Backend users:manage, deshalb nur
+            für Admin-Wildcard-Konten sichtbar. */}
+        {canEdit ? (
+          <TabsPrimitive.Content value="klassen">
+            <KlassenTab staffId={staffId} canEdit={canEdit} />
           </TabsPrimitive.Content>
         ) : null}
       </Tabs>

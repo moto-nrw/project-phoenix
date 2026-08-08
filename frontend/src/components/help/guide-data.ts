@@ -891,6 +891,27 @@ export const appChapters: readonly GuideChapter[] = [
         printCompact: true,
       },
       {
+        id: "lehrkraft-klassenansicht",
+        title: "Lehrkraft-Zugang mit Klassenansicht",
+        icon: GraduationCap,
+        summary:
+          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht – wer bleibt heute in der Betreuung, wer geht nach Hause.",
+        steps: [
+          "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
+          "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
+          "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist.",
+          "Mehr sieht die Lehrkraft nicht: keine Kindersuche, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Jeder Abruf der Ansicht wird im Zugriffsprotokoll vermerkt.",
+        ],
+        callout: {
+          title: "Klassen wandern beim Jahrgangswechsel mit",
+          body: "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen der Lehrkräfte automatisch mitgeführt (aus 1a wird 2a). Nach dem Wechsel lohnt ein kurzer Blick in den Reiter Klassen, ob die Zuordnung noch stimmt.",
+          tone: "blue",
+        },
+        screenshot:
+          "Klassenansicht einer Lehrkraft mit Tagesliste der Klasse und Kennzeichnung Betreuung oder nach Hause.",
+        printCompact: true,
+      },
+      {
         id: "vertretungen",
         title: "Gruppenzugriff",
         icon: Repeat,

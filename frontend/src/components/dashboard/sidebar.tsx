@@ -110,6 +110,16 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    // Lehrkraft-Klassenansicht (#1772): sichtbar nur für Konten mit der
+    // lehrkraft-Rolle (Gating unten in filteredNavItems — permission-basiert
+    // ginge nicht, weil admin:* class_day:read matcht, Admins aber keine
+    // Klassen zugewiesen haben und auf einer leeren Seite landen würden).
+    href: "/klassen",
+    label: "Klassenansicht",
+    icon: navigationIcons.academicCap,
+    activeColor: "text-[#5080D8]",
+  },
+  {
     ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
@@ -449,6 +459,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  // Lehrkraft (#1772): externe Schullehrer mit ausschließlich class_day:read.
+  // Ein reines Lehrkraft-Konto sieht nur die Klassenansicht und die Hilfe —
+  // jede andere Seite würde 403 antworten oder leer rendern.
+  const userIsLehrkraft = hasRole(session, "lehrkraft");
+  const userIsLehrkraftOnly =
+    userIsLehrkraft && !userIsAdmin && !userIsCaregiver;
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller
@@ -572,6 +588,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
+    // Klassenansicht (#1772): role-gated, not permission-gated — admin:*
+    // matches class_day:read, but admins have no class assignments and the
+    // page would render empty for them.
+    if (item.href === "/klassen") return userIsLehrkraft;
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
@@ -1148,6 +1168,30 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <span>{tParentNav("feedback")}</span>
               <UnreadBadge count={parentFeedbackUnread} className="ml-auto" />
             </Link>
+          </nav>
+        </div>
+      </aside>
+    );
+  }
+
+  // Reines Lehrkraft-Konto (#1772): minimale Navigation. Die Betreuungs- und
+  // Verwaltungsbereiche würden alle 403 antworten — nur Klassenansicht und
+  // Hilfe sind erreichbar.
+  if (userIsLehrkraftOnly) {
+    const klassenItem = filteredNavItems.find(
+      (item) => item.href === "/klassen",
+    );
+    const helpItem = filteredNavItems.find((item) => item.href === "/help");
+    return (
+      <aside
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+      >
+        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+            {klassenItem && renderNavItem(klassenItem)}
+          </nav>
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            {helpItem && renderNavItem(helpItem)}
           </nav>
         </div>
       </aside>

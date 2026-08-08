@@ -26,6 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "Verwaltung",
   user: "Betreuung",
   guest: "Gast",
+  lehrkraft: "Lehrkraft",
 };
 
 function roleLabel(name: string): string {
@@ -218,9 +219,8 @@ export function AccountTenantAccessModal({
   const needsName = !knowsName;
 
   function rolesForSchool(schoolId: string) {
-    // The backend admits lehrkraft (#1772) by policy; hide it here like every
-    // other role picker until the class day view ships — an account holding
-    // only that role would land in an app with zero accessible areas.
+    // Shared exclusion set (guardian, legacy teacher) — lehrkraft (#1772) is
+    // assignable since the class day view (/klassen) shipped.
     return (rolesBySchool[schoolId] ?? []).filter((role) =>
       isAssignableStaffRole(role.name),
     );

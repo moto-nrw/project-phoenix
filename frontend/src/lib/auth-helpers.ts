@@ -267,16 +267,10 @@ export interface RoleOption {
 
 /**
  * System roles that are legacy/relationship-derived and not assignable to
- * staff accounts. "lehrkraft" (#1772) stays hidden until the class day view
- * ships — the backend seeds the role with PR 1, but inviting someone into a
- * role whose only permission gates a not-yet-existing page would strand them
- * in an empty app. Remove it here in the PR that lands the day view.
+ * staff accounts. "lehrkraft" (#1772) is assignable since the class day view
+ * (/klassen) shipped — invited Lehrkraft accounts land on a real page now.
  */
-const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set([
-  "guardian",
-  "teacher",
-  "lehrkraft",
-]);
+const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
 
 /**
  * Whether a system role may be assigned to a staff account. Shared by every
