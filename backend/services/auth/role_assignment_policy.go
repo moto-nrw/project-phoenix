@@ -20,11 +20,11 @@ const legacyTeacherRoleName = "teacher"
 // exactly that, so it is refused for this role.
 const lehrkraftRoleName = "lehrkraft"
 
-// isLehrkraftSystemRole reports whether the role is the platform lehrkraft
+// IsLehrkraftSystemRole reports whether the role is the platform lehrkraft
 // system role. Name-matched and narrowed to system roles like the legacy
 // teacher block: a school's own custom role that happens to share the label
 // is a different role with school-chosen permissions.
-func isLehrkraftSystemRole(role *authModels.Role) bool {
+func IsLehrkraftSystemRole(role *authModels.Role) bool {
 	return role != nil && role.IsSystem &&
 		strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
 }

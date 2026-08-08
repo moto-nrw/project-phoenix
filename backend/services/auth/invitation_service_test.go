@@ -552,11 +552,11 @@ func TestShouldCreateTeacherForRole(t *testing.T) {
 // both acceptance branches; a school's custom role sharing the label is a
 // different role and stays eligible.
 func TestIsLehrkraftSystemRole(t *testing.T) {
-	require.True(t, isLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
-	require.True(t, isLehrkraftSystemRole(&authModel.Role{Name: " Lehrkraft ", IsSystem: true}))
-	require.False(t, isLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: false}))
-	require.False(t, isLehrkraftSystemRole(&authModel.Role{Name: "user", IsSystem: true}))
-	require.False(t, isLehrkraftSystemRole(nil))
+	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
+	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: " Lehrkraft ", IsSystem: true}))
+	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: false}))
+	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "user", IsSystem: true}))
+	require.False(t, IsLehrkraftSystemRole(nil))
 }
 
 func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(t *testing.T) {

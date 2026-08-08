@@ -38,7 +38,7 @@ func init() {
 //     for system roles automatically (createStaffAndTeacherIfSystemRole). No
 //     users.teachers caregiver profile is ever created — the name is NOT in
 //     shouldCreateTeacherForRole, and the caregiver_enabled upgrade is
-//     refused for this role (isLehrkraftSystemRole guards invitation
+//     refused for this role (IsLehrkraftSystemRole guards invitation
 //     creation and both acceptance branches).
 //   - base_role 'user' (the CHECK allows admin/user/guardian only); the name
 //     differs from the retired "teacher" role, which the assignment policy

@@ -2093,6 +2093,74 @@ func TestCreateSchoolAccount_Success(t *testing.T) {
 	assert.Equal(t, int64(300), createdTeacher.StaffID)
 }
 
+// The operator API must refuse the same combination the invitation flow
+// refuses (#1772): lehrkraft plus caregiver_enabled would grant the full
+// user role and a caregiver profile, defeating the role's class-scoped
+// read-only design.
+func TestCreateSchoolAccount_RejectsLehrkraftCaregiverCombo(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		SchoolRepo: &testpkg.SchoolRepoMock{
+			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 9},
+					OrganizationID: 3,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "lehrkraft",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, _, _, _ string, _ *int64, _ int64) (*authModels.Account, error) {
+				t.Fatal("no account must be created for a rejected lehrkraft+caregiver request")
+				return nil, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	_, err = service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:            "lehrkraft@example.com",
+		Password:         "SecureP@ss1",
+		FirstName:        "Jane",
+		LastName:         "Doe",
+		RoleID:           &roleID,
+		CaregiverEnabled: true,
+	})
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, invalidErr.Error(), "lehrkraft")
+}
+
 func TestCreateSchoolAccount_DefaultsToAdminRole(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)

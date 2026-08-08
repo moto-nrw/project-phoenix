@@ -192,7 +192,7 @@ func (s *invitationService) ensureRoleAssignable(ctx context.Context, req Invita
 	// caregiver profile — refuse the combination at creation, before any
 	// token exists (#1772). Checked before the OperatorGrant early-return:
 	// the invariant holds for operator-created invitations too.
-	if req.CaregiverEnabled && isLehrkraftSystemRole(role) {
+	if req.CaregiverEnabled && IsLehrkraftSystemRole(role) {
 		return &AuthError{Op: opCreateInvitation, Err: ErrLehrkraftNoCaregiver}
 	}
 
@@ -623,7 +623,7 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	}
 	// Defense in depth for tokens minted before the creation-side check
 	// existed: a Lehrkraft invitation never receives the user role (#1772).
-	if isLehrkraftSystemRole(role) {
+	if IsLehrkraftSystemRole(role) {
 		return nil
 	}
 
@@ -680,7 +680,7 @@ func (s *invitationService) createStaffAndTeacherIfSystemRole(
 
 	// A Lehrkraft never gets a caregiver profile, caregiver_enabled or not —
 	// same invariant as assignCaregiverRoleIfRequested (#1772).
-	caregiverUpgrade := invitation.CaregiverEnabled && !isLehrkraftSystemRole(role)
+	caregiverUpgrade := invitation.CaregiverEnabled && !IsLehrkraftSystemRole(role)
 	if !shouldCreateTeacherForRole(role.Name) && !caregiverUpgrade {
 		return nil
 	}

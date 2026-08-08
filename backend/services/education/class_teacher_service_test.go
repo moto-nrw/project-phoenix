@@ -168,6 +168,12 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b"}, actor.ID))
 		assert.Equal(t, 2, auditCount(), "a replace is a change")
 
+		// A case-only rename mutates the same rows the audit snapshot is
+		// derived from — the trail must still record it (the exact casing
+		// decides how a grade transition matches this teacher).
+		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2B"}, actor.ID))
+		assert.Equal(t, 3, auditCount(), "a case-only rename is a change and must be audited")
+
 		var row struct {
 			ChangedBy int64  `bun:"changed_by"`
 			OldValue  string `bun:"old_value"`
@@ -183,8 +189,8 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 			Scan(ctx, &row)
 		require.NoError(t, err)
 		assert.Equal(t, actor.ID, row.ChangedBy)
-		assert.Equal(t, "1a", row.OldValue)
-		assert.Equal(t, "2b", row.NewValue)
+		assert.Equal(t, "2b", row.OldValue, "the audit must snapshot the pre-write display form")
+		assert.Equal(t, "2B", row.NewValue)
 	})
 
 	t.Run("rejects blank class names", func(t *testing.T) {

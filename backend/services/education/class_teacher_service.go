@@ -74,6 +74,16 @@ func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, clas
 		return &EducationError{Op: op, Err: err}
 	}
 
+	// Snapshot the display strings BEFORE the diff loop: the in-place update
+	// below mutates the same rows `current` points at, and the audit must
+	// record what stood in the DB when the request arrived — a case-only
+	// rename would otherwise compare the new value against itself and skip
+	// the trail.
+	oldClasses := make([]string, 0, len(current))
+	for _, assignment := range current {
+		oldClasses = append(oldClasses, assignment.SchoolClass)
+	}
+
 	currentByKey := make(map[string]*education.ClassTeacher, len(current))
 	for _, assignment := range current {
 		currentByKey[schoolclass.Normalize(assignment.SchoolClass)] = assignment
@@ -105,7 +115,7 @@ func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, clas
 		}
 	}
 
-	if err := s.auditSchoolClassChange(ctx, staffID, changedBy, current, wanted); err != nil {
+	if err := s.auditSchoolClassChange(ctx, staffID, changedBy, oldClasses, wanted); err != nil {
 		return &EducationError{Op: op, Err: err}
 	}
 
@@ -113,22 +123,20 @@ func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, clas
 }
 
 // auditSchoolClassChange records one audit row per actual change of the
-// assignment set, in the same transaction as the writes. No-op when nothing
-// changed or no audit trail is wired (tests, CLI).
+// assignment set, in the same transaction as the writes. oldClasses is the
+// pre-write snapshot of the display strings — never the (by now mutated) rows
+// themselves. No-op when nothing changed or no audit trail is wired (tests,
+// CLI).
 func (s *service) auditSchoolClassChange(
 	ctx context.Context,
 	staffID, changedBy int64,
-	current []*education.ClassTeacher,
+	oldClasses []string,
 	wanted map[string]string,
 ) error {
 	if s.masterDataAudit == nil {
 		return nil
 	}
 
-	oldClasses := make([]string, 0, len(current))
-	for _, assignment := range current {
-		oldClasses = append(oldClasses, assignment.SchoolClass)
-	}
 	newClasses := make([]string, 0, len(wanted))
 	for _, display := range wanted {
 		newClasses = append(newClasses, display)
