@@ -686,9 +686,11 @@ describe("StatCard component behavior", () => {
       "data-moto-duotone-tone",
       "navy",
     );
+    // Orange, matching LOCATION_COLORS.SCHOOLYARD — the same status renders as
+    // an orange pill in the student list.
     expect(schoolyard.querySelector("svg")).toHaveAttribute(
       "data-moto-duotone-tone",
-      "amber",
+      "orange",
     );
     expect(sick.querySelector("svg")).toHaveAttribute(
       "data-moto-duotone-tone",
@@ -698,9 +700,11 @@ describe("StatCard component behavior", () => {
       "data-moto-duotone-tone",
       "purple",
     );
+    // Gold: orange belongs to the Schulhof status, and Auslastung is a metric
+    // with no badge hue of its own.
     expect(utilization?.querySelector("svg")).toHaveAttribute(
       "data-moto-duotone-tone",
-      "orange",
+      "gold",
     );
   });
 

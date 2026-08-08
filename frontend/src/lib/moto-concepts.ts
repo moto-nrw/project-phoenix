@@ -137,7 +137,12 @@ export const MOTO_CONCEPTS = {
     "status",
     "presence",
   ),
-  schoolyard: concept("Schulhof", SunIcon, "amber", "status", "presence"),
+  // Orange, matching LOCATION_COLORS.SCHOOLYARD (#F78C10) — the badge for
+  // this very status. Every other status concept sits in the hue family of
+  // its badge; Schulhof was the one that did not, so the dashboard tile and
+  // the student-list pill showed the same status in two colors. Amber is
+  // reserved for LOCATION_COLORS.WARNING now.
+  schoolyard: concept("Schulhof", SunIcon, "orange", "status", "presence"),
   sick: concept("Krank", FirstAidKitIcon, "red", "status", "presence"),
   excused: concept(
     "Entschuldigt",
@@ -149,10 +154,14 @@ export const MOTO_CONCEPTS = {
   home: concept("Zuhause", HouseIcon, "neutral", "status", "presence"),
   classTrip: concept("Klassenfahrt", BusIcon, "cyan", "status", "presence"),
   freeRooms: concept("Freie Räume", DoorOpenIcon, "mint", "status", "presence"),
+  // Gold, not orange: orange belongs to the Schulhof status above, and the
+  // unique-primary-color rule for status concepts allows only one owner.
+  // Auslastung is a metric rather than a presence state, so it has no badge
+  // hue of its own to match.
   utilization: concept(
     "Auslastung",
     ChartBarIcon,
-    "orange",
+    "gold",
     "status",
     "presence",
   ),
