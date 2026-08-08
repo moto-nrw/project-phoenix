@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	importsvc "github.com/moto-nrw/project-phoenix/services/import"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -1087,6 +1088,15 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err := s.RequestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
 		return nil, fmt.Errorf("decision: update child status: %w", err)
 	}
+	// Multi-source templates are reconciled through the union resync, which
+	// resolves children by their APPROVED status — applyApproval deliberately
+	// runs before the status flip, so its in-flight resync cannot see this
+	// child yet. Re-run it now that the status is committed in this tx.
+	if input.Status == DecisionApproved {
+		if err := s.resyncMultiSourceTemplatesForChild(ctx, target.ID, phase); err != nil {
+			return nil, fmt.Errorf("decision: resync multi-source templates after approval: %w", err)
+		}
+	}
 	// Read the DB-authored review generation before constructing either
 	// immediate or digest idempotency keys. Status alone is insufficient: a
 	// supported rejected -> under_review -> rejected cycle is a new decision
@@ -1390,6 +1400,17 @@ func (s *decisionService) applyApproval(
 	// parent picked that is bound to an activity_group becomes a row
 	// in activities.student_enrollments. Offerings without an activity
 	// group (pure schedule-only offerings) are skipped.
+	// 6. Stamp the request_children row with the resulting student id
+	// so the admin UI can link to the new student record. Failure is
+	// fatal - if we can't link them, future revoke flows can't reverse
+	// the approval cleanly. Stamped BEFORE the enrollment materialization:
+	// the multi-source union resync resolves the child's student through
+	// created_student_id, so a later stamp would hide the just-approved
+	// child from the resync inside this same transaction.
+	if err := s.linkCreatedStudent(ctx, child.ID, student.ID); err != nil {
+		return nil, fmt.Errorf("decision: link created student: %w", err)
+	}
+
 	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
 	if err != nil {
 		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
@@ -1402,14 +1423,6 @@ func (s *decisionService) applyApproval(
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
 		return nil, err
-	}
-
-	// 6. Stamp the request_children row with the resulting student id
-	// so the admin UI can link to the new student record. Failure is
-	// fatal - if we can't link them, future revoke flows can't reverse
-	// the approval cleanly.
-	if err := s.linkCreatedStudent(ctx, child.ID, student.ID); err != nil {
-		return nil, fmt.Errorf("decision: link created student: %w", err)
 	}
 
 	// 7. Decide whether to schedule a guardian invitation. Skip when
@@ -1732,6 +1745,15 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		}
 	}
 
+	// Link this request_child to the student so the admin UI can navigate
+	// from the submission to the (single) student row. Linked BEFORE the
+	// enrollment materialization: the multi-source union resync resolves the
+	// child's student through created_student_id, so a later stamp would hide
+	// the just-approved child from the resync inside this same transaction.
+	if err := s.linkCreatedStudent(ctx, child.ID, studentID); err != nil {
+		return nil, fmt.Errorf("decision: link existing student: %w", err)
+	}
+
 	// Materialize the phase's care offerings under this student.
 	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
 	if err != nil {
@@ -1745,12 +1767,6 @@ func (s *decisionService) attachApprovalToExistingStudent(
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
 		return nil, err
-	}
-
-	// Link this request_child to the student so the admin UI can navigate
-	// from the submission to the (single) student row.
-	if err := s.linkCreatedStudent(ctx, child.ID, studentID); err != nil {
-		return nil, fmt.Errorf("decision: link existing student: %w", err)
 	}
 
 	// Invite the submitted guardian when they have no portal account yet — the
@@ -2505,7 +2521,7 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return err
 	}
-	drafts, err := s.careEnrollmentDraftsForChild(ctx, requestChildID, studentID, phase)
+	drafts, multiSource, err := s.careEnrollmentDraftsForChild(ctx, requestChildID, studentID, phase)
 	if err != nil {
 		return err
 	}
@@ -2516,7 +2532,13 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	// occurrence, so an approval after materialization must add the child to
 	// the drafted templates' already-materialized future occurrences itself
 	// (#2147 review).
-	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, draftGroupIDSet(drafts), enrollmentRewriteBoundary(startFrom))
+	if err := s.reconcileEnrollmentInstanceRosters(ctx, studentID, draftGroupIDSet(drafts), enrollmentRewriteBoundary(startFrom)); err != nil {
+		return err
+	}
+	// Multi-source templates were deliberately not drafted above; the resync
+	// unions their offerings' children (including this one) and reconciles
+	// materialized occurrences itself.
+	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(startFrom))
 }
 
 // enrollmentRewriteBoundary is the date from which a decision/adjustment flow
@@ -2585,12 +2607,12 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
-) (map[int64]*careEnrollmentDraft, error) {
+) (map[int64]*careEnrollmentDraft, map[int64]*activities.Group, error) {
 	// A future phase's selections are bounded to its service window and are
 	// therefore not active today while staff approve the request.
 	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
 	if err != nil {
-		return nil, fmt.Errorf("decision: list child offerings: %w", err)
+		return nil, nil, fmt.Errorf("decision: list child offerings: %w", err)
 	}
 	return s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, links, phase)
 }
@@ -2598,26 +2620,95 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 // careEnrollmentDraftsForLinks materializes an explicitly supplied selection.
 // Dated offering changes use it after scheduling their future links: reading
 // the current links at that point would correctly return the old selection,
-// but incorrectly materialize that old selection at the switch date.
+// but incorrectly materialize that old selection at the switch date. The
+// second return value carries the multi-source templates the selection feeds;
+// the caller must resync them after persisting the drafts.
 func (s *decisionService) careEnrollmentDraftsForLinks(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	links []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
-) (map[int64]*careEnrollmentDraft, error) {
+) (map[int64]*careEnrollmentDraft, map[int64]*activities.Group, error) {
 	if len(links) == 0 {
-		return map[int64]*careEnrollmentDraft{}, nil
+		return map[int64]*careEnrollmentDraft{}, map[int64]*activities.Group{}, nil
 	}
 	offeringIDs := uniqueCareOfferingIDs(links)
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
 	if err != nil {
-		return nil, fmt.Errorf("decision: list linked care offerings: %w", err)
+		return nil, nil, fmt.Errorf("decision: list linked care offerings: %w", err)
 	}
-	drafts, err := s.buildCareEnrollmentDrafts(ctx, requestChildID, studentID, links, offerings, phase)
+	return s.buildCareEnrollmentDrafts(ctx, requestChildID, studentID, links, offerings, phase)
+}
+
+// resyncMultiSourceTemplatesForChild re-reconciles every multi-source
+// template fed by one of the child's offerings. Called AFTER the child's
+// status flipped to approved (see the Decide call site): the union resync
+// resolves children through their approved status, so the resync inside the
+// approval's materialization pass cannot see the child yet.
+func (s *decisionService) resyncMultiSourceTemplatesForChild(
+	ctx context.Context,
+	requestChildID int64,
+	phase *enrollmentModels.Phase,
+) error {
+	if !s.hasEnrollmentMaterializationDependencies() {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("decision: list child offerings for multi-source resync: %w", err)
 	}
-	return drafts, nil
+	multiSource := make(map[int64]*activities.Group)
+	for _, offeringID := range offeringIDsFromLinks(links) {
+		templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offeringID)
+		if err != nil {
+			return fmt.Errorf("decision: list sourced templates for care offering %d: %w", offeringID, err)
+		}
+		for _, tmpl := range templates {
+			if tmpl != nil && len(tmpl.SourceCareOfferingIDs) > 1 {
+				multiSource[tmpl.ID] = tmpl
+			}
+		}
+	}
+	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(nil))
+}
+
+// resyncMultiSourceTemplates reconciles the multi-source templates a decision
+// or adjustment flow touched, AFTER its drafts were persisted: the resync is
+// the single authoritative writer of the union roster (see
+// addSourcedTemplateDrafts). Drifted-invalid templates are skipped with a
+// warning, mirroring the single-source fan-out — one broken template must
+// not fail an approval. The caller must hold the tenant recurrence lock.
+func (s *decisionService) resyncMultiSourceTemplates(
+	ctx context.Context,
+	templates map[int64]*activities.Group,
+	effectiveFrom timezone.Date,
+) error {
+	if len(templates) == 0 {
+		return nil
+	}
+	templateIDs := make([]int64, 0, len(templates))
+	for templateID := range templates {
+		templateIDs = append(templateIDs, templateID)
+	}
+	slices.Sort(templateIDs)
+	for _, templateID := range templateIDs {
+		tmpl := templates[templateID]
+		err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+			TemplateID:       tmpl.ID,
+			OfferingIDs:      tmpl.SourceCareOfferingIDs,
+			GradeLevels:      tmpl.SourceGradeLevels,
+			CalendarPeriodID: tmpl.CalendarPeriodID,
+			EffectiveFrom:    effectiveFrom,
+		})
+		if err != nil {
+			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+				s.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "decision fan-out: multi-source template invalid", err)
+				continue
+			}
+			return fmt.Errorf("decision: resync multi-source template %d: %w", tmpl.ID, err)
+		}
+	}
+	return nil
 }
 
 func (s *decisionService) persistCareEnrollmentDrafts(
@@ -2762,16 +2853,19 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 	links []*enrollmentModels.RequestChildOffering,
 	offerings []*enrollmentModels.CareOffering,
 	phase *enrollmentModels.Phase,
-) (map[int64]*careEnrollmentDraft, error) {
+) (map[int64]*careEnrollmentDraft, map[int64]*activities.Group, error) {
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
 	gradeLevel, err := s.studentGradeLevel(ctx, studentID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	drafts := make(map[int64]*careEnrollmentDraft)
+	// Templates sourcing several offerings are not drafted per link — see
+	// addSourcedTemplateDrafts — the caller resyncs them after persisting.
+	multiSource := make(map[int64]*activities.Group)
 	for _, link := range links {
 		offering := offeringByID[link.CareOfferingID]
 		if offering == nil {
@@ -2780,11 +2874,11 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 				slog.Int64("care_offering_id", link.CareOfferingID))
 			continue
 		}
-		if err := s.addCareOfferingDrafts(ctx, drafts, offering, link, phase, gradeLevel); err != nil {
-			return nil, err
+		if err := s.addCareOfferingDrafts(ctx, drafts, multiSource, offering, link, phase, gradeLevel); err != nil {
+			return nil, nil, err
 		}
 	}
-	return drafts, nil
+	return drafts, multiSource, nil
 }
 
 // studentGradeLevel derives the child's Jahrgang for offering-source filters
@@ -2810,6 +2904,7 @@ func (s *decisionService) studentGradeLevel(ctx context.Context, studentID int64
 func (s *decisionService) addCareOfferingDrafts(
 	ctx context.Context,
 	drafts map[int64]*careEnrollmentDraft,
+	multiSource map[int64]*activities.Group,
 	offering *enrollmentModels.CareOffering,
 	link *enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
@@ -2818,7 +2913,7 @@ func (s *decisionService) addCareOfferingDrafts(
 	if err := s.addLegacyLinkedGroupDrafts(ctx, drafts, offering, link, phase); err != nil {
 		return err
 	}
-	return s.addSourcedTemplateDrafts(ctx, drafts, offering, link, phase, gradeLevel)
+	return s.addSourcedTemplateDrafts(ctx, drafts, multiSource, offering, link, phase, gradeLevel)
 }
 
 // addLegacyLinkedGroupDrafts is the pre-#2137 offering→template feed: the one
@@ -2893,9 +2988,17 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 // resolvable period, period drifted away from the phase) are skipped with a
 // warning instead of failing the approval — the editor surfaces the mismatch,
 // and blocking every approval on one broken template would be worse.
+//
+// Templates sourcing SEVERAL offerings are not drafted here: the per-link
+// draft merge cannot express the union's subtraction shape (a child linked to
+// two of the template's sources would get one row mixing both links' weekdays
+// under the first link's window). They are collected into multiSource and
+// reconciled through ResyncTemplateOfferingRoster after the drafts persist —
+// one authoritative union writer instead of two diverging ones.
 func (s *decisionService) addSourcedTemplateDrafts(
 	ctx context.Context,
 	drafts map[int64]*careEnrollmentDraft,
+	multiSource map[int64]*activities.Group,
 	offering *enrollmentModels.CareOffering,
 	link *enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
@@ -2921,21 +3024,25 @@ func (s *decisionService) addSourcedTemplateDrafts(
 		if tmpl == nil || !tmpl.MatchesSourceGradeFilter(gradeLevel) {
 			continue
 		}
+		if len(tmpl.SourceCareOfferingIDs) > 1 {
+			multiSource[tmpl.ID] = tmpl
+			continue
+		}
 		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, tmpl.ID)
 		if err != nil {
 			return fmt.Errorf("decision: load schedules of sourced template %d: %w", tmpl.ID, err)
 		}
 		if len(schedules) == 0 || !schedulesOverlapEnrollmentPhase(schedules, phase) {
-			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "no schedule overlaps the enrollment phase", nil)
+			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "no schedule overlaps the enrollment phase", nil)
 			continue
 		}
 		period, err := resolveTemplatePeriodForGroup(ctx, deps, tmpl)
 		if err != nil {
-			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "calendar period not resolvable", err)
+			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "calendar period not resolvable", err)
 			continue
 		}
 		if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
-			s.logSkippedSourcedTemplate(tmpl.ID, offering.ID, "phase outside template period", err)
+			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "phase outside template period", err)
 			continue
 		}
 		if existing := drafts[tmpl.ID]; existing != nil && existing.legacyOwned {

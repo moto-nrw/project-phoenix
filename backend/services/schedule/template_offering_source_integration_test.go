@@ -115,27 +115,27 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		SourceGradeLevels:    []int{1, 2},
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceGradeLevels:     []int{1, 2},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
 	group := loadTemplateGroup(t, s, result.TemplateID)
-	require.NotNil(t, group.SourceCareOfferingID)
-	assert.Equal(t, offering.ID, *group.SourceCareOfferingID)
+	require.NotEmpty(t, group.SourceCareOfferingIDs)
+	assert.Equal(t, []int64{offering.ID}, group.SourceCareOfferingIDs)
 	assert.Equal(t, []int{1, 2}, group.SourceGradeLevels)
 
 	// The reverse lookup is what the editor's overlap hint and the decision
@@ -155,19 +155,19 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -175,15 +175,15 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	updateInput := scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
 		Fields: activitiesModels.TemplateFieldsUpdate{
-			Name:                 name,
-			Type:                 activitiesModels.GroupTypeCare,
-			CategoryID:           s.categoryID,
-			RoomID:               s.roomID,
-			MaxParticipants:      20,
-			CalendarPeriodID:     &s.period.ID,
-			TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-			SourceCareOfferingID: &offering.ID,
-			SourceGradeLevels:    []int{3},
+			Name:                  name,
+			Type:                  activitiesModels.GroupTypeCare,
+			CategoryID:            s.categoryID,
+			RoomID:                s.roomID,
+			MaxParticipants:       20,
+			CalendarPeriodID:      &s.period.ID,
+			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{offering.ID},
+			SourceGradeLevels:     []int{3},
 		},
 		Weekdays:         []int{activitiesModels.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
@@ -194,18 +194,18 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, updateInput))
 
 	narrowed := loadTemplateGroup(t, s, result.TemplateID)
-	require.NotNil(t, narrowed.SourceCareOfferingID)
+	require.NotEmpty(t, narrowed.SourceCareOfferingIDs)
 	assert.Equal(t, []int{3}, narrowed.SourceGradeLevels,
 		"narrowing the Jahrgang filter must persist, not merge with the old one")
 
 	// Removing the source degrades the Regeltermin to a manually curated
 	// roster; the filter must not survive its source (DB CHECK).
-	updateInput.Fields.SourceCareOfferingID = nil
+	updateInput.Fields.SourceCareOfferingIDs = nil
 	updateInput.Fields.SourceGradeLevels = nil
 	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, updateInput))
 
 	cleared := loadTemplateGroup(t, s, result.TemplateID)
-	assert.Nil(t, cleared.SourceCareOfferingID)
+	assert.Empty(t, cleared.SourceCareOfferingIDs)
 	assert.Empty(t, cleared.SourceGradeLevels)
 
 	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
@@ -222,20 +222,20 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		SourceGradeLevels:    []int{1, 2},
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceGradeLevels:     []int{1, 2},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -261,8 +261,8 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
 
 	successor := loadTemplateGroup(t, s, split.NewTemplateID)
-	require.NotNil(t, successor.SourceCareOfferingID)
-	assert.Equal(t, offering.ID, *successor.SourceCareOfferingID)
+	require.NotEmpty(t, successor.SourceCareOfferingIDs)
+	assert.Equal(t, []int64{offering.ID}, successor.SourceCareOfferingIDs)
 	assert.Equal(t, []int{1, 2}, successor.SourceGradeLevels)
 }
 
@@ -275,20 +275,20 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		SourceGradeLevels:    []int{1, 2},
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceGradeLevels:     []int{1, 2},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -313,7 +313,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
 
 	successor := loadTemplateGroup(t, s, split.NewTemplateID)
-	assert.Nil(t, successor.SourceCareOfferingID)
+	assert.Empty(t, successor.SourceCareOfferingIDs)
 	assert.Empty(t, successor.SourceGradeLevels)
 }
 
@@ -331,19 +331,19 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -424,20 +424,20 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		SourceGradeLevels:    []int{1, 2},
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceGradeLevels:     []int{1, 2},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -481,8 +481,8 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
 
 	successor := loadTemplateGroup(t, s, split.NewTemplateID)
-	require.NotNil(t, successor.SourceCareOfferingID, "the omitted source id must still inherit")
-	assert.Equal(t, offering.ID, *successor.SourceCareOfferingID)
+	require.NotEmpty(t, successor.SourceCareOfferingIDs, "the omitted source id must still inherit")
+	assert.Equal(t, []int64{offering.ID}, successor.SourceCareOfferingIDs)
 	assert.Equal(t, []int{3}, successor.SourceGradeLevels,
 		"the provided Jahrgangsfilter must land on the successor instead of the inherited one")
 
@@ -503,19 +503,19 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -544,25 +544,25 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, manual))
 
 	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
-		TemplateID:                   result.TemplateID,
-		EffectiveDate:                monday,
-		Name:                         name,
-		Type:                         activitiesModels.GroupTypeCare,
-		Weekdays:                     []int{activitiesModels.WeekdayMonday},
-		StartTime:                    time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		EndTime:                      time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
-		RoomID:                       s.roomID,
-		CategoryID:                   s.categoryID,
-		CalendarPeriodID:             &s.period.ID,
-		TargetGroupType:              activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingIDProvided: true,
-		GradeLevelMax:                schoolclass.MaxGradeLevel,
+		TemplateID:                    result.TemplateID,
+		EffectiveDate:                 monday,
+		Name:                          name,
+		Type:                          activitiesModels.GroupTypeCare,
+		Weekdays:                      []int{activitiesModels.WeekdayMonday},
+		StartTime:                     time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		EndTime:                       time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
+		RoomID:                        s.roomID,
+		CategoryID:                    s.categoryID,
+		CalendarPeriodID:              &s.period.ID,
+		TargetGroupType:               activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDsProvided: true,
+		GradeLevelMax:                 schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, split.NewTemplateID)
 
 	successor := loadTemplateGroup(t, s, split.NewTemplateID)
-	assert.Nil(t, successor.SourceCareOfferingID)
+	assert.Empty(t, successor.SourceCareOfferingIDs)
 	assert.Empty(t, successor.SourceGradeLevels)
 
 	successorRows := loadSplitEnrollments(t, s, split.NewTemplateID)
@@ -584,19 +584,19 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	createInput := scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &overhanging.ID,
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{overhanging.ID},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	}
 
 	_, err := s.factory.TimetableData.CreateTemplate(s.ctx, createInput)
@@ -609,7 +609,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 
 	// Same rule on the edit path: an existing sourced template cannot be
 	// re-pointed at an offering that does not fit its period.
-	createInput.SourceCareOfferingID = &fitting.ID
+	createInput.SourceCareOfferingIDs = []int64{fitting.ID}
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, createInput)
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -617,14 +617,14 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	err = s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
 		Fields: activitiesModels.TemplateFieldsUpdate{
-			Name:                 name,
-			Type:                 activitiesModels.GroupTypeCare,
-			CategoryID:           s.categoryID,
-			RoomID:               s.roomID,
-			MaxParticipants:      20,
-			CalendarPeriodID:     &s.period.ID,
-			TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-			SourceCareOfferingID: &overhanging.ID,
+			Name:                  name,
+			Type:                  activitiesModels.GroupTypeCare,
+			CategoryID:            s.categoryID,
+			RoomID:                s.roomID,
+			MaxParticipants:       20,
+			CalendarPeriodID:      &s.period.ID,
+			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{overhanging.ID},
 		},
 		Weekdays:         []int{activitiesModels.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
@@ -635,8 +635,8 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
 
 	kept := loadTemplateGroup(t, s, result.TemplateID)
-	require.NotNil(t, kept.SourceCareOfferingID)
-	assert.Equal(t, fitting.ID, *kept.SourceCareOfferingID,
+	require.NotEmpty(t, kept.SourceCareOfferingIDs)
+	assert.Equal(t, []int64{fitting.ID}, kept.SourceCareOfferingIDs,
 		"a rejected edit must leave the previous source in place")
 }
 
@@ -652,19 +652,19 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
 
@@ -686,20 +686,20 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		SourceGradeLevels:    []int{1, 2},
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceGradeLevels:     []int{1, 2},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -757,19 +757,19 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
-		Name:                 name,
-		Type:                 activitiesModels.GroupTypeCare,
-		Weekdays:             []int{activitiesModels.WeekdayMonday},
-		StartTime:            time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-		EndTime:              time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:               s.roomID,
-		CategoryID:           s.categoryID,
-		MaxParticipants:      20,
-		CalendarPeriodID:     &s.period.ID,
-		TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-		SourceCareOfferingID: &offering.ID,
-		RosterValidFrom:      monday.AddDays(-30),
-		GradeLevelMax:        schoolclass.MaxGradeLevel,
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
@@ -887,14 +887,14 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
 		Fields: activitiesModels.TemplateFieldsUpdate{
-			Name:                 name,
-			Type:                 activitiesModels.GroupTypeCare,
-			CategoryID:           s.categoryID,
-			RoomID:               s.roomID,
-			MaxParticipants:      20,
-			CalendarPeriodID:     &s.period.ID,
-			TargetGroupType:      activitiesModels.TargetGroupTypeAngebot,
-			SourceCareOfferingID: &offering.ID,
+			Name:                  name,
+			Type:                  activitiesModels.GroupTypeCare,
+			CategoryID:            s.categoryID,
+			RoomID:                s.roomID,
+			MaxParticipants:       20,
+			CalendarPeriodID:      &s.period.ID,
+			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{offering.ID},
 		},
 		Weekdays:         []int{activitiesModels.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,

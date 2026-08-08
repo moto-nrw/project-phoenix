@@ -218,11 +218,13 @@ export function TimetableEventModal({
     targetClassOptions,
     offeringSources,
     offeringSourcesError,
-    selectedOfferingSource,
+    selectedOfferingSources,
+    sourcePhaseLockId,
     sourceGradeOptions,
+    sourceGradeCounts,
     sourceFilteredCount,
     sourceOverlapWarnings,
-    changeSourceOffering,
+    toggleSourceOffering,
     pendingSourceOfferingId,
     confirmPendingSourceOffering,
     cancelPendingSourceOffering,
@@ -581,11 +583,13 @@ export function TimetableEventModal({
                 addTargetCohort={addTargetCohort}
                 offeringSources={offeringSources}
                 offeringSourcesError={offeringSourcesError}
-                selectedOfferingSource={selectedOfferingSource}
+                selectedOfferingSources={selectedOfferingSources}
+                sourcePhaseLockId={sourcePhaseLockId}
                 sourceGradeOptions={sourceGradeOptions}
+                sourceGradeCounts={sourceGradeCounts}
                 sourceFilteredCount={sourceFilteredCount}
                 sourceOverlapWarnings={sourceOverlapWarnings}
-                changeSourceOffering={changeSourceOffering}
+                toggleSourceOffering={toggleSourceOffering}
                 toggleSourceGradeLevel={toggleSourceGradeLevel}
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}

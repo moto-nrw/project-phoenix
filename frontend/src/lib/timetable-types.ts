@@ -438,9 +438,10 @@ export interface TimetableTemplate {
   targetGradeLevel?: number;
   targetSchoolClass?: string;
   targets?: TimetableTarget[];
-  /** Offering-source rule (#2137): set on "angebot" templates whose roster
-   * derives from a Betreuungsangebot; empty grade list = alle Kinder. */
-  sourceCareOfferingId?: string;
+  /** Offering-source rule (#2137, Mehrfach-Quelle): set on "angebot"
+   * templates whose roster derives from one or more Betreuungsangebote;
+   * empty grade list = alle Kinder. */
+  sourceCareOfferingIds?: string[];
   sourceGradeLevels?: number[];
   enrollmentCount: number;
   supervisorCount: number;
@@ -529,7 +530,7 @@ export interface BackendTimetableTemplate {
     education_group_id?: number;
     education_group_name?: string;
   }>;
-  source_care_offering_id?: number;
+  source_care_offering_ids?: number[];
   source_grade_levels?: number[];
   enrollment_count: number;
   supervisor_count: number;
@@ -953,12 +954,14 @@ export interface CreateTemplateBody {
   target_group_type?: TargetGroupType;
   target_grade_level?: number;
   target_school_class?: string;
-  /** Offering-source rule (#2137, target_group_type "angebot" only). With a
-   * source set, student_ids must be empty — the roster derives from the
-   * offering's approved enrollments. The update endpoint is presence-aware:
-   * an omitted field keeps the stored value, only an explicit null clears
-   * it — so always send null, never undefined, to mean "no source". */
-  source_care_offering_id?: number | null;
+  /** Offering-source rule (#2137, target_group_type "angebot" only). With
+   * sources set, student_ids must be empty — the roster derives from the
+   * union of the offerings' approved enrollments (Mehrfach-Quelle). The
+   * update endpoint is presence-aware: an omitted field keeps the stored
+   * value, only an explicit null clears it — so always send null, never
+   * undefined, to mean "no source". All offerings must belong to the same
+   * enrollment phase. */
+  source_care_offering_ids?: number[] | null;
   source_grade_levels?: number[] | null;
   /**
    * Series start (#2135): schedules get it as valid_from, so no instances
@@ -1074,6 +1077,21 @@ interface BackendOfferingSourceOption {
 
 export interface BackendOfferingSourcesResponse {
   offerings: BackendOfferingSourceOption[];
+}
+
+/**
+ * Deduplizierte Kinderzahl über eine Auswahl mehrerer Angebote
+ * (Mehrfach-Quelle): ein Kind in zwei gewählten Angeboten zählt einmal.
+ */
+export interface CombinedOfferingCounts {
+  totalCount: number;
+  /** Jahrgang → Anzahl unterschiedlicher Kinder; key 0 = ohne Jahrgang. */
+  gradeCounts: Record<number, number>;
+}
+
+export interface BackendCombinedOfferingCountsResponse {
+  total_count: number;
+  grade_counts: Record<string, number>;
 }
 
 export interface CreateTemplateResult {

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -92,4 +93,78 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 		})
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Offering sources retrieved")
+}
+
+// combinedOfferingCountsResponse mirrors
+// enrollment.OfferingSourceCombinedCounts with string-keyed grade counts.
+type combinedOfferingCountsResponse struct {
+	TotalCount  int            `json:"total_count"`
+	GradeCounts map[string]int `json:"grade_counts"`
+}
+
+// getCombinedOfferingSourceCounts handles
+// GET /api/timetable/offering-sources/combined-counts?ids=1,2,3[&calendar_period_id=...]
+// (multi-source follow-up to #2137): the deduplicated child counts across a
+// selection of offerings, so the editor previews the EXACT roster size the
+// union of the selected Angebote would seed. Mixed-phase or invalid
+// selections reject with 400, the same verdict a save would produce.
+func (rs *Resource) getCombinedOfferingSourceCounts(w http.ResponseWriter, r *http.Request) {
+	if rs.OfferingSourceOptions == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
+		return
+	}
+	offeringIDs, err := parseOfferingIDList(r.URL.Query().Get("ids"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var calendarPeriodID *int64
+	if raw := r.URL.Query().Get("calendar_period_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("calendar_period_id must be a positive integer")))
+			return
+		}
+		calendarPeriodID = &id
+	}
+	counts, err := rs.OfferingSourceOptions.CombinedOfferingSourceCounts(r.Context(), offeringIDs, calendarPeriodID)
+	if err != nil {
+		if errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("combined offering source counts failed", err))
+		return
+	}
+	gradeCounts := make(map[string]int, len(counts.GradeCounts))
+	for grade, count := range counts.GradeCounts {
+		gradeCounts[strconv.Itoa(grade)] = count
+	}
+	common.Respond(w, r, http.StatusOK, combinedOfferingCountsResponse{
+		TotalCount:  counts.TotalCount,
+		GradeCounts: gradeCounts,
+	}, "Combined offering source counts retrieved")
+}
+
+// parseOfferingIDList decodes the comma-separated ids query parameter into
+// positive offering ids; empty segments are tolerated, an empty result is an
+// error (the endpoint is meaningless without a selection).
+func parseOfferingIDList(raw string) ([]int64, error) {
+	segments := strings.Split(raw, ",")
+	offeringIDs := make([]int64, 0, len(segments))
+	for _, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(segment, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, errors.New("ids must be positive integers")
+		}
+		offeringIDs = append(offeringIDs, id)
+	}
+	if len(offeringIDs) == 0 {
+		return nil, errors.New("ids is required")
+	}
+	return offeringIDs, nil
 }

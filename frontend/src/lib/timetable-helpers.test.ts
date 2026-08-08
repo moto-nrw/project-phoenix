@@ -39,6 +39,7 @@ import {
   mapInstanceStatusResult,
   mapMaterializeResult,
   materializedRecurrenceDates,
+  mapCombinedOfferingCounts,
   mapOfferingSourceOptions,
   mapReplanWeekResult,
   mapSplitTemplateResult,
@@ -959,7 +960,7 @@ describe("backend mappers", () => {
           is_open: true,
           max_participants: 20,
           target_group_type: "angebot",
-          source_care_offering_id: 12,
+          source_care_offering_ids: [12, 15],
           source_grade_levels: [1, 2],
           enrollment_count: 9,
           supervisor_count: 1,
@@ -985,7 +986,7 @@ describe("backend mappers", () => {
     }).templates[0];
 
     expect(tpl).toMatchObject({
-      sourceCareOfferingId: "12",
+      sourceCareOfferingIds: ["12", "15"],
       sourceGradeLevels: [1, 2],
       weekdayAssignments: [
         {
@@ -1020,7 +1021,7 @@ describe("backend mappers", () => {
           is_open: true,
           max_participants: 12,
           target_group_type: "none",
-          source_care_offering_id: null as never,
+          source_care_offering_ids: null as never,
           source_grade_levels: null as never,
           enrollment_count: 0,
           supervisor_count: 0,
@@ -1031,7 +1032,7 @@ describe("backend mappers", () => {
       ],
     }).templates[0];
 
-    expect(tpl?.sourceCareOfferingId).toBeUndefined();
+    expect(tpl?.sourceCareOfferingIds).toBeUndefined();
     expect(tpl?.sourceGradeLevels).toBeUndefined();
   });
 
@@ -1849,5 +1850,28 @@ describe("mapOfferingSourceOptions (#2137)", () => {
         ],
       })[0]?.gradeCounts,
     ).toEqual({});
+  });
+});
+
+describe("mapCombinedOfferingCounts (Mehrfach-Quelle)", () => {
+  it("maps string grade keys to numbers and keeps the deduplicated total", () => {
+    expect(
+      mapCombinedOfferingCounts({
+        total_count: 18,
+        grade_counts: { "0": 2, "1": 9, "2": 7 },
+      }),
+    ).toEqual({
+      totalCount: 18,
+      gradeCounts: { 0: 2, 1: 9, 2: 7 },
+    });
+  });
+
+  it("tolerates missing counts", () => {
+    expect(
+      mapCombinedOfferingCounts({
+        total_count: undefined as never,
+        grade_counts: undefined as never,
+      }),
+    ).toEqual({ totalCount: 0, gradeCounts: {} });
   });
 });

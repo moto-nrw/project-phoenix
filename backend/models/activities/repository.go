@@ -140,11 +140,21 @@ type GroupRepository interface {
 	// same split lineage as groupID. An unsplit template is one segment.
 	FindTemplateSeries(ctx context.Context, groupID int64) ([]*Group, error)
 
-	// FindTemplatesBySourceOffering returns every non-archived template that
-	// declares the given care offering as its roster source (#2137). One
-	// offering may feed many parallel Regeltermine; split successors carry
+	// FindTemplatesBySourceOffering returns every non-archived template whose
+	// source_care_offering_ids array contains the given care offering (#2137).
+	// One offering may feed many parallel Regeltermine; split successors carry
 	// the copied source column, so every live segment appears individually.
 	FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*Group, error)
+
+	// UpdateTemplateOfferingSource rewrites ONLY a template's offering-source
+	// columns: the id array plus the Jahrgang filter, both NULLed when the
+	// id list is empty (the DB CHECK forbids a filter without a source). The
+	// detach flow uses it when a care offering is deleted — the jsonb array
+	// carries no FK, so removing the deleted id from every sourcing template
+	// is application-level work now (multi-source follow-up to #2137). Not
+	// expressible via the generic Repository[T] update because both jsonb
+	// columns must change atomically under the CHECK constraint.
+	UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int) error
 
 	// FindTemplatesWithOfferingSource returns every non-archived template of
 	// the tenant that declares ANY care offering as its roster source (#2137).
@@ -312,10 +322,10 @@ type TemplateFieldsUpdate struct {
 	ListKind *string
 	// Notes is the durable Wochennotiz for the template; nil clears it.
 	Notes *string
-	// SourceCareOfferingID/SourceGradeLevels are the offering-source rule
-	// (#2137); nil source clears both.
-	SourceCareOfferingID *int64
-	SourceGradeLevels    []int
+	// SourceCareOfferingIDs/SourceGradeLevels are the offering-source rule
+	// (#2137, multi-source follow-up); an empty id list clears both.
+	SourceCareOfferingIDs []int64
+	SourceGradeLevels     []int
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -349,7 +359,9 @@ type TemplateListRow struct {
 	TargetGroupType          string         `bun:"target_group_type"`
 	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
 	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
-	SourceCareOfferingID     sql.NullInt64  `bun:"source_care_offering_id"`
+	// SourceCareOfferingIDsJSON carries the jsonb source-offering id array as
+	// its text form ('' = NULL); parse with ParseSourceCareOfferingIDs.
+	SourceCareOfferingIDsJSON string `bun:"source_care_offering_ids_json"`
 	// SourceGradeLevelsJSON carries the jsonb grade filter as its text form
 	// ('' = NULL); parse with ParseSourceGradeLevels.
 	SourceGradeLevelsJSON string `bun:"source_grade_levels_json"`
@@ -386,6 +398,22 @@ type TemplateListRow struct {
 	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
 	Targets                 []*GroupTarget `bun:"-"`
+}
+
+// ParseSourceCareOfferingIDs decodes the SourceCareOfferingIDsJSON text form
+// of the jsonb source-offering id array. Empty text (NULL column) yields nil.
+func (r TemplateListRow) ParseSourceCareOfferingIDs() ([]int64, error) {
+	if r.SourceCareOfferingIDsJSON == "" {
+		return nil, nil
+	}
+	var ids []int64
+	if err := json.Unmarshal([]byte(r.SourceCareOfferingIDsJSON), &ids); err != nil {
+		return nil, fmt.Errorf("parse source_care_offering_ids: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return ids, nil
 }
 
 // ParseSourceGradeLevels decodes the SourceGradeLevelsJSON text form of the

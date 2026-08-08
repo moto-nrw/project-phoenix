@@ -40,11 +40,12 @@ type CreateTemplateInput struct {
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
 	Targets           []*activitiesModel.GroupTarget
-	// SourceCareOfferingID/SourceGradeLevels declare the offering-source rule
-	// (#2137). With a source set, the roster is seeded from the offering's
-	// approved enrollments and StudentIDs must be empty.
-	SourceCareOfferingID *int64
-	SourceGradeLevels    []int
+	// SourceCareOfferingIDs/SourceGradeLevels declare the offering-source rule
+	// (#2137, multi-source follow-up). With sources set, the roster is seeded
+	// from the union of the offerings' approved enrollments and StudentIDs
+	// must be empty.
+	SourceCareOfferingIDs []int64
+	SourceGradeLevels     []int
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
 	ListKind       *string
@@ -148,7 +149,7 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 	if in.RosterValidFrom.IsZero() {
 		return errors.New("roster valid_from is required")
 	}
-	if err := validateOfferingSourceInput(in.SourceCareOfferingID, in.SourceGradeLevels, in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments); err != nil {
+	if err := validateOfferingSourceInput(in.SourceCareOfferingIDs, in.SourceGradeLevels, in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments); err != nil {
 		return err
 	}
 	return nil
@@ -161,18 +162,25 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 // Group.ValidateTargetGroup, which direct service callers bypass), and no
 // manual roster next to a source (the roster is derived, a snapshot would
 // silently drift).
-func validateOfferingSourceInput(sourceOfferingID *int64, gradeLevels []int, targetGroupType string, studentIDs []int64, weekdayAssignments []WeekdayRosterAssignment) error {
-	if sourceOfferingID == nil {
+func validateOfferingSourceInput(sourceOfferingIDs []int64, gradeLevels []int, targetGroupType string, studentIDs []int64, weekdayAssignments []WeekdayRosterAssignment) error {
+	if len(sourceOfferingIDs) == 0 {
 		if len(gradeLevels) > 0 {
-			return fmt.Errorf("%w: source_grade_levels requires source_care_offering_id", ErrOfferingSourceInvalid)
+			return fmt.Errorf("%w: source_grade_levels requires source_care_offering_ids", ErrOfferingSourceInvalid)
 		}
 		return nil
 	}
-	if *sourceOfferingID <= 0 {
-		return fmt.Errorf("%w: source_care_offering_id must be positive", ErrOfferingSourceInvalid)
+	seenOfferings := make(map[int64]bool, len(sourceOfferingIDs))
+	for _, offeringID := range sourceOfferingIDs {
+		if offeringID <= 0 {
+			return fmt.Errorf("%w: source_care_offering_ids entries must be positive", ErrOfferingSourceInvalid)
+		}
+		if seenOfferings[offeringID] {
+			return fmt.Errorf("%w: source_care_offering_ids must not contain duplicates", ErrOfferingSourceInvalid)
+		}
+		seenOfferings[offeringID] = true
 	}
 	if targetGroupType != activitiesModel.TargetGroupTypeAngebot {
-		return fmt.Errorf("%w: source_care_offering_id requires target group type 'angebot'", ErrOfferingSourceInvalid)
+		return fmt.Errorf("%w: source_care_offering_ids requires target group type 'angebot'", ErrOfferingSourceInvalid)
 	}
 	seenGrades := make(map[int]bool, len(gradeLevels))
 	for _, level := range gradeLevels {
@@ -239,7 +247,7 @@ func (s *TimetableDataService) createTemplateLocked(
 	// Before any write: an unknown or period-incompatible source would
 	// otherwise only fail on the group insert's FK (500) instead of the
 	// client-correctable 400 the resync produces (#2147 review round 18).
-	if err := s.validateOfferingSourceReference(ctx, in.SourceCareOfferingID, in.CalendarPeriodID, "create template: validate offering source"); err != nil {
+	if err := s.validateOfferingSourceReference(ctx, in.SourceCareOfferingIDs, in.CalendarPeriodID, "create template: validate offering source"); err != nil {
 		return err
 	}
 
@@ -250,25 +258,25 @@ func (s *TimetableDataService) createTemplateLocked(
 
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
-		Name:                 in.Name,
-		MaxParticipants:      in.MaxParticipants,
-		RequiredStaff:        in.RequiredStaff,
-		IsOpen:               true,
-		CategoryID:           in.CategoryID,
-		PlanningTrackID:      in.PlanningTrackID,
-		PlannedRoomID:        &roomID,
-		Type:                 in.Type,
-		EducationGroupID:     in.EducationGroupID,
-		IsTemplate:           true,
-		CreatedBy:            in.CreatedBy,
-		CalendarPeriodID:     in.CalendarPeriodID,
-		TargetGroupType:      in.TargetGroupType,
-		TargetGradeLevel:     in.TargetGradeLevel,
-		TargetSchoolClass:    in.TargetSchoolClass,
-		SourceCareOfferingID: in.SourceCareOfferingID,
-		SourceGradeLevels:    in.SourceGradeLevels,
-		ListKind:             in.ListKind,
-		Notes:                in.Notes,
+		Name:                  in.Name,
+		MaxParticipants:       in.MaxParticipants,
+		RequiredStaff:         in.RequiredStaff,
+		IsOpen:                true,
+		CategoryID:            in.CategoryID,
+		PlanningTrackID:       in.PlanningTrackID,
+		PlannedRoomID:         &roomID,
+		Type:                  in.Type,
+		EducationGroupID:      in.EducationGroupID,
+		IsTemplate:            true,
+		CreatedBy:             in.CreatedBy,
+		CalendarPeriodID:      in.CalendarPeriodID,
+		TargetGroupType:       in.TargetGroupType,
+		TargetGradeLevel:      in.TargetGradeLevel,
+		TargetSchoolClass:     in.TargetSchoolClass,
+		SourceCareOfferingIDs: in.SourceCareOfferingIDs,
+		SourceGradeLevels:     in.SourceGradeLevels,
+		ListKind:              in.ListKind,
+		Notes:                 in.Notes,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
@@ -306,13 +314,13 @@ func (s *TimetableDataService) createTemplateLocked(
 		return err
 	}
 
-	if in.SourceCareOfferingID != nil {
+	if len(in.SourceCareOfferingIDs) > 0 {
 		if s.deps.ResyncOfferingRoster == nil {
 			return &ScheduleError{Op: createTemplateOp, Err: errors.New("offering roster resync is not configured")}
 		}
 		if err := s.deps.ResyncOfferingRoster(ctx, OfferingRosterResyncInput{
 			TemplateID:       group.ID,
-			OfferingID:       in.SourceCareOfferingID,
+			OfferingIDs:      in.SourceCareOfferingIDs,
 			GradeLevels:      in.SourceGradeLevels,
 			CalendarPeriodID: in.CalendarPeriodID,
 			EffectiveFrom:    in.RosterValidFrom,

@@ -17,12 +17,9 @@ import (
 // create and update. It is pure input validation, so it is pinned here
 // without a database.
 func TestValidateOfferingSourceInput(t *testing.T) {
-	offeringID := int64(12)
-	zeroOffering := int64(0)
-
 	tests := []struct {
 		name               string
-		sourceOfferingID   *int64
+		sourceOfferingIDs  []int64
 		gradeLevels        []int
 		targetGroupType    string
 		studentIDs         []int64
@@ -30,15 +27,15 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 		wantErr            string
 	}{
 		{
-			name:             "source with grade filter on an Angebot is valid",
-			sourceOfferingID: &offeringID,
-			gradeLevels:      []int{1, 2},
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
+			name:              "source with grade filter on an Angebot is valid",
+			sourceOfferingIDs: []int64{12},
+			gradeLevels:       []int{1, 2},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
 		},
 		{
-			name:             "source without grade filter is valid",
-			sourceOfferingID: &offeringID,
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
+			name:              "source without grade filter is valid",
+			sourceOfferingIDs: []int64{12},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
 		},
 		{
 			name:            "no source and no filter is valid",
@@ -48,52 +45,64 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			name:            "grade filter without a source is rejected",
 			gradeLevels:     []int{1},
 			targetGroupType: activitiesModel.TargetGroupTypeAngebot,
-			wantErr:         "source_grade_levels requires source_care_offering_id",
+			wantErr:         "source_grade_levels requires source_care_offering_ids",
 		},
 		{
-			name:             "non-positive offering id is rejected",
-			sourceOfferingID: &zeroOffering,
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
-			wantErr:          "source_care_offering_id must be positive",
+			name:              "non-positive offering id is rejected",
+			sourceOfferingIDs: []int64{0},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_care_offering_ids entries must be positive",
 		},
 		{
-			name:             "source outside the Angebot Zielgruppe is rejected",
-			sourceOfferingID: &offeringID,
-			targetGroupType:  activitiesModel.TargetGroupTypeNone,
-			wantErr:          "requires target group type 'angebot'",
+			name:              "duplicate offering ids are rejected",
+			sourceOfferingIDs: []int64{12, 12},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_care_offering_ids must not contain duplicates",
 		},
 		{
-			name:             "out-of-range grade filter is rejected",
-			sourceOfferingID: &offeringID,
-			gradeLevels:      []int{0, 2},
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
-			wantErr:          "source_grade_levels entries must be between",
+			name:              "several distinct offerings are valid",
+			sourceOfferingIDs: []int64{12, 13, 14},
+			gradeLevels:       []int{1},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
 		},
 		{
-			name:             "grade filter above the supported bound is rejected",
-			sourceOfferingID: &offeringID,
-			gradeLevels:      []int{14},
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
-			wantErr:          "source_grade_levels entries must be between",
+			name:              "source outside the Angebot Zielgruppe is rejected",
+			sourceOfferingIDs: []int64{12},
+			targetGroupType:   activitiesModel.TargetGroupTypeNone,
+			wantErr:           "requires target group type 'angebot'",
 		},
 		{
-			name:             "duplicate grade filter entries are rejected",
-			sourceOfferingID: &offeringID,
-			gradeLevels:      []int{2, 2},
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
-			wantErr:          "source_grade_levels must not contain duplicates",
+			name:              "out-of-range grade filter is rejected",
+			sourceOfferingIDs: []int64{12},
+			gradeLevels:       []int{0, 2},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_grade_levels entries must be between",
 		},
 		{
-			name:             "manual child list next to a source is rejected",
-			sourceOfferingID: &offeringID,
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
-			studentIDs:       []int64{21},
-			wantErr:          "student_ids must be empty",
+			name:              "grade filter above the supported bound is rejected",
+			sourceOfferingIDs: []int64{12},
+			gradeLevels:       []int{14},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_grade_levels entries must be between",
 		},
 		{
-			name:             "per-weekday roster next to a source is rejected",
-			sourceOfferingID: &offeringID,
-			targetGroupType:  activitiesModel.TargetGroupTypeAngebot,
+			name:              "duplicate grade filter entries are rejected",
+			sourceOfferingIDs: []int64{12},
+			gradeLevels:       []int{2, 2},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_grade_levels must not contain duplicates",
+		},
+		{
+			name:              "manual child list next to a source is rejected",
+			sourceOfferingIDs: []int64{12},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			studentIDs:        []int64{21},
+			wantErr:           "student_ids must be empty",
+		},
+		{
+			name:              "per-weekday roster next to a source is rejected",
+			sourceOfferingIDs: []int64{12},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
 			weekdayAssignments: []WeekdayRosterAssignment{{
 				Weekday: activitiesModel.WeekdayMonday,
 			}},
@@ -104,7 +113,7 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateOfferingSourceInput(
-				tc.sourceOfferingID,
+				tc.sourceOfferingIDs,
 				tc.gradeLevels,
 				tc.targetGroupType,
 				tc.studentIDs,
@@ -124,17 +133,15 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 // a rule accepted on one path and rejected on the other would let the editor
 // save a template it cannot re-save.
 func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
-	offeringID := int64(12)
-
 	t.Run("create", func(t *testing.T) {
 		err := validateTemplateCreateInput(CreateTemplateInput{
-			Name:                 "Frühbetreuung",
-			Weekdays:             []int{activitiesModel.WeekdayMonday},
-			CategoryID:           22,
-			RoomID:               33,
-			RosterValidFrom:      timezone.NewDate(2026, 8, 10),
-			TargetGroupType:      activitiesModel.TargetGroupTypeNone,
-			SourceCareOfferingID: &offeringID,
+			Name:                  "Frühbetreuung",
+			Weekdays:              []int{activitiesModel.WeekdayMonday},
+			CategoryID:            22,
+			RoomID:                33,
+			RosterValidFrom:       timezone.NewDate(2026, 8, 10),
+			TargetGroupType:       activitiesModel.TargetGroupTypeNone,
+			SourceCareOfferingIDs: []int64{12},
 		})
 
 		assert.ErrorIs(t, err, ErrOfferingSourceInvalid)
@@ -155,7 +162,7 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 		})
 
 		assert.ErrorIs(t, err, ErrOfferingSourceInvalid)
-		assert.ErrorContains(t, err, "source_grade_levels requires source_care_offering_id")
+		assert.ErrorContains(t, err, "source_grade_levels requires source_care_offering_ids")
 	})
 }
 
@@ -166,69 +173,64 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 // silently kept the old template's source and filter no matter what the
 // request asked for.
 func TestResolveSuccessorOfferingSource(t *testing.T) {
-	oldOffering := int64(12)
-	newOffering := int64(13)
 	sourcedOld := func() *activitiesModel.Group {
 		return &activitiesModel.Group{
-			TargetGroupType:      activitiesModel.TargetGroupTypeAngebot,
-			SourceCareOfferingID: &oldOffering,
-			SourceGradeLevels:    []int{1, 2},
+			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{12, 15},
+			SourceGradeLevels:     []int{1, 2},
 		}
 	}
 
-	t.Run("omitted fields inherit source and filter", func(t *testing.T) {
+	t.Run("omitted fields inherit sources and filter", func(t *testing.T) {
 		in := &TemplateSplitInput{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
-		require.NotNil(t, in.SourceCareOfferingID)
-		assert.Equal(t, oldOffering, *in.SourceCareOfferingID)
+		assert.Equal(t, []int64{12, 15}, in.SourceCareOfferingIDs)
 		assert.Equal(t, []int{1, 2}, in.SourceGradeLevels)
 	})
 
 	t.Run("provided values win over the stored ones", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:              activitiesModel.TargetGroupTypeAngebot,
-			SourceCareOfferingID:         &newOffering,
-			SourceCareOfferingIDProvided: true,
-			SourceGradeLevels:            []int{3},
-			SourceGradeLevelsProvided:    true,
+			TargetGroupType:               activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs:         []int64{13},
+			SourceCareOfferingIDsProvided: true,
+			SourceGradeLevels:             []int{3},
+			SourceGradeLevelsProvided:     true,
 		}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
-		require.NotNil(t, in.SourceCareOfferingID)
-		assert.Equal(t, newOffering, *in.SourceCareOfferingID)
+		assert.Equal(t, []int64{13}, in.SourceCareOfferingIDs)
 		assert.Equal(t, []int{3}, in.SourceGradeLevels)
 	})
 
-	t.Run("filter-only change keeps the inherited source", func(t *testing.T) {
+	t.Run("filter-only change keeps the inherited sources", func(t *testing.T) {
 		in := &TemplateSplitInput{
 			TargetGroupType:           activitiesModel.TargetGroupTypeAngebot,
 			SourceGradeLevels:         []int{4},
 			SourceGradeLevelsProvided: true,
 		}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
-		require.NotNil(t, in.SourceCareOfferingID)
-		assert.Equal(t, oldOffering, *in.SourceCareOfferingID)
+		assert.Equal(t, []int64{12, 15}, in.SourceCareOfferingIDs)
 		assert.Equal(t, []int{4}, in.SourceGradeLevels)
 	})
 
-	t.Run("explicit nil clears the source and drags the omitted filter along", func(t *testing.T) {
+	t.Run("explicit nil clears the sources and drags the omitted filter along", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:              activitiesModel.TargetGroupTypeAngebot,
-			SourceCareOfferingIDProvided: true,
+			TargetGroupType:               activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDsProvided: true,
 		}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
-		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceCareOfferingIDs)
 		assert.Nil(t, in.SourceGradeLevels,
 			"a source cleared by explicit null must not leave the stored filter behind (DB CHECK)")
 	})
 
 	t.Run("a Zielgruppe away from angebot drops the rule", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:              activitiesModel.TargetGroupTypeNone,
-			SourceCareOfferingID:         &newOffering,
-			SourceCareOfferingIDProvided: true,
+			TargetGroupType:               activitiesModel.TargetGroupTypeNone,
+			SourceCareOfferingIDs:         []int64{13},
+			SourceCareOfferingIDsProvided: true,
 		}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld()))
-		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceCareOfferingIDs)
 		assert.Nil(t, in.SourceGradeLevels)
 	})
 
@@ -247,7 +249,7 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 		require.NoError(t, resolveSuccessorOfferingSource(in, &activitiesModel.Group{
 			TargetGroupType: activitiesModel.TargetGroupTypeAngebot,
 		}))
-		assert.Nil(t, in.SourceCareOfferingID)
+		assert.Nil(t, in.SourceCareOfferingIDs)
 		assert.Nil(t, in.SourceGradeLevels)
 	})
 }
@@ -255,10 +257,8 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 // offeringRosterFeedChanged gates the split's roster resync: an unchanged
 // feed keeps the plain carry-over, every difference triggers reconciliation.
 func TestOfferingRosterFeedChanged(t *testing.T) {
-	offeringA := int64(12)
-	offeringB := int64(13)
-	group := func(offeringID *int64, levels []int) *activitiesModel.Group {
-		return &activitiesModel.Group{SourceCareOfferingID: offeringID, SourceGradeLevels: levels}
+	group := func(offeringIDs []int64, levels []int) *activitiesModel.Group {
+		return &activitiesModel.Group{SourceCareOfferingIDs: offeringIDs, SourceGradeLevels: levels}
 	}
 
 	tests := []struct {
@@ -267,13 +267,16 @@ func TestOfferingRosterFeedChanged(t *testing.T) {
 		wantChanged bool
 	}{
 		{"both without source", group(nil, nil), group(nil, nil), false},
-		{"identical source and filter", group(&offeringA, []int{1, 2}), group(&offeringA, []int{1, 2}), false},
-		{"identical filter in different order", group(&offeringA, []int{2, 1}), group(&offeringA, []int{1, 2}), false},
-		{"source added", group(nil, nil), group(&offeringA, nil), true},
-		{"source removed", group(&offeringA, nil), group(nil, nil), true},
-		{"source switched", group(&offeringA, nil), group(&offeringB, nil), true},
-		{"filter changed", group(&offeringA, []int{1}), group(&offeringA, []int{2}), true},
-		{"filter cleared", group(&offeringA, []int{1}), group(&offeringA, nil), true},
+		{"identical source and filter", group([]int64{12}, []int{1, 2}), group([]int64{12}, []int{1, 2}), false},
+		{"identical filter in different order", group([]int64{12}, []int{2, 1}), group([]int64{12}, []int{1, 2}), false},
+		{"identical multi-source set", group([]int64{12, 13}, nil), group([]int64{12, 13}, nil), false},
+		{"source added", group(nil, nil), group([]int64{12}, nil), true},
+		{"source removed", group([]int64{12}, nil), group(nil, nil), true},
+		{"source switched", group([]int64{12}, nil), group([]int64{13}, nil), true},
+		{"second source added", group([]int64{12}, nil), group([]int64{12, 13}, nil), true},
+		{"source order changed", group([]int64{12, 13}, nil), group([]int64{13, 12}, nil), true},
+		{"filter changed", group([]int64{12}, []int{1}), group([]int64{12}, []int{2}), true},
+		{"filter cleared", group([]int64{12}, []int{1}), group([]int64{12}, nil), true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -289,8 +292,6 @@ func TestOfferingRosterFeedChanged(t *testing.T) {
 // boundary is clamped to today, so fixed calendar dates would flip these
 // assertions once real time passes them.
 func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
-	offeringID := int64(12)
-	previousID := int64(11)
 	periodID := int64(55)
 	rosterFrom := timezone.TodayDate().AddDays(6)
 	scheduleFrom := timezone.TodayDate().AddDays(28)
@@ -325,11 +326,10 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 			},
 		})
 
-		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), baseInput(), &previousID, nil))
+		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), baseInput(), []int64{11}, nil))
 
 		assert.Equal(t, int64(77), got.TemplateID)
-		assert.Equal(t, &previousID, got.PreviousOfferingID)
-		assert.Nil(t, got.OfferingID, "a cleared source must reach the hook as nil")
+		assert.Empty(t, got.OfferingIDs, "a cleared source must reach the hook as empty")
 		assert.Equal(t, &periodID, got.CalendarPeriodID)
 		assert.Equal(t, rosterFrom, got.EffectiveFrom)
 	})
@@ -344,12 +344,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 		})
 
 		in := baseInput()
-		in.Fields.SourceCareOfferingID = &offeringID
+		in.Fields.SourceCareOfferingIDs = []int64{12, 13}
 		in.Fields.SourceGradeLevels = []int{1, 2}
 
 		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, &scheduleFrom))
 
-		assert.Equal(t, &offeringID, got.OfferingID)
+		assert.Equal(t, []int64{12, 13}, got.OfferingIDs)
 		assert.Equal(t, []int{1, 2}, got.GradeLevels)
 		assert.Equal(t, scheduleFrom, got.EffectiveFrom,
 			"#2135: the series start bounds the roster rewrite")
@@ -365,7 +365,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 		})
 
 		in := baseInput()
-		in.Fields.SourceCareOfferingID = &offeringID
+		in.Fields.SourceCareOfferingIDs = []int64{12}
 		pastStart := timezone.TodayDate().AddDays(-30)
 
 		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, &pastStart))
@@ -377,7 +377,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Run("a missing hook fails loudly instead of saving a dead rule", func(t *testing.T) {
 		svc := NewTimetableDataService(TimetableDataDependencies{})
 		in := baseInput()
-		in.Fields.SourceCareOfferingID = &offeringID
+		in.Fields.SourceCareOfferingIDs = []int64{12}
 
 		err := svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, nil)
 
@@ -393,7 +393,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 			},
 		})
 		in := baseInput()
-		in.Fields.SourceCareOfferingID = &offeringID
+		in.Fields.SourceCareOfferingIDs = []int64{12}
 
 		err := svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, nil)
 
@@ -406,13 +406,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 // or period-incompatible source from reaching the group insert/update, where
 // the FK would turn a client mistake into a 500 (#2147 review round 18).
 func TestValidateOfferingSourceReference(t *testing.T) {
-	offeringID := int64(12)
 	periodID := int64(55)
 
 	t.Run("no source skips the hook", func(t *testing.T) {
 		called := false
 		svc := NewTimetableDataService(TimetableDataDependencies{
-			ValidateOfferingSource: func(context.Context, int64, *int64) error {
+			ValidateOfferingSource: func(context.Context, []int64, *int64) error {
 				called = true
 				return nil
 			},
@@ -422,29 +421,29 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 		assert.False(t, called, "a template without a source must not resolve an offering")
 	})
 
-	t.Run("the source is checked against the template period", func(t *testing.T) {
-		var gotOffering int64
+	t.Run("the sources are checked against the template period", func(t *testing.T) {
+		var gotOfferings []int64
 		var gotPeriod *int64
 		svc := NewTimetableDataService(TimetableDataDependencies{
-			ValidateOfferingSource: func(_ context.Context, id int64, period *int64) error {
-				gotOffering, gotPeriod = id, period
+			ValidateOfferingSource: func(_ context.Context, ids []int64, period *int64) error {
+				gotOfferings, gotPeriod = ids, period
 				return nil
 			},
 		})
 
-		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), &offeringID, &periodID, "create template: validate offering source"))
-		assert.Equal(t, offeringID, gotOffering)
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12, 13}, &periodID, "create template: validate offering source"))
+		assert.Equal(t, []int64{12, 13}, gotOfferings)
 		assert.Equal(t, &periodID, gotPeriod)
 	})
 
 	t.Run("an unknown source surfaces as ErrOfferingSourceInvalid before any write", func(t *testing.T) {
 		svc := NewTimetableDataService(TimetableDataDependencies{
-			ValidateOfferingSource: func(context.Context, int64, *int64) error {
-				return fmt.Errorf("%w: care offering %d not found", ErrOfferingSourceInvalid, offeringID)
+			ValidateOfferingSource: func(context.Context, []int64, *int64) error {
+				return fmt.Errorf("%w: care offering %d not found", ErrOfferingSourceInvalid, int64(12))
 			},
 		})
 
-		err := svc.validateOfferingSourceReference(t.Context(), &offeringID, nil, "update template: validate offering source")
+		err := svc.validateOfferingSourceReference(t.Context(), []int64{12}, nil, "update template: validate offering source")
 
 		require.ErrorIs(t, err, ErrOfferingSourceInvalid,
 			"the handler maps this sentinel to 400 — an FK violation during the write would render 500 instead")
@@ -454,6 +453,6 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	t.Run("an unwired hook leaves the resync as the only guard", func(t *testing.T) {
 		svc := NewTimetableDataService(TimetableDataDependencies{})
 
-		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), &offeringID, &periodID, "create template: validate offering source"))
+		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12}, &periodID, "create template: validate offering source"))
 	})
 }
