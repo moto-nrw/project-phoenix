@@ -326,6 +326,15 @@ type ChildOfferingRow struct {
 	// approved change scheduled for a future date. Those rows are
 	// informational: they describe what will be booked, not what is.
 	StartsLater bool
+	// IsCurrentSelection marks the rows the correction editor replaces —
+	// exactly the set UpdateChildOfferings reads as "current" via
+	// currentOfferingSelectionDate. It is NOT the negation of StartsLater:
+	// before the phase starts, every booking is both "not yet in effect"
+	// (what a guardian is told) and "the selection on file" (what a
+	// correction overwrites). Seeding the editor from StartsLater would
+	// hand it an empty selection and the save would delete the family's
+	// bookings.
+	IsCurrentSelection bool
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -553,6 +562,10 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
 	onDate := BookingViewDate(timezone.TodayDate(), phase.ServiceEndDate)
+	// The date the WRITE path treats as "now" — deliberately the same helper
+	// UpdateChildOfferings uses, so the rows flagged IsCurrentSelection are
+	// exactly the rows a correction would replace.
+	selectionDate := currentOfferingSelectionDate(phase)
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
 		links, lerr := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, child.ID)
@@ -568,7 +581,7 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 			if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(onDate)) {
 				continue
 			}
-			rows = append(rows, childOfferingRow(link, offeringByID[link.CareOfferingID], onDate))
+			rows = append(rows, childOfferingRow(link, offeringByID[link.CareOfferingID], onDate, selectionDate))
 		}
 		out[child.ID] = rows
 	}
@@ -614,7 +627,7 @@ func (s *decisionService) careOfferingsByID(
 func childOfferingRow(
 	link *enrollmentModels.RequestChildOffering,
 	offering *enrollmentModels.CareOffering,
-	onDate timezone.Date,
+	onDate, selectionDate timezone.Date,
 ) ChildOfferingRow {
 	row := ChildOfferingRow{
 		OfferingID:            link.CareOfferingID,
@@ -624,6 +637,9 @@ func childOfferingRow(
 		ValidFrom:             link.ValidFrom,
 		ValidUntil:            link.ValidUntil,
 		StartsLater:           link.ValidFrom != nil && link.ValidFrom.After(onDate),
+		// Mirrors ListByRequestChildIDAtDate's predicate at selectionDate.
+		IsCurrentSelection: (link.ValidFrom == nil || !link.ValidFrom.After(selectionDate)) &&
+			(link.ValidUntil == nil || link.ValidUntil.After(selectionDate)),
 	}
 	if offering != nil {
 		row.OfferingName = offering.Name

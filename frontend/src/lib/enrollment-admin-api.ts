@@ -56,14 +56,25 @@ export interface AdminRequestChildOffering {
   price_cents?: number;
   /** ISO "YYYY-MM-DD". Set when the booking starts later than the period. */
   valid_from?: string;
-  /** ISO "YYYY-MM-DD", exclusive end of the booking interval. */
+  /**
+   * ISO "YYYY-MM-DD", the INCLUSIVE last day the booking covers. The backend
+   * converts its exclusive column for the wire, same as the parent endpoint.
+   */
   valid_until?: string;
   /**
    * True for a booking that has not taken effect yet (an approved change
-   * scheduled for a future date). Such a row describes what WILL be booked —
-   * never treat it as the child's current selection.
+   * scheduled for a future date, or any booking while the phase is still
+   * ahead). Display only.
    */
   starts_later?: boolean;
+  /**
+   * True for the rows a correction replaces. NOT the negation of
+   * `starts_later`: before the phase starts a booking is both "not yet in
+   * effect" and "the selection on file". Seed the correction editor from
+   * THIS field — seeding from `!starts_later` empties it and the save
+   * deletes the family's bookings. Absent means include (safe default).
+   */
+  is_current_selection?: boolean;
 }
 
 interface AdminOfferingAdjustmentSnapshot {

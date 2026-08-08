@@ -131,9 +131,16 @@ type AdminRequestChild struct {
 // the offering's AvailableDays describes the (admin-fixed) schedule.
 //
 // The attribute and validity fields carry the same facts the parent
-// portal renders for this booking (#2185). StartsLater marks a row
-// that is not in effect yet — clients must not treat those as the
-// child's current booking.
+// portal renders for this booking (#2185), in the same wire shape:
+// ValidUntil is the INCLUSIVE last covered day, matching
+// api/parent/care_offerings_handlers.go. The stored column is
+// exclusive; one JSON name must not mean two different days depending
+// on which endpoint answered.
+//
+// StartsLater marks a row that is not in effect yet. IsCurrentSelection
+// marks the rows a correction replaces — before the phase starts a row
+// is both, so clients must seed an editor from IsCurrentSelection and
+// never from !StartsLater.
 type AdminRequestChildOffering struct {
 	OfferingID            string   `json:"offering_id"`
 	OfferingName          string   `json:"offering_name"`
@@ -148,6 +155,10 @@ type AdminRequestChildOffering struct {
 	ValidFrom             string   `json:"valid_from,omitempty"`
 	ValidUntil            string   `json:"valid_until,omitempty"`
 	StartsLater           bool     `json:"starts_later,omitempty"`
+	// No omitempty: a false here means "not the current selection" and
+	// must stay distinguishable from an absent field, which clients treat
+	// as the safe default (include).
+	IsCurrentSelection bool `json:"is_current_selection"`
 }
 
 type AdminOfferingAdjustment struct {
@@ -716,6 +727,16 @@ func optionalDateString(value *timezone.Date) string {
 	return value.String()
 }
 
+// optionalInclusiveEndDateString renders a stored EXCLUSIVE interval end
+// as the inclusive last covered day, the shape the parent endpoint has
+// always used (api/parent/care_offerings_handlers.go).
+func optionalInclusiveEndDateString(value *timezone.Date) string {
+	if value == nil || value.IsZero() {
+		return ""
+	}
+	return value.AddDays(-1).String()
+}
+
 func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *http.Request) {
 	if rs.DecisionService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
@@ -765,8 +786,9 @@ func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminReq
 			IncludesHolidayCare:   row.IncludesHolidayCare,
 			PriceCents:            row.PriceCents,
 			ValidFrom:             optionalDateString(row.ValidFrom),
-			ValidUntil:            optionalDateString(row.ValidUntil),
+			ValidUntil:            optionalInclusiveEndDateString(row.ValidUntil),
 			StartsLater:           row.StartsLater,
+			IsCurrentSelection:    row.IsCurrentSelection,
 		})
 	}
 	return out

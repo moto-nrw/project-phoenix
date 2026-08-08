@@ -553,7 +553,8 @@ describe("ChildOfferings", () => {
             includes_lunch: true,
             includes_holiday_care: true,
             price_cents: 8550,
-            valid_until: "2027-07-31",
+            // Wire value is already the inclusive last covered day.
+            valid_until: "2027-07-30",
           },
         ]}
         phaseName="Schuljahr 2026/2027"
@@ -563,7 +564,6 @@ describe("ChildOfferings", () => {
     expect(screen.getByText("mit Mittagessen")).toBeVisible();
     expect(screen.getByText("mit Ferienbetreuung")).toBeVisible();
     expect(screen.getByText("85,50 € pro Monat")).toBeVisible();
-    // valid_until is exclusive: 2027-07-31 means the last covered day is the 30th.
     expect(screen.getByText("bis 30.07.2027")).toBeVisible();
   });
 
@@ -965,10 +965,11 @@ describe("ChildOfferingAdjustment", () => {
   });
 
   // #2185 added not-yet-effective bookings to the payload so staff can SEE
-  // them. They describe a future state, so the correction editor — which
-  // replaces the currently effective selection — must ignore them; otherwise
-  // an untouched save would silently pull a future booking into the present.
-  it("keeps a not-yet-effective booking out of the correction payload", async () => {
+  // them. A row that is scheduled to replace the current selection later must
+  // not seed the editor, which replaces the CURRENT selection — otherwise an
+  // untouched save would pull a future booking into the present. The server
+  // marks that distinction with is_current_selection.
+  it("keeps a scheduled future booking out of the correction payload", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       {
         id: "offering-now",
@@ -1009,6 +1010,7 @@ describe("ChildOfferingAdjustment", () => {
             offering_name: "Ganztag",
             days_of_week_mode: "fixed",
             available_days: ["mon"],
+            is_current_selection: true,
           },
           {
             offering_id: "offering-later",
@@ -1017,6 +1019,7 @@ describe("ChildOfferingAdjustment", () => {
             available_days: ["mon"],
             valid_from: "2026-09-01",
             starts_later: true,
+            is_current_selection: false,
           },
         ],
       }),
@@ -1036,6 +1039,60 @@ describe("ChildOfferingAdjustment", () => {
         expect.objectContaining({
           offerings: [
             { offering_id: "offering-now", selected_days: undefined },
+          ],
+        }),
+      );
+    });
+  });
+
+  // Data-loss regression: before the phase's service start EVERY stored row
+  // is flagged starts_later, while the write path still treats those rows as
+  // the current selection. Seeding from !starts_later emptied the editor, and
+  // an untouched save deleted the family's bookings and their chosen days.
+  it("seeds from the current selection even when every booking starts later", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "offering-now",
+        name: "Ganztag",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue", "wed"],
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-now",
+            offering_name: "Ganztag",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon", "wed"],
+            manual_selected_days: ["mon", "wed"],
+            available_days: ["mon", "tue", "wed"],
+            // The phase has not started yet: not in effect, but on file.
+            valid_from: "2026-10-06",
+            starts_later: true,
+            is_current_selection: true,
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [
+            { offering_id: "offering-now", selected_days: ["mon", "wed"] },
           ],
         }),
       );

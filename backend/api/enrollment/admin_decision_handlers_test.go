@@ -426,6 +426,37 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 	assert.Contains(t, body, `"offering_name":"OGS-Nachmittag"`)
 }
 
+// #2185: valid_until goes over the wire as the INCLUSIVE last covered day,
+// the shape api/parent/care_offerings_handlers.go has always used. One JSON
+// name must not mean two different days depending on which endpoint answered.
+func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
+	exclusiveEnd := timezone.NewDate(2027, 8, 1)
+	mock := &mockDecisionService{
+		getResult: makeReqSummary(1234, 5678,
+			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
+		),
+		listChildOffResult: map[int64][]enrollmentService.ChildOfferingRow{
+			99: {{
+				OfferingID:         7777,
+				OfferingName:       "OGS-Nachmittag",
+				DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
+				AvailableDays:      []string{"mon"},
+				ValidUntil:         &exclusiveEnd,
+				IsCurrentSelection: true,
+			}},
+		},
+	}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, `"valid_until":"2027-07-31"`,
+		"stored end 2027-08-01 is exclusive; the last covered day is 2027-07-31")
+	assert.NotContains(t, body, `"valid_until":"2027-08-01"`)
+	assert.Contains(t, body, `"is_current_selection":true`,
+		"clients seed the correction editor from this flag, it must always ship")
+}
+
 func TestGetAdminRequestHandler_TolerantOfMissingChildOfferings(t *testing.T) {
 	// ListChildOfferings is best-effort — failure must NOT kill the
 	// detail response, the admin just sees no Betreuungsangebote

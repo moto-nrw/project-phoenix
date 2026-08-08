@@ -3520,10 +3520,15 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 	assert.Equal(t, price, *currentRow.PriceCents)
 	assert.False(t, currentRow.StartsLater)
 
+	assert.True(t, currentRow.IsCurrentSelection,
+		"the effective booking is what a correction would replace")
+
 	upcomingRow := byOffering[upcoming.ID]
 	assert.True(t, upcomingRow.StartsLater, "a booking starting in the future must be flagged")
 	require.NotNil(t, upcomingRow.ValidFrom)
 	assert.Equal(t, futureStart, *upcomingRow.ValidFrom)
+	assert.False(t, upcomingRow.IsCurrentSelection,
+		"a booking scheduled to start later is not the selection a correction replaces")
 }
 
 func createChildOfferingLink(
@@ -3579,6 +3584,12 @@ func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testi
 	require.Contains(t, byOffering, fromStart.ID)
 	assert.True(t, byOffering[fromStart.ID].StartsLater,
 		"a booking effective from the service start has not started while the phase is still ahead")
+	// The write path clamps its selection date up to the service start, so
+	// this very row IS what a correction replaces. Reporting it as "not the
+	// current selection" would let the editor seed empty and the save delete
+	// the family's bookings.
+	assert.True(t, byOffering[fromStart.ID].IsCurrentSelection,
+		"a pre-start booking is not yet in effect but is still the selection on file")
 }
 
 func TestBookingViewDate(t *testing.T) {

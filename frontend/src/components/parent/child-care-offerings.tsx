@@ -23,7 +23,7 @@ import {
   submitOfferingChangeRequest,
   withdrawOfferingChangeRequest,
 } from "~/lib/parent-api";
-import { formatDate, formatExclusiveEndDate } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
@@ -230,7 +230,7 @@ export function ChildCareOfferingsSection({
                 {offering.valid_until && (
                   <p className="mt-1 text-xs text-gray-500">
                     {t("careOfferings.until", {
-                      date: formatExclusiveEndDate(offering.valid_until),
+                      date: formatDate(offering.valid_until),
                     })}
                   </p>
                 )}
@@ -272,7 +272,7 @@ export function ChildCareOfferingsSection({
                 {group.valid_until && (
                   <p className="mt-1 text-xs text-gray-500">
                     {t("careOfferings.until", {
-                      date: formatExclusiveEndDate(group.valid_until),
+                      date: formatDate(group.valid_until),
                     })}
                   </p>
                 )}

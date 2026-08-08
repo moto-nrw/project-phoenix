@@ -43,7 +43,6 @@ import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
-import { formatExclusiveEndDate } from "~/lib/date-helpers";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
@@ -1044,8 +1043,8 @@ function OfferingAttributePills({
   if (offering.includes_holiday_care) pills.push("mit Ferienbetreuung");
   if (price) pills.push(`${price} pro Monat`);
   if (offering.valid_until) {
-    // valid_until is exclusive — show the last day the booking actually covers.
-    pills.push(`bis ${formatExclusiveEndDate(offering.valid_until)}`);
+    // Already the inclusive last covered day on the wire.
+    pills.push(`bis ${formatPlainDate(offering.valid_until)}`);
   }
   const startsLater = offering.starts_later === true && !!offering.valid_from;
   if (pills.length === 0 && !startsLater) return null;
@@ -1436,14 +1435,23 @@ export function ChildOfferingAdjustment({
   );
 }
 
-// The offering rows that describe what the child is booked into TODAY.
-// Since #2185 the payload also carries bookings that only take effect later;
-// those are informational for the reader and must never seed the correction
-// editor, which replaces the currently effective selection.
+// The offering rows the correction editor is allowed to seed from: exactly
+// the selection the server would replace on save (#2185).
+//
+// Deliberately NOT `!starts_later`. Before the phase's service start every
+// stored row is flagged starts_later — the write path meanwhile clamps its
+// selection date up to that same service start, so those rows ARE the current
+// selection. Filtering them out would seed an empty editor and an untouched
+// save would delete the family's bookings and their chosen days.
+//
+// An absent flag means include, so a payload without the field can never
+// cause that deletion.
 function effectiveOfferings(
   offerings?: AdminRequestChildOffering[],
 ): AdminRequestChildOffering[] {
-  return (offerings ?? []).filter((offering) => offering.starts_later !== true);
+  return (offerings ?? []).filter(
+    (offering) => offering.is_current_selection !== false,
+  );
 }
 
 function initialManualOfferingIDs(
