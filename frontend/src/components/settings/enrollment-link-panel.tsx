@@ -82,6 +82,9 @@ export function EnrollmentLinkPanel({ tab }: Props) {
     <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="flex flex-col gap-2">
         <ConceptSectionHeader
+          // Geschwister im selben Container sind die SettingsCategory-Bloecke
+          // mit h3, und auf Mobile ist der Tab-Titel im MobileBackHeader h2.
+          level={3}
           title="Anmeldelink für Eltern"
           concept="enrollments"
         />
