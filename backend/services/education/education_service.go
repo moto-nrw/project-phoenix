@@ -19,6 +19,7 @@ import (
 type service struct {
 	groupRepo        education.GroupRepository
 	groupTeacherRepo education.GroupTeacherRepository
+	classTeacherRepo education.ClassTeacherRepository
 	substitutionRepo education.GroupSubstitutionRepository
 	roomRepo         facilities.RoomRepository
 	teacherRepo      users.TeacherRepository
@@ -48,6 +49,7 @@ func (s *service) announceGroupAccessChanged(ctx context.Context, source string)
 func NewService(
 	groupRepo education.GroupRepository,
 	groupTeacherRepo education.GroupTeacherRepository,
+	classTeacherRepo education.ClassTeacherRepository,
 	substitutionRepo education.GroupSubstitutionRepository,
 	roomRepo facilities.RoomRepository,
 	teacherRepo users.TeacherRepository,
@@ -57,6 +59,7 @@ func NewService(
 	return &service{
 		groupRepo:        groupRepo,
 		groupTeacherRepo: groupTeacherRepo,
+		classTeacherRepo: classTeacherRepo,
 		substitutionRepo: substitutionRepo,
 		roomRepo:         roomRepo,
 		teacherRepo:      teacherRepo,

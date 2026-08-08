@@ -68,6 +68,8 @@ type identityEntry struct {
 	groups        []*education.Group
 	subsLoaded    bool
 	subs          map[int64]bool
+	classesLoaded bool
+	classes       []string
 }
 
 // WithIdentityRequestCache attaches a request-scoped identity memo cache to
@@ -218,6 +220,26 @@ func (c *identityRequestCache) storeGroups(key identityCacheKey, groups []*educa
 	entry := c.entryLocked(key)
 	entry.groups = slices.Clone(groups)
 	entry.groupsLoaded = true
+}
+
+// schoolClassesFor clones for the same reason as groupsFor: a caller-visible
+// mutation must not reorder the memoized value.
+func (c *identityRequestCache) schoolClassesFor(key identityCacheKey) ([]string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok || !entry.classesLoaded {
+		return nil, false
+	}
+	return slices.Clone(entry.classes), true
+}
+
+func (c *identityRequestCache) storeSchoolClasses(key identityCacheKey, classes []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.entryLocked(key)
+	entry.classes = slices.Clone(classes)
+	entry.classesLoaded = true
 }
 
 // substitutedFor clones for the same reason as groupsFor: the returned map

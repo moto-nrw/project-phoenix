@@ -36,6 +36,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		SupervisorRepo:     repoFactory.GroupSupervisor,
 		ProfileRepo:        repoFactory.Profile,
 		SubstitutionRepo:   repoFactory.GroupSubstitution,
+		ClassTeacherRepo:   repoFactory.ClassTeacher,
 	}
 
 	return usercontextSvc.NewUserContextServiceWithRepos(repos, slog.Default())

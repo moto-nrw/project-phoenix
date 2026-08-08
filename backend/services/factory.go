@@ -306,6 +306,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	educationService := education.NewService(
 		repos.Group,
 		repos.GroupTeacher,
+		repos.ClassTeacher,
 		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,
@@ -1253,6 +1254,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TeacherRepo:            repos.Teacher,
 		GroupSupervisorRepo:    repos.GroupSupervisor,
 		GroupTeacherRepo:       repos.GroupTeacher,
+		ClassTeacherRepo:       repos.ClassTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
@@ -1288,6 +1290,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
+		ClassTeacherRepo:   repos.ClassTeacher,
 		ActiveService:      activeService,
 		SSESettings:        settingsService,
 	}, usercontextLogger)
