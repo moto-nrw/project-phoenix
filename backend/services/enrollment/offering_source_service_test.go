@@ -473,25 +473,71 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 	assert.Equal(t, studentID, rows[0].StudentID)
 }
 
-func TestResyncTemplateOfferingRoster_UnknownOfferingIsInvalid(t *testing.T) {
+// A vanished offering id (row deleted without the detach flow running — the
+// jsonb array carries no FK backstop) must not wedge the template: the resync
+// drops the dangling id and degrades to the surviving sources, mirroring the
+// old FK's graceful SET NULL. A hard reject would 400 every later edit of the
+// template and make the tenant-wide resync skip it forever (review follow-up;
+// replaces the earlier hard-reject behavior).
+func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := offeringSourcePeriod(t, env)
+	offering := createSourceOffering(t, env, "RestQuelle", nil)
+	template := createSourcedTemplate(t, env, "RestTermin", offering.ID, nil, period)
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "vanished-rest@example.com", "Vera", 2)
+
+	missing := int64(999999999)
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingIDs:      []int64{missing, offering.ID},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		}))
+	rows := loadTemplateEnrollments(t, env, template.ID)
+	require.Len(t, rows, 1, "the surviving source must still seed its children")
+	assert.Equal(t, studentID, rows[0].StudentID)
+
+	// Only dangling ids left: the resync degrades to cleanup and retires the
+	// sourced rows, the manual-roster end state the FK era reached via SET NULL.
+	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
+		scheduleService.OfferingRosterResyncInput{
+			TemplateID:       template.ID,
+			OfferingIDs:      []int64{missing},
+			CalendarPeriodID: &period.ID,
+			EffectiveFrom:    timezone.TodayDate(),
+		}))
+	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
+		"with no surviving source the resync must retire the sourced rows")
+}
+
+// The id list is bounded before any per-id lookup: the resync resolves ids
+// individually, and the list arrives from query strings and the stored jsonb
+// array, so an unbounded list would turn into thousands of sequential queries
+// inside one tenant transaction.
+func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
-	period := offeringSourcePeriod(t, env)
-	template := createCareOfferingTemplateGroup(t, env.db, "InvalidQuelle")
-	createCareOfferingTemplateSchedule(t, env.db, template.ID, activitiesModels.WeekdayMonday, &period.ID)
-
-	missing := int64(999999999)
+	template := createCareOfferingTemplateGroup(t, env.db, "CapTermin")
+	ids := make([]int64, scheduleService.MaxOfferingSourcesPerTemplate+1)
+	for i := range ids {
+		ids[i] = int64(i + 1)
+	}
 	err := offeringResyncer(t, env).ResyncTemplateOfferingRoster(
 		testpkg.TenantContext(1),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:    template.ID,
-			OfferingIDs:   []int64{missing},
+			OfferingIDs:   ids,
 			EffectiveFrom: timezone.TodayDate(),
 		},
 	)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid)
+	assert.ErrorContains(t, err, "at most")
 }
 
 // ---- review follow-ups (#2147) --------------------------------------------

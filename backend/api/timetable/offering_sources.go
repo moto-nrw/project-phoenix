@@ -10,6 +10,7 @@ package timetable
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -148,9 +149,15 @@ func (rs *Resource) getCombinedOfferingSourceCounts(w http.ResponseWriter, r *ht
 
 // parseOfferingIDList decodes the comma-separated ids query parameter into
 // positive offering ids; empty segments are tolerated, an empty result is an
-// error (the endpoint is meaningless without a selection).
+// error (the endpoint is meaningless without a selection). The count is
+// capped before any lookup happens: the service resolves ids individually,
+// so an unbounded list would translate into thousands of queries inside one
+// tenant transaction.
 func parseOfferingIDList(raw string) ([]int64, error) {
 	segments := strings.Split(raw, ",")
+	if len(segments) > scheduleSvc.MaxOfferingSourcesPerTemplate {
+		return nil, fmt.Errorf("at most %d ids are supported", scheduleSvc.MaxOfferingSourcesPerTemplate)
+	}
 	offeringIDs := make([]int64, 0, len(segments))
 	for _, segment := range segments {
 		segment = strings.TrimSpace(segment)

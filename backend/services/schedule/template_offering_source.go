@@ -16,6 +16,15 @@ import (
 // schedule layer stays free of enrollment imports.
 var ErrOfferingSourceInvalid = errors.New("offering source is invalid")
 
+// MaxOfferingSourcesPerTemplate caps how many source offerings one template
+// may union. The validation and resync paths resolve every id individually,
+// and the id list arrives both from the editor (combined-counts preview,
+// template save) and from the stored jsonb array on every later resync — an
+// unbounded list would turn one request into thousands of sequential queries
+// inside a tenant transaction. Real schools run a handful of Betreuungs-
+// angebote; 50 is far above any legitimate selection.
+const MaxOfferingSourcesPerTemplate = 50
+
 // validateOfferingSourceReference guards the offering-source references
 // BEFORE the group row carrying them is written (#2147 review round 18).
 // Without this pre-check an invalid source id set fails only inside the

@@ -89,23 +89,35 @@ func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in s
 	var phase *enrollmentModels.Phase
 	wanted := make(map[int64][]*sourcedRosterTarget)
 	if len(in.OfferingIDs) > 0 {
-		offerings, offeringPhase, err := s.loadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID)
+		offerings, offeringPhase, dropped, err := s.loadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID)
 		if err != nil {
 			return err
 		}
-		phase = offeringPhase
-		// The wanted windows are additionally bounded by the template's own
-		// schedule envelope: the tenant-wide resync also visits capped split
-		// predecessors, whose rows must never be extended past the segment end
-		// (#2147 review). Open envelopes leave the windows untouched.
-		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
-		if err != nil {
-			return fmt.Errorf("offering roster resync: load template schedules: %w", err)
+		if len(dropped) > 0 {
+			// The array carries no FK; an offering deleted without the detach
+			// flow leaves a dangling id. Dropping it here (instead of failing)
+			// keeps the template editable and lets the resync degrade to the
+			// surviving sources, or to a full cleanup when none survive.
+			s.Logger.Warn("offering roster resync: ignoring vanished source offerings",
+				slog.Int64("template_id", in.TemplateID),
+				slog.Any("care_offering_ids", dropped),
+			)
 		}
-		envelopeFrom, envelopeUntil := scheduleValidityBounds(schedules)
-		wanted, err = s.unionWantedSourcedRosterTargets(ctx, offerings, phase, in, envelopeFrom, envelopeUntil)
-		if err != nil {
-			return err
+		if len(offerings) > 0 {
+			phase = offeringPhase
+			// The wanted windows are additionally bounded by the template's own
+			// schedule envelope: the tenant-wide resync also visits capped split
+			// predecessors, whose rows must never be extended past the segment end
+			// (#2147 review). Open envelopes leave the windows untouched.
+			schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
+			if err != nil {
+				return fmt.Errorf("offering roster resync: load template schedules: %w", err)
+			}
+			envelopeFrom, envelopeUntil := scheduleValidityBounds(schedules)
+			wanted, err = s.unionWantedSourcedRosterTargets(ctx, offerings, phase, in, envelopeFrom, envelopeUntil)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -409,24 +421,51 @@ func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templat
 }
 
 // loadOfferingSources resolves and validates every source offering: each must
-// exist in this tenant, be active, share ONE enrollment phase with the others,
-// and that phase's service window must lie within the template's calendar
-// period (when the template is period-pinned) — otherwise the seeded rows
-// could never materialize and the editor would silently save a dead rule.
+// be active, share ONE enrollment phase with the others, and that phase's
+// service window must lie within the template's calendar period (when the
+// template is period-pinned) — otherwise the seeded rows could never
+// materialize and the editor would silently save a dead rule. Vanished
+// offerings are dropped, not rejected (see loadValidatedOfferingSources).
 func (s *decisionService) loadOfferingSources(
 	ctx context.Context,
 	offeringIDs []int64,
 	calendarPeriodID *int64,
-) ([]*enrollmentModels.CareOffering, *enrollmentModels.Phase, error) {
+) ([]*enrollmentModels.CareOffering, *enrollmentModels.Phase, []int64, error) {
 	return loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
 }
 
-// loadValidatedOfferingSources runs the single-offering guard per id and
-// additionally rejects duplicate ids and mixed enrollment phases: the union's
-// seeded rows carry ONE phase (window bounds, provenance via the phase's
-// request children), and a child holding two offerings from different phases
-// would surface under two different request-child tags — the reconcile could
-// then plan the child twice without either row being wrong on its own.
+// loadValidatedOfferingSources runs the offering-source guard (#2137) per id
+// and additionally rejects duplicate ids and mixed enrollment phases: the
+// union's seeded rows carry ONE phase (window bounds, provenance via the
+// phase's request children), and a child holding two offerings from different
+// phases would surface under two different request-child tags — the reconcile
+// could then plan the child twice without either row being wrong on its own.
+//
+// Per offering: it must exist in this tenant and be active — the editor's
+// selector only offers active offerings, and a direct request must not wire a
+// retired offering either — and the shared phase's service window must lie
+// within the given calendar period (nil skips the period check). Every
+// declaration path uses this loader — template create/update via the resync
+// and its pre-check, the split via
+// CareOfferingSeriesValidator.ValidateTemplateOfferingSource, and the
+// combined-counts preview — so no path can persist a source rule the others
+// would reject. Deactivating an offering that still feeds templates is
+// consequently rejected like any other incompatible offering edit (the update
+// flow's resync runs this guard).
+//
+// A VANISHED offering (row gone without the detach flow running — the jsonb
+// array carries no FK, so nothing nulls it) is not a hard reject: the id is
+// dropped and returned in droppedIDs. Rejecting would wedge the template —
+// every later edit re-validates the stored array and would 400 forever, and
+// the tenant-wide resync would skip the template until someone hand-edits the
+// row. Dropping restores the old FK semantics: the template degrades
+// gracefully to the surviving sources (or to a manual roster when none
+// survive). Callers log droppedIDs where a logger is available.
+//
+// The list is capped (MaxOfferingSourcesPerTemplate) and the calendar period
+// is loaded once, not per id — the ids arrive from unauthenticated-shaped
+// query strings (combined counts) and from the stored array on every resync,
+// so the per-id work must stay bounded.
 func loadValidatedOfferingSources(
 	ctx context.Context,
 	offeringRepo enrollmentModels.CareOfferingRepository,
@@ -434,32 +473,83 @@ func loadValidatedOfferingSources(
 	periodRepo scheduleModels.CalendarPeriodRepository,
 	offeringIDs []int64,
 	calendarPeriodID *int64,
-) ([]*enrollmentModels.CareOffering, *enrollmentModels.Phase, error) {
+) (offerings []*enrollmentModels.CareOffering, phase *enrollmentModels.Phase, droppedIDs []int64, err error) {
 	if len(offeringIDs) == 0 {
-		return nil, nil, fmt.Errorf("%w: at least one care offering is required", scheduleService.ErrOfferingSourceInvalid)
+		return nil, nil, nil, fmt.Errorf("%w: at least one care offering is required", scheduleService.ErrOfferingSourceInvalid)
 	}
-	offerings := make([]*enrollmentModels.CareOffering, 0, len(offeringIDs))
-	var phase *enrollmentModels.Phase
+	if len(offeringIDs) > scheduleService.MaxOfferingSourcesPerTemplate {
+		return nil, nil, nil, fmt.Errorf(
+			"%w: at most %d source offerings are supported (%d given)",
+			scheduleService.ErrOfferingSourceInvalid, scheduleService.MaxOfferingSourcesPerTemplate, len(offeringIDs),
+		)
+	}
+	var period *scheduleModels.CalendarPeriod
+	if calendarPeriodID != nil {
+		period, err = periodRepo.FindByID(ctx, *calendarPeriodID)
+		if err != nil {
+			if modelBase.IsNoRows(err) {
+				return nil, nil, nil, fmt.Errorf("%w: calendar period %d not found", scheduleService.ErrOfferingSourceInvalid, *calendarPeriodID)
+			}
+			return nil, nil, nil, fmt.Errorf("offering roster resync: load calendar period: %w", err)
+		}
+	}
+	offerings = make([]*enrollmentModels.CareOffering, 0, len(offeringIDs))
 	seen := make(map[int64]bool, len(offeringIDs))
 	for _, offeringID := range offeringIDs {
 		if seen[offeringID] {
-			return nil, nil, fmt.Errorf("%w: care offering %d is listed twice", scheduleService.ErrOfferingSourceInvalid, offeringID)
+			return nil, nil, nil, fmt.Errorf("%w: care offering %d is listed twice", scheduleService.ErrOfferingSourceInvalid, offeringID)
 		}
 		seen[offeringID] = true
-		offering, offeringPhase, err := loadValidatedOfferingSource(ctx, offeringRepo, phaseRepo, periodRepo, offeringID, calendarPeriodID)
+		offering, err := offeringRepo.FindByID(ctx, offeringID)
 		if err != nil {
-			return nil, nil, err
+			if modelBase.IsNoRows(err) {
+				droppedIDs = append(droppedIDs, offeringID)
+				continue
+			}
+			return nil, nil, nil, fmt.Errorf("offering roster resync: load offering: %w", err)
 		}
-		if phase != nil && offeringPhase.ID != phase.ID {
-			return nil, nil, fmt.Errorf(
+		if offering == nil {
+			droppedIDs = append(droppedIDs, offeringID)
+			continue
+		}
+		if !offering.IsActive {
+			return nil, nil, nil, fmt.Errorf("%w: care offering %d is inactive", scheduleService.ErrOfferingSourceInvalid, offeringID)
+		}
+		if phase != nil && offering.PhaseID != phase.ID {
+			return nil, nil, nil, fmt.Errorf(
 				"%w: all source offerings must belong to the same enrollment phase (offering %d belongs to %q)",
-				scheduleService.ErrOfferingSourceInvalid, offeringID, offeringPhase.Name,
+				scheduleService.ErrOfferingSourceInvalid, offeringID, offeringPhaseName(ctx, phaseRepo, offering.PhaseID),
 			)
 		}
-		phase = offeringPhase
+		if phase == nil {
+			// The first surviving offering establishes the shared phase; the
+			// window check runs once since every later offering must match it.
+			phase, err = phaseRepo.FindByID(ctx, offering.PhaseID)
+			if err != nil {
+				if modelBase.IsNoRows(err) {
+					return nil, nil, nil, fmt.Errorf("%w: enrollment phase of care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
+				}
+				return nil, nil, nil, fmt.Errorf("offering roster resync: load phase: %w", err)
+			}
+			if period != nil {
+				if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+					return nil, nil, nil, fmt.Errorf("%w: %s", scheduleService.ErrOfferingSourceInvalid, err.Error())
+				}
+			}
+		}
 		offerings = append(offerings, offering)
 	}
-	return offerings, phase, nil
+	return offerings, phase, droppedIDs, nil
+}
+
+// offeringPhaseName resolves a phase name for the mixed-phase error message;
+// error path only, so a failed lookup falls back to the id.
+func offeringPhaseName(ctx context.Context, phaseRepo enrollmentModels.PhaseRepository, phaseID int64) string {
+	phase, err := phaseRepo.FindByID(ctx, phaseID)
+	if err != nil || phase == nil {
+		return fmt.Sprintf("phase %d", phaseID)
+	}
+	return phase.Name
 }
 
 // unionWantedSourcedRosterTargets builds the union roster across the source
@@ -520,59 +610,6 @@ func coverageFromSourcedTargets(targets []*sourcedRosterTarget) *legacyChildCove
 		coverage.windows = append(coverage.windows, window)
 	}
 	return coverage
-}
-
-// loadValidatedOfferingSource is the shared offering-source guard (#2137):
-// the offering must exist in this tenant, be active — the editor's selector
-// only offers active offerings, and a direct request must not wire a retired
-// offering either — and its phase's service window must lie within the given
-// calendar period (nil skips the period check). Every declaration path uses
-// it — template create/update via the resync, and the split via
-// CareOfferingSeriesValidator.ValidateTemplateOfferingSource — so no path can
-// persist a source rule the others would reject. Deactivating an offering
-// that still feeds templates is consequently rejected like any other
-// incompatible offering edit (the update flow's resync runs this guard).
-func loadValidatedOfferingSource(
-	ctx context.Context,
-	offeringRepo enrollmentModels.CareOfferingRepository,
-	phaseRepo enrollmentModels.PhaseRepository,
-	periodRepo scheduleModels.CalendarPeriodRepository,
-	offeringID int64,
-	calendarPeriodID *int64,
-) (*enrollmentModels.CareOffering, *enrollmentModels.Phase, error) {
-	offering, err := offeringRepo.FindByID(ctx, offeringID)
-	if err != nil {
-		if modelBase.IsNoRows(err) {
-			return nil, nil, fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
-		}
-		return nil, nil, fmt.Errorf("offering roster resync: load offering: %w", err)
-	}
-	if offering == nil {
-		return nil, nil, fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
-	}
-	if !offering.IsActive {
-		return nil, nil, fmt.Errorf("%w: care offering %d is inactive", scheduleService.ErrOfferingSourceInvalid, offeringID)
-	}
-	phase, err := phaseRepo.FindByID(ctx, offering.PhaseID)
-	if err != nil {
-		if modelBase.IsNoRows(err) {
-			return nil, nil, fmt.Errorf("%w: enrollment phase of care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
-		}
-		return nil, nil, fmt.Errorf("offering roster resync: load phase: %w", err)
-	}
-	if calendarPeriodID != nil {
-		period, err := periodRepo.FindByID(ctx, *calendarPeriodID)
-		if err != nil {
-			if modelBase.IsNoRows(err) {
-				return nil, nil, fmt.Errorf("%w: calendar period %d not found", scheduleService.ErrOfferingSourceInvalid, *calendarPeriodID)
-			}
-			return nil, nil, fmt.Errorf("offering roster resync: load calendar period: %w", err)
-		}
-		if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
-			return nil, nil, fmt.Errorf("%w: %s", scheduleService.ErrOfferingSourceInvalid, err.Error())
-		}
-	}
-	return offering, phase, nil
 }
 
 // wantedSourcedRosterTargets builds the desired roster of the sourced
@@ -1284,8 +1321,18 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 	if s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.RequestChildOfferingRepo == nil {
 		return nil, fmt.Errorf("offering source counts: repositories are not configured")
 	}
-	if _, _, err := loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID); err != nil {
+	offerings, _, _, err := loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
+	if err != nil {
 		return nil, err
+	}
+	// Vanished ids were dropped by the loader; count only the survivors, the
+	// same set a save's resync would union. None surviving means zero counts.
+	countedIDs := make([]int64, 0, len(offerings))
+	for _, offering := range offerings {
+		countedIDs = append(countedIDs, offering.ID)
+	}
+	if len(countedIDs) == 0 {
+		return &OfferingSourceCombinedCounts{GradeCounts: map[int]int{}}, nil
 	}
 	// Same boundary rule as ListOfferingSourceOptions: mirror what a resync
 	// for the selected period would seed.
@@ -1302,7 +1349,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 			countedFrom = period.StartDate
 		}
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, countedFrom)
+	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, countedIDs, countedFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering source counts: list approved children: %w", err)
 	}

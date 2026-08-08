@@ -788,12 +788,20 @@ func (s *careOfferingService) lockTemplateRecurrence(ctx context.Context) error 
 }
 
 // ValidateTemplateOfferingSource implements the split-side offering-source
-// guard declared on CareOfferingSeriesValidator (#2137).
+// guard declared on CareOfferingSeriesValidator (#2137). Vanished offerings
+// are tolerated (logged, not rejected): the resync drops them the same way,
+// and rejecting here would wedge every edit of a template whose stored array
+// carries a dangling id.
 func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) error {
 	if s.Repo == nil || s.PhaseRepo == nil || s.CalendarPeriodRepo == nil {
 		return errors.New("offering source validation dependencies are not configured")
 	}
-	_, _, err := loadValidatedOfferingSources(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
+	_, _, dropped, err := loadValidatedOfferingSources(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID)
+	if len(dropped) > 0 {
+		s.Logger.Warn("offering source validation: ignoring vanished source offerings",
+			slog.Any("care_offering_ids", dropped),
+		)
+	}
 	return err
 }
 
