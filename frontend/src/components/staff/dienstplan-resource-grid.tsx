@@ -208,7 +208,11 @@ function AssignmentCard({
         {isUncovered ? (
           <TriangleAlert
             className="mt-0.5 h-3.5 w-3.5 shrink-0"
-            style={{ color: LOCATION_COLORS.SICK }}
+            // Same condition as the WARNING accent in assignmentAccentColor —
+            // must be the same amber, or the card gets an amber border with a
+            // red triangle and the triangle matches the DANGER "Abwesend"
+            // state instead.
+            style={{ color: LOCATION_COLORS.WARNING }}
             aria-label="Nicht vollständig durch Schicht abgedeckt"
           />
         ) : null}
