@@ -412,10 +412,13 @@ describe("TeacherForm", () => {
           last_name: "Doe",
           id: "1",
           person_id: 10, // person_id is passed through as number
-          is_teacher: true,
         }),
       );
     });
+    // Im Edit-Modus gibt es keine Rollenauswahl — der Flag darf nicht
+    // mitgeschickt werden, sonst bekäme eine Lehrkraft beim Speichern
+    // eines Tippfehlers ein Betreuungsprofil (users.teachers) angelegt.
+    expect(onSubmitAction.mock.calls[0]?.[0]).not.toHaveProperty("is_teacher");
   });
 
   it("shows loading state on submit button", () => {

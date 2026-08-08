@@ -58,7 +58,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	}
 	statuses := map[int64]string{3: activeModels.StudentStatusDaySick}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses, map[int64]string{1: "Abholung"}, nil, map[int64]string{1: "16:00"})
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses, map[int64]string{1: "Abholung"}, nil, map[int64]string{1: "16:00"}, nil)
 
 	require.Len(t, report.Rows, 3)
 	assert.Equal(t, "wed", report.Weekday)
@@ -73,6 +73,9 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	// The day-specific departure replaces the roster's week summary.
 	assert.Equal(t, "Abholung", report.Rows[0].Departure)
 	assert.Equal(t, "Geht alleine", report.Rows[1].Departure)
+	// No live plan and no form answer: rendered as explicit "Keine Angabe",
+	// never as a default departure mode.
+	assert.Equal(t, "Keine Angabe", report.Rows[2].Departure)
 
 	assert.False(t, report.Rows[1].StaysToday)
 	assert.Empty(t, report.Rows[1].Offerings)
@@ -92,7 +95,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil, nil)
 
 	assert.False(t, report.SchoolDay)
 	assert.Equal(t, "", report.Weekday)
@@ -272,10 +275,31 @@ func TestClassDayCancellationsUseCareDayService(t *testing.T) {
 		3: scheduleService.CareDayNotScheduled,
 	}}}}
 
-	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, timezone.NewDate(2026, 8, 5))
+	cancelled, notScheduled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]bool{1: true}, cancelled)
+	// "An dem Tag nicht gebucht" is not an absence, but the child must not
+	// be listed as staying either — surfaced separately.
+	assert.Equal(t, map[int64]bool{3: true}, notScheduled)
+}
+
+func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
+	rows := []ClassRosterRow{{
+		StudentID:      1,
+		Registered:     true,
+		OfferingsByDay: map[string][]string{"wed": {"Ganztag"}},
+	}}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, nil, nil, nil, map[int64]bool{1: true})
+
+	require.Len(t, report.Rows, 1)
+	// The approved offering still lists Wednesday, but the parents struck
+	// the weekday from the care plan: the child goes home, not "bleibt in
+	// der Betreuung" without a pickup time.
+	assert.False(t, report.Rows[0].StaysToday)
+	assert.Equal(t, "", report.Rows[0].Status)
+	assert.Equal(t, ClassDayTotals{Students: 1, Leaving: 1}, report.Totals)
 }
 
 // capturingChildOfferingRepo records the date the offering links were
@@ -329,8 +353,10 @@ func TestClassDayDepartureRendersSingleDay(t *testing.T) {
 		},
 	}
 	assert.Equal(t, "Bus, Abholung", classDayDeparture(pickupAndBus, "fri", nil))
-	// A day without any allowed mode falls back to walking home alone.
-	assert.Equal(t, "Geht alleine", classDayDeparture(pickupAndBus, "mon", nil))
+	// A day without any allowed mode is UNKNOWN — the empty string lets the
+	// report fall back to the form answer / "Keine Angabe", never to a
+	// fabricated "Geht alleine".
+	assert.Equal(t, "", classDayDeparture(pickupAndBus, "mon", nil))
 
 	note := "mit Bruder Max"
 	accompanied := &userModels.Student{

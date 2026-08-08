@@ -325,6 +325,7 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	departures := map[int64]string{}
 	arrivals := map[int64]string{}
 	pickups := map[int64]string{}
+	notScheduled := map[int64]bool{}
 	if weekday != "" {
 		statuses, err = s.classDayStatuses(ctx, studentIDs, date)
 		if err != nil {
@@ -338,7 +339,8 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 		if err != nil {
 			return nil, err
 		}
-		cancelled, err := s.classDayCancellations(ctx, studentIDs, date)
+		var cancelled map[int64]bool
+		cancelled, notScheduled, err = s.classDayCancellations(ctx, studentIDs, date)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +357,7 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	for _, phase := range phases {
 		phaseNames = append(phaseNames, phase.name)
 	}
-	report := buildClassDayReport(schoolClass, date, strings.Join(phaseNames, ", "), rosterRows, statuses, departures, arrivals, pickups)
+	report := buildClassDayReport(schoolClass, date, strings.Join(phaseNames, ", "), rosterRows, statuses, departures, arrivals, pickups, notScheduled)
 	report.EnrollmentKnown = len(phases) > 0
 	if !report.EnrollmentKnown {
 		// Without a covering phase the stays/leaves split is unknowable —
@@ -369,6 +371,12 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	}
 	return report, nil
 }
+
+// classDayDepartureUnknown renders a student without any departure data for
+// the day. Deliberately distinct from an explicit "Geht alleine" plan: on
+// the handoff sheet, missing data is a question for the office, not an
+// instruction.
+const classDayDepartureUnknown = "Keine Angabe"
 
 // classDayModeLabels are the day-view labels for a single day's departure
 // modes; unlike the roster's week summary there is no day prefix.
@@ -415,26 +423,34 @@ func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs [
 	return arrivals, pickups, nil
 }
 
-// classDayCancellations resolves which students' care day was called off,
+// classDayCancellations resolves which students are not coming that day,
 // through the schedule domain's own CareDayService: a timeless exception on
 // EITHER leg (arrival or pickup) cancels the day, with the same precedence
 // the student search, parent portal and Tagesauswertung use. Deliberately
-// not derived from raw entries here.
-func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]bool, error) {
-	cancelled := map[int64]bool{}
+// not derived from raw entries here. CareDayNotScheduled ("an dem Tag nicht
+// gebucht", e.g. the parents struck the weekday from the care plan while the
+// approved offering still lists it) is returned separately: not an absence,
+// but the child must not be listed as staying either — every other reader
+// treats it as not-expected.
+func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []int64, date timezone.Date) (cancelled, notScheduled map[int64]bool, err error) {
+	cancelled = map[int64]bool{}
+	notScheduled = map[int64]bool{}
 	if s.CareDaySvc == nil || len(studentIDs) == 0 {
-		return cancelled, nil
+		return cancelled, notScheduled, nil
 	}
 	statuses, err := s.CareDaySvc.ResolveForDate(ctx, studentIDs, date)
 	if err != nil {
-		return nil, fmt.Errorf("class day report: resolve care days: %w", err)
+		return nil, nil, fmt.Errorf("class day report: resolve care days: %w", err)
 	}
 	for studentID, status := range statuses {
-		if status == scheduleService.CareDayCancelled {
+		switch status {
+		case scheduleService.CareDayCancelled:
 			cancelled[studentID] = true
+		case scheduleService.CareDayNotScheduled:
+			notScheduled[studentID] = true
 		}
 	}
-	return cancelled, nil
+	return cancelled, notScheduled, nil
 }
 
 // classDayDepartures renders the departure plan of every student REDUCED to
@@ -465,7 +481,12 @@ func (s *reportService) classDayDepartures(ctx context.Context, schoolClass stri
 	return out, nil
 }
 
-// classDayDeparture renders one student's departure for one weekday.
+// classDayDeparture renders one student's departure for one weekday. No
+// plan data for the day means UNKNOWN, never "Geht alleine": on a sheet
+// whose purpose is "wer geht wie nach Hause", missing data must not read as
+// the instruction to let the child leave unaccompanied. The empty string
+// lets the report fall back to the roster's form answer, then to
+// classDayDepartureUnknown.
 func classDayDeparture(student *userModels.Student, weekday string, companions []userModels.CompanionLink) string {
 	allowed := student.AllowedDepartureModes.Normalize()
 	if !allowed.HasAny() {
@@ -473,7 +494,7 @@ func classDayDeparture(student *userModels.Student, weekday string, companions [
 	}
 	modes := allowed[weekday]
 	if len(modes) == 0 {
-		return "Geht alleine"
+		return ""
 	}
 	labels := make([]string, 0, len(modes))
 	accompanied := false
@@ -499,10 +520,11 @@ func classDayDeparture(student *userModels.Student, weekday string, companions [
 
 // buildClassDayReport projects full roster rows onto one calendar day: the
 // weekday's offerings decide who stays, a reported day status wins over any
-// enrollment, and everyone else goes home after lessons. Day-specific
-// departures and effective arrival/pickup times (from the live plans)
-// replace the roster's form-answer values when available.
-func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string, departures, arrivals, pickups map[int64]string) *ClassDayReport {
+// enrollment, a not-scheduled care day (materialized plan says "an dem Tag
+// nicht gebucht") overrides the offering, and everyone else goes home after
+// lessons. Day-specific departures and effective arrival/pickup times (from
+// the live plans) replace the roster's form-answer values when available.
+func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string, departures, arrivals, pickups map[int64]string, notScheduled map[int64]bool) *ClassDayReport {
 	weekday := classDayWeekdayKey(date)
 	report := &ClassDayReport{
 		SchoolClass: schoolClass,
@@ -527,10 +549,18 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 			}
 		}
 		status := statuses[row.StudentID]
-		stays := len(offerings) > 0 && status == ""
+		// The materialized care plan is the current truth: a weekday the
+		// parents struck from the plan beats the approved offering — the
+		// same source the effective times above already come from.
+		stays := len(offerings) > 0 && status == "" && !notScheduled[row.StudentID]
 		departure := row.Departure
 		if dayDeparture, ok := departures[row.StudentID]; ok && dayDeparture != "" {
 			departure = dayDeparture
+		}
+		if weekday != "" && departure == "" {
+			// No live plan and no form answer: say so explicitly instead of
+			// leaving a blank the reader could fill with an assumption.
+			departure = classDayDepartureUnknown
 		}
 		dayRow := ClassDayRow{
 			StudentID:  row.StudentID,

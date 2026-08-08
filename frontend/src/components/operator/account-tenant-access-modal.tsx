@@ -226,6 +226,26 @@ export function AccountTenantAccessModal({
     );
   }
 
+  function entryIsLehrkraft(entry: AccountTenantAccess): boolean {
+    return entry.roles.some((role) => role.name.toLowerCase() === "lehrkraft");
+  }
+
+  // Rollenwechsel-Ziele eines bestehenden Zugangs: Lehrkraft ist für
+  // Betreuungs-/Verwaltungs-Einträge gesperrt — UpdateAccountTenantRole
+  // tauscht nur die auth-Rolle und würde das Betreuungsprofil
+  // (users.teachers) samt aktiver Gruppen-Aufsichten stehen lassen, während
+  // das Konto nur noch class_day-Rechte trägt (Spiegel der Härtung in
+  // role-management-modal). Die Gegenrichtung bleibt erlaubt: für einen
+  // Lehrkraft-Eintrag legt das Backend beim Wechsel auf Betreuung/Verwaltung
+  // das fehlende Profil über ensureSchoolIdentity an. Beim Ergänzen eines
+  // NEUEN Schulzugangs (rolesForSchool direkt) ist Lehrkraft weiterhin
+  // wählbar.
+  function roleChangeOptions(entry: AccountTenantAccess) {
+    const options = rolesForSchool(entry.tenantId);
+    if (entryIsLehrkraft(entry)) return options;
+    return options.filter((role) => role.name.toLowerCase() !== "lehrkraft");
+  }
+
   async function runMutation(
     action: () => Promise<AccountTenantAccess[]>,
     successMessage: string,
@@ -384,12 +404,10 @@ export function AccountTenantAccessModal({
                         <div className="w-44">
                           <CustomSelect
                             value={primaryRoleId(entry)}
-                            options={rolesForSchool(entry.tenantId).map(
-                              (role) => ({
-                                value: role.id,
-                                label: roleLabel(role.name),
-                              }),
-                            )}
+                            options={roleChangeOptions(entry).map((role) => ({
+                              value: role.id,
+                              label: roleLabel(role.name),
+                            }))}
                             onChange={(value) =>
                               void handleRoleChange(entry, value)
                             }

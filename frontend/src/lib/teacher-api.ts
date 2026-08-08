@@ -551,7 +551,13 @@ class TeacherService {
   } {
     return {
       person_id: currentTeacher.person_id,
-      is_teacher: true,
+      // Den bestehenden Profil-Zustand erhalten, NIE hart true senden:
+      // PUT /api/staff/{id} legt bei is_teacher=true eine fehlende
+      // users.teachers-Zeile an — eine Lehrkraft (#1772, ohne
+      // Betreuungsprofil) bekäme durch eine bloße Namenskorrektur sonst
+      // stillschweigend eines.
+      is_teacher:
+        currentTeacher.is_teacher ?? Boolean(currentTeacher.teacher_id),
       staff_notes: this.mergeField(
         teacherData.staff_notes,
         currentTeacher.staff_notes,

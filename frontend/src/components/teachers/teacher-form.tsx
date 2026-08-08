@@ -204,8 +204,12 @@ export function TeacherForm({
         // Preserve existing IDs when editing
         ...(initialData.id && { id: initialData.id }),
         ...(initialData.person_id && { person_id: initialData.person_id }),
-        // Include is_teacher flag
-        is_teacher: !selectedIsLehrkraft,
+        // is_teacher nur beim Anlegen mitschicken: im Edit-Modus gibt es
+        // keine Rollenauswahl (roleId bleibt undefined), der Flag wäre also
+        // immer true und würde einer Lehrkraft beim Speichern eines
+        // Tippfehlers ein Betreuungsprofil anlegen. updateTeacher erhält
+        // stattdessen den bestehenden Zustand.
+        ...(!initialData.id && { is_teacher: !selectedIsLehrkraft }),
       };
 
       // Submit the form data

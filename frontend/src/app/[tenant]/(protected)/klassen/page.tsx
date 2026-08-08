@@ -231,6 +231,12 @@ function isWeekendISO(dateISO: string): boolean {
   return day === 0 || day === 6;
 }
 
+// Cache-Einträge verfallen nach 2 Minuten: schnelles Vor- und Zurückblättern
+// lädt nicht neu (keine doppelte GDPR-Logzeile), aber eine um 11:30 gemeldete
+// Krankmeldung erscheint spätestens beim nächsten Blättern — nicht erst nach
+// einem vollen Reload.
+const REPORT_CACHE_TTL_MS = 2 * 60 * 1000;
+
 export default function KlassenPage() {
   const { data: session } = useSession();
   const [classes, setClasses] = useState<string[] | null>(null);
@@ -242,9 +248,12 @@ export default function KlassenPage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Session-lokaler Cache pro (Klasse, Datum): Zurückblättern lädt nicht neu
-  // und erzeugt keine weitere GDPR-Logzeile für denselben Abruf.
-  const reportCacheRef = useRef(new Map<string, ClassDayReport>());
+  // Session-lokaler Cache pro (Klasse, Datum) mit TTL: Zurückblättern lädt
+  // nicht sofort neu, veraltete Stände (z. B. eine zwischenzeitliche
+  // Krankmeldung) verfallen aber nach REPORT_CACHE_TTL_MS.
+  const reportCacheRef = useRef(
+    new Map<string, { report: ClassDayReport; fetchedAt: number }>(),
+  );
   const weekend = isWeekendISO(dateISO);
 
   useEffect(() => {
@@ -290,10 +299,12 @@ export default function KlassenPage() {
     const cachedEntries: Record<string, ClassDayReport> = {};
     const missing: string[] = [];
     for (const klass of classes) {
-      const hit = reportCacheRef.current.get(`${klass}|${dateISO}`);
-      if (hit) {
-        cachedEntries[klass] = hit;
+      const key = `${klass}|${dateISO}`;
+      const hit = reportCacheRef.current.get(key);
+      if (hit && Date.now() - hit.fetchedAt < REPORT_CACHE_TTL_MS) {
+        cachedEntries[klass] = hit.report;
       } else {
+        if (hit) reportCacheRef.current.delete(key);
         missing.push(klass);
       }
     }
@@ -320,7 +331,10 @@ export default function KlassenPage() {
         if (result.status === "fulfilled") {
           const [klass, response] = result.value;
           next[klass] = response;
-          reportCacheRef.current.set(`${klass}|${dateISO}`, response);
+          reportCacheRef.current.set(`${klass}|${dateISO}`, {
+            report: response,
+            fetchedAt: Date.now(),
+          });
         } else {
           const klass = missing[index];
           if (klass) failed.add(klass);

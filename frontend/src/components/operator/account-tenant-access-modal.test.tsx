@@ -362,6 +362,43 @@ describe("AccountTenantAccessModal", () => {
     );
   });
 
+  it("never offers lehrkraft as target for an existing non-lehrkraft access", async () => {
+    renderModal();
+
+    // Ein Wechsel auf Lehrkraft würde das Betreuungsprofil (users.teachers)
+    // samt aktiver Gruppen-Aufsichten stranden — gesperrt wie im
+    // role-management-modal.
+    const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
+    const options = Array.from(roleSelect.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+
+    expect(options).toContain("Verwaltung");
+    expect(options).toContain("Betreuung");
+    expect(options).not.toContain("Lehrkraft");
+  });
+
+  it("keeps lehrkraft selectable for an entry that already is lehrkraft", async () => {
+    mockList.mockResolvedValue([
+      access({
+        roles: [{ id: "9", name: "lehrkraft", isSystem: true, baseRole: null }],
+      }),
+    ]);
+    renderModal();
+
+    // Der aktuelle Wert muss anzeigbar bleiben; der Wechsel Richtung
+    // Betreuung/Verwaltung ist erlaubt (das Backend legt das fehlende
+    // Profil über ensureSchoolIdentity an).
+    const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
+    const options = Array.from(roleSelect.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+
+    expect(options).toContain("Lehrkraft");
+    expect(options).toContain("Betreuung");
+    expect((roleSelect as HTMLSelectElement).value).toBe("9");
+  });
+
   it("changes the role of an existing school access", async () => {
     mockUpdateRole.mockResolvedValue([
       access({
