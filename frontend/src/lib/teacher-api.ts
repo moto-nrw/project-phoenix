@@ -407,6 +407,7 @@ class TeacherService {
       specialization?: string | null;
       role?: string | null;
       qualifications?: string | null;
+      is_teacher?: boolean;
     },
     personId: number,
   ): Promise<Teacher> {
@@ -415,7 +416,10 @@ class TeacherService {
       credentials: "include",
       body: JSON.stringify({
         person_id: personId,
-        is_teacher: true,
+        // Lehrkraft (#1772) bekommt kein Betreuungsprofil (users.teachers):
+        // das Formular setzt is_teacher=false, alle anderen Rollen behalten
+        // den bisherigen Default.
+        is_teacher: teacherData.is_teacher ?? true,
         staff_notes: teacherData.staff_notes?.trim() ?? "",
         specialization: teacherData.specialization?.trim() ?? "",
         role: teacherData.role?.trim() ?? "",

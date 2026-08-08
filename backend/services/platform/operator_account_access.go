@@ -225,18 +225,20 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
-		// A caregiver requires a local person, staff and teacher record. The
-		// role-change endpoint has no identity fields, so copy the deterministically
-		// selected active identity from another school (or the local one). Without
-		// one, reject the change before assigning the role.
+		// A caregiver requires a local person, staff and teacher record; a
+		// Lehrkraft (#1772) requires person and staff (no teacher profile) so
+		// the school can assign classes under Mitarbeiter. The role-change
+		// endpoint has no identity fields, so copy the deterministically
+		// selected active identity from another school (or the local one).
+		// Without one, reject the change before assigning the role.
 		firstName, lastName := "", ""
-		if isSystemCaregiverRole(role) {
+		if isSystemCaregiverRole(role) || authSvc.IsLehrkraftSystemRole(role) {
 			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
 			if findErr != nil {
 				return findErr
 			}
 			if existing == nil {
-				return &InvalidDataError{Err: fmt.Errorf("a person record is required before assigning the caregiver role")}
+				return &InvalidDataError{Err: fmt.Errorf("a person record is required before assigning this role")}
 			}
 			firstName, lastName = existing.FirstName, existing.LastName
 			if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, "", true); err != nil {

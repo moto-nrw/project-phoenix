@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasRole, isCaregiver, isLehrkraftOnly } from "~/lib/auth-utils";
 import type { PresenceMode } from "~/lib/tenant-api";
 
 export interface SupervisionState {
@@ -35,12 +35,8 @@ export function getSmartRedirectPath(
 
   // A pure Lehrkraft account (#1772) holds only class_day:read — every other
   // landing page would 403 or render empty. Dual-role accounts (also
-  // caregiver or admin) keep their richer flows below.
-  if (
-    hasRole(session, "lehrkraft") &&
-    !canUseCaregiverFlows &&
-    !canUseAdminFlows
-  ) {
+  // caregiver, admin, or guest) keep their richer flows below.
+  if (isLehrkraftOnly(session)) {
     return "/klassen";
   }
 

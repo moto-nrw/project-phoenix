@@ -263,6 +263,10 @@ export function getRoleDisplayDescription(
 export interface RoleOption {
   id: number;
   name: string;
+  // Raw backend role name ("lehrkraft", "user", …) — the display `name` is
+  // the German label, so flows that must branch on the role (e.g. Lehrkraft
+  // gets NO caregiver/teacher profile) compare against this.
+  systemName: string;
 }
 
 /**
@@ -292,6 +296,7 @@ export function toAssignableRoleOptions(roles: Role[]): RoleOption[] {
     .map((role) => ({
       id: Number(role.id),
       name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
+      systemName: role.name?.toLowerCase() ?? "",
     }))
     .filter((role) => !Number.isNaN(role.id));
 }

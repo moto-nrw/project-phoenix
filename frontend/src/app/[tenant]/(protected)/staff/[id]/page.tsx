@@ -139,6 +139,10 @@ export default function StaffDetailContent() {
   // may see the staff list at all — mirrors the backend route gate.
   const canViewStammdatenSections =
     canEdit || canManageTimeTracking || canEditStammdaten;
+  // Klassen-Zuweisung (#1772): Spiegel der Backend-Gates — Lesen users:read,
+  // Ersetzen users:manage (hasPermission ist wildcard-aware, admin:* matcht).
+  const canViewKlassen = canEdit || hasPermission(session, "users:read");
+  const canEditKlassen = canEdit || hasPermission(session, "users:manage");
   const canViewFinancial = hasPermission(session, "staff:financial");
   const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
   // Dokumente (#1424): mirrors the backend route gate — any of the three
@@ -281,7 +285,9 @@ export default function StaffDetailContent() {
           {canViewDocuments ? (
             <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
           ) : null}
-          {canEdit ? <TabsTrigger value="klassen">Klassen</TabsTrigger> : null}
+          {canViewKlassen ? (
+            <TabsTrigger value="klassen">Klassen</TabsTrigger>
+          ) : null}
         </TabsList>
 
         {canViewTimeTracking ? (
@@ -333,11 +339,11 @@ export default function StaffDetailContent() {
         ) : null}
 
         {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
-            Das Ersetzen des Sets ist im Backend users:manage, deshalb nur
-            für Admin-Wildcard-Konten sichtbar. */}
-        {canEdit ? (
+            Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
+            Ersetzen mit users:manage — beides erzwingt das Backend. */}
+        {canViewKlassen ? (
           <TabsPrimitive.Content value="klassen">
-            <KlassenTab staffId={staffId} canEdit={canEdit} />
+            <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
           </TabsPrimitive.Content>
         ) : null}
       </Tabs>

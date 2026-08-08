@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -82,19 +83,27 @@ func classDayWeekdayKey(date timezone.Date) string {
 
 // classDayPhase resolves the enrollment phase whose service window covers the
 // date. Prefers an active covering phase, then any covering phase with the
-// latest start. Returns nil when no phase covers the date — the class day
-// view then still lists the class, just without enrollment data.
-func (s *reportService) classDayPhase(ctx context.Context, date timezone.Date) (phaseID int64, phaseName string, err error) {
+// classDayCoveringPhase is one enrollment phase whose service window covers
+// the requested date.
+type classDayCoveringPhase struct {
+	id     int64
+	name   string
+	start  timezone.Date
+	active bool
+}
+
+// classDayPhases returns EVERY phase whose service window covers the date,
+// active phases first, then by latest start (deterministic). Overlaps are
+// real — rollover windows and a parallel Ferien phase both cover the same
+// day — and a child enrolled in only ONE of them must still count as
+// registered, so the class day view merges across all of them instead of
+// picking a single "best" phase.
+func (s *reportService) classDayPhases(ctx context.Context, date timezone.Date) ([]classDayCoveringPhase, error) {
 	phases, err := s.PhaseRepo.ListByTenant(ctx)
 	if err != nil {
-		return 0, "", fmt.Errorf("class day report: list phases: %w", err)
+		return nil, fmt.Errorf("class day report: list phases: %w", err)
 	}
-	var best *struct {
-		id     int64
-		name   string
-		start  timezone.Date
-		active bool
-	}
+	covering := make([]classDayCoveringPhase, 0, 2)
 	for _, phase := range phases {
 		if phase == nil {
 			continue
@@ -102,22 +111,89 @@ func (s *reportService) classDayPhase(ctx context.Context, date timezone.Date) (
 		if date.Before(phase.ServiceStartDate) || date.After(phase.ServiceEndDate) {
 			continue
 		}
-		candidate := &struct {
-			id     int64
-			name   string
-			start  timezone.Date
-			active bool
-		}{id: phase.ID, name: phase.Name, start: phase.ServiceStartDate, active: phase.IsActive}
-		if best == nil ||
-			(candidate.active && !best.active) ||
-			(candidate.active == best.active && best.start.Before(candidate.start)) {
-			best = candidate
+		covering = append(covering, classDayCoveringPhase{id: phase.ID, name: phase.Name, start: phase.ServiceStartDate, active: phase.IsActive})
+	}
+	sort.SliceStable(covering, func(i, j int) bool {
+		if covering[i].active != covering[j].active {
+			return covering[i].active
+		}
+		return covering[j].start.Before(covering[i].start)
+	})
+	return covering, nil
+}
+
+// mergeClassDayRosters folds the per-phase rosters of the SAME class into
+// one row set: a student registered in any covering phase counts as
+// registered, offerings and day maps union, the first non-empty value wins
+// for scalar fields. Row order follows the first roster (already sorted).
+func mergeClassDayRosters(rosters [][]ClassRosterRow) []ClassRosterRow {
+	if len(rosters) == 0 {
+		return nil
+	}
+	merged := make([]ClassRosterRow, len(rosters[0]))
+	copy(merged, rosters[0])
+	index := make(map[int64]int, len(merged))
+	for i := range merged {
+		index[merged[i].StudentID] = i
+	}
+	for _, roster := range rosters[1:] {
+		for _, row := range roster {
+			at, ok := index[row.StudentID]
+			if !ok {
+				index[row.StudentID] = len(merged)
+				merged = append(merged, row)
+				continue
+			}
+			base := &merged[at]
+			if !row.Registered {
+				continue
+			}
+			if !base.Registered {
+				base.Registered = true
+				base.EnrollmentSummary = row.EnrollmentSummary
+			}
+			base.Offerings = append(base.Offerings, row.Offerings...)
+			for day, names := range row.OfferingsByDay {
+				if base.OfferingsByDay == nil {
+					base.OfferingsByDay = map[string][]string{}
+				}
+				base.OfferingsByDay[day] = appendMissingStrings(base.OfferingsByDay[day], names)
+			}
+			base.CareDays = appendMissingStrings(base.CareDays, row.CareDays)
+			for day, value := range row.ArrivalByDay {
+				if base.ArrivalByDay == nil {
+					base.ArrivalByDay = map[string]string{}
+				}
+				if base.ArrivalByDay[day] == "" {
+					base.ArrivalByDay[day] = value
+				}
+			}
+			for day, value := range row.PickupByDay {
+				if base.PickupByDay == nil {
+					base.PickupByDay = map[string]string{}
+				}
+				if base.PickupByDay[day] == "" {
+					base.PickupByDay[day] = value
+				}
+			}
 		}
 	}
-	if best == nil {
-		return 0, "", nil
+	return merged
+}
+
+// appendMissingStrings appends the values not already present (exact match).
+func appendMissingStrings(base []string, add []string) []string {
+	seen := make(map[string]bool, len(base))
+	for _, value := range base {
+		seen[value] = true
 	}
-	return best.id, best.name, nil
+	for _, value := range add {
+		if !seen[value] {
+			seen[value] = true
+			base = append(base, value)
+		}
+	}
+	return base
 }
 
 // classDayStatuses loads the scheduled day statuses of the listed students.
@@ -201,23 +277,37 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	if schoolClass == "" {
 		return nil, fmt.Errorf("class day report: school class required: %w", ErrReportInvalidFilter)
 	}
+	// Fail fast instead of degrading: a partially wired service would serve
+	// a sheet where a sick or abgemeldetes Kind shows as "bleibt in der
+	// Betreuung" — the exact failure this view exists to prevent.
+	if s.StudentStatusDayRepo == nil || s.CareDaySvc == nil || s.PickupScheduleSvc == nil || s.ArrivalScheduleSvc == nil {
+		return nil, fmt.Errorf("class day report: status/schedule dependencies not configured")
+	}
 
-	phaseID, phaseName, err := s.classDayPhase(ctx, date)
+	phases, err := s.classDayPhases(ctx, date)
 	if err != nil {
 		return nil, err
 	}
 
+	weekday := classDayWeekdayKey(date)
+
 	var rosterRows []ClassRosterRow
-	if phaseID != 0 {
-		// OfferingDate pins the selection to the requested day: paging to
-		// Monday must show Monday's offering set (Stichtags-Apply, #1665),
-		// not today's.
-		roster, err := s.ClassRoster(ctx, ClassRosterFilters{PhaseID: phaseID, SchoolClass: schoolClass, OfferingDate: &date})
-		if err != nil {
-			return nil, err
+	switch {
+	case len(phases) > 0:
+		// Merge across EVERY covering phase (rollover overlap, parallel
+		// Ferien phase): a child enrolled in only one of them must still
+		// count as registered. OfferingDate pins the selection to the
+		// requested day (Stichtags-Apply, #1665).
+		rosters := make([][]ClassRosterRow, 0, len(phases))
+		for _, phase := range phases {
+			roster, err := s.ClassRoster(ctx, ClassRosterFilters{PhaseID: phase.id, SchoolClass: schoolClass, OfferingDate: &date})
+			if err != nil {
+				return nil, err
+			}
+			rosters = append(rosters, roster.Rows)
 		}
-		rosterRows = roster.Rows
-	} else {
+		rosterRows = mergeClassDayRosters(rosters)
+	default:
 		rosterRows, err = s.classDayRosterRows(ctx, schoolClass)
 		if err != nil {
 			return nil, err
@@ -228,32 +318,45 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	for _, row := range rosterRows {
 		studentIDs = append(studentIDs, row.StudentID)
 	}
-	statuses, err := s.classDayStatuses(ctx, studentIDs, date)
-	if err != nil {
-		return nil, err
-	}
-	departures, err := s.classDayDepartures(ctx, schoolClass, studentIDs, classDayWeekdayKey(date))
-	if err != nil {
-		return nil, err
-	}
-	arrivals, pickups, err := s.classDayEffectiveTimes(ctx, studentIDs, date)
-	if err != nil {
-		return nil, err
-	}
-	cancelled, err := s.classDayCancellations(ctx, studentIDs, date)
-	if err != nil {
-		return nil, err
-	}
-	for studentID := range cancelled {
-		// A stronger reported status (sick / class trip / excused) keeps
-		// precedence over the plain "kommt heute nicht" cancellation.
-		if statuses[studentID] == "" {
-			statuses[studentID] = StudentStatusDayCancelled
+
+	// Weekends render "Kein Schultag" — skip the status/departure/schedule
+	// enrichment queries entirely; only the roster (names + count) is served.
+	statuses := map[int64]string{}
+	departures := map[int64]string{}
+	arrivals := map[int64]string{}
+	pickups := map[int64]string{}
+	if weekday != "" {
+		statuses, err = s.classDayStatuses(ctx, studentIDs, date)
+		if err != nil {
+			return nil, err
+		}
+		departures, err = s.classDayDepartures(ctx, schoolClass, studentIDs, weekday)
+		if err != nil {
+			return nil, err
+		}
+		arrivals, pickups, err = s.classDayEffectiveTimes(ctx, studentIDs, date)
+		if err != nil {
+			return nil, err
+		}
+		cancelled, err := s.classDayCancellations(ctx, studentIDs, date)
+		if err != nil {
+			return nil, err
+		}
+		for studentID := range cancelled {
+			// A stronger reported status (sick / class trip / excused) keeps
+			// precedence over the plain "kommt heute nicht" cancellation.
+			if statuses[studentID] == "" {
+				statuses[studentID] = StudentStatusDayCancelled
+			}
 		}
 	}
 
-	report := buildClassDayReport(schoolClass, date, phaseName, rosterRows, statuses, departures, arrivals, pickups)
-	report.EnrollmentKnown = phaseID != 0
+	phaseNames := make([]string, 0, len(phases))
+	for _, phase := range phases {
+		phaseNames = append(phaseNames, phase.name)
+	}
+	report := buildClassDayReport(schoolClass, date, strings.Join(phaseNames, ", "), rosterRows, statuses, departures, arrivals, pickups)
+	report.EnrollmentKnown = len(phases) > 0
 	if !report.EnrollmentKnown {
 		// Without a covering phase the stays/leaves split is unknowable —
 		// zero the counters so no consumer can print "alle gehen nach Hause".
@@ -452,6 +555,13 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		default:
 			report.Totals.Leaving++
 		}
+	}
+	if !report.SchoolDay {
+		// Kein Schultag: there is no handoff, so "geht nach Hause" is not a
+		// statement either — only the Klassenverband count stays honest.
+		report.Totals.Staying = 0
+		report.Totals.Leaving = 0
+		report.Totals.Absent = 0
 	}
 	return report
 }

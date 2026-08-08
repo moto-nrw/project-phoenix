@@ -15,7 +15,12 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasPermission,
+  hasRole,
+  isCaregiver,
+  isLehrkraftOnly,
+} from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
@@ -569,17 +574,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [tParentNav],
   );
-  // Reines Lehrkraft-Konto (#1772): weder Betreuungs- noch Admin-Flows.
-  const isLehrkraftOnly =
-    hasRole(session, "lehrkraft") &&
-    !isCaregiver(session) &&
-    !hasRole(session, "admin");
+  // Reines Lehrkraft-Konto (#1772): geteiltes Prädikat aus auth-utils.
+  const lehrkraftOnly = isLehrkraftOnly(session);
   const baseMain =
     mode === "parent"
       ? parentMainItems
       : mode === "operator"
         ? resolvedOperatorMainItems
-        : isLehrkraftOnly
+        : lehrkraftOnly
           ? LEHRKRAFT_MAIN_ITEMS
           : isCaregiver(session)
             ? STAFF_MAIN_ITEMS
@@ -660,7 +662,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
     // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
     // als Haupt-Tab.)
-    if (isLehrkraftOnly) return item.href === "/help";
+    if (lehrkraftOnly) return item.href === "/help";
     // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
     // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
     if (item.href === "/klassen") return hasRole(session, "lehrkraft");

@@ -186,6 +186,11 @@ export function TeacherForm({
     }
 
     try {
+      // Lehrkraft (#1772) bekommt KEIN Betreuungsprofil (users.teachers) —
+      // dieselbe Invariante wie Einladungs-Flow und Operator-Provisioning.
+      const selectedIsLehrkraft =
+        roles.find((option) => option.id === roleId)?.systemName ===
+        "lehrkraft";
       // Prepare data for submission
       const formData: Partial<Teacher> & {
         password?: string;
@@ -200,7 +205,7 @@ export function TeacherForm({
         ...(initialData.id && { id: initialData.id }),
         ...(initialData.person_id && { person_id: initialData.person_id }),
         // Include is_teacher flag
-        is_teacher: true,
+        is_teacher: !selectedIsLehrkraft,
       };
 
       // Submit the form data

@@ -18,6 +18,8 @@ import {
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
 
+import { rolesIndicateLehrkraftOnly } from "~/lib/auth-utils";
+
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
@@ -112,7 +114,7 @@ export function Header() {
         ? tParentNav("role")
         : userRoles.includes("admin")
           ? "Admin"
-          : userRoles.includes("lehrkraft") && !userRoles.includes("user")
+          : rolesIndicateLehrkraftOnly(userRoles)
             ? "Lehrkraft"
             : "Betreuer";
 

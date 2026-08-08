@@ -19,7 +19,12 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasPermission,
+  hasRole,
+  isCaregiver,
+  isLehrkraftOnly,
+} from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
@@ -460,10 +465,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const userIsCaregiver = isCaregiver(session);
   // Lehrkraft (#1772): externe Schullehrer mit ausschließlich class_day:read.
   // Ein reines Lehrkraft-Konto sieht nur die Klassenansicht und die Hilfe —
-  // jede andere Seite würde 403 antworten oder leer rendern.
+  // jede andere Seite würde 403 antworten oder leer rendern. Geteiltes
+  // Prädikat aus auth-utils, damit Header/MobileNav/Redirect nicht driften.
   const userIsLehrkraft = hasRole(session, "lehrkraft");
-  const userIsLehrkraftOnly =
-    userIsLehrkraft && !userIsAdmin && !userIsCaregiver;
+  const userIsLehrkraftOnly = isLehrkraftOnly(session);
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller

@@ -98,7 +98,8 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 	assert.Equal(t, "", report.Weekday)
 	require.Len(t, report.Rows, 1)
 	assert.False(t, report.Rows[0].StaysToday)
-	assert.Equal(t, ClassDayTotals{Students: 1, Leaving: 1}, report.Totals)
+	// Kein Schultag: nur der Klassenverband ist eine ehrliche Zahl.
+	assert.Equal(t, ClassDayTotals{Students: 1}, report.Totals)
 }
 
 // fakeClassDayPhaseRepo serves a fixed phase list for classDayPhase.
@@ -130,30 +131,64 @@ func (r *fakeClassDayStatusRepo) FindActiveByStudentIDsAndDate(_ context.Context
 	return r.entries, nil
 }
 
-func TestClassDayPhasePrefersActiveCoveringPhase(t *testing.T) {
+func TestClassDayPhasesReturnsEveryCoveringPhaseActiveFirst(t *testing.T) {
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
 		{Model: baseModels.Model{ID: 1}, Name: "Altjahr", ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
-		{Model: baseModels.Model{ID: 2}, Name: "Inaktiv", ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
-		{Model: baseModels.Model{ID: 3}, Name: "Aktuell", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
+		{Model: baseModels.Model{ID: 2}, Name: "Schuljahr", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
+		{Model: baseModels.Model{ID: 3}, Name: "Ferien", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 3), ServiceEndDate: timezone.NewDate(2026, 8, 14)},
+		{Model: baseModels.Model{ID: 4}, Name: "InaktivAlt", ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
 	}}}}
 
-	phaseID, phaseName, err := svc.classDayPhase(context.Background(), timezone.NewDate(2026, 8, 5))
+	phases, err := svc.classDayPhases(context.Background(), timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), phaseID)
-	assert.Equal(t, "Aktuell", phaseName)
+	// EVERY covering phase, not one "best": a child enrolled only in the
+	// Schuljahr phase must not vanish because a Ferien phase also covers
+	// the date. Active first, then latest start.
+	require.Len(t, phases, 3)
+	assert.Equal(t, []int64{3, 2, 4}, []int64{phases[0].id, phases[1].id, phases[2].id})
 }
 
-func TestClassDayPhaseNoneCovering(t *testing.T) {
+func TestClassDayPhasesNoneCovering(t *testing.T) {
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
 		{Model: baseModels.Model{ID: 1}, ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
 	}}}}
 
-	phaseID, phaseName, err := svc.classDayPhase(context.Background(), timezone.NewDate(2026, 8, 5))
+	phases, err := svc.classDayPhases(context.Background(), timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), phaseID)
-	assert.Equal(t, "", phaseName)
+	assert.Empty(t, phases)
+}
+
+func TestMergeClassDayRostersUnionsRegistrations(t *testing.T) {
+	schoolYear := []ClassRosterRow{
+		{StudentID: 1, LastName: "Anders", Registered: true, EnrollmentSummary: "Ganztag", OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}, PickupByDay: map[string]string{"wed": "16:00"}},
+		{StudentID: 2, LastName: "Becker", Registered: false, EnrollmentSummary: "Keine Anmeldung"},
+	}
+	ferien := []ClassRosterRow{
+		{StudentID: 1, LastName: "Anders", Registered: false, EnrollmentSummary: "Keine Anmeldung"},
+		{StudentID: 2, LastName: "Becker", Registered: true, EnrollmentSummary: "Ferienbetreuung", OfferingsByDay: map[string][]string{"wed": {"Ferienbetreuung"}}},
+	}
+
+	merged := mergeClassDayRosters([][]ClassRosterRow{schoolYear, ferien})
+
+	require.Len(t, merged, 2)
+	// Registered in EITHER covering phase counts.
+	assert.True(t, merged[0].Registered)
+	assert.Equal(t, []string{"Ganztag"}, merged[0].OfferingsByDay["wed"])
+	assert.Equal(t, "16:00", merged[0].PickupByDay["wed"])
+	assert.True(t, merged[1].Registered)
+	assert.Equal(t, "Ferienbetreuung", merged[1].EnrollmentSummary)
+	assert.Equal(t, []string{"Ferienbetreuung"}, merged[1].OfferingsByDay["wed"])
+}
+
+func TestClassDayRequiresConfiguredDependencies(t *testing.T) {
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{}}}
+
+	_, err := svc.ClassDay(context.Background(), "1a", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not configured")
 }
 
 func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
@@ -173,6 +208,7 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 	svc.StudentStatusDayRepo = &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
 		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
 	}}
+	wireClassDayDeps(svc)
 
 	report, err := svc.ClassDay(context.Background(), "1a", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
 
@@ -197,6 +233,36 @@ type fakeCareDayService struct {
 
 func (f *fakeCareDayService) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]scheduleService.CareDayStatus, error) {
 	return f.statuses, nil
+}
+
+// fakePickupScheduleService / fakeArrivalScheduleService serve fixed
+// effective times for the bulk read the class day view uses.
+type fakePickupScheduleService struct {
+	scheduleService.PickupScheduleService
+	byStudent map[int64]*scheduleService.EffectivePickupTime
+}
+
+func (f *fakePickupScheduleService) GetBulkEffectivePickupTimesForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+	return f.byStudent, nil
+}
+
+type fakeArrivalScheduleService struct {
+	scheduleService.ArrivalScheduleService
+	byStudent map[int64]*scheduleService.EffectiveArrivalTime
+}
+
+func (f *fakeArrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
+	return f.byStudent, nil
+}
+
+// wireClassDayDeps attaches the four now-required status/schedule deps.
+func wireClassDayDeps(svc *reportService) {
+	if svc.StudentStatusDayRepo == nil {
+		svc.StudentStatusDayRepo = &fakeClassDayStatusRepo{}
+	}
+	svc.CareDaySvc = &fakeCareDayService{}
+	svc.PickupScheduleSvc = &fakePickupScheduleService{}
+	svc.ArrivalScheduleSvc = &fakeArrivalScheduleService{}
 }
 
 func TestClassDayCancellationsUseCareDayService(t *testing.T) {

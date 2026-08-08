@@ -12,7 +12,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -71,18 +71,26 @@ function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
   );
 }
 
-function rowDetailLine(row: ClassDayRow): string {
+function rowDetailLine(row: ClassDayRow, enrollmentKnown: boolean): string {
   const parts: string[] = [];
   if (row.stays_today && row.offerings.length > 0) {
     parts.push(row.offerings.join(", "));
   }
   if (row.departure) parts.push(row.departure);
-  if (!row.registered) parts.push("keine OGS-Anmeldung");
+  // Ohne abdeckende Anmeldephase ist "keine OGS-Anmeldung" keine Aussage,
+  // sondern genau das, was enrollment_known als unbekannt deklariert.
+  if (enrollmentKnown && !row.registered) parts.push("keine OGS-Anmeldung");
   return parts.join(" · ");
 }
 
-function StudentRow({ row }: { readonly row: ClassDayRow }) {
-  const detail = rowDetailLine(row);
+function StudentRow({
+  row,
+  enrollmentKnown,
+}: {
+  readonly row: ClassDayRow;
+  readonly enrollmentKnown: boolean;
+}) {
+  const detail = rowDetailLine(row, enrollmentKnown);
   return (
     <li className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
       <div className="min-w-0">
@@ -117,11 +125,13 @@ function Section({
   count,
   accent = "text-gray-500",
   rows,
+  enrollmentKnown = true,
 }: Readonly<{
   title: string;
   count: number;
   accent?: string;
   rows: ClassDayRow[];
+  enrollmentKnown?: boolean;
 }>) {
   if (rows.length === 0) return null;
   return (
@@ -135,7 +145,11 @@ function Section({
           schmalen Liste wird. */}
       <ul className="grid gap-1.5 lg:grid-cols-2">
         {rows.map((row) => (
-          <StudentRow key={row.student_id} row={row} />
+          <StudentRow
+            key={row.student_id}
+            row={row}
+            enrollmentKnown={enrollmentKnown}
+          />
         ))}
       </ul>
     </div>
@@ -148,11 +162,15 @@ function Section({
 function ClassCard({
   klass,
   report,
+  failed,
+  weekend,
   selected,
   onSelect,
 }: Readonly<{
   klass: string;
   report: ClassDayReport | null;
+  failed: boolean;
+  weekend: boolean;
   selected: boolean;
   onSelect: () => void;
 }>) {
@@ -160,6 +178,15 @@ function ClassCard({
   const schoolDay = report?.school_day ?? true;
   // Bleiben/Gehen ist nur mit abdeckender Anmeldephase eine ehrliche Zahl.
   const splitKnown = schoolDay && (report?.enrollment_known ?? false);
+  const subtitle = failed
+    ? "Konnte nicht geladen werden"
+    : weekend
+      ? "Kein Schultag"
+      : totals
+        ? splitKnown
+          ? `${totals.staying} von ${totals.students} Kindern bleiben in der Betreuung`
+          : `${totals.students} Kinder im Klassenverband`
+        : "Wird geladen …";
   return (
     <button
       type="button"
@@ -174,14 +201,12 @@ function ClassCard({
       <h3 className="truncate text-sm font-semibold text-gray-900">
         {classLabel(klass)}
       </h3>
-      <p className="mt-1 text-xs text-gray-500">
-        {totals
-          ? splitKnown
-            ? `${totals.staying} von ${totals.students} Kindern bleiben in der Betreuung`
-            : `${totals.students} Kinder im Klassenverband`
-          : "Wird geladen …"}
+      <p
+        className={`mt-1 text-xs ${failed ? "text-[#CC2626]" : "text-gray-500"}`}
+      >
+        {subtitle}
       </p>
-      {totals && (
+      {totals && !failed && !weekend && (
         <div
           className={`mt-3 grid gap-2 ${splitKnown ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1"}`}
         >
@@ -199,14 +224,28 @@ function ClassCard({
   );
 }
 
+// Samstag/Sonntag haben keine Übergabe — client-seitig erkennbar, also gar
+// nicht erst laden (spart pro Klasse den vollen Report samt GDPR-Logzeile).
+function isWeekendISO(dateISO: string): boolean {
+  const day = parseISODate(dateISO).getDay();
+  return day === 0 || day === 6;
+}
+
 export default function KlassenPage() {
   const { data: session } = useSession();
   const [classes, setClasses] = useState<string[] | null>(null);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
   const [reports, setReports] = useState<Record<string, ClassDayReport>>({});
+  const [failedClasses, setFailedClasses] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Session-lokaler Cache pro (Klasse, Datum): Zurückblättern lädt nicht neu
+  // und erzeugt keine weitere GDPR-Logzeile für denselben Abruf.
+  const reportCacheRef = useRef(new Map<string, ClassDayReport>());
+  const weekend = isWeekendISO(dateISO);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,30 +273,57 @@ export default function KlassenPage() {
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Karten oben
   // zeigen jede Klasse, die Listen darunter die ausgewählte. allSettled,
   // damit EINE fehlschlagende Klasse (z. B. 403 nach entzogener Zuweisung)
-  // nicht die gesunden Klassen mit wegwischt.
+  // nicht die gesunden Klassen mit wegwischt. Wochenenden laden gar nicht.
   useEffect(() => {
     if (!classes || classes.length === 0) {
       if (classes !== null) setLoading(false);
       return;
     }
+    if (isWeekendISO(dateISO)) {
+      setReports({});
+      setFailedClasses(new Set());
+      setError(null);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
-    setLoading(true);
+    const cachedEntries: Record<string, ClassDayReport> = {};
+    const missing: string[] = [];
+    for (const klass of classes) {
+      const hit = reportCacheRef.current.get(`${klass}|${dateISO}`);
+      if (hit) {
+        cachedEntries[klass] = hit;
+      } else {
+        missing.push(klass);
+      }
+    }
+    setReports(cachedEntries);
+    setFailedClasses(new Set());
     setError(null);
-    void Promise.allSettled(
-      classes.map((klass) =>
-        fetchClassDay(klass, dateISO).then(
-          (response) => [klass, response] as const,
+    if (missing.length === 0) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const load = async () => {
+      const results = await Promise.allSettled(
+        missing.map((klass) =>
+          fetchClassDay(klass, dateISO).then(
+            (response) => [klass, response] as const,
+          ),
         ),
-      ),
-    ).then((results) => {
+      );
       if (cancelled) return;
-      const entries: Array<readonly [string, ClassDayReport]> = [];
-      let failures = 0;
-      for (const result of results) {
+      const next = { ...cachedEntries };
+      const failed = new Set<string>();
+      for (const [index, result] of results.entries()) {
         if (result.status === "fulfilled") {
-          entries.push(result.value);
+          const [klass, response] = result.value;
+          next[klass] = response;
+          reportCacheRef.current.set(`${klass}|${dateISO}`, response);
         } else {
-          failures += 1;
+          const klass = missing[index];
+          if (klass) failed.add(klass);
           logger.error("class_day_fetch_failed", {
             date: dateISO,
             error:
@@ -267,16 +333,18 @@ export default function KlassenPage() {
           });
         }
       }
-      setReports(Object.fromEntries(entries));
-      if (entries.length === 0 && failures > 0) {
+      setReports(next);
+      setFailedClasses(failed);
+      if (failed.size > 0 && Object.keys(next).length === 0) {
         setError("Die Klassenansicht konnte nicht geladen werden.");
-      } else if (failures > 0) {
+      } else if (failed.size > 0) {
         setError(
-          "Eine Klasse konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+          "Nicht alle Klassen konnten geladen werden. Bitte laden Sie die Seite neu.",
         );
       }
       setLoading(false);
-    });
+    };
+    void load();
     return () => {
       cancelled = true;
     };
@@ -381,108 +449,129 @@ export default function KlassenPage() {
           </div>
         )}
 
-        {/* Voller Fehlerzustand nur, wenn gar nichts geladen werden konnte;
-            bei Teilausfall bleibt die Ansicht stehen und ein Alert warnt. */}
-        {!noClasses && !loading && error !== null && !report && (
-          <EmptyState
-            className="mt-4"
-            title="Klassenansicht nicht verfügbar"
-            description={error}
-          />
-        )}
+        {/* Voller Fehlerzustand nur, wenn GAR NICHTS geladen werden konnte;
+            bei Teilausfall bleiben Karten und gesunde Klassen stehen. */}
+        {!noClasses &&
+          !loading &&
+          error !== null &&
+          Object.keys(reports).length === 0 &&
+          !weekend && (
+            <EmptyState
+              className="mt-4"
+              title="Klassenansicht nicht verfügbar"
+              description={error}
+            />
+          )}
 
-        {!noClasses && !loading && report && (
-          <>
-            {error !== null && (
-              <div className="mt-4">
-                <Alert type="error" message={error} />
+        {/* Karten IMMER rendern, unabhängig vom Zustand der ausgewählten
+            Klasse — sonst reißt eine fehlgeschlagene Klasse die gesunden
+            mit aus der Ansicht. */}
+        {!noClasses &&
+          !loading &&
+          (weekend || Object.keys(reports).length > 0) && (
+            <>
+              {error !== null && Object.keys(reports).length > 0 && (
+                <div className="mt-4">
+                  <Alert type="error" message={error} />
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {(classes ?? []).map((klass) => (
+                  <ClassCard
+                    key={klass}
+                    klass={klass}
+                    report={reports[klass] ?? null}
+                    failed={failedClasses.has(klass)}
+                    weekend={weekend}
+                    selected={klass === selectedClass}
+                    onSelect={() => setSelectedClass(klass)}
+                  />
+                ))}
               </div>
-            )}
 
-            {/* Eine Karte pro Klasse mit den Tageszahlen — zugleich der
-                Umschalter für die Detail-Listen darunter. */}
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {(classes ?? []).map((klass) => (
-                <ClassCard
-                  key={klass}
-                  klass={klass}
-                  report={reports[klass] ?? null}
-                  selected={klass === selectedClass}
-                  onSelect={() => setSelectedClass(klass)}
+              {weekend && (
+                <EmptyState
+                  className="mt-4"
+                  title="Kein Schultag"
+                  description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
                 />
-              ))}
-            </div>
-
-            {!report.school_day && (
-              <EmptyState
-                className="mt-4"
-                title="Kein Schultag"
-                description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
-              />
-            )}
-
-            {report.school_day && report.rows.length === 0 && (
-              <EmptyState
-                className="mt-4"
-                title="Keine Kinder gefunden"
-                description={`Für die Klasse ${report.school_class} sind keine Kinder hinterlegt.`}
-              />
-            )}
-
-            {/* Ohne abdeckende Anmeldephase ist Bleiben/Gehen unbekannt —
-                neutraler Klassenverband statt "alle gehen nach Hause". */}
-            {report.school_day &&
-              report.rows.length > 0 &&
-              !report.enrollment_known && (
-                <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
-                  <Alert
-                    type="info"
-                    message="Für diesen Tag liegt keine Anmeldephase vor. Wer in der Betreuung bleibt, kann deshalb nicht angezeigt werden."
-                  />
-                  <Section
-                    title="Klassenverband"
-                    count={unknownRows.length}
-                    rows={unknownRows}
-                  />
-                  <Section
-                    title="Abgemeldet"
-                    count={absent.length}
-                    accent="text-[#CC2626]"
-                    rows={absent}
-                  />
-                </div>
               )}
 
-            {report.school_day &&
-              report.rows.length > 0 &&
-              report.enrollment_known && (
-                <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
-                  {(classes?.length ?? 0) > 1 && (
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      {classLabel(report.school_class)} im Detail
-                    </h3>
-                  )}
-                  <Section
-                    title="Bleiben in der Betreuung"
-                    count={staying.length}
-                    accent="text-[#5080D8]"
-                    rows={staying}
-                  />
-                  <Section
-                    title="Gehen nach Hause"
-                    count={leaving.length}
-                    rows={leaving}
-                  />
-                  <Section
-                    title="Abgemeldet"
-                    count={absent.length}
-                    accent="text-[#CC2626]"
-                    rows={absent}
-                  />
-                </div>
+              {!weekend && !report && failedClasses.has(selectedClass) && (
+                <EmptyState
+                  className="mt-4"
+                  title={`${classLabel(selectedClass)} nicht verfügbar`}
+                  description="Diese Klasse konnte nicht geladen werden. Bitte laden Sie die Seite neu oder wählen Sie eine andere Klasse."
+                />
               )}
-          </>
-        )}
+
+              {!weekend && report && report.rows.length === 0 && (
+                <EmptyState
+                  className="mt-4"
+                  title="Keine Kinder gefunden"
+                  description={`Für die Klasse ${report.school_class} sind keine Kinder hinterlegt.`}
+                />
+              )}
+
+              {/* Ohne abdeckende Anmeldephase ist Bleiben/Gehen unbekannt —
+                  neutraler Klassenverband statt "alle gehen nach Hause". */}
+              {!weekend &&
+                report &&
+                report.rows.length > 0 &&
+                !report.enrollment_known && (
+                  <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                    <Alert
+                      type="info"
+                      message="Für diesen Tag liegt keine Anmeldephase vor. Wer in der Betreuung bleibt, kann deshalb nicht angezeigt werden."
+                    />
+                    <Section
+                      title="Klassenverband"
+                      count={unknownRows.length}
+                      rows={unknownRows}
+                      enrollmentKnown={false}
+                    />
+                    <Section
+                      title="Abgemeldet"
+                      count={absent.length}
+                      accent="text-[#CC2626]"
+                      rows={absent}
+                      enrollmentKnown={false}
+                    />
+                  </div>
+                )}
+
+              {!weekend &&
+                report &&
+                report.rows.length > 0 &&
+                report.enrollment_known && (
+                  <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                    {(classes?.length ?? 0) > 1 && (
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        {classLabel(report.school_class)} im Detail
+                      </h3>
+                    )}
+                    <Section
+                      title="Bleiben in der Betreuung"
+                      count={staying.length}
+                      accent="text-[#5080D8]"
+                      rows={staying}
+                    />
+                    <Section
+                      title="Gehen nach Hause"
+                      count={leaving.length}
+                      rows={leaving}
+                    />
+                    <Section
+                      title="Abgemeldet"
+                      count={absent.length}
+                      accent="text-[#CC2626]"
+                      rows={absent}
+                    />
+                  </div>
+                )}
+            </>
+          )}
       </section>
     </div>
   );
