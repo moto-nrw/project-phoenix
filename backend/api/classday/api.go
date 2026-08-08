@@ -142,7 +142,7 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report, err := rs.ReportService.ClassDay(r.Context(), class, date, int64(claims.ID))
+	report, err := rs.ReportService.ClassDay(r.Context(), class, date, int64(claims.ID), strings.Join(claims.Roles, ","))
 	if err != nil {
 		if errors.Is(err, enrollmentSvc.ErrReportInvalidFilter) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))

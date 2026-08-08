@@ -17,6 +17,7 @@ import {
   getActivityStatusColor,
   getGroupStatusColor,
 } from "~/lib/dashboard-helpers";
+import { getTimeBasedGreeting } from "~/lib/greeting";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
 import {
@@ -27,14 +28,6 @@ import {
 import { DashboardSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "DashboardPage" });
-
-// Helper function to get time-based greeting
-function getTimeBasedGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Guten Morgen";
-  if (hour < 17) return "Guten Tag";
-  return "Guten Abend";
-}
 
 // Icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({

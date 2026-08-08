@@ -128,6 +128,11 @@ type ClassRosterFilters struct {
 	PhaseID     int64  `json:"phase_id"`
 	SchoolClass string `json:"school_class"`
 	AllClasses  bool   `json:"all_classes"`
+	// OfferingDate pins the offering-link selection to a specific calendar
+	// day (#1772 class day view: paging to Monday must show Monday's
+	// selection, not today's). Nil keeps the export default
+	// reportOfferingDate(phase) — today clamped to the phase window.
+	OfferingDate *timezone.Date `json:"offering_date,omitempty"`
 }
 
 type ClassRosterReport struct {
@@ -177,8 +182,9 @@ type ReportService interface {
 	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
 	ExportClassRoster(ctx context.Context, filters ClassRosterFilters, actorAccountID int64, actorRole, format string) (*ClassRosterReport, error)
 	// ClassDay is the read-only per-class day view for the Lehrkraft handoff
-	// (#1772). Every call writes a GDPR access-log row for the actor.
-	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64) (*ClassDayReport, error)
+	// (#1772). Every call writes a GDPR access-log row for the actor;
+	// actorRole carries the caller's actual roles (comma-joined claims).
+	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64, actorRole string) (*ClassDayReport, error)
 }
 
 type ReportServiceConfig struct {
@@ -205,11 +211,15 @@ type ReportServiceConfig struct {
 	// PickupScheduleSvc / ArrivalScheduleSvc supply the effective per-date
 	// times (weekly plan + day exceptions) for the class day view. They are
 	// the CURRENT truth — the enrollment form answer is only the snapshot the
-	// plan was materialized from — and a pickup exception without a time
-	// means "kommt heute nicht". Optional: unconfigured falls back to the
+	// plan was materialized from. Optional: unconfigured falls back to the
 	// form-answer times.
 	PickupScheduleSvc  scheduleService.PickupScheduleService
 	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
+	// exception on EITHER leg cancels the day). The class day view consumes
+	// it instead of re-deriving the precedence from raw schedule entries —
+	// re-implementations are explicitly forbidden (care_day_resolver.go).
+	CareDaySvc scheduleService.CareDayService
 }
 
 type reportService struct {
@@ -532,7 +542,11 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	}
 
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, approvedChildIDs, reportOfferingDate(phase))
+	offeringDate := reportOfferingDate(phase)
+	if filters.OfferingDate != nil {
+		offeringDate = *filters.OfferingDate
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, approvedChildIDs, offeringDate)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}

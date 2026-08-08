@@ -10,6 +10,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // StudentStatusDayCancelled is the class-day-only marker for a pickup
@@ -49,11 +50,15 @@ type ClassDayReport struct {
 	SchoolClass string        `json:"school_class"`
 	Date        timezone.Date `json:"date"`
 	// Weekday is the report day key ("mon".."fri"), empty on weekends.
-	Weekday   string         `json:"weekday"`
-	SchoolDay bool           `json:"school_day"`
-	PhaseName string         `json:"phase_name,omitempty"`
-	Totals    ClassDayTotals `json:"totals"`
-	Rows      []ClassDayRow  `json:"rows"`
+	Weekday   string `json:"weekday"`
+	SchoolDay bool   `json:"school_day"`
+	PhaseName string `json:"phase_name,omitempty"`
+	// EnrollmentKnown is false when no enrollment phase covers the date: the
+	// stays/leaves split is then unknowable, NOT "nobody stays" — consumers
+	// must render a neutral class list instead of "alle gehen nach Hause".
+	EnrollmentKnown bool           `json:"enrollment_known"`
+	Totals          ClassDayTotals `json:"totals"`
+	Rows            []ClassDayRow  `json:"rows"`
 }
 
 // classDayWeekdayKey maps a calendar date onto the report day keys used by
@@ -191,7 +196,7 @@ func (s *reportService) classDayRosterRows(ctx context.Context, schoolClass stri
 // arrival/pickup times, and the departure plan. Caller scoping (which classes
 // the account may see) is the API layer's job via usercontext — this method
 // only knows the class name.
-func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64) (*ClassDayReport, error) {
+func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64, actorRole string) (*ClassDayReport, error) {
 	schoolClass = strings.TrimSpace(schoolClass)
 	if schoolClass == "" {
 		return nil, fmt.Errorf("class day report: school class required: %w", ErrReportInvalidFilter)
@@ -204,7 +209,10 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 
 	var rosterRows []ClassRosterRow
 	if phaseID != 0 {
-		roster, err := s.ClassRoster(ctx, ClassRosterFilters{PhaseID: phaseID, SchoolClass: schoolClass})
+		// OfferingDate pins the selection to the requested day: paging to
+		// Monday must show Monday's offering set (Stichtags-Apply, #1665),
+		// not today's.
+		roster, err := s.ClassRoster(ctx, ClassRosterFilters{PhaseID: phaseID, SchoolClass: schoolClass, OfferingDate: &date})
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +236,11 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	if err != nil {
 		return nil, err
 	}
-	arrivals, pickups, cancelled, err := s.classDayEffectiveTimes(ctx, studentIDs, date)
+	arrivals, pickups, err := s.classDayEffectiveTimes(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	cancelled, err := s.classDayCancellations(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}
@@ -241,8 +253,15 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	}
 
 	report := buildClassDayReport(schoolClass, date, phaseName, rosterRows, statuses, departures, arrivals, pickups)
+	report.EnrollmentKnown = phaseID != 0
+	if !report.EnrollmentKnown {
+		// Without a covering phase the stays/leaves split is unknowable —
+		// zero the counters so no consumer can print "alle gehen nach Hause".
+		report.Totals.Staying = 0
+		report.Totals.Leaving = 0
+	}
 
-	if err := s.recordClassDayViewAudit(ctx, report, actorAccountID); err != nil {
+	if err := s.recordClassDayViewAudit(ctx, report, actorAccountID, actorRole); err != nil {
 		return nil, err
 	}
 	return report, nil
@@ -260,35 +279,29 @@ var classDayModeLabels = map[userModels.DepartureMode]string{
 // classDayEffectiveTimes loads the effective arrival/pickup times of the
 // students for the date from the materialized schedule tables (weekly plan
 // plus day exceptions) — the current truth the roster's form-answer snapshot
-// may lag behind. A pickup exception WITHOUT a time cancels the care day.
-func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (arrivals, pickups map[int64]string, cancelled map[int64]bool, err error) {
+// may lag behind. Times only: the "kommt heute nicht" decision belongs to
+// classDayCancellations.
+func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (arrivals, pickups map[int64]string, err error) {
 	arrivals = map[int64]string{}
 	pickups = map[int64]string{}
-	cancelled = map[int64]bool{}
 	if len(studentIDs) == 0 {
-		return arrivals, pickups, cancelled, nil
+		return arrivals, pickups, nil
 	}
 	if s.PickupScheduleSvc != nil {
 		effective, err := s.PickupScheduleSvc.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("class day report: load effective pickup times: %w", err)
+			return nil, nil, fmt.Errorf("class day report: load effective pickup times: %w", err)
 		}
 		for studentID, entry := range effective {
-			if entry == nil {
-				continue
-			}
-			switch {
-			case entry.PickupTime != nil:
+			if entry != nil && entry.PickupTime != nil {
 				pickups[studentID] = entry.PickupTime.Format("15:04")
-			case entry.IsException:
-				cancelled[studentID] = true
 			}
 		}
 	}
 	if s.ArrivalScheduleSvc != nil {
 		effective, err := s.ArrivalScheduleSvc.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("class day report: load effective arrival times: %w", err)
+			return nil, nil, fmt.Errorf("class day report: load effective arrival times: %w", err)
 		}
 		for studentID, entry := range effective {
 			if entry != nil && entry.ArrivalTime != nil {
@@ -296,7 +309,29 @@ func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs [
 			}
 		}
 	}
-	return arrivals, pickups, cancelled, nil
+	return arrivals, pickups, nil
+}
+
+// classDayCancellations resolves which students' care day was called off,
+// through the schedule domain's own CareDayService: a timeless exception on
+// EITHER leg (arrival or pickup) cancels the day, with the same precedence
+// the student search, parent portal and Tagesauswertung use. Deliberately
+// not derived from raw entries here.
+func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]bool, error) {
+	cancelled := map[int64]bool{}
+	if s.CareDaySvc == nil || len(studentIDs) == 0 {
+		return cancelled, nil
+	}
+	statuses, err := s.CareDaySvc.ResolveForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, fmt.Errorf("class day report: resolve care days: %w", err)
+	}
+	for studentID, status := range statuses {
+		if status == scheduleService.CareDayCancelled {
+			cancelled[studentID] = true
+		}
+	}
+	return cancelled, nil
 }
 
 // classDayDepartures renders the departure plan of every student REDUCED to
@@ -421,16 +456,15 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 	return report
 }
 
-// recordClassDayViewAudit writes the GDPR access log for a class day view.
-// The view shows care and departure data of an entire class to an external
-// teacher, so each read is logged like the roster export — but attributed to
-// the authenticated account by the repo's actor resolution.
-func (s *reportService) recordClassDayViewAudit(ctx context.Context, report *ClassDayReport, actorAccountID int64) error {
+// recordClassDayViewAudit writes the GDPR access log for a class day view:
+// care and departure data of an entire class served to one account, under
+// its own resource type and the caller's actual roles.
+func (s *reportService) recordClassDayViewAudit(ctx context.Context, report *ClassDayReport, actorAccountID int64, actorRole string) error {
 	if s.DataAccessLogRepo == nil {
 		return nil
 	}
-	entry, err := exportAuditEntry("class day view audit", actorAccountID, "lehrkraft",
-		auditModels.ResourceTypeEnrollmentPhaseExport,
+	entry, err := exportAuditEntry("class day view audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeClassDayView,
 		report.Date.BerlinMidnight(), report.Date.EndOfDay(), time.Now())
 	if err != nil {
 		return err

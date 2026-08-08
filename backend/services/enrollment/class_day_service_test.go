@@ -12,6 +12,7 @@ import (
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 func TestClassDayWeekdayKey(t *testing.T) {
@@ -173,7 +174,7 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
 	}}
 
-	report, err := svc.ClassDay(context.Background(), "1a", timezone.NewDate(2026, 8, 5), 42)
+	report, err := svc.ClassDay(context.Background(), "1a", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 2)
@@ -181,7 +182,63 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 	assert.False(t, report.Rows[0].Registered)
 	assert.Equal(t, "Anders", report.Rows[0].LastName)
 	assert.Equal(t, activeModels.StudentStatusDayExcused, report.Rows[1].Status)
-	assert.Equal(t, ClassDayTotals{Students: 2, Leaving: 1, Absent: 1}, report.Totals)
+	// Without a covering phase the stays/leaves split is unknowable: the
+	// flag says so and the counters stay zero instead of claiming everyone
+	// goes home.
+	assert.False(t, report.EnrollmentKnown)
+	assert.Equal(t, ClassDayTotals{Students: 2, Absent: 1}, report.Totals)
+}
+
+// fakeCareDayService serves fixed care-day statuses.
+type fakeCareDayService struct {
+	scheduleService.CareDayService
+	statuses map[int64]scheduleService.CareDayStatus
+}
+
+func (f *fakeCareDayService) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]scheduleService.CareDayStatus, error) {
+	return f.statuses, nil
+}
+
+func TestClassDayCancellationsUseCareDayService(t *testing.T) {
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{CareDaySvc: &fakeCareDayService{statuses: map[int64]scheduleService.CareDayStatus{
+		1: scheduleService.CareDayCancelled,
+		2: scheduleService.CareDayScheduled,
+		3: scheduleService.CareDayNotScheduled,
+	}}}}
+
+	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, timezone.NewDate(2026, 8, 5))
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]bool{1: true}, cancelled)
+}
+
+// capturingChildOfferingRepo records the date the offering links were
+// requested for.
+type capturingChildOfferingRepo struct {
+	enrollmentModels.RequestChildOfferingRepository
+	seenDate timezone.Date
+}
+
+func (r *capturingChildOfferingRepo) ListByRequestChildIDsAtDate(_ context.Context, _ []int64, date timezone.Date) ([]*enrollmentModels.RequestChildOffering, error) {
+	r.seenDate = date
+	return nil, nil
+}
+
+func TestClassRosterOfferingDatePinsSelection(t *testing.T) {
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: 1}, PersonID: 11, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{11: {FirstName: "Mila", LastName: "Anders"}},
+		&fakeClassRosterRequestRepo{},
+		&fakeClassRosterChildRepo{},
+	)
+	capture := &capturingChildOfferingRepo{}
+	svc.RequestChildOfferingRepo = capture
+	pinned := timezone.NewDate(2026, 8, 10)
+
+	_, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", OfferingDate: &pinned})
+
+	require.NoError(t, err)
+	assert.Equal(t, pinned, capture.seenDate)
 }
 
 func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
@@ -222,7 +279,7 @@ func TestClassDayDepartureRendersSingleDay(t *testing.T) {
 func TestClassDayRequiresSchoolClass(t *testing.T) {
 	svc := &reportService{}
 
-	_, err := svc.ClassDay(context.Background(), "  ", timezone.NewDate(2026, 8, 5), 42)
+	_, err := svc.ClassDay(context.Background(), "  ", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
 
 	require.ErrorIs(t, err, ErrReportInvalidFilter)
 }

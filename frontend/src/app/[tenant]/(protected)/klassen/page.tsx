@@ -13,12 +13,14 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
+import { getTimeBasedGreeting } from "~/lib/greeting";
 import {
   fetchClassDay,
   fetchMyClasses,
@@ -56,21 +58,6 @@ const STATUS_COLORS: Record<string, string> = {
 // "Klasse 1a". Kein doppeltes Präfix anzeigen.
 function classLabel(klass: string): string {
   return /^klasse\b/i.test(klass.trim()) ? klass.trim() : `Klasse ${klass}`;
-}
-
-// Tageszeit-Gruß nach Berliner Uhr — /klassen ist die Startseite der
-// Lehrkraft, und ein Einstieg mit Namen wirkt weniger wie eine Unterseite.
-function berlinGreeting(now: Date = new Date()): string {
-  const hour = Number(
-    now.toLocaleString("de-DE", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "Europe/Berlin",
-    }),
-  );
-  if (hour < 11) return "Guten Morgen";
-  if (hour < 18) return "Guten Tag";
-  return "Guten Abend";
 }
 
 function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
@@ -171,6 +158,8 @@ function ClassCard({
 }>) {
   const totals = report?.totals;
   const schoolDay = report?.school_day ?? true;
+  // Bleiben/Gehen ist nur mit abdeckender Anmeldephase eine ehrliche Zahl.
+  const splitKnown = schoolDay && (report?.enrollment_known ?? false);
   return (
     <button
       type="button"
@@ -187,17 +176,17 @@ function ClassCard({
       </h3>
       <p className="mt-1 text-xs text-gray-500">
         {totals
-          ? schoolDay
+          ? splitKnown
             ? `${totals.staying} von ${totals.students} Kindern bleiben in der Betreuung`
             : `${totals.students} Kinder im Klassenverband`
           : "Wird geladen …"}
       </p>
       {totals && (
         <div
-          className={`mt-3 grid gap-2 ${schoolDay ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1"}`}
+          className={`mt-3 grid gap-2 ${splitKnown ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1"}`}
         >
           <Stat label="Klassenverband" value={totals.students} />
-          {schoolDay && (
+          {splitKnown && (
             <>
               <Stat label="Bleiben" value={totals.staying} />
               <Stat label="Gehen heim" value={totals.leaving} />
@@ -229,7 +218,10 @@ export default function KlassenPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setClasses([]);
+        // Fehler ist NICHT "keine Klassen zugewiesen": sonst rennt die
+        // Lehrkraft bei einem transienten 500 der Verwaltung hinterher.
+        setError("Die Klassenansicht konnte nicht geladen werden.");
+        setLoading(false);
         logger.error("class_day_classes_fetch_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -240,7 +232,9 @@ export default function KlassenPage() {
   }, []);
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Karten oben
-  // zeigen jede Klasse, die Listen darunter die ausgewählte.
+  // zeigen jede Klasse, die Listen darunter die ausgewählte. allSettled,
+  // damit EINE fehlschlagende Klasse (z. B. 403 nach entzogener Zuweisung)
+  // nicht die gesunden Klassen mit wegwischt.
   useEffect(() => {
     if (!classes || classes.length === 0) {
       if (classes !== null) setLoading(false);
@@ -249,28 +243,40 @@ export default function KlassenPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all(
+    void Promise.allSettled(
       classes.map((klass) =>
         fetchClassDay(klass, dateISO).then(
           (response) => [klass, response] as const,
         ),
       ),
-    )
-      .then((entries) => {
-        if (!cancelled) setReports(Object.fromEntries(entries));
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setReports({});
+    ).then((results) => {
+      if (cancelled) return;
+      const entries: Array<readonly [string, ClassDayReport]> = [];
+      let failures = 0;
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          entries.push(result.value);
+        } else {
+          failures += 1;
+          logger.error("class_day_fetch_failed", {
+            date: dateISO,
+            error:
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+          });
+        }
+      }
+      setReports(Object.fromEntries(entries));
+      if (entries.length === 0 && failures > 0) {
         setError("Die Klassenansicht konnte nicht geladen werden.");
-        logger.error("class_day_fetch_failed", {
-          date: dateISO,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      } else if (failures > 0) {
+        setError(
+          "Eine Klasse konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+        );
+      }
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -297,6 +303,12 @@ export default function KlassenPage() {
     () => report?.rows.filter((row) => Boolean(row.status)) ?? [],
     [report],
   );
+  // Ohne Anmeldedaten (keine abdeckende Phase) gibt es keinen
+  // Bleiben/Gehen-Split — alle nicht abgemeldeten Kinder neutral listen.
+  const unknownRows = useMemo(
+    () => report?.rows.filter((row) => !row.status) ?? [],
+    [report],
+  );
 
   const noClasses = classes !== null && classes.length === 0;
 
@@ -309,7 +321,7 @@ export default function KlassenPage() {
               Klassenansicht
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
-              {berlinGreeting()}, {getUserDisplayName(session)}
+              {getTimeBasedGreeting()}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Ihre Übergabe nach Unterricht am {formatDate(dateISO)}: wer bleibt
@@ -369,7 +381,9 @@ export default function KlassenPage() {
           </div>
         )}
 
-        {!noClasses && !loading && error !== null && (
+        {/* Voller Fehlerzustand nur, wenn gar nichts geladen werden konnte;
+            bei Teilausfall bleibt die Ansicht stehen und ein Alert warnt. */}
+        {!noClasses && !loading && error !== null && !report && (
           <EmptyState
             className="mt-4"
             title="Klassenansicht nicht verfügbar"
@@ -377,8 +391,14 @@ export default function KlassenPage() {
           />
         )}
 
-        {!noClasses && !loading && error === null && report && (
+        {!noClasses && !loading && report && (
           <>
+            {error !== null && (
+              <div className="mt-4">
+                <Alert type="error" message={error} />
+              </div>
+            )}
+
             {/* Eine Karte pro Klasse mit den Tageszahlen — zugleich der
                 Umschalter für die Detail-Listen darunter. */}
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -409,32 +429,58 @@ export default function KlassenPage() {
               />
             )}
 
-            {report.school_day && report.rows.length > 0 && (
-              <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
-                {(classes?.length ?? 0) > 1 && (
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    {classLabel(report.school_class)} im Detail
-                  </h3>
-                )}
-                <Section
-                  title="Bleiben in der Betreuung"
-                  count={staying.length}
-                  accent="text-[#5080D8]"
-                  rows={staying}
-                />
-                <Section
-                  title="Gehen nach Hause"
-                  count={leaving.length}
-                  rows={leaving}
-                />
-                <Section
-                  title="Abgemeldet"
-                  count={absent.length}
-                  accent="text-[#CC2626]"
-                  rows={absent}
-                />
-              </div>
-            )}
+            {/* Ohne abdeckende Anmeldephase ist Bleiben/Gehen unbekannt —
+                neutraler Klassenverband statt "alle gehen nach Hause". */}
+            {report.school_day &&
+              report.rows.length > 0 &&
+              !report.enrollment_known && (
+                <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                  <Alert
+                    type="info"
+                    message="Für diesen Tag liegt keine Anmeldephase vor. Wer in der Betreuung bleibt, kann deshalb nicht angezeigt werden."
+                  />
+                  <Section
+                    title="Klassenverband"
+                    count={unknownRows.length}
+                    rows={unknownRows}
+                  />
+                  <Section
+                    title="Abgemeldet"
+                    count={absent.length}
+                    accent="text-[#CC2626]"
+                    rows={absent}
+                  />
+                </div>
+              )}
+
+            {report.school_day &&
+              report.rows.length > 0 &&
+              report.enrollment_known && (
+                <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                  {(classes?.length ?? 0) > 1 && (
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {classLabel(report.school_class)} im Detail
+                    </h3>
+                  )}
+                  <Section
+                    title="Bleiben in der Betreuung"
+                    count={staying.length}
+                    accent="text-[#5080D8]"
+                    rows={staying}
+                  />
+                  <Section
+                    title="Gehen nach Hause"
+                    count={leaving.length}
+                    rows={leaving}
+                  />
+                  <Section
+                    title="Abgemeldet"
+                    count={absent.length}
+                    accent="text-[#CC2626]"
+                    rows={absent}
+                  />
+                </div>
+              )}
           </>
         )}
       </section>

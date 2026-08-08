@@ -328,6 +328,17 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
 
 const additionalNavItems: AdditionalNavItem[] = [
   {
+    // Klassenansicht (#1772) für Dual-Role-Konten (lehrkraft + user/admin):
+    // deren Haupt-Nav ist die Staff-/Admin-Leiste, der Einstieg in die
+    // Klassenansicht kommt über das Overflow-Menü. Rollen-Gating unten in
+    // filteredAdditionalItems (permission-basiert ginge nicht: admin:*
+    // matcht class_day:read, Admins ohne lehrkraft-Rolle haben aber keine
+    // Klassen und landen auf einer leeren Seite).
+    href: "/klassen",
+    label: "Klassenansicht",
+    iconKey: "academicCap",
+  },
+  {
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
@@ -647,8 +658,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
-    // jede andere Seite würde 403 antworten.
+    // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
+    // als Haupt-Tab.)
     if (isLehrkraftOnly) return item.href === "/help";
+    // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
+    // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
+    if (item.href === "/klassen") return hasRole(session, "lehrkraft");
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;

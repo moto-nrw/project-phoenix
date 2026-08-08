@@ -31,6 +31,9 @@ export interface ClassDayReport {
   weekday: string; // "mon".."fri", "" am Wochenende
   school_day: boolean;
   phase_name?: string;
+  // false: keine Anmeldephase deckt den Tag ab — Bleiben/Gehen ist dann
+  // unbekannt, NICHT "alle gehen nach Hause".
+  enrollment_known: boolean;
   totals: ClassDayTotals;
   rows: ClassDayRow[];
 }
