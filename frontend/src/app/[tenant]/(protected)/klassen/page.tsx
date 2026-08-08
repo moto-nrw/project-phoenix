@@ -11,13 +11,14 @@
 // like the Tagesauswertung (day-log) instead of colored dashboards.
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { getUserDisplayName } from "~/lib/auth-utils";
 import {
   fetchClassDay,
   fetchMyClasses,
@@ -52,6 +53,21 @@ const STATUS_COLORS: Record<string, string> = {
 // "Klasse 1a". Kein doppeltes Präfix anzeigen.
 function classLabel(klass: string): string {
   return /^klasse\b/i.test(klass.trim()) ? klass.trim() : `Klasse ${klass}`;
+}
+
+// Tageszeit-Gruß nach Berliner Uhr — /klassen ist die Startseite der
+// Lehrkraft, und ein Einstieg mit Namen wirkt weniger wie eine Unterseite.
+function berlinGreeting(now: Date = new Date()): string {
+  const hour = Number(
+    now.toLocaleString("de-DE", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: "Europe/Berlin",
+    }),
+  );
+  if (hour < 11) return "Guten Morgen";
+  if (hour < 18) return "Guten Tag";
+  return "Guten Abend";
 }
 
 function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
@@ -134,11 +150,67 @@ function Section({
   );
 }
 
+// ClassCard fasst eine Klasse für den gewählten Tag zusammen und ist
+// zugleich der Umschalter für die Detail-Listen darunter (Muster: die
+// GroupCards der Tagesauswertung, nur klickbar).
+function ClassCard({
+  klass,
+  report,
+  selected,
+  onSelect,
+}: Readonly<{
+  klass: string;
+  report: ClassDayReport | null;
+  selected: boolean;
+  onSelect: () => void;
+}>) {
+  const totals = report?.totals;
+  const schoolDay = report?.school_day ?? true;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+        selected
+          ? "border-gray-900 ring-1 ring-gray-900"
+          : "border-gray-200 hover:border-gray-300"
+      }`}
+    >
+      <h3 className="truncate text-sm font-semibold text-gray-900">
+        {classLabel(klass)}
+      </h3>
+      <p className="mt-1 text-xs text-gray-500">
+        {totals
+          ? schoolDay
+            ? `${totals.staying} von ${totals.students} Kindern bleiben in der Betreuung`
+            : `${totals.students} Kinder im Klassenverband`
+          : "Wird geladen …"}
+      </p>
+      {totals && (
+        <div
+          className={`mt-3 grid gap-2 ${schoolDay ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1"}`}
+        >
+          <Stat label="Klassenverband" value={totals.students} />
+          {schoolDay && (
+            <>
+              <Stat label="Bleiben" value={totals.staying} />
+              <Stat label="Gehen heim" value={totals.leaving} />
+              <Stat label="Abgemeldet" value={totals.absent} />
+            </>
+          )}
+        </div>
+      )}
+    </button>
+  );
+}
+
 export default function KlassenPage() {
+  const { data: session } = useSession();
   const [classes, setClasses] = useState<string[] | null>(null);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
-  const [report, setReport] = useState<ClassDayReport | null>(null);
+  const [reports, setReports] = useState<Record<string, ClassDayReport>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,24 +234,31 @@ export default function KlassenPage() {
     };
   }, []);
 
+  // Alle zugewiesenen Klassen für den Tag parallel laden: die Karten oben
+  // zeigen jede Klasse, die Listen darunter die ausgewählte.
   useEffect(() => {
-    if (!selectedClass) {
+    if (!classes || classes.length === 0) {
       if (classes !== null) setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchClassDay(selectedClass, dateISO)
-      .then((response) => {
-        if (!cancelled) setReport(response);
+    Promise.all(
+      classes.map((klass) =>
+        fetchClassDay(klass, dateISO).then(
+          (response) => [klass, response] as const,
+        ),
+      ),
+    )
+      .then((entries) => {
+        if (!cancelled) setReports(Object.fromEntries(entries));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setReport(null);
+        setReports({});
         setError("Die Klassenansicht konnte nicht geladen werden.");
         logger.error("class_day_fetch_failed", {
-          school_class: selectedClass,
           date: dateISO,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -190,7 +269,9 @@ export default function KlassenPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedClass, dateISO, classes]);
+  }, [classes, dateISO]);
+
+  const report = selectedClass ? (reports[selectedClass] ?? null) : null;
 
   const selectedDate = parseISODate(dateISO);
   const shiftDay = (delta: number) => {
@@ -223,11 +304,11 @@ export default function KlassenPage() {
               Klassenansicht
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Übergabe nach Unterricht
+              {berlinGreeting()}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Wer bleibt heute in Randstunde oder Ganztag, wer geht nach Hause –
-              für Ihre Klasse am {formatDate(dateISO)}.
+              Ihre Übergabe nach Unterricht am {formatDate(dateISO)}: wer bleibt
+              in Randstunde oder Ganztag, wer geht nach Hause.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -265,21 +346,6 @@ export default function KlassenPage() {
           </div>
         </div>
 
-        {classes !== null && classes.length > 1 && (
-          <div className="mt-4">
-            <SegmentedControl
-              variant="joined"
-              ariaLabel="Klasse wählen"
-              value={selectedClass || null}
-              onChange={setSelectedClass}
-              items={classes.map((klass) => ({
-                value: klass,
-                label: classLabel(klass),
-              }))}
-            />
-          </div>
-        )}
-
         {noClasses && (
           <EmptyState
             className="mt-4"
@@ -290,8 +356,10 @@ export default function KlassenPage() {
 
         {!noClasses && loading && (
           <div className="mt-4 space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-40 w-full" />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
             <Skeleton className="h-40 w-full" />
           </div>
         )}
@@ -306,23 +374,18 @@ export default function KlassenPage() {
 
         {!noClasses && !loading && error === null && report && (
           <>
-            {/* Am Wochenende sind Bleiben/Gehen bedeutungslos — nur der
-                Klassenverband bleibt eine ehrliche Zahl. */}
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat label="Klassenverband" value={report.totals.students} />
-              {report.school_day && (
-                <>
-                  <Stat
-                    label="Bleiben in der OGS"
-                    value={report.totals.staying}
-                  />
-                  <Stat
-                    label="Gehen nach Hause"
-                    value={report.totals.leaving}
-                  />
-                  <Stat label="Abgemeldet" value={report.totals.absent} />
-                </>
-              )}
+            {/* Eine Karte pro Klasse mit den Tageszahlen — zugleich der
+                Umschalter für die Detail-Listen darunter. */}
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {(classes ?? []).map((klass) => (
+                <ClassCard
+                  key={klass}
+                  klass={klass}
+                  report={reports[klass] ?? null}
+                  selected={klass === selectedClass}
+                  onSelect={() => setSelectedClass(klass)}
+                />
+              ))}
             </div>
 
             {!report.school_day && (
@@ -342,7 +405,12 @@ export default function KlassenPage() {
             )}
 
             {report.school_day && report.rows.length > 0 && (
-              <div className="mt-4 space-y-4">
+              <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                {(classes?.length ?? 0) > 1 && (
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {classLabel(report.school_class)} im Detail
+                  </h3>
+                )}
                 <Section
                   title="Bleiben in der Betreuung"
                   count={staying.length}
