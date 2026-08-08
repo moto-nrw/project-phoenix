@@ -190,6 +190,58 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 		"revert must not resurrect assignments for an offboarded staff member")
 }
 
+// An assignment the admin deliberately removed AFTER the apply must stay
+// removed on revert: the renamed row's disappearance means the admin took the
+// class away, and restoring the pre-apply name would silently re-grant
+// student-data scope.
+func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-adminremoval@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class1 := fmt.Sprintf("1a-%s", suffix)
+	class2 := fmt.Sprintf("2a-%s", suffix)
+	class3 := fmt.Sprintf("3b-%s", suffix)
+
+	student := testpkg.CreateTestStudent(t, db, "AdminRemoval", "Child", class1)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	teacher := testpkg.CreateTestStaff(t, db, "AdminRemoval", "Teacher")
+	defer testpkg.CleanupStaffFixtures(t, db, teacher.ID)
+	defer func() {
+		tenantCtx := testpkg.TenantContext(1)
+		_, _ = db.NewDelete().TableExpr("education.class_teachers").
+			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
+	}()
+	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class1)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{class2}, staffClassNames(t, db, ctx, teacher.ID))
+
+	// The admin re-scopes the teacher after the apply: 2a removed, 3b set.
+	_, err = db.NewDelete().TableExpr("education.class_teachers").
+		Where("staff_id = ?", teacher.ID).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class3)
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class3}, staffClassNames(t, db, ctx, teacher.ID),
+		"revert must not restore a class the admin deliberately took away after the apply")
+}
+
 // The revert replays the recorded ledger, not a reverse rename — a
 // pre-existing assignment of a rename target that the apply never touched
 // must survive the revert untouched, and a merge (teacher held both the from-

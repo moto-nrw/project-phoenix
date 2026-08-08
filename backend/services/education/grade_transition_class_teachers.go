@@ -145,13 +145,25 @@ func (s *GradeTransitionService) remapClassTeacherAssignments(
 // removed are restored with their original display form. Rows the apply never
 // touched — a pre-existing assignment of a rename target, say — have no
 // ledger entry and stay untouched, which is exactly what the mapping-derived
-// reverse rename could not guarantee. Assignments the admin changed between
-// apply and revert win: a created row already deleted is skipped, a restore
-// colliding with a current assignment is skipped, and a restore for a staff
-// member offboarded since the apply is skipped too (offboarding cleared
-// their assignments; the soft-deleted staff row would otherwise satisfy the
-// FK and resurrect scope for a person the normal write path 404s on).
-func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Context, transitionID int64) error {
+// reverse rename could not guarantee.
+//
+// Assignments the admin changed between apply and revert win. Concretely:
+//   - a created row the admin already deleted is not deleted again, AND its
+//     paired removed entry is not restored — the admin deliberately took the
+//     class away from this teacher, and restoring the pre-apply name would
+//     silently re-grant student-data scope (a removed entry whose rename
+//     target has no created ledger entry at all — merge dedupe, graduation —
+//     has no such pair and restores as before);
+//   - a restore colliding with a current assignment is skipped;
+//   - a restore for a staff member offboarded since the apply is skipped too
+//     (offboarding cleared their assignments; the soft-deleted staff row
+//     would otherwise satisfy the FK and resurrect scope for a person the
+//     normal write path 404s on).
+func (s *GradeTransitionService) revertClassTeacherAssignments(
+	ctx context.Context,
+	transitionID int64,
+	mappings []*education.GradeTransitionMapping,
+) error {
 	if s.classTeacherRepo == nil {
 		return nil
 	}
@@ -163,6 +175,8 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Conte
 	if len(ledger) == 0 {
 		return nil
 	}
+
+	renames := classTeacherRenames(mappings)
 
 	liveStaff, err := s.liveLedgerStaff(ctx, ledger)
 	if err != nil {
@@ -183,16 +197,24 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Conte
 		current[staffClass{assignment.StaffID, schoolclass.Normalize(assignment.SchoolClass)}] = assignment
 	}
 
+	// ledgerCreated: (staff, class) pairs the apply inserted at all.
+	// deletedCreated: the subset this revert actually found and deleted —
+	// a pair in the first set but not the second was removed by the admin
+	// after the apply, and its paired restore must not happen.
+	ledgerCreated := make(map[staffClass]bool)
+	deletedCreated := make(map[staffClass]bool)
 	for _, entry := range ledger {
 		if entry.Action != education.ClassTeacherActionCreated {
 			continue
 		}
 		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
+		ledgerCreated[key] = true
 		if row, ok := current[key]; ok {
 			if err := s.classTeacherRepo.Delete(ctx, row.ID); err != nil {
 				return fmt.Errorf("failed to delete class teacher assignment: %w", err)
 			}
 			delete(current, key)
+			deletedCreated[key] = true
 		}
 	}
 
@@ -202,6 +224,12 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(ctx context.Conte
 		}
 		if !liveStaff[entry.StaffID] {
 			continue // offboarded since the apply — do not resurrect scope
+		}
+		if target := renames[strings.TrimSpace(entry.SchoolClass)]; target != "" {
+			pair := staffClass{entry.StaffID, schoolclass.Normalize(target)}
+			if ledgerCreated[pair] && !deletedCreated[pair] {
+				continue // the admin removed the renamed row after the apply
+			}
 		}
 		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
 		if _, taken := current[key]; taken {

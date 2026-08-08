@@ -1526,8 +1526,9 @@ func (s *GradeTransitionService) executeRevert(
 	// Mirror of the apply-side remap (#1772): replay the recorded ledger
 	// backwards — created rows are deleted, removed rows (promotions AND
 	// graduations) are restored. Pre-existing assignments the apply never
-	// touched have no ledger entry and stay untouched.
-	if err := s.revertClassTeacherAssignments(ctx, transition.ID); err != nil {
+	// touched have no ledger entry and stay untouched, and rows the admin
+	// deliberately removed since the apply stay removed.
+	if err := s.revertClassTeacherAssignments(ctx, transition.ID, transition.Mappings); err != nil {
 		return err
 	}
 
