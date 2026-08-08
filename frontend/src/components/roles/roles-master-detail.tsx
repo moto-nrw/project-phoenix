@@ -134,7 +134,7 @@ function RoleDetailContent({
       <button
         type="button"
         onClick={onManagePermissions}
-        className="border-moto-purple/20 bg-moto-purple-soft text-moto-purple-strong hover:bg-moto-purple/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
+        className="border-moto-purple/20 bg-moto-purple-soft text-moto-purple-strong hover:bg-moto-purple/20 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
       >
         <MotoConceptIcon concept="permissions" size={16} />
         Berechtigungen
