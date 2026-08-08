@@ -34,7 +34,9 @@ import type {
   BackendReplanWeekResult,
   BackendEditedInWindowResult,
   EditedInWindowResult,
+  BackendCombinedOfferingCountsResponse,
   BackendOfferingSourcesResponse,
+  CombinedOfferingCounts,
   BackendSplitTemplateResult,
   BackendTemplatesResponse,
   OfferingSourceOption,
@@ -933,10 +935,10 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
             })),
           }
         : {}),
-      sourceCareOfferingId:
-        template.source_care_offering_id !== undefined &&
-        template.source_care_offering_id !== null
-          ? String(template.source_care_offering_id)
+      sourceCareOfferingIds:
+        template.source_care_offering_ids &&
+        template.source_care_offering_ids.length > 0
+          ? template.source_care_offering_ids.map(String)
           : undefined,
       sourceGradeLevels: template.source_grade_levels ?? undefined,
       enrollmentCount: template.enrollment_count,
@@ -996,6 +998,17 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
  * Maps the offering-source editor support payload (#2137). Grade-count keys
  * arrive as JSON object strings and become numbers (0 = ohne Jahrgang).
  */
+export function mapCombinedOfferingCounts(
+  raw: BackendCombinedOfferingCountsResponse,
+): CombinedOfferingCounts {
+  const gradeCounts: Record<number, number> = {};
+  for (const [grade, count] of Object.entries(raw.grade_counts ?? {})) {
+    const parsed = Number(grade);
+    if (!Number.isNaN(parsed)) gradeCounts[parsed] = count;
+  }
+  return { totalCount: raw.total_count ?? 0, gradeCounts };
+}
+
 export function mapOfferingSourceOptions(
   raw: BackendOfferingSourcesResponse,
 ): OfferingSourceOption[] {

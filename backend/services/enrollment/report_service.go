@@ -220,6 +220,27 @@ func NewReportService(cfg ReportServiceConfig) ReportService {
 	return &reportService{ReportServiceConfig: cfg}
 }
 
+// BookingViewDate is the reference date for SHOWING a child's booked care
+// offerings to a human — today, falling back to the end of the care period
+// once that period is over so a finished period still shows its final state.
+//
+// Deliberately different from reportOfferingDate below, and deliberately
+// shared between the parent portal and the staff views (#2185): both must
+// answer "what is booked, and what starts later" from the SAME day, or a
+// guardian on the phone and the staff member looking at the child see
+// different rows. Before the phase starts, that means every booking is
+// correctly reported as not yet effective, on both sides.
+//
+// reportOfferingDate clamps to the phase START as well, because a report
+// about a future phase should describe the state that phase will have — a
+// report is about the phase, this is about today.
+func BookingViewDate(today, serviceEnd timezone.Date) timezone.Date {
+	if !serviceEnd.IsZero() && serviceEnd.Before(today) {
+		return serviceEnd
+	}
+	return today
+}
+
 // reportOfferingDate selects the current point within a phase. Reports for a
 // future phase show the selection that will apply at its start; reports for a
 // completed phase show the final selection instead of mixing all intervals.

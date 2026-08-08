@@ -154,6 +154,16 @@ func (s *GradeTransitionService) remapClassTeacherAssignments(
 //     silently re-grant student-data scope (a removed entry whose rename
 //     target has no created ledger entry at all — merge dedupe, graduation —
 //     has no such pair and restores as before);
+//   - in a rename chain ("1a"→"2a" while "2a"→"3a") the middle class is
+//     dual-role: a created target (paired with the removed "1a") AND a
+//     restore source (its own removed entry). An admin removal of that name
+//     must suppress BOTH roles, so a removed entry whose OWN class is a
+//     created target the admin deleted is skipped too — otherwise the revert
+//     re-creates the very name the admin just removed, and any student still
+//     carrying that name (enrolled after the cohort lock, so never renamed by
+//     the replay) would land back in the teacher's scope. The teacher may
+//     lose sight of a cohort the admin left alone under its renamed name;
+//     that errs on the side of less scope, and the admin can re-assign;
 //   - a restore colliding with a current assignment is skipped;
 //   - a restore for a staff member offboarded since the apply is skipped too
 //     (offboarding cleared their assignments; the soft-deleted staff row
@@ -225,13 +235,21 @@ func (s *GradeTransitionService) revertClassTeacherAssignments(
 		if !liveStaff[entry.StaffID] {
 			continue // offboarded since the apply — do not resurrect scope
 		}
+		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
+		if ledgerCreated[key] && !deletedCreated[key] {
+			// Dual-role name in a rename chain (or a graduation whose class
+			// was simultaneously a rename target): the class this entry would
+			// restore is itself a row the apply created and the admin has
+			// deleted since. Re-creating that name would re-grant scope the
+			// admin explicitly removed.
+			continue
+		}
 		if target := renames[strings.TrimSpace(entry.SchoolClass)]; target != "" {
 			pair := staffClass{entry.StaffID, schoolclass.Normalize(target)}
 			if ledgerCreated[pair] && !deletedCreated[pair] {
 				continue // the admin removed the renamed row after the apply
 			}
 		}
-		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
 		if _, taken := current[key]; taken {
 			continue
 		}

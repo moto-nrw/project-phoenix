@@ -114,8 +114,9 @@ func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64)
 	return groups, nil
 }
 
-// FindTemplatesBySourceOffering returns every live template sourced from the
-// given care offering (#2137).
+// FindTemplatesBySourceOffering returns every live template whose source id
+// array contains the given care offering (#2137). The jsonb containment
+// operator is served by the partial GIN index idx_activities_groups_source_offerings.
 func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*activities.Group, error) {
 	tenantID := tenant.FromContext(ctx)
 	groups := make([]*activities.Group, 0)
@@ -125,13 +126,48 @@ func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, off
 		Where(`"group".tenant_id = ?`, tenantID).
 		Where(`"group".is_template = TRUE`).
 		Where(`"group".archived_at IS NULL`).
-		Where(`"group".source_care_offering_id = ?`, offeringID).
+		Where(`"group".source_care_offering_ids @> to_jsonb(?::BIGINT)`, offeringID).
 		OrderExpr(`"group".id ASC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find templates by source offering", Err: err}
 	}
 	return groups, nil
+}
+
+// UpdateTemplateOfferingSource rewrites only the offering-source columns of
+// one template — see the interface doc for why the detach flow needs this
+// (jsonb array carries no FK; both columns must change atomically under
+// chk_activities_groups_offering_source).
+func (r *GroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int) error {
+	tenantID := tenant.FromContext(ctx)
+	var offeringIDsValue, gradeLevelsValue any
+	if len(offeringIDs) > 0 {
+		encoded, err := json.Marshal(offeringIDs)
+		if err != nil {
+			return &modelBase.DatabaseError{Op: "update template offering source", Err: fmt.Errorf("marshal source_care_offering_ids: %w", err)}
+		}
+		offeringIDsValue = string(encoded)
+		if len(gradeLevels) > 0 {
+			encodedLevels, err := json.Marshal(gradeLevels)
+			if err != nil {
+				return &modelBase.DatabaseError{Op: "update template offering source", Err: fmt.Errorf("marshal source_grade_levels: %w", err)}
+			}
+			gradeLevelsValue = string(encodedLevels)
+		}
+	}
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.groups").
+		Set("source_care_offering_ids = ?", offeringIDsValue).
+		Set("source_grade_levels = ?", gradeLevelsValue).
+		Set("updated_at = ?", time.Now()).
+		Where("tenant_id = ?", tenantID).
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update template offering source", Err: err}
+	}
+	return nil
 }
 
 // FindTemplatesWithOfferingSource returns every live template of the tenant
@@ -146,7 +182,7 @@ func (r *GroupRepository) FindTemplatesWithOfferingSource(ctx context.Context) (
 		Where(`"group".tenant_id = ?`, tenantID).
 		Where(`"group".is_template = TRUE`).
 		Where(`"group".archived_at IS NULL`).
-		Where(`"group".source_care_offering_id IS NOT NULL`).
+		Where(`"group".source_care_offering_ids IS NOT NULL`).
 		OrderExpr(`"group".id ASC`).
 		Scan(ctx)
 	if err != nil {
@@ -654,7 +690,7 @@ const templateListSelect = `
 			g.target_group_type,
 			g.target_grade_level,
 			g.target_school_class,
-			g.source_care_offering_id,
+			COALESCE(g.source_care_offering_ids::text, '') AS source_care_offering_ids_json,
 			COALESCE(g.source_grade_levels::text, '') AS source_grade_levels_json,
 			g.list_kind,
 			g.notes,
@@ -706,7 +742,7 @@ const enrollmentDisplayValidityFilter = `
     FROM activities.groups AS sourced_template
     WHERE sourced_template.id = enrollment.activity_group_id
       AND sourced_template.tenant_id = enrollment.tenant_id
-      AND sourced_template.source_care_offering_id IS NOT NULL
+      AND sourced_template.source_care_offering_ids IS NOT NULL
   )))`
 
 // ListTemplateRows returns the template list read model, optionally filtered
@@ -1320,12 +1356,20 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		targetGroupType = activities.TargetGroupTypeNone
 	}
 
-	// jsonb column via raw Set(): bind the JSON text (PostgreSQL casts the
+	// jsonb columns via raw Set(): bind the JSON text (PostgreSQL casts the
 	// parameter to the column type); nil keeps the column NULL. A grade
 	// filter without a source is normalized away to satisfy
 	// chk_activities_groups_offering_source.
+	var sourceCareOfferingIDs any
+	if len(fields.SourceCareOfferingIDs) > 0 {
+		encoded, err := json.Marshal(fields.SourceCareOfferingIDs)
+		if err != nil {
+			return 0, fmt.Errorf("marshal source_care_offering_ids: %w", err)
+		}
+		sourceCareOfferingIDs = string(encoded)
+	}
 	var sourceGradeLevels any
-	if fields.SourceCareOfferingID != nil && len(fields.SourceGradeLevels) > 0 {
+	if len(fields.SourceCareOfferingIDs) > 0 && len(fields.SourceGradeLevels) > 0 {
 		encoded, err := json.Marshal(fields.SourceGradeLevels)
 		if err != nil {
 			return 0, fmt.Errorf("marshal source_grade_levels: %w", err)
@@ -1346,7 +1390,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("target_group_type = ?", targetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).
 		Set("target_school_class = ?", fields.TargetSchoolClass).
-		Set("source_care_offering_id = ?", fields.SourceCareOfferingID).
+		Set("source_care_offering_ids = ?", sourceCareOfferingIDs).
 		Set("source_grade_levels = ?", sourceGradeLevels).
 		Set("list_kind = ?", fields.ListKind).
 		Set("notes = ?", fields.Notes).

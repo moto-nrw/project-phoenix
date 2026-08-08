@@ -242,6 +242,121 @@ func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing
 		"revert must not restore a class the admin deliberately took away after the apply")
 }
 
+// setupChainTeacherTransition builds the dual-role rename chain: one teacher
+// holds 1a AND 2a, the mappings rename 1a→2a and 2a→3a, so after the apply
+// the middle class name (2a) is both a created target (the renamed 1a) and a
+// restore source (the pre-apply 2a). Returns the teacher, the three class
+// names, and a fixture cleanup the caller MUST defer AFTER the setup cleanup
+// (defers run LIFO, and the fixture deletes need the still-open DB).
+func setupChainTeacherTransition(t *testing.T, db *bun.DB) (teacherID, transitionID, accountID int64, class1, class2, class3 string, cleanup func()) {
+	t.Helper()
+
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("transition-chain-%s@test.local", uuid.Must(uuid.NewV4()).String()[:8]))
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class1 = fmt.Sprintf("1a-%s", suffix)
+	class2 = fmt.Sprintf("2a-%s", suffix)
+	class3 = fmt.Sprintf("3a-%s", suffix)
+
+	student1 := testpkg.CreateTestStudent(t, db, "Chain", "Child1", class1)
+	student2 := testpkg.CreateTestStudent(t, db, "Chain", "Child2", class2)
+
+	teacher := testpkg.CreateTestStaff(t, db, "Chain", "DualRoleTeacher")
+	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class1)
+	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class2)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class2, testpkg.StrPtr(class3))
+
+	cleanup = func() {
+		testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+		tenantCtx := testpkg.TenantContext(1)
+		_, _ = db.NewDelete().TableExpr("education.class_teachers").
+			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
+		testpkg.CleanupStaffFixtures(t, db, teacher.ID)
+		testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}
+
+	return teacher.ID, transition.ID, account.ID, class1, class2, class3, cleanup
+}
+
+// deleteClassTeacherRow removes one specific assignment, the way an admin
+// edit between apply and revert would.
+func deleteClassTeacherRow(t *testing.T, db *bun.DB, ctx context.Context, staffID int64, class string) {
+	t.Helper()
+	res, err := db.NewDelete().TableExpr("education.class_teachers").
+		Where("staff_id = ?", staffID).
+		Where("LOWER(BTRIM(school_class)) = LOWER(BTRIM(?))", class).
+		Exec(ctx)
+	require.NoError(t, err)
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+}
+
+// Dual-role chain, admin removes the MIDDLE class after the apply: deleting
+// the renamed "2a" row must suppress BOTH ledger restores that involve that
+// name — the paired "1a" (its renamed row is gone) AND the removed "2a"
+// itself (re-creating the name the admin just deleted would re-grant scope
+// over any student still carrying it, e.g. one enrolled after the cohort
+// lock). The teacher deliberately ends with nothing; erring on the side of
+// less scope beats silently re-granting a removed class, and the admin can
+// re-assign.
+func TestGradeTransitionService_Revert_ChainAdminRemovedMiddleClass(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	teacherID, transitionID, accountID, _, class2, class3, fixtureCleanup := setupChainTeacherTransition(t, db)
+	defer fixtureCleanup()
+
+	_, err := service.Apply(ctx, transitionID, accountID)
+	require.NoError(t, err)
+	require.Equal(t, []string{class2, class3}, staffClassNames(t, db, ctx, teacherID))
+
+	deleteClassTeacherRow(t, db, ctx, teacherID, class2)
+
+	_, err = service.Revert(ctx, transitionID, accountID)
+	require.NoError(t, err)
+
+	assert.Empty(t, staffClassNames(t, db, ctx, teacherID),
+		"removing the dual-role middle class must suppress both restores that involve its name")
+}
+
+// Dual-role chain, admin removes the END class after the apply: the kept
+// "2a" row is the promoted 1a cohort and rolls back to its pre-apply name
+// ("1a") like in a clean revert, while the pre-apply "2a" stays gone — its
+// renamed row ("3a") is exactly what the admin deleted, and the students the
+// ledger replay renames back from 3a to 2a are the ones the admin revoked.
+// The class NAMES the admin saw ("kept 2a") shift because every class name
+// rolls back with the students; the SCOPE the admin curated is preserved.
+func TestGradeTransitionService_Revert_ChainAdminRemovedEndClass(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	teacherID, transitionID, accountID, class1, class2, class3, fixtureCleanup := setupChainTeacherTransition(t, db)
+	defer fixtureCleanup()
+
+	_, err := service.Apply(ctx, transitionID, accountID)
+	require.NoError(t, err)
+	require.Equal(t, []string{class2, class3}, staffClassNames(t, db, ctx, teacherID))
+
+	deleteClassTeacherRow(t, db, ctx, teacherID, class3)
+
+	_, err = service.Revert(ctx, transitionID, accountID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class1}, staffClassNames(t, db, ctx, teacherID),
+		"the kept cohort returns under its pre-apply name, the admin-removed cohort stays gone")
+}
+
 // The revert replays the recorded ledger, not a reverse rename — a
 // pre-existing assignment of a rename target that the apply never touched
 // must survive the revert untouched, and a merge (teacher held both the from-

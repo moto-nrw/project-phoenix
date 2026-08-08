@@ -293,6 +293,20 @@ releases, prereleases, tags, or Gists as an asset host.
 
 **RULE: When you add a user-facing feature flow, or substantially change a flow the guide documents, update `frontend/src/components/help/guide-data.ts` (and changed screenshots) in the SAME PR.** Backend-only, operator/parents-only, and pure-styling changes are exempt. File map, data model, and PDF-render caveat: `.claude/rules/help-guide-sync.md`.
 
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues via `gh` (`moto-nrw/project-phoenix`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical Matt roles map 1:1 to tracker labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root (created lazily by domain-modeling). See `docs/agents/domain.md`.
+
 ---
 
 @CLAUDE.local.md

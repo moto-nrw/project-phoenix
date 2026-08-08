@@ -71,6 +71,24 @@ func (n *nullableIntSlice) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &n.Value)
 }
 
+// nullableInt64Slice is the []int64 member of the tri-state family: it tells
+// an omitted source_care_offering_ids ("keep the stored Quelle") apart from
+// an explicit null or empty list ("clear the source") on the template PUT
+// and the split body (multi-source follow-up to #2147 round 12).
+type nullableInt64Slice struct {
+	Set   bool
+	Value []int64
+}
+
+func (n *nullableInt64Slice) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 // nullableStr is the string analogue of nullableInt: it tells an omitted note
 // ("inherit the source Wochennotiz") apart from an explicit null ("clear the
 // series note") for the split flow (#1837 follow-up). (Named nullableStr to
@@ -320,14 +338,14 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		// the pass-through an editor save that changes the Quelle or the
 		// Jahrgangsfilter and then picks the "following" scope would silently
 		// keep the old rule on the successor.
-		SourceCareOfferingID:         req.SourceCareOfferingID.Value,
-		SourceCareOfferingIDProvided: req.SourceCareOfferingID.Set,
-		SourceGradeLevels:            req.SourceGradeLevels.Value,
-		SourceGradeLevelsProvided:    req.SourceGradeLevels.Set,
-		Targets:                      targetModels(req.Targets),
-		StudentIDs:                   req.StudentIDs,
-		StaffIDs:                     req.StaffIDs,
-		PrimaryStaffID:               req.PrimaryStaffID,
+		SourceCareOfferingIDs:         req.SourceCareOfferingIDs.Value,
+		SourceCareOfferingIDsProvided: req.SourceCareOfferingIDs.Set,
+		SourceGradeLevels:             req.SourceGradeLevels.Value,
+		SourceGradeLevelsProvided:     req.SourceGradeLevels.Set,
+		Targets:                       targetModels(req.Targets),
+		StudentIDs:                    req.StudentIDs,
+		StaffIDs:                      req.StaffIDs,
+		PrimaryStaffID:                req.PrimaryStaffID,
 		// Per-weekday roster deviations follow the successor (#2129); the
 		// embedded updateTemplateRequest.Bind already validated them against
 		// the submitted weekdays.

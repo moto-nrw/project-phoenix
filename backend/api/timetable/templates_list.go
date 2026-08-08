@@ -104,6 +104,10 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		// degrade to "no filter" instead of failing the whole list read.
 		sourceGradeLevels = nil
 	}
+	sourceCareOfferingIDs, err := row.ParseSourceCareOfferingIDs()
+	if err != nil {
+		sourceCareOfferingIDs = nil
+	}
 	return templateResponse{
 		ID:                          row.TemplateID,
 		Name:                        row.Name,
@@ -125,7 +129,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		TargetGradeLevel:            nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
 		TargetSchoolClass:           nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
 		Targets:                     templateTargetsFromRow(row),
-		SourceCareOfferingID:        nullableTemplateInt64(row.SourceCareOfferingID.Valid, row.SourceCareOfferingID.Int64),
+		SourceCareOfferingIDs:       sourceCareOfferingIDs,
 		SourceGradeLevels:           sourceGradeLevels,
 		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
@@ -258,11 +262,12 @@ type templateResponse struct {
 	TargetGradeLevel  *int16                   `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                  `json:"target_school_class,omitempty"`
 	Targets           []templateTargetResponse `json:"targets"`
-	// Offering-source rule (#2137): set only on "angebot" templates whose
-	// roster derives from a Betreuungsangebot. Lets the editor prefill the
-	// Angebots- and Jahrgangsauswahl on edit.
-	SourceCareOfferingID *int64 `json:"source_care_offering_id,omitempty"`
-	SourceGradeLevels    []int  `json:"source_grade_levels,omitempty"`
+	// Offering-source rule (#2137, multi-source follow-up): set only on
+	// "angebot" templates whose roster derives from one or more
+	// Betreuungsangebote. Lets the editor prefill the Angebots- and
+	// Jahrgangsauswahl on edit.
+	SourceCareOfferingIDs []int64 `json:"source_care_offering_ids,omitempty"`
+	SourceGradeLevels     []int   `json:"source_grade_levels,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil when the template has no list kind.
 	ListKind *string `json:"list_kind,omitempty"`
