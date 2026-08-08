@@ -537,6 +537,111 @@ describe("ChildOfferings", () => {
       ),
     ).toBeVisible();
   });
+
+  // #2185: staff must read the same attributes the parents app shows for the
+  // same booking, worded the same way, or a guardian's question is
+  // unanswerable from the staff view.
+  it("renders the offering attributes the parents app shows", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Ganztagsbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon", "tue"],
+            includes_lunch: true,
+            includes_holiday_care: true,
+            price_cents: 8550,
+            // Wire value is already the inclusive last covered day.
+            valid_until: "2027-07-30",
+          },
+        ]}
+        phaseName="Schuljahr 2026/2027"
+      />,
+    );
+
+    expect(screen.getByText("mit Mittagessen")).toBeVisible();
+    expect(screen.getByText("mit Ferienbetreuung")).toBeVisible();
+    expect(screen.getByText("85,50 € pro Monat")).toBeVisible();
+    expect(screen.getByText("bis 30.07.2027")).toBeVisible();
+  });
+
+  it("omits attribute pills the offering does not carry", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Frühbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+            includes_lunch: false,
+            includes_holiday_care: false,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.queryByText("mit Mittagessen")).toBeNull();
+    expect(screen.queryByText("mit Ferienbetreuung")).toBeNull();
+    expect(screen.queryByText(/pro Monat/)).toBeNull();
+  });
+
+  it("marks a booking that only takes effect later", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Ganztagsbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+            valid_from: "2026-09-01",
+            starts_later: true,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("gilt ab 01.09.2026")).toBeVisible();
+  });
+
+  it("names the phase the attributes are configured in", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Ganztagsbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+          },
+        ]}
+        phaseName="Schuljahr 2026/2027"
+      />,
+    );
+
+    expect(
+      screen.getByText(/Anmeldephase „Schuljahr 2026\/2027“/),
+    ).toBeVisible();
+  });
+
+  // #2185: staff decide on this screen. A failed lookup renders no block at
+  // all, which reads as "the family booked nothing" — and the decision gets
+  // made on that. The warning has to reach children of every status, not
+  // only approved ones (where the correction panel lives).
+  it("warns instead of staying silent when the lookup failed", () => {
+    render(<ChildOfferings unavailable />);
+
+    expect(screen.getByText(/konnten nicht geladen werden/)).toBeVisible();
+  });
+
+  it("renders nothing for a child that simply has no bookings", () => {
+    const { container } = render(<ChildOfferings offerings={[]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });
 
 describe("ChildOfferingAdjustment", () => {
@@ -872,6 +977,153 @@ describe("ChildOfferingAdjustment", () => {
     fireEvent.click(save);
     await waitFor(() => {
       expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
+    });
+  });
+
+  // #2185 ships bookings that only start later in their own array so staff
+  // can SEE them. They must not seed the editor, which replaces the CURRENT
+  // selection — otherwise an untouched save pulls a future booking into the
+  // present. A client that predates the field never sees them at all.
+  it("keeps a scheduled future booking out of the correction payload", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      {
+        id: "offering-now",
+        phase_id: "phase-1",
+        name: "Ganztag",
+        days_of_week_mode: "fixed",
+        available_days: ["mon"],
+        includes_holiday_care: false,
+        includes_lunch: false,
+        is_active: true,
+        is_required: false,
+        sort_order: 1,
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+      {
+        id: "offering-later",
+        phase_id: "phase-1",
+        name: "Ganztag mit Mittagessen",
+        days_of_week_mode: "fixed",
+        available_days: ["mon"],
+        includes_holiday_care: false,
+        includes_lunch: true,
+        is_active: true,
+        is_required: false,
+        sort_order: 2,
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-now",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+          },
+        ],
+        upcoming_offerings: [
+          {
+            offering_id: "offering-later",
+            offering_name: "Ganztag mit Mittagessen",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+            valid_from: "2026-09-01",
+            starts_later: true,
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [
+            { offering_id: "offering-now", selected_days: undefined },
+          ],
+        }),
+      );
+    });
+  });
+
+  // A failed offerings lookup is indistinguishable from "booked nothing" in
+  // the payload alone. Correcting on top of that empty state replaces the
+  // family's real bookings with nothing, so the entry point has to disappear.
+  it("blocks corrections when the bookings could not be loaded", () => {
+    renderAdjustment(adjustmentChild({ offerings_unavailable: true }));
+
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/konnten nicht geladen werden/),
+    ).toBeInTheDocument();
+  });
+
+  // Data-loss regression: before the phase's service start EVERY stored row
+  // is flagged starts_later, while the write path still treats those rows as
+  // the current selection. Seeding from !starts_later emptied the editor, and
+  // an untouched save deleted the family's bookings and their chosen days.
+  it("seeds from the current selection even when every booking starts later", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "offering-now",
+        name: "Ganztag",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue", "wed"],
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-now",
+            offering_name: "Ganztag",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon", "wed"],
+            manual_selected_days: ["mon", "wed"],
+            available_days: ["mon", "tue", "wed"],
+            // The phase has not started yet: not in effect, but on file.
+            valid_from: "2026-10-06",
+            starts_later: true,
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [
+            { offering_id: "offering-now", selected_days: ["mon", "wed"] },
+          ],
+        }),
+      );
     });
   });
 });

@@ -46,6 +46,28 @@ export interface AdminRequestChildOffering {
    * authoritative schedule; for parent_choice it bounds the picker.
    */
   available_days?: string[];
+  /**
+   * Offering attributes as configured on the phase's care offering. The
+   * parents app renders these for the same booking, so staff must see them
+   * too — otherwise a guardian describes something staff cannot find (#2185).
+   */
+  includes_lunch?: boolean;
+  includes_holiday_care?: boolean;
+  price_cents?: number;
+  /** ISO "YYYY-MM-DD". Set when the booking starts later than the period. */
+  valid_from?: string;
+  /**
+   * ISO "YYYY-MM-DD", the INCLUSIVE last day the booking covers. The backend
+   * converts its exclusive column for the wire, same as the parent endpoint.
+   */
+  valid_until?: string;
+  /**
+   * True for a booking that has not taken effect yet (an approved change
+   * scheduled for a future date, or any booking while the phase is still
+   * ahead). Display only — which ARRAY a row arrives in says whether a
+   * correction replaces it, see `upcoming_offerings` on the child.
+   */
+  starts_later?: boolean;
 }
 
 interface AdminOfferingAdjustmentSnapshot {
@@ -133,8 +155,23 @@ export interface AdminRequestChild {
   activation_mode: string;
   created_student_id?: string;
   custom_data?: Record<string, unknown>;
-  /** Per-child Betreuungsangebote selection — detail endpoint only. */
+  /**
+   * The Betreuungsangebote selection on file RIGHT NOW — exactly what a
+   * correction replaces. Detail endpoint only.
+   */
   offerings?: AdminRequestChildOffering[];
+  /**
+   * Bookings that only take effect on a later date. Display only: never
+   * feed these into a correction payload, or an untouched save applies a
+   * future change months early (#2185).
+   */
+  upcoming_offerings?: AdminRequestChildOffering[];
+  /**
+   * True when the booking lookup FAILED — as opposed to the child having
+   * no bookings. An empty editor plus a save deletes what the family
+   * actually booked, so corrections must be blocked in this state.
+   */
+  offerings_unavailable?: boolean;
 }
 
 /** Slim form-field shape, only what the admin detail UI needs. */
