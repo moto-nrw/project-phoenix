@@ -12,6 +12,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -69,7 +70,6 @@ function rowDetailLine(row: ClassDayRow): string {
   if (row.stays_today && row.offerings.length > 0) {
     parts.push(row.offerings.join(", "));
   }
-  if (row.pickup) parts.push(`bis ${row.pickup} Uhr`);
   if (row.departure) parts.push(row.departure);
   if (!row.registered) parts.push("keine OGS-Anmeldung");
   return parts.join(" · ");
@@ -78,7 +78,7 @@ function rowDetailLine(row: ClassDayRow): string {
 function StudentRow({ row }: { readonly row: ClassDayRow }) {
   const detail = rowDetailLine(row);
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg px-3 py-2">
+    <li className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-gray-900">
           {row.last_name}, {row.first_name}
@@ -87,12 +87,19 @@ function StudentRow({ row }: { readonly row: ClassDayRow }) {
           <p className="truncate text-xs text-gray-500">{detail}</p>
         ) : null}
       </div>
-      {row.status ? (
-        <StatusDotBadge
-          label={STATUS_LABELS[row.status] ?? row.status}
-          color={STATUS_COLORS[row.status] ?? "#6B7280"}
-        />
-      ) : null}
+      <div className="flex shrink-0 items-center gap-2">
+        {row.pickup ? (
+          <span className="text-xs font-medium text-gray-600 tabular-nums">
+            bis {row.pickup}
+          </span>
+        ) : null}
+        {row.status ? (
+          <StatusDotBadge
+            label={STATUS_LABELS[row.status] ?? row.status}
+            color={STATUS_COLORS[row.status] ?? "#6B7280"}
+          />
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -112,11 +119,13 @@ function Section({
   return (
     <div>
       <h3
-        className={`mb-1 text-xs font-semibold tracking-wide uppercase ${accent}`}
+        className={`mb-2 text-xs font-semibold tracking-wide uppercase ${accent}`}
       >
         {title} ({count})
       </h3>
-      <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
+      {/* Zweispaltig ab lg, damit eine volle Klasse nicht zu einer langen
+          schmalen Liste wird. */}
+      <ul className="grid gap-1.5 lg:grid-cols-2">
         {rows.map((row) => (
           <StudentRow key={row.student_id} row={row} />
         ))}
@@ -223,14 +232,16 @@ export default function KlassenPage() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="flex items-center gap-1">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 aria-label="Vorheriger Tag"
                 onClick={() => shiftDay(-1)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className="h-9 w-9 rounded-lg bg-white"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              </button>
+              </Button>
               <DatePicker
                 value={selectedDate}
                 onChange={(date) => {
@@ -240,14 +251,16 @@ export default function KlassenPage() {
                 hideClearButton
                 className="w-full sm:w-44"
               />
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 aria-label="Nächster Tag"
                 onClick={() => shiftDay(1)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className="h-9 w-9 rounded-lg bg-white"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -114,8 +114,7 @@ const NAV_ITEMS: NavItem[] = [
     // lehrkraft-Rolle (Gating unten in filteredNavItems — permission-basiert
     // ginge nicht, weil admin:* class_day:read matcht, Admins aber keine
     // Klassen zugewiesen haben und auf einer leeren Seite landen würden).
-    href: "/klassen",
-    label: "Klassenansicht",
+    ...STAFF_FLAT_PAGES.klassen,
     icon: navigationIcons.academicCap,
     activeColor: "text-[#5080D8]",
   },

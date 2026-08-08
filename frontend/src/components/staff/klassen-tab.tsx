@@ -9,6 +9,8 @@
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
@@ -198,36 +200,40 @@ export function KlassenTab({
 
           {canEdit && (
             <div className="mt-4 flex items-center gap-2">
-              <input
-                type="text"
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addClass();
-                  }
-                }}
-                list="staff-known-classes"
-                placeholder="z. B. 1a"
-                aria-label="Klassenname"
-                disabled={saving}
-                className="h-9 w-40 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-50"
-              />
+              <div className="w-40">
+                <Input
+                  type="text"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addClass();
+                    }
+                  }}
+                  list="staff-known-classes"
+                  placeholder="z. B. 1a"
+                  aria-label="Klassenname"
+                  disabled={saving}
+                  controlSize="compact"
+                />
+              </div>
               <datalist id="staff-known-classes">
                 {suggestions.map((klass) => (
                   <option key={klass} value={klass} />
                 ))}
               </datalist>
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="md"
                 onClick={addClass}
                 disabled={saving || draft.trim() === ""}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                className="gap-1.5"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Hinzufügen
-              </button>
+              </Button>
             </div>
           )}
         </>

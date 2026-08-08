@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // ClassDayRow is one student of the class on the requested day, reduced to
@@ -217,8 +218,12 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	if err != nil {
 		return nil, err
 	}
+	departures, err := s.classDayDepartures(ctx, schoolClass, studentIDs, classDayWeekdayKey(date))
+	if err != nil {
+		return nil, err
+	}
 
-	report := buildClassDayReport(schoolClass, date, phaseName, rosterRows, statuses)
+	report := buildClassDayReport(schoolClass, date, phaseName, rosterRows, statuses, departures)
 
 	if err := s.recordClassDayViewAudit(ctx, report, actorAccountID); err != nil {
 		return nil, err
@@ -226,10 +231,81 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	return report, nil
 }
 
+// classDayModeLabels are the day-view labels for a single day's departure
+// modes; unlike the roster's week summary there is no day prefix.
+var classDayModeLabels = map[userModels.DepartureMode]string{
+	userModels.DepartureAlone:       "Geht alleine",
+	userModels.DepartureBus:         "Bus",
+	userModels.DeparturePickup:      "Abholung",
+	userModels.DepartureAccompanied: "Mit anderem Kind",
+}
+
+// classDayDepartures renders the departure plan of every student REDUCED to
+// the requested weekday ("Abholung" instead of "Mo: Abholung, Di: …"): the
+// handoff sheet answers today, not the week. Source is the live student row
+// (AllowedDepartureModes with the DepartureDays fallback) — the current
+// truth, present for every child, enrolled or not. Companion names are
+// attached for days that allow the accompanied mode. Empty map on weekends.
+func (s *reportService) classDayDepartures(ctx context.Context, schoolClass string, studentIDs []int64, weekday string) (map[int64]string, error) {
+	out := make(map[int64]string, len(studentIDs))
+	if weekday == "" || len(studentIDs) == 0 || s.StudentRepo == nil {
+		return out, nil
+	}
+	students, err := s.StudentRepo.FindBySchoolClass(ctx, schoolClass)
+	if err != nil {
+		return nil, fmt.Errorf("class day report: load departure plans: %w", err)
+	}
+	companions, err := s.classRosterCompanions(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		if student == nil {
+			continue
+		}
+		out[student.ID] = classDayDeparture(student, weekday, companions[student.ID])
+	}
+	return out, nil
+}
+
+// classDayDeparture renders one student's departure for one weekday.
+func classDayDeparture(student *userModels.Student, weekday string, companions []userModels.CompanionLink) string {
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = userModels.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	modes := allowed[weekday]
+	if len(modes) == 0 {
+		return "Geht alleine"
+	}
+	labels := make([]string, 0, len(modes))
+	accompanied := false
+	for _, mode := range modes {
+		if mode == userModels.DepartureAccompanied {
+			accompanied = true
+		}
+		if label := classDayModeLabels[mode]; label != "" {
+			labels = append(labels, label)
+		}
+	}
+	summary := strings.Join(labels, ", ")
+	if accompanied {
+		onDay := userModels.FilterCompanionLinksToDays(companions, map[string]bool{weekday: true})
+		if linked := userModels.FormatCompanionLinks(onDay); linked != "" {
+			summary += " (" + linked + ")"
+		} else if note := student.DepartureCompanionNote; note != nil && strings.TrimSpace(*note) != "" {
+			summary += " (" + strings.TrimSpace(*note) + ")"
+		}
+	}
+	return summary
+}
+
 // buildClassDayReport projects full roster rows onto one calendar day: the
 // weekday's offerings decide who stays, a reported day status wins over any
-// enrollment, and everyone else goes home after lessons.
-func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string) *ClassDayReport {
+// enrollment, and everyone else goes home after lessons. A day-specific
+// departure (from the live student row) replaces the roster's week summary
+// when available.
+func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []ClassRosterRow, statuses map[int64]string, departures map[int64]string) *ClassDayReport {
 	weekday := classDayWeekdayKey(date)
 	report := &ClassDayReport{
 		SchoolClass: schoolClass,
@@ -249,6 +325,10 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		}
 		status := statuses[row.StudentID]
 		stays := len(offerings) > 0 && status == ""
+		departure := row.Departure
+		if dayDeparture, ok := departures[row.StudentID]; ok && dayDeparture != "" {
+			departure = dayDeparture
+		}
 		dayRow := ClassDayRow{
 			StudentID:  row.StudentID,
 			FirstName:  row.FirstName,
@@ -259,7 +339,7 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 			Offerings:  offerings,
 			Arrival:    arrival,
 			Pickup:     pickup,
-			Departure:  row.Departure,
+			Departure:  departure,
 			Status:     status,
 		}
 		report.Rows = append(report.Rows, dayRow)

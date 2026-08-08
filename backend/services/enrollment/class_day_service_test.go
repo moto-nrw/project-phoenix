@@ -57,7 +57,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	}
 	statuses := map[int64]string{3: activeModels.StudentStatusDaySick}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses, map[int64]string{1: "Abholung"})
 
 	require.Len(t, report.Rows, 3)
 	assert.Equal(t, "wed", report.Weekday)
@@ -68,7 +68,9 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	assert.Equal(t, []string{"Ganztag"}, report.Rows[0].Offerings)
 	assert.Equal(t, "15:00", report.Rows[0].Pickup)
 	assert.Equal(t, "07:30", report.Rows[0].Arrival)
-	assert.Equal(t, "Wird abgeholt", report.Rows[0].Departure)
+	// The day-specific departure replaces the roster's week summary.
+	assert.Equal(t, "Abholung", report.Rows[0].Departure)
+	assert.Equal(t, "Geht alleine", report.Rows[1].Departure)
 
 	assert.False(t, report.Rows[1].StaysToday)
 	assert.Empty(t, report.Rows[1].Offerings)
@@ -88,7 +90,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil)
 
 	assert.False(t, report.SchoolDay)
 	assert.Equal(t, "", report.Weekday)
@@ -194,6 +196,26 @@ func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, activeModels.StudentStatusDaySick, statuses[1])
 	assert.Equal(t, activeModels.StudentStatusDayClassTrip, statuses[2])
+}
+
+func TestClassDayDepartureRendersSingleDay(t *testing.T) {
+	pickupAndBus := &userModels.Student{
+		AllowedDepartureModes: userModels.AllowedDepartureModes{
+			"fri": {userModels.DepartureBus, userModels.DeparturePickup},
+		},
+	}
+	assert.Equal(t, "Bus, Abholung", classDayDeparture(pickupAndBus, "fri", nil))
+	// A day without any allowed mode falls back to walking home alone.
+	assert.Equal(t, "Geht alleine", classDayDeparture(pickupAndBus, "mon", nil))
+
+	note := "mit Bruder Max"
+	accompanied := &userModels.Student{
+		AllowedDepartureModes: userModels.AllowedDepartureModes{
+			"fri": {userModels.DepartureAccompanied},
+		},
+		DepartureCompanionNote: &note,
+	}
+	assert.Equal(t, "Mit anderem Kind (mit Bruder Max)", classDayDeparture(accompanied, "fri", nil))
 }
 
 func TestClassDayRequiresSchoolClass(t *testing.T) {

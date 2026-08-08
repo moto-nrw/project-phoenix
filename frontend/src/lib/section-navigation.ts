@@ -148,6 +148,7 @@ export const STAFF_FLAT_PAGES = {
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
+  klassen: { href: "/klassen", label: "Klassenansicht" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   suggestions: { href: "/suggestions", label: "Feedback" },
