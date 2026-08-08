@@ -112,7 +112,9 @@ export function Header() {
         ? tParentNav("role")
         : userRoles.includes("admin")
           ? "Admin"
-          : "Betreuer";
+          : userRoles.includes("lehrkraft") && !userRoles.includes("user")
+            ? "Lehrkraft"
+            : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {

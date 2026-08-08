@@ -47,6 +47,12 @@ const STATUS_COLORS: Record<string, string> = {
   excused: "#7C3AED",
 };
 
+// Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
+// "Klasse 1a". Kein doppeltes Präfix anzeigen.
+function classLabel(klass: string): string {
+  return /^klasse\b/i.test(klass.trim()) ? klass.trim() : `Klasse ${klass}`;
+}
+
 function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
     <div className="rounded-xl bg-gray-50 px-3 py-2">
@@ -255,7 +261,7 @@ export default function KlassenPage() {
               onChange={setSelectedClass}
               items={classes.map((klass) => ({
                 value: klass,
-                label: `Klasse ${klass}`,
+                label: classLabel(klass),
               }))}
             />
           </div>
@@ -287,11 +293,23 @@ export default function KlassenPage() {
 
         {!noClasses && !loading && error === null && report && (
           <>
+            {/* Am Wochenende sind Bleiben/Gehen bedeutungslos — nur der
+                Klassenverband bleibt eine ehrliche Zahl. */}
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label="Klassenverband" value={report.totals.students} />
-              <Stat label="Bleiben in der OGS" value={report.totals.staying} />
-              <Stat label="Gehen nach Hause" value={report.totals.leaving} />
-              <Stat label="Abgemeldet" value={report.totals.absent} />
+              {report.school_day && (
+                <>
+                  <Stat
+                    label="Bleiben in der OGS"
+                    value={report.totals.staying}
+                  />
+                  <Stat
+                    label="Gehen nach Hause"
+                    value={report.totals.leaving}
+                  />
+                  <Stat label="Abgemeldet" value={report.totals.absent} />
+                </>
+              )}
             </div>
 
             {!report.school_day && (

@@ -15,6 +15,12 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffKlassenTab" });
 
+// Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
+// "Klasse 1a". Kein doppeltes Präfix anzeigen.
+function classLabel(klass: string): string {
+  return /^klasse\b/i.test(klass.trim()) ? klass.trim() : `Klasse ${klass}`;
+}
+
 interface ProxyResponse<T> {
   success: boolean;
   data: T;
@@ -174,7 +180,7 @@ export function KlassenTab({
                 key={klass}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-900 shadow-sm"
               >
-                Klasse {klass}
+                {classLabel(klass)}
                 {canEdit && (
                   <button
                     type="button"
