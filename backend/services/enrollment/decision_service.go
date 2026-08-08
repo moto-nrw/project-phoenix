@@ -572,10 +572,7 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
-		offeringByID, oerr := s.careOfferingsByID(ctx, links)
-		if oerr != nil {
-			return nil, oerr
-		}
+		offeringByID := s.careOfferingsByID(ctx, links)
 		rows := make([]ChildOfferingRow, 0, len(links))
 		for _, link := range links {
 			if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(onDate)) {
@@ -591,13 +588,21 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 // careOfferingsByID resolves the catalog entries behind a child's
 // offering links in one query. Returns an empty map when no catalog
 // repo is wired, leaving rows with their link-side fields only.
+//
+// A failed catalog lookup degrades instead of failing the call, and
+// deliberately so: the caller's error is best-effort at the handler,
+// which would render the child with NO Betreuungsangebote at all. An
+// admin then opens the correction editor on an empty selection, and an
+// untouched save replaces the family's real bookings with nothing. A
+// row with a missing name is recoverable; a silently emptied booking
+// list is not.
 func (s *decisionService) careOfferingsByID(
 	ctx context.Context,
 	links []*enrollmentModels.RequestChildOffering,
-) (map[int64]*enrollmentModels.CareOffering, error) {
+) map[int64]*enrollmentModels.CareOffering {
 	byID := make(map[int64]*enrollmentModels.CareOffering, len(links))
 	if s.CareOfferingRepo == nil || len(links) == 0 {
-		return byID, nil
+		return byID
 	}
 	seen := make(map[int64]bool, len(links))
 	ids := make([]int64, 0, len(links))
@@ -610,14 +615,18 @@ func (s *decisionService) careOfferingsByID(
 	}
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
 	if err != nil {
-		return nil, fmt.Errorf("decision: list care offerings: %w", err)
+		s.Logger.Warn("decision: care offering catalog lookup failed, rendering bookings without catalog data",
+			slog.String("error", err.Error()),
+			slog.Int("offering_count", len(ids)),
+		)
+		return byID
 	}
 	for _, offering := range offerings {
 		if offering != nil {
 			byID[offering.ID] = offering
 		}
 	}
-	return byID, nil
+	return byID
 }
 
 // childOfferingRow merges the link (what the child booked, from when)

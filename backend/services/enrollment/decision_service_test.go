@@ -3531,6 +3531,49 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 		"a booking scheduled to start later is not the selection a correction replaces")
 }
 
+// catalogFailureRepo makes only the catalog batch lookup fail; every other
+// method keeps the real behaviour through the embedded repository.
+type catalogFailureRepo struct {
+	enrollmentModels.CareOfferingRepository
+}
+
+func (catalogFailureRepo) ListByIDs(_ context.Context, _ []int64) ([]*enrollmentModels.CareOffering, error) {
+	return nil, errors.New("synthetic catalog outage")
+}
+
+// #2185: a catalog outage must NOT swallow the child's bookings. The admin
+// detail handler treats ListChildOfferings as best-effort, so an error there
+// renders the child with no Betreuungsangebote at all — the admin then
+// corrects on top of an empty selection and the save deletes the family's
+// real bookings. Degrading to rows without catalog data keeps that from
+// happening.
+func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "lco-catalog@example.com", "Lina", "Catalog")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
+	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
+
+	repoFactory := repositories.NewFactory(env.db)
+	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		RequestRepo:              repoFactory.Request,
+		RequestChildRepo:         repoFactory.RequestChild,
+		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
+		CareOfferingRepo:         catalogFailureRepo{repoFactory.CareOffering},
+		PhaseRepo:                repoFactory.Phase,
+	})
+
+	rows, err := degraded.ListChildOfferings(ctx, reqID)
+	require.NoError(t, err, "a catalog outage must not fail the whole lookup")
+	require.Len(t, rows[childID], 1,
+		"the booking must survive without its catalog entry")
+	assert.Equal(t, offering.ID, rows[childID][0].OfferingID)
+	assert.True(t, rows[childID][0].IsCurrentSelection,
+		"a correction still replaces this row, catalog data or not")
+}
+
 func createChildOfferingLink(
 	t *testing.T,
 	env *decisionTestEnv,

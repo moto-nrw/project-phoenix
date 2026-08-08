@@ -563,7 +563,11 @@ function ChildInformationCard({
             />
           </div>
         ) : null}
-        <ChildOfferings offerings={child.offerings} phaseName={phaseName} />
+        <ChildOfferings
+          offerings={child.offerings}
+          upcomingOfferings={child.upcoming_offerings}
+          phaseName={phaseName}
+        />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
             requestId={requestId}
@@ -980,16 +984,23 @@ const DAY_LABEL_DE: Record<string, string> = {
 
 export function ChildOfferings({
   offerings,
+  upcomingOfferings,
   phaseName,
-}: Readonly<{ offerings?: AdminRequestChildOffering[]; phaseName?: string }>) {
-  if (!offerings || offerings.length === 0) return null;
+}: Readonly<{
+  offerings?: AdminRequestChildOffering[];
+  /** Rendered alongside the current selection, flagged "gilt ab …". */
+  upcomingOfferings?: AdminRequestChildOffering[];
+  phaseName?: string;
+}>) {
+  const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
+  if (rows.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
       <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
         Betreuungsangebote
       </h4>
       <ul className="mt-1.5 space-y-2 text-sm">
-        {offerings.map((o) => {
+        {rows.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
           const dayDetails = parentChoice
             ? formatAdminOfferingDaySource(o)
@@ -1246,17 +1257,24 @@ export function ChildOfferingAdjustment({
               Nachbearbeitung
             </h4>
             <p className="mt-1 text-sm text-gray-600">
-              Angebote können für dieses bestätigte Kind korrigiert werden.
+              {child.offerings_unavailable
+                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden - eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
+                : "Angebote können für dieses bestätigte Kind korrigiert werden."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void openEditor()}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <Pencil className="h-4 w-4" aria-hidden />
-            Bearbeiten
-          </button>
+          {/* Correcting on top of an unknown selection would replace the
+              family's real bookings with whatever the empty editor holds
+              (#2185), so the entry point disappears until the data is back. */}
+          {child.offerings_unavailable ? null : (
+            <button
+              type="button"
+              onClick={() => void openEditor()}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Bearbeiten
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -1435,30 +1453,11 @@ export function ChildOfferingAdjustment({
   );
 }
 
-// The offering rows the correction editor is allowed to seed from: exactly
-// the selection the server would replace on save (#2185).
-//
-// Deliberately NOT `!starts_later`. Before the phase's service start every
-// stored row is flagged starts_later — the write path meanwhile clamps its
-// selection date up to that same service start, so those rows ARE the current
-// selection. Filtering them out would seed an empty editor and an untouched
-// save would delete the family's bookings and their chosen days.
-//
-// An absent flag means include, so a payload without the field can never
-// cause that deletion.
-function effectiveOfferings(
-  offerings?: AdminRequestChildOffering[],
-): AdminRequestChildOffering[] {
-  return (offerings ?? []).filter(
-    (offering) => offering.is_current_selection !== false,
-  );
-}
-
 function initialManualOfferingIDs(
   offerings?: AdminRequestChildOffering[],
 ): Set<string> {
   const ids = new Set<string>();
-  for (const offering of effectiveOfferings(offerings)) {
+  for (const offering of offerings ?? []) {
     const automaticOnly =
       (offering.automatic_selected_days?.length ?? 0) > 0 &&
       (offering.manual_selected_days?.length ?? 0) === 0;
@@ -1471,7 +1470,7 @@ function initialManualOfferingDays(
   offerings?: AdminRequestChildOffering[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
-  for (const offering of effectiveOfferings(offerings)) {
+  for (const offering of offerings ?? []) {
     const manual =
       (offering.manual_selected_days?.length ?? 0) > 0
         ? offering.manual_selected_days
@@ -1499,7 +1498,7 @@ function adjustmentPayloadOfferings(
           : undefined,
     }));
   const catalogIDs = new Set(catalog.map((offering) => offering.id));
-  for (const offering of effectiveOfferings(existingOfferings)) {
+  for (const offering of existingOfferings ?? []) {
     if (
       catalogIDs.has(offering.offering_id) ||
       !selected.has(offering.offering_id)

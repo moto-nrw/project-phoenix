@@ -119,10 +119,22 @@ type AdminRequestChild struct {
 	ActivationMode    string         `json:"activation_mode"`
 	CreatedStudentID  string         `json:"created_student_id,omitempty"`
 	CustomData        map[string]any `json:"custom_data,omitempty"`
-	// Offerings is the per-child Betreuungsangebote selection.
-	// Populated only on the detail endpoint (listing endpoints leave
-	// it empty to keep the payload small).
+	// Offerings is the per-child Betreuungsangebote selection that is on
+	// file RIGHT NOW — exactly the set a correction replaces. Populated
+	// only on the detail endpoint (listing endpoints leave it empty to
+	// keep the payload small).
 	Offerings []AdminRequestChildOffering `json:"offerings,omitempty"`
+	// UpcomingOfferings carries bookings that only take effect on a later
+	// date (an approved parent change, say). A SEPARATE field on purpose
+	// (#2185): a client that predates it keeps seeing exactly the
+	// selection it always saw, so a stale browser tab cannot pre-check a
+	// future booking and apply it months early on an untouched save.
+	UpcomingOfferings []AdminRequestChildOffering `json:"upcoming_offerings,omitempty"`
+	// OfferingsUnavailable reports that the booking lookup FAILED, as
+	// opposed to the child having no bookings. Clients must refuse to
+	// save a correction in this state: an empty editor plus a save
+	// deletes whatever the family actually booked.
+	OfferingsUnavailable bool `json:"offerings_unavailable,omitempty"`
 }
 
 // AdminRequestChildOffering is one care-offering pick for a child.
@@ -137,10 +149,11 @@ type AdminRequestChild struct {
 // exclusive; one JSON name must not mean two different days depending
 // on which endpoint answered.
 //
-// StartsLater marks a row that is not in effect yet. IsCurrentSelection
-// marks the rows a correction replaces — before the phase starts a row
-// is both, so clients must seed an editor from IsCurrentSelection and
-// never from !StartsLater.
+// StartsLater marks a row that is not in effect yet — display only.
+// Which SET a row sits in (offerings vs upcoming_offerings) is what
+// says whether a correction replaces it; before the phase starts a
+// booking is not yet in effect AND on file, so the two questions have
+// different answers and must not share one flag.
 type AdminRequestChildOffering struct {
 	OfferingID            string   `json:"offering_id"`
 	OfferingName          string   `json:"offering_name"`
@@ -155,10 +168,6 @@ type AdminRequestChildOffering struct {
 	ValidFrom             string   `json:"valid_from,omitempty"`
 	ValidUntil            string   `json:"valid_until,omitempty"`
 	StartsLater           bool     `json:"starts_later,omitempty"`
-	// No omitempty: a false here means "not the current selection" and
-	// must stay distinguishable from an absent field, which clients treat
-	// as the safe default (include).
-	IsCurrentSelection bool `json:"is_current_selection"`
 }
 
 type AdminOfferingAdjustment struct {
@@ -352,7 +361,16 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 	}
 
 	if rs.DecisionService != nil {
-		if childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID); err == nil {
+		childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID)
+		if err != nil {
+			// Best-effort by design (TestGetAdminRequestHandler_TolerantOfMissingChildOfferings):
+			// the rest of the detail must still render. But an empty
+			// offerings list must not read as "this child booked nothing",
+			// or a correction saved on top of it deletes the real bookings.
+			for i := range detail.Children {
+				detail.Children[i].OfferingsUnavailable = true
+			}
+		} else {
 			attachChildOfferings(detail.Children, summary.Children, childOfferings)
 		}
 	}
@@ -372,8 +390,23 @@ func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrol
 		if len(rows) == 0 {
 			continue
 		}
-		children[i].Offerings = toAdminChildOfferings(rows)
+		children[i].Offerings, children[i].UpcomingOfferings = splitChildOfferings(rows)
 	}
+}
+
+// splitChildOfferings separates the selection on file from bookings that
+// only start later. Keeping them in two fields — rather than one list plus
+// a flag — means a client that never learned about the second field cannot
+// mistake a scheduled future booking for the current selection.
+func splitChildOfferings(rows []enrollmentService.ChildOfferingRow) (current, upcoming []AdminRequestChildOffering) {
+	for _, row := range rows {
+		if row.IsCurrentSelection {
+			current = append(current, toAdminChildOffering(row))
+			continue
+		}
+		upcoming = append(upcoming, toAdminChildOffering(row))
+	}
+	return current, upcoming
 }
 
 func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
@@ -696,17 +729,25 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		CreatedStudentID:  optionalInt64String(updated.CreatedStudentID),
 		CustomData:        updated.CustomData,
 	}
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	// The correction is already committed. This re-read only enriches the
+	// response, so a transient failure here must not report the save as
+	// failed — the admin would retry and apply the replacement twice, with
+	// a second audit entry blaming them for it. Flag it instead, so the
+	// client refuses to save on top of an unknown selection.
+	if err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		rowsByChild, listErr := rs.DecisionService.ListChildOfferings(ctx, requestID)
 		if listErr != nil {
 			return listErr
 		}
-		out.Offerings = toAdminChildOfferings(rowsByChild[childID])
+		out.Offerings, out.UpcomingOfferings = splitChildOfferings(rowsByChild[childID])
 		return nil
-	})
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
+	}); err != nil {
+		out.OfferingsUnavailable = true
+		slog.WarnContext(r.Context(), "offering adjustment saved but re-read failed",
+			slog.String("error", err.Error()),
+			slog.Int64("request_id", requestID),
+			slog.Int64("child_id", childID),
+		)
 	}
 	common.Respond(w, r, http.StatusOK, out, "Child offerings updated")
 }
@@ -771,27 +812,22 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 	common.Respond(w, r, http.StatusOK, out, "Offering adjustments retrieved")
 }
 
-func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminRequestChildOffering {
-	out := make([]AdminRequestChildOffering, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, AdminRequestChildOffering{
-			OfferingID:            strconv.FormatInt(row.OfferingID, 10),
-			OfferingName:          row.OfferingName,
-			DaysOfWeekMode:        row.DaysOfWeekMode,
-			SelectedDays:          row.SelectedDays,
-			ManualSelectedDays:    row.ManualSelectedDays,
-			AutomaticSelectedDays: row.AutomaticSelectedDays,
-			AvailableDays:         row.AvailableDays,
-			IncludesLunch:         row.IncludesLunch,
-			IncludesHolidayCare:   row.IncludesHolidayCare,
-			PriceCents:            row.PriceCents,
-			ValidFrom:             optionalDateString(row.ValidFrom),
-			ValidUntil:            optionalInclusiveEndDateString(row.ValidUntil),
-			StartsLater:           row.StartsLater,
-			IsCurrentSelection:    row.IsCurrentSelection,
-		})
+func toAdminChildOffering(row enrollmentService.ChildOfferingRow) AdminRequestChildOffering {
+	return AdminRequestChildOffering{
+		OfferingID:            strconv.FormatInt(row.OfferingID, 10),
+		OfferingName:          row.OfferingName,
+		DaysOfWeekMode:        row.DaysOfWeekMode,
+		SelectedDays:          row.SelectedDays,
+		ManualSelectedDays:    row.ManualSelectedDays,
+		AutomaticSelectedDays: row.AutomaticSelectedDays,
+		AvailableDays:         row.AvailableDays,
+		IncludesLunch:         row.IncludesLunch,
+		IncludesHolidayCare:   row.IncludesHolidayCare,
+		PriceCents:            row.PriceCents,
+		ValidFrom:             optionalDateString(row.ValidFrom),
+		ValidUntil:            optionalInclusiveEndDateString(row.ValidUntil),
+		StartsLater:           row.StartsLater,
 	}
-	return out
 }
 
 func toAdminOfferingAdjustment(row *auditModels.EnrollmentOfferingAdjustment) AdminOfferingAdjustment {

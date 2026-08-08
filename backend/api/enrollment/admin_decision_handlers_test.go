@@ -47,6 +47,9 @@ type mockDecisionService struct {
 	listChildOffResult map[int64][]enrollmentService.ChildOfferingRow
 	listChildOffErr    error
 
+	updateChildOffResult *enrollmentModels.RequestChild
+	updateChildOffErr    error
+
 	decideInput  enrollmentService.DecideInput
 	decideCalls  int
 	decideResult *enrollmentService.DecideOutcome
@@ -110,7 +113,7 @@ func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, res
 }
 
 func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
-	return nil, nil
+	return m.updateChildOffResult, m.updateChildOffErr
 }
 
 func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
@@ -155,6 +158,7 @@ func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router 
 	r.Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
 	r.Post("/enrollment/admin/students/{studentId}/requests/export", rs.exportStudentEnrollmentRequests)
 	r.Post("/enrollment/admin/requests/{id}/children/{childId}/decide", rs.decideAdminChild)
+	r.Put("/enrollment/admin/requests/{id}/children/{childId}/offerings", rs.updateAdminChildOfferings)
 	r.Post("/enrollment/admin/requests/{id}/restore", rs.restoreAdminRequest)
 	return r
 }
@@ -453,8 +457,96 @@ func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 	assert.Contains(t, body, `"valid_until":"2027-07-31"`,
 		"stored end 2027-08-01 is exclusive; the last covered day is 2027-07-31")
 	assert.NotContains(t, body, `"valid_until":"2027-08-01"`)
-	assert.Contains(t, body, `"is_current_selection":true`,
-		"clients seed the correction editor from this flag, it must always ship")
+	assert.Contains(t, body, `"offerings":[`,
+		"the current selection ships under offerings, which is what a correction replaces")
+}
+
+// #2185: a booking that only starts later ships in its own array. A client
+// built before that field keeps seeing exactly the selection it always saw,
+// so a stale browser tab cannot pre-check a future booking and apply it
+// months early on an untouched save.
+func TestGetAdminRequestHandler_SeparatesUpcomingOfferings(t *testing.T) {
+	mock := &mockDecisionService{
+		getResult: makeReqSummary(1234, 5678,
+			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
+		),
+		listChildOffResult: map[int64][]enrollmentService.ChildOfferingRow{
+			99: {
+				{
+					OfferingID:         7777,
+					OfferingName:       "Jetzt gebucht",
+					DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
+					IsCurrentSelection: true,
+				},
+				{
+					OfferingID:         8888,
+					OfferingName:       "Ab September",
+					DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
+					StartsLater:        true,
+					IsCurrentSelection: false,
+				},
+			},
+		},
+	}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var payload struct {
+		Data struct {
+			Children []struct {
+				Offerings         []map[string]any `json:"offerings"`
+				UpcomingOfferings []map[string]any `json:"upcoming_offerings"`
+			} `json:"children"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+	require.Len(t, payload.Data.Children, 1)
+	child := payload.Data.Children[0]
+	require.Len(t, child.Offerings, 1, "only the current selection belongs in offerings")
+	assert.Equal(t, "7777", child.Offerings[0]["offering_id"])
+	require.Len(t, child.UpcomingOfferings, 1)
+	assert.Equal(t, "8888", child.UpcomingOfferings[0]["offering_id"])
+}
+
+// A failed offerings lookup must be distinguishable from "this child booked
+// nothing": the client refuses to save a correction on top of the empty
+// state, which would otherwise delete the family's real bookings.
+func TestGetAdminRequestHandler_FlagsUnavailableOfferings(t *testing.T) {
+	mock := &mockDecisionService{
+		getResult: makeReqSummary(1234, 5678,
+			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
+		),
+		listChildOffErr: errors.New("synthetic offerings error"),
+	}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"offerings_unavailable":true`,
+		"an empty offerings list after a failed lookup must not read as 'booked nothing'")
+}
+
+// #2185: the correction is committed before this response is built, so a
+// failed re-read must not report the save as failed. A 500 here made the
+// admin retry and apply the replacement twice, with a second audit entry
+// blaming them for it.
+func TestUpdateAdminChildOfferingsHandler_SucceedsWhenRereadFails(t *testing.T) {
+	mock := &mockDecisionService{
+		updateChildOffResult: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
+		listChildOffErr:      errors.New("synthetic re-read error"),
+	}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPut,
+		"/enrollment/admin/requests/1234/children/99/offerings",
+		map[string]any{
+			"reason":    "Randstunde nachgetragen",
+			"offerings": []map[string]any{{"offering_id": "7777"}},
+		})
+
+	require.Equal(t, http.StatusOK, w.Code,
+		"the correction is already committed; a failed re-read must not undo that verdict")
+	assert.Contains(t, w.Body.String(), `"offerings_unavailable":true`,
+		"the client must learn the returned selection is unknown")
 }
 
 func TestGetAdminRequestHandler_TolerantOfMissingChildOfferings(t *testing.T) {

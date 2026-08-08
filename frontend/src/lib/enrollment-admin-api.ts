@@ -64,17 +64,10 @@ export interface AdminRequestChildOffering {
   /**
    * True for a booking that has not taken effect yet (an approved change
    * scheduled for a future date, or any booking while the phase is still
-   * ahead). Display only.
+   * ahead). Display only — which ARRAY a row arrives in says whether a
+   * correction replaces it, see `upcoming_offerings` on the child.
    */
   starts_later?: boolean;
-  /**
-   * True for the rows a correction replaces. NOT the negation of
-   * `starts_later`: before the phase starts a booking is both "not yet in
-   * effect" and "the selection on file". Seed the correction editor from
-   * THIS field — seeding from `!starts_later` empties it and the save
-   * deletes the family's bookings. Absent means include (safe default).
-   */
-  is_current_selection?: boolean;
 }
 
 interface AdminOfferingAdjustmentSnapshot {
@@ -162,8 +155,23 @@ export interface AdminRequestChild {
   activation_mode: string;
   created_student_id?: string;
   custom_data?: Record<string, unknown>;
-  /** Per-child Betreuungsangebote selection — detail endpoint only. */
+  /**
+   * The Betreuungsangebote selection on file RIGHT NOW — exactly what a
+   * correction replaces. Detail endpoint only.
+   */
   offerings?: AdminRequestChildOffering[];
+  /**
+   * Bookings that only take effect on a later date. Display only: never
+   * feed these into a correction payload, or an untouched save applies a
+   * future change months early (#2185).
+   */
+  upcoming_offerings?: AdminRequestChildOffering[];
+  /**
+   * True when the booking lookup FAILED — as opposed to the child having
+   * no bookings. An empty editor plus a save deletes what the family
+   * actually booked, so corrections must be blocked in this state.
+   */
+  offerings_unavailable?: boolean;
 }
 
 /** Slim form-field shape, only what the admin detail UI needs. */

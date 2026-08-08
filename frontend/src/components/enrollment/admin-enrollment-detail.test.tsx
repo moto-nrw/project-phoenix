@@ -964,11 +964,10 @@ describe("ChildOfferingAdjustment", () => {
     });
   });
 
-  // #2185 added not-yet-effective bookings to the payload so staff can SEE
-  // them. A row that is scheduled to replace the current selection later must
-  // not seed the editor, which replaces the CURRENT selection — otherwise an
-  // untouched save would pull a future booking into the present. The server
-  // marks that distinction with is_current_selection.
+  // #2185 ships bookings that only start later in their own array so staff
+  // can SEE them. They must not seed the editor, which replaces the CURRENT
+  // selection — otherwise an untouched save pulls a future booking into the
+  // present. A client that predates the field never sees them at all.
   it("keeps a scheduled future booking out of the correction payload", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       {
@@ -1010,8 +1009,9 @@ describe("ChildOfferingAdjustment", () => {
             offering_name: "Ganztag",
             days_of_week_mode: "fixed",
             available_days: ["mon"],
-            is_current_selection: true,
           },
+        ],
+        upcoming_offerings: [
           {
             offering_id: "offering-later",
             offering_name: "Ganztag mit Mittagessen",
@@ -1019,7 +1019,6 @@ describe("ChildOfferingAdjustment", () => {
             available_days: ["mon"],
             valid_from: "2026-09-01",
             starts_later: true,
-            is_current_selection: false,
           },
         ],
       }),
@@ -1043,6 +1042,20 @@ describe("ChildOfferingAdjustment", () => {
         }),
       );
     });
+  });
+
+  // A failed offerings lookup is indistinguishable from "booked nothing" in
+  // the payload alone. Correcting on top of that empty state replaces the
+  // family's real bookings with nothing, so the entry point has to disappear.
+  it("blocks corrections when the bookings could not be loaded", () => {
+    renderAdjustment(adjustmentChild({ offerings_unavailable: true }));
+
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/konnten nicht geladen werden/),
+    ).toBeInTheDocument();
   });
 
   // Data-loss regression: before the phase's service start EVERY stored row
@@ -1073,7 +1086,6 @@ describe("ChildOfferingAdjustment", () => {
             // The phase has not started yet: not in effect, but on file.
             valid_from: "2026-10-06",
             starts_later: true,
-            is_current_selection: true,
           },
         ],
       }),
