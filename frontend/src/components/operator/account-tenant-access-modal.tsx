@@ -423,10 +423,12 @@ export function AccountTenantAccessModal({
             </section>
 
             <section className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              {/* h4 wie die beiden Geschwister-Sektionen: FormModal rendert
+                  seinen Titel als h3. */}
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <Plus className="h-4 w-4 text-gray-500" />
                 Schulzugang ergänzen
-              </h3>
+              </h4>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label

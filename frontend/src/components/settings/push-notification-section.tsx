@@ -172,6 +172,8 @@ export function PushNotificationSection({
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
       <ConceptSectionHeader
         className="mb-4"
+        // Geschwisterkarten auf /profile und /parents/settings sind h3.
+        level={3}
         title="Push-Benachrichtigungen"
         concept="notifications"
         actions={headerAction}

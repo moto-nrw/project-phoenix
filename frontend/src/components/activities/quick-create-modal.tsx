@@ -349,6 +349,8 @@ export function QuickCreateActivityModal({
           {/* Info Card */}
           <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-4">
             <SectionHeader
+              // FormModal rendert seinen Titel als h3.
+              level={4}
               title="Hinweis"
               icon={
                 <MotoDuotoneIcon icon={InfoIcon} tone="neutral" size={18} />

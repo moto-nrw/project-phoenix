@@ -16,9 +16,22 @@ interface PersonsTableProps {
  * Implementierung fuer PersonsTable und die Karten-Ansicht in
  * app/operator/persons/page.tsx, damit beide dieselben MOTO-Tokens nutzen.
  */
-export function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
+export function PersonTags({
+  person,
+  emptyPlaceholder = false,
+}: Readonly<{
+  person: OperatorPerson;
+  /**
+   * Zeigt einen Gedankenstrich, wenn die Person kein einziges Merkmal traegt.
+   * Nur fuer die Tabellenzelle gedacht, die nicht leer bleiben soll. Die
+   * Kartenansicht rendert in dem Fall nichts, so wie vor der Extraktion.
+   */
+  emptyPlaceholder?: boolean;
+}>) {
   if (!person.isStaff && !person.isStudent && !person.hasRfidCard) {
-    return <span className="text-xs text-gray-400">—</span>;
+    return emptyPlaceholder ? (
+      <span className="text-xs text-gray-400">—</span>
+    ) : null;
   }
   return (
     <div className="flex flex-wrap gap-1">
@@ -82,7 +95,7 @@ export function PersonsTable({
       {
         key: "tags",
         header: "Merkmale",
-        render: (row) => <PersonTags person={row} />,
+        render: (row) => <PersonTags person={row} emptyPlaceholder />,
         sortValue: getPersonTagSortValue,
       },
       {
