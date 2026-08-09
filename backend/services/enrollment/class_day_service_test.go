@@ -2,13 +2,16 @@ package enrollment
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -396,6 +399,56 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 	// fabricate "Geht alleine" for a child without any plan.
 	assert.Equal(t, "Keine Angabe", report.Rows[0].Departure)
 	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)
+}
+
+// fakeClassDayAccessLogRepo captures audit rows and answers ExistsSince from
+// the captured rows, mirroring the real dedupe semantics.
+type fakeClassDayAccessLogRepo struct {
+	entries []*auditModels.DataAccessLog
+}
+
+func (f *fakeClassDayAccessLogRepo) Create(_ context.Context, entry *auditModels.DataAccessLog) error {
+	f.entries = append(f.entries, entry)
+	return nil
+}
+
+func (f *fakeClassDayAccessLogRepo) ExistsSince(_ context.Context, actorAccountID int64, resourceType string, metadata map[string]string, _ time.Time) (bool, error) {
+	for _, entry := range f.entries {
+		if entry.ActorAccountID != actorAccountID || entry.ResourceType != resourceType {
+			continue
+		}
+		match := true
+		for key, value := range metadata {
+			if fmt.Sprint(entry.Metadata[key]) != value {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func TestRecordClassDayViewAuditDedupesPerActorClassAndDate(t *testing.T) {
+	repo := &fakeClassDayAccessLogRepo{}
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{DataAccessLogRepo: repo}}
+	report := &ClassDayReport{SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 5)}
+
+	// The view revalidates itself (interval + focus): identical repeat reads
+	// must collapse into ONE evidential row.
+	require.NoError(t, svc.recordClassDayViewAudit(context.Background(), report, 42, "lehrkraft"))
+	require.NoError(t, svc.recordClassDayViewAudit(context.Background(), report, 42, "lehrkraft"))
+	assert.Len(t, repo.entries, 1)
+
+	// A different class, date, or actor is a distinct access and writes again.
+	otherClass := &ClassDayReport{SchoolClass: "1b", Date: timezone.NewDate(2026, 8, 5)}
+	require.NoError(t, svc.recordClassDayViewAudit(context.Background(), otherClass, 42, "lehrkraft"))
+	otherDate := &ClassDayReport{SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 6)}
+	require.NoError(t, svc.recordClassDayViewAudit(context.Background(), otherDate, 42, "lehrkraft"))
+	require.NoError(t, svc.recordClassDayViewAudit(context.Background(), report, 43, "lehrkraft"))
+	assert.Len(t, repo.entries, 4)
 }
 
 func TestClassDayRequiresSchoolClass(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -25,6 +26,10 @@ func (s *stubAccessLogRepo) Create(_ context.Context, entry *auditModels.DataAcc
 	}
 	s.entries = append(s.entries, entry)
 	return nil
+}
+
+func (s *stubAccessLogRepo) ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error) {
+	return false, nil
 }
 
 // IDs are deliberately well above 9 so the hermetic hardcoded-ID check

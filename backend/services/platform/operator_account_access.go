@@ -135,6 +135,22 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
 
+		// Same guard as UpdateAccountTenantRole: a revoke deliberately leaves
+		// person/staff/teacher records behind (see RevokeAccountTenantAccess),
+		// so re-granting the same school with the Lehrkraft role would revive
+		// a live caregiver profile — users.teachers plus its group
+		// supervisions — on an account whose JWT only carries class_day
+		// permissions. Offboarded (soft-deleted) profiles do not block.
+		if authSvc.IsLehrkraftSystemRole(role) {
+			hasCaregiverProfile, profErr := s.hasSchoolCaregiverProfile(tenantCtx, accountID)
+			if profErr != nil {
+				return profErr
+			}
+			if hasCaregiverProfile {
+				return &InvalidDataError{Err: fmt.Errorf("cannot assign the lehrkraft role: the account has a caregiver profile at this school; remove it via staff offboarding first")}
+			}
+		}
+
 		mapping := &authModels.AccountTenant{AccountID: accountID, TenantID: schoolID}
 		if err := s.AccountTenantRepo.EnsureActive(tenantCtx, mapping); err != nil {
 			return fmt.Errorf("activate account-tenant mapping: %w", err)

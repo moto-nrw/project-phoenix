@@ -606,8 +606,26 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 // recordClassDayViewAudit writes the GDPR access log for a class day view:
 // care and departure data of an entire class served to one account, under
 // its own resource type and the caller's actual roles.
+//
+// Deduplicated to one row per actor, class, report date and calendar day of
+// access: the view revalidates itself (interval + tab focus), and a second
+// identical row every few minutes would bloat the append-only table and
+// destroy the log's evidential value. A view on a LATER calendar day writes
+// again — "looked at it again the next day" stays auditable.
 func (s *reportService) recordClassDayViewAudit(ctx context.Context, report *ClassDayReport, actorAccountID int64, actorRole string) error {
 	if s.DataAccessLogRepo == nil {
+		return nil
+	}
+	seen, err := s.DataAccessLogRepo.ExistsSince(ctx, actorAccountID, auditModels.ResourceTypeClassDayView,
+		map[string]string{
+			"school_class": report.SchoolClass,
+			"date":         report.Date.String(),
+		},
+		timezone.TodayDate().BerlinMidnight())
+	if err != nil {
+		return fmt.Errorf("class day view audit dedupe: %w", err)
+	}
+	if seen {
 		return nil
 	}
 	entry, err := exportAuditEntry("class day view audit", actorAccountID, actorRole,

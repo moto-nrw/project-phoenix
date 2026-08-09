@@ -206,19 +206,23 @@ type ReportServiceConfig struct {
 	EducationGroupRepo   educationModels.GroupRepository
 	// StudentStatusDayRepo supplies the scheduled day statuses (sick /
 	// excused / class trip) the class day view (#1772) marks students with.
-	// Optional: unconfigured only costs the status column, never the view.
+	// REQUIRED for ClassDay: it fails fast ("status/schedule dependencies
+	// not configured") rather than serving a sheet where a sick child shows
+	// as staying. The enrollment reports and the class roster never consume
+	// it, so a config built only for those may leave it nil.
 	StudentStatusDayRepo activeModels.StudentStatusDayRepository
 	// PickupScheduleSvc / ArrivalScheduleSvc supply the effective per-date
 	// times (weekly plan + day exceptions) for the class day view. They are
 	// the CURRENT truth — the enrollment form answer is only the snapshot the
-	// plan was materialized from. Optional: unconfigured falls back to the
-	// form-answer times.
+	// plan was materialized from. REQUIRED for ClassDay (same fail-fast as
+	// StudentStatusDayRepo); no other report path consumes them.
 	PickupScheduleSvc  scheduleService.PickupScheduleService
 	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
 	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
 	// exception on EITHER leg cancels the day). The class day view consumes
 	// it instead of re-deriving the precedence from raw schedule entries —
 	// re-implementations are explicitly forbidden (care_day_resolver.go).
+	// REQUIRED for ClassDay (same fail-fast); unused by the other reports.
 	CareDaySvc scheduleService.CareDayService
 }
 

@@ -236,7 +236,13 @@ function isWeekendISO(dateISO: string): boolean {
 // aktualisieren, damit z. B. eine um 11:30 gemeldete Krankmeldung nicht
 // bis zum Reload unsichtbar bleibt. Kein SSE für diese Daten (Lehrkräfte
 // betreuen keine aktiven Gruppen), daher Intervall plus Fokus-Revalidierung.
+// Das GDPR-Access-Log flutet dabei nicht: recordClassDayViewAudit dedupliziert
+// serverseitig auf eine Zeile pro Actor, Klasse, Datum und Zugriffstag.
 const REPORT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+// Fokus-Revalidierung gedrosselt: jeder Abruf baut serverseitig den vollen
+// ClassRoster pro deckender Phase und Klasse neu — schnelles Tab-Hüpfen darf
+// das nicht im Sekundentakt auslösen (SWR-Default wären 5 Sekunden).
+const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
 
 export default function KlassenPage() {
   const { data: session } = useSession();
@@ -295,6 +301,7 @@ export default function KlassenPage() {
     {
       refreshInterval: REPORT_REFRESH_INTERVAL_MS,
       revalidateOnFocus: true,
+      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
       // Beim Datumswechsel Skeleton statt der Daten des alten Tages zeigen;
       // bereits besuchte Tage kommen trotzdem sofort aus dem SWR-Cache.
       keepPreviousData: false,
