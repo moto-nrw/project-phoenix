@@ -19,6 +19,7 @@ const (
 	ScopeOrg      = "org"      // Organization-level user (sees all schools in org)
 	ScopePlatform = "platform" // Platform operator (moto DevOps, sees everything)
 	ScopeParent   = "parent"   // Cross-tenant guardian — sees children across all linked schools
+	ScopeSchool   = "school"   // School portal (Lehrkraft) — tenant-bound like ScopeTenant, but only valid on /school/* (#2207)
 )
 
 // WithTenantID returns a new context with the tenant ID set.
