@@ -16,9 +16,8 @@ import {
   buildGuardianMailtoHref,
   buildGuardianTelHref,
 } from "./guardian-contact-actions";
-import { LOCATION_COLORS, GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
-  UserCheck,
   Phone,
   AlertCircle,
   Mail,
@@ -39,7 +38,7 @@ const ACCOUNT_STATUS_META: Record<
     label: "Konto aktiv, kein Portalzugriff",
     dot: LOCATION_COLORS.SCHOOLYARD,
   },
-  pending: { label: "Einladung offen", dot: LOCATION_COLORS.SICK },
+  pending: { label: "Einladung offen", dot: LOCATION_COLORS.WARNING },
   none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
 };
 
@@ -116,8 +115,7 @@ export default function GuardianList({
                   {getGuardianFullName(guardian)}
                 </span>
                 {guardian.isPrimary && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                    <UserCheck className="h-3 w-3" />
+                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                     Primär
                   </span>
                 )}
@@ -148,8 +146,7 @@ export default function GuardianList({
                       type="button"
                       onClick={() => onInvite(guardian)}
                       disabled={invitingGuardianId === guardian.id}
-                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-[#f0f9e4] disabled:opacity-50"
-                      style={{ color: GROUP_ROOM_SHADES.text }}
+                      className="text-moto-green-strong hover:bg-moto-green/10 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
                       title={
                         INVITE_ACTION_META[guardian.accountStatus ?? "none"]
                           .title
@@ -223,19 +220,19 @@ export default function GuardianList({
           {/* Badges: Flags and Language */}
           <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
             {guardian.canPickup && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+              <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                 <Shield className="h-3 w-3" />
                 Abholberechtigt
               </span>
             )}
             {guardian.isEmergencyContact && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+              <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                 <AlertCircle className="h-3 w-3" />
                 Notfallkontakt
               </span>
             )}
             {guardian.languagePreference && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+              <span className="bg-moto-blue/15 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                 <Globe className="h-3 w-3" />
                 {getLanguageLabel(guardian.languagePreference)}
               </span>
@@ -297,7 +294,7 @@ function EmailItem({
       </div>
       <a
         href={mailtoUrl}
-        className="text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-blue-600 hover:decoration-blue-600"
+        className="hover:text-moto-blue-strong hover:decoration-moto-blue-strong text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors"
       >
         {email}
       </a>
@@ -334,14 +331,14 @@ function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
         <Phone className="h-4 w-4" />
         <span>{getPhoneLabel(phone)}</span>
         {phone.isPrimary && (
-          <span className="ml-1 rounded bg-purple-100 px-1 py-0.5 text-[10px] font-medium text-purple-700">
+          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-700">
             Primär
           </span>
         )}
       </div>
       <a
         href={buildGuardianTelHref(phone.phoneNumber)}
-        className="text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-blue-600 hover:decoration-blue-600"
+        className="hover:text-moto-blue-strong hover:decoration-moto-blue-strong text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors"
       >
         {phone.phoneNumber}
       </a>

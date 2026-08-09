@@ -11,6 +11,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { useToast } from "~/contexts/ToastContext";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   caregiverCapabilityService,
   CaregiverCapabilityApiError,
@@ -18,6 +19,7 @@ import {
 } from "~/lib/caregiver-capability-api";
 import { CaregiverBlockerResolutionModal } from "~/components/teachers/caregiver-blocker-resolution-modal";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "CaregiverCapabilityModal" });
 
@@ -274,7 +276,7 @@ export function CaregiverCapabilityModal({
               type="button"
               onClick={() => void handleDisable()}
               disabled={saving || loading || state?.disableBlocked}
-              className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               Betreuung deaktivieren
             </button>
@@ -299,7 +301,13 @@ export function CaregiverCapabilityModal({
           {/* Current role overview */}
           <InfoSection
             title="Aktuelle Rolle"
-            icon={DetailIcons.person}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.roles.icon}
+                tone={MOTO_CONCEPTS.roles.tone}
+                size={18}
+              />
+            }
             accentColor={state.isActiveCaregiver ? "green" : "gray"}
           >
             <DataGrid>
@@ -317,7 +325,13 @@ export function CaregiverCapabilityModal({
           {needsNames ? (
             <InfoSection
               title="Personaldaten anlegen"
-              icon={DetailIcons.briefcase}
+              icon={
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.staff.icon}
+                  tone={MOTO_CONCEPTS.staff.tone}
+                  size={18}
+                />
+              }
               accentColor="orange"
             >
               <p className="mb-3 text-xs text-gray-600">
@@ -356,7 +370,13 @@ export function CaregiverCapabilityModal({
           {state.isActiveCaregiver && state.disableBlockers.length > 0 ? (
             <InfoSection
               title="Offene Zuordnungen"
-              icon={DetailIcons.group}
+              icon={
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.groups.icon}
+                  tone={MOTO_CONCEPTS.groups.tone}
+                  size={18}
+                />
+              }
               accentColor="amber"
             >
               <p className="mb-2 text-xs text-gray-600">
@@ -368,9 +388,9 @@ export function CaregiverCapabilityModal({
                 {state.disableBlockers.map((blocker) => (
                   <li
                     key={blocker}
-                    className="flex items-start gap-2 text-sm text-amber-800"
+                    className="text-moto-amber-strong flex items-start gap-2 text-sm"
                   >
-                    <span className="mt-1 h-3 w-3 flex-shrink-0 text-amber-500">
+                    <span className="text-moto-amber mt-1 h-3 w-3 flex-shrink-0">
                       {DetailIcons.x}
                     </span>
                     {blocker}
@@ -381,7 +401,7 @@ export function CaregiverCapabilityModal({
                 <button
                   type="button"
                   onClick={() => setResolutionOpen(true)}
-                  className="rounded-lg border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-200"
+                  className="border-moto-amber/40 bg-moto-amber/20 text-moto-amber-strong hover:bg-moto-amber/30 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
                 >
                   Zuordnungen auflösen
                 </button>

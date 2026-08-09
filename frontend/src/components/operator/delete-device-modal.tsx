@@ -62,7 +62,7 @@ export function DeleteDeviceModal({
               <span className="font-medium">{device.schoolName}</span> wirklich
               löschen?
             </p>
-            <p className="mt-2 font-medium text-[#CC2626]">
+            <p className="text-moto-red-strong mt-2 font-medium">
               Diese Aktion kann nicht rückgängig gemacht werden.
             </p>
           </>

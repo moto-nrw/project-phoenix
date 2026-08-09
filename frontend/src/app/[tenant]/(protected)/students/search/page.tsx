@@ -8,7 +8,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { Download } from "lucide-react";
+import { AlertTriangle, Download, Search, Users } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -2435,19 +2435,7 @@ function SearchPageContent() {
           title="Kindersuche"
           badge={{
             icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
+              <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
             ),
             count: filteredStudents.length,
           }}
@@ -2550,19 +2538,10 @@ function SearchPageContent() {
             return (
               <div className="py-12 text-center">
                 <div className="flex flex-col items-center gap-4">
-                  <svg
-                    className="h-12 w-12 text-red-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
+                  <AlertTriangle
+                    className="text-moto-red h-12 w-12"
+                    aria-hidden="true"
+                  />
                   <div>
                     {/* Fix P3: Use errorType instead of substring matching */}
                     <h3 className="text-lg font-medium text-gray-900">
@@ -2581,19 +2560,10 @@ function SearchPageContent() {
             return (
               <div className="py-12 text-center">
                 <div className="flex flex-col items-center gap-4">
-                  <svg
+                  <Search
                     className="h-12 w-12 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">
                       Keine Kinder gefunden
@@ -2695,14 +2665,15 @@ function SearchPageContent() {
                 }
                 extraContent={
                   <>
+                    {/* Fixed four-row skeleton: every card renders Klasse,
+                        Gruppe and the two time slots so names and rows align
+                        across the grid; missing values show a dash. */}
                     <StudentInfoRow icon={<SchoolClassIcon />}>
-                      {student.school_class}
+                      {student.school_class || "—"}
                     </StudentInfoRow>
-                    {student.group_name && (
-                      <StudentInfoRow icon={<GroupIcon />}>
-                        Gruppe: {student.group_name}
-                      </StudentInfoRow>
-                    )}
+                    <StudentInfoRow icon={<GroupIcon />}>
+                      Gruppe: {student.group_name || "—"}
+                    </StudentInfoRow>
                     {student.has_full_access !== false &&
                       student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow
@@ -2719,12 +2690,26 @@ function SearchPageContent() {
                         const absenceWording = isToday
                           ? undefined
                           : "Kommt nicht";
+                        // Absence rows fill the arrival slot; a neutral
+                        // "Gehzeit: —" row (deliberately without the planned
+                        // time, so no overdue styling can fire for a child
+                        // who is not coming) keeps absent and present cards
+                        // at the same four-row height.
+                        const absencePickupRow = (
+                          <PickupTimeRow
+                            isException={false}
+                            now={planningNow}
+                          />
+                        );
                         if (absence && !student.actual_pickup_time) {
                           return (
-                            <StudentAbsenceRow
-                              label={absence.label}
-                              wording={absenceWording}
-                            />
+                            <>
+                              <StudentAbsenceRow
+                                label={absence.label}
+                                wording={absenceWording}
+                              />
+                              {absencePickupRow}
+                            </>
                           );
                         }
                         const dayPlanningNotComingLabel =
@@ -2736,10 +2721,13 @@ function SearchPageContent() {
                           !student.actual_pickup_time
                         ) {
                           return (
-                            <StudentAbsenceRow
-                              label={dayPlanningNotComingLabel}
-                              wording={absenceWording}
-                            />
+                            <>
+                              <StudentAbsenceRow
+                                label={dayPlanningNotComingLabel}
+                                wording={absenceWording}
+                              />
+                              {absencePickupRow}
+                            </>
                           );
                         }
                         return (

@@ -95,8 +95,8 @@ export function SetApiKeyModal({
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="API-Key aktualisiert">
         <div className="space-y-4">
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-            <p className="text-sm font-medium text-green-800">
+          <div className="border-moto-green/20 bg-moto-green/10 rounded-lg border p-4">
+            <p className="text-moto-green-strong text-sm font-medium">
               API-Key für {deviceLabel} wurde aktualisiert.
             </p>
           </div>
@@ -156,7 +156,7 @@ export function SetApiKeyModal({
             type="button"
             onClick={() => void handleSubmit()}
             disabled={isSaving || (mode === "manual" && !customKey.trim())}
-            className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="bg-moto-red hover:bg-moto-red-hover flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? "Wird geändert..." : "Übernehmen"}
           </button>
@@ -168,8 +168,8 @@ export function SetApiKeyModal({
           API-Key für <span className="font-medium">{deviceLabel}</span> ändern.
         </p>
 
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-          <p className="text-sm text-amber-800">
+        <div className="border-moto-amber/30 bg-moto-amber-soft rounded-lg border p-3">
+          <p className="text-moto-amber-strong text-sm">
             Der alte Key wird sofort ungültig. Alle Geräte, die diesen Key
             nutzen, verlieren den Zugriff.
           </p>
@@ -183,7 +183,7 @@ export function SetApiKeyModal({
               value="auto"
               checked={mode === "auto"}
               onChange={() => setMode("auto")}
-              className="text-blue-600"
+              className="text-moto-blue"
             />
             <span className="text-sm text-gray-700">Neuen Key generieren</span>
           </label>
@@ -194,7 +194,7 @@ export function SetApiKeyModal({
               value="manual"
               checked={mode === "manual"}
               onChange={() => setMode("manual")}
-              className="text-blue-600"
+              className="text-moto-blue"
             />
             <span className="text-sm text-gray-700">Eigenen Key eingeben</span>
           </label>
@@ -205,7 +205,7 @@ export function SetApiKeyModal({
               onChange={(e) => setCustomKey(e.target.value)}
               placeholder="API-Key eingeben..."
               maxLength={255}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
             />
           )}
         </div>

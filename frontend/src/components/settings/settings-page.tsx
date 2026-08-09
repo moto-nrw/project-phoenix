@@ -19,6 +19,7 @@ import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -201,7 +202,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   if (fetchError && !schema) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <p className="text-sm text-[#CC2626]">
+        <p className="text-moto-red-strong text-sm">
           {fetchError instanceof Error
             ? fetchError.message
             : "Einstellungen konnten nicht geladen werden"}
@@ -240,7 +241,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
           <button
             type="button"
             onClick={() => setSaveError(null)}
-            className="absolute top-1/2 right-4 -translate-y-1/2 text-[#CC2626] hover:text-[#9F1F1E]"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <svg
@@ -276,7 +277,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
  * Returns null silently if user has no access or schema is empty.
  */
 export function useSettingsTabs(): {
-  tabs: { id: string; label: string; icon: string }[];
+  tabs: { id: string; label: string; icon: MotoConceptKey }[];
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
   const searchParams = useSearchParams();
@@ -298,24 +299,18 @@ export function useSettingsTabs(): {
     security: "Sicherheit",
   };
 
-  // Tab icon mapping (SVG paths for lucide-style icons)
-  const defaultTabIcon =
-    "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4";
-  const tabIcons: Record<string, string> = {
-    operations:
-      "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-    reminders:
-      "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    gdpr: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
-    devices:
-      "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-    enrollment:
-      "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
-    system: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-    general:
-      "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
-    security:
-      "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+  // Tab icon mapping (MOTO-Konzepte statt SVG-Pfaden)
+  const defaultTabConcept: MotoConceptKey = "settings";
+  const tabConcepts: Record<string, MotoConceptKey> = {
+    operations: "settings",
+    reminders: "notifications",
+    notifications: "notifications",
+    gdpr: "permissions",
+    devices: "devices",
+    enrollment: "enrollments",
+    system: "settings",
+    general: "settings",
+    security: "permissions",
   };
 
   // When the schema fetch failed, render placeholder tabs so SettingsContent
@@ -326,7 +321,7 @@ export function useSettingsTabs(): {
     ? fallbackTabKeys.map((key) => ({
         id: `settings-${key}`,
         label: tabLabels[key] ?? key,
-        icon: tabIcons[key] ?? defaultTabIcon,
+        icon: tabConcepts[key] ?? defaultTabConcept,
       }))
     : (schema?.tabs ?? [])
         // Payroll settings (#1417) have their own maintenance page under
@@ -336,14 +331,18 @@ export function useSettingsTabs(): {
         .map((tab) => ({
           id: `settings-${tab.key}`,
           label: tabLabels[tab.key] ?? tab.label,
-          icon: tabIcons[tab.key] ?? defaultTabIcon,
+          icon: tabConcepts[tab.key] ?? defaultTabConcept,
         }));
 
   // Personalisierung is always available (permission-gated inside the component)
-  const personalizationTab = {
+  const personalizationTab: {
+    id: string;
+    label: string;
+    icon: MotoConceptKey;
+  } = {
     id: "settings-personalisierung",
     label: "Personalisierung",
-    icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+    icon: "settings",
   };
 
   const tabs = [...schemaTabs, personalizationTab];

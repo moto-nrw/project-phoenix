@@ -42,7 +42,7 @@ describe("reminders-display", () => {
 
   describe("reminderToneClass", () => {
     it("uses brand red only for overdue, gray otherwise", () => {
-      expect(reminderToneClass(makeReminder(-5))).toBe("text-[#FF3130]");
+      expect(reminderToneClass(makeReminder(-5))).toBe("text-moto-red");
       expect(reminderToneClass(makeReminder(5))).toBe("text-gray-500");
       expect(reminderToneClass(makeReminder(0))).toBe("text-gray-500");
     });

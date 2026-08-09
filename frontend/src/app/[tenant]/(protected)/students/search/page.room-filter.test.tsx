@@ -102,12 +102,16 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
   deriveCheckinState: () => "unknown",
 }));
 
-vi.mock("~/lib/location-helper", () => ({
-  isHomeLocation: () => false,
-  isPresentLocation: () => true,
-  isTransitLocation: () => false,
-  isSchoolyardLocation: () => false,
-}));
+vi.mock("~/lib/location-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/location-helper")>();
+  return {
+    ...actual,
+    isHomeLocation: () => false,
+    isPresentLocation: () => true,
+    isTransitLocation: () => false,
+    isSchoolyardLocation: () => false,
+  };
+});
 
 vi.mock("~/lib/student-helpers", () => ({
   SCHOOL_YEAR_FILTER_OPTIONS: [{ value: "all", label: "Alle" }],

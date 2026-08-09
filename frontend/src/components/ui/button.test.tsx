@@ -76,25 +76,28 @@ describe("Button", () => {
     render(<Button variant="outline_danger">Danger Outline</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-[#FF3130]/10");
-    expect(button.className).toContain("text-[#CC2626]");
+    expect(button.className).toContain("bg-moto-red-soft");
+    expect(button.className).toContain("text-moto-red-strong");
   });
 
   it("applies danger variant styles", () => {
     render(<Button variant="danger">Danger</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-[#FF3130]");
-    expect(button.className).toContain("text-gray-900");
-    expect(button.className).toContain("hover:text-white");
+    expect(button.className).toContain("bg-moto-red");
+    // Weiss, nicht gray-950: gray-950 auf moto-red ergibt 4,17:1 und verfehlt
+    // AA fuer normalen Text. Weiss erreicht 4,83:1 und behaelt es auch im
+    // Hover ueber moto-red-strong (6,47:1).
+    expect(button.className).toContain("text-white");
+    expect(button.className).toContain("hover:bg-moto-red-strong");
   });
 
   it("applies success variant styles", () => {
     render(<Button variant="success">Success</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-[#83CD2D]");
-    expect(button.className).toContain("text-gray-900");
+    expect(button.className).toContain("bg-moto-green");
+    expect(button.className).toContain("text-gray-950");
   });
 
   it("applies sm size styles", () => {

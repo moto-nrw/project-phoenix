@@ -70,7 +70,7 @@ export function SchoolCheckinModeMobile({
         aria-label="Kinder an- und abmelden"
         className="flex w-full items-center justify-center gap-2.5 rounded-full px-5 py-3 text-base font-semibold transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.99]"
         style={{
-          backgroundColor: "#fff",
+          backgroundColor: "var(--color-white)",
           color: GROUP_ROOM_SHADES.text,
           boxShadow: `inset 0 0 0 1.5px ${GROUP_ROOM_SHADES.base}, 0 1px 2px rgb(0 0 0 / 0.04)`,
           // @ts-expect-error CSS custom property for focus ring colour
@@ -102,7 +102,7 @@ export function SchoolCheckinModeMobile({
         className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
         style={{
           backgroundColor: GROUP_ROOM_SHADES.base,
-          color: "#fff",
+          color: "var(--color-white)",
           boxShadow:
             "0 -4px 20px rgb(0 0 0 / 0.10), 0 8px 24px rgb(0 0 0 / 0.08)",
         }}

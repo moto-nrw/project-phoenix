@@ -27,12 +27,13 @@ import {
 } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarOff, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -1327,9 +1328,10 @@ function TimetablesContent() {
 
       {showEmptyPeriodState ? (
         <div className={`${timetableSurface} p-10 text-center`}>
-          <CalendarOff
-            className="mx-auto h-10 w-10 text-gray-300"
-            aria-hidden
+          <MotoConceptIcon
+            concept="closingDays"
+            size={42}
+            className="mx-auto"
           />
           <h2 className="mt-4 text-base font-semibold text-gray-900">
             Noch kein Planungszeitraum

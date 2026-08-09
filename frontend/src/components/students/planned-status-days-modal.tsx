@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
-import { CalendarCheck, CalendarX, X } from "lucide-react";
+import { X } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import type {
@@ -206,12 +207,11 @@ export function PlannedStatusDaysModal({
     >
       <div className="space-y-5">
         <div className="flex items-start gap-3">
-          <div className="moto-content-surface mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 shadow-sm">
-            {isSick ? (
-              <CalendarX className="h-5 w-5" />
-            ) : (
-              <CalendarCheck className="h-5 w-5" />
-            )}
+          <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <MotoConceptIcon
+              concept={isClassTrip ? "classTrip" : isSick ? "sick" : "excused"}
+              size={22}
+            />
           </div>
           <div>
             <p className="text-sm font-medium text-gray-900">{studentName}</p>
@@ -260,7 +260,7 @@ export function PlannedStatusDaysModal({
               </div>
             </div>
             {selectionHint ? (
-              <p className="mt-2 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+              <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
                 {selectionHint}
               </p>
             ) : null}
@@ -281,7 +281,7 @@ export function PlannedStatusDaysModal({
                 calendarLayout="inline"
               />
               {selectionHint ? (
-                <p className="mt-2 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+                <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
                   {selectionHint}
                 </p>
               ) : null}
@@ -396,7 +396,7 @@ export function PlannedStatusDaysModal({
                       type="button"
                       onClick={() => onDeleteStatusDay(day.id)}
                       disabled={isSubmitting || deletingStatusDayId === day.id}
-                      className="inline-flex h-8 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white px-2.5 text-xs font-semibold text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none disabled:opacity-50"
+                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                     >
                       {deletingStatusDayId === day.id
                         ? "Wird entfernt..."

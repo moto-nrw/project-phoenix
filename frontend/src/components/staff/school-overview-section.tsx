@@ -57,17 +57,17 @@ const deltaExplanations: Record<DashboardPeriod, string> = {
 type StatTone = "green" | "amber" | "gray" | "red";
 
 const valueTone: Record<StatTone, string> = {
-  green: "text-[#4a7a15]",
-  amber: "text-amber-600",
+  green: "text-moto-green-strong",
+  amber: "text-moto-amber-strong",
   gray: "text-gray-900",
-  red: "text-red-600",
+  red: "text-moto-red",
 };
 
 const barTone: Record<StatTone, string> = {
-  green: "bg-[#83CD2D]",
-  amber: "bg-amber-500",
+  green: "bg-moto-green",
+  amber: "bg-moto-amber",
   gray: "bg-gray-300",
-  red: "bg-[#FF3130]",
+  red: "bg-moto-red",
 };
 
 function StatTile({
@@ -266,7 +266,7 @@ export function SchoolOverviewSection() {
               <p
                 className={`text-lg font-bold tabular-nums ${
                   summary.saldoSchoolTotalMinutes < 0
-                    ? "text-red-600"
+                    ? "text-moto-red"
                     : "text-gray-900"
                 }`}
               >

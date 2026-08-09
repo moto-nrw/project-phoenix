@@ -10,7 +10,7 @@ const meta = {
   args: {
     timeRange: "12:00–14:00",
     label: "Mensa",
-    color: "#5A8E1F",
+    color: "#3F6F12",
   },
 } satisfies Meta<typeof PlanBlock>;
 

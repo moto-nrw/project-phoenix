@@ -18,6 +18,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
   berlinTodayISO,
@@ -204,22 +205,22 @@ export function CarePlanView({
   return (
     <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4 sm:p-5">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Betreuungsplan
-            </p>
-            <h2 className="mt-1 text-lg font-semibold text-gray-900 sm:text-xl">
-              {viewMode === "day"
-                ? formatDate(selectedDate, true)
-                : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)}`}
-            </h2>
-          </div>
-          <TabsList variant="default">
-            <TabsTrigger value="day">Tag</TabsTrigger>
-            <TabsTrigger value="week">Woche</TabsTrigger>
-          </TabsList>
-        </div>
+        <ConceptSectionHeader
+          className="border-b border-gray-100 p-4 sm:p-5"
+          title="Betreuungsplan"
+          concept="carePlan"
+          subtitle={
+            viewMode === "day"
+              ? formatDate(selectedDate, true)
+              : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)}`
+          }
+          actions={
+            <TabsList variant="default">
+              <TabsTrigger value="day">Tag</TabsTrigger>
+              <TabsTrigger value="week">Woche</TabsTrigger>
+            </TabsList>
+          }
+        />
 
         {/* Navigation row */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-5">

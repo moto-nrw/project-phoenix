@@ -80,7 +80,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     // Split spans, "2" (Ist) then "/3" (Soll) — the Ist is red on shortfall.
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("/3")).toBeInTheDocument();
-    expect(screen.getByText("2")).toHaveStyle({ color: "#FF3130" });
+    expect(screen.getByText("2")).toHaveStyle({ color: "#DC2626" });
   });
 
   it("renders cancelled instances via the PlanBlock cancelled recipe", () => {
@@ -148,7 +148,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     renderBlock(makeInstance(), { isGap: true });
 
     const icon = screen.getByLabelText("Offene Lücke");
-    expect(icon).toHaveClass("text-[#F78C10]");
+    expect(icon).toHaveClass("text-moto-orange");
   });
 
   it("lets cancelled beat gap: a cancelled gap block shows no gap icon", () => {

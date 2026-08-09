@@ -92,7 +92,7 @@ export function AnnouncementViewsAccordion({
             )}
 
             {/* Error */}
-            {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
+            {error && <p className="text-moto-red mb-2 text-xs">{error}</p>}
 
             {/* Confirmed users list */}
             {!isLoading && confirmedUsers.length > 0 && (
@@ -103,7 +103,7 @@ export function AnnouncementViewsAccordion({
                     className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
                   >
                     {/* Initials avatar */}
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-600">
+                    <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                       {getInitial(detail.userName)}
                     </div>
 
@@ -125,7 +125,7 @@ export function AnnouncementViewsAccordion({
                             · {getRelativeTime(detail.seenAt)}
                           </time>
                         </div>
-                        <Check className="h-4 w-4 text-green-500" />
+                        <Check className="text-moto-green h-4 w-4" />
                       </div>
                     </div>
                   </div>

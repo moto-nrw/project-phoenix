@@ -24,6 +24,11 @@ import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
+import {
+  ConceptPageHeader,
+  ConceptSectionHeader,
+} from "~/components/ui/concept-section-header";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "OperatorSchoolSettingsPage" });
 
@@ -36,6 +41,18 @@ const TAB_LABELS: Record<string, string> = {
   devices: "Geräte",
   system: "System",
   general: "Allgemein",
+};
+
+// Konzept je Einstellungs-Tab, fuer die Kachel im Sektions-Header. Faellt auf
+// das neutrale "settings"-Konzept zurueck, wenn kein spezifischeres passt.
+const TAB_CONCEPTS: Record<string, MotoConceptKey> = {
+  operations: "settings",
+  reminders: "notifications",
+  gdpr: "permissions",
+  security: "permissions",
+  devices: "devices",
+  system: "settings",
+  general: "settings",
 };
 
 interface PageProps {
@@ -165,13 +182,11 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           </svg>
           {backLabel}
         </Link>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Einstellungen{schoolName ? ` · ${schoolName}` : ""}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Sie bearbeiten diese Einstellungen als Operator stellvertretend für
-          die Schule.
-        </p>
+        <ConceptPageHeader
+          title={`Einstellungen${schoolName ? ` · ${schoolName}` : ""}`}
+          concept="settings"
+          subtitle="Sie bearbeiten diese Einstellungen als Operator stellvertretend für die Schule."
+        />
       </div>
 
       {error && (
@@ -203,9 +218,11 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
       {!loading &&
         schema?.tabs?.map((tab) => (
           <section key={tab.key} className="mb-8">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">
-              {TAB_LABELS[tab.key] ?? tab.label}
-            </h2>
+            <ConceptSectionHeader
+              title={TAB_LABELS[tab.key] ?? tab.label}
+              concept={TAB_CONCEPTS[tab.key] ?? "settings"}
+              className="mb-4"
+            />
             <div className="space-y-6">
               {tab.categories.map((category) => (
                 <SettingsCategory

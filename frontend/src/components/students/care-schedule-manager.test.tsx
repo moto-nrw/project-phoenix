@@ -358,7 +358,7 @@ describe("CareScheduleManager", () => {
 
     expect(document.querySelector(".animate-spin")).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+      expect(screen.getByText("Betreuungszeiten")).toBeInTheDocument();
     });
 
     expect(mockFetchArrivalData).toHaveBeenCalledWith("42");
@@ -385,7 +385,7 @@ describe("CareScheduleManager", () => {
     render(
       <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
     );
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
     expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(1);
@@ -407,7 +407,7 @@ describe("CareScheduleManager", () => {
     // user's typing. Someone else's edit must not cost this user their work —
     // but the update must not be lost either.
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
     expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
@@ -462,7 +462,7 @@ describe("CareScheduleManager", () => {
     render(
       <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
     );
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     // Hold the FIRST (older) response open; let the second resolve immediately.
     let releaseStale: (value: PickupData) => void = () => undefined;
@@ -533,7 +533,7 @@ describe("CareScheduleManager", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+      expect(screen.getByText("Betreuungszeiten")).toBeInTheDocument();
     });
     expect(screen.getAllByText("15:15").length).toBeGreaterThan(0);
     expect(document.querySelector(".animate-spin")).not.toBeInTheDocument();
@@ -601,7 +601,7 @@ describe("CareScheduleManager", () => {
         onVisibleDateRangeChange={onVisibleDateRangeChange}
       />,
     );
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
     fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
 
     expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
@@ -620,7 +620,7 @@ describe("CareScheduleManager", () => {
         onUpdate={onUpdate}
       />,
     );
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
@@ -638,7 +638,7 @@ describe("CareScheduleManager", () => {
 
   it("opens the exception editor and persists the day change", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     expect(screen.getByTestId("care-plan-editor-day")).toBeInTheDocument();
@@ -664,7 +664,7 @@ describe("CareScheduleManager", () => {
 
   it("clears an existing arrival time when the student does not come", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     fireEvent.click(screen.getByText("Kommt nicht im Test speichern"));
@@ -681,7 +681,7 @@ describe("CareScheduleManager", () => {
 
   it("clears an existing pickup time when there is no pickup", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     fireEvent.click(screen.getByText("Keine Abholung im Test speichern"));
@@ -706,7 +706,7 @@ describe("CareScheduleManager", () => {
     );
 
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
@@ -725,7 +725,7 @@ describe("CareScheduleManager", () => {
     );
 
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
@@ -740,7 +740,7 @@ describe("CareScheduleManager", () => {
 
   it("removes the existing exceptions when the day is set back to regular", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
     fireEvent.click(screen.getByText("Auf Regulär zurücksetzen"));
@@ -763,7 +763,7 @@ describe("CareScheduleManager", () => {
         onDeleteStatusDay={onDeleteStatusDay}
       />,
     );
-    await screen.findByText("Betreuungsplan");
+    await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(
       screen.getAllByLabelText("Ganztägig entschuldigt entfernen")[0]!,

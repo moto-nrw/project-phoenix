@@ -204,21 +204,21 @@ describe("OPERATOR_STATUS_LABELS", () => {
 describe("OPERATOR_STATUS_STYLES", () => {
   it("contains style classes for all statuses", () => {
     expect(OPERATOR_STATUS_STYLES.open).toContain("bg-white");
-    expect(OPERATOR_STATUS_STYLES.planned).toContain("border-[#5080D8]");
-    expect(OPERATOR_STATUS_STYLES.in_progress).toContain("border-[#F78C10]");
-    expect(OPERATOR_STATUS_STYLES.done).toContain("border-[#83CD2D]");
-    expect(OPERATOR_STATUS_STYLES.rejected).toContain("border-[#FF3130]");
-    expect(OPERATOR_STATUS_STYLES.need_info).toContain("border-purple-500");
+    expect(OPERATOR_STATUS_STYLES.planned).toContain("border-moto-blue");
+    expect(OPERATOR_STATUS_STYLES.in_progress).toContain("border-moto-orange");
+    expect(OPERATOR_STATUS_STYLES.done).toContain("border-moto-green");
+    expect(OPERATOR_STATUS_STYLES.rejected).toContain("border-moto-red");
+    expect(OPERATOR_STATUS_STYLES.need_info).toContain("border-moto-purple");
   });
 });
 
 describe("OPERATOR_STATUS_DOT_COLORS", () => {
   it("contains dot colors for all statuses", () => {
     expect(OPERATOR_STATUS_DOT_COLORS.open).toBe("bg-gray-400");
-    expect(OPERATOR_STATUS_DOT_COLORS.planned).toBe("bg-[#5080D8]");
-    expect(OPERATOR_STATUS_DOT_COLORS.in_progress).toBe("bg-[#F78C10]");
-    expect(OPERATOR_STATUS_DOT_COLORS.done).toBe("bg-[#83CD2D]");
-    expect(OPERATOR_STATUS_DOT_COLORS.rejected).toBe("bg-[#FF3130]");
-    expect(OPERATOR_STATUS_DOT_COLORS.need_info).toBe("bg-purple-500");
+    expect(OPERATOR_STATUS_DOT_COLORS.planned).toBe("bg-moto-blue");
+    expect(OPERATOR_STATUS_DOT_COLORS.in_progress).toBe("bg-moto-orange");
+    expect(OPERATOR_STATUS_DOT_COLORS.done).toBe("bg-moto-green");
+    expect(OPERATOR_STATUS_DOT_COLORS.rejected).toBe("bg-moto-red");
+    expect(OPERATOR_STATUS_DOT_COLORS.need_info).toBe("bg-moto-purple");
   });
 });

@@ -173,7 +173,7 @@ export function AdminSessionEditModal({
         type="button"
         onClick={handleSubmit}
         disabled={isSaving || !notesValid || !timesValid || !breakValid}
-        className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#70b525] disabled:cursor-not-allowed disabled:opacity-50"
+        className="bg-moto-green hover:bg-moto-green-hover rounded-md px-4 py-2 text-sm font-medium text-gray-950 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving
           ? "Speichern…"
@@ -188,7 +188,7 @@ export function AdminSessionEditModal({
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer}>
       <div className="space-y-4 text-sm">
         {mode === "edit" && session?.auto_checked_out && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
             Diese Sitzung wurde automatisch zum geplanten Dienstende
             ausgestempelt. Bitte die tatsächliche Endzeit prüfen.
           </p>
@@ -199,7 +199,7 @@ export function AdminSessionEditModal({
               type="time"
               value={checkIn}
               onChange={(e) => setCheckIn(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
           <Field label="Check-out">
@@ -207,7 +207,7 @@ export function AdminSessionEditModal({
               type="time"
               value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
         </div>
@@ -220,7 +220,7 @@ export function AdminSessionEditModal({
               inputMode="numeric"
               value={breakMinutesStr}
               onChange={(e) => setBreakMinutesStr(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
           <Field label="Status">
@@ -241,11 +241,11 @@ export function AdminSessionEditModal({
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="z. B. Mitarbeiter hatte vergessen einzustempeln"
-            className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
           />
         </Field>
         {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
             {error}
           </p>
         )}

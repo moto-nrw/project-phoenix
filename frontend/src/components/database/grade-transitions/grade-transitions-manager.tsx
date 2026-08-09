@@ -408,7 +408,7 @@ export function GradeTransitionsManager({
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="text-[#FF3130]"
+                className="text-moto-red"
                 onClick={() => setDeleteTarget(t)}
               >
                 Löschen
@@ -465,7 +465,7 @@ export function GradeTransitionsManager({
         </div>
       </div>
 
-      {loadError && <p className="text-sm text-[#FF3130]">{loadError}</p>}
+      {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
 
       <DataTable
         columns={columns}
@@ -554,7 +554,7 @@ export function GradeTransitionsManager({
         confirmText="Ja, löschen"
         cancelText="Abbrechen"
         isConfirmLoading={busy}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#e02c2b] text-white"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover text-white"
       >
         <p>
           Den Entwurf für {deleteTarget?.academicYear} wirklich löschen? Es

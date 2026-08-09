@@ -365,19 +365,19 @@ describe("DienstplanHalbjahrGrid", () => {
     await screen.findByLabelText("Woche 38 öffnen, Ada Krause");
 
     const under = labelSpan("Ada Krause");
-    expect(under).toHaveStyle({ color: "#FF3130" });
+    expect(under).toHaveStyle({ color: "#DC2626" });
     expect(under.textContent).toContain("/");
 
     expect(labelSpan("Bruno Yilmaz")).toHaveStyle({ color: "#EAB308" });
 
     const neutral = labelSpan("Carla Meyer");
-    expect(neutral).not.toHaveStyle({ color: "#FF3130" });
+    expect(neutral).not.toHaveStyle({ color: "#DC2626" });
     expect(neutral).not.toHaveStyle({ color: "#EAB308" });
     expect(neutral.textContent).toContain("/");
 
     // No target → just the planned sum, no "/soll" separator, neutral tone.
     const noTarget = labelSpan("Dora Schmidt");
-    expect(noTarget).not.toHaveStyle({ color: "#FF3130" });
+    expect(noTarget).not.toHaveStyle({ color: "#DC2626" });
     expect(noTarget).not.toHaveStyle({ color: "#EAB308" });
     expect(noTarget.textContent).not.toContain("/");
   });
@@ -480,7 +480,7 @@ describe("DienstplanHalbjahrGrid", () => {
     expect(screen.queryByText("4 h")).not.toBeInTheDocument();
     expect(screen.queryByText("7 h")).not.toBeInTheDocument();
     // Reduced path has no target → neutral, never red/amber.
-    expect(cell).not.toHaveStyle({ color: "#FF3130" });
+    expect(cell).not.toHaveStyle({ color: "#DC2626" });
     expect(cell).not.toHaveStyle({ color: "#EAB308" });
   });
 

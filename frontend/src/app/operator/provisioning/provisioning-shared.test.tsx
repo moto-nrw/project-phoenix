@@ -112,8 +112,8 @@ describe("StatusBadge", () => {
     render(<StatusBadge active={true} />);
 
     const badge = screen.getByText("Aktiv");
-    expect(badge.className).toContain("bg-green-100");
-    expect(badge.className).toContain("text-green-700");
+    expect(badge.className).toContain("bg-moto-green/15");
+    expect(badge.className).toContain("text-moto-green-strong");
   });
 
   it("should apply gray styling when inactive", () => {
@@ -148,24 +148,24 @@ describe("DeliveryStatusBadge", () => {
     render(<DeliveryStatusBadge status="sent" />);
 
     const badge = screen.getByText("Gesendet");
-    expect(badge.className).toContain("bg-green-100");
-    expect(badge.className).toContain("text-green-700");
+    expect(badge.className).toContain("bg-moto-green/15");
+    expect(badge.className).toContain("text-moto-green-strong");
   });
 
   it("should apply yellow styling for pending", () => {
     render(<DeliveryStatusBadge status="pending" />);
 
     const badge = screen.getByText("Ausstehend");
-    expect(badge.className).toContain("bg-yellow-100");
-    expect(badge.className).toContain("text-yellow-700");
+    expect(badge.className).toContain("bg-moto-amber-soft");
+    expect(badge.className).toContain("text-moto-amber-strong");
   });
 
   it("should apply red styling for failed", () => {
     render(<DeliveryStatusBadge status="failed" />);
 
     const badge = screen.getByText("Fehlgeschlagen");
-    expect(badge.className).toContain("bg-red-100");
-    expect(badge.className).toContain("text-red-700");
+    expect(badge.className).toContain("bg-moto-red/10");
+    expect(badge.className).toContain("text-moto-red-strong");
   });
 
   it("should fall back to raw status text for unknown status", () => {

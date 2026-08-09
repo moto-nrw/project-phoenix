@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarClock, School } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptPageHeader } from "~/components/ui/concept-section-header";
 import { useLocale, useTranslations } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
@@ -80,7 +82,7 @@ export function ParentEnrollPicker() {
     <div className="w-full space-y-6">
       <Link
         href="/parents"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-[#5080D8] hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         {t("back")}
@@ -88,19 +90,18 @@ export function ParentEnrollPicker() {
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="p-5 sm:p-6 lg:p-8">
-          <h1 className="text-3xl font-semibold text-gray-900 sm:text-4xl">
-            {t("title")}
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 sm:text-base">
-            {t("description")}
-          </p>
+          <ConceptPageHeader
+            title={t("title")}
+            concept="enrollments"
+            subtitle={t("description")}
+          />
         </div>
       </section>
 
       {loading ? (
         <ParentEnrollSkeleton />
       ) : error ? (
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
           {t("loadError")}
         </div>
       ) : phases.length === 0 ? (
@@ -153,8 +154,8 @@ function SchoolCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#5A8E1F]">
-          <School className="h-5 w-5" aria-hidden="true" />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+          <MotoConceptIcon concept="schools" size={22} />
         </span>
         <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
           {group.schoolName}
@@ -218,7 +219,7 @@ function PhaseRow({
             {kindLabel}
           </span>
           {audienceLabel && (
-            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-semibold text-[#3558A8]">
+            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
               {audienceLabel}
             </span>
           )}
@@ -226,7 +227,7 @@ function PhaseRow({
         <p className="mt-1 text-sm text-gray-600">{range}</p>
         {phase.enrollment_close_at && (
           <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
-            <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+            <MotoConceptIcon concept="calendar" size={16} />
             {t("closesAt", {
               date: formatLocalizedDateTime(phase.enrollment_close_at, locale),
             })}
@@ -245,8 +246,8 @@ function EmptyPhases() {
   const t = useTranslations("parentEnroll");
   return (
     <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-        <School className="h-5 w-5" aria-hidden="true" />
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+        <MotoConceptIcon concept="schools" size={22} />
       </span>
       <p className="mt-3 text-sm leading-6 text-gray-600">{t("empty")}</p>
     </div>

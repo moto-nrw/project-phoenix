@@ -584,17 +584,6 @@ describe("validateFormFields", () => {
 // =============================================================================
 
 describe("DatabaseForm", () => {
-  const mockTheme = {
-    primary: "teal-500",
-    secondary: "blue-600",
-    accent: "blue" as const,
-    background: "blue-50",
-    border: "blue-200",
-    textAccent: "blue-800",
-    icon: null,
-    avatarGradient: "from-teal-400 to-blue-500",
-  };
-
   const mockSections: FormSection[] = [
     {
       title: "Test Section",
@@ -610,7 +599,6 @@ describe("DatabaseForm", () => {
   ];
 
   const defaultProps = {
-    theme: mockTheme,
     sections: mockSections,
     onSubmit: vi.fn(),
     onCancel: vi.fn(),
@@ -634,6 +622,38 @@ describe("DatabaseForm", () => {
     expect(screen.getByText("Test Section")).toBeInTheDocument();
     expect(screen.getByLabelText(/Test Field/)).toBeInTheDocument();
   });
+
+  // sectionLevel existiert, weil dieses Formular in zwei Kontexten laeuft:
+  // im Master-Detail-Bereich (Default 2) und ueber DatabaseFormModal in
+  // einem Modal, dessen Titel h3 ist (dort 4). Ohne diese Tests koennte die
+  // Durchreichung in einem der beiden Zweige wegfallen, ohne dass etwas rot
+  // wird - der concept-lose Zweig rendert eine eigene Ueberschrift.
+  it.each([
+    ["ohne concept", mockSections],
+    ["mit concept", [{ ...mockSections[0]!, concept: "rooms" as const }]],
+  ])("nutzt %s standardmaessig h2", (_label, sections) => {
+    render(<DatabaseForm {...defaultProps} sections={sections} />);
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Test Section" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["ohne concept", mockSections],
+    ["mit concept", [{ ...mockSections[0]!, concept: "rooms" as const }]],
+  ])(
+    "reicht sectionLevel %s bis zur Ueberschrift durch",
+    (_label, sections) => {
+      render(
+        <DatabaseForm {...defaultProps} sections={sections} sectionLevel={4} />,
+      );
+
+      expect(
+        screen.getByRole("heading", { level: 4, name: "Test Section" }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("renders submit and cancel buttons", () => {
     render(<DatabaseForm {...defaultProps} />);

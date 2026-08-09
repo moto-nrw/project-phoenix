@@ -2,23 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Ban,
-  CalendarDays,
-  CalendarPlus,
   Check,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Loader2,
-  MapPin,
   Pencil,
   Plus,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   CalendarAppointmentOverview,
   CalendarEvent,
@@ -31,11 +26,17 @@ import {
   getWeekRange,
   getWeekdays,
 } from "~/lib/timetable-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
 interface PersonalCalendarProps {
+  /**
+   * The page's h1. Both calendar routes render this component as their whole
+   * page body, so dropping the heading left them with no top-level heading at
+   * all and made the subscribe panel's h2 the first landmark a screen reader
+   * reaches.
+   */
   readonly title: string;
   readonly subtitle?: string;
   readonly events: readonly CalendarEvent[];
@@ -88,17 +89,17 @@ const sourceTone = {
   appointment: {
     label: "Termin",
     bar: LOCATION_COLORS.GROUP_ROOM,
-    bg: "#ECF7DA",
+    bg: MOTO_COLOR_PALETTE.green.soft,
   },
   timetable: {
     label: "Betreuung",
     bar: LOCATION_COLORS.OTHER_ROOM,
-    bg: "#EBF0FB",
+    bg: MOTO_COLOR_PALETTE.blue.soft,
   },
   shift: {
     label: "Dienst",
     bar: LOCATION_COLORS.SCHOOLYARD,
-    bg: "#FEF3E7",
+    bg: MOTO_COLOR_PALETTE.orange.soft,
   },
 } satisfies Record<
   CalendarEvent["source"],
@@ -114,9 +115,9 @@ const responseLabel: Record<string, string> = {
 
 const responseTone: Record<CalendarResponseStatus, string> = {
   pending: "bg-gray-100 text-gray-700",
-  accepted: "bg-[#ECF7DA] text-gray-800",
-  declined: "bg-[#FF3130]/10 text-[#CC2626]",
-  info: "bg-[#EBF0FB] text-gray-800",
+  accepted: "bg-moto-green-soft text-gray-800",
+  declined: "bg-moto-red/10 text-moto-red-strong",
+  info: "bg-moto-blue-soft text-gray-800",
 };
 
 function eventTime(event: CalendarEvent): string {
@@ -455,17 +456,15 @@ export function PersonalCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
-          {subtitle ? (
-            <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
-          {/* Date navigation — full width on mobile so the range label has room
-              instead of being squeezed between wrapping buttons. */}
-          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+        {subtitle ? (
+          <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
             <Button
               type="button"
               variant="ghost"
@@ -492,71 +491,68 @@ export function PersonalCalendar({
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
-          {/* On mobile each control fills the row (no right-hand gap): the view
-              switch spans full width with equal segments, Heute/Sa-So share a
-              row, and 'Neuer Termin' spans its own. From sm up they collapse
-              back to a compact inline toolbar. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex w-full items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:w-auto">
-              {viewOptions.map((option) => {
-                const selected = option.mode === viewMode;
-                return (
-                  <Button
-                    key={option.mode}
-                    type="button"
-                    variant={selected ? "primary" : "ghost"}
-                    size="compact"
-                    className="flex-1 justify-center sm:flex-none"
-                    aria-pressed={selected}
-                    onClick={() => handleViewModeChange(option.mode)}
-                  >
-                    {option.label}
-                  </Button>
-                );
-              })}
-            </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            className="flex-1 justify-center bg-white sm:flex-none"
+            onClick={() => handleDateChange(new Date())}
+          >
+            Heute
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end">
+          <div className="flex w-full items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:w-auto">
+            {viewOptions.map((option) => {
+              const selected = option.mode === viewMode;
+              return (
+                <Button
+                  key={option.mode}
+                  type="button"
+                  variant={selected ? "primary" : "ghost"}
+                  size="compact"
+                  className="flex-1 justify-center sm:flex-none"
+                  aria-pressed={selected}
+                  onClick={() => handleViewModeChange(option.mode)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
+          {viewMode !== "day" ? (
             <Button
               type="button"
-              variant="outline"
+              variant={showWeekend ? "primary" : "outline"}
               size="compact"
-              className="flex-1 justify-center bg-white sm:flex-none"
-              onClick={() => handleDateChange(new Date())}
+              className={`flex-1 justify-center sm:flex-none ${
+                showWeekend ? "" : "bg-white"
+              }`}
+              aria-pressed={showWeekend}
+              onClick={() => setShowWeekend((value) => !value)}
             >
-              Heute
+              {hiddenWeekendCount > 0
+                ? `Sa/So (${hiddenWeekendCount})`
+                : "Sa/So"}
             </Button>
-            {viewMode !== "day" ? (
-              <Button
-                type="button"
-                variant={showWeekend ? "primary" : "outline"}
-                size="compact"
-                className={`flex-1 justify-center sm:flex-none ${
-                  showWeekend ? "" : "bg-white"
-                }`}
-                aria-pressed={showWeekend}
-                onClick={() => setShowWeekend((value) => !value)}
-              >
-                {hiddenWeekendCount > 0
-                  ? `Sa/So (${hiddenWeekendCount})`
-                  : "Sa/So"}
-              </Button>
-            ) : null}
-            {onCreate ? (
-              <Button
-                type="button"
-                size="compact"
-                className="w-full justify-center sm:w-auto"
-                onClick={onCreate}
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                Neuer Termin
-              </Button>
-            ) : null}
-          </div>
+          ) : null}
+          {onCreate ? (
+            <Button
+              type="button"
+              size="compact"
+              className="w-full justify-center sm:w-auto"
+              onClick={onCreate}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Neuer Termin
+            </Button>
+          ) : null}
         </div>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-4 text-sm">
           {error}
         </div>
       ) : null}
@@ -992,7 +988,7 @@ function TimeGridEventBlock({
       </div>
       {event.location ? (
         <div className="flex items-center gap-1 text-[11px] text-gray-500">
-          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+          <MotoConceptIcon concept="rooms" size={12} className="shrink-0" />
           <span className="truncate">{event.location}</span>
         </div>
       ) : null}
@@ -1018,7 +1014,7 @@ function AgendaRow({
   // Positionierung, nicht die Darstellung).
   const allDay = event.all_day;
   const badge = cancelled
-    ? { label: "Abgesagt", cls: "bg-[#FF3130]/10 text-[#CC2626]" }
+    ? { label: "Abgesagt", cls: "bg-moto-red/10 text-moto-red-strong" }
     : event.response_status
       ? {
           label: responseLabel[event.response_status] ?? event.response_status,
@@ -1208,7 +1204,7 @@ function CalendarEventDetail({
           {tone.label}
         </span>
         {cancelled ? (
-          <span className="rounded-md bg-[#FF3130]/10 px-2 py-0.5 text-[11px] font-semibold text-[#CC2626]">
+          <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-[11px] font-semibold">
             Abgesagt
           </span>
         ) : event.response_status ? (
@@ -1232,27 +1228,32 @@ function CalendarEventDetail({
 
       <div className="space-y-2 text-sm text-gray-700">
         <div className="flex items-center gap-2">
-          <CalendarDays
-            className="h-4 w-4 shrink-0 text-gray-400"
-            aria-hidden
-          />
+          <MotoConceptIcon concept="calendar" size={16} className="shrink-0" />
           <span>{dateLabel}</span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+            <MotoConceptIcon
+              concept="careTimes"
+              size={16}
+              className="shrink-0"
+            />
             <span>{eventTime(event)}</span>
           </div>
           {event.location ? (
             <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+              <MotoConceptIcon concept="rooms" size={16} className="shrink-0" />
               <span>{event.location}</span>
             </div>
           ) : null}
         </div>
         {subtitle ? (
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+            <MotoConceptIcon
+              concept="children"
+              size={16}
+              className="shrink-0"
+            />
             <span>{subtitle}</span>
           </div>
         ) : null}
@@ -1306,7 +1307,7 @@ function CalendarEventDetail({
               download
               className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
             >
-              <CalendarPlus className="h-4 w-4" aria-hidden />
+              <MotoConceptIcon concept="calendarPeriods" size={16} />
               Zum Kalender hinzufügen
             </a>
           ) : null}
@@ -1321,7 +1322,7 @@ function CalendarEventDetail({
                 onClose();
               }}
             >
-              <Users className="h-4 w-4" aria-hidden />
+              <MotoConceptIcon concept="people" size={16} />
               Teilnehmer
             </Button>
           ) : null}
@@ -1348,14 +1349,14 @@ function CalendarEventDetail({
                   type="button"
                   variant="ghost"
                   size="md"
-                  className="gap-2 text-[#CC2626]"
+                  className="text-moto-red-strong gap-2"
                   disabled={managing}
                   onClick={() => {
                     onCancel(event);
                     onClose();
                   }}
                 >
-                  <Ban className="h-4 w-4" aria-hidden />
+                  <MotoConceptIcon concept="closingDays" size={16} />
                   Absagen
                 </Button>
               ) : null}
@@ -1364,7 +1365,7 @@ function CalendarEventDetail({
                   type="button"
                   variant="ghost"
                   size="md"
-                  className="gap-2 text-[#CC2626]"
+                  className="text-moto-red-strong gap-2"
                   disabled={managing}
                   onClick={() => {
                     onDelete(event);
@@ -1400,11 +1401,11 @@ export function CalendarOverviewList({
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="rounded-lg bg-[#ECF7DA] px-2 py-2 text-gray-800">
+          <div className="bg-moto-green-soft rounded-lg px-2 py-2 text-gray-800">
             <div className="font-semibold">{accepted}</div>
             <div>Zugesagt</div>
           </div>
-          <div className="rounded-lg bg-[#FF3130]/10 px-2 py-2 text-[#CC2626]">
+          <div className="bg-moto-red/10 text-moto-red-strong rounded-lg px-2 py-2">
             <div className="font-semibold">{declined}</div>
             <div>Abgesagt</div>
           </div>

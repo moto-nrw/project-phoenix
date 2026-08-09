@@ -79,7 +79,7 @@ export function LateInviteModal({
           Anmeldung, auch wenn die Frist geschlossen ist.
         </p>
         {error ? (
-          <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#9F1F1E]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-sm">
             {error}
           </div>
         ) : null}
@@ -105,8 +105,8 @@ export function LateInviteModal({
         </label>
 
         {generatedUrl ? (
-          <div className="rounded-xl border border-[#83CD2D]/30 bg-[#83CD2D]/10 p-3">
-            <p className="text-sm font-medium text-[#365A10]">
+          <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
+            <p className="text-moto-green-strong text-sm font-medium">
               Link wurde erstellt.
             </p>
             <div className="mt-3 flex items-center gap-2">
@@ -114,7 +114,7 @@ export function LateInviteModal({
                 aria-label="Erstellter Nachzügler-Link"
                 readOnly
                 value={generatedUrl}
-                className="min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-[#83CD2D]/30 ring-inset"
+                className="ring-moto-green/30 min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-inset"
               />
               <PublicLinkCopyButton
                 url={generatedUrl}
@@ -235,13 +235,13 @@ export function ManualApprovedEnrollmentModal({
           Online-Anmeldung. Nach dem Absenden wird das Kind direkt bestätigt.
         </p>
         {loadError || configurationError ? (
-          <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#9F1F1E]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-sm">
             {loadError ?? configurationError}
           </div>
         ) : null}
         {statusUrl ? (
-          <div className="rounded-xl border border-[#83CD2D]/30 bg-[#83CD2D]/10 p-3">
-            <p className="text-sm font-medium text-[#365A10]">
+          <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
+            <p className="text-moto-green-strong text-sm font-medium">
               Die manuelle Anmeldung wurde angelegt und freigegeben.
             </p>
             <div className="mt-3 flex items-center gap-2">
@@ -249,7 +249,7 @@ export function ManualApprovedEnrollmentModal({
                 aria-label="Statuslink der manuellen Anmeldung"
                 readOnly
                 value={statusUrl}
-                className="min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-[#83CD2D]/30 ring-inset"
+                className="ring-moto-green/30 min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-inset"
               />
               <PublicLinkCopyButton
                 url={statusUrl}

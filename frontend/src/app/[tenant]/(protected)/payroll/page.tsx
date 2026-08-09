@@ -157,7 +157,7 @@ function ReadinessCard({ status }: { readonly status: PayrollStatus }) {
             <span
               aria-hidden
               className={`mt-0.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
-                item.ok ? "bg-[#83CD2D]" : "bg-[#F78C10]"
+                item.ok ? "bg-moto-green" : "bg-moto-orange"
               }`}
             />
             <span>
@@ -241,7 +241,7 @@ function LohnartRow({
           className="h-9 max-w-[10rem] py-1 text-sm tabular-nums"
         />
         {!valid && (
-          <p className="mt-1 text-xs text-[#FF3130]">1 bis 4 Ziffern.</p>
+          <p className="text-moto-red mt-1 text-xs">1 bis 4 Ziffern.</p>
         )}
       </td>
       <td className="py-2">
@@ -342,9 +342,7 @@ function DatevNumberField({
         className="h-9 py-1 text-sm tabular-nums"
       />
       {!valid && (
-        <p className="mt-1 text-xs text-[#FF3130]">
-          1 bis {maxDigits} Ziffern.
-        </p>
+        <p className="text-moto-red mt-1 text-xs">1 bis {maxDigits} Ziffern.</p>
       )}
     </div>
   );

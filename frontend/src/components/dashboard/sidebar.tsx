@@ -40,6 +40,9 @@ import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordio
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { getSettingValue } from "~/lib/settings-api";
+import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   getActivePlanningSubPageHref,
   PLANNING_SUB_PAGES,
@@ -62,6 +65,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: string;
+  concept?: MotoConceptKey;
   requiresAdmin?: boolean;
   // Show when the caller holds this tenant permission (admins always pass). Use
   // instead of requiresAdmin for items open to more than admins, e.g. the
@@ -82,37 +86,42 @@ const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
-    activeColor: "text-[#5080D8]",
+    concept: "dashboard",
+    activeColor: "text-moto-blue",
     requiresAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-    activeColor: "text-[#5080D8]",
+    activeColor: "text-moto-blue",
     alwaysShow: true,
   },
   {
     ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    activeColor: "text-[#FF3130]",
+    concept: "activities",
+    activeColor: "text-moto-coral",
     alwaysShow: true,
   },
   {
     ...STAFF_FLAT_PAGES.rooms,
-    icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
-    activeColor: "text-indigo-500",
+    icon: navigationIcons.rooms,
+    concept: "rooms",
+    activeColor: "text-moto-navy",
     alwaysShow: true,
   },
   {
     ...STAFF_FLAT_PAGES.staff,
+    concept: "staff",
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
-    activeColor: "text-[#F78C10]",
+    activeColor: "text-moto-orange",
     alwaysShow: true,
   },
   {
     ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
-    activeColor: "text-[#5080D8]",
+    concept: "calendar",
+    activeColor: "text-moto-indigo",
     // Backend gates GET /api/calendar/my on calendar:own; match it so
     // restricted/custom roles without the permission don't land on a 403 page.
     requiresPermission: "calendar:own",
@@ -125,19 +134,21 @@ const NAV_ITEMS: NavItem[] = [
     // Gating siehe substitutionsItem-Rendering unten.
     ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-    activeColor: "text-pink-500",
+    concept: "groupAccess",
+    activeColor: "text-moto-purple",
     requiresAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
+    concept: "infoDisplays",
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-    activeColor: "text-[#5080D8]",
+    activeColor: "text-moto-blue",
     requiresPermission: ["display:read", "display:manage"],
   },
   {
     ...STAFF_FLAT_PAGES.timeTracking,
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
-    activeColor: "text-sky-500",
+    concept: "timeTracking",
     alwaysShow: true,
   },
   {
@@ -146,8 +157,9 @@ const NAV_ITEMS: NavItem[] = [
     // Berichts-Einträgen einsortiert. Opt-in über
     // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
     ...STAFF_FLAT_PAGES.dayLog,
+    concept: "dayReport",
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
-    activeColor: "text-[#83CD2D]",
+    activeColor: "text-moto-green",
     requiresPermission: "users:read",
   },
   {
@@ -155,19 +167,22 @@ const NAV_ITEMS: NavItem[] = [
     label: "Berichte",
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
     requiresAdmin: true,
+    concept: "reports",
     comingSoon: true,
   },
   {
     ...STAFF_FLAT_PAGES.emergency,
     icon: navigationIcons.emergency,
-    activeColor: "text-[#FF3130]",
+    concept: "emergency",
+    activeColor: "text-moto-wine",
     alwaysShow: true,
     bottomPinned: true,
   },
   {
     ...STAFF_FLAT_PAGES.help,
     icon: navigationIcons.book,
-    activeColor: "text-[#83CD2D]",
+    concept: "help",
+    activeColor: "text-moto-green",
     alwaysShow: true,
     bottomPinned: true,
     newTab: true,
@@ -175,12 +190,14 @@ const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.suggestions,
     icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
-    activeColor: "text-teal-500",
+    concept: "feedback",
+    activeColor: "text-moto-coral",
     alwaysShow: true,
     bottomPinned: true,
   },
   {
     ...STAFF_FLAT_PAGES.settings,
+    concept: "settings",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
     activeColor: "text-gray-500",
     requiresAdmin: true,
@@ -193,7 +210,7 @@ const NAV_ITEMS: NavItem[] = [
 // JIT scans for literal class strings, so the hex is inlined here rather
 // than interpolated at runtime. If LOCATION_COLORS.OTHER_ROOM ever changes,
 // update this literal to match.
-const OPERATOR_VERWALTUNG_ACTIVE_COLOR = "text-[#5080D8]";
+const OPERATOR_VERWALTUNG_ACTIVE_COLOR = "text-moto-blue";
 
 interface OperatorNavSection {
   readonly label: string;
@@ -211,20 +228,23 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/organizations",
         label: "Träger",
         icon: navigationIcons.rooms,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        concept: "organizations",
+        activeColor: "text-moto-petrol",
         alwaysShow: true,
       },
       {
         href: "/operator/schools",
         label: "Schulen",
         icon: navigationIcons.buildingOffice,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        concept: "schools",
+        activeColor: "text-moto-gold",
         alwaysShow: true,
       },
       {
         href: "/operator/accounts",
         label: "Konten",
         icon: navigationIcons.profile,
+        concept: "accounts",
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -232,6 +252,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/devices",
         label: "Geräte",
         icon: navigationIcons.device,
+        concept: "devices",
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -239,6 +260,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/persons",
         label: "Personen",
         icon: navigationIcons.userSingle,
+        concept: "people",
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -246,6 +268,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/unregistered-tags",
         label: "Unbekannte RFID",
         icon: navigationIcons.security,
+        concept: "rfid",
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -258,14 +281,16 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/suggestions",
         label: "Feedback",
         icon: navigationIcons.feedback,
-        activeColor: "text-teal-500",
+        concept: "feedback",
+        activeColor: "text-moto-coral",
         alwaysShow: true,
       },
       {
         href: "/operator/announcements",
         label: "Ankündigungen",
         icon: navigationIcons.bell,
-        activeColor: "text-amber-500",
+        concept: "announcements",
+        activeColor: "text-moto-amber",
         alwaysShow: true,
       },
     ],
@@ -277,6 +302,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/operators",
         label: "Operatoren",
         icon: navigationIcons.group,
+        concept: "operators",
         activeColor: "text-violet-500",
         alwaysShow: true,
       },
@@ -306,6 +332,7 @@ const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Kontaktdaten",
     tKey: "contactData",
     icon: navigationIcons.profile,
+    concept: "accounts",
     comingSoon: true,
   },
 ];
@@ -561,8 +588,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Aggregate red badge on the collapsed "Eltern" header: unread messages plus
-  // pending change requests (only when that sub-page is actually visible).
+  // Aggregate Eltern badge: unread messages plus pending change requests when
+  // the corresponding sub-page is visible.
   const parentShowsChangeRequests = parentSubPages.some(
     (page) => page.feature === "changeRequests",
   );
@@ -720,6 +747,50 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return base;
   };
 
+  const renderNavIcon = (item: NavItem) => {
+    const concept = item.concept ? MOTO_CONCEPTS[item.concept] : null;
+    const isActive = !item.comingSoon && isActiveLink(item.href);
+    if (concept) {
+      if (isActive) {
+        return (
+          <MotoDuotoneIcon
+            icon={concept.icon}
+            tone={concept.tone}
+            size={22}
+            className="mr-3 h-5 w-5 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5"
+          />
+        );
+      }
+
+      const ConceptIcon = concept.icon;
+      return (
+        <ConceptIcon
+          size={22}
+          weight="regular"
+          className={getIconClasses(item)}
+          aria-hidden="true"
+        />
+      );
+    }
+
+    return (
+      <svg
+        className={getIconClasses(item)}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d={item.icon}
+        />
+      </svg>
+    );
+  };
+
   const renderNavItem = (item: NavItem) => (
     <div key={item.comingSoon ? item.label : item.href}>
       {item.comingSoon ? (
@@ -727,19 +798,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           className={`group ${getLinkClasses(item.href, true)}`}
           title={tParentNav("comingSoonTooltip")}
         >
-          <svg
-            className={getIconClasses(item)}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={item.icon}
-            />
-          </svg>
+          {renderNavIcon(item)}
           <span>{item.label}</span>
           <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
             Bald
@@ -753,26 +812,23 @@ function SidebarContent({ className = "" }: SidebarProps) {
             ? { target: "_blank", rel: "noopener noreferrer" }
             : {})}
         >
-          <svg
-            className={getIconClasses(item)}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={item.icon}
-            />
-          </svg>
+          {renderNavIcon(item)}
           <span className="flex flex-1 items-center justify-between">
             {item.label}
             {item.href === "/suggestions" && (
-              <UnreadBadge count={suggestionsUnreadCount} className="ml-2" />
+              <UnreadBadge
+                count={suggestionsUnreadCount}
+                tone="feedback"
+                className="ml-2"
+              />
             )}
             {item.href === "/staff" && (
-              <UnreadBadge count={staffAbsencesPendingCount} className="ml-2" />
+              <NotificationBadge
+                count={staffAbsencesPendingCount}
+                tone="staff"
+                ariaLabel={`${staffAbsencesPendingCount} ${staffAbsencesPendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
+                className="ml-2"
+              />
             )}
           </span>
         </Link>
@@ -997,23 +1053,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
         href={item.href}
         className={getLinkClasses(item.href)}
       >
-        <svg
-          className={getIconClasses(item)}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d={item.icon}
-          />
-        </svg>
+        {renderNavIcon(item)}
         <span className="flex flex-1 items-center justify-between">
           {item.label}
           {item.href === operatorSuggestionsHref && (
-            <UnreadBadge count={operatorUnreadCount} className="ml-2" />
+            <UnreadBadge
+              count={operatorUnreadCount}
+              tone="feedback"
+              className="ml-2"
+            />
           )}
         </span>
       </Link>
@@ -1146,7 +1194,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
             >
               <NavIcon d={navigationIcons.feedback} />
               <span>{tParentNav("feedback")}</span>
-              <UnreadBadge count={parentFeedbackUnread} className="ml-auto" />
+              <UnreadBadge
+                count={parentFeedbackUnread}
+                tone="feedback"
+                className="ml-auto"
+              />
             </Link>
           </nav>
         </div>
@@ -1172,6 +1224,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {showStaffAccordions && !openCareGroupMode && (
             <SidebarAccordionSection
               icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              concept="groups"
               label={
                 groups.length > 1
                   ? "Meine Gruppen"
@@ -1182,7 +1235,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                       .filter(Boolean)
                       .join(" ")
               }
-              activeColor="text-[#83CD2D]"
+              activeColor="text-moto-green"
               isExpanded={expanded === "groups"}
               onToggle={handleGroupsToggle}
               isActive={isAccordionSectionActive(
@@ -1221,6 +1274,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {showStaffAccordions && !isBinaryMode && (
             <SidebarAccordionSection
               icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              concept="supervision"
               label={
                 supervisedRooms.length > 1
                   ? "Aktuelle Aufsichten"
@@ -1282,8 +1336,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
               overview hub. Shown to all staff; sub-items are gated per item. */}
           <SidebarAccordionSection
             icon={navigationIcons.parents}
+            concept="parents"
             label={PARENT_SECTION.label}
-            activeColor="text-[#5080D8]"
+            activeColor="text-moto-blue"
             isExpanded={expanded === "eltern"}
             onToggle={handleParentToggle}
             isActive={isOnParentPage}
@@ -1320,6 +1375,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+              concept="database"
               label={DATABASE_SECTION.label}
               activeColor="text-gray-500"
               isExpanded={expanded === "database"}
@@ -1354,8 +1410,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
+              concept="carePlan"
               label={PLANNING_SECTION.label}
-              activeColor="text-[#5080D8]"
+              activeColor="text-moto-blue"
               isExpanded={expanded === "planning"}
               onToggle={handlePlanningToggle}
               isActive={isOnPlanningPage}
@@ -1381,8 +1438,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              concept="enrollments"
               label={ENROLLMENT_SECTION.label}
-              activeColor="text-[#83CD2D]"
+              activeColor="text-moto-green"
               isExpanded={expanded === "enrollments"}
               onToggle={handleEnrollmentsToggle}
               isActive={isOnEnrollmentsPage}

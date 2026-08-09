@@ -417,7 +417,8 @@ func (r *StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context
 						OR "effective_student_status".day_class_trip
 					)
 			) AS excused_count
-		`)
+		`).
+		ColumnExpr(`COUNT(*) AS total_count`)
 	if err := query.Scan(ctx, counts); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count effective dashboard absences",

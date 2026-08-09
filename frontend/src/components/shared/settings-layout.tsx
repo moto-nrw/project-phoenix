@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 interface Tab {
   id: string;
   label: string;
-  icon: string;
+  icon: MotoConceptKey;
   adminOnly?: boolean;
 }
 
@@ -29,19 +32,7 @@ function MobileBackHeader({
         className="-ml-2 rounded-xl p-2 transition-all active:bg-gray-100"
         aria-label="Zurück"
       >
-        <svg
-          className="h-5 w-5 text-gray-900"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
+        <ChevronLeft className="h-5 w-5 text-gray-900" />
       </button>
       <h2 className="text-lg font-semibold text-gray-900">
         {tabList.find((t) => t.id === activeTab)?.label}
@@ -69,38 +60,14 @@ function MobileTabList({
             idx < tabs.length - 1 ? "border-b border-gray-100" : ""
           }`}
         >
-          <svg
-            className="h-[18px] w-[18px] shrink-0 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d={tab.icon}
-            />
-          </svg>
+          <MotoConceptIcon concept={tab.icon} size={18} className="shrink-0" />
           <span className="flex-1 text-[15px] text-gray-900">{tab.label}</span>
           {tab.adminOnly && (
             <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
               Admin
             </span>
           )}
-          <svg
-            className="h-4 w-4 shrink-0 text-gray-300"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
+          <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
         </button>
       ))}
     </div>
@@ -165,19 +132,7 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
             <TabsList variant="line">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id}>
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={tab.icon}
-                    />
-                  </svg>
+                  <MotoConceptIcon concept={tab.icon} size={16} />
                   {tab.label}
                   {tab.adminOnly && (
                     <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-xs">

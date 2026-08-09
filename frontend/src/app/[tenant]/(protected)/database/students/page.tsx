@@ -10,6 +10,8 @@ import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -363,7 +365,7 @@ function StudentsPageContent() {
       <button
         type="button"
         onClick={() => setDeleteTarget(selectedStudent)}
-        className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
+        className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
       >
         <Trash2 className="h-3.5 w-3.5" aria-hidden />
         Löschen
@@ -380,6 +382,13 @@ function StudentsPageContent() {
         <PageHeaderWithSearch
           title={isMobile ? "Kinder" : ""}
           badge={{
+            icon: (
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.children.icon}
+                tone={MOTO_CONCEPTS.children.tone}
+                size={20}
+              />
+            ),
             count: filteredStudents.length,
             label: "Kinder",
           }}
@@ -453,7 +462,14 @@ function StudentsPageContent() {
         </div>
       ) : !loading ? (
         <DatabaseEmptyState
-          icon={null}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.children.icon}
+              tone={MOTO_CONCEPTS.children.tone}
+              size={48}
+              className="mx-auto"
+            />
+          }
           title={
             searchTerm || groupFilter !== "all"
               ? "Keine Kinder gefunden"

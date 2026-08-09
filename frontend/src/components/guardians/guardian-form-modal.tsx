@@ -611,7 +611,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "firstName", e.target.value)
                     }
-                    className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "firstName") ? "border-red-400" : "border-gray-200"}`}
+                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "firstName") ? "border-red-400" : "border-gray-200"}`}
                     placeholder="Max"
                     required
                     disabled={isLoading}
@@ -639,7 +639,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "lastName", e.target.value)
                     }
-                    className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "lastName") ? "border-red-400" : "border-gray-200"}`}
+                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "lastName") ? "border-red-400" : "border-gray-200"}`}
                     placeholder="Mustermann"
                     required
                     disabled={isLoading}
@@ -700,7 +700,7 @@ export default function GuardianFormModal({
                   onChange={(e) =>
                     updateEntry(entry.id, "email", e.target.value)
                   }
-                  className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "email") ? "border-red-400" : "border-gray-200"}`}
+                  className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "email") ? "border-red-400" : "border-gray-200"}`}
                   placeholder="max.mustermann@example.com"
                   disabled={isLoading}
                   maxLength={255}
@@ -756,7 +756,7 @@ export default function GuardianFormModal({
                             e.target.value,
                           )
                         }
-                        className={`block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasPhoneError(entry.id, phone.id) ? "border-red-400" : "border-gray-200"}`}
+                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:ring-1 ${hasPhoneError(entry.id, phone.id) ? "border-red-400" : "border-gray-200"}`}
                         placeholder="+49 170 1234567"
                         disabled={isLoading}
                         aria-label={`Telefonnummer ${phoneIndex + 1}`}
@@ -778,7 +778,7 @@ export default function GuardianFormModal({
                             e.target.value,
                           )
                         }
-                        className="block w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:ring-1"
                         placeholder="Notiz"
                         disabled={isLoading}
                         aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
@@ -885,7 +885,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "addressStreet", e.target.value)
                     }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                     placeholder="Musterstr. 1"
                     disabled={isLoading}
                     maxLength={255}
@@ -905,7 +905,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "addressPostalCode", e.target.value)
                     }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                     placeholder="50667"
                     maxLength={5}
                     disabled={isLoading}
@@ -925,7 +925,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "addressCity", e.target.value)
                     }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                     placeholder="Köln"
                     disabled={isLoading}
                     maxLength={255}
@@ -985,7 +985,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "notes", e.target.value)
                     }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                     placeholder="Interne Notizen zum Erziehungsberechtigten"
                     rows={2}
                     disabled={isLoading}

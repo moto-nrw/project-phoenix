@@ -63,7 +63,7 @@ vi.mock("~/lib/staff-helpers", () => ({
   getStaffDisplayType: () => "",
   getStaffLocationStatus: () => ({
     badgeColor: "",
-    customBgColor: undefined,
+    customBgColor: "#83CD2D",
     customShadow: undefined,
     label: "Abwesend",
   }),

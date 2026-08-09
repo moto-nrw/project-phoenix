@@ -393,7 +393,7 @@ function LoginForm() {
     <>
       <AuthShell
         eyebrow="Ihr OGS Portal"
-        eyebrowClassName="text-[#83CD2D]"
+        eyebrowClassName="text-moto-green"
         title={loginTitle}
         subtitle="Melden Sie sich mit Ihrem Konto an."
         variant="tenant"
@@ -615,7 +615,7 @@ export default function HomePage() {
       fallback={
         <AuthShell
           eyebrow="Ihr OGS Portal"
-          eyebrowClassName="text-[#83CD2D]"
+          eyebrowClassName="text-moto-green"
           title="Willkommen"
           subtitle="Melden Sie sich mit Ihrem Konto an."
           variant="tenant"

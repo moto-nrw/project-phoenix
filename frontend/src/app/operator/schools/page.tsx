@@ -182,6 +182,7 @@ export default function OperatorSchoolsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Schulen"
+        concept="schools"
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}

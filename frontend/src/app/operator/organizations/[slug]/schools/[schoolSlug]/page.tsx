@@ -360,7 +360,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               schoolDelete.setDeleteTarget(school);
             }
           }}
-          className="rounded-lg bg-[#FF3130]/10 px-3 py-1.5 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/15"
+          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
         </button>
@@ -462,6 +462,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
       <EntityHeaderCard
         title={school.name}
+        concept="schools"
         subdomain={school.subdomain}
         active={school.active}
         createdAt={school.createdAt}
@@ -475,7 +476,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               </span>
             </span>
             {school.hidden && (
-              <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
+              <span className="bg-moto-amber/15 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
                 Verborgen
               </span>
             )}
@@ -485,7 +486,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       />
 
       {schoolToggleError && (
-        <p className="mt-3 text-sm text-[#CC2626]">{schoolToggleError}</p>
+        <p className="text-moto-red-strong mt-3 text-sm">{schoolToggleError}</p>
       )}
 
       <div className="mt-6">

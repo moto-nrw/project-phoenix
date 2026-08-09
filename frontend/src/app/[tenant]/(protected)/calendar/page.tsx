@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { CalendarPlus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import {
@@ -16,6 +16,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
@@ -656,7 +657,7 @@ export default function StaffCalendarPage() {
       >
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="flex items-center gap-2">
-            <CalendarPlus className="h-5 w-5 text-gray-600" aria-hidden />
+            <MotoConceptIcon concept="calendarPeriods" size={20} />
             <p className="text-sm text-gray-600">
               {editingId
                 ? "Passe Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
@@ -867,7 +868,7 @@ export default function StaffCalendarPage() {
                                 selected
                                   ? "border-gray-900 bg-white text-gray-950"
                                   : choice.covered
-                                    ? "border-gray-200 bg-[#ECF7DA] text-gray-500"
+                                    ? "bg-moto-green-soft border-gray-200 text-gray-500"
                                     : "border-transparent bg-white text-gray-700 hover:border-gray-200"
                               } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
                             >

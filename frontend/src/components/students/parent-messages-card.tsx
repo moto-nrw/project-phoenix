@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from "react";
 import useSWR from "swr";
-import { MessageCircle } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -78,27 +78,24 @@ export function ParentMessagesCard({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
-            <MessageCircle className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Nachrichten mit den Eltern
-          </h2>
-        </div>
-        {messagingEnabled && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setComposeOpen(true)}
-            className="flex-shrink-0"
-          >
-            Neue Nachricht
-          </Button>
-        )}
-      </div>
+      <ConceptSectionHeader
+        className="mb-4"
+        title="Nachrichten mit den Eltern"
+        concept="parentConversations"
+        actions={
+          messagingEnabled ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setComposeOpen(true)}
+              className="flex-shrink-0"
+            >
+              Neue Nachricht
+            </Button>
+          ) : undefined
+        }
+      />
 
       {threads.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-500">

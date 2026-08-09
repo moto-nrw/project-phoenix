@@ -31,6 +31,8 @@ import {
 } from "~/lib/hooks/use-floating-fab-offset";
 import { ActivitiesSkeleton } from "./page-skeleton";
 import { redirect } from "next/navigation";
+import { Pencil, Plus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -317,21 +319,7 @@ function ActivitiesPageContent() {
           <PageHeaderWithSearch
             title={isMobile ? "Aktivitäten" : ""}
             badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-              ),
+              icon: <MotoConceptIcon concept="activities" size={20} />,
               count: filteredActivities.length,
               label: "Aktivitäten",
             }}
@@ -355,19 +343,11 @@ function ActivitiesPageContent() {
                   className="group flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950"
                   aria-label="Aktivität erstellen"
                 >
-                  <svg
+                  <Plus
                     className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
                     strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                 </button>
               )
             }
@@ -381,19 +361,11 @@ function ActivitiesPageContent() {
           className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
           aria-label="Aktivität erstellen"
         >
-          <svg
+          <Plus
             className="relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
             strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
+            aria-hidden="true"
+          />
         </button>
 
         {/* Error Alert */}
@@ -453,19 +425,10 @@ function ActivitiesPageContent() {
                       {/* Edit icon indicator (visual only - parent button handles click) */}
                       <span className="relative" aria-hidden="true">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:group-hover:bg-gray-200">
-                          <svg
+                          <Pencil
                             className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
+                            aria-hidden="true"
+                          />
                         </div>
                       </span>
                     </div>
@@ -477,19 +440,9 @@ function ActivitiesPageContent() {
         ) : (
           <div className="flex min-h-[300px] items-center justify-center">
             <div className="text-center">
-              <svg
-                className="mx-auto h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                />
-              </svg>
+              <div className="mx-auto flex h-12 w-12 items-center justify-center">
+                <MotoConceptIcon concept="activities" size={48} />
+              </div>
               <h3 className="mt-4 text-lg font-medium text-gray-900">
                 {searchTerm || categoryFilter !== "all"
                   ? "Keine Aktivitäten gefunden"

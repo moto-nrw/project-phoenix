@@ -9,6 +9,11 @@ import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
+import { Button } from "~/components/ui/button";
+import {
+  ConceptPageHeader,
+  ConceptSectionHeader,
+} from "~/components/ui/concept-section-header";
 import { FeedbackHistorySkeleton } from "./page-skeleton";
 import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
@@ -16,6 +21,7 @@ import type { Student } from "~/lib/student-helpers";
 import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   type ChartConfig,
   ChartContainer,
@@ -34,10 +40,16 @@ const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
 };
 
 const feedbackChartConfig = {
-  positive: { label: "Positiv", color: "#22c55e" },
-  neutral: { label: "Neutral", color: "#eab308" },
-  negative: { label: "Negativ", color: "#ef4444" },
+  positive: { label: "Positiv", color: MOTO_COLOR_PALETTE.green.base },
+  neutral: { label: "Neutral", color: MOTO_COLOR_PALETTE.amber.base },
+  negative: { label: "Negativ", color: MOTO_COLOR_PALETTE.red.base },
 } satisfies ChartConfig;
+
+const feedbackToneColors = {
+  positive: MOTO_COLOR_PALETTE.green.base,
+  neutral: MOTO_COLOR_PALETTE.amber.base,
+  negative: MOTO_COLOR_PALETTE.red.base,
+} satisfies Record<FeedbackEntry["feedback_type"], string>;
 
 const timeRangeOptions = [
   { key: "all", label: "Alle" },
@@ -221,13 +233,15 @@ function StudentFeedbackHistoryPageContent() {
     return (
       <div className="flex min-h-[80vh] flex-col items-center justify-center">
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
-        <button
+        <Button
           type="button"
           onClick={() => router.push(referrer)}
-          className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+          variant="secondary"
+          size="md"
+          className="mt-4"
         >
           Zurück
-        </button>
+        </Button>
       </div>
     );
   }
@@ -241,31 +255,13 @@ function StudentFeedbackHistoryPageContent() {
         referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
       />
 
-      {/* Header */}
-      <div className="mb-6 ml-6">
-        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-          {student.name}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">Feedbackhistorie</p>
-        <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-          <svg
-            className="h-4 w-4 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            />
-          </svg>
-          <span>
-            {student.school_class} · Gruppe: {student.group_name}
-          </span>
-        </div>
-      </div>
+      <ConceptPageHeader
+        className="mb-6 ml-6"
+        title={student.name}
+        eyebrow="Feedbackhistorie"
+        concept="feedback"
+        subtitle={`${student.school_class} · Gruppe: ${student.group_name}`}
+      />
 
       {/* Filter pills — compact, no card wrapper */}
       <div className="mb-6 flex flex-wrap gap-2">
@@ -286,11 +282,13 @@ function StudentFeedbackHistoryPageContent() {
       </div>
 
       {/* Main visual card */}
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="p-4 sm:p-6 md:p-8">
-          <h2 className="mb-1 text-base font-bold text-gray-900 sm:text-lg">
-            Feedback-Übersicht
-          </h2>
+          <ConceptSectionHeader
+            className="mb-4"
+            title="Feedback-Übersicht"
+            concept="feedback"
+          />
 
           {totalFeedback === 0 ? (
             <p className="py-8 text-center text-sm text-gray-400">
@@ -302,24 +300,27 @@ function StudentFeedbackHistoryPageContent() {
               <div className="mt-4 flex h-3 overflow-hidden rounded-full">
                 {positiveFeedbackCount > 0 && (
                   <div
-                    className="bg-green-500 transition-all duration-300"
+                    className="transition-[width] duration-300"
                     style={{
+                      backgroundColor: feedbackToneColors.positive,
                       width: `${(positiveFeedbackCount / totalFeedback) * 100}%`,
                     }}
                   />
                 )}
                 {neutralFeedbackCount > 0 && (
                   <div
-                    className="bg-yellow-400 transition-all duration-300"
+                    className="transition-[width] duration-300"
                     style={{
+                      backgroundColor: feedbackToneColors.neutral,
                       width: `${(neutralFeedbackCount / totalFeedback) * 100}%`,
                     }}
                   />
                 )}
                 {negativeFeedbackCount > 0 && (
                   <div
-                    className="bg-red-500 transition-all duration-300"
+                    className="transition-[width] duration-300"
                     style={{
+                      backgroundColor: feedbackToneColors.negative,
                       width: `${(negativeFeedbackCount / totalFeedback) * 100}%`,
                     }}
                   />
@@ -329,21 +330,30 @@ function StudentFeedbackHistoryPageContent() {
               {/* Inline stats */}
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: feedbackToneColors.positive }}
+                  />
                   <span className="font-medium text-gray-900">
                     {positiveFeedbackCount}
                   </span>
                   <span className="text-gray-500">Positiv</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: feedbackToneColors.neutral }}
+                  />
                   <span className="font-medium text-gray-900">
                     {neutralFeedbackCount}
                   </span>
                   <span className="text-gray-500">Neutral</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: feedbackToneColors.negative }}
+                  />
                   <span className="font-medium text-gray-900">
                     {negativeFeedbackCount}
                   </span>
@@ -474,13 +484,11 @@ function StudentFeedbackHistoryPageContent() {
                             data-testid={`feedback-indicator-${feedback.feedback_type}`}
                           >
                             <span
-                              className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${
-                                feedback.feedback_type === "positive"
-                                  ? "bg-green-500"
-                                  : feedback.feedback_type === "neutral"
-                                    ? "bg-yellow-400"
-                                    : "bg-red-500"
-                              }`}
+                              className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  feedbackToneColors[feedback.feedback_type],
+                              }}
                             />
                             <span className="text-sm text-gray-900">
                               {feedbackTypeLabels[feedback.feedback_type]}

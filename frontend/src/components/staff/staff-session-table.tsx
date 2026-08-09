@@ -12,6 +12,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -463,8 +464,8 @@ export function StaffSessionTable({
                         {session?.check_out_time ? (
                           formatTimeOnly(session.check_out_time)
                         ) : session ? (
-                          <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
-                            <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#83CD2D]" />
+                          <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
+                            <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
                             eingestempelt
                           </span>
                         ) : (
@@ -767,7 +768,17 @@ function computeRowStatus(
 // tooltip prop and does not need one.
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
-    return <StatusBadge label="Homeoffice" tone="blue" />;
+    // Not StatusBadge tone="blue": that resolves to the same blue.soft/base/
+    // strong triple getLocationBadgeTone returns for ABSENCE_TYPE_HEX.vacation
+    // (#5080D8), so "Homeoffice" and "Urlaub" rendered as identical pills in
+    // this very column. #0EA5E9 is the hue staff-helpers already uses for
+    // Homeoffice.
+    return (
+      <StatusDotBadge
+        label="Homeoffice"
+        color={MOTO_COLOR_PALETTE.timeTracking.base}
+      />
+    );
   }
   if (status.kind === "present") {
     return <StatusBadge label="OGS" tone="green" />;
@@ -870,16 +881,18 @@ function HintBadges({
   );
 }
 
-// Saldo values sit as plain text on a white row, so they follow the app's tone
-// map — identical to KpiCard in staff-time-views, which prices the same figure
-// on /staff/[id]. The kit's darkened badge foregrounds (#8A5600 / #9F1F1E) are
-// for TINTED surfaces and read brown/maroon on white. Green is the brand green
-// because it is legible and unambiguous at this size.
+// Saldo values sit as plain text on a white row — identical to KpiCard in
+// staff-time-views, which prices the same figure on /staff/[id]. The -strong
+// ramp steps are used deliberately even though they read brownish: amber only
+// becomes legible on white once it is that dark. The previous text-amber-600
+// (#D97706) sat at 3.19:1 and missed AA for normal text, moto-amber-strong
+// (#92400E) reaches 7.09:1. Green is the brand green because it is legible and
+// unambiguous at this size.
 function deltaClass(delta: number): string {
-  if (delta > 0) return "font-medium text-amber-600";
-  if (delta < -15) return "font-medium text-red-600";
+  if (delta > 0) return "text-moto-amber-strong font-medium";
+  if (delta < -15) return "text-moto-red-strong font-medium";
   if (delta < 0) return "font-medium text-gray-500";
-  return "font-medium text-[#70b525]";
+  return "text-moto-green-strong font-medium";
 }
 
 function toDateKey(d: Date): string {

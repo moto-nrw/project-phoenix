@@ -285,7 +285,7 @@ export function TransitionEditor({
           machen.
         </p>
 
-        {loadError && <p className="text-sm text-[#FF3130]">{loadError}</p>}
+        {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
         {rows === null && !loadError && <Loading fullPage={false} />}
 
         {rows !== null && (
@@ -337,7 +337,7 @@ export function TransitionEditor({
                     />
                   </div>
                 ) : (
-                  <span className="text-sm font-medium text-[#FF3130]">
+                  <span className="text-moto-red text-sm font-medium">
                     Abgang
                   </span>
                 )}
@@ -381,9 +381,9 @@ export function TransitionEditor({
         )}
 
         {validationError && rows !== null && rows.length > 0 && (
-          <p className="text-sm text-[#F78C10]">{validationError}</p>
+          <p className="text-moto-orange text-sm">{validationError}</p>
         )}
-        {saveError && <p className="text-sm text-[#FF3130]">{saveError}</p>}
+        {saveError && <p className="text-moto-red text-sm">{saveError}</p>}
       </div>
     </Modal>
   );

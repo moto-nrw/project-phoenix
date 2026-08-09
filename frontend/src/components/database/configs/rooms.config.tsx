@@ -1,7 +1,6 @@
 // Room Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import { RoomColorField } from "@/components/ui/database/room-color-field";
 import { mapRoomResponse, prepareRoomForBackend } from "@/lib/room-helpers";
 import type { Room, BackendRoom } from "@/lib/room-helpers";
@@ -12,7 +11,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     plural: "Räume",
   },
 
-  theme: databaseThemes.rooms,
+  concept: "rooms",
 
   backUrl: "/database",
 
@@ -27,7 +26,6 @@ export const roomsConfig = defineEntityConfig<Room>({
     sections: [
       {
         title: "Raumdetails",
-        backgroundColor: "bg-indigo-50/30",
         columns: 2,
         fields: [
           {
@@ -196,13 +194,12 @@ export const roomsConfig = defineEntityConfig<Room>({
               return room.name?.[0] ?? "R";
           }
         },
-        backgroundColor: databaseThemes.rooms.primary,
       },
       badges: [
         // Category badge
         {
           label: (room: Room) => room.category ?? "Keine Kategorie",
-          color: "bg-indigo-100 text-indigo-800",
+          color: "bg-moto-indigo-soft text-moto-indigo-strong",
           showWhen: (room: Room) => !!room.category,
         },
         // Building and floor badge
@@ -225,12 +222,12 @@ export const roomsConfig = defineEntityConfig<Room>({
         // Occupancy status badge
         {
           label: "Belegt",
-          color: "bg-red-100 text-red-800",
+          color: "bg-moto-red-soft text-moto-red-strong",
           showWhen: (room: Room) => room.isOccupied,
         },
         {
           label: "Frei",
-          color: "bg-green-100 text-green-800",
+          color: "bg-moto-green-soft text-moto-green-strong",
           showWhen: (room: Room) => !room.isOccupied,
         },
       ],

@@ -2,16 +2,15 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Pencil, Plus, ShieldCheck, X } from "lucide-react";
 import {
-  Pencil,
-  Phone,
-  Mail,
-  MapPin,
-  ShieldCheck,
-  StickyNote,
-  Plus,
-  X,
-} from "lucide-react";
+  PhoneIcon,
+  EnvelopeSimpleIcon,
+  MapPinIcon,
+  NoteIcon,
+} from "@phosphor-icons/react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   type ChildGuardian,
   type GuardianContactPayload,
@@ -232,7 +231,7 @@ function GuardianRow({
   return (
     <div className="rounded-xl bg-gray-50 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#83CD2D]/15 text-sm font-semibold text-[#5A8E1F]">
+        <span className="bg-moto-teal/15 text-moto-teal-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
           {initials(g.first_name, g.last_name)}
         </span>
         <div className="min-w-0 flex-1">
@@ -270,7 +269,11 @@ function GuardianRow({
                     <ContactLine
                       key={`${p.phone_number}-${p.phone_type}`}
                       icon={
-                        <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                        <MotoDuotoneIcon
+                          icon={PhoneIcon}
+                          tone="neutral"
+                          size={14}
+                        />
                       }
                       text={[
                         p.phone_number,
@@ -287,7 +290,13 @@ function GuardianRow({
                   ))}
                   {g.email && (
                     <ContactLine
-                      icon={<Mail className="h-3.5 w-3.5" aria-hidden="true" />}
+                      icon={
+                        <MotoDuotoneIcon
+                          icon={EnvelopeSimpleIcon}
+                          tone="neutral"
+                          size={14}
+                        />
+                      }
                       text={g.email}
                     />
                   )}
@@ -296,7 +305,11 @@ function GuardianRow({
                     g.address_postal_code) && (
                     <ContactLine
                       icon={
-                        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                        <MotoDuotoneIcon
+                          icon={MapPinIcon}
+                          tone="neutral"
+                          size={14}
+                        />
                       }
                       text={[
                         g.address_street,
@@ -312,9 +325,7 @@ function GuardianRow({
               )}
               {g.pickup_notes && (
                 <ContactLine
-                  icon={
-                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                  }
+                  icon={<MotoConceptIcon concept="permissions" size={16} />}
                   text={g.pickup_notes}
                 />
               )}
@@ -363,9 +374,9 @@ function GuardianRow({
                 className="text-gray-400"
               >
                 {g.can_manage_pickup ? (
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  <MotoConceptIcon concept="permissions" size={18} />
                 ) : (
-                  <StickyNote className="h-4 w-4" aria-hidden="true" />
+                  <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={16} />
                 )}
               </Button>
             )}
@@ -506,7 +517,7 @@ function ContactModal({
     >
       <div className="space-y-4">
         {error && (
-          <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
             {error}
           </div>
         )}
@@ -722,7 +733,7 @@ function PickupModal({
     >
       <div className="space-y-4">
         {error && (
-          <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
             {error}
           </div>
         )}

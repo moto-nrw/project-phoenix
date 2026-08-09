@@ -34,7 +34,7 @@ describe("CapacityStrip", () => {
     ]);
 
     const number = screen.getByText("6");
-    expect(number).not.toHaveStyle({ color: "#FF3130" });
+    expect(number).not.toHaveStyle({ color: "#DC2626" });
     expect(number).not.toHaveClass("font-semibold");
     expect(screen.getByText("~42 · 6 P.")).toBeInTheDocument();
   });
@@ -46,10 +46,10 @@ describe("CapacityStrip", () => {
     ]);
 
     const marked = screen.getByText("4");
-    expect(marked).toHaveStyle({ color: "#FF3130" });
+    expect(marked).toHaveStyle({ color: "#DC2626" });
     expect(marked).toHaveClass("font-semibold");
     // Peers stay neutral.
-    expect(screen.getByText("6")).not.toHaveStyle({ color: "#FF3130" });
+    expect(screen.getByText("6")).not.toHaveStyle({ color: "#DC2626" });
   });
 
   it("can drop the sticky positioning for standalone use", () => {

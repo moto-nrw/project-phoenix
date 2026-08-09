@@ -103,21 +103,33 @@ If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
 ### Colors — route every semantic color through `LOCATION_COLORS`
 
-NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Use the kit component that already encodes the color, or the brand hex via arbitrary-value syntax (`bg-[#83CD2D]`).
+NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Prefer the kit component that already encodes the color, then a `moto-*` utility (`bg-moto-green`, `text-moto-red-strong`), then `LOCATION_COLORS` / `MOTO_COLOR_PALETTE` in a `style` prop. Do NOT hardcode the raw hex in an arbitrary-value class: when the palette moves, a literal stays behind and silently drifts out of sync with the token beside it.
 
 | Semantic | Hex | `LOCATION_COLORS` key |
 |---|---|---|
 | Brand green (primary) | `#83CD2D` | `GROUP_ROOM` |
 | Brand blue | `#5080D8` | `OTHER_ROOM` |
-| Red | `#FF3130` | `HOME` |
-| Orange | `#F78C10` | `SCHOOLYARD` |
-| Magenta | `#D946EF` | `TRANSIT` |
-| Amber | `#EAB308` | `SICK` |
-| Blue (class trip) | `#5080D8` | `CLASS_TRIP` |
-| Purple | `#7C3AED` | `EXCUSED` |
-| Gray (neutral) | `#6B7280` | `UNKNOWN` / `NOT_ARRIVAL` |
+| Neutral gray (Zuhause) | `#6B7280` | `HOME` |
+| Orange (Schulhof) | `#F78C10` | `SCHOOLYARD` |
+| Magenta (Unterwegs) | `#D946EF` | `TRANSIT` |
+| Red (Krank / Fehler) | `#DC2626` | `SICK` / `DANGER` |
+| Amber (Warnung) | `#EAB308` | `WARNING` |
+| Purple (Entschuldigt) | `#7C3AED` | `EXCUSED` |
+| Cyan (Klassenfahrt) | `#0891B2` | `CLASS_TRIP` |
+| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL` |
+| Stone (Unbekannt) | `#78716C` | `UNKNOWN` |
 
-Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74b827`, active `#669f21`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use these hexes via arbitrary-value classes.
+`SICK` and `DANGER` are the same hex on purpose — one names the child status,
+the other the error semantic. `WARNING` is the amber "needs attention but is
+not an error" hue (pending request, unstaffed slot, unexplained absence); it
+used to be what `SICK` pointed at, so never treat amber as "sick".
+
+**Two states shown together must never resolve to the same hex.** That is the
+failure this table exists to prevent: a `Record` or `switch` that maps one
+state to `SICK` and another to `DANGER` renders both identically. Check the
+resolved hex, not the constant name.
+
+Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use these hexes via arbitrary-value classes.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
 

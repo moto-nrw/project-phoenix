@@ -2,7 +2,7 @@
 
 // Brand color hex codes via LOCATION_COLORS (CLAUDE.md §0,
 // lib/location-helper.ts): OTHER_ROOM (#5080D8) for blue accents,
-// HOME (#FF3130) for occupied/error, GROUP_ROOM (#83CD2D) for free
+// DANGER (#DC2626) for occupied/error, GROUP_ROOM (#83CD2D) for free
 // (with #4a7a15 text for AA contrast on the tinted background).
 
 // Single skeleton card that matches the populated room card's outer
@@ -12,7 +12,7 @@
 function RoomCardSkeleton() {
   return (
     <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md">
-      <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
+      <div className="bg-moto-blue absolute inset-0 rounded-3xl opacity-[0.03]"></div>
       <div className="relative flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">
           <div className="min-w-0 flex-1 space-y-2">

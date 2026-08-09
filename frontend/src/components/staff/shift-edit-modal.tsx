@@ -1092,7 +1092,7 @@ export function ShiftEditModal({
         {seriesNotice ? (
           <div className="space-y-3 text-sm">
             <p className="text-gray-700">Die Serie wurde gespeichert.</p>
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
               {seriesNotice}
             </p>
           </div>
@@ -1140,7 +1140,7 @@ export function ShiftEditModal({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                 />
               </Field>
               <Field label="Ende">
@@ -1148,7 +1148,7 @@ export function ShiftEditModal({
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                 />
               </Field>
             </div>
@@ -1161,7 +1161,7 @@ export function ShiftEditModal({
                   inputMode="numeric"
                   value={breakMinutesStr}
                   onChange={(e) => setBreakMinutesStr(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                 />
               </Field>
             </div>
@@ -1184,7 +1184,7 @@ export function ShiftEditModal({
                   maxLength={200}
                   onChange={(e) => setChangeReason(e.target.value)}
                   placeholder="z. B. Krankheit, Fortbildung, Tausch"
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
                 />
                 {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
                     series and carries no per-day reason, so be honest that the
@@ -1349,7 +1349,7 @@ export function ShiftEditModal({
                                     startTime: e.target.value,
                                   })
                                 }
-                                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                                className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                               />
                             </Field>
                             <Field label="Ende">
@@ -1362,7 +1362,7 @@ export function ShiftEditModal({
                                     endTime: e.target.value,
                                   })
                                 }
-                                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                                className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                               />
                             </Field>
                           </div>
@@ -1413,7 +1413,7 @@ export function ShiftEditModal({
                     </FieldGroup>
                     <Field label="Kalenderzeitraum">
                       {periods !== null && periodOptions.length === 0 ? (
-                        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
                           Kein aktiver Kalenderzeitraum vorhanden. Bitte zuerst
                           unter Planung → Kalenderzeiträume einen Zeitraum
                           anlegen.
@@ -1486,7 +1486,7 @@ export function ShiftEditModal({
               </div>
             )}
             {error && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+              <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
                 {error}
               </p>
             )}

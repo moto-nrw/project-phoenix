@@ -59,9 +59,11 @@ export function PrivacyConsentSection({
           <div>
             Einwilligung:{" "}
             {consent.accepted ? (
-              <span className="font-medium text-green-600">Erteilt</span>
+              <span className="text-moto-green-strong font-medium">
+                Erteilt
+              </span>
             ) : (
-              <span className="font-medium text-red-600">Nicht erteilt</span>
+              <span className="text-moto-red font-medium">Nicht erteilt</span>
             )}
           </div>
           {consent.acceptedAt && (
@@ -85,7 +87,7 @@ export function PrivacyConsentSection({
             </div>
           )}
           {consent.renewalRequired && (
-            <div className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">
+            <div className="bg-moto-amber/10 text-moto-amber-strong mt-2 rounded p-2 text-sm">
               ⚠️ Einwilligung muss erneuert werden
             </div>
           )}

@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
-import { MonitorPlay, Copy, Check } from "lucide-react";
+import { Copy, Check } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -243,7 +244,7 @@ function InfoDisplaysPageContent() {
       <PageHeaderWithSearch
         title="Info-Displays"
         badge={{
-          icon: <MonitorPlay className="h-4 w-4" />,
+          icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
           count: displays?.length ?? 0,
         }}
         search={{
@@ -435,7 +436,7 @@ function TokenModal({
             onClick={() => void handleCopy()}
           >
             {copied ? (
-              <Check className="h-4 w-4 text-[#83CD2D]" />
+              <Check className="text-moto-green h-4 w-4" />
             ) : (
               <Copy className="h-4 w-4" />
             )}

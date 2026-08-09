@@ -760,7 +760,7 @@ export function TimetableEventModal({
             confirmText="Löschen"
             cancelText="Abbrechen"
             isConfirmLoading={deletingSeries}
-            confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+            confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
           >
             <div className="flex flex-col gap-4">
               <p className="text-sm leading-relaxed text-gray-600">
@@ -858,7 +858,7 @@ export function TimetableEventModal({
           confirmText="Trotzdem fortfahren"
           cancelText="Abbrechen"
           isConfirmLoading={submitting}
-          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+          confirmButtonClass="bg-moto-orange hover:bg-[#d97908]"
         >
           {lostEdits && (
             <div className="flex flex-col gap-3">

@@ -59,6 +59,7 @@ import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useToast } from "~/contexts/ToastContext";
 import {
   usePeriodMetrics,
@@ -248,7 +249,7 @@ function PlannedShiftsInfo({
             {shift.startTime}–{shift.endTime}
           </span>
           {shift.originShiftId && (
-            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+            <span className="bg-moto-blue/10 text-moto-blue rounded-full px-2 py-0.5 text-xs font-medium">
               Vertretung
             </span>
           )}
@@ -386,8 +387,8 @@ function getCheckInButtonClassName(mode: WorkMode | null): string {
   if (mode === null)
     return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
   if (mode === "home_office")
-    return `${base} border-[#5080D8] text-[#5080D8] hover:bg-[#5080D8]/5`;
-  return `${base} border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5`;
+    return `${base} border-moto-blue text-moto-blue hover:bg-moto-blue/5`;
+  return `${base} border-moto-green text-moto-green hover:bg-moto-green/5`;
 }
 
 // Returns className for the break/pause button. Orange is SCHOOLYARD #F78C10
@@ -1398,7 +1399,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "work" && seg.isActive) return "text-[#83CD2D]";
+    if (seg.type === "work" && seg.isActive) return "text-moto-green";
     if (seg.type === "work") return "text-gray-600";
     return "";
   };
@@ -1504,7 +1505,7 @@ type StatusTone = "green" | "amber" | "gray";
 // NOT used: it is a foreground for TINTED surfaces (Alert warning, StatusBadge
 // orange) and turns brown on white.
 const STATUS_TEXT: Record<StatusTone, string> = {
-  green: "text-[#83CD2D]",
+  green: "text-moto-green",
   amber: "text-amber-600",
   gray: "text-gray-700",
 };
@@ -1938,7 +1939,10 @@ function OwnZeiterfassungSection({
 // ─── WeekChart ───────────────────────────────────────────────────────────────
 
 const weekChartConfig = {
-  netMinutes: { label: "Arbeitszeit", color: "#0ea5e9" }, // sky-500 — matches sidebar icon
+  netMinutes: {
+    label: "Arbeitszeit",
+    color: MOTO_COLOR_PALETTE.timeTracking.base,
+  },
   breakMinutes: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
 } satisfies ChartConfig;
 

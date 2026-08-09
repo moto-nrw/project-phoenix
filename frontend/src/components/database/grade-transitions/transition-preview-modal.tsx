@@ -181,7 +181,7 @@ export function TransitionPreviewModal({
         }
       >
         {!preview && !loadError && <Loading fullPage={false} />}
-        {loadError && <p className="text-sm text-[#FF3130]">{loadError}</p>}
+        {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
 
         {preview && (
           <div className="space-y-4">
@@ -193,13 +193,13 @@ export function TransitionPreviewModal({
                 <p className="text-xs text-gray-500">Kinder gesamt</p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
-                <p className="text-2xl font-semibold text-[#83CD2D]">
+                <p className="text-moto-green text-2xl font-semibold">
                   {preview.toPromote}
                 </p>
                 <p className="text-xs text-gray-500">werden versetzt</p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
-                <p className="text-2xl font-semibold text-[#FF3130]">
+                <p className="text-moto-red text-2xl font-semibold">
                   {preview.toGraduate}
                 </p>
                 <p className="text-xs text-gray-500">Abgänge</p>
@@ -225,8 +225,8 @@ export function TransitionPreviewModal({
             </ul>
 
             {preview.toGraduate > 0 && (
-              <div className="rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-gray-800">
-                <p className="font-semibold text-[#FF3130]">
+              <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-3 text-sm text-gray-800">
+                <p className="text-moto-red font-semibold">
                   {preview.toGraduate}{" "}
                   {preview.toGraduate === 1
                     ? "Kind verlässt die OGS"
@@ -240,8 +240,8 @@ export function TransitionPreviewModal({
             )}
 
             {preview.unmappedClasses.length > 0 && (
-              <div className="rounded-xl border border-[#F78C10]/30 bg-[#F78C10]/5 p-3 text-sm text-gray-800">
-                <p className="font-semibold text-[#F78C10]">
+              <div className="border-moto-orange/30 bg-moto-orange/5 rounded-xl border p-3 text-sm text-gray-800">
+                <p className="text-moto-orange font-semibold">
                   Nicht berücksichtigte Klassen
                 </p>
                 <p className="mt-1">
@@ -254,7 +254,7 @@ export function TransitionPreviewModal({
             )}
 
             {applyError && (
-              <p className="text-sm text-[#FF3130]">{applyError}</p>
+              <p className="text-moto-red text-sm">{applyError}</p>
             )}
           </div>
         )}

@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Eye, Info, ShieldCheck } from "lucide-react";
+import { Eye, Info } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
   PublicEnrollmentBackLink,
@@ -99,15 +100,15 @@ function EnrollmentPreviewPageContent() {
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
-          className: "bg-[#83CD2D]/10 text-[#5F9F20]",
-          dotClassName: "bg-[#83CD2D]",
+          className: "bg-moto-green/10 text-moto-green-strong",
+          dotClassName: "bg-moto-green",
         }
       : assignedPhaseCount > 0
         ? {
             label: "In Phase verwendet",
             hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-            className: "bg-[#83CD2D]/10 text-[#5F9F20]",
-            dotClassName: "bg-[#83CD2D]",
+            className: "bg-moto-green/10 text-moto-green-strong",
+            dotClassName: "bg-moto-green",
           }
         : {
             label: "Nicht live",
@@ -135,7 +136,7 @@ function EnrollmentPreviewPageContent() {
             <PublicEnrollmentBackLink href="/enrollment-form">
               Zurück zu Anmeldeformularen
             </PublicEnrollmentBackLink>
-            <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
               Formularvorschau
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
@@ -162,7 +163,7 @@ function EnrollmentPreviewPageContent() {
               Vorschau wird geladen…
             </div>
           ) : error || gradeLevelMax === null ? (
-            <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
+            <div className="moto-content-surface border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-3xl border p-6 text-sm font-medium shadow-sm">
               {error ?? "Die Klassenstufen-Konfiguration ist nicht verfügbar."}
             </div>
           ) : (
@@ -207,7 +208,7 @@ function EnrollmentPreviewPageContent() {
             Live-Elternansicht oder in einer Phasenvorschau sichtbar.
           </PublicInfoCard>
           <PublicInfoCard
-            icon={<ShieldCheck className="h-5 w-5" />}
+            icon={<MotoConceptIcon concept="permissions" size={22} />}
             title="Sichere Vorschau"
           >
             Der Absenden-Button ist in dieser Ansicht deaktiviert.

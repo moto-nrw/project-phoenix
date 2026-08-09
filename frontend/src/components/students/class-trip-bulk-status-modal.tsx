@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Bus } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -106,8 +106,8 @@ export function ClassTripBulkStatusModal({
       }
     >
       <div className="space-y-4 p-4">
-        <div className="flex items-start gap-3 rounded-lg border border-[#5080D8]/25 bg-[#5080D8]/10 p-3 text-sm text-gray-700">
-          <Bus className="mt-0.5 h-4 w-4 shrink-0 text-[#5080D8]" />
+        <div className="border-moto-blue/25 bg-moto-blue/10 flex items-start gap-3 rounded-lg border p-3 text-sm text-gray-700">
+          <MotoConceptIcon concept="classTrip" size={18} className="mt-0.5" />
           <p>
             Der Status wird für alle {students.length} Schüler in{" "}
             <strong>{targetLabel}</strong> gesetzt und über Nacht nicht

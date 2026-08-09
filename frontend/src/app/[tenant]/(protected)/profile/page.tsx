@@ -133,7 +133,7 @@ function ProfileContent() {
         {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
           <div className="group relative">
-            <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#ECF8DF] text-[#5A8E1F]">
+            <div className="bg-moto-green-soft text-moto-green-strong relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full">
               {profile?.avatar ? (
                 <Image
                   src={profile.avatar}

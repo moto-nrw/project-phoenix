@@ -12,7 +12,7 @@ export function DashboardSkeleton() {
       aria-busy="true"
       aria-label="Übersicht wird geladen"
       data-testid="dashboard-skeleton"
-      className="mx-auto w-full max-w-7xl"
+      className="w-full"
     >
       <div className="mb-6 md:mb-8">
         <div className="ml-6 space-y-2">
@@ -21,8 +21,8 @@ export function DashboardSkeleton() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
-        {[0, 1, 2, 3, 4].map((item) => (
+      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((item) => (
           <div
             key={item}
             className="moto-content-surface rounded-3xl border p-4 shadow-sm md:p-6"
@@ -38,8 +38,8 @@ export function DashboardSkeleton() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2">
-        {[0, 1, 2, 3].map((item) => (
+      <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        {[0, 1, 2].map((item) => (
           <div
             key={item}
             className="moto-content-surface rounded-3xl border p-4 shadow-sm md:p-6"

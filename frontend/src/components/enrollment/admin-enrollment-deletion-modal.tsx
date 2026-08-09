@@ -181,7 +181,7 @@ export function AdminEnrollmentDeletionModal({
       }
     >
       <div className="space-y-4">
-        <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4">
+        <div className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4">
           <p className="text-sm font-semibold text-gray-900">{targetLabel}</p>
           <p className="mt-1 text-sm text-gray-700">
             Diese Löschung kann nicht rückgängig gemacht werden. Die Vorschau
@@ -221,10 +221,10 @@ export function AdminEnrollmentDeletionModal({
             ) : null}
 
             {impact.blocking_student_ids.length > 0 ? (
-              <section className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4">
+              <section className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4">
                 <div className="flex gap-3">
                   <ShieldAlert
-                    className="mt-0.5 h-5 w-5 shrink-0 text-[#FF3130]"
+                    className="text-moto-red mt-0.5 h-5 w-5 shrink-0"
                     aria-hidden="true"
                   />
                   <div>
@@ -241,7 +241,7 @@ export function AdminEnrollmentDeletionModal({
                         <Link
                           key={studentId}
                           href={studentHref(studentId)}
-                          className="text-sm font-semibold text-[#FF3130] underline underline-offset-2"
+                          className="text-moto-red text-sm font-semibold underline underline-offset-2"
                         >
                           Kind #{studentId} öffnen
                         </Link>

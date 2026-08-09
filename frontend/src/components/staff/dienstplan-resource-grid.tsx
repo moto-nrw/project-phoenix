@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  ArrowRightLeft,
-  CalendarOff,
-  Clock,
-  MapPin,
-  Repeat,
-  Thermometer,
-  TriangleAlert,
-} from "lucide-react";
+import { ArrowRightLeft, Repeat, TriangleAlert } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -41,6 +33,9 @@ import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   formatColumnDate,
   formatPlannedHours,
@@ -161,8 +156,10 @@ function absenceNoteForStaff(
 // Ported 1:1 from the retired per-cell week grid (pure, prop-only) — the accent color
 // of a read-only Betreuungsplan assignment card.
 function assignmentAccentColor(assignment: StaffScheduleAssignment): string {
-  if (assignment.isAbsent) return LOCATION_COLORS.HOME;
-  if (assignment.coverageStatus === "uncovered") return LOCATION_COLORS.SICK;
+  if (assignment.isAbsent) return LOCATION_COLORS.DANGER;
+  // WARNING, not SICK: SICK is red now, which would match the isAbsent
+  // DANGER accent one line above and flatten the two states into one.
+  if (assignment.coverageStatus === "uncovered") return LOCATION_COLORS.WARNING;
   if (assignment.isSubstitute) return LOCATION_COLORS.OTHER_ROOM;
   return LOCATION_COLORS.UNKNOWN;
 }
@@ -181,7 +178,7 @@ function AssignmentCard({
     assignmentStatus = (
       <span
         className="mt-1 block text-xs font-semibold"
-        style={{ color: LOCATION_COLORS.HOME }}
+        style={{ color: LOCATION_COLORS.DANGER }}
       >
         Abwesend
         {assignment.absenceReason ? ` · ${assignment.absenceReason}` : ""}
@@ -211,7 +208,11 @@ function AssignmentCard({
         {isUncovered ? (
           <TriangleAlert
             className="mt-0.5 h-3.5 w-3.5 shrink-0"
-            style={{ color: LOCATION_COLORS.SICK }}
+            // Same condition as the WARNING accent in assignmentAccentColor —
+            // must be the same amber, or the card gets an amber border with a
+            // red triangle and the triangle matches the DANGER "Abwesend"
+            // state instead.
+            style={{ color: LOCATION_COLORS.WARNING }}
             aria-label="Nicht vollständig durch Schicht abgedeckt"
           />
         ) : null}
@@ -220,7 +221,12 @@ function AssignmentCard({
         {assignment.activityTitle}
       </span>
       <span className="flex items-center gap-1 truncate text-xs text-gray-500">
-        <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+        <MotoDuotoneIcon
+          icon={MOTO_CONCEPTS.rooms.icon}
+          tone="neutral"
+          size={12}
+          className="shrink-0"
+        />
         {assignment.roomName}
       </span>
       {assignmentStatus}
@@ -426,19 +432,19 @@ export function DienstplanResourceGrid({
     if (onSickReport) {
       items.push({
         label: "Krank melden",
-        icon: <Thermometer className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="sick" size={18} />,
         onClick: () => onSickReport(member),
       });
     }
     if (!reducedPath) {
       items.push({
         label: "Für heute abwesend melden",
-        icon: <CalendarOff className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="notArrival" size={18} />,
         onClick: () => router.push(`/vertretung?d=${absenceEntryDate}`),
       });
       items.push({
         label: "Zeiterfassung öffnen",
-        icon: <Clock className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="timeTracking" size={18} />,
         onClick: () => router.push(timeTrackingHref(member)),
       });
     }
@@ -504,7 +510,7 @@ export function DienstplanResourceGrid({
             ? "Serie, für diese Woche angepasst"
             : "Teil einer Serie"
         }
-        className={shift.detached ? "text-[#EAB308]" : "text-gray-400"}
+        className={shift.detached ? "text-moto-amber" : "text-gray-400"}
       />
     ) : undefined;
 
@@ -557,7 +563,7 @@ export function DienstplanResourceGrid({
         {shift.cancelled ? (
           <p
             className="text-[11px] font-medium"
-            style={{ color: LOCATION_COLORS.HOME }}
+            style={{ color: LOCATION_COLORS.DANGER }}
           >
             Fällt aus{shift.changeReason ? ` · ${shift.changeReason}` : ""}
           </p>
@@ -719,7 +725,7 @@ export function DienstplanResourceGrid({
                     {column.isCurrent && !isSelected && (
                       <span
                         aria-hidden
-                        className="h-1 w-1 rounded-full bg-[#FF3130]"
+                        className="bg-moto-red h-1 w-1 rounded-full"
                       />
                     )}
                   </button>

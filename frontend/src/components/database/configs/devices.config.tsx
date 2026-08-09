@@ -1,7 +1,6 @@
 // Device Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import type { Device } from "@/lib/iot-helpers";
 import {
   prepareDeviceForBackend,
@@ -21,7 +20,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     plural: "Geräte",
   },
 
-  theme: databaseThemes.devices,
+  concept: "devices",
 
   backUrl: "/database",
 
@@ -33,9 +32,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: "Geräteinformationen",
-        backgroundColor: "bg-yellow-50/30",
-        iconPath:
-          "M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01",
+        concept: "devices",
         columns: 2,
         fields: [
           {
@@ -289,7 +286,7 @@ export const devicesConfig = defineEntityConfig<Device>({
       badges: [
         {
           label: (device) => getDeviceTypeDisplayName(device.device_type),
-          color: "bg-blue-100 text-blue-800",
+          color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: () => true,
         },
       ],

@@ -17,9 +17,9 @@ export function DesktopOnlyNotice({
 }: DesktopOnlyNoticeProps) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center lg:hidden">
-      <div className="mb-6 rounded-full bg-[#5080D8]/10 p-5">
+      <div className="bg-moto-blue/10 mb-6 rounded-full p-5">
         <svg
-          className="h-10 w-10 text-[#5080D8]"
+          className="text-moto-blue h-10 w-10"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

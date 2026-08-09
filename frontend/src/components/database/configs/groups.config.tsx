@@ -1,7 +1,6 @@
 // Group Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import type { Group, BackendGroup } from "@/lib/group-helpers";
 import { mapGroupResponse } from "@/lib/group-helpers";
 import { createLogger } from "~/lib/logger";
@@ -14,7 +13,7 @@ export const groupsConfig = defineEntityConfig<Group>({
     plural: "Gruppen",
   },
 
-  theme: databaseThemes.groups,
+  concept: "groups",
 
   backUrl: "/database",
 
@@ -26,9 +25,7 @@ export const groupsConfig = defineEntityConfig<Group>({
     sections: [
       {
         title: "Gruppendetails",
-        backgroundColor: "bg-green-50/30",
-        iconPath:
-          "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+        concept: "groups",
         columns: 2,
         fields: [
           {
@@ -254,12 +251,12 @@ export const groupsConfig = defineEntityConfig<Group>({
       badges: [
         {
           label: (group: Group) => group.room_name ?? "Kein Raum",
-          color: "bg-blue-100 text-blue-700",
+          color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: (group: Group) => !!group.room_name,
         },
         {
           label: (group: Group) => `${group.student_count ?? 0} Kinder`,
-          color: "bg-green-100 text-green-700",
+          color: "bg-moto-green-soft text-moto-green-strong",
           showWhen: () => true,
         },
       ],

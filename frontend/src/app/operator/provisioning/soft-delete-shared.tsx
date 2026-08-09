@@ -182,7 +182,7 @@ export function DeletedEntityCard({
   readonly restoreDisabledReason?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-red-100/50 bg-red-50/50 p-5 shadow-sm">
+    <div className="border-moto-red/10 bg-moto-red-soft/50 rounded-3xl border p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-gray-900">{name}</h3>
@@ -196,7 +196,7 @@ export function DeletedEntityCard({
             )}
           </div>
         </div>
-        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+        <span className="bg-moto-red/15 text-moto-red-strong rounded-full px-2 py-0.5 text-xs font-medium">
           Gelöscht
         </span>
       </div>
@@ -210,7 +210,7 @@ export function DeletedEntityCard({
             onClick={onRestore}
             disabled={restoreDisabled}
             title={restoreDisabled ? restoreDisabledReason : undefined}
-            className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100"
+            className="bg-moto-green/15 text-moto-green-strong hover:bg-moto-green/25 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100"
           >
             Wiederherstellen
           </button>
@@ -269,7 +269,7 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
           <span className="font-medium">{target.name}</span> wirklich löschen?
         </p>
         {warningBullets.length > 0 && (
-          <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="bg-moto-amber-soft text-moto-amber-strong mt-3 rounded-lg px-3 py-2 text-sm">
             <p className="font-medium">{warningTitle}</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
               {warningBullets.map((b) => (
@@ -295,19 +295,19 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
             value={confirmInput}
             onChange={(e) => onConfirmInputChange(e.target.value)}
             placeholder={target.name}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+            className="focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             autoComplete="off"
           />
         </div>
 
         {confirmDisabled && confirmDisabledReason && (
-          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
             {confirmDisabledReason}
           </div>
         )}
 
         {errorMessage && (
-          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
             {errorMessage}
           </div>
         )}
@@ -328,7 +328,7 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
               isProcessing || confirmInput !== target.name || confirmDisabled
             }
             title={confirmDisabled ? confirmDisabledReason : undefined}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="bg-moto-red hover:bg-moto-red-hover rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isProcessing ? "Wird gelöscht..." : "Löschen"}
           </button>
@@ -384,12 +384,12 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
         <p className="mt-2 text-xs text-gray-500">{extraMessage}</p>
       )}
       {confirmDisabled && confirmDisabledReason && (
-        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
           {confirmDisabledReason}
         </div>
       )}
       {errorMessage && (
-        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
           {errorMessage}
         </div>
       )}

@@ -1,4 +1,5 @@
 import { Children, isValidElement } from "react";
+import { Inbox, Plus } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
@@ -22,7 +23,7 @@ export function FormField({
         className="mb-1 block text-sm font-medium text-gray-700"
       >
         {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
+        {required && <span className="text-moto-red ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -40,7 +41,7 @@ export function FormError({
     <div
       ref={ref}
       role="alert"
-      className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"
+      className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm"
     >
       {message}
     </div>
@@ -49,7 +50,7 @@ export function FormError({
 
 export function FieldWarning({ message }: { readonly message: string }) {
   return (
-    <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
+    <p className="bg-moto-amber-soft text-moto-amber-strong mt-1 rounded px-2 py-1 text-xs">
       {message}
     </p>
   );
@@ -59,7 +60,9 @@ export function StatusBadge({ active }: { readonly active: boolean }) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+        active
+          ? "bg-moto-green/15 text-moto-green-strong"
+          : "bg-gray-100 text-gray-500"
       }`}
     >
       {active ? "Aktiv" : "Inaktiv"}
@@ -69,9 +72,9 @@ export function StatusBadge({ active }: { readonly active: boolean }) {
 
 export function DeliveryStatusBadge({ status }: { readonly status: string }) {
   const styles: Record<string, string> = {
-    sent: "bg-green-100 text-green-700",
-    pending: "bg-yellow-100 text-yellow-700",
-    failed: "bg-red-100 text-red-700",
+    sent: "bg-moto-green/15 text-moto-green-strong",
+    pending: "bg-moto-amber-soft text-moto-amber-strong",
+    failed: "bg-moto-red/10 text-moto-red-strong",
   };
   const labels: Record<string, string> = {
     sent: "Gesendet",
@@ -101,19 +104,7 @@ export function EmptyState({
   return (
     <UIEmptyState
       icon={
-        <svg
-          className="h-12 w-12"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21"
-          />
-        </svg>
+        <Inbox className="h-12 w-12" strokeWidth={1.5} aria-hidden="true" />
       }
       title={title}
       description={description}
@@ -196,17 +187,7 @@ export function SelectWithChevron({
 }
 
 export function PlusIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  );
+  return <Plus className="h-5 w-5" strokeWidth={2} aria-hidden="true" />;
 }
 
 export function VisibilityToggle({
@@ -238,8 +219,8 @@ export function VisibilityToggle({
           aria-checked={!hidden}
           aria-label="Sichtbarkeit umschalten"
           onClick={onToggle}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none ${
-            hidden ? "bg-gray-300" : "bg-blue-600"
+          className={`focus:ring-moto-blue relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-offset-2 focus:outline-none ${
+            hidden ? "bg-gray-300" : "bg-moto-blue"
           }`}
         >
           <span

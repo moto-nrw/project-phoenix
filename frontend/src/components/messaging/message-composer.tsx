@@ -86,7 +86,7 @@ export function MessageComposer({
         />
         {value.length >= COUNTER_VISIBLE_FROM ? (
           <span
-            className={`self-end text-xs ${value.length >= MAX_MESSAGE_LEN ? "text-[#FF3130]" : "text-gray-400"}`}
+            className={`self-end text-xs ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
           >
             {value.length}/{MAX_MESSAGE_LEN}
           </span>

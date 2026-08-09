@@ -1023,7 +1023,7 @@ export function StudentStammdatenTab({
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
       {planConflict ? (
-        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
           <p className="text-sm text-gray-900">{planConflict}</p>
           <p className="mt-1 text-xs text-gray-600">
             Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
@@ -1057,17 +1057,19 @@ export function StudentStammdatenTab({
         </div>
       ) : null}
       {errors.submit ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">{errors.submit}</p>
+        <div className="border-moto-red/20 bg-moto-red/10 rounded-lg border p-3">
+          <p className="text-moto-red-strong text-sm">{errors.submit}</p>
         </div>
       ) : null}
       {privacyConsentLoadError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">{privacyConsentLoadError}</p>
+        <div className="border-moto-red/20 bg-moto-red/10 rounded-lg border p-3">
+          <p className="text-moto-red-strong text-sm">
+            {privacyConsentLoadError}
+          </p>
         </div>
       ) : null}
       {companionsStale ? (
-        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
           <p className="text-sm text-gray-900">
             Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an anderer
             Stelle geändert. Speichern ist gesperrt, damit die fremde Änderung
@@ -1090,7 +1092,7 @@ export function StudentStammdatenTab({
         </div>
       ) : null}
       {companionsStatus === "error" ? (
-        <div className="rounded-lg border border-[#FF3130] bg-[#FF3130]/5 p-3">
+        <div className="border-moto-red bg-moto-red/5 rounded-lg border p-3">
           <p className="text-sm text-gray-900">
             Die Laufgemeinschaft konnte nicht geladen werden und wird unten
             nicht angezeigt. Andere Angaben lassen sich speichern, die

@@ -121,7 +121,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       <header className="space-y-2">
         <Link
           href="/parents"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#5080D8] hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t("backToPortal")}
@@ -141,7 +141,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       ) : error || !loaded ? (
         <div
           role="alert"
-          className="rounded-2xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-sm text-[#CC2626] shadow-sm"
+          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm"
         >
           {error ?? t("detailsLoadFailed")}
         </div>

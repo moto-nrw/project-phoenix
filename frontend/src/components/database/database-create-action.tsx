@@ -30,7 +30,7 @@ export function DatabaseCreateAction({
       <button
         type="button"
         onClick={onClick}
-        className="hidden h-10 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white hover:bg-[#76B929] md:flex"
+        className="bg-moto-green hover:bg-moto-green-hover hidden h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 md:flex"
         aria-label={ariaLabel}
       >
         + {label}
@@ -38,7 +38,7 @@ export function DatabaseCreateAction({
       <button
         type="button"
         onClick={onClick}
-        className="fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#83CD2D] text-white shadow-lg hover:bg-[#76B929] md:hidden"
+        className="bg-moto-green hover:bg-moto-green-hover fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg md:hidden"
         aria-label={ariaLabel}
       >
         <svg

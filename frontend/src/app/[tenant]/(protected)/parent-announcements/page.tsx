@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -511,7 +512,7 @@ function ParentAnnouncementsContent() {
                 setPublishError("");
                 setPublishTarget(row);
               }}
-              className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+              className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
             >
               <Send className="size-4" aria-hidden />
               Veröffentlichen
@@ -533,7 +534,7 @@ function ParentAnnouncementsContent() {
     const menuItems: OverflowMenuItem[] = [
       {
         label: "Anzeigen",
-        icon: <BarChart3 className="size-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="reports" size={16} />,
         onClick: () => setDetailFor(row),
       },
     ];
@@ -616,7 +617,7 @@ function ParentAnnouncementsContent() {
       </div>
 
       {loadError && (
-        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mb-4 rounded-lg border p-4 text-sm">
           Elternmitteilungen konnten nicht geladen werden.
         </div>
       )}
@@ -747,7 +748,7 @@ function ParentAnnouncementsContent() {
               werden.
             </p>
             {publishError && (
-              <p role="alert" className="text-sm text-[#CC2626]">
+              <p role="alert" className="text-moto-red-strong text-sm">
                 {publishError}
               </p>
             )}
@@ -778,7 +779,7 @@ function ParentAnnouncementsContent() {
               abgebrochen.
             </p>
             {unpublishError && (
-              <p role="alert" className="text-sm text-[#CC2626]">
+              <p role="alert" className="text-moto-red-strong text-sm">
                 {unpublishError}
               </p>
             )}
@@ -1359,7 +1360,7 @@ function AnnouncementFormModal({
         )}
 
         {formError && (
-          <p role="alert" className="text-sm text-[#CC2626]">
+          <p role="alert" className="text-moto-red-strong text-sm">
             {formError}
           </p>
         )}
@@ -1714,7 +1715,7 @@ function AnnouncementCard({
             size="compact"
             disabled={pending}
             onClick={onPublish}
-            className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+            className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
           >
             <Send className="size-4" aria-hidden />
             Veröffentlichen
@@ -1727,7 +1728,7 @@ function AnnouncementCard({
             onClick={onOpen}
             className="gap-1.5 text-gray-600"
           >
-            <BarChart3 className="size-4" aria-hidden />
+            <MotoConceptIcon concept="reports" size={16} />
             Details
           </Button>
         )}
@@ -2236,7 +2237,7 @@ function DetailModal({
             href={announcement.link_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3f68b5]"
+            className="text-moto-blue hover:text-moto-blue-hover inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
           >
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{announcement.link_url}</span>

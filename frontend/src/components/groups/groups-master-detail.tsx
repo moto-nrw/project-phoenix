@@ -13,6 +13,8 @@ import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { groupsConfig } from "@/components/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
 import type { Group } from "@/lib/group-helpers";
@@ -133,7 +135,13 @@ function GroupDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={group.name?.charAt(0)?.toUpperCase() || "G"}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.groups.icon}
+              tone={MOTO_CONCEPTS.groups.tone}
+              size={36}
+            />
+          }
           title={group.name}
           subtitle={buildGroupSubtitle(group)}
           actions={headerActions}
@@ -169,7 +177,6 @@ function GroupStammdatenTab({
       <GroupSummary group={group} />
       <DatabaseForm
         key={formResetKey}
-        theme={groupsConfig.theme}
         sections={sections}
         initialData={group}
         onSubmit={onSaveGroup}

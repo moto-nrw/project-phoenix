@@ -18,7 +18,7 @@
  * is a radio branch, not a checkbox that silently disables the rest.
  */
 
-import { Plus, RotateCcw, UserMinus } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
@@ -43,6 +43,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
@@ -562,7 +563,7 @@ export function SubstitutionSlideOver({
                               key={row.staffId}
                               className={`rounded-xl border shadow-sm ${
                                 p.absent
-                                  ? "border-[#FF3130]/25 bg-[#FF3130]/5"
+                                  ? "border-moto-red/25 bg-moto-red/5"
                                   : "border-gray-200 bg-white"
                               }`}
                             >
@@ -580,7 +581,7 @@ export function SubstitutionSlideOver({
                                   </div>
                                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
                                     {p.absent ? (
-                                      <span className="font-semibold text-[#CC2626]">
+                                      <span className="text-moto-red-strong font-semibold">
                                         Abwesend
                                       </span>
                                     ) : (
@@ -608,7 +609,11 @@ export function SubstitutionSlideOver({
                                           })
                                         }
                                       >
-                                        <UserMinus className="mr-1.5 h-4 w-4" />
+                                        <MotoConceptIcon
+                                          concept="substitution"
+                                          size={16}
+                                          className="mr-1.5"
+                                        />
                                         Abwesend
                                       </Button>
                                     ) : (
@@ -640,7 +645,7 @@ export function SubstitutionSlideOver({
 
                               {/* Absent detail: clearly-labelled Vertretung + optional reason */}
                               {p.absent && (
-                                <div className="space-y-2 rounded-b-xl border-t border-[#FF3130]/15 bg-white/60 p-3">
+                                <div className="border-moto-red/15 space-y-2 rounded-b-xl border-t bg-white/60 p-3">
                                   <div>
                                     <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
                                       Vertretung für {name}
@@ -679,7 +684,7 @@ export function SubstitutionSlideOver({
                                       </p>
                                     ) : staffLoadError &&
                                       substituteOptions.length === 0 ? (
-                                      <p className="mt-1 text-[11px] text-[#CC2626]">
+                                      <p className="text-moto-red-strong mt-1 text-[11px]">
                                         Personalliste konnte nicht geladen
                                         werden. Bitte die Seite neu laden.
                                       </p>
@@ -745,7 +750,7 @@ export function SubstitutionSlideOver({
                               <li
                                 key={row.staffId}
                                 className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 ${
-                                  inactive ? "bg-gray-100" : "bg-[#83CD2D]/10"
+                                  inactive ? "bg-gray-100" : "bg-moto-green/10"
                                 }`}
                               >
                                 <span
@@ -759,7 +764,7 @@ export function SubstitutionSlideOver({
                                 </span>
                                 <div className="flex shrink-0 items-center gap-2">
                                   {row.isAbsent && !restored ? (
-                                    <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
+                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
                                       Abwesend
                                     </span>
                                   ) : removed ? (
@@ -767,11 +772,11 @@ export function SubstitutionSlideOver({
                                       Wird entfernt
                                     </span>
                                   ) : restored ? (
-                                    <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
+                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
                                       Wird wiederhergestellt
                                     </span>
                                   ) : (
-                                    <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
+                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
                                       Ersatz
                                     </span>
                                   )}
@@ -791,7 +796,11 @@ export function SubstitutionSlideOver({
                                       >
                                         {restored ? (
                                           <>
-                                            <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                            <MotoConceptIcon
+                                              concept="substitution"
+                                              size={14}
+                                              className="mr-1"
+                                            />
                                             Rückgängig
                                           </>
                                         ) : (
@@ -817,7 +826,11 @@ export function SubstitutionSlideOver({
                                           </>
                                         ) : (
                                           <>
-                                            <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                            <MotoConceptIcon
+                                              concept="substitution"
+                                              size={14}
+                                              className="mr-1"
+                                            />
                                             Entfernen
                                           </>
                                         )}
@@ -877,7 +890,7 @@ export function SubstitutionSlideOver({
                             Eine geplante Position bleibt absichtlich unbesetzt
                             und zählt nicht als offene Lücke.
                             {!isUnderstaffed && (
-                              <span className="mt-0.5 block text-[#CC2626]">
+                              <span className="text-moto-red-strong mt-0.5 block">
                                 Nur möglich, wenn mindestens eine geplante
                                 Position unbesetzt bleibt (weniger Personal als
                                 geplant).

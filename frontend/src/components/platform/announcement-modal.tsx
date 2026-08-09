@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Sparkles, Megaphone, Wrench } from "lucide-react";
+import {
+  SparkleIcon,
+  MegaphoneIcon,
+  WrenchIcon,
+  type Icon as PhosphorIcon,
+} from "@phosphor-icons/react";
 import { Modal } from "~/components/ui/modal";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useAnnouncements } from "~/lib/hooks/use-announcements";
 import { createLogger } from "~/lib/logger";
 
@@ -11,23 +17,23 @@ const logger = createLogger({ component: "AnnouncementModal" });
 // Contextual headers that create a positive, informative feeling
 // title = small subtitle, subtitle = large main header
 const DEFAULT_HEADER = {
-  icon: Megaphone,
+  icon: MegaphoneIcon,
   title: "Neuigkeiten",
   subtitle: "Wichtige Informationen",
 } as const;
 
 const TYPE_HEADERS: Record<
   string,
-  { icon: typeof Sparkles; title: string; subtitle: string }
+  { icon: PhosphorIcon; title: string; subtitle: string }
 > = {
   release: {
-    icon: Sparkles,
+    icon: SparkleIcon,
     title: "Was ist neu?",
     subtitle: "Neue Funktionen und Verbesserungen",
   },
   announcement: DEFAULT_HEADER,
   maintenance: {
-    icon: Wrench,
+    icon: WrenchIcon,
     title: "Wartungshinweis",
     subtitle: "Geplante Systemarbeiten",
   },
@@ -117,7 +123,6 @@ export function AnnouncementModal() {
   if (!current || !isVisible) return null;
 
   const header = TYPE_HEADERS[current.type] ?? DEFAULT_HEADER;
-  const Icon = header.icon;
   const totalCount = queuedAnnouncements.length;
 
   const footer = (
@@ -128,7 +133,7 @@ export function AnnouncementModal() {
       <button
         type="button"
         onClick={() => void handleDismiss()}
-        className="rounded-xl bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
+        className="bg-moto-green hover:bg-moto-green-hover rounded-xl px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
       >
         {currentIndex < totalCount - 1 ? "Weiter" : "Verstanden"}
       </button>
@@ -140,7 +145,9 @@ export function AnnouncementModal() {
       {/* Header section with icon and titles */}
       <div className="mb-5">
         <div className="flex items-start gap-3">
-          <Icon className="mt-0.5 h-7 w-7 flex-shrink-0 text-[#83CD2D]" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <MotoDuotoneIcon icon={header.icon} tone="amber" size={22} />
+          </div>
           <div>
             <h2 className="text-xl font-bold text-gray-900">
               {header.subtitle}

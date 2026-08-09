@@ -2,14 +2,16 @@
  * CoverageIndicator names the staffing state of a planned position: a status
  * dot plus an "Ist/Soll" number pair (or free-form text for aggregates like a
  * weekly-hours total). Anatomy and colors are fixed by
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2 — do not
+ * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2; do not
  * introduce new colors or shapes here.
  *
  * The `state` prop is always derived by the caller from domain data (an open
  * `GapInstance`, a quittierte Lücke, a plain covered position, …).
- * CoverageIndicator never computes coverage itself — it only renders a state
+ * CoverageIndicator never computes coverage itself; it only renders a state
  * it is told.
  */
+
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type CoverageState = "covered" | "gap" | "acknowledged";
 type CoverageIndicatorSize = "sm" | "md";
@@ -46,9 +48,9 @@ interface CoverageIndicatorProps {
 }
 
 const DOT_COLOR: Record<CoverageState, string> = {
-  covered: "#9CA3AF",
-  gap: "#F78C10",
-  acknowledged: "#6B7280",
+  covered: MOTO_COLOR_PALETTE.neutral.light,
+  gap: MOTO_COLOR_PALETTE.orange.base,
+  acknowledged: MOTO_COLOR_PALETTE.neutral.base,
 };
 
 const DOT_SIZE_PX: Record<CoverageIndicatorSize, string> = {
@@ -67,13 +69,13 @@ const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
   acknowledged: "text-gray-600",
 };
 
-/** Understaffing-red for the "Ist" figure — only ever used as text color. */
-const UNDERSTAFFED_TEXT_COLOR = "#FF3130";
+/** Understaffing-red for the "Ist" figure, only ever used as text color. */
+const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
 
-/** Delta tint of the free-form label — text color only, never a fill. */
+/** Delta tint of the free-form label, text color only, never a fill. */
 const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
-  under: "#FF3130",
-  over: "#EAB308",
+  under: MOTO_COLOR_PALETTE.red.base,
+  over: MOTO_COLOR_PALETTE.amber.base,
 };
 
 function defaultDescription({

@@ -108,12 +108,12 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
       </header>
 
       {error && (
-        <div className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-[#CC2626]">
+        <div className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-lg border p-3 text-sm">
           {error}
         </div>
       )}
       {info && (
-        <div className="rounded-lg border border-[#83CD2D]/30 bg-[#83CD2D]/5 p-3 text-sm text-[#5BA01F]">
+        <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-lg border p-3 text-sm">
           {info}
         </div>
       )}
@@ -156,7 +156,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                 </div>
 
                 {reasonLabel && (
-                  <div className="mt-3 inline-flex items-center rounded-full bg-[#F59E0B]/15 px-3 py-1 text-xs font-medium text-[#9a6800]">
+                  <div className="bg-moto-amber/15 text-moto-amber-strong mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-medium">
                     {reasonLabel}
                   </div>
                 )}
@@ -195,7 +195,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                     type="button"
                     onClick={() => void decide(item, "keep")}
                     disabled={busy}
-                    className="rounded-md bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                    className="bg-moto-green rounded-md px-3 py-1.5 text-xs font-medium text-gray-950 hover:opacity-90 disabled:opacity-50"
                   >
                     Behalten
                   </button>
@@ -203,7 +203,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                     type="button"
                     onClick={() => void decide(item, "drop")}
                     disabled={busy}
-                    className="rounded-md border border-[#FF3130] px-3 py-1.5 text-xs font-medium text-[#FF3130] hover:bg-[#FF3130]/10 disabled:opacity-50"
+                    className="border-moto-red text-moto-red hover:bg-moto-red/10 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                   >
                     Abschließen
                   </button>

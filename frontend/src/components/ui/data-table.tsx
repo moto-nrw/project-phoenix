@@ -318,11 +318,15 @@ export function DataTableStatusBadge({
   unknownLabel = "Unbekannt",
 }: Readonly<DataTableStatusBadgeProps>) {
   const label = unknown ? unknownLabel : active ? activeLabel : inactiveLabel;
+  // The three states must stay visually distinct — pointing "inactive" at
+  // UNKNOWN made it identical to the unknown branch, leaving the label text as
+  // the only difference. DANGER keeps the red this badge carried before the
+  // palette move, when inactive was LOCATION_COLORS.HOME (#FF3130).
   const color = unknown
     ? LOCATION_COLORS.UNKNOWN
     : active
       ? LOCATION_COLORS.GROUP_ROOM
-      : LOCATION_COLORS.HOME;
+      : LOCATION_COLORS.DANGER;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span

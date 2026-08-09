@@ -27,13 +27,14 @@ export function Alert({
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
-  // Brand hexes from LOCATION_COLORS (red HOME, orange SCHOOLYARD, blue
+  // Brand hexes from LOCATION_COLORS (red DANGER, orange SCHOOLYARD, blue
   // OTHER_ROOM), with darker foregrounds for WCAG AA on the tinted surfaces.
   const styles = {
-    error: "bg-[#FF3130]/10 text-[#CC2626] border-[#FF3130]/20",
-    success: "bg-[#83CD2D]/10 text-[#4A7A15] border-[#83CD2D]/20",
-    warning: "bg-[#F78C10]/10 text-[#8A5600] border-[#F78C10]/20",
-    info: "bg-[#5080D8]/10 text-[#355A9A] border-[#5080D8]/20",
+    error: "bg-moto-red-soft text-moto-red-strong border-moto-red/20",
+    success: "bg-moto-green-soft text-moto-green-strong border-moto-green/20",
+    warning:
+      "bg-moto-orange-soft text-moto-orange-strong border-moto-orange/20",
+    info: "bg-moto-blue-soft text-moto-blue-strong border-moto-blue/20",
   };
 
   // Improved styling with icon indicators

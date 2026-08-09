@@ -20,6 +20,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -31,6 +32,7 @@ import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
@@ -70,9 +72,16 @@ function StaffHeader({
 
         {/* Eyebrow + Name + Subheading + meta */}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-            Mitarbeiter-Profil
-          </p>
+          <div className="flex items-center gap-1.5">
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.staff.icon}
+              tone={MOTO_CONCEPTS.staff.tone}
+              size={18}
+            />
+            <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              Mitarbeiter-Profil
+            </p>
+          </div>
           <h1 className="mt-1 truncate text-2xl font-bold text-gray-900 sm:text-3xl">
             {staff.firstName} {staff.lastName}
           </h1>

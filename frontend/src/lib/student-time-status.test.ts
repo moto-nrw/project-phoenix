@@ -51,7 +51,7 @@ describe("getStudentTimeStatus", () => {
     });
 
     expect(status.state).toBe("very-overdue");
-    expect(status.textColor).toBe(LOCATION_COLORS.HOME);
+    expect(status.textColor).toBe(LOCATION_COLORS.DANGER);
     expect(status.detailAnnotation).toBe("Überfällig seit 30 min");
   });
 
@@ -92,8 +92,8 @@ describe("getStudentTimeStatus", () => {
     const veryOverdue = getStudentTimeStatus({ plannedTime: "13:00", now });
     expect(veryOverdue.state).toBe("very-overdue");
     expect(veryOverdue.icon).toBe("warning");
-    expect(veryOverdue.iconColor).toBe(LOCATION_COLORS.HOME);
-    expect(veryOverdue.textColor).toBe(LOCATION_COLORS.HOME);
+    expect(veryOverdue.iconColor).toBe(LOCATION_COLORS.DANGER);
+    expect(veryOverdue.textColor).toBe(LOCATION_COLORS.DANGER);
 
     const slightlyOverdue = getStudentTimeStatus({ plannedTime: "13:45", now });
     expect(slightlyOverdue.state).toBe("slightly-overdue");

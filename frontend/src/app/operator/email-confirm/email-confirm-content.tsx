@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { Mail, Check, X } from "lucide-react";
 import { Loading } from "~/components/ui/loading";
 import { operatorPath } from "~/lib/operator-url";
 import { createLogger } from "~/lib/logger";
@@ -118,20 +119,8 @@ export function EmailConfirmContent() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-            <svg
-              className="h-8 w-8 text-blue-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
+            <Mail className="h-8 w-8 text-gray-600" aria-hidden="true" />
           </div>
           <h1 className="mb-2 text-xl font-semibold text-gray-900">
             E-Mail-Adresse bestätigen
@@ -167,20 +156,8 @@ export function EmailConfirmContent() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <svg
-              className="h-8 w-8 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
+            <Check className="text-moto-green h-8 w-8" aria-hidden="true" />
           </div>
           <h1 className="mb-2 text-xl font-semibold text-gray-900">
             E-Mail-Adresse geändert
@@ -207,20 +184,8 @@ export function EmailConfirmContent() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-lg">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-          <svg
-            className="h-8 w-8 text-red-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
+          <X className="text-moto-red h-8 w-8" aria-hidden="true" />
         </div>
         <h1 className="mb-2 text-xl font-semibold text-gray-900">
           Bestätigung fehlgeschlagen

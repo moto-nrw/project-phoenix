@@ -96,7 +96,7 @@ export function GapJumpList({
         aria-expanded={open}
         title={`${label} — Sprungliste öffnen`}
       >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#F78C10]" />
+        <span aria-hidden className="bg-moto-orange h-1.5 w-1.5 rounded-full" />
         {label}
       </Button>
 

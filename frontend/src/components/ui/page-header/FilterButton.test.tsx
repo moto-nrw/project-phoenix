@@ -47,7 +47,7 @@ describe("FilterButton", () => {
     );
 
     const button = screen.getByRole("button");
-    expect(button).toHaveClass("bg-[#5080D8]", "text-white");
+    expect(button).toHaveClass("bg-moto-blue", "text-white");
   });
 
   it("applies closed state styles when isOpen is false", () => {
@@ -73,7 +73,7 @@ describe("FilterButton", () => {
     );
 
     const button = screen.getByRole("button");
-    expect(button).toHaveClass("ring-2", "ring-[#5080D8]");
+    expect(button).toHaveClass("ring-2", "ring-moto-blue");
   });
 
   it("does not show ring when isOpen is true even with active filters", () => {

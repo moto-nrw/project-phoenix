@@ -21,6 +21,12 @@ vi.mock("~/components/ui/loading", () => ({
   ),
 }));
 
+vi.mock("~/components/ui/moto-concept-icon", () => ({
+  MotoConceptIcon: ({ concept }: { concept: string }) => (
+    <svg data-testid="concept-icon" data-concept={concept} />
+  ),
+}));
+
 vi.mock("~/components/ui/button", () => ({
   Button: ({
     children,
@@ -44,9 +50,6 @@ vi.mock("~/components/ui/button", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
-  AlertTriangle: (props: Record<string, unknown>) => (
-    <svg data-testid="alert-icon" {...props} />
-  ),
   Download: (props: Record<string, unknown>) => (
     <svg data-testid="download-icon" {...props} />
   ),
@@ -73,6 +76,10 @@ describe("EmergencyPage", () => {
     expect(
       screen.getByRole("button", { name: /PDF herunterladen/ }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("concept-icon")).toHaveAttribute(
+      "data-concept",
+      "emergency",
+    );
   });
 
   it("prints the emergency snapshot", async () => {

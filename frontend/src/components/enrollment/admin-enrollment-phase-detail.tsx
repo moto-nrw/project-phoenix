@@ -21,7 +21,6 @@ import {
   Inbox,
   Search,
   type LucideIcon,
-  Users,
   X,
 } from "lucide-react";
 import {
@@ -498,7 +497,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
         {error}
       </div>
     );
@@ -538,7 +537,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         </div>
         <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Anmeldephase
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -588,7 +587,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           <StatCard icon={Inbox} label="Eingänge" value={stats.total} />
           <StatCard icon={Clock} label="Offen" value={stats.open} />
           <StatCard icon={Check} label="Bestätigt" value={stats.approved} />
-          <StatCard icon={Users} label="Abgelehnt" value={stats.rejected} />
+          <StatCard icon={X} label="Abgelehnt" value={stats.rejected} />
         </div>
       </section>
 
@@ -750,7 +749,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       />
 
       {reportError ? (
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
           {reportError}
         </div>
       ) : null}
@@ -1271,9 +1270,9 @@ function PhaseChildActions({
               event.stopPropagation();
               onDecide("approved");
             }}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-[#83CD2D]/50 hover:bg-[#83CD2D]/10 hover:text-[#5A8B1F] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="hover:border-moto-green/50 hover:bg-moto-green/10 hover:text-moto-green-strong inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Check className="h-3.5 w-3.5 text-[#83CD2D]" aria-hidden="true" />
+            <Check className="text-moto-green h-3.5 w-3.5" aria-hidden="true" />
             {busy ? "Speichert..." : "Bestätigen"}
           </button>
           <button
@@ -1283,9 +1282,9 @@ function PhaseChildActions({
               event.stopPropagation();
               onDecide("rejected");
             }}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-[#FF3130]/40 hover:bg-[#FF3130]/10 hover:text-[#CC2626] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="hover:border-moto-red/40 hover:bg-moto-red/10 hover:text-moto-red-strong inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <X className="h-3.5 w-3.5 text-[#FF3130]" aria-hidden="true" />
+            <X className="text-moto-red h-3.5 w-3.5" aria-hidden="true" />
             Ablehnen
           </button>
         </>

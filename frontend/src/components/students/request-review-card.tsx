@@ -70,7 +70,7 @@ export function RequestReviewCard({
               onChange={(e) => onReasonChange(e.target.value)}
             />
             {reasonError && (
-              <p className="text-xs text-[#CC2626]">{reasonError}</p>
+              <p className="text-moto-red-strong text-xs">{reasonError}</p>
             )}
             <div className="flex justify-end gap-2">
               <Button

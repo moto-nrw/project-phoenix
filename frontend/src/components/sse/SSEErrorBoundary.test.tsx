@@ -69,10 +69,10 @@ describe("SSEErrorBoundary", () => {
       </SSEErrorBoundary>,
     );
 
-    const fallback = container.querySelector(".border-\\[\\#FF3130\\]\\/20");
+    const fallback = container.querySelector(".border-moto-red\\/20");
     expect(fallback).toBeInTheDocument();
-    expect(fallback).toHaveClass("bg-[#FF3130]/10");
-    expect(fallback).toHaveClass("text-[#CC2626]");
+    expect(fallback).toHaveClass("bg-moto-red/10");
+    expect(fallback).toHaveClass("text-moto-red-strong");
   });
 
   it("logs error to console", () => {

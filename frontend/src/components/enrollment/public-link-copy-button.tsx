@@ -29,7 +29,7 @@ export function PublicLinkCopyButton({
       title={accessibleLabel}
       className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
         copied
-          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10 text-[#5A8B1F]"
+          ? "border-moto-green/40 bg-moto-green/10 text-moto-green-strong"
           : "border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900"
       }`}
     >

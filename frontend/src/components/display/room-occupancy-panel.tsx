@@ -2,6 +2,7 @@
 
 import type { DashboardRoomOccupancy } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 interface RoomOccupancyPanelProps {
   readonly rooms: DashboardRoomOccupancy[];
@@ -21,7 +22,7 @@ function occupancyColor(
     return LOCATION_COLORS.UNKNOWN;
   }
   const ratio = studentCount / capacity;
-  if (ratio >= 1) return LOCATION_COLORS.HOME;
+  if (ratio >= 1) return LOCATION_COLORS.DANGER;
   if (ratio >= 0.8) return LOCATION_COLORS.SCHOOLYARD;
   return LOCATION_COLORS.GROUP_ROOM;
 }
@@ -30,7 +31,10 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
   return (
     <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-3xl font-bold text-gray-900">Räume</h2>
+        <div className="flex items-center gap-4">
+          <ConceptIconTile concept="rooms" variant="display" />
+          <h2 className="text-3xl font-bold text-gray-900">Räume</h2>
+        </div>
         {totals && (
           <p className="text-2xl text-gray-500">
             <span className="font-bold text-gray-900">

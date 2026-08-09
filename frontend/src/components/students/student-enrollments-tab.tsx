@@ -12,6 +12,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useToast } from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   ChildExtraFields,
   ChildOfferingAdjustment,
@@ -81,67 +82,66 @@ export function StudentEnrollmentsTab({
     [studentId, toastError, toastSuccess],
   );
 
-  if (isLoading) {
-    return <p className="text-sm text-gray-500">Anmeldungen werden geladen…</p>;
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
-        Anmeldungen konnten nicht geladen werden.
-      </div>
-    );
-  }
-
-  if (requests.length === 0) {
-    return (
-      <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-600">
-        Für dieses Kind ist keine angenommene oder übernommene Online-Anmeldung
-        verknüpft.
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-gray-900">
-            Online-Anmeldungen
-          </h3>
-          <p className="mt-1 text-sm text-gray-600">
-            Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte.
-          </p>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-sm sm:p-6">
+      <ConceptSectionHeader
+        className="mb-4"
+        // Die Phasenkarten darunter bringen h4 und h5 mit; als h2 entstuende
+        // ein Sprung ueber Ebene 3.
+        level={3}
+        title="Anmeldungen"
+        concept="enrollments"
+        subtitle="Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte."
+        actions={
+          !isLoading && !error && requests.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {EXPORT_FORMATS.map((item) => (
+                <Button
+                  key={item.format}
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  disabled={exporting !== null}
+                  onClick={() => void handleExport(item.format)}
+                >
+                  {exporting === item.format ? (
+                    <Download className="h-4 w-4 animate-pulse" aria-hidden />
+                  ) : (
+                    item.icon
+                  )}
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          ) : undefined
+        }
+      />
+
+      {isLoading ? (
+        <p className="py-6 text-center text-sm text-gray-500">
+          Anmeldungen werden geladen…
+        </p>
+      ) : error ? (
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
+          Anmeldungen konnten nicht geladen werden.
         </div>
-        <div className="flex flex-wrap gap-2">
-          {EXPORT_FORMATS.map((item) => (
-            <Button
-              key={item.format}
-              type="button"
-              variant="outline"
-              size="compact"
-              disabled={exporting !== null}
-              onClick={() => void handleExport(item.format)}
-            >
-              {exporting === item.format ? (
-                <Download className="h-4 w-4 animate-pulse" aria-hidden />
-              ) : (
-                item.icon
-              )}
-              {item.label}
-            </Button>
+      ) : requests.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-600">
+          Für dieses Kind ist keine angenommene oder übernommene
+          Online-Anmeldung verknüpft.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {requests.map((request) => (
+            <EnrollmentRequestCard
+              key={request.id}
+              request={request}
+              onChanged={() => void mutate()}
+            />
           ))}
         </div>
-      </div>
-
-      {requests.map((request) => (
-        <EnrollmentRequestCard
-          key={request.id}
-          request={request}
-          onChanged={() => void mutate()}
-        />
-      ))}
-    </div>
+      )}
+    </section>
   );
 }
 
@@ -161,7 +161,7 @@ function EnrollmentRequestCard({
     <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Anmeldung
           </p>
           <h4 className="mt-1 text-base font-semibold text-gray-900">

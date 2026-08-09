@@ -21,6 +21,13 @@ describe("InfoCard", () => {
     );
 
     expect(screen.getByTestId("card-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("card-icon").parentElement).toHaveClass(
+      "bg-gray-100",
+      "rounded-xl",
+    );
+    expect(screen.getByTestId("card-icon").parentElement).not.toHaveClass(
+      "bg-moto-blue-soft",
+    );
   });
 
   it("renders children content", () => {

@@ -101,11 +101,7 @@ export interface BackendStaffAbsence {
 
 // Frontend absence type
 export type AbsenceType =
-  | "sick"
-  | "vacation"
-  | "training"
-  | "other"
-  | "comp_time";
+  "sick" | "vacation" | "training" | "other" | "comp_time";
 
 export interface StaffAbsence {
   id: string;
@@ -623,10 +619,7 @@ export interface BackendBalanceAdjustment {
 }
 
 export type BalanceAdjustmentType =
-  | "payout"
-  | "comp_time"
-  | "reset"
-  | "opening";
+  "payout" | "comp_time" | "reset" | "opening";
 
 export interface BalanceAdjustment {
   id: string;
