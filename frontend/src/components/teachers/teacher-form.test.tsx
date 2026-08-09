@@ -596,6 +596,45 @@ describe("TeacherForm", () => {
     });
   });
 
+  it("hides the position field when editing staff without a caregiver profile", () => {
+    // Lehrkraft (#1772): Position lebt auf users.teachers — ohne Profil
+    // würde UpdateStaffWithTeacher den Wert kommentarlos verwerfen.
+    render(
+      <TeacherForm
+        {...defaultProps}
+        initialData={{ id: "1", person_id: 10, is_teacher: false }}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/Position/)).not.toBeInTheDocument();
+  });
+
+  it("shows the position field when the caregiver profile is known only via teacher_id", () => {
+    // Dieselbe Auflösung wie buildStaffUpdateData: fehlt is_teacher,
+    // entscheidet der teacher_id-Fallback.
+    render(
+      <TeacherForm
+        {...defaultProps}
+        initialData={{ id: "1", person_id: 10, teacher_id: "7" }}
+      />,
+    );
+
+    expect(screen.getByLabelText(/Position/)).toBeInTheDocument();
+  });
+
+  it("hides the position field when the edit data carries no profile information", () => {
+    // Fehlt beides, würde der Update-Pfad den Wert verwerfen — dann darf
+    // das Feld gar nicht erst angeboten werden.
+    render(
+      <TeacherForm
+        {...defaultProps}
+        initialData={{ id: "1", person_id: 10 }}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/Position/)).not.toBeInTheDocument();
+  });
+
   it("resets the form when editing switches to another teacher", async () => {
     const { rerender } = render(
       <TeacherForm
@@ -619,6 +658,10 @@ describe("TeacherForm", () => {
           email: "bea@example.com",
           role: "OGS-Büro",
           tag_id: "RFID-42",
+          // Betreuungskraft: nur mit Betreuungsprofil rendert das
+          // Position-Feld überhaupt (ohne Profil würde der Wert beim
+          // Speichern kommentarlos verworfen).
+          is_teacher: true,
         }}
       />,
     );

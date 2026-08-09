@@ -68,12 +68,14 @@ export function TeacherForm({
   // kann der Wert nirgends gespeichert werden — UpdateStaffWithTeacher
   // schreibt die Teacher-Felder bei is_teacher=false gar nicht erst. Das
   // Feld auszublenden ist ehrlicher als ein Speichern, das kommentarlos
-  // verworfen wird. Edit: entscheidet der geladene Datensatz; Anlegen:
-  // die gewählte System-Rolle.
+  // verworfen wird. Edit: entscheidet der geladene Datensatz mit derselben
+  // Auflösung wie buildStaffUpdateData (is_teacher, Fallback teacher_id) —
+  // fehlt beides, wird versteckt, denn genau dann würde der Update-Pfad
+  // den Wert verwerfen. Anlegen: die gewählte System-Rolle.
   const selectedRoleIsLehrkraft =
     roles.find((option) => option.id === roleId)?.systemName === "lehrkraft";
   const hidePosition = initialData.id
-    ? initialData.is_teacher === false
+    ? !(initialData.is_teacher ?? Boolean(initialData.teacher_id))
     : selectedRoleIsLehrkraft;
 
   // Fetch roles on mount (only for new teachers)
