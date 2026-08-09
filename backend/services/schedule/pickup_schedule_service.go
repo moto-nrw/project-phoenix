@@ -245,7 +245,12 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 	}
 	result.StudentsAffected = len(result.AffectedStudentIDs)
 	if s.logger != nil {
-		s.logger.Info("bulk upsert pickup schedules", "students_affected", result.StudentsAffected, "weekdays_set", len(inputs), "overwrites", len(result.OverwrittenStudents))
+		s.logger.Info(
+			"bulk upsert pickup schedules",
+			"students_affected", result.StudentsAffected,
+			"weekdays_set", len(inputs),
+			"overwrites", len(result.OverwrittenStudents),
+		)
 	}
 	return result, nil
 }

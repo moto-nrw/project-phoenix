@@ -158,6 +158,13 @@ func (r *ArrivalExceptionRequest) Bind(_ *http.Request) error {
 
 // Bind implements render.Binder for BulkUpsertArrivalScheduleRequest
 func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
+	if err := validateBulkArrivalSelector(r); err != nil {
+		return err
+	}
+	return validateBulkArrivalSchedules(r.Schedules)
+}
+
+func validateBulkArrivalSelector(r *BulkUpsertArrivalScheduleRequest) error {
 	hasSchoolClass := strings.TrimSpace(r.SchoolClass) != ""
 	hasGroup := r.GroupID != 0
 	hasStudents := len(r.StudentIDs) > 0
@@ -186,11 +193,15 @@ func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
 		}
 		seenStudentIDs[id] = struct{}{}
 	}
-	if len(r.Schedules) == 0 {
+	return nil
+}
+
+func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInput) error {
+	if len(schedules) == 0 {
 		return errors.New("schedules array cannot be empty")
 	}
 	seenWeekdays := make(map[int]bool)
-	for i, s := range r.Schedules {
+	for i, s := range schedules {
 		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
 			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
 		}
