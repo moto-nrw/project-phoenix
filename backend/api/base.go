@@ -43,6 +43,7 @@ import (
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
@@ -122,6 +123,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
+	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
@@ -586,6 +588,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
+	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -786,6 +789,15 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 		a.Parent.SetAuthRateLimiter(limiters.auth.Middleware())
 	}
 	a.Router.Mount("/parent", a.Parent.Router())
+
+	// School portal ("moto schule", #2207). Mounted at the root level like
+	// /parent. Public /school/auth/* (login + school-scope MFA exchange)
+	// plus the school-scope class-day surface. Token refresh and logout go
+	// through the shared scope-preserving /auth/refresh and /auth/logout.
+	if limiters.auth != nil {
+		a.School.SetAuthRateLimiter(limiters.auth.Middleware())
+	}
+	a.Router.Mount("/school", a.School.Router())
 
 	// Parent-portal SSE stream. Mounted at root (not under /parent, which is a
 	// catch-all mount) and authenticated with ParentMiddleware. Delivers only

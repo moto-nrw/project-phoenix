@@ -37,3 +37,21 @@ func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		fn(gr, tenant.TenantTxMiddleware(db))
 	})
 }
+
+// ProtectedSchoolGroup is the school-portal sibling of ProtectedTenantGroup
+// (#2207): identical chain, but with jwt.SchoolMiddleware gating the group to
+// school-scope tokens. School tokens are tenant-bound, so the tenant
+// transaction middleware works unchanged — SchoolMiddleware puts the pinned
+// tenant id on the context exactly like TenantMiddleware does.
+func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx Middleware)) {
+	tokenAuth := jwt.MustNewTokenAuth()
+
+	r.Group(func(gr chi.Router) {
+		gr.Use(tokenAuth.Verifier())
+		gr.Use(jwt.Authenticator)
+		gr.Use(jwt.SchoolMiddleware)
+		gr.Use(RequestSettingsCacheMiddleware)
+		gr.Use(RequestIdentityCacheMiddleware)
+		fn(gr, tenant.TenantTxMiddleware(db))
+	})
+}
