@@ -5,10 +5,15 @@ import (
 	"time"
 )
 
-// MFA challenge scope values — distinguish tenant accounts from platform operators.
+// MFA challenge scope values — distinguish tenant accounts from platform
+// operators and school-portal (Lehrkraft) logins. The school scope (#2207)
+// exists so a challenge started at /school/auth/login can only ever be
+// redeemed for school-scope tokens: the tenant verify endpoint refuses it
+// and vice versa.
 const (
 	MFAChallengeScopeTenant   = "tenant"
 	MFAChallengeScopePlatform = "platform"
+	MFAChallengeScopeSchool   = "school"
 )
 
 // MFAChallengeClaims represents a short-lived JWT issued after a successful
@@ -51,6 +56,7 @@ func (c *MFAChallengeClaims) ParseClaims(claims map[string]any) error {
 		foreignFlagErr: "token is a pending-MFA-enrollment token, not a challenge",
 		scopeTenant:    MFAChallengeScopeTenant,
 		scopePlatform:  MFAChallengeScopePlatform,
+		scopeSchool:    MFAChallengeScopeSchool,
 		pendingFlagKey: "mfa_pending",
 		notPendingErr:  "token is not a pending-MFA challenge",
 	}, &c.CommonClaims)

@@ -82,6 +82,11 @@ func (s *MFAStub) VerifyChallenge(context.Context, string, string) (*VerifiedCha
 	return nil, nil
 }
 
+func (s *MFAStub) VerifyChallengeForScope(context.Context, string, string, string) (*VerifiedChallenge, error) {
+	s.panicIfStrict("VerifyChallengeForScope")
+	return nil, nil
+}
+
 func (s *MFAStub) ResendChallenge(context.Context, string, net.IP) (string, error) {
 	s.panicIfStrict("ResendChallenge")
 	return "challenge-token", nil

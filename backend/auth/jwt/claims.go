@@ -211,7 +211,7 @@ type RefreshClaims struct {
 	ID       int    `json:"id,omitempty"`
 	Token    string `json:"token,omitempty"`
 	TenantID int64  `json:"tenant_id,omitempty"` // Multi-tenancy: School ID
-	Scope    string `json:"scope,omitempty"`     // "", "org", "platform", "parent"
+	Scope    string `json:"scope,omitempty"`     // "", "org", "platform", "parent", "school"
 	CommonClaims
 }
 

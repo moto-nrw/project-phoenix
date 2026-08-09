@@ -113,6 +113,12 @@ type MFAService interface {
 	// Email-code challenge flow.
 	StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
 	VerifyChallenge(ctx context.Context, challengeToken, code string) (*VerifiedChallenge, error)
+	// VerifyChallengeForScope is the scope-parameterized sibling of
+	// VerifyChallenge (#2207). A challenge is only redeemable at the
+	// portal surface it was started for: the tenant verify endpoint
+	// passes the tenant scope, the school portal endpoint the school
+	// scope. VerifyChallenge is a thin wrapper pinning the tenant scope.
+	VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*VerifiedChallenge, error)
 	// ResendChallenge re-issues an email code for the still-active
 	// challenge and returns the *new* JWT token. The previous token
 	// remains valid until its own expiry, but the frontend must
@@ -424,7 +430,7 @@ func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, 
 // ===== Challenge / verify =====
 
 func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	if scope != authjwt.MFAChallengeScopeTenant {
+	if scope != authjwt.MFAChallengeScopeTenant && scope != authjwt.MFAChallengeScopeSchool {
 		return "", ErrMFAUnsupportedScope
 	}
 
@@ -481,11 +487,19 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 }
 
 func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code string) (*VerifiedChallenge, error) {
+	return s.VerifyChallengeForScope(ctx, challengeToken, code, authjwt.MFAChallengeScopeTenant)
+}
+
+// VerifyChallengeForScope verifies an email-code challenge and enforces that
+// the challenge was started for the expected portal scope. Scope mismatch is
+// refused before any code comparison so a school challenge can never be
+// burned (or redeemed) at the tenant endpoint and vice versa.
+func (s *mfaService) VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*VerifiedChallenge, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
 		return nil, ErrMFAChallengeTokenInvalid
 	}
-	if claims.Scope != authjwt.MFAChallengeScopeTenant {
+	if claims.Scope != expectedScope {
 		return nil, ErrMFAUnsupportedScope
 	}
 

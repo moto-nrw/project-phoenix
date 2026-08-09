@@ -1450,10 +1450,25 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	//   - explicit scope claim (new tokens, see RefreshClaims.Scope), OR
 	//   - backward-compat: account is guardian-only at the refresh tenant
 	//     (old in-flight refresh tokens issued before Scope was added).
+	// School-scope refresh tokens must round-trip as school tokens for the
+	// same reason (#2207) — and additionally re-verify the school-portal
+	// role: a Lehrkraft whose role was revoked keeps a valid refresh token
+	// until expiry, and without this check it would keep minting
+	// school-scope sessions.
 	var metadata *accountMetadata
-	if refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID) {
+	switch {
+	case refreshClaims.Scope == tenant.ScopeSchool:
+		metadata, err = s.loadSchoolMetadataForTenant(ctx, account, refreshClaims.TenantID)
+		if err != nil {
+			return nil, err
+		}
+		if !accountHasSchoolPortalRole(account) {
+			s.logRefreshDecision("refresh_session_rejected", "school_portal_role_revoked", refreshClaims.ID, refreshClaims.TenantID)
+			return nil, &AuthError{Op: "refresh token", Err: ErrTenantAccessDenied}
+		}
+	case refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID):
 		metadata = s.buildParentMetadata(account)
-	} else {
+	default:
 		metadata, err = s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
 		if err != nil {
 			return nil, err
