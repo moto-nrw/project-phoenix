@@ -235,13 +235,16 @@ function isWeekendISO(dateISO: string): boolean {
 // Die Ansicht bleibt bei Übergaben lange offen — sie muss sich selbst
 // aktualisieren, damit z. B. eine um 11:30 gemeldete Krankmeldung nicht
 // bis zum Reload unsichtbar bleibt. Kein SSE für diese Daten (Lehrkräfte
-// betreuen keine aktiven Gruppen), daher Intervall plus Fokus-Revalidierung.
-// Das GDPR-Access-Log flutet dabei nicht: recordClassDayViewAudit dedupliziert
-// serverseitig auf eine Zeile pro Actor, Klasse, Datum und Zugriffstag.
-const REPORT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-// Fokus-Revalidierung gedrosselt: jeder Abruf baut serverseitig den vollen
-// ClassRoster pro deckender Phase und Klasse neu — schnelles Tab-Hüpfen darf
-// das nicht im Sekundentakt auslösen (SWR-Default wären 5 Sekunden).
+// betreuen keine aktiven Gruppen), daher Fokus-Revalidierung: SWR feuert
+// sie bei window-focus UND visibilitychange, also bei jedem menschlichen
+// "Blatt nachsehen". BEWUSST kein refreshInterval — jeder Abruf baut
+// serverseitig den vollen ClassRoster pro deckender Phase und Klasse neu,
+// und ein Intervall macht daraus Dauerlast aus untätig offenen Tabs.
+// Das GDPR-Access-Log flutet dabei nicht: recordClassDayViewAudit
+// dedupliziert serverseitig auf eine Zeile pro Actor, Klasse, Datum und
+// Zugriffstag.
+// Fokus-Revalidierung gedrosselt: schnelles Tab-Hüpfen darf den
+// Roster-Rebuild nicht im Sekundentakt auslösen (SWR-Default wären 5s).
 const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
 
 export default function KlassenPage() {
@@ -272,7 +275,7 @@ export default function KlassenPage() {
   // nicht die gesunden Klassen mit wegwischt. Wochenenden laden gar nicht
   // (spart pro Klasse den vollen Report samt GDPR-Logzeile). SWR liefert
   // stale-while-revalidate beim Zurückblättern und hält die offene Ansicht
-  // per Intervall und Fokus-Revalidierung aktuell.
+  // per Fokus-Revalidierung aktuell.
   const { data: dayData, isLoading: reportsLoading } = useSWRAuth(
     classes && classes.length > 0 && !weekend
       ? `class-day-reports-${dateISO}-${classes.join("|")}`
@@ -307,7 +310,6 @@ export default function KlassenPage() {
       return { reports: loaded, failed };
     },
     {
-      refreshInterval: REPORT_REFRESH_INTERVAL_MS,
       revalidateOnFocus: true,
       focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
       // Beim Datumswechsel Skeleton statt der Daten des alten Tages zeigen;
