@@ -358,6 +358,24 @@ func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
 	assert.Equal(t, activeModels.StudentStatusDayClassTrip, statuses[2])
 }
 
+func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
+	// The status set is an extension point: a value the precedence map does
+	// not know yet still means "reported for the day" and must survive —
+	// silently dropping it would put a reported-absent child under "bleibt
+	// in der Betreuung". Known statuses keep precedence over unknown ones.
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
+		{StudentID: 1, Status: "quarantine"},
+		{StudentID: 2, Status: "quarantine"},
+		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
+	}}}}
+
+	statuses, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
+
+	require.NoError(t, err)
+	assert.Equal(t, "quarantine", statuses[1])
+	assert.Equal(t, activeModels.StudentStatusDayExcused, statuses[2])
+}
+
 func TestClassDayDepartureRendersSingleDay(t *testing.T) {
 	pickupAndBus := &userModels.Student{
 		AllowedDepartureModes: userModels.AllowedDepartureModes{

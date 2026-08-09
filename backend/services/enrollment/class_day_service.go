@@ -206,16 +206,31 @@ func (s *reportService) classDayStatuses(ctx context.Context, studentIDs []int64
 	if err != nil {
 		return nil, fmt.Errorf("class day report: load status days: %w", err)
 	}
+	// The scale leaves rank 1 free for UNKNOWN statuses: the status set is
+	// an explicit extension point (StudentStatusDayStatuses()), and a value
+	// this map does not know still means "reported for the day". Dropping
+	// it silently would render a reported-absent child as "bleibt in der
+	// Betreuung" — the exact failure this view exists to prevent. Known
+	// statuses keep precedence over an unknown one.
 	rank := map[string]int{
-		activeModels.StudentStatusDaySick:      3,
-		activeModels.StudentStatusDayClassTrip: 2,
-		activeModels.StudentStatusDayExcused:   1,
+		activeModels.StudentStatusDaySick:      6,
+		activeModels.StudentStatusDayClassTrip: 4,
+		activeModels.StudentStatusDayExcused:   2,
+	}
+	statusRank := func(status string) int {
+		if status == "" {
+			return 0
+		}
+		if known, ok := rank[status]; ok {
+			return known
+		}
+		return 1
 	}
 	for _, entry := range entries {
-		if entry == nil {
+		if entry == nil || entry.Status == "" {
 			continue
 		}
-		if rank[entry.Status] > rank[out[entry.StudentID]] {
+		if statusRank(entry.Status) > statusRank(out[entry.StudentID]) {
 			out[entry.StudentID] = entry.Status
 		}
 	}
