@@ -14,11 +14,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,6 +28,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+type stubOfferingSourceLister struct {
+	options []enrollmentSvc.OfferingSourceOption
+	err     error
+}
+
+func (s *stubOfferingSourceLister) ListOfferingSourceOptions(
+	_ context.Context,
+	_ *int64,
+) ([]enrollmentSvc.OfferingSourceOption, error) {
+	return s.options, s.err
+}
+
+func (s *stubOfferingSourceLister) CombinedOfferingSourceCounts(
+	_ context.Context,
+	_ []int64,
+	_ *int64,
+) (*enrollmentSvc.OfferingSourceCombinedCounts, error) {
+	return nil, nil
+}
 
 type listSetup struct {
 	res       *Resource
@@ -110,6 +132,101 @@ func TestListInstances_Empty(t *testing.T) {
 	assert.Equal(t, from, got.From)
 	assert.Equal(t, to, got.To)
 	assert.Empty(t, got.Instances)
+}
+
+func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *testing.T) {
+	sourceID := time.Now().UnixNano()
+	serviceStart := timezone.NewDate(2026, 8, 13)
+	resource := NewResource(Dependencies{OfferingSourceOptions: &stubOfferingSourceLister{
+		options: []enrollmentSvc.OfferingSourceOption{{
+			ID:                sourceID,
+			PhaseName:         "Schuljahr 2026/27",
+			PhaseServiceStart: serviceStart,
+		}},
+	}})
+	periodID := sourceID + 1
+	meta := templateMeta{sourceCareOfferingIDs: []int64{sourceID}}
+
+	tests := []struct {
+		name     string
+		date     timezone.Date
+		wantKind string
+	}{
+		{name: "before service start", date: timezone.NewDate(2026, 8, 10), wantKind: enrollmentSvc.EmptyOfferingRosterBeforeServiceStart},
+		{name: "after start with empty offering source", date: timezone.NewDate(2026, 8, 14), wantKind: enrollmentSvc.EmptyOfferingRosterSourceEmpty},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instance := &schedule.ActivityInstance{Date: tt.date, CalendarPeriodID: &periodID}
+			reason := resource.resolveEmptyRosterReason(
+				context.Background(), instance, meta, nil,
+				make(map[int64][]enrollmentSvc.OfferingSourceOption),
+			)
+			require.NotNil(t, reason)
+			assert.Equal(t, tt.wantKind, reason.Kind)
+			assert.Equal(t, "Schuljahr 2026/27", reason.PhaseName)
+			assert.Equal(t, "2026-08-13", reason.ServiceStartDate)
+		})
+	}
+
+	populated := resource.resolveEmptyRosterReason(
+		context.Background(),
+		&schedule.ActivityInstance{Date: timezone.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
+		meta,
+		[]*schedule.InstanceStudent{{StudentID: sourceID + 2}},
+		make(map[int64][]enrollmentSvc.OfferingSourceOption),
+	)
+	assert.Nil(t, populated, "a populated occurrence must not carry an empty-roster explanation")
+}
+
+func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{})
+	defer s.cleanupFn()
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Empty-Reason-Period")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
+	})
+	roomID := s.roomID
+	sourceID := time.Now().UnixNano()
+	group := &activitiesModels.Group{
+		Name:                  fmt.Sprintf("Tpl-Empty-Reason-%d", time.Now().UnixNano()),
+		MaxParticipants:       25,
+		IsOpen:                true,
+		IsTemplate:            true,
+		CategoryID:            s.category.ID,
+		CreatedBy:             &s.staffA,
+		PlannedRoomID:         &roomID,
+		Type:                  activitiesModels.GroupTypeCare,
+		CalendarPeriodID:      &period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{sourceID},
+	}
+	group.SetTenantID(1)
+	repoFactory := repositories.NewFactory(s.db)
+	require.NoError(t, repoFactory.ActivityGroup.Create(s.ctx, group))
+
+	date := timezone.NewDate(2026, 8, 10)
+	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title:            group.Name,
+		ActivityGroupID:  &group.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instance.ID)
+	s.res.OfferingSourceOptions = &stubOfferingSourceLister{options: []enrollmentSvc.OfferingSourceOption{{
+		ID:                sourceID,
+		PhaseName:         "Schuljahr 2026/27",
+		PhaseServiceStart: timezone.NewDate(2026, 8, 13),
+	}}}
+
+	router := conversionRouter(s.ctx, s.res)
+	w := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/instances?from=%s&to=%s", date, date), nil)
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	got := decodeTemplateData[weeklyInstancesResponse](t, w)
+	require.Len(t, got.Instances, 1)
+	require.NotNil(t, got.Instances[0].EmptyRosterReason)
+	assert.Equal(t, enrollmentSvc.EmptyOfferingRosterBeforeServiceStart, got.Instances[0].EmptyRosterReason.Kind)
+	assert.Equal(t, "2026-08-13", got.Instances[0].EmptyRosterReason.ServiceStartDate)
 }
 
 func TestListInstances_HappyPath(t *testing.T) {

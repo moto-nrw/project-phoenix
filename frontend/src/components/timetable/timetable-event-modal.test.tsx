@@ -25,6 +25,7 @@ const {
   mockCreate,
   mockUpdate,
   mockCreateTemplate,
+  mockConvertInstanceToSeries,
   mockUpdateTemplate,
   mockMaterialize,
   mockGetTemplate,
@@ -43,6 +44,7 @@ const {
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
   mockCreateTemplate: vi.fn(),
+  mockConvertInstanceToSeries: vi.fn(),
   mockUpdateTemplate: vi.fn(),
   mockMaterialize: vi.fn(),
   mockGetTemplate: vi.fn(),
@@ -89,6 +91,7 @@ vi.mock("~/lib/timetable-api", () => ({
     create: mockCreate,
     update: mockUpdate,
     createTemplate: mockCreateTemplate,
+    convertInstanceToSeries: mockConvertInstanceToSeries,
     updateTemplate: mockUpdateTemplate,
     materialize: mockMaterialize,
     getTemplate: mockGetTemplate,
@@ -420,6 +423,12 @@ describe("TimetableEventModal", () => {
     mockCreateTemplate.mockResolvedValue({
       templateId: "7",
       instancesCreated: 2,
+    });
+    mockConvertInstanceToSeries.mockResolvedValue({
+      templateId: "7",
+      timeframeId: "1",
+      scheduleIds: ["1"],
+      linkedInstanceId: "42",
     });
     mockUpdateTemplate.mockResolvedValue(template);
     mockMaterialize.mockResolvedValue({ instancesCreated: 1, warnings: [] });
@@ -2166,7 +2175,12 @@ describe("TimetableEventModal", () => {
     cleanup();
     vi.clearAllMocks();
     setupRefs();
-    mockCreateTemplate.mockResolvedValue({ templateId: "8" });
+    mockConvertInstanceToSeries.mockResolvedValue({
+      templateId: "8",
+      timeframeId: "1",
+      scheduleIds: ["1"],
+      linkedInstanceId: "42",
+    });
     mockUpdate.mockResolvedValue(savedInstance);
     const { onSaved: onConvertSaved } = renderModal({
       convertInstance: { ...savedInstance, activityGroupId: undefined },
@@ -2176,14 +2190,13 @@ describe("TimetableEventModal", () => {
     await clickSave();
     // #2135: the repeated instance's date (2026-05-04) is the series start.
     await waitFor(() =>
-      expect(mockCreateTemplate).toHaveBeenCalledWith(
+      expect(mockConvertInstanceToSeries).toHaveBeenCalledWith(
+        "42",
         expect.objectContaining({ start_date: "2026-05-04" }),
       ),
     );
-    expect(mockUpdate).toHaveBeenCalledWith(
-      "42",
-      expect.objectContaining({ activity_group_id: 8 }),
-    );
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
     // Conversion materializes the whole period in 56-day chunks — the
     // series' own valid_from skips its dates before the start, while the
     // tenant-wide run keeps backfilling earlier-starting templates.
@@ -2200,8 +2213,13 @@ describe("TimetableEventModal", () => {
     });
   });
 
-  it("keeps the converted seed occurrence unpinned from the new series staffing override", async () => {
-    mockCreateTemplate.mockResolvedValue({ templateId: "8" });
+  it("sends the series staffing override through the atomic conversion", async () => {
+    mockConvertInstanceToSeries.mockResolvedValue({
+      templateId: "8",
+      timeframeId: "1",
+      scheduleIds: ["1"],
+      linkedInstanceId: "42",
+    });
     renderModal({
       convertInstance: { ...savedInstance, activityGroupId: undefined },
     });
@@ -2214,17 +2232,12 @@ describe("TimetableEventModal", () => {
     await clickSave();
 
     await waitFor(() =>
-      expect(mockCreateTemplate).toHaveBeenCalledWith(
+      expect(mockConvertInstanceToSeries).toHaveBeenCalledWith(
+        "42",
         expect.objectContaining({ required_staff: 4 }),
       ),
     );
-    expect(mockUpdate).toHaveBeenCalledWith(
-      "42",
-      expect.objectContaining({
-        activity_group_id: 8,
-        required_staff: null,
-      }),
-    );
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("deletes an existing series from an editable effective date", async () => {
@@ -3564,6 +3577,66 @@ describe("TimetableEventModal", () => {
       kind: "instance",
       instance: savedInstance,
     });
+  });
+
+  // Franziska (Schule am Berg): editing a series occurrence while flipping
+  // Wiederholung to weekly used to skip the scope dialog and POST a brand-new
+  // series next to the old one.
+  it("asks for the scope when editing a series instance even if Wiederholung is weekly", async () => {
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await clickSave();
+
+    expect(
+      await screen.findByText("Wiederholenden Termin ändern"),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  // Same class of bug for a one-off: switching to weekly must convert the
+  // existing row (create series + link it), not leave the old Termin behind.
+  it("converts a one-off into a series instead of creating a second appointment", async () => {
+    mockConvertInstanceToSeries.mockResolvedValue({
+      templateId: "9",
+      timeframeId: "1",
+      scheduleIds: ["1"],
+      linkedInstanceId: "42",
+    });
+    const { onSaved } = renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: undefined },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockConvertInstanceToSeries).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ start_date: savedInstance.date }),
+      ),
+    );
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "series",
+        seriesId: "9",
+        linkedInstanceId: "42",
+      }),
+    );
   });
 
   it("adds a whole class via the bulk select and renders Personal before Kinder", async () => {

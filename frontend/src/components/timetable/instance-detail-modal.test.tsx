@@ -865,6 +865,54 @@ describe("InstanceDetailModal", () => {
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
   });
 
+  it("explains why an offering-sourced occurrence has no children", () => {
+    const { rerender } = render(
+      <InstanceDetailModal
+        instance={instance({
+          students: [],
+          studentIds: [],
+          expectedStudentsCount: 0,
+          presentStudentsCount: 0,
+          emptyRosterReason: {
+            kind: "before_offering_start",
+            phaseName: "Schuljahr 2026/27",
+            serviceStartDate: "2026-08-13",
+          },
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen
+        .getByText(
+          "Dieser Termin liegt vor dem Betreuungsbeginn am 13.08.2026. Die Kinder aus den ausgewählten Angeboten werden erst ab diesem Tag übernommen.",
+        )
+        .closest('[role="status"]'),
+    ).not.toBeNull();
+    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
+
+    rerender(
+      <InstanceDetailModal
+        instance={instance({
+          students: [],
+          studentIds: [],
+          expectedStudentsCount: 0,
+          presentStudentsCount: 0,
+          emptyRosterReason: { kind: "offering_source_empty" },
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Aus den ausgewählten Angeboten wurden für diesen Termin keine Kinder übernommen. Das kann an den gebuchten Wochentagen, den gewählten Filtern oder geänderten Anmeldungen liegen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("hides itself while another overlay is stacked on top", () => {
     const onClose = vi.fn();
     render(

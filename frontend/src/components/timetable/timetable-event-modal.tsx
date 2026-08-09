@@ -222,6 +222,7 @@ export function TimetableEventModal({
     sourceGradeOptions,
     sourceGradeCounts,
     sourceFilteredCount,
+    sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
     pendingSourceOfferingIds,
@@ -587,6 +588,7 @@ export function TimetableEventModal({
                 sourceGradeOptions={sourceGradeOptions}
                 sourceGradeCounts={sourceGradeCounts}
                 sourceFilteredCount={sourceFilteredCount}
+                sourcePhaseKidsFromWarning={sourcePhaseKidsFromWarning}
                 sourceOverlapWarnings={sourceOverlapWarnings}
                 changeSourceOfferings={changeSourceOfferings}
                 toggleSourceGradeLevel={toggleSourceGradeLevel}

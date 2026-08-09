@@ -97,18 +97,19 @@ type Resource struct {
 // subset — readable and lets us add future deps without churning every call
 // site.
 type Dependencies struct {
-	CalendarPeriodService  scheduleSvc.CalendarPeriodService
-	ClosingDayService      scheduleSvc.ClosingDayService
-	MaterializationService scheduleSvc.MaterializationService
-	InstanceService        scheduleSvc.InstanceService
-	OperationsService      scheduleSvc.TimetableOperationsService
-	TemplateSplitService   *scheduleSvc.TemplateSplitService
-	PersonService          userSvc.PersonService
-	TimetableData          *scheduleSvc.TimetableDataService
-	CareDayService         scheduleSvc.CareDayService
-	UserContextService     usercontextSvc.UserContextService
-	SettingsService        configSvc.SettingsService
-	SlotListsService       slotlists.Service
+	CalendarPeriodService   scheduleSvc.CalendarPeriodService
+	ClosingDayService       scheduleSvc.ClosingDayService
+	MaterializationService  scheduleSvc.MaterializationService
+	InstanceService         scheduleSvc.InstanceService
+	InstanceSeriesConverter scheduleSvc.InstanceSeriesConverter
+	OperationsService       scheduleSvc.TimetableOperationsService
+	TemplateSplitService    *scheduleSvc.TemplateSplitService
+	PersonService           userSvc.PersonService
+	TimetableData           *scheduleSvc.TimetableDataService
+	CareDayService          scheduleSvc.CareDayService
+	UserContextService      usercontextSvc.UserContextService
+	SettingsService         configSvc.SettingsService
+	SlotListsService        slotlists.Service
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint (#2137); implemented by the enrollment decision service.
 	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister
@@ -190,6 +191,8 @@ func (rs *Resource) Router() chi.Router {
 				Post("/", rs.createInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Put("/{id}", rs.updateInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/convert-to-series", rs.convertInstanceToSeries)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Delete("/{id}", rs.deleteInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).

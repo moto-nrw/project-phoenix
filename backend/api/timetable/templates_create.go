@@ -290,6 +290,16 @@ func parseCreateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return nil, false
 	}
+	return parseBoundCreateTemplateRequest(w, r, req)
+}
+
+// parseBoundCreateTemplateRequest performs the format validation shared by
+// the ordinary template-create DTO and the conversion-specific DTO.
+func parseBoundCreateTemplateRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	req *createTemplateRequest,
+) (*parsedCreateTemplate, bool) {
 	if !isValidActivityType(req.Type) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))

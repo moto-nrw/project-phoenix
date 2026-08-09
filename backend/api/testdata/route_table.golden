@@ -696,6 +696,7 @@ POST /api/timetable/instances/re-plan-week
 POST /api/timetable/instances/{id}/acknowledge-understaffed
 POST /api/timetable/instances/{id}/cancel
 POST /api/timetable/instances/{id}/complete
+POST /api/timetable/instances/{id}/convert-to-series
 POST /api/timetable/instances/{id}/deviations
 POST /api/timetable/instances/{id}/move-staff
 POST /api/timetable/instances/{id}/start
