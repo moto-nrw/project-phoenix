@@ -230,11 +230,14 @@ function AbsenceNotice({ reason }: { readonly reason?: string }) {
     <div
       className="rounded-lg border px-3 py-2 text-sm"
       style={{
-        borderColor: `${LOCATION_COLORS.HOME}33`,
-        backgroundColor: `${LOCATION_COLORS.HOME}14`,
+        borderColor: `${LOCATION_COLORS.NOT_ARRIVAL}33`,
+        backgroundColor: `${LOCATION_COLORS.NOT_ARRIVAL}14`,
       }}
     >
-      <span className="font-semibold" style={{ color: LOCATION_COLORS.HOME }}>
+      <span
+        className="font-semibold"
+        style={{ color: LOCATION_COLORS.NOT_ARRIVAL }}
+      >
         Kommt heute nicht
       </span>
       {reason ? <span className="ml-1 text-gray-600">· {reason}</span> : null}
@@ -350,7 +353,7 @@ export function CarePlanDayTimeline({
         <button
           type="button"
           onClick={onEditSchedule}
-          className="mt-1 text-sm font-semibold text-[#5080D8] hover:underline"
+          className="text-moto-blue mt-1 text-sm font-semibold hover:underline"
         >
           Zeiten bearbeiten
         </button>

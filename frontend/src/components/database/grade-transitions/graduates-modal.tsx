@@ -213,7 +213,7 @@ export function GraduatesModal({
           {entries === null && <Loading />}
 
           {loadFailed && (
-            <p className="rounded-lg border border-gray-200 p-4 text-sm text-[#FF3130]">
+            <p className="text-moto-red rounded-lg border border-gray-200 p-4 text-sm">
               Abgänge konnten nicht geladen werden. Bitte erneut versuchen.
             </p>
           )}

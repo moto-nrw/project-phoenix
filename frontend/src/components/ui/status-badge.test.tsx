@@ -14,7 +14,7 @@ describe("StatusBadge", () => {
     const label = screen.getByText("Abgelehnt");
     const pill = label.closest("span[class*='rounded-full']");
     expect(pill).not.toBeNull();
-    expect((pill as HTMLElement).style.color).toBe("#9F1F1E");
+    expect((pill as HTMLElement).style.color).toBe("#B91C1C");
   });
 
   it("renders a decorative dot hidden from assistive tech", () => {

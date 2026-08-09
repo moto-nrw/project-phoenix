@@ -6,13 +6,10 @@ const headerState = vi.hoisted(() => ({
   host: "moto-app.de",
 }));
 
-// Mock next/font/google
-vi.mock("next/font/google", () => ({
-  Inter: () => ({
-    className: "inter-font-class",
-  }),
-  Kalam: () => ({
-    variable: "moto-font-variable",
+vi.mock("next/font/local", () => ({
+  default: ({ variable }: { variable: string }) => ({
+    className: variable === "--font-inter" ? "inter-font-class" : "",
+    variable,
   }),
 }));
 

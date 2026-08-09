@@ -4,7 +4,8 @@ import { useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import { Lightbulb, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 import type { FilterConfig } from "~/components/ui/page-header/types";
@@ -286,7 +287,7 @@ function EmptyState({
 
   return (
     <UIEmptyState
-      icon={<Lightbulb className="h-12 w-12" strokeWidth={1.5} />}
+      icon={<MotoConceptIcon concept="feedback" size={48} />}
       title="Noch keine Beiträge"
       description="Teile Ideen, melde Probleme oder schlage Verbesserungen vor."
       action={

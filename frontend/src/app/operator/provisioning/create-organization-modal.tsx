@@ -121,7 +121,7 @@ export function CreateOrganizationModal({
             value={orgName}
             onChange={(e) => handleOrgNameChange(e.target.value)}
             maxLength={255}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             required
           />
         </FormField>
@@ -135,7 +135,7 @@ export function CreateOrganizationModal({
               setOrgSlug(e.target.value);
             }}
             maxLength={255}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
             required
           />
           <p className="mt-1 text-xs text-gray-500">

@@ -10,6 +10,7 @@ import {
 } from "~/components/staff/absence-decision-modals";
 import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -126,9 +127,12 @@ export function StaffPendingInbox({
           <h2 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
             Eingehende Anfragen
           </h2>
-          <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {rows.length}
-          </span>
+          <NotificationBadge
+            count={rows.length}
+            tone="staff"
+            size="sm"
+            ariaLabel={`${rows.length} ${rows.length === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
+          />
         </div>
         <Tabs value={typeFilter} onValueChange={setTypeFilter}>
           <TabsList>

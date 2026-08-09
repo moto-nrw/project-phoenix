@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Plus, ShieldCheck } from "lucide-react";
+import { Plus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -362,12 +364,15 @@ export function AccountTenantAccessModal({
             </p>
 
             <section className="space-y-2">
-              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Aktive Zugänge
-              </h3>
+              <ConceptSectionHeader
+                title="Aktive Zugänge"
+                concept="schools"
+                // FormModal rendert seinen Titel als h3.
+                level={4}
+              />
               {activeEntries.length === 0 ? (
                 <EmptyState
-                  icon={<Building2 className="h-5 w-5" />}
+                  icon={<MotoConceptIcon concept="schools" size={22} />}
                   title="Kein aktiver Schulzugang"
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
@@ -442,10 +447,12 @@ export function AccountTenantAccessModal({
             </section>
 
             <section className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              {/* h4 wie die beiden Geschwister-Sektionen: FormModal rendert
+                  seinen Titel als h3. */}
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <Plus className="h-4 w-4 text-gray-500" />
                 Schulzugang ergänzen
-              </h3>
+              </h4>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label
@@ -516,7 +523,11 @@ export function AccountTenantAccessModal({
               )}
 
               <p className="flex items-start gap-2 text-xs text-gray-500">
-                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <MotoConceptIcon
+                  concept="permissions"
+                  size={16}
+                  className="mt-0.5"
+                />
                 Die Betreuungsrolle bleibt beim Rollenwechsel erhalten. Sie wird
                 über &quot;Betreuung verwalten&quot; vergeben und entfernt.
               </p>
@@ -536,9 +547,12 @@ export function AccountTenantAccessModal({
 
             {formerEntries.length > 0 && (
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Frühere Zugänge
-                </h3>
+                <ConceptSectionHeader
+                  title="Frühere Zugänge"
+                  concept="changeHistory"
+                  // FormModal rendert seinen Titel als h3.
+                  level={4}
+                />
                 <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
                   {formerEntries.map((entry) => (
                     <li
@@ -575,14 +589,14 @@ export function AccountTenantAccessModal({
         title="Schulzugang entziehen"
         confirmText="Zugang entziehen"
         isConfirmLoading={saving}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#e02b2a]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
       >
         <p className="text-sm text-gray-600">
           {`${accountLabel} verliert den Zugang zu ${revokeTarget?.schoolName ?? ""} und alle dort vergebenen Rollen. Vorhandene Personaldaten bleiben für die Historie erhalten und werden von der Schule über "Personal löschen" entfernt.`}
         </p>
         {revokeTarget &&
           access.filter((e) => e.status === "active").length === 1 && (
-            <p className="mt-3 text-sm text-[#C56F0D]">
+            <p className="text-moto-orange-strong mt-3 text-sm">
               Das ist der letzte aktive Schulzugang. Das Konto wird dadurch
               deaktiviert und kann sich nirgendwo mehr anmelden.
             </p>

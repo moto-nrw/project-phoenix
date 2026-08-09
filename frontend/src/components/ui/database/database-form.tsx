@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { DatabaseTheme } from "~/lib/database/themes";
-import { getThemeClassNames } from "~/lib/database/themes";
-import { getAccentRing, getAccentText } from "./accents";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
@@ -209,12 +208,25 @@ export interface FormSection {
   subtitle?: string;
   fields: FormField[];
   columns?: 1 | 2;
-  backgroundColor?: string; // Override theme background
-  iconPath?: string; // Optional small header icon (heroicons path)
+  /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
+  concept?: MotoConceptKey;
+}
+
+/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie ConceptSectionHeader. */
+function SectionTitle({
+  level,
+  className,
+  children,
+}: Readonly<{
+  level: 2 | 3 | 4;
+  className?: string;
+  children: React.ReactNode;
+}>) {
+  const Heading = `h${level}` as const;
+  return <Heading className={className}>{children}</Heading>;
 }
 
 interface DatabaseFormProps<T = Record<string, unknown>> {
-  readonly theme: DatabaseTheme;
   readonly sections: FormSection[];
   readonly onSubmit: (data: T) => Promise<void>;
   readonly onCancel: () => void;
@@ -222,12 +234,17 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly isLoading?: boolean;
   readonly error?: string | null;
   readonly submitLabel: string;
-  readonly submitButtonGradient?: string; // Override default gradient
   readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
+  /**
+   * Ueberschriftenebene der Abschnittstitel. Default 2 fuer die
+   * Master-Detail-Ansicht, wo das Formular direkt im Inhaltsbereich steht.
+   * DatabaseFormModal setzt 4, weil Modal seinen Titel als h3 rendert und die
+   * Abschnitte sonst ueber dem Dialog stehen, in dem sie liegen.
+   */
+  readonly sectionLevel?: 2 | 3 | 4;
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({
-  theme,
   sections,
   onSubmit,
   onCancel,
@@ -235,8 +252,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
   isLoading,
   error: externalError,
   submitLabel,
-  submitButtonGradient,
   stickyActions = false,
+  sectionLevel = 2,
 }: DatabaseFormProps<T>) {
   const privacyStudentId =
     initialData &&
@@ -275,9 +292,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
       isMountedRef.current = false;
     };
   }, []);
-
-  const themeClasses = getThemeClassNames(theme);
-  const accentTextClass = getAccentText(theme.accent);
 
   // Initialize form data from sections
   useEffect(() => {
@@ -460,12 +474,144 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }));
   };
 
-  const renderField = (field: FormField, _sectionBackground: string) => {
-    // Determine focus ring color based on theme accent for consistency across neutral backgrounds
-    const focusRingColor = getAccentRing(theme.accent);
+  const renderSelectField = (
+    field: FormField,
+    hasError: boolean,
+    labelClasses: string,
+  ) => {
+    const selectOptions = Array.isArray(field.options)
+      ? field.options
+      : (asyncOptions[field.name] ?? []);
+    const hasEmptyOption = selectOptions.some((option) => option.value === "");
+
+    return (
+      <div>
+        <label htmlFor={field.name} className={labelClasses}>
+          {field.label}
+          {field.required && "*"}
+        </label>
+        <CustomSelect
+          id={field.name}
+          name={field.name}
+          ariaLabel={field.label}
+          value={(formData[field.name] as string) ?? ""}
+          options={[
+            ...(!hasEmptyOption
+              ? [
+                  {
+                    value: "",
+                    label: loadingOptions[field.name]
+                      ? "Optionen werden geladen..."
+                      : (field.placeholder ?? "Bitte wählen"),
+                  },
+                ]
+              : []),
+            ...selectOptions,
+          ]}
+          onChange={(next) => {
+            if (field.name === "data_retention_days") {
+              dirtyPrivacyFieldsRef.current.add(field.name);
+            }
+            setFormData((prev) => ({ ...prev, [field.name]: next }));
+          }}
+          required={field.required}
+          invalid={hasError}
+          disabled={loadingOptions[field.name]}
+        />
+        {field.helperText && (
+          <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderMultiselectField = (
+    field: FormField,
+    hasError: boolean,
+    labelClasses: string,
+  ) => {
+    const multiselectOptions = Array.isArray(field.options)
+      ? field.options
+      : (asyncOptions[field.name] ?? []);
+    const selectedValues = Array.isArray(formData[field.name])
+      ? (formData[field.name] as string[])
+      : [];
+
+    return (
+      <div>
+        <label htmlFor={field.name} className={labelClasses}>
+          {field.label}
+          {field.required && "*"}
+        </label>
+
+        {selectedValues.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {selectedValues.map((value) => {
+              const option = multiselectOptions.find(
+                (item) => item.value === value,
+              );
+              if (!option) return null;
+
+              return (
+                <span
+                  key={value}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
+                >
+                  {option.label}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleMultiselectRemove(field.name, selectedValues, value)
+                    }
+                    className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
+                    aria-label={`Remove ${option.label}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        <CustomSelect
+          id={field.name}
+          ariaLabel={field.label}
+          value=""
+          placeholder={
+            loadingOptions[field.name]
+              ? "Optionen werden geladen..."
+              : (field.placeholder ?? "Weitere hinzufügen...")
+          }
+          options={multiselectOptions
+            .filter((option) => !selectedValues.includes(option.value))
+            .map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          onChange={(next) => {
+            if (next && !selectedValues.includes(next)) {
+              setFormData((prev) => ({
+                ...prev,
+                [field.name]: [...selectedValues, next],
+              }));
+            }
+          }}
+          invalid={hasError}
+          disabled={loadingOptions[field.name]}
+        />
+
+        {field.helperText && (
+          <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderField = (field: FormField) => {
     const hasError = field.name === errorFieldName;
 
-    const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-red-400" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
+    const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
     const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-red-600" : "text-gray-700"}`;
 
     switch (field.type) {
@@ -498,7 +644,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               name={field.name}
               checked={Boolean(formData[field.name])}
               onChange={handleChange}
-              className={`h-4 w-4 rounded border-gray-300 text-${theme.accent}-600 focus:ring-${theme.accent}-500`}
+              className="text-moto-blue focus:ring-moto-blue h-4 w-4 rounded border-gray-300"
             />
             <label
               htmlFor={field.name}
@@ -538,141 +684,11 @@ export function DatabaseForm<T = Record<string, unknown>>({
           </div>
         );
 
-      case "select": {
-        const selectOptions = Array.isArray(field.options)
-          ? field.options
-          : (asyncOptions[field.name] ?? []);
+      case "select":
+        return renderSelectField(field, hasError, labelClasses);
 
-        // Check if options already include an empty-value option (e.g. "Kein Gruppenraum")
-        const hasEmptyOption = selectOptions.some(
-          (option) => option.value === "",
-        );
-
-        return (
-          <div>
-            <label htmlFor={field.name} className={labelClasses}>
-              {field.label}
-              {field.required && "*"}
-            </label>
-            <CustomSelect
-              id={field.name}
-              name={field.name}
-              ariaLabel={field.label}
-              value={(formData[field.name] as string) ?? ""}
-              options={[
-                ...(!hasEmptyOption
-                  ? [
-                      {
-                        value: "",
-                        label: loadingOptions[field.name]
-                          ? "Optionen werden geladen..."
-                          : (field.placeholder ?? "Bitte wählen"),
-                      },
-                    ]
-                  : []),
-                ...selectOptions,
-              ]}
-              onChange={(next) => {
-                if (field.name === "data_retention_days") {
-                  dirtyPrivacyFieldsRef.current.add(field.name);
-                }
-                setFormData((prev) => ({ ...prev, [field.name]: next }));
-              }}
-              required={field.required}
-              invalid={hasError}
-              disabled={loadingOptions[field.name]}
-            />
-            {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
-            )}
-          </div>
-        );
-      }
-
-      case "multiselect": {
-        const multiselectOptions = Array.isArray(field.options)
-          ? field.options
-          : (asyncOptions[field.name] ?? []);
-        const selectedValues = Array.isArray(formData[field.name])
-          ? (formData[field.name] as string[])
-          : [];
-
-        return (
-          <div>
-            <label htmlFor={field.name} className={labelClasses}>
-              {field.label}
-              {field.required && "*"}
-            </label>
-
-            {/* Selected items as tags */}
-            {selectedValues.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {selectedValues.map((value) => {
-                  const option = multiselectOptions.find(
-                    (opt) => opt.value === value,
-                  );
-                  if (!option) return null;
-
-                  return (
-                    <span
-                      key={value}
-                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
-                    >
-                      {option.label}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleMultiselectRemove(
-                            field.name,
-                            selectedValues,
-                            value,
-                          )
-                        }
-                        className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
-                        aria-label={`Remove ${option.label}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Dropdown for adding new selections */}
-            <CustomSelect
-              id={field.name}
-              ariaLabel={field.label}
-              value=""
-              placeholder={
-                loadingOptions[field.name]
-                  ? "Optionen werden geladen..."
-                  : (field.placeholder ?? "Weitere hinzufügen...")
-              }
-              options={multiselectOptions
-                .filter((option) => !selectedValues.includes(option.value))
-                .map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-              onChange={(next) => {
-                if (next && !selectedValues.includes(next)) {
-                  setFormData((prev) => ({
-                    ...prev,
-                    [field.name]: [...selectedValues, next],
-                  }));
-                }
-              }}
-              invalid={hasError}
-              disabled={loadingOptions[field.name]}
-            />
-
-            {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
-            )}
-          </div>
-        );
-      }
+      case "multiselect":
+        return renderMultiselectField(field, hasError, labelClasses);
 
       case "number": {
         // Handle both number and empty string values
@@ -738,13 +754,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }
   };
 
-  // Determine button gradient
-  const buttonGradient =
-    submitButtonGradient ?? `from-${theme.primary} to-${theme.secondary}`;
-  const buttonHoverGradient = submitButtonGradient
-    ? submitButtonGradient.replace("500", "600").replace("600", "700")
-    : `from-${theme.primary.replace("500", "600")} to-${theme.secondary.replace("600", "700")}`;
-
   return (
     <>
       {(error ?? externalError) && (
@@ -755,39 +764,33 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {sections.map((section) => {
-          // Use custom background or theme background
-          const bgClass = section.backgroundColor ?? themeClasses.background;
-          const textClass = "text-gray-900";
-
           return (
             <div
               key={section.title}
-              className={`mb-6 rounded-lg md:mb-8 ${bgClass} p-3 md:p-4`}
+              className="mb-6 rounded-lg bg-gray-50 p-3 md:mb-8 md:p-4"
             >
-              <h2
-                className={`mb-2.5 text-xs font-semibold md:mb-3 md:text-sm ${textClass} flex items-center gap-2`}
-              >
-                {section.iconPath && (
-                  <svg
-                    className={`h-3.5 w-3.5 md:h-4 md:w-4 ${accentTextClass}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+              {section.concept ? (
+                <ConceptSectionHeader
+                  className="mb-2.5 md:mb-3"
+                  level={sectionLevel}
+                  title={section.title}
+                  concept={section.concept}
+                  subtitle={section.subtitle}
+                />
+              ) : (
+                <>
+                  <SectionTitle
+                    level={sectionLevel}
+                    className="mb-2.5 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={section.iconPath}
-                    />
-                  </svg>
-                )}
-                <span>{section.title}</span>
-              </h2>
-              {section.subtitle && (
-                <p className="mb-2.5 text-xs text-gray-600 md:mb-3">
-                  {section.subtitle}
-                </p>
+                    {section.title}
+                  </SectionTitle>
+                  {section.subtitle && (
+                    <p className="mb-2.5 text-xs text-gray-600 md:mb-3">
+                      {section.subtitle}
+                    </p>
+                  )}
+                </>
               )}
               <div
                 className={`grid grid-cols-1 gap-3 md:gap-4 ${section.columns === 2 ? "md:grid-cols-2" : ""}`}
@@ -801,7 +804,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                         : ""
                     }
                   >
-                    {renderField(field, bgClass)}
+                    {renderField(field)}
                   </div>
                 ))}
               </div>
@@ -843,7 +846,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               </button>
               <button
                 type="submit"
-                className={`rounded-lg bg-gradient-to-r ${buttonGradient} px-4 py-2 text-sm text-white transition-all duration-200 md:px-6 md:text-base hover:${buttonHoverGradient} hover:shadow-lg`}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg md:px-6 md:text-base"
                 disabled={isBusy}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}

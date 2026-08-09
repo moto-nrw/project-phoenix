@@ -54,4 +54,22 @@ describe("EntityHeaderCard", () => {
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("2024")).toBeInTheDocument();
   });
+
+  it("renders the grey concept icon tile when concept is set", () => {
+    const { container } = render(
+      <EntityHeaderCard title="Org" active concept="organizations" />,
+    );
+
+    expect(
+      container.querySelector('[data-moto-duotone-tone="petrol"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no concept icon tile when concept is omitted", () => {
+    const { container } = render(<EntityHeaderCard title="Org" active />);
+
+    expect(
+      container.querySelector("[data-moto-duotone-tone]"),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -24,6 +24,7 @@ import {
 import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 const logger = createLogger({ component: "ParentMessagesPage" });
 
@@ -267,8 +268,8 @@ function ChildRow({ row }: Readonly<{ row: ChildConversation }>) {
         href={`/parents/messages/${row.studentId}`}
         className="group flex items-start gap-4 px-1 py-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:rounded-xl sm:px-3"
       >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#669f21]">
-          <MessageSquare className="h-5 w-5" aria-hidden="true" />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+          <MotoConceptIcon concept="parentConversations" size={22} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-2">
@@ -312,7 +313,7 @@ function ChildRow({ row }: Readonly<{ row: ChildConversation }>) {
 function EmptyMessages() {
   return (
     <EmptyState
-      icon={<MessageSquare className="h-8 w-8" aria-hidden="true" />}
+      icon={<MotoConceptIcon concept="parentConversations" size={32} />}
       title="Für Ihr Konto ist noch kein Kind hinterlegt"
       description="Sobald ein Kind verknüpft ist, können Sie hier mit der OGS schreiben."
       className="py-8"

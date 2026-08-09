@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -213,7 +214,7 @@ export function OgsConversation({
 
       <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-5 py-4 sm:px-6">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Austausch mit der OGS
           </p>
           <h1 className="mt-0.5 text-lg font-semibold break-words text-gray-900">
@@ -434,7 +435,7 @@ function QuickActionPill({
       title={t(`actions.${action.key}.hint`)}
       className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
-      <action.Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />
+      <MotoConceptIcon concept={action.concept} size={18} />
       {t(`actions.${action.key}.shortLabel`)}
     </button>
   );

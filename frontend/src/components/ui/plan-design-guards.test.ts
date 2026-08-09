@@ -69,7 +69,7 @@ const PLAN_BLOCK_FILE = "plan-block.tsx";
 // 2026-07-16: all 14 remaining violations (timetable-event-modal.tsx,
 // event-form/field.tsx, event-form/step-wiederholung.tsx,
 // event-form/step-personal-kinder.tsx) were replaced with the kit-sanctioned
-// `LOCATION_COLORS` hex equivalents (#FF3130 for field-error text and the
+// `LOCATION_COLORS` hex equivalents (#DC2626 for field-error text and the
 // series-delete confirm button, #EAB308 for the Dienstplan coverage warning
 // panel). Allowlist is empty — zero tolerance restored.
 const TIMETABLE_BRIGHT_COLOR_ALLOWLIST: Readonly<Record<string, number>> = {};

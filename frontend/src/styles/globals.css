@@ -1,16 +1,106 @@
 /* styles/globals.css */
 @import "tailwindcss";
 @import "@moto-nrw/design-system/tailwind";
-@import "@fontsource/geist-sans";
-@import "@fontsource/geist-sans/800.css"; /* Ensure font-weight 800 is loaded */
 
-/* Base font tokens */
-@theme {
-  --font-geist-sans: "Geist Sans";
+/*
+ * moto brand tokens
+ *
+ * Green, blue, and orange mirror the public website design system in
+ * ../website/src/app/globals.css. Red follows the established Phoenix
+ * notification and hours-account colors. Base is for indicators, strong for
+ * text, soft for tinted surfaces, with separate interactive shades.
+ */
+@theme inline {
+  /* The fallback lives inside var() on purpose: --font-inter is defined by
+     next/font in the root layout, which Storybook never renders. Without it
+     the whole declaration is invalid at computed-value time when the variable
+     is missing — the trailing families are siblings in the stack, not a
+     fallback for an undefined custom property — and stories drop to the
+     browser default serif. */
   --font-sans:
-    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+    var(--font-inter, Arial), Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@theme {
+  --color-moto-green: #83cd2d;
+  --color-moto-green-muted: #d7e8c3;
+  --color-moto-green-light: #92d63c;
+  --color-moto-green-vivid: #5f9f1b;
+  --color-moto-green-hover: #74b825;
+  --color-moto-green-active: #6db118;
+  --color-moto-green-strong: #3f6f12;
+  --color-moto-green-soft: #eef9e1;
+  --color-moto-blue: #5080d8;
+  --color-moto-blue-light: #6b95e0;
+  --color-moto-blue-hover: #3b68c0;
+  --color-moto-blue-strong: #315c9b;
+  --color-moto-blue-soft: #edf3fc;
+  --color-moto-orange: #f78c10;
+  --color-moto-orange-hover: #e07400;
+  --color-moto-orange-strong: #9b5609;
+  --color-moto-orange-soft: #fff3e5;
+  --color-moto-red: #dc2626;
+  --color-moto-red-hover: #b91c1c;
+  --color-moto-red-strong: #b91c1c;
+  --color-moto-red-soft: #fef2f2;
+  --color-moto-teal: #159e90;
+  --color-moto-teal-light: #5cc8ba;
+  --color-moto-teal-strong: #0f766e;
+  --color-moto-teal-soft: #e8f8f5;
+  --color-moto-amber: #eab308;
+  --color-moto-amber-light: #facc15;
+  --color-moto-amber-strong: #92400e;
+  --color-moto-amber-soft: #fef3c7;
+  --color-moto-purple: #7c3aed;
+  --color-moto-purple-light: #a78bfa;
+  --color-moto-purple-strong: #6b21a8;
+  --color-moto-purple-soft: #f3e8ff;
+  --color-moto-magenta: #d946ef;
+  --color-moto-magenta-light: #e879f9;
+  --color-moto-magenta-strong: #86198f;
+  --color-moto-magenta-soft: #fae8ff;
+  --color-moto-indigo: #4f46e5;
+  --color-moto-indigo-light: #818cf8;
+  --color-moto-indigo-strong: #3730a3;
+  --color-moto-indigo-soft: #eef2ff;
+  --color-moto-coral: #e85d4a;
+  --color-moto-coral-light: #f29a8d;
+  --color-moto-coral-strong: #a83a2e;
+  --color-moto-coral-soft: #fff0ed;
+  --color-moto-cyan: #0891b2;
+  --color-moto-cyan-light: #67e8f9;
+  --color-moto-cyan-strong: #155e75;
+  --color-moto-cyan-soft: #ecfeff;
+  --color-moto-navy: #365d83;
+  --color-moto-navy-light: #7fa6c9;
+  --color-moto-navy-strong: #1e3a5f;
+  --color-moto-navy-soft: #eef4f8;
+  --color-moto-mint: #3baf83;
+  --color-moto-mint-light: #8ad9bb;
+  --color-moto-mint-strong: #187255;
+  --color-moto-mint-soft: #eaf9f3;
+  --color-moto-wine: #8f2535;
+  --color-moto-wine-light: #cf7180;
+  --color-moto-wine-strong: #681a27;
+  --color-moto-wine-soft: #fbecef;
+  --color-moto-gold: #b7791f;
+  --color-moto-gold-light: #e6b85c;
+  --color-moto-gold-strong: #7a4a0b;
+  --color-moto-gold-soft: #fff7e6;
+  --color-moto-petrol: #217a78;
+  --color-moto-petrol-light: #72bdb8;
+  --color-moto-petrol-strong: #155a59;
+  --color-moto-petrol-soft: #e9f7f6;
+  --color-moto-stone: #78716c;
+  --color-moto-stone-light: #a8a29e;
+  --color-moto-stone-strong: #44403c;
+  --color-moto-stone-soft: #f5f5f4;
+
+  --shadow-sm: 0 1px 2px rgba(3, 7, 18, 0.06);
+  --shadow-md: 0 8px 24px rgba(3, 7, 18, 0.08);
+  --shadow-lg: 0 20px 50px rgba(3, 7, 18, 0.1);
+  --shadow-xl: 0 24px 60px rgba(3, 7, 18, 0.12);
 }
 
 /* CSS custom properties */
@@ -23,7 +113,7 @@
   --duration-slow: 300ms; /* Complex entrances (use sparingly) */
 
   /* shadcn-style color variables (HSL tuples) */
-  --background: 0 0% 100%;
+  --background: 210 20% 98%;
   --foreground: 222.2 84% 4.9%;
 
   --muted: 210 40% 96.1%;
@@ -47,15 +137,15 @@
   --accent: 210 40% 96.1%;
   --accent-foreground: 222.2 47.4% 11.2%;
 
-  --destructive: 0 84.2% 60.2%;
+  --destructive: 0 100% 59.4%;
   --destructive-foreground: 210 40% 98%;
 
-  --ring: 215 22.2% 50.2%;
+  --ring: 219 63% 58%;
 
   /* Chart colors for shadcn/recharts */
-  --chart-1: 221.2 83.2% 53.3%;
-  --chart-2: 142.1 76.2% 36.3%;
-  --chart-3: 30.7 97.2% 72.4%;
+  --chart-1: 219 63% 58%;
+  --chart-2: 87 61% 49%;
+  --chart-3: 32 93% 52%;
   --chart-4: 280.1 65.5% 60%;
   --chart-5: 340.1 75.5% 55.2%;
 }
@@ -252,7 +342,7 @@
 .moto-dotted-background {
   position: relative;
   overflow: hidden;
-  background: #f9fafb;
+  background: var(--color-gray-50);
 }
 
 .moto-dotted-background::before {
@@ -344,7 +434,7 @@
 .moto-auth-shell-background {
   position: relative;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--color-white);
 }
 
 @media (max-width: 1023px) {
@@ -381,8 +471,8 @@
 }
 
 .moto-content-surface {
-  border-color: #e5e7eb;
-  background: #ffffff;
+  border-color: var(--color-gray-200);
+  background: var(--color-white);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -547,13 +637,26 @@
 
 /* Prevent layout shift when modals hide scrollbar */
 html {
-  background: #ffffff;
+  background: var(--color-gray-50);
   overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 
 body {
-  background: #ffffff;
+  color: var(--color-gray-950);
+  background: var(--color-gray-50);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  color: var(--color-white);
+  background: var(--color-moto-blue);
+}
+
+.moto-duotone-icon [opacity="0.2"] {
+  fill: var(--moto-icon-secondary);
+  opacity: 1;
 }
 
 /* Safe area support for mobile devices */

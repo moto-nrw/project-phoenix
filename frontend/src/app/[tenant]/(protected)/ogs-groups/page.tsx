@@ -15,19 +15,14 @@ import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/api";
-import {
-  LOCATION_STATUSES,
-  isHomeLocation,
-  isSchoolyardLocation,
-  isTransitLocation,
-  parseLocation,
-} from "~/lib/location-helper";
+import { isHomeLocation } from "~/lib/location-helper";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -154,10 +149,10 @@ function GroupAbsenceOverview({
       className="mb-3 flex flex-wrap items-center gap-2 text-sm"
       aria-label="Abwesenheiten heute"
     >
-      <span className="rounded-full border border-[#EAB308]/20 bg-[#EAB308]/10 px-3 py-1 font-medium text-gray-900">
+      <span className="border-moto-red/20 bg-moto-red/10 rounded-full border px-3 py-1 font-medium text-gray-900">
         {sickCount}/{totalStudents} krank
       </span>
-      <span className="rounded-full border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-3 py-1 font-medium text-gray-900">
+      <span className="border-moto-purple/20 bg-moto-purple/10 rounded-full border px-3 py-1 font-medium text-gray-900">
         {excusedCount}/{totalStudents} entschuldigt
       </span>
     </section>
@@ -749,37 +744,6 @@ function OGSGroupPageContent() {
     };
   }, [students]);
 
-  const getCardGradient = useCallback(
-    (student: Student) => {
-      if (isStudentInGroupRoom(student, currentGroup)) {
-        return "from-emerald-50/80 to-green-100/80";
-      }
-
-      if (isSchoolyardLocation(student.current_location)) {
-        return "from-amber-50/80 to-yellow-100/80";
-      }
-
-      if (isTransitLocation(student.current_location)) {
-        return "from-fuchsia-50/80 to-pink-100/80";
-      }
-
-      if (isHomeLocation(student.current_location)) {
-        return "from-red-50/80 to-rose-100/80";
-      }
-
-      const parsedLocation = parseLocation(student.current_location);
-      if (
-        parsedLocation.room ||
-        parsedLocation.status === LOCATION_STATUSES.PRESENT
-      ) {
-        return "from-blue-50/80 to-cyan-100/80";
-      }
-
-      return "from-slate-50/80 to-gray-100/80";
-    },
-    [currentGroup],
-  );
-
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
@@ -885,19 +849,7 @@ function OGSGroupPageContent() {
 
         <div className="flex min-h-[60vh] items-center justify-center px-4">
           <div className="flex max-w-md flex-col items-center gap-6 text-center">
-            <svg
-              className="h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
+            <MotoConceptIcon concept="groups" size={48} />
             <div className="space-y-2">
               <h3 className="text-lg font-medium text-gray-900">
                 Keine OGS-Gruppe zugeordnet
@@ -922,21 +874,9 @@ function OGSGroupPageContent() {
 
     if (variant === "desktop") {
       return (
-        <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
-          <svg
-            className="h-5 w-5 text-orange-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-          <span className="text-sm font-medium text-orange-900">
+        <div className="flex h-10 items-center gap-2 px-4">
+          <MotoConceptIcon concept="substitution" size={18} />
+          <span className="text-sm font-medium text-gray-900">
             In Vertretung
           </span>
         </div>
@@ -945,22 +885,10 @@ function OGSGroupPageContent() {
 
     return (
       <div
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+        className="flex h-8 w-8 items-center justify-center"
         title="In Vertretung"
       >
-        <svg
-          className="h-4 w-4 text-orange-600"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
+        <MotoConceptIcon concept="substitution" size={18} />
       </div>
     );
   };
@@ -984,19 +912,7 @@ function OGSGroupPageContent() {
       return (
         <div className="mt-8 flex min-h-[30vh] items-center justify-center">
           <div className="flex max-w-md flex-col items-center gap-4 text-center">
-            <svg
-              className="h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
+            <MotoConceptIcon concept="children" size={48} />
             <div className="space-y-1">
               <h3 className="text-lg font-medium text-gray-900">
                 Keine Kinder in {currentGroup?.name ?? "dieser Gruppe"}
@@ -1020,7 +936,6 @@ function OGSGroupPageContent() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {sortedStudents.map((student) => {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
-              const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
               const studentAbsence = getStudentAbsence({
                 sick: student.sick,
@@ -1039,7 +954,6 @@ function OGSGroupPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   photoUrl={student.photo_url ?? null}
-                  gradient={cardGradient}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }

@@ -4,10 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
-import {
-  DetailIcons,
-  InfoSection,
-} from "~/components/ui/detail-modal-components";
+import { InfoSection } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useToast } from "~/contexts/ToastContext";
 import type {
   BlockerActivity,
@@ -21,6 +19,7 @@ import {
   type StaffWithRole,
 } from "~/lib/group-transfer-api";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "CaregiverBlockerResolution" });
 
@@ -374,8 +373,14 @@ export function CaregiverBlockerResolutionModal({
         {supervisions.length > 0 ? (
           <InfoSection
             title={`Aktive Gruppenaufsichten (${supervisions.length})`}
-            icon={DetailIcons.group}
-            accentColor="blue"
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.supervision.icon}
+                tone={MOTO_CONCEPTS.supervision.tone}
+                size={18}
+              />
+            }
+            accentColor="purple"
           >
             <div className="space-y-2">
               {supervisions.map((item) => {
@@ -397,7 +402,7 @@ export function CaregiverBlockerResolutionModal({
                       type="button"
                       onClick={() => void handleEndSupervision(item)}
                       disabled={processing[key]}
-                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
                     >
                       {processing[key] ? "..." : "Beenden"}
                     </button>
@@ -412,8 +417,14 @@ export function CaregiverBlockerResolutionModal({
         {substitutions.length > 0 ? (
           <InfoSection
             title={`Aktive Vertretungen (${substitutions.length})`}
-            icon={DetailIcons.bus}
-            accentColor="purple"
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.substitution.icon}
+                tone={MOTO_CONCEPTS.substitution.tone}
+                size={18}
+              />
+            }
+            accentColor="indigo"
           >
             <div className="space-y-2">
               {substitutions.map((item) => {
@@ -438,7 +449,7 @@ export function CaregiverBlockerResolutionModal({
                       type="button"
                       onClick={() => void handleEndSubstitution(item)}
                       disabled={processing[key]}
-                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
                     >
                       {processing[key] ? "..." : "Entfernen"}
                     </button>
@@ -453,7 +464,13 @@ export function CaregiverBlockerResolutionModal({
         {activities.length > 0 ? (
           <InfoSection
             title={`Aktivitätsleitungen (${activities.length})`}
-            icon={DetailIcons.heart}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.activities.icon}
+                tone={MOTO_CONCEPTS.activities.tone}
+                size={18}
+              />
+            }
             accentColor="orange"
           >
             <div className="space-y-2">
@@ -469,7 +486,7 @@ export function CaregiverBlockerResolutionModal({
                         {item.activityName}
                       </span>
                       {item.isPrimary ? (
-                        <span className="ml-2 inline-flex rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        <span className="bg-moto-orange/20 text-moto-orange-hover ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
                           Hauptleitung
                         </span>
                       ) : null}
@@ -497,7 +514,7 @@ export function CaregiverBlockerResolutionModal({
                         type="button"
                         onClick={() => void handleResolveActivity(item)}
                         disabled={processing[key]}
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium whitespace-nowrap text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
                       >
                         {processing[key]
                           ? "..."
@@ -517,7 +534,13 @@ export function CaregiverBlockerResolutionModal({
         {groups.length > 0 ? (
           <InfoSection
             title={`Stammgruppen-Zuordnungen (${groups.length})`}
-            icon={DetailIcons.home}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.groups.icon}
+                tone={MOTO_CONCEPTS.groups.tone}
+                size={18}
+              />
+            }
             accentColor="green"
           >
             <div className="space-y-2">
@@ -554,7 +577,7 @@ export function CaregiverBlockerResolutionModal({
                         type="button"
                         onClick={() => void handleResolveGroup(item)}
                         disabled={processing[key]}
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium whitespace-nowrap text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
                       >
                         {processing[key]
                           ? "..."

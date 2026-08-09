@@ -186,8 +186,11 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
-            <Check className="h-9 w-9 text-[#4E7D1B]" aria-hidden="true" />
+          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <Check
+              className="text-moto-green-strong h-9 w-9"
+              aria-hidden="true"
+            />
           </div>
           <Link
             href={operatorPath("/operator/login")}
@@ -211,8 +214,8 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
-            <span className="text-2xl font-semibold text-red-600">!</span>
+          <div className="bg-moto-red-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <span className="text-moto-red text-2xl font-semibold">!</span>
           </div>
           <Link
             href={operatorPath("/operator/login")}
@@ -293,7 +296,7 @@ export function InviteContent() {
                     <span
                       className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
                         met
-                          ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5A8B1F]"
+                          ? "border-moto-green bg-moto-green/10 text-moto-green-strong"
                           : "border-gray-300 bg-white text-gray-400"
                       }`}
                       aria-hidden="true"
@@ -336,14 +339,14 @@ export function InviteContent() {
             />
           </div>
           {confirmPassword.length > 0 && !passwordsMatch && (
-            <p className="mt-1 text-xs text-red-500">
+            <p className="text-moto-red mt-1 text-xs">
               Passwörter stimmen nicht überein
             </p>
           )}
         </div>
 
         {formError && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border p-3 text-sm">
             {formError}
           </div>
         )}

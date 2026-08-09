@@ -2,15 +2,35 @@
 // Shared student card component used across OGS groups and active supervisions pages
 
 import type { ReactNode } from "react";
-import { Clock, AlertTriangle, Check, Loader2, LogIn } from "lucide-react";
+import {
+  Clock,
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  Loader2,
+  LogIn,
+  Minus,
+  Plus,
+} from "lucide-react";
+import {
+  CalendarXIcon,
+  ChalkboardTeacherIcon,
+  UsersThreeIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
 import {
   getStudentTimeStatus,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import {
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+  getLocationBadgeTone,
+} from "~/lib/location-helper";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -26,8 +46,6 @@ interface StudentCardProps {
    * checking the feature flag themselves.
    */
   readonly photoUrl?: string | null;
-  /** Legacy visual accent prop retained for existing callers. */
-  readonly gradient?: string;
   /** Click handler for navigation (used when checkinMode is false/absent) */
   readonly onClick: () => void;
   /** Location badge component to render */
@@ -67,28 +85,28 @@ const TAP_STRIP_STYLES: Record<
 > = {
   anwesend: {
     // Currently present → tap to check out (red accent communicates the destination state)
-    background: `${LOCATION_COLORS.HOME}26`, // ~15% alpha
-    text: "#B82A29", // accessible darker red on tinted bg
+    background: MOTO_COLOR_PALETTE.red.soft,
+    text: MOTO_COLOR_PALETTE.red.strong,
     copy: "Tippen zum Abmelden",
     action: "abmelden",
   },
   schulhof: {
     // On schoolyard counts as present → tap also checks out
-    background: `${LOCATION_COLORS.HOME}26`,
-    text: "#B82A29",
+    background: MOTO_COLOR_PALETTE.red.soft,
+    text: MOTO_COLOR_PALETTE.red.strong,
     copy: "Tippen zum Abmelden",
     action: "abmelden",
   },
   abwesend: {
     // Currently absent → tap to check in (green accent for the destination state)
-    background: `${LOCATION_COLORS.GROUP_ROOM}26`, // ~15% alpha
-    text: "#5A8B1F", // mirrors GROUP_ROOM_SHADES.text equivalent for darker green
+    background: MOTO_COLOR_PALETTE.green.soft,
+    text: MOTO_COLOR_PALETTE.green.strong,
     copy: "Tippen zum Anmelden",
     action: "anmelden",
   },
   unknown: {
     background: `${LOCATION_COLORS.UNKNOWN}26`,
-    text: "#4B5563",
+    text: MOTO_COLOR_PALETTE.neutral.strong,
     copy: "Tippen zum An-/Abmelden",
     action: "anmelden",
   },
@@ -103,7 +121,6 @@ export function StudentCard({
   firstName,
   lastName,
   photoUrl,
-  gradient,
   onClick,
   locationBadge,
   extraContent,
@@ -130,7 +147,6 @@ export function StudentCard({
   const ariaLabel = checkinMode
     ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
     : `${firstName} ${lastName} - Tippen für mehr Infos`;
-  void gradient;
 
   return (
     <button
@@ -142,7 +158,7 @@ export function StudentCard({
       aria-busy={isCheckinPending}
       data-checkin-mode={checkinMode || undefined}
       data-checkin-state={checkinMode ? checkinState : undefined}
-      className={`group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
+      className={`group moto-content-surface moto-hover-elevated relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
         // Click-time scale skipped in check-in mode: sub-pixel aliasing
         // during the scale animation flashes a 1px white seam at the
         // body→tap-strip boundary. Pending spinner gives the click feedback.
@@ -180,19 +196,10 @@ export function StudentCard({
                     {/* Arrow hint only points to navigation; in check-in mode the
                       bottom strip carries the action signal instead. */}
                     {!checkinMode && (
-                      <svg
+                      <ChevronRight
                         className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
+                        aria-hidden="true"
+                      />
                     )}
                   </div>
                   <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-200 md:group-hover:text-gray-800">
@@ -233,7 +240,7 @@ export function StudentCard({
           body→strip boundary. */}
       {checkinMode && tapStrip && (
         <div
-          className="relative flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
+          className="relative mt-auto flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
           style={{
             backgroundColor: tapStrip.background,
             color: tapStrip.text,
@@ -245,29 +252,10 @@ export function StudentCard({
               className="h-4 w-4 flex-shrink-0 animate-spin"
               aria-hidden="true"
             />
+          ) : tapStrip.action === "anmelden" ? (
+            <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           ) : (
-            <svg
-              className="h-4 w-4 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              aria-hidden="true"
-            >
-              {tapStrip.action === "anmelden" ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4v16m8-8H4"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M20 12H4"
-                />
-              )}
-            </svg>
+            <Minus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           )}
           <span>{tapStrip.copy}</span>
         </div>
@@ -279,39 +267,13 @@ export function StudentCard({
 /** Icon for school class display */
 export function SchoolClassIcon() {
   return (
-    <svg
-      className="h-3.5 w-3.5 text-gray-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-      />
-    </svg>
+    <MotoDuotoneIcon icon={ChalkboardTeacherIcon} tone="neutral" size={14} />
   );
 }
 
 /** Icon for group display */
 export function GroupIcon() {
-  return (
-    <svg
-      className="h-3.5 w-3.5 text-gray-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-      />
-    </svg>
-  );
+  return <MotoDuotoneIcon icon={UsersThreeIcon} tone="neutral" size={14} />;
 }
 
 /** Reusable info row for school class or group */
@@ -332,53 +294,30 @@ export function StudentInfoRow({
   );
 }
 
-/** Icon for pickup time display */
+/**
+ * Icon for pickup time display. Same outline clock as the with-time state in
+ * renderTimeStatusIcon, so a "Gehzeit" row always carries the same glyph no
+ * matter whether it shows a time, a dash, or a colored status.
+ */
 export function PickupTimeIcon() {
-  return (
-    <svg
-      className="h-3.5 w-3.5 text-gray-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    </svg>
-  );
+  return <Clock className="h-3.5 w-3.5 text-gray-400" />;
 }
 
 /** Icon for exception indicator */
 export function ExceptionIcon() {
-  return (
-    <svg
-      className="h-3.5 w-3.5 text-orange-500"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-      />
-    </svg>
-  );
+  return <MotoDuotoneIcon icon={WarningCircleIcon} tone="orange" size={14} />;
 }
 
 /**
  * Neutral marker for "not coming today" rows (sick, excused, or a schedule
- * exception with no time). A known absence is information, not a warning — a
- * calm gray clock matches the student detail page and avoids the alarm an
- * amber triangle implies. Used for every absence line so the same state always
- * reads the same, across cards and detail.
+ * exception with no time). A known absence is information, not a warning, so
+ * it stays calm gray and avoids the alarm an amber triangle implies. Uses the
+ * CalendarX glyph of the notArrival concept instead of a clock, so absence
+ * lines never share their icon with the Gehzeit rows. Used for every absence
+ * line so the same state always reads the same, across cards and detail.
  */
 export function AbsenceIcon() {
-  return <Clock className="h-3.5 w-3.5 text-gray-400" />;
+  return <MotoDuotoneIcon icon={CalendarXIcon} tone="neutral" size={14} />;
 }
 
 /**
@@ -547,12 +486,15 @@ export function StudentAbsenceRow({
  * absence — the child stays "expected" and keeps its normal arrival/pickup rows
  * until the OGS confirms — so this renders as a single compact amber pill
  * alongside them, not in place of them. The parent's note (if any) is kept to
- * the hover title so the card stays as dense as its other rows. Amber hex comes
- * from LOCATION_COLORS.SICK (CLAUDE.md §0).
+ * the hover title so the card stays as dense as its other rows. The amber tone
+ * comes directly from MOTO_COLOR_PALETTE because this is a pending-approval
+ * hint, not a location or illness signal.
  */
 export function StudentPendingExcusedRow({
   note,
 }: Readonly<{ note?: string }>) {
+  const tone = getLocationBadgeTone(MOTO_COLOR_PALETTE.amber.base);
+
   // Leading icon at the row's left edge (aligned with the other StudentInfoRow
   // icons) and the amber pill in the text column, so this line sits in the same
   // rhythm as the sibling rows instead of looking offset.
@@ -562,7 +504,11 @@ export function StudentPendingExcusedRow({
         <AbsenceIcon />
       </span>
       <span
-        className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]"
+        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+        style={{
+          backgroundColor: tone.backgroundColor,
+          color: tone.textColor,
+        }}
         title={note ?? undefined}
       >
         Freigabe ausstehend

@@ -524,7 +524,7 @@ export function NewsDetailModal({
             href={item.link_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3f68b5]"
+            className="text-moto-blue hover:text-moto-blue-hover inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
           >
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{item.link_url}</span>
@@ -534,7 +534,7 @@ export function NewsDetailModal({
         {stale && (
           <p
             role="alert"
-            className="rounded-lg bg-[#F78C101A] px-3 py-2 text-sm text-[#B45309]"
+            className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm"
           >
             {t("newsStaleError")}
           </p>
@@ -543,7 +543,7 @@ export function NewsDetailModal({
         {actionError && (
           <p
             role="alert"
-            className="rounded-lg bg-[#FF31301A] px-3 py-2 text-sm text-[#CC2626]"
+            className="bg-moto-red-soft text-moto-red-strong rounded-lg px-3 py-2 text-sm"
           >
             {actionError}
           </p>

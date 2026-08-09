@@ -225,7 +225,7 @@ export function WeeklyCalendarGrid({
               )}
               {isToday && !isSelected && (
                 <span
-                  className="h-1 w-1 rounded-full bg-[#FF3130]"
+                  className="bg-moto-red h-1 w-1 rounded-full"
                   aria-hidden
                 />
               )}
@@ -443,11 +443,11 @@ export function WeeklyCalendarGrid({
                 {nowOffset !== null && (
                   <>
                     <div
-                      className="pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full bg-[#FF3130]"
+                      className="bg-moto-red pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full"
                       style={{ top: `${nowOffset - 4}px` }}
                     />
                     <div
-                      className="pointer-events-none absolute right-0 left-0 z-10 border-t-2 border-[#FF3130]"
+                      className="border-moto-red pointer-events-none absolute right-0 left-0 z-10 border-t-2"
                       style={{ top: `${nowOffset}px` }}
                     />
                   </>

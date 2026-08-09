@@ -169,7 +169,7 @@ export function PasswordChangeModal({
     <Modal isOpen={isOpen} onClose={handleClose} title="Passwort ändern">
       {success ? (
         <div className="py-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#83CD2D]">
+          <div className="bg-moto-green mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
             <CheckIcon className="h-8 w-8 text-white" />
           </div>
           <h3 className="mb-2 text-lg font-semibold text-gray-900">
@@ -203,7 +203,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "current-password" ? "border-red-400" : "border-gray-200"} bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]`}
+                className={`block w-full rounded-lg border ${errorFieldName === "current-password" ? "border-red-400" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showCurrentPassword}
@@ -228,7 +228,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "new-password" ? "border-red-400" : "border-gray-200"} bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]`}
+                className={`block w-full rounded-lg border ${errorFieldName === "new-password" ? "border-red-400" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showNewPassword}
@@ -253,7 +253,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "confirm-password" ? "border-red-400" : "border-gray-200"} bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]`}
+                className={`block w-full rounded-lg border ${errorFieldName === "confirm-password" ? "border-red-400" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showConfirmPassword}

@@ -452,8 +452,8 @@ function IdentitySection({
             <span
               className={
                 status === "error"
-                  ? "text-sm text-[#CC2626]"
-                  : "text-sm text-[#4A7A15]"
+                  ? "text-moto-red-strong text-sm"
+                  : "text-moto-green-strong text-sm"
               }
             >
               {message}
@@ -573,7 +573,7 @@ function DepartureSection({
           same thing in two shapes. The matrix IS the summary — every checked
           box is the saved value — so only the matrix remains. */}
       {pending && (
-        <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+        <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
           <Clock className="h-3 w-3" aria-hidden="true" />
           {t("pendingBadge")}
         </p>
@@ -637,8 +637,8 @@ function DepartureSection({
             <span
               className={
                 status === "error"
-                  ? "text-sm text-[#CC2626]"
-                  : "text-sm text-[#4A7A15]"
+                  ? "text-moto-red-strong text-sm"
+                  : "text-moto-green-strong text-sm"
               }
             >
               {message}
@@ -906,7 +906,7 @@ function RequestField({
           {label}
         </span>
         {pending && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+          <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <Clock className="h-3 w-3" aria-hidden="true" />
             {t("pendingBadge")}
           </span>
@@ -1057,7 +1057,7 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#4A7A15]">
+      <span className="text-moto-green-strong inline-flex items-center gap-1 text-xs font-medium">
         <Check className="h-3 w-3" aria-hidden="true" />
         {t("saved")}
       </span>
@@ -1065,7 +1065,7 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
   }
   if (status === "error") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#CC2626]">
+      <span className="text-moto-red-strong inline-flex items-center gap-1 text-xs font-medium">
         <AlertCircle className="h-3 w-3" aria-hidden="true" />
         {t("saveError")}
       </span>

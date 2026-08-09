@@ -355,7 +355,7 @@ export function StudentsInRoomSection({
       {isTruncated && (
         <div
           role="status"
-          className="mt-3 rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm text-[#7a5c00]"
+          className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
         >
           Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
           {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
@@ -532,7 +532,7 @@ function BulkMoveToolbar({
       </div>
 
       {state.type === "error" ? (
-        <p role="alert" className="mt-2 text-sm text-[#FF3130]">
+        <p role="alert" className="text-moto-red mt-2 text-sm">
           {state.message}
         </p>
       ) : null}

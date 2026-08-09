@@ -28,7 +28,7 @@ describe("TrackingIndicators", () => {
 
     const svg = screen.getByLabelText("Hausaufgaben: erledigt");
     expect(svg).toBeInTheDocument();
-    expect(svg).toHaveClass("text-[#83CD2D]");
+    expect(svg).toHaveClass("text-moto-green");
   });
 
   it("renders gray circle SVG for unmatched labels", () => {

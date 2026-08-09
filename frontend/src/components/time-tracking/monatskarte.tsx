@@ -44,10 +44,12 @@ function formatDays(days: number): string {
 }
 
 // Plain text on the white card: brand green for a positive balance, the app's
-// red-600 for a negative one — same tone map as the table rows and KpiCard.
+// red for a negative one — same tone map as the table rows and KpiCard, which
+// is why this uses the -strong step: green-hover (#74B825) sits at 2.43:1 on
+// white and misses AA, green-strong (#3F6F12) reaches 6.01:1.
 function deltaClass(minutes: number): string {
-  if (minutes > 0) return "text-[#70b525]";
-  if (minutes < 0) return "text-red-600";
+  if (minutes > 0) return "text-moto-green-strong";
+  if (minutes < 0) return "text-moto-red-strong";
   return "text-gray-700";
 }
 

@@ -159,16 +159,17 @@ type Factory struct {
 	CareRequests         schedule.CareScheduleRequestService
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
-	OfferingChanges      enrollment.OfferingChangeRequestService
-	ExcusedRequests      absence.ExcusedAbsenceRequestService
-	StudentStatusDays    *active.StudentStatusDayService
-	StudentHistory       active.StudentHistoryService
-	OGSGroupLive         ogsgrouplive.Getter
-	TimetableData        *schedule.TimetableDataService
-	OperatorSuggestions  platform.OperatorSuggestionsService
-	OperatorMFA          platform.OperatorMFAService
-	OperatorPasskey      platform.OperatorPasskeyService
-	UnregisteredTagScans auditService.UnregisteredTagScanService
+	OfferingChanges         enrollment.OfferingChangeRequestService
+	ExcusedRequests         absence.ExcusedAbsenceRequestService
+	StudentStatusDays       *active.StudentStatusDayService
+	StudentHistory          active.StudentHistoryService
+	OGSGroupLive            ogsgrouplive.Getter
+	TimetableData           *schedule.TimetableDataService
+	InstanceSeriesConverter schedule.InstanceSeriesConverter
+	OperatorSuggestions     platform.OperatorSuggestionsService
+	OperatorMFA             platform.OperatorMFAService
+	OperatorPasskey         platform.OperatorPasskeyService
+	UnregisteredTagScans    auditService.UnregisteredTagScanService
 
 	// Email outbox (parent-enrollment PR 5) - shared across features.
 	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
@@ -876,11 +877,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	// Initialize pickup schedule service
-	pickupScheduleService := schedule.NewPickupScheduleService(
+	pickupScheduleService := schedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
+		repos.Student,
+		repos.Person,
 		db,
+		logger.With("service", "pickup-schedule"),
 	)
 
 	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
@@ -2071,6 +2075,46 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          logger.With("service", "ogs-group-live"),
 	})
 
+	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
+		InstanceStudentRepo:        repos.InstanceStudent,
+		ActivityInstanceRepo:       repos.ActivityInstance,
+		ActivityExceptionRepo:      repos.ActivityException,
+		ActivityScheduleRepo:       repos.ActivitySchedule,
+		InstanceStaffRepo:          repos.InstanceStaff,
+		StaffShiftRepo:             repos.StaffShift,
+		StaffRepo:                  repos.Staff,
+		CalendarPeriodRepo:         repos.CalendarPeriod,
+		ActiveGroupRepo:            repos.ActiveGroup,
+		SupervisorRepo:             repos.GroupSupervisor,
+		ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
+		ArrivalExceptionRepo:       repos.StudentArrivalException,
+		PickupScheduleRepo:         repos.StudentPickupSchedule,
+		PickupExceptionRepo:        repos.StudentPickupException,
+		VisitRepo:                  repos.ActiveVisit,
+		RoomRepo:                   repos.Room,
+		ActivityCategoryRepo:       repos.ActivityCategory,
+		PlanningTrackRepo:          repos.PlanningTrack,
+		ActivityGroupRepo:          repos.ActivityGroup,
+		ActivitySupervisorRepo:     repos.ActivitySupervisor,
+		StudentEnrollmentRepo:      repos.StudentEnrollment,
+		TimeframeRepo:              repos.Timeframe,
+		EducationGroupRepo:         repos.Group,
+		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
+		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
+		DeviationEventRepo:         repos.DeviationEvent,
+		ConflictAckRepo:            repos.TimetableConflictAck,
+		Broadcaster:                realtimeHub,
+		Logger:                     logger.With("service", "timetable-data"),
+		DB:                         db,
+	})
+	instanceSeriesConverter := schedule.NewInstanceSeriesConversionService(schedule.InstanceSeriesConversionDependencies{
+		DB:              db,
+		InstanceRepo:    repos.ActivityInstance,
+		InstanceService: instanceService,
+		TimetableData:   timetableDataService,
+	})
+
 	factory := &Factory{
 		Auth:                     authService,
 		StaffPINAuth:             authService,
@@ -2160,59 +2204,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// two narrower interfaces so that each handler depends only on the
 		// methods it actually calls. NewOperatorAuthService returns the
 		// combined interface, so both fields can be assigned directly.
-		OperatorAuth:         operatorAuthService,
-		OperatorInvitation:   operatorAuthService,
-		OperatorProvisioning: operatorProvisioningService,
-		Announcement:         announcementService,
-		Schools:              platform.NewSchoolService(repos.School),
-		WorkTimeModels:       workTimeModelService,
-		Students:             studentService,
-		StudentDeletion:      studentDeletionService,
-		StudentAudit:         studentAuditService,
-		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
-		CareRequests:         careRequestService,
-		OfferingChanges:      offeringChangeRequestService,
-		ExcusedRequests:      excusedRequestService,
-		StudentStatusDays:    studentStatusDayService,
-		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
-		OGSGroupLive:         ogsGroupLiveService,
-		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
-			InstanceStudentRepo:        repos.InstanceStudent,
-			ActivityInstanceRepo:       repos.ActivityInstance,
-			ActivityExceptionRepo:      repos.ActivityException,
-			ActivityScheduleRepo:       repos.ActivitySchedule,
-			InstanceStaffRepo:          repos.InstanceStaff,
-			StaffShiftRepo:             repos.StaffShift,
-			StaffRepo:                  repos.Staff,
-			CalendarPeriodRepo:         repos.CalendarPeriod,
-			ActiveGroupRepo:            repos.ActiveGroup,
-			SupervisorRepo:             repos.GroupSupervisor,
-			ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
-			ArrivalExceptionRepo:       repos.StudentArrivalException,
-			PickupScheduleRepo:         repos.StudentPickupSchedule,
-			PickupExceptionRepo:        repos.StudentPickupException,
-			VisitRepo:                  repos.ActiveVisit,
-			RoomRepo:                   repos.Room,
-			ActivityCategoryRepo:       repos.ActivityCategory,
-			PlanningTrackRepo:          repos.PlanningTrack,
-			ActivityGroupRepo:          repos.ActivityGroup,
-			ActivitySupervisorRepo:     repos.ActivitySupervisor,
-			StudentEnrollmentRepo:      repos.StudentEnrollment,
-			TimeframeRepo:              repos.Timeframe,
-			EducationGroupRepo:         repos.Group,
-			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
-			ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
-			ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
-			DeviationEventRepo:         repos.DeviationEvent,
-			ConflictAckRepo:            repos.TimetableConflictAck,
-			Broadcaster:                realtimeHub,
-			Logger:                     logger.With("service", "timetable-data"),
-			DB:                         db,
-		}),
-		OperatorSuggestions:  operatorSuggestionsService,
-		OperatorMFA:          operatorMFAService,
-		OperatorPasskey:      operatorPasskeyService,
-		UnregisteredTagScans: unregisteredTagScanService,
+		OperatorAuth:            operatorAuthService,
+		OperatorInvitation:      operatorAuthService,
+		OperatorProvisioning:    operatorProvisioningService,
+		Announcement:            announcementService,
+		Schools:                 platform.NewSchoolService(repos.School),
+		WorkTimeModels:          workTimeModelService,
+		Students:                studentService,
+		StudentDeletion:         studentDeletionService,
+		StudentAudit:            studentAuditService,
+		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
+		CareRequests:            careRequestService,
+		OfferingChanges:         offeringChangeRequestService,
+		ExcusedRequests:         excusedRequestService,
+		StudentStatusDays:       studentStatusDayService,
+		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		OGSGroupLive:            ogsGroupLiveService,
+		TimetableData:           timetableDataService,
+		InstanceSeriesConverter: instanceSeriesConverter,
+		OperatorSuggestions:     operatorSuggestionsService,
+		OperatorMFA:             operatorMFAService,
+		OperatorPasskey:         operatorPasskeyService,
+		UnregisteredTagScans:    unregisteredTagScanService,
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,

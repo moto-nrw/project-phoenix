@@ -1,6 +1,5 @@
-import { CalendarOff } from "lucide-react";
-
 import { timetableSurface } from "~/components/timetable/timetable-style";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface PlanningDisabledStateProps {
   readonly pageTitle: string;
@@ -19,7 +18,7 @@ export function PlanningDisabledState({
     <div className="flex flex-col gap-4" data-testid={testId}>
       <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
       <div className={`${timetableSurface} p-10 text-center`}>
-        <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
+        <MotoConceptIcon concept="closingDays" size={42} className="mx-auto" />
         <h2 className="mt-4 text-base font-semibold text-gray-900">
           {heading}
         </h2>

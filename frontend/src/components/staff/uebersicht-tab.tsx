@@ -38,6 +38,7 @@ import {
   staffMonthSummaryService,
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   endOfWeek,
   getDeltaStatus,
@@ -529,7 +530,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                 />
                 <ReferenceLine
                   y={0}
-                  stroke="#9CA3AF"
+                  stroke={MOTO_COLOR_PALETTE.neutral.light}
                   strokeDasharray="3 3"
                   strokeWidth={1}
                 />
@@ -666,25 +667,35 @@ function formatHoursCompact(minutes: number): string {
 }
 
 const trendConfig = {
-  balance: { label: "Saldo", color: "#83CD2D" },
+  balance: { label: "Saldo", color: MOTO_COLOR_PALETTE.green.base },
 } satisfies ChartConfig;
 
 const dailyConfig = {
-  ist: { label: "Ist", color: "#83CD2D" },
-  soll: { label: "Soll", color: "#9CA3AF" },
+  ist: { label: "Ist", color: MOTO_COLOR_PALETTE.green.base },
+  soll: { label: "Soll", color: MOTO_COLOR_PALETTE.neutral.light },
 } satisfies ChartConfig;
 
 // Categories aligned to LOCATION_COLORS where the semantics match. Absence
 // types pick distinct hues from the rest of the brand palette so the donut
-// stays readable even when 5+ segments are visible.
+// stays readable even when 5+ segments are visible. Krank folgt der
+// verbindlichen Ton-Zuordnung (Krank = rot), nicht der Bernstein-Optik.
 const distributionConfig = {
-  ogs: { label: "OGS", color: "#83CD2D" },
-  homeoffice: { label: "Homeoffice", color: "#5080D8" },
-  urlaub: { label: "Urlaub", color: "#F78C10" },
-  krank: { label: "Krank", color: "#EAB308" },
-  fortbildung: { label: "Fortbildung", color: "#7C3AED" },
-  freizeitausgleich: { label: "Freizeitausgleich", color: "#D946EF" },
-  sonstige: { label: "Sonstige", color: "#6B7280" },
+  ogs: { label: "OGS", color: MOTO_COLOR_PALETTE.green.base },
+  // Muss dem RowStatusBadge in staff-session-table folgen: blue.base ist der
+  // Ton, den getLocationBadgeTone fuer ABSENCE_TYPE_HEX.vacation liefert, und
+  // Uebersicht, Zeiterfassung und Abwesenheiten sind Tabs derselben Seite.
+  homeoffice: {
+    label: "Homeoffice",
+    color: MOTO_COLOR_PALETTE.timeTracking.base,
+  },
+  urlaub: { label: "Urlaub", color: MOTO_COLOR_PALETTE.orange.base },
+  krank: { label: "Krank", color: MOTO_COLOR_PALETTE.red.base },
+  fortbildung: { label: "Fortbildung", color: MOTO_COLOR_PALETTE.purple.base },
+  freizeitausgleich: {
+    label: "Freizeitausgleich",
+    color: MOTO_COLOR_PALETTE.magenta.base,
+  },
+  sonstige: { label: "Sonstige", color: MOTO_COLOR_PALETTE.neutral.base },
 } satisfies ChartConfig;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -797,38 +808,57 @@ function buildDistribution(
   sessionDays: { present: number; homeOffice: number },
   absenceDays: AbsenceDayCounts,
 ): DistributionBucket[] {
+  // Colors come from distributionConfig rather than being repeated here. The
+  // two lists mirror each other key for key, and the Pie renders THIS one
+  // (<Cell fill={d.color}>) while the legend and tooltip read the config — so
+  // a value changed in only one place silently splits the chart from its own
+  // legend. That is exactly what happened when Homeoffice was moved off the
+  // blue that also means "Urlaub" in the sibling tabs.
+  const color = (key: keyof typeof distributionConfig) =>
+    distributionConfig[key].color;
+
   return [
-    { key: "ogs", label: "OGS", value: sessionDays.present, color: "#83CD2D" },
+    {
+      key: "ogs",
+      label: "OGS",
+      value: sessionDays.present,
+      color: color("ogs"),
+    },
     {
       key: "homeoffice",
       label: "Homeoffice",
       value: sessionDays.homeOffice,
-      color: "#5080D8",
+      color: color("homeoffice"),
     },
     {
       key: "urlaub",
       label: "Urlaub",
       value: absenceDays.vacation,
-      color: "#F78C10",
+      color: color("urlaub"),
     },
-    { key: "krank", label: "Krank", value: absenceDays.sick, color: "#EAB308" },
+    {
+      key: "krank",
+      label: "Krank",
+      value: absenceDays.sick,
+      color: color("krank"),
+    },
     {
       key: "fortbildung",
       label: "Fortbildung",
       value: absenceDays.training,
-      color: "#7C3AED",
+      color: color("fortbildung"),
     },
     {
       key: "freizeitausgleich",
       label: "Freizeitausgleich",
       value: absenceDays.compTime,
-      color: "#D946EF",
+      color: color("freizeitausgleich"),
     },
     {
       key: "sonstige",
       label: "Sonstige",
       value: absenceDays.other,
-      color: "#6B7280",
+      color: color("sonstige"),
     },
   ];
 }

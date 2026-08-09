@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, Plus, Search } from "lucide-react";
+import { Eye, Loader2, Plus, Search } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
 import GuardianPickerPanel from "./guardian-picker-panel";
@@ -37,6 +37,7 @@ import {
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -575,7 +576,7 @@ export default function StudentGuardianManager({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-4 py-3">
         {error}
       </div>
     );
@@ -583,78 +584,44 @@ export default function StudentGuardianManager({
 
   return (
     <div className="relative z-10 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      {/* Header with Icon and Add Button */}
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-purple-100 text-purple-600 sm:h-10 sm:w-10">
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              />
-            </svg>
+      <ConceptSectionHeader
+        className="mb-4"
+        title="Erziehungsberechtigte"
+        concept="parents"
+        actions={
+          <div className="flex items-center gap-2">
+            {readOnly && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
+                <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Nur Ansicht</span>
+                <span className="sm:hidden">Ansicht</span>
+              </span>
+            )}
+            {!readOnly && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsPickerOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  title="Vorhandene/n Erziehungsberechtigte/n suchen"
+                >
+                  <Search className="h-4 w-4" />
+                  <span className="hidden sm:inline">Vorhandene/n suchen</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateModal}
+                  className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+                  title="Erziehungsberechtigte/n hinzufügen"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Hinzufügen</span>
+                </button>
+              </>
+            )}
           </div>
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Erziehungsberechtigte
-          </h2>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {readOnly && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
-              <svg
-                className="h-3 w-3 sm:h-3.5 sm:w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-              <span className="hidden sm:inline">Nur Ansicht</span>
-              <span className="sm:hidden">Ansicht</span>
-            </span>
-          )}
-          {!readOnly && (
-            <>
-              <button
-                type="button"
-                onClick={() => setIsPickerOpen(true)}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                title="Vorhandene/n Erziehungsberechtigte/n suchen"
-              >
-                <Search className="h-4 w-4" />
-                <span className="hidden sm:inline">Vorhandene/n suchen</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenCreateModal}
-                className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-                title="Erziehungsberechtigte/n hinzufügen"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Hinzufügen</span>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {/* Existing-guardian picker (sibling case) — inline, not a modal, since a
           search is a light lookup. "Hinzufügen" opens the heavy form modal. */}

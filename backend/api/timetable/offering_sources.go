@@ -26,11 +26,12 @@ type offeringSourcesResponse struct {
 // offeringSourceOptionResponse mirrors enrollment.OfferingSourceOption with
 // string-keyed grade counts (JSON objects cannot carry int keys).
 type offeringSourceOptionResponse struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	PhaseID    int64  `json:"phase_id"`
-	PhaseName  string `json:"phase_name"`
-	TotalCount int    `json:"total_count"`
+	ID                int64  `json:"id"`
+	Name              string `json:"name"`
+	PhaseID           int64  `json:"phase_id"`
+	PhaseName         string `json:"phase_name"`
+	PhaseServiceStart string `json:"phase_service_start,omitempty"`
+	TotalCount        int    `json:"total_count"`
 	// GradeCounts maps Jahrgang (as string) → approved children; key "0"
 	// collects children without a derivable grade.
 	GradeCounts            map[string]int                    `json:"grade_counts"`
@@ -82,11 +83,16 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 				GradeLevels: tmpl.GradeLevels,
 			})
 		}
+		phaseServiceStart := ""
+		if !option.PhaseServiceStart.IsZero() {
+			phaseServiceStart = option.PhaseServiceStart.String()
+		}
 		resp.Offerings = append(resp.Offerings, offeringSourceOptionResponse{
 			ID:                     option.ID,
 			Name:                   option.Name,
 			PhaseID:                option.PhaseID,
 			PhaseName:              option.PhaseName,
+			PhaseServiceStart:      phaseServiceStart,
 			TotalCount:             option.TotalCount,
 			GradeCounts:            gradeCounts,
 			SourcedTemplates:       sourced,

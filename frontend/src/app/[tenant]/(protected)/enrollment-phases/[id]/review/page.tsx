@@ -38,7 +38,7 @@ export default function RolloverReviewPage({ params }: PageProps) {
       <nav className="sr-only">
         <Link
           href="/enrollment-phases"
-          className="text-sm font-medium text-[#5080D8] hover:underline"
+          className="text-moto-blue text-sm font-medium hover:underline"
         >
           Zurück zu den Anmeldephasen
         </Link>

@@ -68,7 +68,6 @@ describe("PersonalCalendar", () => {
     render(
       <PersonalCalendar
         title="Mein Kalender"
-        subtitle="Termine und Dienstplan"
         events={[shift]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -87,7 +86,6 @@ describe("PersonalCalendar", () => {
     render(
       <PersonalCalendar
         title="Mein Kalender"
-        subtitle="Termine und Betreuung"
         events={[appointment, timetable]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -95,8 +93,10 @@ describe("PersonalCalendar", () => {
       />,
     );
 
+    // The component is the whole page body on both calendar routes, so it owns
+    // the h1. Without it the subscribe panel's h2 becomes the first heading.
     expect(
-      screen.getByRole("heading", { name: "Mein Kalender" }),
+      screen.getByRole("heading", { level: 1, name: "Mein Kalender" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Staff meeting").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Betreuung Gruppe A").length).toBeGreaterThan(0);
@@ -242,7 +242,7 @@ describe("PersonalCalendar", () => {
   it("renders an add-to-calendar link for active appointments", () => {
     render(
       <PersonalCalendar
-        title="Familienkalender"
+        title="Mein Kalender"
         events={[appointment]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -372,7 +372,7 @@ describe("PersonalCalendar", () => {
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar
-        title="Familienkalender"
+        title="Mein Kalender"
         events={[]}
         weekStart={new Date(2026, 0, 5)}
         error="Kalender konnte nicht geladen werden."

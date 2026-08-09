@@ -107,6 +107,126 @@ func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activi
 	return group
 }
 
+// linkApprovedChildToOffering attaches an approved request-child (with a
+// live users.students row) to the offering so the create-time resync can
+// seed the template roster — the same path Franziska uses in the editor.
+func linkApprovedChildToOffering(
+	t *testing.T,
+	s *scenarioSetup,
+	offering *enrollmentModels.CareOffering,
+	studentID int64,
+	schoolClass string,
+) {
+	t.Helper()
+	require.NotNil(t, offering)
+	// Grade filter derives the Jahrgang from users.students.school_class.
+	_, err := s.db.NewRaw(
+		`UPDATE users.students SET school_class = ? WHERE id = ?`,
+		schoolClass, studentID,
+	).Exec(s.ctx)
+	require.NoError(t, err)
+
+	childID := createSplitRequestChildInPhase(t, s, offering.PhaseID, studentID)
+	link := &enrollmentModels.RequestChildOffering{
+		RequestChildID: childID,
+		CareOfferingID: offering.ID,
+	}
+	link.SetTenantID(s.tenantID)
+	require.NoError(t, repositories.NewFactory(s.db).RequestChildOffering.Create(s.ctx, link))
+	s.extraCleanups = append([]func(){func() {
+		testpkg.CleanupTableRecords(t, s.db, "enrollment.request_child_offerings", link.ID)
+	}}, s.extraCleanups...)
+}
+
+// Create with an offering source + materialize must land the approved
+// children on the new occurrences. Empty instance_students after a
+// successful editor create was the Schule-am-Berg report (kids selected
+// via Angebote + Jahrgangsfilter, then "Keine Kinder geplant").
+func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing.T) {
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	// Grade filter 1 must match the child's school class.
+	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
+	// A second child outside the filter must stay off the roster.
+	linkApprovedChildToOffering(t, s, offering, s.students[1], "2b")
+
+	name := fmt.Sprintf("Angebots-Termin-Kids-%d", time.Now().UnixNano())
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceGradeLevels:     []int{1},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	// Enrollments must be seeded before materialization (create-time resync).
+	var enrollments []activitiesModels.StudentEnrollment
+	require.NoError(t, s.db.NewSelect().
+		Model(&enrollments).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".activity_group_id = ?`, result.TemplateID).
+		Scan(s.ctx))
+	require.Len(t, enrollments, 1, "only the grade-1 child may be seeded")
+	assert.Equal(t, s.students[0], enrollments[0].StudentID)
+
+	mat, err := s.factory.Materialization.MaterializeForTenant(
+		s.ctx, monday, monday, scheduleSvc.MaterializationSourceManual,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, mat)
+	require.GreaterOrEqual(t, mat.InstancesCreated, 1)
+
+	var instances []scheduleModels.ActivityInstance
+	require.NoError(t, s.db.NewSelect().
+		Model(&instances).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Where(`"activity_instance".activity_group_id = ?`, result.TemplateID).
+		Where(`"activity_instance".date = ?`, monday).
+		Scan(s.ctx))
+	require.Len(t, instances, 1)
+	// Materialize is tenant-wide and also fills the scenario's baseline
+	// template. Tear those rows down before makeScenario drops students/rooms.
+	s.extraCleanups = append([]func(){func() {
+		_, _ = s.db.NewRaw(`
+			DELETE FROM schedule.instance_students
+			WHERE instance_id IN (
+				SELECT id FROM schedule.activity_instances WHERE tenant_id = ?
+			)`, s.tenantID).Exec(s.ctx)
+		_, _ = s.db.NewRaw(`
+			DELETE FROM schedule.instance_staff
+			WHERE instance_id IN (
+				SELECT id FROM schedule.activity_instances WHERE tenant_id = ?
+			)`, s.tenantID).Exec(s.ctx)
+		_, _ = s.db.NewRaw(
+			`DELETE FROM schedule.activity_instances WHERE tenant_id = ?`, s.tenantID,
+		).Exec(s.ctx)
+	}}, s.extraCleanups...)
+
+	var rows []scheduleModels.InstanceStudent
+	require.NoError(t, s.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, instances[0].ID).
+		Scan(s.ctx))
+	require.Len(t, rows, 1, "materialize must copy the sourced child onto the occurrence")
+	assert.Equal(t, s.students[0], rows[0].StudentID)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+}
+
 func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)

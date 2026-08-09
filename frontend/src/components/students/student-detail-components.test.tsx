@@ -29,6 +29,7 @@ import {
   StudentHistorySection,
 } from "./student-detail-components";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import { getLocationBadgeTone } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 
 beforeEach(() => {
@@ -71,12 +72,10 @@ describe("PersonIcon", () => {
     expect(svg).toHaveClass("h-6", "w-6", "text-blue-500");
   });
 
-  it("renders path element", () => {
+  it("uses the central children concept", () => {
     render(<PersonIcon />);
-    const path = document.querySelector("path");
-    expect(path).toBeInTheDocument();
-    expect(path).toHaveAttribute("stroke-linecap", "round");
-    expect(path).toHaveAttribute("stroke-linejoin", "round");
+    const svg = document.querySelector("svg");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "greenVivid");
   });
 });
 
@@ -205,10 +204,15 @@ describe("StudentDetailHeader", () => {
         />,
       );
 
-      // The badge renders the room name as its label; closest("span") grabs
-      // the styled wrapper that carries backgroundColor inline.
+      // The badge keeps custom room colors on its dot while the wrapper uses
+      // the shared neutral surface for unknown legacy colors.
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
-      expect(badgeContainer).toHaveStyle({ backgroundColor: "#A3D977" });
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: getLocationBadgeTone("#A3D977").backgroundColor,
+      });
+      expect(badgeContainer?.querySelector("span")).toHaveStyle({
+        backgroundColor: "#A3D977",
+      });
     });
 
     it("falls back to the default room color when current_room_color is null", () => {

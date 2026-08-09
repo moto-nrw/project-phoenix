@@ -20,6 +20,12 @@ vi.mock("./fetch-with-auth", () => ({
   fetchWithAuth: vi.fn(),
 }));
 
+function mockDashboardResponses(dashboardResponse: { data: unknown }) {
+  vi.mocked(apiGet).mockImplementation(() =>
+    Promise.resolve(dashboardResponse),
+  );
+}
+
 describe("fetchDashboardAnalytics", () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
@@ -35,6 +41,7 @@ describe("fetchDashboardAnalytics", () => {
       students_in_house: 42,
       students_in_wc: 5,
       students_in_school_yard: 10,
+      students_home: 33,
       active_groups: 3,
       rooms_occupied: 8,
     };
@@ -43,7 +50,7 @@ describe("fetchDashboardAnalytics", () => {
       data: mockBackendData,
     };
 
-    vi.mocked(apiGet).mockResolvedValue(mockResponse);
+    mockDashboardResponses(mockResponse);
 
     const token = "test-jwt-token";
     const result = await fetchDashboardAnalytics(token);
@@ -53,7 +60,10 @@ describe("fetchDashboardAnalytics", () => {
       token,
     );
     expect(mapDashboardAnalyticsResponse).toHaveBeenCalledWith(mockBackendData);
-    expect(result).toEqual({ ...mockBackendData, mapped: true });
+    expect(result).toEqual({
+      ...mockBackendData,
+      mapped: true,
+    });
   });
 
   it("calls apiGet with correct endpoint and token", async () => {
@@ -67,7 +77,7 @@ describe("fetchDashboardAnalytics", () => {
       },
     };
 
-    vi.mocked(apiGet).mockResolvedValue(mockResponse);
+    mockDashboardResponses(mockResponse);
 
     const token = "my-secret-token";
     await fetchDashboardAnalytics(token);
@@ -76,7 +86,14 @@ describe("fetchDashboardAnalytics", () => {
       "/api/active/analytics/dashboard",
       token,
     );
+    // Exactly one call, and never /api/students: that endpoint is gated on
+    // users:read while this one needs only groups:read, so pulling counts
+    // from it would 403 the whole dashboard for a groups-only role.
     expect(apiGet).toHaveBeenCalledTimes(1);
+    expect(apiGet).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/students"),
+      expect.anything(),
+    );
   });
 
   it("extracts data from response wrapper", async () => {
@@ -92,7 +109,7 @@ describe("fetchDashboardAnalytics", () => {
       data: innerData,
     };
 
-    vi.mocked(apiGet).mockResolvedValue(mockResponse);
+    mockDashboardResponses(mockResponse);
 
     await fetchDashboardAnalytics("token");
 
@@ -154,7 +171,7 @@ describe("fetchDashboardAnalytics", () => {
       rooms_occupied: 6,
     };
 
-    vi.mocked(apiGet).mockResolvedValue({ data: expectedData });
+    mockDashboardResponses({ data: expectedData });
 
     await fetchDashboardAnalytics("token");
 

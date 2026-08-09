@@ -2,9 +2,12 @@
 
 import type { ReactNode } from "react";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {
   readonly icon: string;
+  readonly concept?: MotoConceptKey;
   readonly label: string;
   readonly activeColor?: string;
   readonly isExpanded: boolean;
@@ -15,14 +18,14 @@ interface SidebarAccordionSectionProps {
   readonly emptyText?: string;
   readonly children?: ReactNode;
   readonly hasChildren: boolean;
-  // Aggregate red badge shown on the collapsed header (e.g. the sum of unread
-  // messages + pending requests across the section's sub-items) so the count
-  // stays visible without expanding. Renders nothing when 0.
+  // Aggregate section badge for unread messages and pending requests. The
+  // count stays visible while the section is collapsed.
   readonly badgeCount?: number;
 }
 
 export function SidebarAccordionSection({
   icon,
+  concept,
   label,
   activeColor,
   isExpanded,
@@ -45,6 +48,9 @@ export function SidebarAccordionSection({
     "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
+  const conceptDefinition = concept ? MOTO_CONCEPTS[concept] : null;
+  const ConceptIcon = conceptDefinition?.icon;
+  const showActiveIcon = isIconActive ?? isActive;
 
   return (
     <div>
@@ -61,19 +67,38 @@ export function SidebarAccordionSection({
         className={`${headerBase} ${isActive ? headerActive : headerInactive} w-full cursor-pointer appearance-none border-0 bg-transparent p-0 text-left`}
         aria-expanded={isExpanded}
       >
-        <svg
-          className={`${iconBase} ${iconColorClass}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d={icon}
-          />
-        </svg>
+        {conceptDefinition && ConceptIcon ? (
+          showActiveIcon ? (
+            <MotoDuotoneIcon
+              icon={conceptDefinition.icon}
+              tone={conceptDefinition.tone}
+              size={22}
+              className={iconBase}
+            />
+          ) : (
+            <ConceptIcon
+              size={22}
+              weight="regular"
+              className={iconBase}
+              aria-hidden="true"
+            />
+          )
+        ) : (
+          <svg
+            className={`${iconBase} ${iconColorClass}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d={icon}
+            />
+          </svg>
+        )}
         <span className="min-w-0 flex-1 truncate">{label}</span>
         {/* Aggregate badge on the collapsed header; hidden once expanded, where
             the per-item badges take over. */}

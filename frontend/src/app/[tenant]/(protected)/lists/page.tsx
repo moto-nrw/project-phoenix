@@ -225,7 +225,7 @@ function statusColor(row: SlotListRow, source: SlotListSource): string {
   // Justified (registered) absence — purple, visibly apart from an
   // unexplained "Fehlt" (red).
   if (row.excused) return LOCATION_COLORS.EXCUSED;
-  if (row.planned) return LOCATION_COLORS.HOME;
+  if (row.planned) return LOCATION_COLORS.DANGER;
   return LOCATION_COLORS.OTHER_ROOM;
 }
 
@@ -272,7 +272,7 @@ function CounterChips({
             {
               label: "Fehlt",
               value: counters.missing,
-              color: LOCATION_COLORS.HOME,
+              color: LOCATION_COLORS.DANGER,
             },
             {
               label: "Abgemeldet",
@@ -2157,14 +2157,14 @@ export default function SlotListsPage() {
                   option.id === "slots" ? "col-span-2 lg:col-span-3" : ""
                 } ${
                   selected
-                    ? "border-[#83CD2D]/50 bg-[#83CD2D]/10"
+                    ? "border-moto-green/50 bg-moto-green/10"
                     : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
                 }`}
               >
                 <span
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-100 ${
                     selected
-                      ? "bg-[#83CD2D]/20 text-[#3F6F12]"
+                      ? "bg-moto-green/20 text-moto-green-strong"
                       : available || !hasAvailability
                         ? "bg-white text-gray-500"
                         : "bg-white text-gray-400"
@@ -2202,7 +2202,7 @@ export default function SlotListsPage() {
                 }}
                 tabIndex={selectedSlotIds === null ? -1 : 0}
                 aria-hidden={selectedSlotIds === null}
-                className={`rounded-md px-2 py-1 text-xs font-medium text-[#315C9B] transition-colors hover:bg-[#5080D8]/8 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                className={`text-moto-blue-strong hover:bg-moto-blue/8 rounded-md px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                   selectedSlotIds === null
                     ? "pointer-events-none opacity-0"
                     : "opacity-100"
@@ -2339,7 +2339,7 @@ export default function SlotListsPage() {
       </section>
 
       {error ? (
-        <div className="mt-4 rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/10 p-3 text-sm text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mt-4 rounded-xl border p-3 text-sm">
           {error}
         </div>
       ) : null}

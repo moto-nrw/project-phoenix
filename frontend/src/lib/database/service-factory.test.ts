@@ -10,7 +10,6 @@ import {
   MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
-import { databaseThemes } from "@/lib/database/themes";
 
 // Mock next-auth
 const mockGetSession = vi.fn();
@@ -32,7 +31,7 @@ describe("createCrudService", () => {
       singular: "Test Entity",
       plural: "Test Entities",
     },
-    theme: databaseThemes.students,
+    concept: "children",
     labels: {
       createModalTitle: "Test erstellen",
       editModalTitle: "Test bearbeiten",
@@ -797,7 +796,7 @@ describe("createExtendedService", () => {
         singular: "Test",
         plural: "Tests",
       },
-      theme: databaseThemes.students,
+      concept: "children",
       labels: {
         createModalTitle: "Test erstellen",
         editModalTitle: "Test bearbeiten",
@@ -838,7 +837,7 @@ describe("createExtendedService", () => {
         singular: "Test",
         plural: "Tests",
       },
-      theme: databaseThemes.students,
+      concept: "children",
       labels: {
         createModalTitle: "Test erstellen",
         editModalTitle: "Test bearbeiten",

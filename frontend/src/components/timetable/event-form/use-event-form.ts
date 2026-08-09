@@ -39,6 +39,7 @@ import {
   getGermanWeekdayLong,
   latestISODate,
   materializedRecurrenceDates,
+  offeringPhaseStartWarning,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
@@ -1920,9 +1921,16 @@ export function useEventForm({
     const parsed = validateForm();
     if (!parsed) return;
 
-    // US-5 Dreifach-Frage: editing an instance that belongs to a series
-    // first asks for the scope instead of writing immediately.
-    if (!isSeriesFlow && initialInstance?.activityGroupId) {
+    // US-5 Dreifach-Frage: editing an instance that belongs to a series first
+    // asks for the scope instead of writing immediately. Also when the user
+    // flips Wiederholung to "Jede Woche" while editing — previously that made
+    // isSeriesFlow true, skipped this gate, and created a second series next
+    // to the existing one (Franziska / Schule am Berg).
+    if (
+      isEditingInstance &&
+      initialInstance?.activityGroupId &&
+      !initialSeries
+    ) {
       setPendingSeriesEdit({ roomId: parsed.roomId });
       return;
     }
@@ -2003,27 +2011,41 @@ export function useEventForm({
         return;
       }
 
-      if (convertInstance) {
-        const created = await timetableService.createTemplate({
-          ...seriesBody(parsed.roomId, parsed.categoryId),
-          // #2135: the repeated instance's date is the series start.
-          start_date: form.date || undefined,
-        });
-        await timetableService.update(convertInstance.id, {
-          ...instanceBody(parsed.roomId, created.templateId),
-          // The value entered during conversion belongs to the new series.
-          // Keep the seed occurrence unpinned so future series edits apply.
-          required_staff: null,
-        });
+      // Seed for "turn this occurrence into a series": explicit Wiederholen
+      // (convertInstance) or editing a one-off and switching Wiederholung to
+      // weekly. Both must UPDATE the existing row, not create a parallel series
+      // that leaves the old Termin in place.
+      const seriesSeedInstance =
+        convertInstance ??
+        (isEditingInstance &&
+        initialInstance &&
+        !initialInstance.activityGroupId
+          ? initialInstance
+          : null);
+
+      if (seriesSeedInstance) {
+        const created = await timetableService.convertInstanceToSeries(
+          seriesSeedInstance.id,
+          {
+            ...seriesBody(parsed.roomId, parsed.categoryId),
+            // #2135: the repeated instance's date is the series start.
+            start_date: form.date,
+            instance_notes: form.notes.trim() || undefined,
+          },
+        );
         if (await materializePeriodAfterConvert()) {
-          toastSuccess("Termin wiederholt");
+          toastSuccess(
+            convertInstance
+              ? "Termin wiederholt"
+              : "Termin als Serie gespeichert",
+          );
         } else {
           toastWarning(FOLLOW_UP_WARNING);
         }
         onSaved({
           kind: "series",
           seriesId: created.templateId,
-          linkedInstanceId: convertInstance.id,
+          linkedInstanceId: seriesSeedInstance.id,
         });
       } else {
         const { templateId, totalCreated, followUpOk } =
@@ -2885,6 +2907,12 @@ export function useEventForm({
     sourceGradeCounts,
   ]);
 
+  // OGS am Berg: series start before the phase service window leaves the first
+  // occurrences empty of offering-fed children (enrollments clamp to phase start).
+  const sourcePhaseKidsFromWarning = useMemo(() => {
+    return offeringPhaseStartWarning(selectedOfferingSources[0], form.date);
+  }, [selectedOfferingSources, form.date]);
+
   // Other Termine sourcing the same offering whose Jahrgang subsets overlap
   // the current filter (empty filter = alle Jahrgänge). Advisory only — the
   // save is never blocked, mirroring the conflict warnings.
@@ -3202,6 +3230,7 @@ export function useEventForm({
     sourceGradeOptions,
     sourceGradeCounts,
     sourceFilteredCount,
+    sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
     pendingSourceOfferingIds,

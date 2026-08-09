@@ -7,6 +7,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -296,19 +298,11 @@ function PermissionsPageContent() {
           title={isMobile ? "Berechtigungen" : ""}
           badge={{
             icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.permissions.icon}
+                tone={MOTO_CONCEPTS.permissions.tone}
+                size={20}
+              />
             ),
             count: filteredPermissions.length,
           }}
@@ -352,19 +346,12 @@ function PermissionsPageContent() {
       ) : !loading ? (
         <DatabaseEmptyState
           icon={
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2m-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2"
-              />
-            </svg>
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.permissions.icon}
+              tone={MOTO_CONCEPTS.permissions.tone}
+              size={48}
+              className="mx-auto"
+            />
           }
           title={
             searchTerm

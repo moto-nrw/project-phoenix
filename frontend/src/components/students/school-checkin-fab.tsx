@@ -90,14 +90,14 @@ export function SchoolCheckinFab({
   const surfaceStyle: React.CSSProperties = isActive
     ? {
         backgroundColor: GROUP_ROOM_SHADES.base,
-        color: "#fff",
+        color: "var(--color-white)",
         boxShadow:
           resolved === "floating"
             ? `0 12px 28px ${GROUP_ROOM_SHADES.base}66, 0 4px 10px rgb(0 0 0 / 0.10)`
             : `0 1px 3px rgb(0 0 0 / 0.08)`,
       }
     : {
-        backgroundColor: "#fff",
+        backgroundColor: "var(--color-white)",
         color: GROUP_ROOM_SHADES.text,
         boxShadow:
           resolved === "floating"

@@ -21,10 +21,15 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import {
+  ConceptPageHeader,
+  ConceptSectionHeader,
+} from "~/components/ui/concept-section-header";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -71,14 +76,14 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
 const durationChartConfig: ChartConfig = {
   duration: {
     label: "Stunden",
-    color: "#83CD2D",
+    color: MOTO_COLOR_PALETTE.green.base,
   },
 };
 
 const activityChartConfig: ChartConfig = {
   visits: {
     label: "Raumwechsel",
-    color: "#5080D8",
+    color: MOTO_COLOR_PALETTE.blue.base,
   },
 };
 
@@ -121,7 +126,11 @@ function TodayTick({
         textAnchor="middle"
         fontSize={11}
         fontWeight={isToday ? 700 : 400}
-        fill={isToday ? "#111827" : "#9ca3af"}
+        fill={
+          isToday
+            ? MOTO_COLOR_PALETTE.neutral.strong
+            : MOTO_COLOR_PALETTE.neutral.light
+        }
       >
         {item?.date}
       </text>
@@ -132,7 +141,7 @@ function TodayTick({
           textAnchor="middle"
           fontSize={9}
           fontWeight={500}
-          fill="#83CD2D"
+          fill={MOTO_COLOR_PALETTE.green.base}
         >
           heute
         </text>
@@ -198,16 +207,14 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
       {/* Anwesenheit */}
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="p-4 sm:p-6">
-          <div className="mb-3">
-            <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-              Anwesenheit
-            </h2>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Tägliche Aufenthaltsdauer in Stunden
-            </p>
-          </div>
+          <ConceptSectionHeader
+            className="mb-3"
+            title="Anwesenheit"
+            concept="present"
+            subtitle="Tägliche Aufenthaltsdauer in Stunden"
+          />
           <ChartContainer
             config={durationChartConfig}
             className="h-[180px] w-full sm:h-[200px]"
@@ -253,14 +260,14 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
       </div>
 
       {/* Aktivität (Raumwechsel) */}
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="p-4 sm:p-6">
-          <div className="mb-3">
-            <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-              Aktivität
-            </h2>
-            <p className="mt-0.5 text-xs text-gray-500">Raumwechsel pro Tag</p>
-          </div>
+          <ConceptSectionHeader
+            className="mb-3"
+            title="Aktivität"
+            concept="rooms"
+            subtitle="Raumwechsel pro Tag"
+          />
           {activityChartData.length === 0 ? (
             <div className="flex h-[180px] items-center justify-center sm:h-[200px]">
               <p className="text-sm text-gray-400">
@@ -360,7 +367,7 @@ function DayCard({
         </div>
         <div className="flex items-center gap-2">
           {day.attendance && (
-            <span className="rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+            <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
               {formatDuration(day.attendance.durationMinutes)}
             </span>
           )}
@@ -395,7 +402,7 @@ function DayCard({
                       {slot.startTime}–{slot.endTime}
                     </span>
                     {slot.isUnplanned && (
-                      <span className="ml-2 text-[#F78C10]">ungeplant</span>
+                      <span className="text-moto-orange ml-2">ungeplant</span>
                     )}
                   </div>
                   <span className="font-medium text-gray-600">
@@ -442,7 +449,7 @@ function DayCard({
                   className="flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-[#5080D8]" />
+                    <div className="bg-moto-blue h-1.5 w-1.5 rounded-full" />
                     <span className="font-medium text-gray-700">
                       {v.roomName || "Unbekannt"}
                     </span>
@@ -481,15 +488,18 @@ function HistoryTable({
   const todayKey = todayISO();
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-        <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-          Anwesenheitsprotokoll
-        </h2>
-        <p className="mt-0.5 text-xs text-gray-500">
-          Letzte {caps.attendanceDays} Tage · Raumdetails für{" "}
-          {caps.roomDetailDays} Tage
-        </p>
+        <ConceptSectionHeader
+          title="Anwesenheitsprotokoll"
+          concept="changeHistory"
+          subtitle={
+            <>
+              Letzte {caps.attendanceDays} Tage · Raumdetails für{" "}
+              {caps.roomDetailDays} Tage
+            </>
+          }
+        />
       </div>
 
       {days.length === 0 ? (
@@ -565,7 +575,7 @@ function HistoryTable({
                         </td>
                         <td className="px-6 py-3">
                           {day.attendance ? (
-                            <span className="rounded-full bg-[#83CD2D]/10 px-2.5 py-0.5 text-xs font-medium text-[#70b525]">
+                            <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2.5 py-0.5 text-xs font-medium">
                               {formatDuration(day.attendance.durationMinutes)}
                             </span>
                           ) : (
@@ -588,7 +598,7 @@ function HistoryTable({
                           >
                             <td className="py-2 pr-6 pl-12">
                               <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]" />
+                                <div className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full" />
                                 <span className="font-medium text-gray-700">
                                   {slot.title}
                                 </span>
@@ -597,7 +607,7 @@ function HistoryTable({
                                   {slot.endTime && <>–{slot.endTime}</>}
                                 </span>
                                 {slot.isUnplanned && (
-                                  <span className="text-[#F78C10]">
+                                  <span className="text-moto-orange">
                                     ungeplant
                                   </span>
                                 )}
@@ -695,7 +705,7 @@ function HistoryTable({
                               >
                                 <td className="py-2 pr-6 pl-12">
                                   <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5080D8]" />
+                                    <div className="bg-moto-blue h-1.5 w-1.5 shrink-0 rounded-full" />
                                     <span className="font-medium text-gray-700">
                                       {v.roomName || "Unbekannt"}
                                     </span>
@@ -892,13 +902,15 @@ function StudentRoomHistoryPageContent() {
         <BackButton referrer={referrer} />
         <div className="flex min-h-[50vh] flex-col items-center justify-center">
           <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-          <button
+          <Button
             type="button"
             onClick={() => router.push(referrer)}
-            className="mt-4 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 active:scale-95"
+            variant="secondary"
+            size="md"
+            className="mt-4"
           >
             Zurück
-          </button>
+          </Button>
         </div>
       </>
     );
@@ -917,22 +929,19 @@ function StudentRoomHistoryPageContent() {
         referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
       />
 
-      {/* Student header — matches StudentDetailHeader pattern */}
       {student && (
-        <div className="mb-6 ml-6">
-          <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {displayName}
-          </h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-            <span>{student.school_class}</span>
-            {student.group_name && (
-              <>
-                <span className="text-gray-300">·</span>
-                <span>{student.group_name}</span>
-              </>
-            )}
-          </div>
-        </div>
+        <ConceptPageHeader
+          className="mb-6 ml-6"
+          title={displayName}
+          eyebrow="Anwesenheitsprotokoll"
+          concept="changeHistory"
+          subtitle={
+            <>
+              {student.school_class}
+              {student.group_name ? ` · ${student.group_name}` : null}
+            </>
+          }
+        />
       )}
 
       {/* Feature disabled banner */}

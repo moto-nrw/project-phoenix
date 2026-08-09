@@ -48,4 +48,26 @@ describe("DatabaseListItem", () => {
 
     expect(screen.getByTestId("warning")).toBeInTheDocument();
   });
+
+  it("uses a native checkbox and does not open the detail in selection mode", () => {
+    const onSelect = vi.fn();
+    const onToggle = vi.fn();
+    render(
+      <DatabaseListItem
+        title="Kind Eins"
+        subtitle="3a"
+        isSelected={false}
+        onSelect={onSelect}
+        selectionMode
+        isChecked
+        onToggleSelection={onToggle}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(onToggle).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
 });

@@ -17,17 +17,10 @@
  */
 
 import { Fragment, useMemo, useState } from "react";
-import {
-  ArrowLeftRight,
-  CalendarOff,
-  Clock,
-  TriangleAlert,
-  UserCheck,
-  UserPlus,
-  UserX,
-} from "lucide-react";
+import { TriangleAlert, UserPlus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -148,13 +141,13 @@ export function StaffPoolSlideOver({
               <p className="text-sm text-gray-500">Lade Personalpool …</p>
             )}
             {error && (
-              <p className="text-sm text-[#CC2626]">
+              <p className="text-moto-red-strong text-sm">
                 Personalpool konnte nicht geladen werden.
               </p>
             )}
             {pool && !pool.dienstplanInUse && (
-              <div className="flex items-start gap-2 rounded-xl border border-[#F78C10]/30 bg-[#F78C10]/10 p-3 text-xs text-gray-700">
-                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#F78C10]" />
+              <div className="border-moto-orange/30 bg-moto-orange/10 flex items-start gap-2 rounded-xl border p-3 text-xs text-gray-700">
+                <TriangleAlert className="text-moto-orange mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   Für diese Woche ist kein Dienstplan gepflegt. Die
                   Verfügbarkeit laut Schichten kann daher nicht angezeigt
@@ -177,7 +170,7 @@ export function StaffPoolSlideOver({
               <Fragment key={instanceId ?? "none"}>
                 <PoolSection
                   title="Auf anderen Blöcken"
-                  icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="substitution" size={14} />}
                   emptyText="Niemand ist zeitgleich auf einem anderen Block eingeplant."
                   entries={grouped.assignedElsewhere}
                   renderActions={
@@ -195,7 +188,10 @@ export function StaffPoolSlideOver({
                               }
                             >
                               <span className="inline-flex items-center gap-1.5">
-                                <ArrowLeftRight className="h-3.5 w-3.5" />
+                                <MotoConceptIcon
+                                  concept="substitution"
+                                  size={14}
+                                />
                                 Hierher verschieben
                               </span>
                             </Button>
@@ -205,7 +201,7 @@ export function StaffPoolSlideOver({
                 />
                 <PoolSection
                   title="Im Dienst, frei"
-                  icon={<UserPlus className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="staff" size={14} />}
                   emptyText="Niemand ist im Zeitfenster frei im Dienst."
                   entries={grouped.onShiftFree}
                   renderActions={
@@ -229,19 +225,19 @@ export function StaffPoolSlideOver({
                 />
                 <PoolSection
                   title="Bereits auf diesem Block"
-                  icon={<UserCheck className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="staff" size={16} />}
                   emptyText="Noch niemand zugeordnet."
                   entries={grouped.assignedHere}
                 />
                 <PoolSection
                   title="Abwesend"
-                  icon={<UserX className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="staff" size={14} />}
                   emptyText="Keine Abwesenheiten."
                   entries={grouped.absent}
                 />
                 <PoolSection
                   title="Kein Dienst im Zeitfenster"
-                  icon={<CalendarOff className="h-3.5 w-3.5" />}
+                  icon={<MotoConceptIcon concept="closingDays" size={14} />}
                   emptyText="Alle übrigen Personen haben Dienst."
                   entries={grouped.notOnShift}
                   collapsedByDefault
@@ -438,7 +434,7 @@ function PoolEntryRow({
     <div
       className={`rounded-xl border p-3 shadow-sm ${
         danger
-          ? "border-[#FF3130]/20 bg-[#FF3130]/10"
+          ? "border-moto-red/20 bg-moto-red/10"
           : "border-gray-200 bg-white"
       }`}
     >
@@ -450,10 +446,14 @@ function PoolEntryRow({
           {metaParts.length > 0 && (
             <div
               className={`mt-0.5 flex items-center gap-1 text-[11px] ${
-                danger ? "text-[#CC2626]" : "text-gray-500"
+                danger ? "text-moto-red-strong" : "text-gray-500"
               }`}
             >
-              <Clock className="h-3 w-3 shrink-0" />
+              <MotoConceptIcon
+                concept="careTimes"
+                size={12}
+                className="shrink-0"
+              />
               <span className="truncate">{metaParts.join(" • ")}</span>
             </div>
           )}

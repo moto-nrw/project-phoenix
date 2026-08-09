@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Mail } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
@@ -166,19 +167,10 @@ export function InvitationForm({
     <div className="rounded-2xl border border-gray-200/50 bg-white/90 p-4 shadow-sm backdrop-blur-sm md:p-6">
       <div className="mb-4 flex items-center gap-2 md:gap-3">
         <div className="rounded-xl bg-gray-100 p-2">
-          <svg
+          <Mail
             className="h-4 w-4 text-gray-600 md:h-5 md:w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-            />
-          </svg>
+            aria-hidden="true"
+          />
         </div>
         <div>
           <h2 className="text-base font-semibold text-gray-900 md:text-lg">
@@ -194,23 +186,14 @@ export function InvitationForm({
         {error && (
           <div
             ref={errorRef}
-            className="rounded-xl border border-red-200/50 bg-red-50/50 p-3"
+            className="border-moto-red/20 bg-moto-red-soft rounded-xl border p-3"
           >
             <div className="flex items-start gap-2">
-              <svg
-                className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <p className="text-sm text-red-700">{error}</p>
+              <AlertTriangle
+                className="text-moto-red mt-0.5 h-4 w-4 flex-shrink-0"
+                aria-hidden="true"
+              />
+              <p className="text-moto-red-strong text-sm">{error}</p>
             </div>
           </div>
         )}
@@ -234,14 +217,16 @@ export function InvitationForm({
           onChange={(event) => handleChange("email")(event.target.value)}
           disabled={isSubmitting}
           required
-          className={errorFieldName === "email" ? "ring-red-400" : ""}
+          className={
+            errorFieldName === "email" ? "ring-moto-red/35 ring-2" : ""
+          }
         />
 
         <div>
           <label
             id="invitation-role-label"
             htmlFor="invitation-role"
-            className={`mb-1 block text-sm font-medium ${errorFieldName === "roleId" ? "text-red-600" : "text-gray-700"}`}
+            className={`mb-1 block text-sm font-medium ${errorFieldName === "roleId" ? "text-moto-red-strong" : "text-gray-700"}`}
           >
             Rolle
           </label>

@@ -44,13 +44,17 @@ const RoomWCAliasUniqueConstraintName = "uniq_facilities_rooms_tenant_wc_alias"
 // (knownReserved excludes it via the legacyBugDefault constant).
 var reservedRoomColors = map[string]struct{}{
 	"#83CD2D":           {}, // GROUP_ROOM (eigener Gruppenraum, grün)
-	"#5080D8":           {}, // OTHER_ROOM fallback (blau) — also blocked so a room cannot share the default
-	"#FF3130":           {}, // HOME (Zuhause)
+	"#5080D8":           {}, // OTHER_ROOM fallback (blau)
+	"#6B7280":           {}, // HOME (Zuhause)
 	"#F78C10":           {}, // SCHOOLYARD (Schulhof)
 	"#D946EF":           {}, // TRANSIT (Unterwegs)
-	"#EAB308":           {}, // SICK (Krank)
+	"#78716C":           {}, // UNKNOWN (Unbekannt)
+	"#DC2626":           {}, // SICK / DANGER (Krank / Gefahr)
 	"#7C3AED":           {}, // EXCUSED (Entschuldigt)
-	"#6B7280":           {}, // UNKNOWN / NOT_ARRIVAL (grau)
+	"#0891B2":           {}, // CLASS_TRIP (Klassenfahrt)
+	"#365D83":           {}, // NOT_ARRIVAL (Kommt heute nicht)
+	"#FF3130":           {}, // previous HOME status color
+	"#EAB308":           {}, // WARNING (Wartet / unbesetzt) — was the SICK color before the palette move
 	legacyBugDefaultHex: {}, // see migration 1.15.45 / room_colors.go header comment
 }
 

@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { Check, Loader2, Plus, X } from "lucide-react";
+import { BriefcaseIcon, UserIcon } from "@phosphor-icons/react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "@/lib/auth-helpers";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { createLogger } from "~/lib/logger";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -261,7 +264,7 @@ export function TeacherForm({
       {submitError && (
         <div
           ref={errorRef}
-          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm"
+          className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-3 text-xs md:mb-6 md:p-4 md:text-sm"
         >
           {submitError}
         </div>
@@ -273,21 +276,11 @@ export function TeacherForm({
         className="space-y-4 md:space-y-6"
       >
         {/* Personal Information Section */}
-        <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
+        <div className="bg-moto-orange/10 rounded-xl border border-gray-100 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-            <svg
-              className="h-3.5 w-3.5 text-orange-600 md:h-4 md:w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
+            <span className="flex h-3.5 w-3.5 shrink-0 md:h-4 md:w-4">
+              <MotoDuotoneIcon icon={UserIcon} tone="neutral" size="100%" />
+            </span>
             Persönliche Informationen
           </h4>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
@@ -297,7 +290,7 @@ export function TeacherForm({
                 htmlFor="firstName"
                 className="mb-1 block text-xs font-medium text-gray-700"
               >
-                Vorname <span className="text-red-500">*</span>
+                Vorname <span className="text-moto-red">*</span>
               </label>
               <input
                 type="text"
@@ -307,15 +300,17 @@ export function TeacherForm({
                 onChange={(e) => setFirstName(e.target.value)}
                 className={`w-full rounded-lg border ${
                   errors.firstName
-                    ? "border-red-300 bg-red-50"
-                    : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                    ? "border-moto-red/40 bg-moto-red-soft"
+                    : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="given-name"
                 maxLength={255}
               />
               {errors.firstName && (
-                <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
+                <p className="text-moto-red-strong mt-1 text-xs">
+                  {errors.firstName}
+                </p>
               )}
             </div>
 
@@ -325,7 +320,7 @@ export function TeacherForm({
                 htmlFor="lastName"
                 className="mb-1 block text-xs font-medium text-gray-700"
               >
-                Nachname <span className="text-red-500">*</span>
+                Nachname <span className="text-moto-red">*</span>
               </label>
               <input
                 type="text"
@@ -335,15 +330,17 @@ export function TeacherForm({
                 onChange={(e) => setLastName(e.target.value)}
                 className={`w-full rounded-lg border ${
                   errors.lastName
-                    ? "border-red-300 bg-red-50"
-                    : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                    ? "border-moto-red/40 bg-moto-red-soft"
+                    : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="family-name"
                 maxLength={255}
               />
               {errors.lastName && (
-                <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+                <p className="text-moto-red-strong mt-1 text-xs">
+                  {errors.lastName}
+                </p>
               )}
             </div>
 
@@ -354,7 +351,7 @@ export function TeacherForm({
                   htmlFor="email"
                   className="mb-1 block text-xs font-medium text-gray-700"
                 >
-                  E-Mail <span className="text-red-500">*</span>
+                  E-Mail <span className="text-moto-red">*</span>
                 </label>
                 <input
                   type="email"
@@ -363,14 +360,16 @@ export function TeacherForm({
                   onChange={(e) => setEmail(e.target.value)}
                   className={`w-full rounded-lg border ${
                     errors.email
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                      ? "border-moto-red/40 bg-moto-red-soft"
+                      : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                   } px-3 py-2 text-sm transition-colors`}
                   disabled={isLoading}
                   maxLength={255}
                 />
                 {errors.email && (
-                  <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                  <p className="text-moto-red-strong mt-1 text-xs">
+                    {errors.email}
+                  </p>
                 )}
               </div>
             )}
@@ -383,7 +382,7 @@ export function TeacherForm({
                   htmlFor="role-select"
                   className="mb-1 block text-xs font-medium text-gray-700"
                 >
-                  System-Rolle <span className="text-red-500">*</span>
+                  System-Rolle <span className="text-moto-red">*</span>
                 </label>
                 <CustomSelect
                   id="role-select"
@@ -403,7 +402,9 @@ export function TeacherForm({
                   invalid={Boolean(errors.roleId)}
                 />
                 {errors.roleId && (
-                  <p className="mt-1 text-xs text-red-600">{errors.roleId}</p>
+                  <p className="text-moto-red-strong mt-1 text-xs">
+                    {errors.roleId}
+                  </p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
                   {roleId
@@ -445,7 +446,7 @@ export function TeacherForm({
                     htmlFor="password"
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Passwort <span className="text-red-500">*</span>
+                    Passwort <span className="text-moto-red">*</span>
                   </label>
                   <input
                     type="password"
@@ -454,13 +455,13 @@ export function TeacherForm({
                     onChange={(e) => setPassword(e.target.value)}
                     className={`w-full rounded-lg border ${
                       errors.password
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                        ? "border-moto-red/40 bg-moto-red-soft"
+                        : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                     } px-3 py-2 text-sm transition-colors`}
                     disabled={isLoading}
                   />
                   {errors.password && (
-                    <p className="mt-1 text-xs text-red-600">
+                    <p className="text-moto-red-strong mt-1 text-xs">
                       {errors.password}
                     </p>
                   )}
@@ -471,7 +472,7 @@ export function TeacherForm({
                     htmlFor="confirmPassword"
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Passwort bestätigen <span className="text-red-500">*</span>
+                    Passwort bestätigen <span className="text-moto-red">*</span>
                   </label>
                   <input
                     type="password"
@@ -480,13 +481,13 @@ export function TeacherForm({
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`w-full rounded-lg border ${
                       errors.confirmPassword
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                        ? "border-moto-red/40 bg-moto-red-soft"
+                        : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
                     } px-3 py-2 text-sm transition-colors`}
                     disabled={isLoading}
                   />
                   {errors.confirmPassword && (
-                    <p className="mt-1 text-xs text-red-600">
+                    <p className="text-moto-red-strong mt-1 text-xs">
                       {errors.confirmPassword}
                     </p>
                   )}
@@ -500,21 +501,15 @@ export function TeacherForm({
             Position lebt auf users.teachers und kann für Lehrkräfte
             nirgends gespeichert werden. */}
         {hidePosition ? null : (
-          <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
+          <div className="bg-moto-orange/10 rounded-xl border border-gray-100 p-3 md:p-4">
             <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-              <svg
-                className="h-3.5 w-3.5 text-orange-600 md:h-4 md:w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              <span className="flex h-3.5 w-3.5 shrink-0 md:h-4 md:w-4">
+                <MotoDuotoneIcon
+                  icon={BriefcaseIcon}
+                  tone="neutral"
+                  size="100%"
                 />
-              </svg>
+              </span>
               Berufliche Informationen
             </h4>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
@@ -532,7 +527,7 @@ export function TeacherForm({
                   list="teacher-position-suggestions"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                  className="focus:border-moto-orange focus:ring-moto-orange w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                   placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
                   disabled={isLoading}
                 />
@@ -557,19 +552,7 @@ export function TeacherForm({
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
           >
             <span className="flex items-center justify-center gap-2">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="h-4 w-4" aria-hidden />
               Abbrechen
             </span>
           </button>
@@ -580,46 +563,19 @@ export function TeacherForm({
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
-                <svg
+                <Loader2
                   className="h-4 w-4 animate-spin text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+                  aria-hidden
+                />
                 Wird gespeichert...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={
-                      submitLabel === "Erstellen"
-                        ? "M12 4v16m8-8H4"
-                        : "M5 13l4 4L19 7"
-                    }
-                  />
-                </svg>
+                {submitLabel === "Erstellen" ? (
+                  <Plus className="h-4 w-4" aria-hidden />
+                ) : (
+                  <Check className="h-4 w-4" aria-hidden />
+                )}
                 {submitLabel}
               </span>
             )}

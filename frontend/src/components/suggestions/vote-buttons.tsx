@@ -121,12 +121,12 @@ export function VoteButtons({
 
   const upClasses =
     userVote === "up"
-      ? "text-[#83CD2D] hover:text-[#70b525]"
+      ? "text-moto-green hover:text-moto-green-hover"
       : "text-gray-400 hover:text-gray-600";
 
   const downClasses =
     userVote === "down"
-      ? "text-red-500 hover:text-red-600"
+      ? "text-moto-red hover:text-moto-red-hover"
       : "text-gray-400 hover:text-gray-600";
 
   return (
@@ -145,7 +145,7 @@ export function VoteButtons({
           fill={userVote === "up" ? "currentColor" : "none"}
         />
         <span
-          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "up" ? "text-[#83CD2D]" : "text-gray-500"}`}
+          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "up" ? "text-moto-green" : "text-gray-500"}`}
         >
           {upvotes}
         </span>
@@ -164,7 +164,7 @@ export function VoteButtons({
           fill={userVote === "down" ? "currentColor" : "none"}
         />
         <span
-          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "down" ? "text-red-500" : "text-gray-500"}`}
+          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "down" ? "text-moto-red" : "text-gray-500"}`}
         >
           {downvotes}
         </span>

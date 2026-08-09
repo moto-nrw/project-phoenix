@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Users, ArrowLeft, Check, X } from "lucide-react";
+import { Search, ArrowLeft, Check, X } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   searchGuardians,
   GUARDIAN_PICKER_RESULT_LIMIT,
@@ -158,7 +159,7 @@ export default function GuardianPickerPanel({
   return (
     <div
       data-testid="guardian-picker-panel"
-      className="space-y-3 rounded-xl border border-[#5080D8]/40 bg-blue-50/40 p-3 md:p-4"
+      className="border-moto-blue/40 space-y-3 rounded-xl border bg-blue-50/40 p-3 md:p-4"
     >
       {/* Panel header */}
       <div className="flex items-center justify-between">
@@ -247,7 +248,7 @@ export default function GuardianPickerPanel({
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               placeholder="Name oder E-Mail suchen…"
-              className="block w-full rounded-lg border border-gray-200 bg-white py-2 pr-3 pl-9 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+              className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white py-2 pr-3 pl-9 text-sm transition-colors focus:ring-1"
             />
           </div>
 
@@ -297,10 +298,14 @@ export default function GuardianPickerPanel({
                   className={`flex w-full items-start gap-2 rounded-lg border p-2 text-left transition-colors md:p-3 ${
                     isExcluded
                       ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-                      : "border-gray-100 bg-white hover:border-[#5080D8] hover:bg-blue-50/40"
+                      : "hover:border-moto-blue border-gray-100 bg-white hover:bg-blue-50/40"
                   }`}
                 >
-                  <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
+                  <MotoConceptIcon
+                    concept="parents"
+                    size={18}
+                    className="mt-0.5"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
                       {getGuardianFullName(guardian)}

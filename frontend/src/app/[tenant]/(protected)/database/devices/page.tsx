@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
-import { Laptop } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -13,6 +12,8 @@ import {
   type Grouper,
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -342,7 +343,13 @@ function DevicesPageContent() {
         <PageHeaderWithSearch
           title={isMobile ? "Geräte" : ""}
           badge={{
-            icon: <Laptop className="h-5 w-5 text-gray-600" aria-hidden />,
+            icon: (
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.devices.icon}
+                tone={MOTO_CONCEPTS.devices.tone}
+                size={20}
+              />
+            ),
             count: filteredDevices.length,
             label: "Geräte",
           }}
@@ -395,10 +402,11 @@ function DevicesPageContent() {
       ) : !loading ? (
         <DatabaseEmptyState
           icon={
-            <Laptop
-              className="mx-auto h-12 w-12 text-gray-400"
-              strokeWidth={1.5}
-              aria-hidden
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.devices.icon}
+              tone={MOTO_CONCEPTS.devices.tone}
+              size={48}
+              className="mx-auto"
             />
           }
           title={

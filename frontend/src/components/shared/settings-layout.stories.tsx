@@ -5,17 +5,17 @@ const tabs = [
   {
     id: "settings-general",
     label: "Allgemein",
-    icon: "M12 6v6l4 2",
+    icon: "settings" as const,
   },
   {
     id: "settings-security",
     label: "Sicherheit",
-    icon: "M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z",
+    icon: "permissions" as const,
   },
   {
     id: "settings-admin",
     label: "Verwaltung",
-    icon: "M4 6h16M4 12h16M4 18h16",
+    icon: "devices" as const,
     adminOnly: true,
   },
 ];

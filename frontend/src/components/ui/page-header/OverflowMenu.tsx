@@ -80,6 +80,8 @@ interface OverflowMenuProps {
   readonly triggerSize?: "default" | "sm";
   /** Optional class for the trigger button (size/spacing tweaks). */
   readonly triggerClassName?: string;
+  /** Optional visible trigger content; the default is the kebab icon. */
+  readonly triggerContent?: ReactNode;
   /**
    * Optional CSS selector for an ancestor of the trigger. When set, the menu
    * stretches to that ancestor's width and sits inside it (8px inset), instead
@@ -105,6 +107,7 @@ export function OverflowMenu({
   onOpen,
   triggerSize = "default",
   triggerClassName = "",
+  triggerContent,
   matchContainerSelector,
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
@@ -112,7 +115,8 @@ export function OverflowMenu({
   // gray-600 color. "sm" shrinks to a 24px trigger, 16px icon, and a muted
   // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
   // that class-string order would not resolve).
-  const triggerSizeClass = triggerSize === "sm" ? "size-6" : "size-9";
+  const triggerSizeClass =
+    triggerContent != null ? "" : triggerSize === "sm" ? "size-6" : "size-9";
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
@@ -276,9 +280,11 @@ export function OverflowMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex ${triggerSizeClass} items-center justify-center rounded-full ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full" : ""} ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
       >
-        <MoreVertical className={iconSizeClass} aria-hidden />
+        {triggerContent ?? (
+          <MoreVertical className={iconSizeClass} aria-hidden />
+        )}
       </button>
 
       {isOpen

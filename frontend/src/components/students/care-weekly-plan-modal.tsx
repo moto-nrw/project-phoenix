@@ -210,7 +210,7 @@ export function CareWeeklyPlanModal({
     >
       <form id="care-weekly-plan-form" onSubmit={handleSubmit}>
         {error ? (
-          <div className="mb-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-3 text-sm text-[#CC2626]">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mb-4 rounded-xl border px-4 py-3 text-sm">
             {error}
           </div>
         ) : null}

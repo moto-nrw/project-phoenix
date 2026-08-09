@@ -684,7 +684,7 @@ function PersonnelNumberModal({
             eindeutig.
           </p>
           {!valid && (
-            <p className="mt-1 text-xs text-[#FF3130]">
+            <p className="text-moto-red mt-1 text-xs">
               Nur Ziffern, höchstens 9 Stellen.
             </p>
           )}
@@ -699,7 +699,7 @@ function PersonnelNumberModal({
           placeholder="Erscheint im Änderungsprotokoll"
         />
 
-        {error && <p className="text-sm text-[#FF3130]">{error}</p>}
+        {error && <p className="text-moto-red text-sm">{error}</p>}
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" size="md" onClick={onClose}>

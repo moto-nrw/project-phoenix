@@ -90,8 +90,8 @@ describe("SettingsPage", () => {
   it("should render settings layout when tabs are available", async () => {
     mockUseSettingsTabs.mockReturnValue({
       tabs: [
-        { id: "settings-operations", label: "Betrieb", icon: "M..." },
-        { id: "settings-gdpr", label: "Datenschutz", icon: "M..." },
+        { id: "settings-operations", label: "Betrieb", icon: "settings" },
+        { id: "settings-gdpr", label: "Datenschutz", icon: "settings" },
       ],
       renderTab: () => <div>Tab content</div>,
     });

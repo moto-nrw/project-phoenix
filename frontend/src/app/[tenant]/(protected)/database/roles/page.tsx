@@ -1,12 +1,15 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -27,18 +30,6 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DatabaseRolesPage" });
-
-function WarningIcon({ className }: { readonly className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 20 20">
-      <path
-        fillRule="evenodd"
-        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
 
 export default function RolesPage() {
   return (
@@ -331,19 +322,11 @@ function RolesPageContent() {
           title={isMobile ? "Rollen" : ""}
           badge={{
             icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                />
-              </svg>
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.roles.icon}
+                tone={MOTO_CONCEPTS.roles.tone}
+                size={20}
+              />
             ),
             count: filteredRoles.length,
             label: "Rollen",
@@ -377,7 +360,10 @@ function RolesPageContent() {
       {unclassifiedCount > 0 && (
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start gap-3">
-            <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+            <TriangleAlert
+              className="text-moto-amber-strong mt-0.5 h-5 w-5 flex-shrink-0"
+              aria-hidden
+            />
             <div>
               <p className="text-sm font-medium text-amber-800">
                 {unclassifiedCount === 1
@@ -410,19 +396,12 @@ function RolesPageContent() {
       ) : !loading ? (
         <DatabaseEmptyState
           icon={
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-              />
-            </svg>
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.roles.icon}
+              tone={MOTO_CONCEPTS.roles.tone}
+              size={48}
+              className="mx-auto"
+            />
           }
           title={
             searchTerm ? "Keine Rollen gefunden" : "Keine Rollen vorhanden"

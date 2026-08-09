@@ -1171,6 +1171,25 @@ func TestGetBulkPickupTimes(t *testing.T) {
 	})
 }
 
+func TestBulkUpsertPickupSchedules(t *testing.T) {
+	tc := setupTestContext(t)
+	student1 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI1", "Student", "BPA1")
+	student2 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI2", "Student", "BPA2")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupAPI", "Teacher")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+	body := map[string]any{
+		"student_ids": []int64{student1.ID, student2.ID},
+		"schedules":   []map[string]any{{"weekday": 3, "pickup_time": "16:20"}},
+	}
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-schedules/bulk", body)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"students_affected":2`)
+}
+
 // =============================================================================
 // Create Pickup Note Tests
 // =============================================================================

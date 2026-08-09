@@ -259,11 +259,11 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // The active link should have the bg-gray-900 class and show label
+      // The active link should have the bg-gray-100 class and show label
       const dashboardLink = screen
         .getAllByRole("link")
         .find((link) => link.getAttribute("href") === "/dashboard");
-      expect(dashboardLink).toHaveClass("bg-gray-900");
+      expect(dashboardLink).toHaveClass("bg-gray-100");
       expect(screen.getByText("Home")).toBeInTheDocument();
     });
 
@@ -302,7 +302,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
-        "bg-gray-900",
+        "bg-gray-100",
       );
     });
 
@@ -322,7 +322,7 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Home")).not.toBeInTheDocument();
       // …and the Eltern group ("Mehr") is active via its /messages activePath.
       expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
-        "bg-gray-900",
+        "bg-gray-100",
       );
     });
 
@@ -479,8 +479,8 @@ describe("MobileBottomNav", () => {
 
       const dienstplanLink = screen.getByText("Dienstplan").closest("a");
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
-      expect(dienstplanLink).toHaveClass("bg-gray-900");
-      expect(staffLink).not.toHaveClass("bg-gray-900");
+      expect(dienstplanLink).toHaveClass("bg-gray-100");
+      expect(staffLink).not.toHaveClass("bg-gray-100");
     });
 
     it("highlights Dienstplan under a tenant-prefixed path", () => {
@@ -490,7 +490,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
       expect(screen.getByText("Dienstplan").closest("a")).toHaveClass(
-        "bg-gray-900",
+        "bg-gray-100",
       );
     });
 
@@ -511,11 +511,11 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       expect(screen.getByText("Kalenderzeiträume").closest("a")).toHaveClass(
-        "bg-gray-900",
+        "bg-gray-100",
       );
       expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
       expect(screen.getByText("Betreuungsplan").closest("a")).not.toHaveClass(
-        "bg-gray-900",
+        "bg-gray-100",
       );
     });
   });
@@ -887,7 +887,7 @@ describe("MobileBottomNav", () => {
       const { container } = render(<MobileBottomNav />);
 
       // Check that the nav container has the indicator structure
-      // The indicator is a div with bg-gray-900 class
+      // The indicator is a div with bg-gray-100 class
       const navItems = container.querySelectorAll(
         ".relative.flex.items-center.justify-around",
       );
@@ -924,7 +924,7 @@ describe("MobileBottomNav", () => {
       });
 
       // No main nav item should be highlighted (no active styling)
-      const activeLinks = container.querySelectorAll("a.bg-gray-900");
+      const activeLinks = container.querySelectorAll("a.bg-gray-100");
       expect(activeLinks.length).toBe(0);
 
       vi.useRealTimers();
@@ -1057,10 +1057,12 @@ describe("MobileBottomNav", () => {
       const svgs = document.querySelectorAll("svg");
       expect(svgs.length).toBeGreaterThan(0);
 
-      // Each should have proper attributes
+      // Legacy utility icons use a 24px viewBox, Phosphor concept icons use 256px.
       svgs.forEach((svg) => {
-        expect(svg).toHaveAttribute("viewBox", "0 0 24 24");
-        expect(svg).toHaveAttribute("stroke", "currentColor");
+        expect(["0 0 24 24", "0 0 256 256"]).toContain(
+          svg.getAttribute("viewBox"),
+        );
+        expect(svg).toHaveAttribute("aria-hidden", "true");
       });
     });
   });

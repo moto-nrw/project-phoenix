@@ -285,7 +285,7 @@ function Highlighted({
     nodes.push(
       <mark
         key={`${start}-${end}`}
-        className="rounded bg-[#83CD2D]/25 px-0.5 text-gray-950"
+        className="bg-moto-green/25 rounded px-0.5 text-gray-950"
       >
         {text.slice(start, end + 1)}
       </mark>,
@@ -337,7 +337,7 @@ function HelpSearchResults({
               onClick={onNavigate}
               className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors focus-visible:outline-none ${
                 active
-                  ? "border-[#83CD2D]/40 bg-[#83CD2D]/8"
+                  ? "border-moto-green/40 bg-moto-green/8"
                   : "border-transparent hover:bg-gray-50"
               }`}
             >

@@ -126,11 +126,11 @@ export function EditHistoryAccordion({
                   <span className="w-12 shrink-0 text-gray-500">
                     {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
                   </span>
-                  <span className="text-red-400 line-through">
+                  <span className="text-moto-red line-through">
                     {formatEditValue(edit.fieldName, edit.oldValue)}
                   </span>
                   <span className="text-gray-300">→</span>
-                  <span className="font-medium text-[#83cd2d]">
+                  <span className="text-moto-green-strong font-medium">
                     {formatEditValue(edit.fieldName, edit.newValue)}
                   </span>
                 </div>
@@ -174,11 +174,11 @@ export function EditHistoryAccordion({
                 <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
                   {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
                 </td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-red-400 line-through">
+                <td className="text-moto-red py-1.5 pr-4 whitespace-nowrap line-through">
                   {formatEditValue(edit.fieldName, edit.oldValue)}
                 </td>
                 <td className="py-1.5 pr-4 text-gray-300">&rarr;</td>
-                <td className="py-1.5 pr-4 font-medium whitespace-nowrap text-[#83cd2d]">
+                <td className="text-moto-green-strong py-1.5 pr-4 font-medium whitespace-nowrap">
                   {formatEditValue(edit.fieldName, edit.newValue)}
                 </td>
                 <td className="py-1.5 text-gray-400 italic">

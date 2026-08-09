@@ -25,6 +25,15 @@ func testTimetableDataWithCareValidator(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 ) *scheduleSvc.TimetableDataService {
+	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil)
+}
+
+func testTimetableDataWithOfferingCallbacks(
+	db *bun.DB,
+	validateCareOfferingSeries func(context.Context, int64) error,
+	validateOfferingSource func(context.Context, []int64, []int64, *int64) error,
+	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
+) *scheduleSvc.TimetableDataService {
 	deps := scheduleSvc.TimetableDataDependencies{
 		InstanceStudentRepo:        scheduleRepo.NewInstanceStudentRepository(db),
 		ActivityInstanceRepo:       scheduleRepo.NewActivityInstanceRepository(db),
@@ -49,6 +58,8 @@ func testTimetableDataWithCareValidator(
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(db),
 		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
+		ValidateOfferingSource:     validateOfferingSource,
+		ResyncOfferingRoster:       resyncOfferingRoster,
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(db),
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
 		DB:                         db,

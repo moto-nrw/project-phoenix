@@ -8,8 +8,8 @@ interface SidebarSubItemProps {
   readonly label: string;
   readonly isActive: boolean;
   readonly count?: number | string;
-  // Red unread pill (e.g. unread messages / pending requests). Renders nothing
-  // when 0. Distinct from `count`, which is the muted gray attendance count.
+  // Domain-colored pill for unread messages or pending requests. Distinct from
+  // `count`, which is the muted gray attendance count.
   readonly badgeCount?: number;
 }
 

@@ -144,7 +144,7 @@ export const ANNOUNCEMENT_STATUS_LABELS: Record<AnnouncementStatus, string> = {
 };
 
 export const TYPE_TEXT_COLORS: Record<AnnouncementType, string> = {
-  announcement: "text-[#5080D8]", // moto blue
-  release: "text-[#83CD2D]", // moto green
-  maintenance: "text-[#F78C10]", // moto orange
+  announcement: "text-moto-blue", // moto blue
+  release: "text-moto-green", // moto green
+  maintenance: "text-moto-orange", // moto orange
 };

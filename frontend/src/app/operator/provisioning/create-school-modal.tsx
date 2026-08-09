@@ -216,7 +216,7 @@ export function CreateSchoolModal({
             value={schoolName}
             onChange={(e) => handleSchoolNameChange(e.target.value)}
             maxLength={255}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             required
           />
         </FormField>
@@ -231,7 +231,7 @@ export function CreateSchoolModal({
                 setSchoolSlug(e.target.value);
               }}
               maxLength={100}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
               required
             />
           </FormField>
@@ -245,7 +245,7 @@ export function CreateSchoolModal({
                 setSchoolSubdomain(e.target.value);
               }}
               maxLength={63}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
               required
             />
           </FormField>
@@ -263,7 +263,7 @@ export function CreateSchoolModal({
                 value={schoolAddress}
                 onChange={(e) => setSchoolAddress(e.target.value)}
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               />
             </FormField>
             <div className="grid grid-cols-2 gap-4">
@@ -274,7 +274,7 @@ export function CreateSchoolModal({
                   value={schoolZip}
                   onChange={(e) => setSchoolZip(e.target.value)}
                   maxLength={10}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
               <FormField label="Stadt" htmlFor="school-city">
@@ -284,7 +284,7 @@ export function CreateSchoolModal({
                   value={schoolCity}
                   onChange={(e) => setSchoolCity(e.target.value)}
                   maxLength={255}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
             </div>
@@ -296,7 +296,7 @@ export function CreateSchoolModal({
                   value={schoolPhone}
                   onChange={(e) => setSchoolPhone(e.target.value)}
                   maxLength={30}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
               <FormField label="E-Mail" htmlFor="school-email">
@@ -306,7 +306,7 @@ export function CreateSchoolModal({
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
                   maxLength={255}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
             </div>

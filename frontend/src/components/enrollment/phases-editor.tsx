@@ -7,21 +7,15 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import {
-  CalendarClock,
-  CalendarPlus,
-  CalendarRange,
   Check,
-  ClipboardList,
-  Clock3,
   ExternalLink,
-  FileText,
   Link2,
   Pencil,
   Power,
   Trash2,
-  UserCheck,
   X,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type Phase,
   type PhaseAudience,
@@ -605,12 +599,12 @@ export function PhasesEditor() {
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
               <span>{KIND_LABELS[phase.kind]}</span>
               {phase.audience && phase.audience !== "open" ? (
-                <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
+                <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium">
                   {AUDIENCE_BADGE_LABELS[phase.audience]}
                 </span>
               ) : null}
               {(phase.eligible_grade_levels ?? []).length > 0 ? (
-                <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
+                <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium">
                   {`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
                 </span>
               ) : null}
@@ -726,7 +720,7 @@ export function PhasesEditor() {
     <div className="space-y-4">
       {error && (
         <div
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
           role="alert"
           aria-live="polite"
         >
@@ -737,17 +731,17 @@ export function PhasesEditor() {
       <div className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-2 sm:grid-cols-3">
           <PhaseMetric
-            icon={<CalendarRange className="h-4 w-4" />}
+            icon={<MotoConceptIcon concept="calendarPeriods" size={16} />}
             label="Anmeldephasen"
             value={phases.length}
           />
           <PhaseMetric
-            icon={<Clock3 className="h-4 w-4" />}
+            icon={<MotoConceptIcon concept="careTimes" size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
           <PhaseMetric
-            icon={<CalendarClock className="h-4 w-4" />}
+            icon={<MotoConceptIcon concept="calendarPeriods" size={18} />}
             label="In Vorbereitung"
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
@@ -758,7 +752,7 @@ export function PhasesEditor() {
             onClick={startCreate}
             className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
-            <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+            <MotoConceptIcon concept="calendarPeriods" size={16} />
             Neue Anmeldephase
           </button>
         )}
@@ -815,7 +809,7 @@ export function PhasesEditor() {
           }
           warningSlot={
             <div className="space-y-2">
-              <div className="rounded-lg bg-[#EAB308]/10 px-3 py-2 text-sm text-[#854D0E]">
+              <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
                 <p className="font-medium">
                   Diese Aktion kann nicht rückgängig gemacht werden:
                 </p>
@@ -847,7 +841,7 @@ export function PhasesEditor() {
                 ) : null}
               </div>
               {!impactLoading && deleteImpact && (
-                <div className="rounded-lg bg-[#83CD2D]/10 px-3 py-2 text-sm text-[#4a7a15]">
+                <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
                   {deleteImpact.students_kept === 1
                     ? "1 bereits angelegter Kind bleibt erhalten."
                     : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
@@ -912,8 +906,8 @@ function PhaseMetric({
 function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
   return (
     <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5080D8]/10 text-[#5080D8]">
-        <CalendarRange className="h-6 w-6" aria-hidden="true" />
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+        <MotoConceptIcon concept="calendarPeriods" size={24} />
       </div>
       <h2 className="mt-4 text-base font-semibold text-gray-900">
         Noch keine Anmeldephase angelegt
@@ -927,7 +921,7 @@ function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
         onClick={onCreate}
         className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
-        <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+        <MotoConceptIcon concept="calendarPeriods" size={16} />
         Erste Anmeldephase anlegen
       </button>
     </section>
@@ -956,14 +950,10 @@ function FormSchemaCell({
   return (
     <span className="inline-flex items-center gap-2 text-sm text-gray-700">
       <span
-        className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-          schemaName
-            ? "bg-[#5080D8]/10 text-[#4070C8]"
-            : "bg-gray-100 text-gray-500"
-        }`}
+        className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100"
         aria-hidden="true"
       >
-        <FileText className="h-4 w-4" />
+        <MotoConceptIcon concept="enrollments" size={16} />
       </span>
       <span className="min-w-0">
         <span className="block truncate font-medium text-gray-900">
@@ -1053,25 +1043,25 @@ function PhaseActions({
     },
     {
       label: "Manuelle Anmeldung",
-      icon: <UserCheck className="h-4 w-4" aria-hidden />,
+      icon: <MotoConceptIcon concept="enrollments" size={18} />,
       disabled: saving,
       onClick: () => setManualOpen(true),
     },
     {
       label: "Anmeldungen ansehen",
-      icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+      icon: <MotoConceptIcon concept="enrollments" size={16} />,
       href: enrollmentsHref,
       onClick: () => undefined,
     },
     {
       label: "Formular zuweisen",
-      icon: <FileText className="h-4 w-4" aria-hidden />,
+      icon: <MotoConceptIcon concept="enrollments" size={16} />,
       disabled: saving,
       onClick: onAssignForm,
     },
     {
       label: "Anschlussphase erstellen",
-      icon: <CalendarPlus className="h-4 w-4" aria-hidden />,
+      icon: <MotoConceptIcon concept="calendarPeriods" size={16} />,
       disabled: saving || rolloverActive,
       onClick: onRollover,
     },
@@ -1115,7 +1105,7 @@ function PhaseActions({
           items={menuEntries}
           triggerClassName={
             highlight
-              ? "bg-[#83CD2D]/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
+              ? "bg-moto-green/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
               : ""
           }
         />
@@ -1268,13 +1258,13 @@ function PhaseForm(props: PhaseFormProps) {
               übernimmt dessen Beginn und Ende.
             </span>
             {!draft.calendar_period_id && (
-              <span className="mt-1 block text-xs text-[#F78C10]">
+              <span className="text-moto-orange mt-1 block text-xs">
                 Ohne Verknüpfung können Betreuungsplan und Dienstplan später
                 nicht auf diese Phase aufbauen.
               </span>
             )}
             {linkedPeriodDrift && (
-              <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#F78C10]">
+              <span className="text-moto-orange mt-1 flex flex-wrap items-center gap-2 text-xs">
                 Beginn und Ende weichen vom Kalenderzeitraum ab (
                 {formatPeriodRange(linkedPeriodDrift)}).
                 <button
@@ -1423,7 +1413,7 @@ function PhaseForm(props: PhaseFormProps) {
         ref={formSectionRef}
         className={`rounded-xl border p-4 transition-colors duration-300 ${
           highlightFormSection
-            ? "border-[#83CD2D] bg-[#83CD2D]/8 shadow-[0_0_0_4px_rgba(131,205,45,0.12)]"
+            ? "border-moto-green bg-moto-green/8 shadow-[0_0_0_4px_rgba(131,205,45,0.12)]"
             : "border-gray-200"
         }`}
       >
@@ -1773,7 +1763,7 @@ function GradeLevelListEditor({
             aria-pressed={selected}
             className={`inline-flex h-9 min-w-11 items-center justify-center rounded-full border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
               selected
-                ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                ? "border-moto-green bg-moto-green text-gray-950"
                 : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
             }`}
           >

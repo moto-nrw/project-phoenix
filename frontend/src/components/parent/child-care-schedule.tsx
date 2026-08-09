@@ -222,7 +222,7 @@ export function ChildCareScheduleSection({
       {pending && (
         <div className="rounded-xl bg-gray-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+            <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
               <Clock className="h-3 w-3" aria-hidden="true" />
               {t("careSchedule.pendingBadge")}
             </p>
@@ -253,7 +253,9 @@ export function ChildCareScheduleSection({
                 {t("careSchedule.withdraw")}
               </Button>
               {withdrawError && (
-                <p className="mt-1 text-sm text-[#CC2626]">{withdrawError}</p>
+                <p className="text-moto-red-strong mt-1 text-sm">
+                  {withdrawError}
+                </p>
               )}
             </div>
           )}
@@ -278,7 +280,7 @@ export function ChildCareScheduleSection({
         confirmText={t("careSchedule.withdraw")}
         cancelText={t("back")}
         isConfirmLoading={withdrawing}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
       >
         <p className="text-sm text-gray-600">
           {t("careSchedule.withdrawConfirmBody")}

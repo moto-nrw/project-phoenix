@@ -1,12 +1,19 @@
 // Types for the PageHeaderWithSearch component system
 
 import type { OverflowMenuItem } from "./OverflowMenu";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 export type { OverflowMenuItem } from "./OverflowMenu";
 
 export interface PageHeaderWithSearchProps {
   // Header configuration
   readonly title: string;
+  /**
+   * Optional fachliches Konzept fuer die Titelzeile. Wenn gesetzt, rendert
+   * der Titelbereich links eine graue Icon-Kachel (Header-Muster) mit dem
+   * passenden {@link MotoConceptIcon}. Ohne Prop unveraendertes Verhalten.
+   */
+  readonly concept?: MotoConceptKey;
   readonly badge?: {
     readonly icon?: React.ReactNode;
     readonly count: number;
@@ -175,6 +182,8 @@ export interface ActiveFilter {
 // Props for individual components
 export interface PageHeaderProps {
   readonly title: string;
+  /** See {@link PageHeaderWithSearchProps.concept}. */
+  readonly concept?: MotoConceptKey;
   readonly badge?: {
     readonly icon?: React.ReactNode;
     readonly count: number;

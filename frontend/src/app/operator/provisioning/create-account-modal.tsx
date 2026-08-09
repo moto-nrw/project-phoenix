@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
@@ -48,7 +49,7 @@ export function CreateAccountModal({
   } | null>(null);
 
   const inputClasses =
-    "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
+    "focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none";
 
   // Load roles on mount
   useEffect(() => {
@@ -228,21 +229,12 @@ export function CreateAccountModal({
     >
       {result ? (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3">
-            <svg
-              className="h-5 w-5 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="text-sm font-medium text-green-800">
+          <div className="bg-moto-green/10 flex items-center gap-2 rounded-lg px-4 py-3">
+            <CheckCircle2
+              className="text-moto-green h-5 w-5"
+              aria-hidden="true"
+            />
+            <span className="text-moto-green-strong text-sm font-medium">
               Konto erstellt
             </span>
           </div>
@@ -337,7 +329,7 @@ export function CreateAccountModal({
                 type="checkbox"
                 checked={caregiverEnabled}
                 onChange={(e) => setCaregiverEnabled(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
               />
               <div className="space-y-1">
                 <label

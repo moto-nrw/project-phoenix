@@ -32,6 +32,9 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	if statusCounts, err := s.countEffectiveAbsencesForDate(ctx, today); err == nil {
 		analytics.StudentsSick = statusCounts.Sick
 		analytics.StudentsExcused = statusCounts.Excused
+		analytics.StudentsHome = calculateStudentsHome(
+			statusCounts.Total, analytics.StudentsPresent, statusCounts.Sick, statusCounts.Excused,
+		)
 	} else {
 		s.getLogger().Warn("failed to count effective student absences for dashboard",
 			"error", err.Error(),
@@ -93,10 +96,35 @@ func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date timezo
 	return studentStatusCounts{
 		Sick:    counts.Sick,
 		Excused: counts.Excused,
+		Total:   counts.Total,
 	}, nil
 }
 
 type studentStatusCounts struct {
 	Sick    int
 	Excused int
+	Total   int
+}
+
+// calculateStudentsHome derives the "Zuhause" figure as the remainder of the
+// dashboard's other buckets: every active student who is neither checked in
+// nor accounted for by an absence status is assumed to be at home.
+//
+// Deriving it rather than subtracting presence from a raw headcount is what
+// keeps the tiles reconciling. Sick and excused children never check in, so a
+// plain total-minus-present would count each of them twice, once in their own
+// tile and once here. The buckets are disjoint by construction — the repository
+// query gives sick precedence over excused/class_trip — so subtracting all
+// three is sound.
+//
+// Clamped at zero: presence is counted from today's attendance records while
+// the totals come from the student table, so a child checked in and then
+// deactivated mid-day can briefly push the arithmetic negative. A negative
+// headcount on a dashboard is worse than a slightly stale zero.
+func calculateStudentsHome(total, present, sick, excused int) int {
+	home := total - present - sick - excused
+	if home < 0 {
+		return 0
+	}
+	return home
 }

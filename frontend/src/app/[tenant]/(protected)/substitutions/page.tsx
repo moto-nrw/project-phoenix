@@ -1,6 +1,7 @@
 "use client";
 
-import { CalendarDays, Clock, Users } from "lucide-react";
+import { Clock } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSession } from "next-auth/react";
 import { type ReactNode, Suspense, useMemo, useState } from "react";
 
@@ -457,7 +458,7 @@ function SubstitutionPageContent() {
     if (filteredTeachers.length === 0) {
       return (
         <EmptyState
-          icon={<Users className="h-12 w-12" />}
+          icon={<MotoConceptIcon concept="staff" size={48} />}
           title="Keine Fachkräfte gefunden"
           description="Versuche deine Suchkriterien anzupassen."
         />
@@ -585,7 +586,7 @@ function SubstitutionPageContent() {
         <PageHeaderWithSearch
           title={isMobile ? "Gruppenzugriff" : ""}
           badge={{
-            icon: <Users className="h-5 w-5 text-gray-600" />,
+            icon: <MotoConceptIcon concept="staff" size={20} />,
             count: filteredTeachers.length,
             label: "Fachkräfte",
           }}
@@ -636,7 +637,7 @@ function SubstitutionPageContent() {
 
           <section>
             <SectionHeading
-              icon={<CalendarDays className="h-5 w-5" />}
+              icon={<MotoConceptIcon concept="calendar" size={20} />}
               title="Längerfristige Zugriffe"
               count={longTermAccess.length}
               hint="(mehrtägig)"
@@ -764,7 +765,7 @@ function SubstitutionPageContent() {
         confirmText="Beenden"
         cancelText="Abbrechen"
         isConfirmLoading={isMutating}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#FF3130]/90"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
       >
         {substitutionToEnd && (
           <div className="space-y-4">

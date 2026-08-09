@@ -132,10 +132,10 @@ export function StudentPhotoSection({
   ]);
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-[#5080D8]/5 p-3 md:p-4">
+    <div className="bg-moto-blue/5 rounded-xl border border-gray-100 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
-          className="h-3.5 w-3.5 text-[#5080D8] md:h-4 md:w-4"
+          className="text-moto-blue h-3.5 w-3.5 md:h-4 md:w-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -160,11 +160,11 @@ export function StudentPhotoSection({
         <Avatar imageUrl={displayUrl} name={fullName} size="lg" />
         <div className="min-w-0 flex-1 text-xs text-gray-600">
           {pendingPhotoBlob ? (
-            <p className="font-medium text-[#5080D8]">
+            <p className="text-moto-blue font-medium">
               Foto ausgewählt — wird beim Speichern hochgeladen.
             </p>
           ) : pendingPhotoRemoved ? (
-            <p className="font-medium text-[#B82A29]">
+            <p className="text-moto-red-hover font-medium">
               Foto wird beim Speichern entfernt.
             </p>
           ) : displayUrl ? (
@@ -186,7 +186,7 @@ export function StudentPhotoSection({
           type="checkbox"
           checked={consentGiven}
           onChange={(e) => onConsentChange(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
+          className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
           aria-label="Einwilligung der Eltern zur Speicherung eines Fotos liegt vor"
         />
         <div className="min-w-0 flex-1">
@@ -248,7 +248,7 @@ export function StudentPhotoSection({
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-xs text-[#B82A29]" role="alert">
+        <p className="text-moto-red-hover mt-2 text-xs" role="alert">
           {error}
         </p>
       ) : null}

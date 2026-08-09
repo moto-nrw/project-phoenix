@@ -12,17 +12,17 @@ vi.mock("swr", () => ({
   useSWRConfig: () => ({ mutate: mockMutate }),
 }));
 
-/** Helper: find the RotateCw icon (no text-[#83CD2D] class) */
+/** Helper: find the RotateCw icon (no text-moto-green class) */
 function findRotateIcon(container: HTMLElement) {
   return Array.from(container.querySelectorAll("svg")).find(
-    (svg) => !svg.classList.contains("text-[#83CD2D]"),
+    (svg) => !svg.classList.contains("text-moto-green"),
   );
 }
 
-/** Helper: find the Check icon (has text-[#83CD2D] class) */
+/** Helper: find the Check icon (has text-moto-green class) */
 function findCheckIcon(container: HTMLElement) {
   return Array.from(container.querySelectorAll("svg")).find((svg) =>
-    svg.classList.contains("text-[#83CD2D]"),
+    svg.classList.contains("text-moto-green"),
   );
 }
 

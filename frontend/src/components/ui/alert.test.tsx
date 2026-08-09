@@ -51,7 +51,7 @@ describe("Alert", () => {
     // Die Meldung bleibt direktes Kind der getönten Fläche, die Aktion ist ihr
     // Geschwister — sonst brechen die Stil-Assertions unten.
     const alert = screen.getByText("Warning message").parentElement;
-    expect(alert?.className).toContain("bg-[#F78C10]/10");
+    expect(alert?.className).toContain("bg-moto-orange-soft");
     expect(alert?.className).toContain("flex-wrap");
   });
 
@@ -66,31 +66,31 @@ describe("Alert", () => {
     render(<Alert type="error" message="Error message" />);
 
     const alert = screen.getByText("Error message").parentElement;
-    expect(alert?.className).toContain("bg-[#FF3130]/10");
-    expect(alert?.className).toContain("text-[#CC2626]");
+    expect(alert?.className).toContain("bg-moto-red-soft");
+    expect(alert?.className).toContain("text-moto-red-strong");
   });
 
   it("applies success styles", () => {
     render(<Alert type="success" message="Success message" />);
 
     const alert = screen.getByText("Success message").parentElement;
-    expect(alert?.className).toContain("text-[#4A7A15]");
+    expect(alert?.className).toContain("text-moto-green-strong");
   });
 
   it("applies warning styles", () => {
     render(<Alert type="warning" message="Warning message" />);
 
     const alert = screen.getByText("Warning message").parentElement;
-    expect(alert?.className).toContain("bg-[#F78C10]/10");
-    expect(alert?.className).toContain("text-[#8A5600]");
+    expect(alert?.className).toContain("bg-moto-orange-soft");
+    expect(alert?.className).toContain("text-moto-orange-strong");
   });
 
   it("applies info styles", () => {
     render(<Alert type="info" message="Info message" />);
 
     const alert = screen.getByText("Info message").parentElement;
-    expect(alert?.className).toContain("bg-[#5080D8]/10");
-    expect(alert?.className).toContain("text-[#355A9A]");
+    expect(alert?.className).toContain("bg-moto-blue-soft");
+    expect(alert?.className).toContain("text-moto-blue-strong");
   });
 
   it("renders with icon for error type", () => {

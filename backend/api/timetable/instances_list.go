@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -101,6 +102,7 @@ type enrichedInstance struct {
 	CancelReason           *string                  `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount  int                      `json:"expected_students_count"`
 	PresentStudentsCount   int                      `json:"present_students_count"`
+	EmptyRosterReason      *emptyRosterReason       `json:"empty_roster_reason,omitempty"`
 	// NotScheduledCount is how many assigned children are not in care here on
 	// this day (#1747) — not booked on this weekday, or the day was cancelled.
 	// Excluded from ExpectedStudentsCount and from the staffing maths;
@@ -125,6 +127,12 @@ type enrichedInstance struct {
 	// number; RequiredStaffCount above already folds the inheritance in.
 	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
+}
+
+type emptyRosterReason struct {
+	Kind             string `json:"kind"`
+	PhaseName        string `json:"phase_name,omitempty"`
+	ServiceStartDate string `json:"service_start_date,omitempty"`
 }
 
 // weeklyInstancesResponse is the 200 body for GET /instances.
@@ -189,6 +197,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
 	planningTrackCache := make(map[int64]*scheduleModel.PlanningTrack)
+	offeringSourceCache := make(map[int64][]enrollmentSvc.OfferingSourceOption)
 
 	// Resolved once per request (not per instance) — the Betreuungsschlüssel
 	// setting is tenant-wide, not per-block.
@@ -204,7 +213,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	enriched := make([]enrichedInstance, 0, len(instances))
 	conflictInputs := make([]scheduleSvc.WindowConflictInput, 0, len(instances))
 	for _, inst := range instances {
-		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, planningTrackCache, ratio, careDays)
+		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, planningTrackCache, offeringSourceCache, ratio, careDays)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
@@ -417,6 +426,7 @@ func (rs *Resource) enrichInstance(
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
 	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) (enrichedInstance, []*scheduleModel.InstanceStaff, []*scheduleModel.InstanceStudent, error) {
@@ -451,6 +461,7 @@ func (rs *Resource) enrichInstance(
 		return enrichedInstance{}, nil, nil, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
 	attendance := summarizeInstanceStudents(inst, studentRows, careDays)
+	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
@@ -486,6 +497,7 @@ func (rs *Resource) enrichInstance(
 		CancelReason:           inst.CancelReason,
 		ExpectedStudentsCount:  attendance.expected,
 		PresentStudentsCount:   attendance.present,
+		EmptyRosterReason:      emptyRosterReason,
 		NotScheduledCount:      attendance.notScheduled,
 		RequiredStaffCount:     scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:     assignedStaff,
@@ -587,7 +599,8 @@ type templateMeta struct {
 	// seriesNotes is the template's durable Wochennotiz (#1837 follow-up),
 	// joined onto each materialized instance at read time so it shows on every
 	// occurrence and survives Re-Plan/Split without an instance column.
-	seriesNotes *string
+	seriesNotes           *string
+	sourceCareOfferingIDs []int64
 }
 
 func (rs *Resource) lookupTemplateMeta(
@@ -615,7 +628,13 @@ func (rs *Resource) lookupTemplateMeta(
 		cache[*activityGroupID] = fallback
 		return fallback
 	}
-	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff, seriesNotes: group.Notes, planningTrackID: group.PlanningTrackID}
+	meta := templateMeta{
+		activityType:          group.Type,
+		requiredStaff:         group.RequiredStaff,
+		seriesNotes:           group.Notes,
+		planningTrackID:       group.PlanningTrackID,
+		sourceCareOfferingIDs: append([]int64(nil), group.SourceCareOfferingIDs...),
+	}
 	if group.PlanningTrackID != nil && rs.PlanningTrackService != nil {
 		track, cached := planningTrackCache[*group.PlanningTrackID]
 		if !cached {
@@ -637,6 +656,44 @@ func (rs *Resource) lookupTemplateMeta(
 	}
 	cache[*activityGroupID] = meta
 	return meta
+}
+
+func (rs *Resource) resolveEmptyRosterReason(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+	meta templateMeta,
+	studentRows []*scheduleModel.InstanceStudent,
+	cache map[int64][]enrollmentSvc.OfferingSourceOption,
+) *emptyRosterReason {
+	if inst == nil || len(studentRows) > 0 || len(meta.sourceCareOfferingIDs) == 0 || rs.OfferingSourceOptions == nil {
+		return nil
+	}
+	periodKey := int64(0)
+	if inst.CalendarPeriodID != nil {
+		periodKey = *inst.CalendarPeriodID
+	}
+	options, cached := cache[periodKey]
+	if !cached {
+		var err error
+		options, err = rs.OfferingSourceOptions.ListOfferingSourceOptions(ctx, inst.CalendarPeriodID)
+		if err != nil {
+			rs.getLogger().Warn("instance list: offering-source explanation failed",
+				slog.Int64("instance_id", inst.ID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+		cache[periodKey] = options
+	}
+	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, inst.Date)
+	if explanation == nil {
+		return nil
+	}
+	reason := &emptyRosterReason{Kind: explanation.Kind, PhaseName: explanation.PhaseName}
+	if !explanation.ServiceStartDate.IsZero() {
+		reason.ServiceStartDate = explanation.ServiceStartDate.String()
+	}
+	return reason
 }
 
 // instanceRequiredStaffOverride resolves the override EffectiveRequiredStaff

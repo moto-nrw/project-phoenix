@@ -82,4 +82,12 @@ describe("StaffPendingInbox refresh", () => {
     expect(predicate("tenant:staff-pending-absences-42")).toBe(true);
     expect(predicate("tenant:staff-list")).toBe(false);
   });
+
+  it("uses the staff color for the pending count", () => {
+    render(<StaffPendingInbox rows={[requestedRow()]} staffList={[]} />);
+
+    expect(screen.getByLabelText("1 offener Abwesenheitsantrag")).toHaveClass(
+      "bg-moto-orange-strong",
+    );
+  });
 });

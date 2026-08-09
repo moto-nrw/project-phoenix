@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, X, Settings, UserCheck } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   listPendingApprovals,
   approveGuardianInvitation,
@@ -15,7 +16,6 @@ import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
@@ -75,24 +75,20 @@ function ApprovalsEmptyState({
 }) {
   const router = useTenantRouter();
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
-  const iconColor = configuredAway
-    ? LOCATION_COLORS.OTHER_ROOM
-    : LOCATION_COLORS.GROUP_ROOM;
-  const iconBackground = `${iconColor}${configuredAway ? "1F" : "24"}`;
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <EmptyState
         icon={
           <span
-            className="flex h-12 w-12 items-center justify-center rounded-2xl"
-            style={{ backgroundColor: iconBackground, color: iconColor }}
+            data-testid="approvals-empty-icon"
+            data-concept={configuredAway ? "settings" : "accounts"}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100"
           >
-            {configuredAway ? (
-              <Settings className="h-6 w-6" />
-            ) : (
-              <UserCheck className="h-6 w-6" />
-            )}
+            <MotoConceptIcon
+              concept={configuredAway ? "settings" : "accounts"}
+              size={28}
+            />
           </span>
         }
         title={title}
@@ -236,12 +232,12 @@ export default function GuardianApprovalQueue({
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border p-3 text-sm">
           {error}
           <button
             type="button"
             onClick={() => void load()}
-            className="ml-2 rounded-lg bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200"
+            className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/20 ml-2 rounded-lg px-2 py-1 text-xs font-medium"
           >
             Erneut versuchen
           </button>
@@ -321,7 +317,7 @@ export default function GuardianApprovalQueue({
         title="Anfrage ablehnen?"
         confirmText="Ablehnen"
         cancelText="Abbrechen"
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover text-white"
       >
         <p className="text-sm text-gray-600">
           Möchtest du die Anfrage für{" "}

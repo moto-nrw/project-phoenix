@@ -18,11 +18,12 @@ import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import {
   DataField,
   DataGrid,
-  DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "@/lib/teacher-api";
 
@@ -243,7 +244,13 @@ function StaffStammdatenTab({
     <div className="space-y-4">
       <InfoSection
         title="Persönliche Daten"
-        icon={DetailIcons.person}
+        icon={
+          <MotoDuotoneIcon
+            icon={MOTO_CONCEPTS.staff.icon}
+            tone={MOTO_CONCEPTS.staff.tone}
+            size={18}
+          />
+        }
         accentColor="orange"
       >
         <DataGrid>
@@ -265,8 +272,14 @@ function StaffStammdatenTab({
       {teacher.email ? (
         <InfoSection
           title="E-Mail"
-          icon={DetailIcons.document}
-          accentColor="orange"
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.messages.icon}
+              tone={MOTO_CONCEPTS.messages.tone}
+              size={18}
+            />
+          }
+          accentColor="blue"
         >
           <EmailActions email={teacher.email} name={getDisplayName(teacher)} />
         </InfoSection>
@@ -275,7 +288,13 @@ function StaffStammdatenTab({
       {trimmedQualifications ? (
         <InfoSection
           title="Berufliche Informationen"
-          icon={DetailIcons.briefcase}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.staff.icon}
+              tone={MOTO_CONCEPTS.staff.tone}
+              size={18}
+            />
+          }
           accentColor="orange"
         >
           <DataGrid>
@@ -290,8 +309,14 @@ function StaffStammdatenTab({
 
       <InfoSection
         title="Notizen"
-        icon={DetailIcons.notes}
-        accentColor="orange"
+        icon={
+          <MotoDuotoneIcon
+            icon={MOTO_CONCEPTS.feedback.icon}
+            tone={MOTO_CONCEPTS.feedback.tone}
+            size={18}
+          />
+        }
+        accentColor="green"
       >
         <InlineNotesEditor
           initialNotes={teacher.staff_notes ?? ""}
@@ -302,7 +327,13 @@ function StaffStammdatenTab({
       {teacher.created_at || teacher.updated_at ? (
         <InfoSection
           title="Zeitstempel"
-          icon={DetailIcons.document}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.changeHistory.icon}
+              tone={MOTO_CONCEPTS.changeHistory.tone}
+              size={18}
+            />
+          }
           accentColor="gray"
         >
           <DataGrid>
@@ -340,7 +371,7 @@ function StaffStammdatenTab({
             <button
               type="button"
               onClick={onManageRole}
-              className="rounded-lg border border-[#7C3AED]/30 px-3 py-2 text-xs font-medium text-[#7C3AED] transition-all duration-200 hover:bg-[#7C3AED]/10 md:text-sm"
+              className="border-moto-purple/30 text-moto-purple hover:bg-moto-purple/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
             >
               Rolle verwalten
             </button>
@@ -349,7 +380,7 @@ function StaffStammdatenTab({
             <button
               type="button"
               onClick={onManageMFA}
-              className="rounded-lg border border-[#5080D8]/30 px-3 py-2 text-xs font-medium text-[#5080D8] transition-all duration-200 hover:bg-[#5080D8]/10 md:text-sm"
+              className="border-moto-blue/30 text-moto-blue hover:bg-moto-blue/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
             >
               Zwei-Faktor-Authentifizierung verwalten
             </button>
@@ -358,7 +389,7 @@ function StaffStammdatenTab({
             <button
               type="button"
               onClick={onManageCaregiver}
-              className="rounded-lg border border-[#F78C10]/30 px-3 py-2 text-xs font-medium text-[#F78C10] transition-all duration-200 hover:bg-[#F78C10]/10 md:text-sm"
+              className="border-moto-orange/30 text-moto-orange hover:bg-moto-orange/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
             >
               Betreuung verwalten
             </button>
@@ -411,7 +442,7 @@ function InlineNotesEditor({
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10] md:text-sm"
+          className="focus:border-moto-orange focus:ring-moto-orange w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 transition-colors focus:ring-1 md:text-sm"
           rows={3}
           placeholder="Notizen hinzufügen..."
           disabled={saving}
@@ -487,7 +518,7 @@ function EmailActions({ email, name }: { email: string; name: string }) {
           onClick={() => void copy(email)}
           className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
             copied
-              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#83CD2D]"
+              ? "border-moto-green/30 bg-moto-green/10 text-moto-green"
               : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900"
           }`}
           title="E-Mail kopieren"

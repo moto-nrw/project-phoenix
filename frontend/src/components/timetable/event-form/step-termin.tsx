@@ -376,8 +376,8 @@ export function StepTermin({
       ) : (
         <>
           {form.seriesNotes.trim() !== "" && (
-            <div className="rounded-lg border border-[#5080D8]/30 bg-[#5080D8]/10 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-[#5080D8]">
+            <div className="border-moto-blue/30 bg-moto-blue/10 rounded-lg border p-3">
+              <div className="text-moto-blue flex items-center gap-1.5 text-xs font-medium">
                 <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
                 Wochennotiz der Terminreihe
               </div>

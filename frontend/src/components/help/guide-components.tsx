@@ -11,6 +11,9 @@ import type {
 import { GuidePdfButton } from "./guide-pdf-button";
 import { HelpHashScroll, HelpSearchInline } from "./help-search";
 import { HelpBackButton, helpBackButtonClassName } from "./help-back-button";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
+import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
 
@@ -126,24 +129,24 @@ const toneClasses: Record<
   { readonly soft: string; readonly text: string; readonly border: string }
 > = {
   blue: {
-    soft: "bg-[#5080D8]/12",
-    text: "text-[#315C9B]",
-    border: "border-[#5080D8]/25",
+    soft: "bg-moto-blue/12",
+    text: "text-moto-blue-strong",
+    border: "border-moto-blue/25",
   },
   green: {
-    soft: "bg-[#83CD2D]/14",
-    text: "text-[#3F6F12]",
-    border: "border-[#83CD2D]/25",
+    soft: "bg-moto-green/14",
+    text: "text-moto-green-strong",
+    border: "border-moto-green/25",
   },
   orange: {
-    soft: "bg-[#F78C10]/12",
-    text: "text-[#9B5609]",
-    border: "border-[#F78C10]/25",
+    soft: "bg-moto-orange/12",
+    text: "text-moto-orange-strong",
+    border: "border-moto-orange/25",
   },
   red: {
-    soft: "bg-[#FF3130]/10",
-    text: "text-[#CC2626]",
-    border: "border-[#FF3130]/20",
+    soft: "bg-moto-red/10",
+    text: "text-moto-red-strong",
+    border: "border-moto-red/20",
   },
   purple: {
     soft: "bg-[#7C3AED]/10",
@@ -184,12 +187,16 @@ export function EntryPointCard({
   title,
   body,
   icon: Icon,
+  concept,
+  iconTone,
   points,
 }: {
   readonly href: string;
   readonly title: string;
   readonly body: string;
-  readonly icon: LucideIcon;
+  readonly icon?: LucideIcon;
+  readonly concept?: MotoConceptKey;
+  readonly iconTone?: MotoDuotoneTone;
   readonly points: readonly string[];
 }) {
   return (
@@ -198,8 +205,22 @@ export function EntryPointCard({
       className="group moto-content-surface flex flex-col rounded-2xl border p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#83CD2D]/14 text-[#3F6F12]">
-          <Icon className="h-6 w-6" aria-hidden="true" />
+        <span
+          className="flex h-12 w-12 items-center justify-center"
+          data-testid="entry-point-icon"
+        >
+          {concept ? (
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS[concept].icon}
+              tone={iconTone ?? MOTO_CONCEPTS[concept].tone}
+              size={36}
+            />
+          ) : Icon ? (
+            <Icon
+              className="text-moto-green-strong h-8 w-8"
+              aria-hidden="true"
+            />
+          ) : null}
         </span>
         <ArrowRight
           className="h-5 w-5 text-gray-400 transition-transform group-hover:translate-x-1"
@@ -214,7 +235,7 @@ export function EntryPointCard({
         {points.map((point, index) => (
           <li key={`${point}-${index}`} className="flex gap-2">
             <span
-              className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"
+              className="bg-moto-green mt-2 h-1.5 w-1.5 shrink-0 rounded-full"
               aria-hidden="true"
             />
             <span>{point}</span>
@@ -331,7 +352,7 @@ export function GuideShell({
 
         <section className="py-8 sm:py-10 print:py-0">
           <div className="print:hidden">
-            <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
+            <p className="text-moto-green-strong text-sm font-bold tracking-[0.08em] uppercase">
               {eyebrow}
             </p>
             <h1 className="mt-3 text-3xl leading-tight font-semibold tracking-normal text-gray-950 sm:text-4xl">
@@ -342,9 +363,9 @@ export function GuideShell({
             </p>
 
             {note ? (
-              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#5080D8]/25 bg-[#5080D8]/8 p-3 text-sm leading-6 text-gray-700">
+              <div className="border-moto-blue/25 bg-moto-blue/8 mt-4 flex items-start gap-2.5 rounded-xl border p-3 text-sm leading-6 text-gray-700">
                 <Info
-                  className="mt-0.5 h-4 w-4 shrink-0 text-[#315C9B]"
+                  className="text-moto-blue-strong mt-0.5 h-4 w-4 shrink-0"
                   aria-hidden="true"
                 />
                 <span>
@@ -447,7 +468,7 @@ function GuidePrintCover({
       </div>
 
       <div className="mt-16">
-        <p className="text-sm font-bold tracking-[0.12em] text-[#3F6F12] uppercase">
+        <p className="text-moto-green-strong text-sm font-bold tracking-[0.12em] uppercase">
           {eyebrow}
         </p>
         <h1 className="mt-5 max-w-[620px] text-5xl leading-[1.02] font-semibold tracking-normal text-gray-950">
@@ -475,9 +496,9 @@ function GuidePrintCover({
       <div className="mt-12 overflow-hidden rounded-[28px] border border-gray-300 bg-white shadow-sm print:shadow-none">
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
           <div className="flex gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#FF3130]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#F78C10]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#83CD2D]" />
+            <span className="bg-moto-red h-2.5 w-2.5 rounded-full" />
+            <span className="bg-moto-orange h-2.5 w-2.5 rounded-full" />
+            <span className="bg-moto-green h-2.5 w-2.5 rounded-full" />
           </div>
           <p className="text-xs font-semibold tracking-[0.08em] text-gray-400">
             moto-app.de
@@ -501,7 +522,7 @@ function GuideNextLinks({ activePath }: { readonly activePath: ActivePath }) {
 
   return (
     <section className="mt-12 print:hidden" aria-labelledby="guide-next-title">
-      <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
+      <p className="text-moto-green-strong text-sm font-bold tracking-[0.08em] uppercase">
         Weiter in der Anleitung
       </p>
       <h2
@@ -519,7 +540,7 @@ function GuideNextLinks({ activePath }: { readonly activePath: ActivePath }) {
               href={link.href}
               className="group moto-content-surface flex items-start gap-4 rounded-2xl border p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/14 text-[#3F6F12]">
+              <span className="bg-moto-green/14 text-moto-green-strong flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl">
                 <Icon
                   className="h-5 w-5 transition-transform group-hover:translate-x-0.5"
                   aria-hidden="true"
@@ -670,15 +691,15 @@ function StepCard({
 
 function Checklist({ items }: { readonly items: readonly string[] }) {
   return (
-    <div className="mt-4 rounded-xl border border-[#83CD2D]/25 bg-[#83CD2D]/8 p-4 print:border-gray-300 print:bg-white">
+    <div className="border-moto-green/25 bg-moto-green/8 mt-4 rounded-xl border p-4 print:border-gray-300 print:bg-white">
       <div className="mb-3 flex items-center gap-2">
-        <Check className="h-4 w-4 text-[#3F6F12]" aria-hidden="true" />
+        <Check className="text-moto-green-strong h-4 w-4" aria-hidden="true" />
         <h4 className="text-sm font-semibold text-gray-950">Checkliste</h4>
       </div>
       <ul className="space-y-2.5 text-sm leading-6 text-gray-700">
         {items.map((item) => (
           <li key={item} className="flex gap-3">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#83CD2D]/16 text-[#3F6F12] print:border print:border-gray-300 print:bg-white">
+            <span className="bg-moto-green/16 text-moto-green-strong mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full print:border print:border-gray-300 print:bg-white">
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
             <span>

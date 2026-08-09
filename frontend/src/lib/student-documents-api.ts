@@ -104,11 +104,7 @@ class StudentDocumentsService {
     };
   }
 
-  async upload(
-    studentId: string,
-    file: File,
-    category: string,
-  ): Promise<void> {
+  async upload(studentId: string, file: File, category: string): Promise<void> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("category", category);

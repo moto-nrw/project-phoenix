@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { DatabaseForm } from "./database-form";
 import type { FormSection } from "./database-form";
-import { databaseThemes } from "~/lib/database/themes";
 
 const sections: FormSection[] = [
   {
@@ -62,7 +61,6 @@ const meta: Meta<typeof DatabaseForm> = {
   title: "ui/database/DatabaseForm",
   component: DatabaseForm,
   args: {
-    theme: databaseThemes.teachers,
     sections,
     onSubmit: async () => undefined,
     onCancel: () => undefined,

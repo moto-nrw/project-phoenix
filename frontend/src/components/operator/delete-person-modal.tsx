@@ -65,7 +65,7 @@ export function DeletePersonModal({
         ) : null
       }
       warningSlot={
-        <div className="rounded-lg bg-[#EAB308]/10 px-3 py-2 text-sm text-[#854D0E]">
+        <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
           <p className="font-medium">Folgende Aktionen werden ausgeführt:</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
             <li>Account wird deaktiviert und Login gesperrt</li>

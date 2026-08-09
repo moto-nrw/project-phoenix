@@ -224,7 +224,7 @@ export function ArrivalDayEditModal({
     >
       <div className="space-y-5">
         {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-4 py-3 text-sm">
             {error}
           </div>
         ) : null}
@@ -252,7 +252,7 @@ export function ArrivalDayEditModal({
                     setMarkAbsent(event.target.checked);
                     if (event.target.checked) setArrivalTime("");
                   }}
-                  className="h-4 w-4 rounded border-gray-300 text-[#83CD2D] focus:ring-[#83CD2D]/30"
+                  className="text-moto-green focus:ring-moto-green/30 h-4 w-4 rounded border-gray-300"
                 />
                 Kind kommt nicht
               </label>
@@ -262,7 +262,7 @@ export function ArrivalDayEditModal({
                   type="time"
                   value={arrivalTime}
                   onChange={(e) => setArrivalTime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#83CD2D] focus:ring-1 focus:ring-[#83CD2D] focus:outline-none"
+                  className="focus:border-moto-green focus:ring-moto-green w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                 />
               ) : null}
               <input
@@ -271,7 +271,7 @@ export function ArrivalDayEditModal({
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Grund (optional)"
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#83CD2D] focus:ring-1 focus:ring-[#83CD2D] focus:outline-none"
+                className="focus:border-moto-green focus:ring-moto-green w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               />
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -280,7 +280,7 @@ export function ArrivalDayEditModal({
                       type="button"
                       onClick={handleRemoveException}
                       disabled={isDeletingException}
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="text-moto-red hover:bg-moto-red/10 inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
                     >
                       {isDeletingException ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -370,7 +370,7 @@ export function ArrivalDayEditModal({
                         aria-label="Ankunftsnotiz bearbeiten"
                         value={editingNoteContent}
                         onChange={(e) => setEditingNoteContent(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#83CD2D] focus:ring-1 focus:ring-[#83CD2D] focus:outline-none"
+                        className="focus:border-moto-green focus:ring-moto-green w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                         rows={2}
                         maxLength={500}
                         autoFocus
@@ -422,7 +422,7 @@ export function ArrivalDayEditModal({
                           type="button"
                           onClick={() => handleDeleteNote(note.id)}
                           disabled={deletingNoteId === note.id}
-                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          className="hover:bg-moto-red/10 hover:text-moto-red rounded p-1 text-gray-400 disabled:opacity-50"
                           title="Löschen"
                         >
                           {deletingNoteId === note.id ? (
@@ -451,7 +451,7 @@ export function ArrivalDayEditModal({
                 value={newNoteContent}
                 onChange={(e) => setNewNoteContent(e.target.value)}
                 placeholder="Notiz eingeben..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#83CD2D] focus:ring-1 focus:ring-[#83CD2D] focus:outline-none"
+                className="focus:border-moto-green focus:ring-moto-green w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                 rows={2}
                 maxLength={500}
                 autoFocus

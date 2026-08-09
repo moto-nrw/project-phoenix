@@ -10,6 +10,14 @@ const logger = createLogger({ component: "DashboardAPI" });
 
 /**
  * Fetches dashboard analytics data from the backend (server-side, used by BFF route)
+ *
+ * Every figure including studentsHome comes from the single analytics
+ * endpoint. Deriving the home count here from /api/students would reintroduce
+ * two problems: that endpoint is gated on `users:read` while this one needs
+ * only `groups:read`, so the extra calls could 403 and take the whole
+ * dashboard down; and a client-side subtraction double counts sick and
+ * excused children, who never check in.
+ *
  * @param token - JWT authentication token
  * @returns Promise<DashboardAnalytics>
  */

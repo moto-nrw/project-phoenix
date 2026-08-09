@@ -91,7 +91,7 @@ export function RemindersBell() {
       >
         <Bell className="h-5 w-5" />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF3130] px-1 text-[10px] font-semibold text-white">
+          <span className="bg-moto-red absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white">
             {badgeLabel}
           </span>
         )}

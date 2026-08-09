@@ -38,7 +38,7 @@ export function Field({
         <p
           id={`${htmlFor}_error`}
           role="alert"
-          className="mt-1 text-xs text-[#FF3130]"
+          className="text-moto-red mt-1 text-xs"
         >
           {error}
         </p>

@@ -101,7 +101,7 @@ export function PublicEnrollmentSteps({
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-full border sm:h-8 sm:w-8 ${
                 done
-                  ? "border-[#83CD2D]/30 bg-[#83CD2D]/15 text-[#5A8E1F]"
+                  ? "border-moto-green/30 bg-moto-green/15 text-moto-green-strong"
                   : active
                     ? "border-gray-900 bg-gray-900 text-white"
                     : "border-gray-200 bg-white text-gray-400"

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
-import { MessageCircle } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -94,7 +94,7 @@ function MessagesInboxContent() {
       <PageHeaderWithSearch
         title="Nachrichten"
         badge={{
-          icon: <MessageCircle className="h-5 w-5 text-gray-600" />,
+          icon: <MotoConceptIcon concept="parentConversations" size={20} />,
           count: filteredThreads.length,
         }}
         search={{
@@ -141,7 +141,7 @@ function MessagesInboxContent() {
       {filteredThreads.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
-            <MessageCircle className="h-12 w-12 text-gray-400" />
+            <MotoConceptIcon concept="parentConversations" size={48} />
             <div>
               <h3 className="text-lg font-medium text-gray-900">
                 Noch keine Nachrichten

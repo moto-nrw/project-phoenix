@@ -893,7 +893,8 @@ describe("Sidebar", () => {
 
       const activitiesLink = screen.getByText("Aktivitäten").closest("a");
       const svg = activitiesLink?.querySelector("svg");
-      expect(svg?.getAttribute("class")).toContain("text-[#FF3130]");
+      expect(svg).toHaveAttribute("data-moto-duotone-tone", "coral");
+      expect(svg).toHaveStyle({ color: "#A83A2E" });
     });
   });
 

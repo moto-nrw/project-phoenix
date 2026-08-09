@@ -196,7 +196,7 @@ describe("DatabaseSelect", () => {
 
     it("applies error styles to select", () => {
       render(<DatabaseSelect {...defaultProps} error="Error" />);
-      expect(screen.getByRole("combobox")).toHaveClass("border-[#FF3130]");
+      expect(screen.getByRole("combobox")).toHaveClass("border-moto-red");
     });
   });
 

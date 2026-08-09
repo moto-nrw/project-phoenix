@@ -7,7 +7,7 @@
  * /api/timetable/instances endpoint.
  */
 
-import { parseISODate, toISODate } from "./date-helpers";
+import { formatDate, parseISODate, toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import {
   shouldMaterializeWeekPattern,
@@ -64,6 +64,21 @@ import type {
   TimetableTemplate,
   WeeklyInstancesResponse,
 } from "./timetable-types";
+
+/** Warning shown when an offering-sourced series starts before care begins. */
+export function offeringPhaseStartWarning(
+  offering:
+    Pick<OfferingSourceOption, "phaseName" | "phaseServiceStart"> | undefined,
+  seriesStartDate: string,
+): string | null {
+  const phaseStart = offering?.phaseServiceStart;
+  if (!phaseStart || !seriesStartDate || seriesStartDate >= phaseStart) {
+    return null;
+  }
+  const phaseName = offering.phaseName?.trim();
+  const phaseLabel = phaseName ? ` aus „${phaseName}“` : "";
+  return `Die Betreuung${phaseLabel} beginnt am ${formatDate(phaseStart)}. Termine vor diesem Datum haben noch keine Kinder aus dem Angebot.`;
+}
 
 /**
  * SWR-Key-Präfixe der Vertretungs-Ansicht. Producer (vertretung-view) und
@@ -517,6 +532,13 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     expectedStudentsCount: raw.expected_students_count,
     notScheduledStudentsCount: raw.not_scheduled_students_count ?? 0,
     presentStudentsCount: raw.present_students_count,
+    emptyRosterReason: raw.empty_roster_reason
+      ? {
+          kind: raw.empty_roster_reason.kind,
+          phaseName: raw.empty_roster_reason.phase_name,
+          serviceStartDate: raw.empty_roster_reason.service_start_date,
+        }
+      : undefined,
     requiredStaffCount: raw.required_staff_count,
     assignedStaffCount: raw.assigned_staff_count,
     requiredStaffOverride: raw.required_staff_override ?? undefined,
@@ -1023,6 +1045,7 @@ export function mapOfferingSourceOptions(
       name: offering.name,
       phaseId: String(offering.phase_id),
       phaseName: offering.phase_name,
+      phaseServiceStart: offering.phase_service_start || undefined,
       totalCount: offering.total_count,
       gradeCounts,
       sourcedTemplates: (offering.sourced_templates ?? []).map((template) => ({

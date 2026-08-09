@@ -3,12 +3,14 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { Download, Info, ListChecks, X } from "lucide-react";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
+import { StudentRowCard } from "~/components/import/student-row-card";
 import { useToast } from "~/contexts/ToastContext";
 import { createCrudService } from "~/lib/database/service-factory";
 import { rolesConfig } from "~/components/database/configs/roles.config";
@@ -63,35 +65,6 @@ interface DisplayStaff {
   email: string;
   role_name: string;
   position: string;
-}
-
-function statusBadge(status: RowStatus) {
-  switch (status) {
-    case "new":
-      return (
-        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-          Neu
-        </span>
-      );
-    case "existing":
-      return (
-        <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-          Vorhanden
-        </span>
-      );
-    case "error":
-      return (
-        <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
-          Fehler
-        </span>
-      );
-    case "warning":
-      return (
-        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-          Warnung
-        </span>
-      );
-  }
 }
 
 function rowStatusFor(errors: ImportError[]): RowStatus {
@@ -388,22 +361,13 @@ export default function StaffImportPage() {
   return (
     <div className="w-full space-y-6">
       {/* Info Section */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-6">
+      <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-6">
         <div className="flex items-start gap-4">
           <div className="flex-shrink-0">
-            <svg
-              className="h-6 w-6 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <Info
+              className="text-moto-blue-strong h-6 w-6"
+              aria-hidden="true"
+            />
           </div>
           <div className="flex-1">
             <h3 className="mb-2 text-sm font-semibold text-gray-900">
@@ -449,22 +413,10 @@ export default function StaffImportPage() {
           <button
             type="button"
             onClick={() => setError(null)}
-            className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -472,19 +424,7 @@ export default function StaffImportPage() {
       {/* Download Template */}
       <div className="rounded-xl border border-gray-100 bg-white p-6">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <svg
-            className="h-5 w-5 text-gray-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            />
-          </svg>
+          <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
           Schritt 1: Vorlage herunterladen
         </h3>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -530,19 +470,7 @@ export default function StaffImportPage() {
               onClick={() => handleDownloadTemplate().catch(() => undefined)}
               className="h-10 w-full gap-2"
             >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
+              <Download className="h-5 w-5" aria-hidden="true" />
               Vorlage herunterladen
             </Button>
           </div>
@@ -574,63 +502,28 @@ export default function StaffImportPage() {
           <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
             <div className="border-b border-gray-100 p-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <svg
-                  className="h-5 w-5 text-blue-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
+                <ListChecks
+                  className="h-5 w-5 text-gray-600"
+                  aria-hidden="true"
+                />
                 Schritt 3: Datenvorschau
               </h3>
             </div>
 
             <div className="space-y-2 p-3">
               {previewData.map((staff, idx) => (
-                <div
+                <StudentRowCard
                   key={staff.row}
-                  className="rounded-xl border border-gray-100 bg-white p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
-                      {staff.row || idx + 1}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-gray-900">
-                          {staff.first_name} {staff.last_name}
-                        </h4>
-                        {statusBadge(staff.status)}
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                        {staff.email && <span>{staff.email}</span>}
-                        {staff.role_name && (
-                          <>
-                            <span>•</span>
-                            <span>{staff.role_name}</span>
-                          </>
-                        )}
-                        {staff.position && (
-                          <>
-                            <span>•</span>
-                            <span>{staff.position}</span>
-                          </>
-                        )}
-                      </div>
-                      {staff.errors.length > 0 && (
-                        <p className="mt-1 text-xs text-red-600">
-                          {staff.errors.join(", ")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  student={{
+                    row: staff.row,
+                    status: staff.status,
+                    errors: staff.errors,
+                    first_name: staff.first_name,
+                    last_name: staff.last_name,
+                    meta: [staff.email, staff.role_name, staff.position],
+                  }}
+                  index={idx}
+                />
               ))}
             </div>
           </div>
@@ -651,7 +544,7 @@ export default function StaffImportPage() {
               type="button"
               onClick={() => void handleImport()}
               disabled={stats.errors > 0 || isImporting}
-              className="flex-1 rounded-lg bg-[#83cd2d] px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-[#75b828] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
+              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
               {isImporting
                 ? "Importiere..."

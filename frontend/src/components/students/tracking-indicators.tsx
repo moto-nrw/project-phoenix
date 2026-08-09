@@ -1,6 +1,8 @@
 // components/students/tracking-indicators.tsx
 // Displays tracking indicator checkmarks/circles in student cards
 
+import { Circle, CircleCheck } from "lucide-react";
+
 interface TrackingIndicatorsProps {
   /** Configured indicator labels (e.g., ["Hausaufgaben", "Mensa"]) */
   readonly labels: string[];
@@ -27,30 +29,15 @@ export function TrackingIndicators({
           <div key={label} className="flex items-center gap-1.5">
             <span className="text-xs font-medium text-gray-500">{label}</span>
             {matched ? (
-              <svg
-                className="h-4 w-4 text-[#83CD2D]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              <CircleCheck
+                className="text-moto-green h-4 w-4"
                 aria-label={`${label}: erledigt`}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              />
             ) : (
-              <svg
+              <Circle
                 className="h-4 w-4 text-gray-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
                 aria-label={`${label}: ausstehend`}
-              >
-                <circle cx="12" cy="12" r="9" strokeWidth={2} />
-              </svg>
+              />
             )}
           </div>
         );
