@@ -448,7 +448,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
           "Für mehrere Kinder mit denselben Ankunftszeiten oben bei `Gruppieren` `Klasse` oder `Gruppe` wählen. Im Drei-Punkte-Menü der gewünschten Klasse oder OGS-Gruppe `Ankunftszeit bearbeiten` öffnen und die gemeinsamen Zeiten eintragen. Ausgefüllte Wochentage werden für alle Kinder des Filters gesetzt; leere Felder bleiben unverändert.",
           "Für einige frei zusammengestellte Kinder auf `Auswählen` klicken und die gewünschten Kinder einzeln anhaken. Suche und Gruppenfilter dürfen zwischendurch geändert werden; die Auswahl bleibt erhalten.",
-          "In der Auswahlleiste unter `Aktion` entweder `Ankunftszeiten ändern`, `Gehzeiten ändern` oder `Klassenfahrt planen` wählen. Bei den Wochenzeiten werden nur ausgefüllte Tage geändert; leere Tage und vorhandene Notizen bleiben unverändert.",
+          "Oben in der Auswahlleiste `Ankunftszeiten`, `Gehzeiten` oder `Klassenfahrt` wählen. Bei den Wochenzeiten werden nur ausgefüllte Tage geändert; leere Tage und vorhandene Notizen bleiben unverändert.",
           "Nach dem Speichern bleibt die Auswahl aktiv, damit bei Bedarf direkt eine weitere Aktion für dieselben Kinder ausgeführt werden kann. Mit `Fertig` wird sie beendet.",
           "Im Bereich `Gehplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Gehzeiten, Abholer sowie Hinweise eintragen.",
           "Einzelne Abweichungen später über das Stift-Symbol am jeweiligen Wochentag pflegen.",

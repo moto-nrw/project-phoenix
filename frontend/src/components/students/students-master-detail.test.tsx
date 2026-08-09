@@ -802,21 +802,19 @@ describe("StudentsMasterDetail", () => {
     );
 
     expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Auswahl" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Aufheben" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
     expect(onClearSelection).toHaveBeenCalledOnce();
     expect(onFinishSelection).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByLabelText("Aktion für Auswahl"));
     expect(
-      screen.getByRole("menuitem", { name: "Gehzeiten ändern" }),
+      screen.getByRole("button", { name: "Gehzeiten" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
+      screen.getByRole("button", { name: "Klassenfahrt" }),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Ankunftszeiten ändern" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Ankunftszeiten" }));
     expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
       "data-filter-value",
       "1,3",
@@ -825,18 +823,14 @@ describe("StudentsMasterDetail", () => {
     expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("bulk-close"));
 
-    fireEvent.click(screen.getByLabelText("Aktion für Auswahl"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Gehzeiten ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gehzeiten" }));
     expect(screen.getByTestId("pickup-selection-modal")).toHaveAttribute(
       "data-student-ids",
       "1,3",
     );
     fireEvent.click(screen.getByRole("button", { name: "close pickup" }));
 
-    fireEvent.click(screen.getByLabelText("Aktion für Auswahl"));
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Klassenfahrt" }));
     expect(screen.getByTestId("class-trip-selection-modal")).toHaveAttribute(
       "data-student-ids",
       "1,3",
