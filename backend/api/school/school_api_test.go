@@ -5,7 +5,10 @@
 package school_test
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,9 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/classday"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/school"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -189,4 +195,84 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 		schoolRouter.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 	})
+}
+
+// TestSchoolMFAVerify_MintsSchoolSession pins the second half of the MFA
+// login: once the emailed code is proven, the school surface must exchange
+// the challenge for a SCHOOL-scope session — and it must ask the MFA
+// service for the school scope while doing it.
+func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
+	db, factory := testutil.SetupAPITest(t)
+
+	const password = "Test1234%" //nolint:gosec // test credential
+	unique := time.Now().UnixNano()
+	email := fmt.Sprintf("school-mfa-verify-%d@test.local", unique)
+	account, err := factory.Auth.Register(testpkg.TenantContext(1), email, fmt.Sprintf("school-mfa-verify-%d", unique), password, nil, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, 1)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, 1)
+
+	var requestedScope string
+	mfa := &authtest.MFAServiceMock{
+		VerifyChallengeForScopeFn: func(_ context.Context, _, _, scope string) (*authService.VerifiedChallenge, error) {
+			requestedScope = scope
+			return &authService.VerifiedChallenge{AccountID: account.ID, Scope: scope, TenantID: 1}, nil
+		},
+	}
+
+	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	schoolRouter := school.NewResource(factory.Auth, mfa, classDayResource).Router()
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/verify",
+		strings.NewReader(`{"challenge_token":"school-challenge","code":"123456"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	schoolRouter.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope,
+		"the school verify endpoint must redeem the challenge for the school scope only")
+
+	var tokens school.TokenResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tokens))
+	require.NotEmpty(t, tokens.AccessToken)
+	require.NotEmpty(t, tokens.RefreshToken)
+
+	decoded, err := jwt.MustNewTokenAuth().JwtAuth.Decode(tokens.AccessToken)
+	require.NoError(t, err)
+	var scope string
+	require.NoError(t, decoded.Get("scope", &scope))
+	assert.Equal(t, tenant.ScopeSchool, scope, "the MFA exchange must mint a school-scope session")
+}
+
+// TestSchoolMFAResend_ForwardsSchoolScope pins that the resend endpoint
+// hands the school scope down to the service — that check is what keeps a
+// foreign-portal challenge's code budget unburnable from here.
+func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
+	db, factory := testutil.SetupAPITest(t)
+
+	var requestedScope string
+	mfa := &authtest.MFAServiceMock{
+		ResendChallengeForScopeFn: func(_ context.Context, _ string, _ net.IP, scope string) (string, error) {
+			requestedScope = scope
+			return "renewed-school-challenge", nil
+		},
+	}
+
+	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	schoolRouter := school.NewResource(factory.Auth, mfa, classDayResource).Router()
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend",
+		strings.NewReader(`{"challenge_token":"school-challenge"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	schoolRouter.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope)
+
+	var renewed common.MFAResendResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &renewed))
+	assert.Equal(t, "renewed-school-challenge", renewed.ChallengeToken)
 }
