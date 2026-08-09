@@ -31,6 +31,24 @@ func IsLehrkraftSystemRole(role *authModels.Role) bool {
 		strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
 }
 
+// RequiresCaregiverProfile reports whether a role only works on an account
+// that also carries a caregiver profile (users.teachers). These are the roles
+// whose whole surface — GetMyGroups, group supervision, the caregiver landing
+// page — reads through that profile; without it the account holds the
+// permissions but every caregiver screen is empty. Same name set the
+// invitation flow provisions a teacher record for.
+func RequiresCaregiverProfile(role *authModels.Role) bool {
+	if role == nil || !role.IsSystem {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(role.Name)) {
+	case authModels.BaseRoleUser, legacyTeacherRoleName:
+		return true
+	default:
+		return false
+	}
+}
+
 // Which roles may be handed out when an account is attached to a school. Shared
 // by every path that grants school access — operator provisioning, the
 // operator-led school-access management (issue #1021) and the tenant-side
@@ -62,6 +80,15 @@ var (
 	// full user role and a caregiver profile, defeating the role's
 	// class-scoped read-only design (#1772).
 	ErrLehrkraftNoCaregiver = errors.New("Die Rolle 'Lehrkraft' kann nicht mit Betreuungsrechten kombiniert werden") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrRoleCaregiverNeedsProfile is the mirror image of
+	// ErrRoleLehrkraftCaregiverProfile: a Lehrkraft account has person and
+	// staff records but deliberately no users.teachers row, so swapping it
+	// to a caregiver role would leave the full caregiver permissions on an
+	// account that owns no groups and lands on an empty caregiver page. The
+	// operator role change creates the profile first and passes this guard;
+	// the tenant RBAC endpoint cannot, so it is refused there (#1772).
+	ErrRoleCaregiverNeedsProfile = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 
 	// ErrRoleLehrkraftCaregiverProfile rejects assigning the Lehrkraft role
 	// to an account whose identity at the school still carries a live

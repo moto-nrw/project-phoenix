@@ -208,12 +208,17 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, int(*approvedRoleID)); err != nil {
-		// Caller mistake, not a server fault: the account's caregiver
-		// profile blocks the Lehrkraft role (#1772) — surface the German
-		// policy message instead of a 500.
-		if errors.Is(err, authService.ErrRoleLehrkraftCaregiverProfile) {
-			common.RenderError(w, r, common.ErrorConflict(authService.ErrRoleLehrkraftCaregiverProfile))
-			return
+		// Caller mistake, not a server fault: the caregiver profile and the
+		// Lehrkraft role exclude each other in both directions (#1772) —
+		// surface the German policy message instead of a 500.
+		for _, policyErr := range []error{
+			authService.ErrRoleLehrkraftCaregiverProfile,
+			authService.ErrRoleCaregiverNeedsProfile,
+		} {
+			if errors.Is(err, policyErr) {
+				common.RenderError(w, r, common.ErrorConflict(policyErr))
+				return
+			}
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

@@ -151,6 +151,31 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 			}
 		}
 
+		// And the same swap in reverse (#1772): a Lehrkraft account has no
+		// users.teachers row by construction, so handing it a caregiver role
+		// here would grant the permissions without the profile they read
+		// through — no groups, no supervision, an empty caregiver landing
+		// page. The operator role change provisions the profile before it
+		// assigns the role and therefore passes; this endpoint has no
+		// identity fields, so the switch belongs to offboarding plus a fresh
+		// account. Roles that legitimately run without a profile (admin) are
+		// unaffected.
+		if RequiresCaregiverProfile(role) {
+			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
+			if roleErr != nil {
+				return &AuthError{Op: "assign role", Err: roleErr}
+			}
+			if isLehrkraft {
+				hasProfile, profErr := HasLiveCaregiverProfile(txCtx, s.repos.Person, s.repos.Staff, s.repos.Teacher, int64(accountID))
+				if profErr != nil {
+					return &AuthError{Op: "assign role", Err: profErr}
+				}
+				if !hasProfile {
+					return &AuthError{Op: "assign role", Err: ErrRoleCaregiverNeedsProfile}
+				}
+			}
+		}
+
 		// Check if role is already assigned using the repository
 		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
 		if err != nil && !strings.Contains(err.Error(), "no rows") {
@@ -178,6 +203,23 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 		return nil
 	})
+}
+
+// accountHoldsLehrkraftRole reports whether the account already holds the
+// Lehrkraft system role at the tenant in ctx. FindByAccountID applies the
+// tenant filter to auth.account_roles, so a Lehrkraft assignment at another
+// school does not answer for this one.
+func (s *Service) accountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
+	roles, err := s.repos.Role.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	for _, role := range roles {
+		if IsLehrkraftSystemRole(role) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // RemoveRoleFromAccount removes a role from an account

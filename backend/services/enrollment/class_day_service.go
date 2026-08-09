@@ -481,24 +481,48 @@ func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []
 // handoff sheet answers today, not the week. Source is the live student row
 // (AllowedDepartureModes with the DepartureDays fallback) — the current
 // truth, present for every child, enrolled or not, and already loaded once
-// by ClassDay (no re-query per consumer). Companion names are attached for
-// days that allow the accompanied mode. Empty map on weekends.
+// by ClassDay (no re-query per consumer). Companion names are attached only
+// for children of this very class (see classDayDeparture). Empty map on
+// weekends.
 func (s *reportService) classDayDepartures(ctx context.Context, students []*userModels.Student, weekday string) (map[int64]string, error) {
 	out := make(map[int64]string, len(students))
 	if weekday == "" || len(students) == 0 {
 		return out, nil
 	}
-	companions, err := s.classRosterCompanions(ctx, classRosterStudentIDs(students))
+	studentIDs := classRosterStudentIDs(students)
+	companions, err := s.classRosterCompanions(ctx, studentIDs)
 	if err != nil {
 		return nil, err
+	}
+	// The class being served IS the disclosure boundary of this view, so it
+	// is also the set of names a companion entry may mention.
+	onSheet := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		onSheet[id] = true
 	}
 	for _, student := range students {
 		if student == nil {
 			continue
 		}
-		out[student.ID] = classDayDeparture(student, weekday, companions[student.ID])
+		out[student.ID] = classDayDeparture(student, weekday, companions[student.ID], onSheet)
 	}
 	return out, nil
+}
+
+// classDayCompanionsOnSheet drops companion links pointing at children the
+// caller does not already see on this sheet. A Laufgemeinschaft may pair a 1a
+// child with a 4c child (users.student_companions is tenant-scoped, not
+// class-scoped), and the class-day view is deliberately narrower than the
+// tenant-wide student directory: a Lehrkraft holds class_day:read for their
+// own education.class_teachers assignments, never users:read.
+func classDayCompanionsOnSheet(links []userModels.CompanionLink, onSheet map[int64]bool) []userModels.CompanionLink {
+	kept := make([]userModels.CompanionLink, 0, len(links))
+	for _, link := range links {
+		if onSheet[link.CompanionStudentID] {
+			kept = append(kept, link)
+		}
+	}
+	return kept
 }
 
 // classDayDeparture renders one student's departure for one weekday. No
@@ -508,7 +532,15 @@ func (s *reportService) classDayDepartures(ctx context.Context, students []*user
 // makes buildClassDayReport render classDayDepartureUnknown — deliberately
 // NOT the roster's form answer, whose week summary is never empty and
 // floors at "Geht alleine" itself.
-func classDayDeparture(student *userModels.Student, weekday string, companions []userModels.CompanionLink) string {
+//
+// onSheet holds the students of the class being served; an accompanied
+// departure names only companions from that set. The free-text
+// DepartureCompanionNote is deliberately NOT a fallback here: parents write
+// it, and "Abholung durch Nachbarin Frau Meier, 0171-…" is exactly the
+// guardian name and contact detail this view promises never to show. An
+// accompanied departure the sheet cannot name stays "Mit anderem Kind" — a
+// question for the office, like every other gap on this sheet.
+func classDayDeparture(student *userModels.Student, weekday string, companions []userModels.CompanionLink, onSheet map[int64]bool) string {
 	allowed := student.AllowedDepartureModes.Normalize()
 	if !allowed.HasAny() {
 		allowed = userModels.AllowedDepartureModesFromDeparture(student.DepartureDays)
@@ -530,10 +562,8 @@ func classDayDeparture(student *userModels.Student, weekday string, companions [
 	summary := strings.Join(labels, ", ")
 	if accompanied {
 		onDay := userModels.FilterCompanionLinksToDays(companions, map[string]bool{weekday: true})
-		if linked := userModels.FormatCompanionLinks(onDay); linked != "" {
+		if linked := userModels.FormatCompanionLinks(classDayCompanionsOnSheet(onDay, onSheet)); linked != "" {
 			summary += " (" + linked + ")"
-		} else if note := student.DepartureCompanionNote; note != nil && strings.TrimSpace(*note) != "" {
-			summary += " (" + strings.TrimSpace(*note) + ")"
 		}
 	}
 	return summary

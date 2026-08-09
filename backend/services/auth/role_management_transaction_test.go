@@ -8,6 +8,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
@@ -76,6 +77,113 @@ func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	assert.Equal(t, lehrkraftRoleID, roles[0].ID)
+}
+
+// lehrkraftSystemRoleID resolves the platform Lehrkraft role the migrations
+// seed. Shared by the guard tests in both directions.
+func lehrkraftSystemRoleID(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+	var roleID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("LOWER(name) = 'lehrkraft'").
+		Where("is_system = true").
+		Where("tenant_id IS NULL").
+		Scan(context.Background(), &roleID),
+		"lehrkraft system role must exist in the test schema")
+	return roleID
+}
+
+// caregiverSystemRoleID resolves the "user" system role — the caregiver tier
+// that reads through users.teachers.
+func caregiverSystemRoleID(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+	var roleID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("LOWER(name) = 'user'").
+		Where("is_system = true").
+		Where("tenant_id IS NULL").
+		Scan(context.Background(), &roleID),
+		"user system role must exist in the test schema")
+	return roleID
+}
+
+func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInternalAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// A Lehrkraft account by construction: no person → staff → teacher chain.
+	account := testpkg.CreateTestAccount(t, db, "lehrkraft-to-caregiver")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftSystemRoleID(t, db))))
+
+	// The reverse of the guard above: swapping to a caregiver role through
+	// the tenant RBAC endpoint would grant caregiver permissions to an
+	// account with no users.teachers row — no groups, no supervision, an
+	// empty caregiver landing page (#1772).
+	err := service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db)))
+	require.ErrorIs(t, err, ErrRoleCaregiverNeedsProfile)
+
+	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	require.Len(t, roles, 1, "the refused assignment must not have been written")
+	assert.Equal(t, lehrkraftSystemRoleID(t, db), roles[0].ID)
+}
+
+func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInternalAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// The operator role change provisions person/staff/teacher BEFORE it
+	// assigns the role, so the same swap must pass there.
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Wechsel", "Betreuung")
+	t.Cleanup(func() {
+		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	})
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+
+	// Put the account into the Lehrkraft state directly: the service guard
+	// itself refuses this combination, and the point here is the state a
+	// half-finished operator switch leaves behind.
+	_, err := db.NewInsert().
+		Model(&map[string]interface{}{
+			"account_id": account.ID,
+			"role_id":    lehrkraftSystemRoleID(t, db),
+			"tenant_id":  int64(1),
+		}).
+		TableExpr("auth.account_roles").
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db))))
+}
+
+func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInternalAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// Negative control for the guard's scope: account provisioning assigns
+	// the caregiver role before it creates the teacher record, so a plain
+	// account without the Lehrkraft role must stay unaffected.
+	account := testpkg.CreateTestAccount(t, db, "plain-caregiver")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db))))
 }
 
 func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) {

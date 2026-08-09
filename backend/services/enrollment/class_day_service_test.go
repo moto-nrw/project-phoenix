@@ -382,20 +382,53 @@ func TestClassDayDepartureRendersSingleDay(t *testing.T) {
 			"fri": {userModels.DepartureBus, userModels.DeparturePickup},
 		},
 	}
-	assert.Equal(t, "Bus, Abholung", classDayDeparture(pickupAndBus, "fri", nil))
+	assert.Equal(t, "Bus, Abholung", classDayDeparture(pickupAndBus, "fri", nil, nil))
 	// A day without any allowed mode is UNKNOWN — the empty string lets the
 	// report fall back to the form answer / "Keine Angabe", never to a
 	// fabricated "Geht alleine".
-	assert.Equal(t, "", classDayDeparture(pickupAndBus, "mon", nil))
+	assert.Equal(t, "", classDayDeparture(pickupAndBus, "mon", nil, nil))
 
-	note := "mit Bruder Max"
+	// The parent-written note is NOT rendered here: it is free text that
+	// routinely carries a guardian's name and phone number, which this view
+	// promises never to show.
+	note := "Abholung durch Nachbarin Frau Meier, 0171-1234567"
 	accompanied := &userModels.Student{
 		AllowedDepartureModes: userModels.AllowedDepartureModes{
 			"fri": {userModels.DepartureAccompanied},
 		},
 		DepartureCompanionNote: &note,
 	}
-	assert.Equal(t, "Mit anderem Kind (mit Bruder Max)", classDayDeparture(accompanied, "fri", nil))
+	assert.Equal(t, "Mit anderem Kind", classDayDeparture(accompanied, "fri", nil, nil))
+}
+
+func TestClassDayDepartureNamesOnlyCompanionsOnTheSheet(t *testing.T) {
+	// A Laufgemeinschaft may pair children of different classes, and the
+	// class-day sheet is scoped to one class: a companion from 4c must not
+	// surface on the 1a sheet, a classmate already listed there may.
+	const classmateID, foreignID = int64(11), int64(99)
+	accompanied := &userModels.Student{
+		AllowedDepartureModes: userModels.AllowedDepartureModes{
+			"fri": {userModels.DepartureAccompanied},
+		},
+	}
+	onSheet := map[int64]bool{classmateID: true}
+
+	classmate := []userModels.CompanionLink{
+		{CompanionStudentID: classmateID, FirstName: "Tom", LastName: "Berger", Weekdays: []string{"fri"}},
+	}
+	foreign := []userModels.CompanionLink{
+		{CompanionStudentID: foreignID, FirstName: "Max", LastName: "Mustermann", Weekdays: []string{"fri"}},
+	}
+
+	// The weekday suffix is FormatCompanionLinks' doing: a link that does not
+	// cover all five days names them, so a Friday-only arrangement cannot be
+	// misread as a standing one.
+	assert.Equal(t, "Mit anderem Kind (Tom Berger (Fr))", classDayDeparture(accompanied, "fri", classmate, onSheet))
+	assert.Equal(t, "Mit anderem Kind", classDayDeparture(accompanied, "fri", foreign, onSheet))
+	// Mixed links keep the classmate and drop the outsider rather than
+	// falling back to naming nobody.
+	assert.Equal(t, "Mit anderem Kind (Tom Berger (Fr))",
+		classDayDeparture(accompanied, "fri", append(append([]userModels.CompanionLink{}, foreign...), classmate...), onSheet))
 }
 
 func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
@@ -414,8 +447,8 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 		{StudentID: 2, Registered: true, Departure: "Geht alleine"},
 	}
 	departures := map[int64]string{
-		1: classDayDeparture(monOnly, "wed", nil),
-		2: classDayDeparture(noPlan, "wed", nil),
+		1: classDayDeparture(monOnly, "wed", nil, nil),
+		2: classDayDeparture(noPlan, "wed", nil, nil),
 	}
 
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, departures, nil, nil, nil)
