@@ -81,23 +81,24 @@ func classDayWeekdayKey(date timezone.Date) string {
 	}
 }
 
-// classDayPhase resolves the enrollment phase whose service window covers the
-// date. Prefers an active covering phase, then any covering phase with the
 // classDayCoveringPhase is one enrollment phase whose service window covers
 // the requested date.
 type classDayCoveringPhase struct {
-	id     int64
-	name   string
-	start  timezone.Date
-	active bool
+	id    int64
+	name  string
+	start timezone.Date
 }
 
-// classDayPhases returns EVERY phase whose service window covers the date,
-// active phases first, then by latest start (deterministic). Overlaps are
-// real — rollover windows and a parallel Ferien phase both cover the same
-// day — and a child enrolled in only ONE of them must still count as
-// registered, so the class day view merges across all of them instead of
-// picking a single "best" phase.
+// classDayPhases returns every ACTIVE phase whose service window covers the
+// date, latest start first (deterministic). Overlaps are real — rollover
+// windows and a parallel Ferien phase both cover the same day — and a child
+// enrolled in only ONE of them must still count as registered, so the class
+// day view merges across all of them instead of picking a single "best"
+// phase. Deactivated phases are excluded even when their window still
+// covers the date: every other enrollment path treats !IsActive as a hard
+// reject, and a cloned-then-deactivated Schuljahr phase whose window still
+// runs must not put a child approved only there into "Bleiben in der
+// Betreuung" with stale offerings and pickup times.
 func (s *reportService) classDayPhases(ctx context.Context, date timezone.Date) ([]classDayCoveringPhase, error) {
 	phases, err := s.PhaseRepo.ListByTenant(ctx)
 	if err != nil {
@@ -105,18 +106,15 @@ func (s *reportService) classDayPhases(ctx context.Context, date timezone.Date) 
 	}
 	covering := make([]classDayCoveringPhase, 0, 2)
 	for _, phase := range phases {
-		if phase == nil {
+		if phase == nil || !phase.IsActive {
 			continue
 		}
 		if date.Before(phase.ServiceStartDate) || date.After(phase.ServiceEndDate) {
 			continue
 		}
-		covering = append(covering, classDayCoveringPhase{id: phase.ID, name: phase.Name, start: phase.ServiceStartDate, active: phase.IsActive})
+		covering = append(covering, classDayCoveringPhase{id: phase.ID, name: phase.Name, start: phase.ServiceStartDate})
 	}
 	sort.SliceStable(covering, func(i, j int) bool {
-		if covering[i].active != covering[j].active {
-			return covering[i].active
-		}
 		return covering[j].start.Before(covering[i].start)
 	})
 	return covering, nil

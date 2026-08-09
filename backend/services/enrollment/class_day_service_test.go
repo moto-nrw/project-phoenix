@@ -138,7 +138,7 @@ func (r *fakeClassDayStatusRepo) FindActiveByStudentIDsAndDate(_ context.Context
 	return r.entries, nil
 }
 
-func TestClassDayPhasesReturnsEveryCoveringPhaseActiveFirst(t *testing.T) {
+func TestClassDayPhasesReturnsEveryActiveCoveringPhase(t *testing.T) {
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
 		{Model: baseModels.Model{ID: 1}, Name: "Altjahr", ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
 		{Model: baseModels.Model{ID: 2}, Name: "Schuljahr", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
@@ -149,11 +149,14 @@ func TestClassDayPhasesReturnsEveryCoveringPhaseActiveFirst(t *testing.T) {
 	phases, err := svc.classDayPhases(context.Background(), timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
-	// EVERY covering phase, not one "best": a child enrolled only in the
-	// Schuljahr phase must not vanish because a Ferien phase also covers
-	// the date. Active first, then latest start.
-	require.Len(t, phases, 3)
-	assert.Equal(t, []int64{3, 2, 4}, []int64{phases[0].id, phases[1].id, phases[2].id})
+	// EVERY covering ACTIVE phase, not one "best": a child enrolled only in
+	// the Schuljahr phase must not vanish because a Ferien phase also covers
+	// the date. Latest start first. The deactivated phase whose window still
+	// covers the date is excluded — !IsActive is a hard reject on every
+	// enrollment path, and a stale approval must not put a child into
+	// "Bleiben in der Betreuung".
+	require.Len(t, phases, 2)
+	assert.Equal(t, []int64{3, 2}, []int64{phases[0].id, phases[1].id})
 }
 
 func TestClassDayPhasesNoneCovering(t *testing.T) {
