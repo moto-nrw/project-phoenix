@@ -29,7 +29,6 @@ import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
 import { Button } from "~/components/ui/button";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ArrivalScheduleManager } from "./arrival-schedule-manager";
 import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentGuardiansTab } from "./student-guardians-tab";
@@ -38,7 +37,6 @@ import { StudentEnrollmentsTab } from "./student-enrollments-tab";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { getInitials } from "~/lib/format-utils";
-import { cn } from "~/lib/utils";
 import type { Student } from "~/lib/api";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 
@@ -310,12 +308,7 @@ export function StudentsMasterDetail({
   };
 
   const listNode = (
-    <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col",
-        selectionMode && "pb-28 md:pb-0",
-      )}
-    >
+    <div className="flex min-h-0 flex-1 flex-col">
       {selectionMode ? (
         <SelectionBar
           count={selectedStudentIds.size}
@@ -463,36 +456,65 @@ function SelectionBar({
 }: SelectionBarProps) {
   const disabled = count === 0;
   return (
-    <div className="moto-content-surface border-moto-green/30 fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex items-center gap-2 rounded-xl border p-2 shadow-lg md:sticky md:top-0 md:right-auto md:bottom-auto md:left-auto md:rounded-none md:border-x-0 md:shadow-sm">
-      <CheckSquare className="text-moto-green h-5 w-5 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
-        {count} ausgewählt
-      </span>
-      <Button
-        variant="ghost"
-        size="compact"
-        onClick={onClear}
-        disabled={disabled}
-      >
-        Aufheben
-      </Button>
-      <OverflowMenu
-        ariaLabel="Aktion für Auswahl"
-        triggerContent="Aktion"
-        triggerClassName="h-8 rounded-md bg-moto-green px-3 text-sm font-medium !text-gray-950 hover:bg-moto-green/90 disabled:opacity-40"
-        items={
-          disabled
-            ? []
-            : [
-                { label: "Ankunftszeiten ändern", onClick: onArrival },
-                { label: "Gehzeiten ändern", onClick: onPickup },
-                { label: "Klassenfahrt planen", onClick: onClassTrip },
-              ]
-        }
-      />
-      <Button variant="outline" size="compact" onClick={onFinish}>
-        Fertig
-      </Button>
+    <div
+      className="moto-content-surface border-moto-green/30 sticky top-0 z-20 shrink-0 border-x-0 border-b px-2 py-2 shadow-sm"
+      role="region"
+      aria-label="Auswahl"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <CheckSquare className="text-moto-green h-4 w-4 shrink-0" aria-hidden />
+        <span className="min-w-0 text-sm font-semibold text-gray-900">
+          {count} ausgewählt
+        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={onClear}
+            disabled={disabled}
+          >
+            Aufheben
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={onFinish}
+          >
+            Fertig
+          </Button>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={onArrival}
+          disabled={disabled}
+        >
+          Ankunftszeiten
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={onPickup}
+          disabled={disabled}
+        >
+          Gehzeiten
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={onClassTrip}
+          disabled={disabled}
+        >
+          Klassenfahrt
+        </Button>
+      </div>
     </div>
   );
 }
