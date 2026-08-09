@@ -1361,6 +1361,10 @@ type OfferingSourceOption struct {
 	Name      string `json:"name"`
 	PhaseID   int64  `json:"phase_id"`
 	PhaseName string `json:"phase_name"`
+	// PhaseServiceStart is the phase's service_start_date (YYYY-MM-DD). Sourced
+	// enrollments never start earlier, so materialised occurrences before this
+	// day stay empty of offering-fed children (OGS am Berg, 2026-08).
+	PhaseServiceStart string `json:"phase_service_start,omitempty"`
 	// TotalCount is the number of distinct approved children currently or
 	// prospectively enrolled in the offering.
 	TotalCount int `json:"total_count"`
@@ -1505,6 +1509,9 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		}
 		if phase := phases[offering.PhaseID]; phase != nil {
 			option.PhaseName = phase.Name
+			if !phase.ServiceStartDate.IsZero() {
+				option.PhaseServiceStart = phase.ServiceStartDate.String()
+			}
 		}
 		if c := counts[offering.ID]; c != nil {
 			option.TotalCount = c.total

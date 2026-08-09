@@ -3566,6 +3566,65 @@ describe("TimetableEventModal", () => {
     });
   });
 
+  // Franziska (Schule am Berg): editing a series occurrence while flipping
+  // Wiederholung to weekly used to skip the scope dialog and POST a brand-new
+  // series next to the old one.
+  it("asks for the scope when editing a series instance even if Wiederholung is weekly", async () => {
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await clickSave();
+
+    expect(
+      await screen.findByText("Wiederholenden Termin ändern"),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  // Same class of bug for a one-off: switching to weekly must convert the
+  // existing row (create series + link it), not leave the old Termin behind.
+  it("converts a one-off into a series instead of creating a second appointment", async () => {
+    mockCreateTemplate.mockResolvedValue({
+      templateId: "9",
+      timeframeId: "1",
+      scheduleIds: ["1"],
+      instancesCreated: 0,
+    });
+    const { onSaved } = renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: undefined },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(2);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    await clickSave();
+
+    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ activity_group_id: 9 }),
+      ),
+    );
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "series",
+        seriesId: "9",
+        linkedInstanceId: "42",
+      }),
+    );
+  });
+
   it("adds a whole class via the bulk select and renders Personal before Kinder", async () => {
     mockFetchStudents.mockResolvedValue({
       students: [

@@ -75,6 +75,8 @@ export interface StepPersonalKinderProps {
   sourceGradeOptions: number[];
   sourceGradeCounts: Record<number, number>;
   sourceFilteredCount: number;
+  /** Advisory when series start is before the offering phase service start. */
+  sourcePhaseKidsFromWarning: string | null;
   sourceOverlapWarnings: string[];
   changeSourceOfferings: (offeringIds: string[]) => void;
   toggleSourceGradeLevel: (grade: number) => void;
@@ -130,6 +132,7 @@ export function StepPersonalKinder({
   sourceGradeOptions,
   sourceGradeCounts,
   sourceFilteredCount,
+  sourcePhaseKidsFromWarning,
   sourceOverlapWarnings,
   changeSourceOfferings,
   toggleSourceGradeLevel,
@@ -449,7 +452,9 @@ export function StepPersonalKinder({
                   Mehrere Angebote lassen sich kombinieren – die Kinder aller
                   gewählten Angebote werden zusammengeführt, jedes Kind zählt
                   dabei nur einmal. Alle Angebote müssen zur selben Anmeldephase
-                  gehören.
+                  gehören. Kinder erscheinen nur an den Wochentagen, an denen
+                  sie im Angebot angemeldet sind – nicht an jedem Tag des
+                  Regeltermins.
                 </p>
                 {sourcePhaseLockId !== null &&
                   (offeringSources ?? []).some(
@@ -523,6 +528,13 @@ export function StepPersonalKinder({
                       automatisch auf zukünftige Planungen aus.
                     </p>
                   )}
+                  {sourcePhaseKidsFromWarning ? (
+                    <Alert
+                      type="warning"
+                      message={sourcePhaseKidsFromWarning}
+                      announce="off"
+                    />
+                  ) : null}
                   {sourceOverlapWarnings.map((warning) => (
                     <Alert
                       key={warning}

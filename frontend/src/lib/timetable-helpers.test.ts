@@ -1773,6 +1773,7 @@ describe("mapOfferingSourceOptions (#2137)", () => {
             name: "Frühbetreuung",
             phase_id: 3,
             phase_name: "Schuljahr 2026/27",
+            phase_service_start: "2026-08-13",
             total_count: 18,
             // "0" = Kinder ohne ableitbaren Jahrgang.
             grade_counts: { "0": 2, "1": 9, "2": 7 },
@@ -1790,6 +1791,7 @@ describe("mapOfferingSourceOptions (#2137)", () => {
         name: "Frühbetreuung",
         phaseId: "3",
         phaseName: "Schuljahr 2026/27",
+        phaseServiceStart: "2026-08-13",
         totalCount: 18,
         gradeCounts: { 0: 2, 1: 9, 2: 7 },
         sourcedTemplates: [

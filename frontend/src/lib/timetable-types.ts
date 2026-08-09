@@ -1047,6 +1047,8 @@ export interface OfferingSourceOption {
   name: string;
   phaseId: string;
   phaseName: string;
+  /** Phase service_start_date as YYYY-MM-DD; sourced kids only from this day. */
+  phaseServiceStart?: string;
   totalCount: number;
   /** Jahrgang → approved children; key 0 = ohne ableitbaren Jahrgang. */
   gradeCounts: Record<number, number>;
@@ -1065,6 +1067,7 @@ interface BackendOfferingSourceOption {
   name: string;
   phase_id: number;
   phase_name: string;
+  phase_service_start?: string;
   total_count: number;
   grade_counts: Record<string, number>;
   sourced_templates: {

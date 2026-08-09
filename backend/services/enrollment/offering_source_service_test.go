@@ -2179,6 +2179,8 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	current := findOption(unscoped)
 	require.NotNil(t, current, "the offering must be listed without a period filter")
 	assert.Equal(t, 1, current.TotalCount, "the link is still active today")
+	assert.Equal(t, phaseStart.String(), current.PhaseServiceStart,
+		"editor needs the phase service start so it can warn about empty early occurrences")
 
 	scoped, err := lister.ListOfferingSourceOptions(ctx, &futurePeriod.ID)
 	require.NoError(t, err)
@@ -2186,6 +2188,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	require.NotNil(t, future, "the offering's phase fits the future period")
 	assert.Equal(t, 0, future.TotalCount,
 		"a link ending before the period begins must not count for that period")
+	assert.Equal(t, phaseStart.String(), future.PhaseServiceStart)
 }
 
 // #2147 review round 9: sourced rows are phase-bounded (non-null valid_until)

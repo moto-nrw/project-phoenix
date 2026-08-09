@@ -43,6 +43,7 @@ function renderStep(
       sourceGradeOptions={[]}
       sourceGradeCounts={{}}
       sourceFilteredCount={0}
+      sourcePhaseKidsFromWarning={null}
       sourceOverlapWarnings={[]}
       changeSourceOfferings={changeSourceOfferings}
       toggleSourceGradeLevel={vi.fn()}
@@ -146,5 +147,39 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     expect(
       screen.getByRole("checkbox", { name: /Betreuung bis 14:30/ }),
     ).toBeChecked();
+  });
+
+  it("shows the phase-start warning when the series starts before the offering phase", () => {
+    renderStep({
+      form: {
+        ...emptyForm("2026-08-10"),
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["7"],
+        sourceGradeLevels: [1],
+      },
+      offeringSources: [
+        {
+          id: "7",
+          name: "Ganztag bis 14:30",
+          phaseId: "3",
+          phaseName: "Schuljahr 2026/2027, 1. Halbjahr",
+          phaseServiceStart: "2026-08-13",
+          totalCount: 26,
+          gradeCounts: { 1: 26 },
+          sourcedTemplates: [],
+        },
+      ],
+      sourceGradeOptions: [1],
+      sourceGradeCounts: { 1: 26 },
+      sourceFilteredCount: 26,
+      sourcePhaseKidsFromWarning:
+        "„Schuljahr 2026/2027, 1. Halbjahr“ startet am 13.08.2026. Termine vor diesem Datum haben noch keine Kinder aus dem Angebot.",
+    });
+
+    expect(
+      screen.getByText(
+        /startet am 13\.08\.2026\. Termine vor diesem Datum haben noch keine Kinder/,
+      ),
+    ).toBeInTheDocument();
   });
 });

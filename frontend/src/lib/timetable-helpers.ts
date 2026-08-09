@@ -1023,6 +1023,7 @@ export function mapOfferingSourceOptions(
       name: offering.name,
       phaseId: String(offering.phase_id),
       phaseName: offering.phase_name,
+      phaseServiceStart: offering.phase_service_start || undefined,
       totalCount: offering.total_count,
       gradeCounts,
       sourcedTemplates: (offering.sourced_templates ?? []).map((template) => ({
