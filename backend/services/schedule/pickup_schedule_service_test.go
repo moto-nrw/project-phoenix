@@ -1,6 +1,7 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1286,4 +1288,74 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
+}
+
+func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := testpkg.TenantContext(1)
+	studentA := testpkg.CreateTestStudent(t, db, "BulkPickup", "StudentA", "BP-A")
+	studentB := testpkg.CreateTestStudent(t, db, "BulkPickup", "StudentB", "BP-B")
+	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
+
+	note := "Oma holt ab"
+	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  studentA.ID,
+		Weekday:    scheduleModels.WeekdayMonday,
+		PickupTime: time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		Notes:      &note,
+		CreatedBy:  createPickupServiceTestStaffID(t, db),
+	}))
+	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  studentA.ID,
+		Weekday:    scheduleModels.WeekdayTuesday,
+		PickupTime: time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		CreatedBy:  createPickupServiceTestStaffID(t, db),
+	}))
+
+	result, err := service.BulkUpsertPickupSchedules(
+		ctx,
+		schedule.ArrivalScheduleBulkFilter{StudentIDs: []int64{studentA.ID, studentB.ID}},
+		[]schedule.PickupScheduleInput{{Weekday: scheduleModels.WeekdayMonday, PickupTime: "16:10"}},
+		createPickupServiceTestStaffID(t, db),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.StudentsAffected)
+	rowsA, err := service.GetStudentPickupSchedules(ctx, studentA.ID)
+	require.NoError(t, err)
+	require.Len(t, rowsA, 2, "unspecified weekdays must remain unchanged")
+	byWeekday := make(map[int]*scheduleModels.StudentPickupSchedule, len(rowsA))
+	for _, row := range rowsA {
+		byWeekday[row.Weekday] = row
+	}
+	assert.Equal(t, "16:10", byWeekday[scheduleModels.WeekdayMonday].PickupTime.Format("15:04"))
+	require.NotNil(t, byWeekday[scheduleModels.WeekdayMonday].Notes)
+	assert.Equal(t, note, *byWeekday[scheduleModels.WeekdayMonday].Notes, "bulk time patches must preserve notes")
+	assert.Equal(t, "15:00", byWeekday[scheduleModels.WeekdayTuesday].PickupTime.Format("15:04"))
+}
+
+func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSelection(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupPickupScheduleService(t, db)
+	ctx := testpkg.TenantContext(1)
+	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAllowed", "Student", "BP-A")
+	denied := testpkg.CreateTestStudent(t, db, "BulkPickupDenied", "Student", "BP-B")
+	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
+
+	result, err := service.BulkUpsertPickupSchedules(ctx, schedule.ArrivalScheduleBulkFilter{
+		StudentIDs: []int64{allowed.ID, denied.ID},
+		Authorize: func(_ context.Context, student *usersModels.Student) (bool, error) {
+			return student.ID == allowed.ID, nil
+		},
+	}, []schedule.PickupScheduleInput{{Weekday: 1, PickupTime: "16:10"}}, createPickupServiceTestStaffID(t, db))
+
+	require.ErrorIs(t, err, schedule.ErrBulkStudentUnauthorized)
+	assert.Nil(t, result)
+	rows, findErr := service.GetStudentPickupSchedules(ctx, allowed.ID)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows, "authorization failure must roll back every selected student")
 }

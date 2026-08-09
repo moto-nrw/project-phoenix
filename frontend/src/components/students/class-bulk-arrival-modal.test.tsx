@@ -22,7 +22,7 @@ vi.mock("~/lib/student-arrival-api", async () => {
   return {
     ...actual,
     fetchArrivalData: mockFetchArrivalData,
-    bulkUpsertArrivalByClass: mockBulkUpsert,
+    bulkUpsertArrivalSchedules: mockBulkUpsert,
   };
 });
 
@@ -66,7 +66,7 @@ vi.mock("~/components/ui/button", () => ({
   ),
 }));
 
-import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
+import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 
 function makeStudent(id: string): Student {
   return {
@@ -79,7 +79,7 @@ function makeStudent(id: string): Student {
   } as Student;
 }
 
-describe("ClassBulkArrivalModal", () => {
+describe("FilteredBulkArrivalModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchArrivalData.mockResolvedValue({
@@ -91,11 +91,12 @@ describe("ClassBulkArrivalModal", () => {
 
   it("does not render when isOpen is false", () => {
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={false}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 
@@ -104,11 +105,12 @@ describe("ClassBulkArrivalModal", () => {
 
   it("renders all 5 weekday inputs when open", () => {
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1"), makeStudent("2")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1"), makeStudent("2")]}
       />,
     );
 
@@ -130,11 +132,12 @@ describe("ClassBulkArrivalModal", () => {
       });
 
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1"), makeStudent("2")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1"), makeStudent("2")]}
       />,
     );
 
@@ -147,11 +150,12 @@ describe("ClassBulkArrivalModal", () => {
 
   it("hides collision warning when no students have schedules", async () => {
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 
@@ -163,11 +167,12 @@ describe("ClassBulkArrivalModal", () => {
     mockFetchArrivalData.mockRejectedValueOnce(new Error("boom"));
 
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 
@@ -177,11 +182,12 @@ describe("ClassBulkArrivalModal", () => {
 
   it("disables submit until a valid time is entered", () => {
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 
@@ -197,11 +203,12 @@ describe("ClassBulkArrivalModal", () => {
 
   it("shows 'nicht ändern' hint for empty rows", () => {
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 
@@ -209,17 +216,18 @@ describe("ClassBulkArrivalModal", () => {
     expect(screen.getAllByText("nicht ändern")).toHaveLength(5);
   });
 
-  it("calls bulkUpsertArrivalByClass on submit with populated rows", async () => {
+  it("submits a class filter with populated rows", async () => {
     mockBulkUpsert.mockResolvedValueOnce({});
     const onSuccess = vi.fn();
     const onClose = vi.fn();
 
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={onClose}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
         onSuccess={onSuccess}
       />,
     );
@@ -233,24 +241,62 @@ describe("ClassBulkArrivalModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /Für 1 Kind setzen/ }));
 
     await waitFor(() => expect(mockBulkUpsert).toHaveBeenCalled());
-    expect(mockBulkUpsert).toHaveBeenCalledWith("3a", [
-      { weekday: 1, expected_arrival: "08:00" },
-      { weekday: 3, expected_arrival: "09:30" },
-    ]);
+    expect(mockBulkUpsert).toHaveBeenCalledWith(
+      { type: "school_class", schoolClass: "3a" },
+      [
+        { weekday: 1, expected_arrival: "08:00" },
+        { weekday: 3, expected_arrival: "09:30" },
+      ],
+    );
     expect(onSuccess).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  it("submits a group filter and names the group in the dialog", async () => {
+    mockBulkUpsert.mockResolvedValueOnce({});
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "group", groupId: "17" }}
+        filterLabel="Füchse"
+        studentsInFilter={[makeStudent("1"), makeStudent("2")]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ankunftszeiten für Gruppe Füchse",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "09:15" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Für 2 Kinder setzen/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockBulkUpsert).toHaveBeenCalledWith(
+        { type: "group", groupId: "17" },
+        [{ weekday: 2, expected_arrival: "09:15" }],
+      ),
+    );
   });
 
   it("shows error toast when bulk upsert fails", async () => {
     mockBulkUpsert.mockRejectedValueOnce(new Error("Save failed"));
 
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={vi.fn()}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 
@@ -269,11 +315,12 @@ describe("ClassBulkArrivalModal", () => {
   it("cancel button calls onClose", () => {
     const onClose = vi.fn();
     render(
-      <ClassBulkArrivalModal
+      <FilteredBulkArrivalModal
         isOpen={true}
         onClose={onClose}
-        schoolClass="3a"
-        studentsInClass={[makeStudent("1")]}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
       />,
     );
 

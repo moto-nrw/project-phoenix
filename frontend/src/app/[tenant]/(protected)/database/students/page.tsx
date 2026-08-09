@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Trash2 } from "lucide-react";
+import { ListChecks, Trash2 } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -36,6 +36,7 @@ import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -88,9 +89,13 @@ function StudentsPageContent() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [arrivalRevision, setArrivalRevision] = useState(0);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const isMobile = useIsMobile();
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { data: session, status } = useSession({
     required: true,
@@ -118,6 +123,40 @@ function StudentsPageContent() {
   const errorMessage = studentsError
     ? "Fehler beim Laden der Kinder. Bitte versuchen Sie es später erneut."
     : null;
+
+  useEffect(() => {
+    if (!studentsData) return;
+    const currentIds = new Set(
+      studentsData.map((student) => String(student.id)),
+    );
+    setSelectedStudentIds((previous) => {
+      const next = new Set([...previous].filter((id) => currentIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [studentsData]);
+
+  const toggleStudentSelection = useCallback(
+    (studentId: string) => {
+      setSelectedStudentIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(studentId)) {
+          next.delete(studentId);
+        } else if (next.size >= 500) {
+          toastError("Maximal 500 Kinder können ausgewählt werden");
+          return previous;
+        } else {
+          next.add(studentId);
+        }
+        return next;
+      });
+    },
+    [toastError],
+  );
+
+  const finishSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedStudentIds(new Set());
+  }, []);
 
   const { data: allGroups = [] } = useSWRAuth<
     Array<{ value: string; label: string }>
@@ -359,6 +398,7 @@ function StudentsPageContent() {
   const canShowDetail = !loading && filteredStudents.length > 0;
   const canViewEnrollments = hasPermission(session, "config:manage");
   const canDeleteStudents = hasPermission(session, "users:delete");
+  const canUpdateStudents = hasPermission(session, "users:update");
 
   const detailActions =
     selectedStudent && canDeleteStudents ? (
@@ -428,6 +468,18 @@ function StudentsPageContent() {
                   </Link>
                 </>
               ) : null}
+              {canUpdateStudents && !selectionMode ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleSelect(null);
+                    setSelectionMode(true);
+                  }}
+                >
+                  <ListChecks className="h-4 w-4" aria-hidden />
+                  Auswählen
+                </Button>
+              ) : null}
               <DatabaseCreateAction
                 label="Kinder"
                 ariaLabel="Kind erstellen"
@@ -448,6 +500,7 @@ function StudentsPageContent() {
         <div className="min-h-0 flex-1 pb-4">
           <StudentsMasterDetail
             students={filteredStudents}
+            bulkStudents={studentsData ?? []}
             selectedId={selectedId}
             onSelect={handleSelect}
             grouping={grouping}
@@ -458,6 +511,11 @@ function StudentsPageContent() {
             onUpdateStudent={handleUpdateStudent}
             canViewEnrollments={canViewEnrollments}
             detailActions={detailActions}
+            selectionMode={selectionMode}
+            selectedStudentIds={selectedStudentIds}
+            onToggleStudentSelection={toggleStudentSelection}
+            onClearSelection={() => setSelectedStudentIds(new Set())}
+            onFinishSelection={finishSelection}
           />
         </div>
       ) : !loading ? (

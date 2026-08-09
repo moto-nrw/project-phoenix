@@ -2,10 +2,17 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -43,6 +50,12 @@ type PickupScheduleService interface {
 	GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error)
 	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error)
 	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error)
+	BulkUpsertPickupSchedules(ctx context.Context, filter ArrivalScheduleBulkFilter, schedules []PickupScheduleInput, createdBy int64) (*BulkUpsertResult, error)
+}
+
+type PickupScheduleInput struct {
+	Weekday    int    `json:"weekday"`
+	PickupTime string `json:"pickup_time"`
 }
 
 type StudentPickupData struct {
@@ -72,14 +85,19 @@ type pickupScheduleService struct {
 		*schedule.StudentPickupNote,
 		pickupTimeDomain,
 	]
+	scheduleRepo schedule.StudentPickupScheduleRepository
+	studentRepo  users.StudentRepository
+	personRepo   users.PersonRepository
+	db           *bun.DB
+	logger       *slog.Logger
 }
 
-func NewPickupScheduleService(
+func newPickupScheduleService(
 	scheduleRepo schedule.StudentPickupScheduleRepository,
 	exceptionRepo schedule.StudentPickupExceptionRepository,
 	noteRepo schedule.StudentPickupNoteRepository,
 	db *bun.DB,
-) PickupScheduleService {
+) *pickupScheduleService {
 	return &pickupScheduleService{
 		core: newEffectiveTimeCore(
 			scheduleRepo,
@@ -88,7 +106,162 @@ func NewPickupScheduleService(
 			db,
 			pickupTimeDomain{},
 		),
+		scheduleRepo: scheduleRepo,
+		db:           db,
 	}
+}
+
+func NewPickupScheduleServiceWithBulk(
+	scheduleRepo schedule.StudentPickupScheduleRepository,
+	exceptionRepo schedule.StudentPickupExceptionRepository,
+	noteRepo schedule.StudentPickupNoteRepository,
+	studentRepo users.StudentRepository,
+	personRepo users.PersonRepository,
+	db *bun.DB,
+	logger *slog.Logger,
+) PickupScheduleService {
+	service := newPickupScheduleService(scheduleRepo, exceptionRepo, noteRepo, db)
+	service.studentRepo = studentRepo
+	service.personRepo = personRepo
+	service.logger = logger
+	return service
+}
+
+func (s *pickupScheduleService) BulkUpsertPickupSchedules(
+	ctx context.Context,
+	filter ArrivalScheduleBulkFilter,
+	inputs []PickupScheduleInput,
+	createdBy int64,
+) (*BulkUpsertResult, error) {
+	if len(filter.StudentIDs) == 0 || filter.SchoolClass != "" || filter.GroupID != 0 {
+		return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: errors.New("student_ids is required")}
+	}
+	if len(filter.StudentIDs) > 500 {
+		return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: errors.New("student_ids cannot exceed 500 items")}
+	}
+	if len(inputs) == 0 {
+		return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: errors.New("schedules cannot be empty")}
+	}
+	if s.studentRepo == nil || s.scheduleRepo == nil || s.db == nil {
+		return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: errors.New("bulk pickup dependencies are not configured")}
+	}
+
+	parsed := make(map[int]time.Time, len(inputs))
+	for _, input := range inputs {
+		if input.Weekday < 1 || input.Weekday > 5 {
+			return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: fmt.Errorf("invalid weekday %d", input.Weekday)}
+		}
+		if _, duplicate := parsed[input.Weekday]; duplicate {
+			return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: fmt.Errorf("duplicate weekday %d", input.Weekday)}
+		}
+		value, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+input.PickupTime)
+		if err != nil {
+			return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: fmt.Errorf("invalid pickup_time %q for weekday %d: %w", input.PickupTime, input.Weekday, err)}
+		}
+		parsed[input.Weekday] = value
+	}
+
+	byID, err := s.studentRepo.FindByIDs(ctx, filter.StudentIDs)
+	if err != nil {
+		return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: err}
+	}
+	students := make([]*users.Student, 0, len(filter.StudentIDs))
+	for _, id := range filter.StudentIDs {
+		student, ok := byID[id]
+		if !ok || student.Status == users.StudentStatusAlumnus {
+			return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, id)}
+		}
+		students = append(students, student)
+	}
+	sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
+
+	result := &BulkUpsertResult{AffectedStudentIDs: make([]int64, 0, len(students))}
+	tenantID := tenant.FromContext(ctx)
+	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		locked := make([]*users.Student, 0, len(students))
+		for _, selected := range students {
+			fresh, lockErr := s.studentRepo.FindByIDForUpdate(txCtx, selected.ID)
+			if errors.Is(lockErr, sql.ErrNoRows) {
+				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
+			}
+			if lockErr != nil {
+				return fmt.Errorf("lock student %d: %w", selected.ID, lockErr)
+			}
+			if fresh.Status == users.StudentStatusAlumnus {
+				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
+			}
+			if filter.Authorize != nil {
+				allowed, authorizeErr := filter.Authorize(txCtx, fresh)
+				if authorizeErr != nil {
+					return fmt.Errorf("authorize student %d: %w", fresh.ID, authorizeErr)
+				}
+				if !allowed {
+					return fmt.Errorf("%w: student %d", ErrBulkStudentUnauthorized, fresh.ID)
+				}
+			}
+			locked = append(locked, fresh)
+		}
+		for _, student := range locked {
+			existing, findErr := s.scheduleRepo.FindByStudentID(txCtx, student.ID)
+			if findErr != nil {
+				return findErr
+			}
+			existingByWeekday := make(map[int]*schedule.StudentPickupSchedule, len(existing))
+			for _, row := range existing {
+				existingByWeekday[row.Weekday] = row
+			}
+			for _, input := range inputs {
+				row := &schedule.StudentPickupSchedule{
+					StudentID:  student.ID,
+					Weekday:    input.Weekday,
+					PickupTime: parsed[input.Weekday],
+					CreatedBy:  createdBy,
+				}
+				if previous := existingByWeekday[input.Weekday]; previous != nil {
+					row.Notes = previous.Notes
+					if previous.PickupTime.Format("15:04") != row.PickupTime.Format("15:04") {
+						studentName, nameErr := s.getPickupStudentName(txCtx, student)
+						if nameErr != nil {
+							return nameErr
+						}
+						result.OverwrittenStudents = append(result.OverwrittenStudents, OverwriteWarning{
+							StudentID: student.ID, StudentName: studentName, Weekday: input.Weekday,
+							WeekdayName:  schedule.WeekdayNames[input.Weekday],
+							PreviousTime: previous.PickupTime.Format("15:04"), NewTime: row.PickupTime.Format("15:04"),
+						})
+					}
+				}
+				row.SetTenantID(tenantID)
+				if upsertErr := s.scheduleRepo.UpsertSchedule(txCtx, row); upsertErr != nil {
+					return upsertErr
+				}
+			}
+			result.AffectedStudentIDs = append(result.AffectedStudentIDs, student.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: err}
+	}
+	result.StudentsAffected = len(result.AffectedStudentIDs)
+	if s.logger != nil {
+		s.logger.Info("bulk upsert pickup schedules", "students_affected", result.StudentsAffected, "weekdays_set", len(inputs), "overwrites", len(result.OverwrittenStudents))
+	}
+	return result, nil
+}
+
+func (s *pickupScheduleService) getPickupStudentName(ctx context.Context, student *users.Student) (string, error) {
+	if s.personRepo == nil {
+		return "", errors.New("person repository is not configured")
+	}
+	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if err != nil {
+		return "", fmt.Errorf("find person for student %d: %w", student.ID, err)
+	}
+	if person == nil {
+		return "", fmt.Errorf("person for student %d is missing", student.ID)
+	}
+	return person.FirstName + " " + person.LastName, nil
 }
 
 func (s *pickupScheduleService) GetStudentPickupSchedules(

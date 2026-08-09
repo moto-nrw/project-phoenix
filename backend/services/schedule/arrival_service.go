@@ -3,9 +3,13 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -48,7 +52,7 @@ type ArrivalScheduleService interface {
 	GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error)
 	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
-	BulkUpsertBySchoolClass(ctx context.Context, schoolClass string, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
+	BulkUpsertArrivalSchedules(ctx context.Context, filter ArrivalScheduleBulkFilter, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
 }
 
 type StudentArrivalData struct {
@@ -76,6 +80,21 @@ type ArrivalScheduleInput struct {
 	ArrivalTime string `json:"expected_arrival"`
 }
 
+// ArrivalScheduleBulkFilter selects the complete student cohort for a bulk
+// arrival-schedule update. Exactly one field must be set. GroupID refers to the
+// child's education/OGS group (users.students.group_id), not an activity group.
+type ArrivalScheduleBulkFilter struct {
+	SchoolClass string
+	GroupID     int64
+	StudentIDs  []int64
+	Authorize   func(context.Context, *users.Student) (bool, error)
+}
+
+var (
+	ErrBulkStudentUnauthorized = errors.New("bulk student selection contains an unauthorized student")
+	ErrBulkStudentNotFound     = errors.New("bulk student selection contains a missing student")
+)
+
 type BulkUpsertResult struct {
 	StudentsAffected    int                `json:"students_affected"`
 	OverwrittenStudents []OverwriteWarning `json:"overwritten_students,omitempty"`
@@ -91,7 +110,7 @@ type OverwriteWarning struct {
 	NewTime      string `json:"new_time"`
 }
 
-const opBulkUpsertBySchoolClass = "bulk upsert arrival schedules by school class"
+const opBulkUpsertArrivalSchedules = "bulk upsert arrival schedules"
 
 type arrivalScheduleService struct {
 	core *effectiveTimeCore[
@@ -394,30 +413,82 @@ func arrivalEffectiveTime(result *effectiveTimeResult) *EffectiveArrivalTime {
 	return mapped
 }
 
-func (s *arrivalScheduleService) BulkUpsertBySchoolClass(
+func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 	ctx context.Context,
-	schoolClass string,
+	filter ArrivalScheduleBulkFilter,
 	schedules []ArrivalScheduleInput,
 	createdBy int64,
 ) (*BulkUpsertResult, error) {
-	if schoolClass == "" {
+	schoolClass := strings.TrimSpace(filter.SchoolClass)
+	hasSchoolClass := schoolClass != ""
+	hasGroup := filter.GroupID != 0
+	hasStudents := len(filter.StudentIDs) > 0
+	selectorCount := 0
+	if hasSchoolClass {
+		selectorCount++
+	}
+	if hasGroup {
+		selectorCount++
+	}
+	if hasStudents {
+		selectorCount++
+	}
+	if selectorCount != 1 {
 		return nil, &ScheduleError{
-			Op:  opBulkUpsertBySchoolClass,
-			Err: errors.New("school_class is required"),
+			Op:  opBulkUpsertArrivalSchedules,
+			Err: errors.New("exactly one bulk filter is required: school_class, group_id, or student_ids"),
+		}
+	}
+	if filter.GroupID < 0 {
+		return nil, &ScheduleError{
+			Op:  opBulkUpsertArrivalSchedules,
+			Err: errors.New("group_id must be positive"),
 		}
 	}
 	if len(schedules) == 0 {
 		return nil, &ScheduleError{
-			Op:  opBulkUpsertBySchoolClass,
+			Op:  opBulkUpsertArrivalSchedules,
 			Err: errors.New("schedules cannot be empty"),
 		}
 	}
+	if len(filter.StudentIDs) > 500 {
+		return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: errors.New("student_ids cannot exceed 500 items")}
+	}
 
-	students, err := s.studentRepo.FindBySchoolClass(ctx, schoolClass)
+	var (
+		students    []*users.Student
+		filterType  string
+		filterValue string
+		err         error
+	)
+	if hasSchoolClass {
+		filterType = "school_class"
+		filterValue = schoolClass
+		students, err = s.studentRepo.FindBySchoolClass(ctx, schoolClass)
+	} else if hasGroup {
+		filterType = "group_id"
+		filterValue = strconv.FormatInt(filter.GroupID, 10)
+		students, err = s.studentRepo.FindByGroupID(ctx, filter.GroupID)
+	} else {
+		filterType = "student_ids"
+		filterValue = strconv.Itoa(len(filter.StudentIDs))
+		byID, findErr := s.studentRepo.FindByIDs(ctx, filter.StudentIDs)
+		err = findErr
+		if err == nil {
+			students = make([]*users.Student, 0, len(filter.StudentIDs))
+			for _, id := range filter.StudentIDs {
+				student, ok := byID[id]
+				if !ok || student.Status == users.StudentStatusAlumnus {
+					return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, id)}
+				}
+				students = append(students, student)
+			}
+		}
+	}
 	if err != nil {
 		return nil, &ScheduleError{
-			Op:  opBulkUpsertBySchoolClass,
-			Err: fmt.Errorf("failed to find students for class %s: %w", schoolClass, err),
+			Op:  opBulkUpsertArrivalSchedules,
+			Err: fmt.Errorf("failed to find students for %s %s: %w", filterType, filterValue, err),
 		}
 	}
 	if len(students) == 0 {
@@ -428,10 +499,16 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(
 	warnings := make([]OverwriteWarning, 0)
 	parsedTimes := make(map[int]time.Time, len(schedules))
 	for _, input := range schedules {
+		if input.Weekday < 1 || input.Weekday > 5 {
+			return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("invalid weekday %d", input.Weekday)}
+		}
+		if _, duplicate := parsedTimes[input.Weekday]; duplicate {
+			return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("duplicate weekday %d", input.Weekday)}
+		}
 		value, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+input.ArrivalTime)
 		if err != nil {
 			return nil, &ScheduleError{
-				Op: opBulkUpsertBySchoolClass,
+				Op: opBulkUpsertArrivalSchedules,
 				Err: fmt.Errorf(
 					"invalid expected_arrival %q for weekday %d: %w",
 					input.ArrivalTime,
@@ -444,6 +521,38 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(
 	}
 
 	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
+		lockedStudents := make([]*users.Student, 0, len(students))
+		for _, selected := range students {
+			fresh, lockErr := s.studentRepo.FindByIDForUpdate(txCtx, selected.ID)
+			if lockErr != nil {
+				if errors.Is(lockErr, sql.ErrNoRows) {
+					return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
+				}
+				return fmt.Errorf("lock selected student %d: %w", selected.ID, lockErr)
+			}
+			if fresh.Status == users.StudentStatusAlumnus {
+				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
+			}
+			if hasSchoolClass && !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {
+				return fmt.Errorf("%w: student %d left school class", ErrBulkStudentNotFound, fresh.ID)
+			}
+			if hasGroup && (fresh.GroupID == nil || *fresh.GroupID != filter.GroupID) {
+				return fmt.Errorf("%w: student %d left group", ErrBulkStudentNotFound, fresh.ID)
+			}
+			if filter.Authorize != nil {
+				allowed, authorizeErr := filter.Authorize(txCtx, fresh)
+				if authorizeErr != nil {
+					return fmt.Errorf("authorize student %d: %w", fresh.ID, authorizeErr)
+				}
+				if !allowed {
+					return fmt.Errorf("%w: student %d", ErrBulkStudentUnauthorized, fresh.ID)
+				}
+			}
+			lockedStudents = append(lockedStudents, fresh)
+		}
+		students = lockedStudents
+
 		for _, student := range students {
 			existing, err := s.scheduleRepo.FindByStudentID(txCtx, student.ID)
 			if err != nil {
@@ -479,6 +588,9 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(
 					ExpectedArrival: arrivalTime,
 					CreatedBy:       createdBy,
 				}
+				if existingRow := existingByWeekday[input.Weekday]; existingRow != nil {
+					row.Notes = existingRow.Notes
+				}
 				row.SetTenantID(tenantID)
 				if err := s.scheduleRepo.UpsertSchedule(txCtx, row); err != nil {
 					return fmt.Errorf(
@@ -493,12 +605,13 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(
 		return nil
 	})
 	if err != nil {
-		return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: err}
+		return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: err}
 	}
 
 	s.getLogger().Info(
-		"bulk upsert arrival schedules by school class",
-		slog.String("school_class", schoolClass),
+		"bulk upsert arrival schedules",
+		slog.String("filter_type", filterType),
+		slog.String("filter_value", filterValue),
 		slog.Int("students_affected", len(students)),
 		slog.Int("weekdays_set", len(schedules)),
 		slog.Int("overwrites", len(warnings)),

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -88,9 +90,12 @@ type ArrivalNoteRequest struct {
 	Content  string `json:"content"`
 }
 
-// BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival schedules for a school class
+// BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival
+// schedules for exactly one filtered student cohort.
 type BulkUpsertArrivalScheduleRequest struct {
 	SchoolClass string                                 `json:"school_class"`
+	GroupID     int64                                  `json:"group_id"`
+	StudentIDs  []int64                                `json:"student_ids"`
 	Schedules   []scheduleService.ArrivalScheduleInput `json:"schedules"`
 }
 
@@ -153,8 +158,33 @@ func (r *ArrivalExceptionRequest) Bind(_ *http.Request) error {
 
 // Bind implements render.Binder for BulkUpsertArrivalScheduleRequest
 func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
-	if r.SchoolClass == "" {
-		return errors.New("school_class is required")
+	hasSchoolClass := strings.TrimSpace(r.SchoolClass) != ""
+	hasGroup := r.GroupID != 0
+	hasStudents := len(r.StudentIDs) > 0
+	selectorCount := 0
+	for _, selected := range []bool{hasSchoolClass, hasGroup, hasStudents} {
+		if selected {
+			selectorCount++
+		}
+	}
+	if selectorCount != 1 {
+		return errors.New("exactly one filter is required: school_class, group_id, or student_ids")
+	}
+	if r.GroupID < 0 {
+		return errors.New("group_id must be positive")
+	}
+	if len(r.StudentIDs) > 500 {
+		return errors.New("student_ids array cannot exceed 500 items")
+	}
+	seenStudentIDs := make(map[int64]struct{}, len(r.StudentIDs))
+	for _, id := range r.StudentIDs {
+		if id <= 0 {
+			return errors.New("student_ids must be positive")
+		}
+		if _, exists := seenStudentIDs[id]; exists {
+			return errors.New("duplicate student_ids are not allowed")
+		}
+		seenStudentIDs[id] = struct{}{}
 	}
 	if len(r.Schedules) == 0 {
 		return errors.New("schedules array cannot be empty")
@@ -676,13 +706,33 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	result, err := rs.ArrivalScheduleService.BulkUpsertBySchoolClass(r.Context(), req.SchoolClass, req.Schedules, staffID)
+	result, err := rs.ArrivalScheduleService.BulkUpsertArrivalSchedules(
+		r.Context(),
+		scheduleService.ArrivalScheduleBulkFilter{
+			SchoolClass: req.SchoolClass,
+			GroupID:     req.GroupID,
+			StudentIDs:  req.StudentIDs,
+			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
+				return canUpdateStudent(ctx, jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+			},
+		},
+		req.Schedules,
+		staffID,
+	)
 	if err != nil {
+		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
+			renderError(w, r, common.ErrorForbidden(err))
+			return
+		}
+		if errors.Is(err, scheduleService.ErrBulkStudentNotFound) {
+			renderError(w, r, common.ErrorNotFound(err))
+			return
+		}
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	// Deferred to the OUTER request tx's commit: BulkUpsertBySchoolClass runs
+	// Deferred to the OUTER request tx's commit: BulkUpsertArrivalSchedules runs
 	// inside the TenantTxMiddleware tx, which is still open here, so waking now
 	// would let a client refetch before the writes are visible (#1725 review) —
 	// true for the staff broadcast and the guardian wake alike, and worst here

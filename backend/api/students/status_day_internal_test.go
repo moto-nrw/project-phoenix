@@ -419,6 +419,10 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusInvalid", "Student", "SI1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	router := statusDayTestRouter(resource)
+	overLimitIDs := make([]int64, 501)
+	for i := range overLimitIDs {
+		overLimitIDs[i] = int64(i + 1)
+	}
 
 	cases := []struct {
 		name   string
@@ -447,6 +451,17 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 			name:   "invalid id",
 			method: "DELETE",
 			path:   fmt.Sprintf("/%d/status-days/broken", student.ID),
+		},
+		{
+			name:   "bulk student limit",
+			method: "POST",
+			path:   "/status-days/bulk",
+			body: map[string]any{
+				"student_ids": overLimitIDs,
+				"status":      active.StudentStatusDayClassTrip,
+				"from":        "2026-05-01",
+				"to":          "2026-05-02",
+			},
 		},
 		{
 			name:   "bulk range too long",

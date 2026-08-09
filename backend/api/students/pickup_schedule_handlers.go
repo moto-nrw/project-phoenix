@@ -75,6 +75,11 @@ type BulkPickupScheduleRequest struct {
 	Schedules []PickupScheduleRequest `json:"schedules"`
 }
 
+type BulkPickupSchedulePatchRequest struct {
+	StudentIDs []int64                               `json:"student_ids"`
+	Schedules  []scheduleService.PickupScheduleInput `json:"schedules"`
+}
+
 // PickupExceptionRequest represents a request to create/update a pickup exception
 type PickupExceptionRequest struct {
 	ExceptionDate   string  `json:"exception_date"` // YYYY-MM-DD format
@@ -106,6 +111,30 @@ func (r *PickupScheduleRequest) Bind(_ *http.Request) error {
 // Bind implements render.Binder
 func (r *BulkPickupScheduleRequest) Bind(_ *http.Request) error {
 	return validatePickupScheduleItems(r.Schedules)
+}
+
+func (r *BulkPickupSchedulePatchRequest) Bind(_ *http.Request) error {
+	if len(r.StudentIDs) == 0 {
+		return errors.New("student_ids array cannot be empty")
+	}
+	if len(r.StudentIDs) > 500 {
+		return errors.New("student_ids array cannot exceed 500 items")
+	}
+	seenIDs := make(map[int64]struct{}, len(r.StudentIDs))
+	for _, id := range r.StudentIDs {
+		if id <= 0 {
+			return errors.New("student_ids must be positive")
+		}
+		if _, exists := seenIDs[id]; exists {
+			return errors.New("duplicate student_ids are not allowed")
+		}
+		seenIDs[id] = struct{}{}
+	}
+	items := make([]PickupScheduleRequest, 0, len(r.Schedules))
+	for _, schedule := range r.Schedules {
+		items = append(items, PickupScheduleRequest{Weekday: schedule.Weekday, PickupTime: schedule.PickupTime})
+	}
+	return validatePickupScheduleItems(items)
 }
 
 // validatePickupScheduleItems validates weekday range, uniqueness, time format
@@ -431,6 +460,53 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	response := buildPickupDataResponse(data)
 
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules updated successfully")
+}
+
+func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Request) {
+	req := &BulkPickupSchedulePatchRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+	permissions := jwt.PermissionsFromCtx(r.Context())
+	result, err := rs.PickupScheduleService.BulkUpsertPickupSchedules(
+		r.Context(),
+		scheduleService.ArrivalScheduleBulkFilter{
+			StudentIDs: req.StudentIDs,
+			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
+				return canUpdateStudent(ctx, permissions, student, rs.UserContextService)
+			},
+		},
+		req.Schedules,
+		staffID,
+	)
+	if err != nil {
+		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
+			renderError(w, r, common.ErrorForbidden(err))
+			return
+		}
+		if errors.Is(err, scheduleService.ErrBulkStudentNotFound) {
+			renderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	affected := result.AffectedStudentIDs
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastPickupScheduleChanged(tenantID, 0)
+		for _, studentID := range affected {
+			rs.wakeChildGuardians(tenantID, studentID)
+		}
+	})
+	common.Respond(w, r, http.StatusOK, result, "Bulk pickup schedules upserted successfully")
 }
 
 // createStudentPickupException handles POST /students/{id}/pickup-exceptions

@@ -1,6 +1,7 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1303,28 +1305,102 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 }
 
 // =============================================================================
-// Bulk Class Upsert Tests
+// Bulk Filtered Upsert Tests
 // =============================================================================
 
-func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
+func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("returns error for empty school class", func(t *testing.T) {
-		result, err := service.BulkUpsertBySchoolClass(ctx, "", []schedule.ArrivalScheduleInput{
+	t.Run("returns error without a filter", func(t *testing.T) {
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{}, []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "08:00"},
 		}, createArrivalServiceTestStaffID(t, db))
 
 		require.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "school_class is required")
+		assert.Contains(t, err.Error(), "exactly one bulk filter is required")
+	})
+
+	t.Run("returns error with class and group filters", func(t *testing.T) {
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{
+			SchoolClass: "1a",
+			GroupID:     42,
+		}, []schedule.ArrivalScheduleInput{
+			{Weekday: 1, ArrivalTime: "08:00"},
+		}, createArrivalServiceTestStaffID(t, db))
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "exactly one bulk filter is required")
+	})
+
+	t.Run("upserts schedules only for explicitly selected students", func(t *testing.T) {
+		selectedA := testpkg.CreateTestStudent(t, db, "BulkSelected", "StudentA", "SEL-A")
+		selectedB := testpkg.CreateTestStudent(t, db, "BulkSelected", "StudentB", "SEL-B")
+		unselected := testpkg.CreateTestStudent(t, db, "BulkSelected", "StudentC", "SEL-A")
+		defer testpkg.CleanupActivityFixtures(t, db, selectedA.ID, selectedB.ID, unselected.ID)
+		note := "Förderkurs"
+		err := service.UpsertStudentArrivalSchedule(ctx, &scheduleModels.StudentArrivalSchedule{
+			StudentID: selectedA.ID, Weekday: 4,
+			ExpectedArrival: time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC),
+			Notes:           &note, CreatedBy: createArrivalServiceTestStaffID(t, db),
+		})
+		require.NoError(t, err)
+
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{StudentIDs: []int64{selectedA.ID, selectedB.ID}},
+			[]schedule.ArrivalScheduleInput{{Weekday: 4, ArrivalTime: "10:05"}},
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int64{selectedA.ID, selectedB.ID}, result.AffectedStudentIDs)
+		for _, studentID := range []int64{selectedA.ID, selectedB.ID} {
+			rows, findErr := service.GetStudentArrivalSchedules(ctx, studentID)
+			require.NoError(t, findErr)
+			require.Len(t, rows, 1)
+			assert.Equal(t, "10:05", rows[0].ExpectedArrival.Format("15:04"))
+			if studentID == selectedA.ID {
+				require.NotNil(t, rows[0].Notes)
+				assert.Equal(t, note, *rows[0].Notes)
+			}
+		}
+		rows, findErr := service.GetStudentArrivalSchedules(ctx, unselected.ID)
+		require.NoError(t, findErr)
+		assert.Empty(t, rows)
+	})
+
+	t.Run("rejects the whole explicit selection when one student is unauthorized", func(t *testing.T) {
+		allowed := testpkg.CreateTestStudent(t, db, "BulkAuthorized", "Student", "AUTH-A")
+		denied := testpkg.CreateTestStudent(t, db, "BulkDenied", "Student", "AUTH-B")
+		defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
+
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{
+				StudentIDs: []int64{allowed.ID, denied.ID},
+				Authorize: func(_ context.Context, student *usersModels.Student) (bool, error) {
+					return student.ID == allowed.ID, nil
+				},
+			},
+			[]schedule.ArrivalScheduleInput{{Weekday: 1, ArrivalTime: "08:40"}},
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.ErrorIs(t, err, schedule.ErrBulkStudentUnauthorized)
+		assert.Nil(t, result)
+		rows, findErr := service.GetStudentArrivalSchedules(ctx, allowed.ID)
+		require.NoError(t, findErr)
+		assert.Empty(t, rows, "authorization failure must roll back every selected student")
 	})
 
 	t.Run("returns error for empty schedules", func(t *testing.T) {
-		result, err := service.BulkUpsertBySchoolClass(ctx, "1a", []schedule.ArrivalScheduleInput{}, createArrivalServiceTestStaffID(t, db))
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: "1a"}, []schedule.ArrivalScheduleInput{}, createArrivalServiceTestStaffID(t, db))
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -1332,7 +1408,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 	})
 
 	t.Run("returns zero students affected for empty class", func(t *testing.T) {
-		result, err := service.BulkUpsertBySchoolClass(ctx, "NONEXISTENT_CLASS_XYZ", []schedule.ArrivalScheduleInput{
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: "NONEXISTENT_CLASS_XYZ"}, []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "08:00"},
 		}, createArrivalServiceTestStaffID(t, db))
 
@@ -1340,7 +1416,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 		assert.Equal(t, 0, result.StudentsAffected)
 	})
 
-	// Class names must be unique per run. BulkUpsertBySchoolClass finds
+	// Class names must be unique per run. BulkUpsertArrivalSchedules finds
 	// students by school_class string match, and the cleanup path for
 	// users.students is a known no-op (see backend/test/fixtures.go —
 	// cleanupDelete errors silently on `.Model((*interface{})(nil))`),
@@ -1361,7 +1437,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 3, ArrivalTime: "08:15"},
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, createArrivalServiceTestStaffID(t, db))
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, createArrivalServiceTestStaffID(t, db))
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, result.StudentsAffected)
@@ -1372,6 +1448,48 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, results, 2)
 		}
+	})
+
+	t.Run("upserts schedules only for students in the selected group", func(t *testing.T) {
+		targetGroup := testpkg.CreateTestEducationGroup(t, db, "BulkArrivalTarget")
+		otherGroup := testpkg.CreateTestEducationGroup(t, db, "BulkArrivalOther")
+		targetStudent1 := testpkg.CreateTestStudent(t, db, "BulkGroup", "Student1", "1a")
+		targetStudent2 := testpkg.CreateTestStudent(t, db, "BulkGroup", "Student2", "2b")
+		otherStudent := testpkg.CreateTestStudent(t, db, "BulkOther", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			targetGroup.ID,
+			otherGroup.ID,
+			targetStudent1.ID,
+			targetStudent2.ID,
+			otherStudent.ID,
+		)
+
+		testpkg.AssignStudentToGroup(t, db, targetStudent1.ID, targetGroup.ID)
+		testpkg.AssignStudentToGroup(t, db, targetStudent2.ID, targetGroup.ID)
+		testpkg.AssignStudentToGroup(t, db, otherStudent.ID, otherGroup.ID)
+
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{GroupID: targetGroup.ID},
+			[]schedule.ArrivalScheduleInput{{Weekday: 2, ArrivalTime: "09:15"}},
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, result.StudentsAffected)
+		assert.ElementsMatch(t, []int64{targetStudent1.ID, targetStudent2.ID}, result.AffectedStudentIDs)
+
+		for _, studentID := range []int64{targetStudent1.ID, targetStudent2.ID} {
+			rows, findErr := service.GetStudentArrivalSchedules(ctx, studentID)
+			require.NoError(t, findErr)
+			require.Len(t, rows, 1)
+			assert.Equal(t, "09:15", rows[0].ExpectedArrival.Format("15:04"))
+		}
+		otherRows, findErr := service.GetStudentArrivalSchedules(ctx, otherStudent.ID)
+		require.NoError(t, findErr)
+		assert.Empty(t, otherRows)
 	})
 
 	t.Run("returns overwrite warnings when schedules differ", func(t *testing.T) {
@@ -1393,7 +1511,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 1, ArrivalTime: "08:00"}, // Different time
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, createArrivalServiceTestStaffID(t, db))
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, createArrivalServiceTestStaffID(t, db))
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.StudentsAffected)
@@ -1409,7 +1527,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 1, ArrivalTime: "invalid"},
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, createArrivalServiceTestStaffID(t, db))
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, createArrivalServiceTestStaffID(t, db))
 
 		require.Error(t, err)
 		assert.Nil(t, result)

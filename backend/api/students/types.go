@@ -636,6 +636,9 @@ func (req *BulkCreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
 	if len(req.StudentIDs) == 0 {
 		return errors.New("student_ids are required")
 	}
+	if len(req.StudentIDs) > 500 {
+		return errors.New("student_ids cannot exceed 500 items")
+	}
 	seen := make(map[int64]struct{}, len(req.StudentIDs))
 	for _, id := range req.StudentIDs {
 		if id <= 0 {

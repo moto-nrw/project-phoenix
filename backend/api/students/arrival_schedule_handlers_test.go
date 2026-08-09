@@ -1051,9 +1051,39 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 func TestBulkUpsertArrivalSchedules(t *testing.T) {
 	tc := setupTestContext(t)
 
-	t.Run("bad_request_missing_school_class", func(t *testing.T) {
+	t.Run("bad_request_missing_filter", func(t *testing.T) {
 		body := map[string]any{
-			"school_class": "",
+			"schedules": []map[string]any{
+				{"weekday": 1, "expected_arrival": "08:00"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_with_class_and_group_filters", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "BulkArrivalBothFilters")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+		body := map[string]any{
+			"school_class": "1a",
+			"group_id":     group.ID,
+			"schedules": []map[string]any{
+				{"weekday": 1, "expected_arrival": "08:00"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_with_group_and_student_filters", func(t *testing.T) {
+		body := map[string]any{
+			"group_id":    42,
+			"student_ids": []int64{1, 2},
 			"schedules": []map[string]any{
 				{"weekday": 1, "expected_arrival": "08:00"},
 			},
@@ -1112,6 +1142,49 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 			ModelTableExpr("schedule.student_arrival_schedules").
 			Where("student_id = ?", student.ID).
 			Exec(context.Background())
+	})
+
+	t.Run("success_with_group_filter", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "BulkArrivalHandlerGroup")
+		student := testpkg.CreateTestStudent(t, tc.db, "BulkGroupArrival", "Test", "BGAR1")
+		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkGroupArr", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"group_id": group.ID,
+			"schedules": []map[string]any{
+				{"weekday": 2, "expected_arrival": "09:20"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"students_affected":1`)
+	})
+
+	t.Run("success_with_explicit_student_ids", func(t *testing.T) {
+		student1 := testpkg.CreateTestStudent(t, tc.db, "BulkExplicit1", "Test", "BE1")
+		student2 := testpkg.CreateTestStudent(t, tc.db, "BulkExplicit2", "Test", "BE2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkExplicit", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"student_ids": []int64{student1.ID, student2.ID},
+			"schedules": []map[string]any{
+				{"weekday": 5, "expected_arrival": "10:30"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"students_affected":2`)
 	})
 }
 

@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -269,11 +270,14 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 		PersonRepo:         usersRepo.NewPersonRepository(db),
 		EducationGroupRepo: educationRepo.NewGroupRepository(db),
 		RoomRepo:           roomRepo,
-		PickupService: scheduleSvc.NewPickupScheduleService(
+		PickupService: scheduleSvc.NewPickupScheduleServiceWithBulk(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
 			scheduleRepo.NewStudentPickupNoteRepository(db),
+			usersRepo.NewStudentRepository(db),
+			usersRepo.NewPersonRepository(db),
 			db,
+			slog.Default(),
 		),
 		ArrivalService: scheduleSvc.NewArrivalScheduleService(
 			scheduleRepo.NewStudentArrivalScheduleRepository(db),
