@@ -2,6 +2,7 @@ package schedule_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -1358,4 +1359,32 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSe
 	rows, findErr := service.GetStudentPickupSchedules(ctx, allowed.ID)
 	require.NoError(t, findErr)
 	assert.Empty(t, rows, "authorization failure must roll back every selected student")
+}
+
+// Production canUpdateStudent returns (false, err) on deny; that must map to
+// ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
+func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUnauthorized(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupPickupScheduleService(t, db)
+	ctx := testpkg.TenantContext(1)
+	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrA", "Student", "BP-E1")
+	denied := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrB", "Student", "BP-E2")
+	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
+
+	result, err := service.BulkUpsertPickupSchedules(ctx, schedule.ArrivalScheduleBulkFilter{
+		StudentIDs: []int64{allowed.ID, denied.ID},
+		Authorize: func(_ context.Context, student *usersModels.Student) (bool, error) {
+			if student.ID == allowed.ID {
+				return true, nil
+			}
+			return false, errors.New("you can only update students in groups you supervise")
+		},
+	}, []schedule.PickupScheduleInput{{Weekday: 1, PickupTime: "16:10"}}, createPickupServiceTestStaffID(t, db))
+
+	require.ErrorIs(t, err, schedule.ErrBulkStudentUnauthorized)
+	assert.Nil(t, result)
+	rows, findErr := service.GetStudentPickupSchedules(ctx, allowed.ID)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows, "authorize error denial must not leave partial writes")
 }

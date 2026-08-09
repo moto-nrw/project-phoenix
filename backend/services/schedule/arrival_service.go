@@ -541,11 +541,10 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 				return fmt.Errorf("%w: student %d left group", ErrBulkStudentNotFound, fresh.ID)
 			}
 			if filter.Authorize != nil {
+				// Production denials return (false, err); treat either signal as
+				// unauthorized so handlers map to 403 instead of 500.
 				allowed, authorizeErr := filter.Authorize(txCtx, fresh)
-				if authorizeErr != nil {
-					return fmt.Errorf("authorize student %d: %w", fresh.ID, authorizeErr)
-				}
-				if !allowed {
+				if authorizeErr != nil || !allowed {
 					return fmt.Errorf("%w: student %d", ErrBulkStudentUnauthorized, fresh.ID)
 				}
 			}

@@ -144,6 +144,27 @@ export function StudentsMasterDetail({
     [],
   );
 
+  // Unfiltered cohort maps for bulk actions — search must not shrink class/group
+  // writes while the UI still names the full bucket.
+  const bulkStudentsByFilter = useMemo(() => {
+    const byClass = new Map<string, Student[]>();
+    const byGroup = new Map<string, Student[]>();
+    for (const student of bulkStudents) {
+      const schoolClass = student.school_class?.trim();
+      if (schoolClass) {
+        const classStudents = byClass.get(schoolClass) ?? [];
+        classStudents.push(student);
+        byClass.set(schoolClass, classStudents);
+      }
+      if (student.group_id) {
+        const groupStudents = byGroup.get(student.group_id) ?? [];
+        groupStudents.push(student);
+        byGroup.set(student.group_id, groupStudents);
+      }
+    }
+    return { byClass, byGroup };
+  }, [bulkStudents]);
+
   const decorateGroup = useCallback<GroupDecorator<Student>>(
     (group) => {
       // Flat group ("none" mode) keeps default formatting; only per-class/group
@@ -173,6 +194,12 @@ export function StudentsMasterDetail({
       const canPlanClassTrip =
         (grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL) ||
         (grouping === "group" && group.id !== UNKNOWN_GROUP_ID);
+      const classTripStudents =
+        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL
+          ? (bulkStudentsByFilter.byClass.get(group.id) ?? [])
+          : grouping === "group" && groupID
+            ? (bulkStudentsByFilter.byGroup.get(groupID) ?? [])
+            : [];
       const bulkAction =
         canEditArrival || canPlanClassTrip ? (
           <GroupActionsMenu
@@ -185,7 +212,7 @@ export function StudentsMasterDetail({
                 ? () =>
                     setClassTripTarget({
                       label: group.title,
-                      students: group.items,
+                      students: classTripStudents,
                     })
                 : undefined
             }
@@ -193,7 +220,7 @@ export function StudentsMasterDetail({
         ) : null;
       return { variant, countSuffix, bulkAction };
     },
-    [grouping, studentsWithArrival],
+    [bulkStudentsByFilter, grouping, studentsWithArrival],
   );
 
   const groupDefinitions = useGroupedItems(
@@ -212,25 +239,6 @@ export function StudentsMasterDetail({
         : null,
     [selectedId, students],
   );
-
-  const bulkStudentsByFilter = useMemo(() => {
-    const byClass = new Map<string, Student[]>();
-    const byGroup = new Map<string, Student[]>();
-    for (const student of bulkStudents) {
-      const schoolClass = student.school_class?.trim();
-      if (schoolClass) {
-        const classStudents = byClass.get(schoolClass) ?? [];
-        classStudents.push(student);
-        byClass.set(schoolClass, classStudents);
-      }
-      if (student.group_id) {
-        const groupStudents = byGroup.get(student.group_id) ?? [];
-        groupStudents.push(student);
-        byGroup.set(student.group_id, groupStudents);
-      }
-    }
-    return { byClass, byGroup };
-  }, [bulkStudents]);
 
   const studentsForBulkTarget = useMemo(() => {
     if (!bulkTarget) return [];

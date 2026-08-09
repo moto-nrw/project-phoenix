@@ -2,6 +2,7 @@ package schedule_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -1397,6 +1398,35 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		rows, findErr := service.GetStudentArrivalSchedules(ctx, allowed.ID)
 		require.NoError(t, findErr)
 		assert.Empty(t, rows, "authorization failure must roll back every selected student")
+	})
+
+	// Production canUpdateStudent returns (false, err) on deny; that must map to
+	// ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
+	t.Run("maps production-style authorize denial to unauthorized", func(t *testing.T) {
+		allowed := testpkg.CreateTestStudent(t, db, "BulkAuthErrAllowed", "Student", "AUTH-E1")
+		denied := testpkg.CreateTestStudent(t, db, "BulkAuthErrDenied", "Student", "AUTH-E2")
+		defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
+
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{
+				StudentIDs: []int64{allowed.ID, denied.ID},
+				Authorize: func(_ context.Context, student *usersModels.Student) (bool, error) {
+					if student.ID == allowed.ID {
+						return true, nil
+					}
+					return false, errors.New("you can only update students in groups you supervise")
+				},
+			},
+			[]schedule.ArrivalScheduleInput{{Weekday: 1, ArrivalTime: "08:40"}},
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.ErrorIs(t, err, schedule.ErrBulkStudentUnauthorized)
+		assert.Nil(t, result)
+		rows, findErr := service.GetStudentArrivalSchedules(ctx, allowed.ID)
+		require.NoError(t, findErr)
+		assert.Empty(t, rows, "authorize error denial must not leave partial writes")
 	})
 
 	t.Run("returns error for empty schedules", func(t *testing.T) {

@@ -676,6 +676,32 @@ describe("StudentsMasterDetail", () => {
     );
   });
 
+  it("uses the unfiltered cohort for class-trip planning", () => {
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1", { school_class: "3a" })]}
+        bulkStudents={[
+          makeStudent("1", { school_class: "3a" }),
+          makeStudent("2", { school_class: "3a" }),
+        ]}
+        grouping="class"
+        studentsWithArrival={new Set(["1"])}
+        arrivalSummaryById={new Map()}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
+    );
+
+    expect(screen.getByTestId("class-trip-selection-modal")).toHaveAttribute(
+      "data-student-ids",
+      "1,2",
+    );
+  });
+
   it("closes bulk modal via onClose", () => {
     render(
       <StudentsMasterDetail
