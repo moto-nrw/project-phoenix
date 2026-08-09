@@ -87,6 +87,10 @@ func (rs *Resource) convertInstanceToSeries(w http.ResponseWriter, r *http.Reque
 		},
 	)
 	if err != nil {
+		// Convert runs under TenantTxMiddleware. Nested service WithTenantTx
+		// reuses that outer transaction, so a 4xx after CreateTemplate would
+		// otherwise commit an orphan series while the seed stays unlinked.
+		tenant.MarkRollback(r.Context())
 		renderConvertInstanceToSeriesError(w, r, err)
 		return
 	}

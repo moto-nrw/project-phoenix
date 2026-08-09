@@ -34,6 +34,12 @@ func (s *stubInstanceSeriesConverter) ConvertInstanceToSeries(
 }
 
 func conversionRouter(parentCtx context.Context, res *Resource) chi.Router {
+	return conversionRouterWithOpts(parentCtx, res, false)
+}
+
+// conversionRouterWithOpts mirrors production when withTenantTx is true: the
+// ambient TenantTxMiddleware that convert-to-series runs under.
+func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTenantTx bool) chi.Router {
 	tenantID := tenant.FromContext(parentCtx)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -43,6 +49,9 @@ func conversionRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	if withTenantTx {
+		r.Use(tenant.TenantTxMiddleware(res.DB))
+	}
 	r.Post("/instances/{id}/convert-to-series", res.convertInstanceToSeries)
 	r.Get("/instances", res.listInstances)
 	r.Get("/templates", res.listTemplates)
@@ -188,6 +197,14 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 	assert.Equal(t, created.TemplateID, *listed.Instances[0].ActivityGroupID)
 	assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, listed.Instances[0].StudentIDs)
 
+	// Materializer marker: seed must carry the template period so resync and
+	// FindPlannedTemplateBackedFrom treat it as a series occurrence.
+	seed, err := repositories.NewFactory(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	require.NoError(t, err)
+	require.NotNil(t, seed.CalendarPeriodID)
+	assert.Equal(t, period.ID, *seed.CalendarPeriodID)
+	assert.False(t, seed.IsSpontaneous)
+
 	retryW := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/instances/%d/convert-to-series", instance.ID), body)
 	assert.Equal(t, http.StatusConflict, retryW.Code, "body=%s", retryW.Body.String())
@@ -316,4 +333,85 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	for _, candidate := range templates.Templates {
 		assert.NotEqual(t, "Tpl-Convert-Rollback", candidate.Name, "failed link must roll back the new series")
 	}
+}
+
+// A 4xx after CreateTemplate must not commit under TenantTxMiddleware: nested
+// WithTenantTx reuses the outer tx, and middleware only auto-rolls back 5xx.
+func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{})
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-4xx-Period")
+	// Existing seed is a weekday; conversion start_date moves it onto a
+	// different weekend day → UpdatePlanned returns ErrInstanceWeekend (400)
+	// after CreateTemplate has already written the series graph.
+	seedDate := timezone.NewDate(2026, 8, 10)     // Monday
+	weekendStart := timezone.NewDate(2026, 8, 15) // Saturday
+	instance := testpkg.CreateTestActivityInstance(t, s.db, seedDate, s.roomID, testpkg.ActivityInstanceOpts{
+		Title:         "Tpl-Convert-4xx-Seed",
+		StartHHMM:     "12:00",
+		EndHHMM:       "12:50",
+		IsSpontaneous: true,
+	})
+	t.Cleanup(func() { cleanupConversionTest(t, s, period.ID, instance.ID) })
+
+	router := conversionRouterWithOpts(s.ctx, s.res, true)
+	body := createTemplateBody(s, "Tpl-Convert-4xx-Orphan")
+	body["calendar_period_id"] = period.ID
+	body["start_date"] = weekendStart.String()
+	body["weekdays"] = []int{activitiesModel.WeekdayMonday}
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/instances/%d/convert-to-series", instance.ID), body)
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "Monday to Friday")
+
+	// Read outside the request transaction to see committed state.
+	templatesW := doTemplateJSON(t, conversionRouter(s.ctx, s.res), http.MethodGet, "/templates", nil)
+	require.Equal(t, http.StatusOK, templatesW.Code, "body=%s", templatesW.Body.String())
+	templates := decodeTemplateData[listTemplatesResponse](t, templatesW)
+	for _, candidate := range templates.Templates {
+		assert.NotEqual(t, "Tpl-Convert-4xx-Orphan", candidate.Name,
+			"TenantTxMiddleware must roll back the new series on a 4xx link failure")
+	}
+
+	seed, err := repositories.NewFactory(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	require.NoError(t, err)
+	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
+	assert.True(t, seed.IsSpontaneous)
+	assert.Equal(t, seedDate, seed.Date)
+}
+
+func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
+	s := buildTemplateSetup(t, &mockMaterializationService{})
+	defer s.cleanupFn()
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-MarkRollback-Period")
+	t.Cleanup(func() {
+		cleanupTemplatesByPrefix(t, s.db, "Tpl-Convert-")
+		_, err := s.db.NewDelete().Table("schedule.calendar_periods").Where("id = ?", period.ID).Exec(s.ctx)
+		require.NoError(t, err)
+	})
+
+	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{err: scheduleSvc.ErrInstanceAlreadyInSeries}
+	body := createTemplateBody(s, "Tpl-Convert-MarkRollback")
+	body["calendar_period_id"] = period.ID
+	body["start_date"] = "2026-05-04"
+
+	// Inject a rollback marker without full TenantTxMiddleware so we can assert
+	// the handler requested rollback on a mapped 4xx service error.
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := tenant.WithRollbackMarker(tenant.WithTenantID(r.Context(), tenant.FromContext(s.ctx)))
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+	var sawRollback bool
+	router.Post("/instances/{id}/convert-to-series", func(w http.ResponseWriter, r *http.Request) {
+		s.res.convertInstanceToSeries(w, r)
+		sawRollback = tenant.RollbackRequested(r.Context())
+	})
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/instances/71/convert-to-series", body)
+	assert.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+	assert.True(t, sawRollback, "convert service errors must mark the ambient tenant tx for rollback")
 }

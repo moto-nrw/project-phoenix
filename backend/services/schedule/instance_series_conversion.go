@@ -92,19 +92,23 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 		}
 
 		templateID := created.TemplateID
+		// Stamp calendar_period_id with the same materializer marker so the
+		// seed is visible to FindPlannedTemplateBackedFrom (reconcile, offering
+		// resync, primary-staff alignment) and period-scoped roster predicates.
 		_, err = s.deps.InstanceService.UpdatePlanned(txCtx, in.InstanceID, UpdateInstanceInput{
-			Date:            date,
-			StartTime:       in.Template.StartTime,
-			EndTime:         in.Template.EndTime,
-			Title:           in.Template.Name,
-			Description:     instance.Description,
-			Notes:           in.InstanceNotes,
-			RoomID:          in.Template.RoomID,
-			ActivityGroupID: &templateID,
-			ListKind:        in.Template.ListKind,
-			StaffIDs:        staffIDs,
-			StudentIDs:      studentIDs,
-			RequiredStaff:   nil,
+			Date:             date,
+			StartTime:        in.Template.StartTime,
+			EndTime:          in.Template.EndTime,
+			Title:            in.Template.Name,
+			Description:      instance.Description,
+			Notes:            in.InstanceNotes,
+			RoomID:           in.Template.RoomID,
+			ActivityGroupID:  &templateID,
+			CalendarPeriodID: in.Template.CalendarPeriodID,
+			ListKind:         in.Template.ListKind,
+			StaffIDs:         staffIDs,
+			StudentIDs:       studentIDs,
+			RequiredStaff:    nil,
 		}, in.ActorAccountID)
 		if err != nil {
 			return err
