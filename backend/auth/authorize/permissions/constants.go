@@ -216,6 +216,19 @@ const (
 	StaffDocumentsHealth = ResourceStaffDocuments + ":health"
 )
 
+// Student document permissions (#777). student_documents:health gates
+// Attest, Impfnachweis and Medikamentenplan (Art. 9 GDPR health data);
+// student_documents:legal gates the Sorgerechtsnachweis, which is not Art. 9
+// but is at least as damaging in the wrong hands. Catalog-only like
+// staff_documents:health: admins match via the admin:* wildcard, and every
+// remaining category rides on users:update in the document service.
+const (
+	ResourceStudentDocuments = "student_documents"
+
+	StudentDocumentsHealth = ResourceStudentDocuments + ":health"
+	StudentDocumentsLegal  = ResourceStudentDocuments + ":legal"
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"
@@ -223,4 +236,16 @@ const (
 	GradeTransitionsUpdate = "grade_transitions:update"
 	GradeTransitionsDelete = "grade_transitions:delete"
 	GradeTransitionsApply  = "grade_transitions:apply"
+)
+
+// Class day view permission (#1772). class_day:read gates the read-only
+// per-class daily handoff view for the lehrkraft system role. It is
+// deliberately NOT users:read: holders see only students of the school
+// classes assigned to them via education.class_teachers, never the
+// tenant-wide student directory, so the generic /api/students routes stay
+// closed to them.
+const (
+	ResourceClassDay = "class_day"
+
+	ClassDayRead = ResourceClassDay + ":read"
 )

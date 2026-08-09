@@ -7,10 +7,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const ORIGINAL_HOSTNAME = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
 
-function setLocation(host: string) {
+function setLocation(host: string, protocol = "https:") {
   Object.defineProperty(window, "location", {
     writable: true,
-    value: { host, origin: `https://${host}` },
+    value: { host, protocol, origin: `${protocol}//${host}` },
   });
 }
 
@@ -20,6 +20,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   if (ORIGINAL_HOSTNAME !== undefined) {
     process.env.NEXT_PUBLIC_PARENTS_HOSTNAME = ORIGINAL_HOSTNAME;
   } else {
@@ -81,6 +82,55 @@ describe("parentPath missing-env guard", () => {
   });
 });
 
+// --- parentsPortalLoginUrl ----------------------------------------------
+
+describe("parentsPortalLoginUrl", () => {
+  it("points at the parents host, not the current one", async () => {
+    setLocation("school.localhost:3000");
+    const { parentsPortalLoginUrl } = await import("./parent-url");
+    expect(parentsPortalLoginUrl()).toBe(
+      "https://parents.localhost:3000/login",
+    );
+  });
+
+  it("follows the scheme of the current page", async () => {
+    setLocation("school.localhost:3000", "http:");
+    const { parentsPortalLoginUrl } = await import("./parent-url");
+    expect(parentsPortalLoginUrl()).toBe("http://parents.localhost:3000/login");
+  });
+
+  it("appends the search string when given", async () => {
+    setLocation("school.localhost:3000");
+    const { parentsPortalLoginUrl } = await import("./parent-url");
+    expect(parentsPortalLoginUrl("?from=staff")).toBe(
+      "https://parents.localhost:3000/login?from=staff",
+    );
+  });
+
+  it("does not append a port — the env var already carries one", async () => {
+    setLocation("school.moto-app.de");
+    process.env.NEXT_PUBLIC_PARENTS_HOSTNAME = "eltern.moto-app.de";
+    const { parentsPortalLoginUrl } = await import("./parent-url");
+    expect(parentsPortalLoginUrl()).toBe("https://eltern.moto-app.de/login");
+  });
+
+  it("throws when NEXT_PUBLIC_PARENTS_HOSTNAME is unset", async () => {
+    setLocation("school.localhost:3000");
+    delete process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+    const { parentsPortalLoginUrl } = await import("./parent-url");
+    expect(() => parentsPortalLoginUrl()).toThrow(
+      /NEXT_PUBLIC_PARENTS_HOSTNAME/,
+    );
+  });
+
+  it("throws when called on the server", async () => {
+    setLocation("school.localhost:3000");
+    const { parentsPortalLoginUrl } = await import("./parent-url");
+    vi.stubGlobal("window", undefined);
+    expect(() => parentsPortalLoginUrl()).toThrow(/client-only/);
+  });
+});
+
 // --- parentAbsoluteUrl --------------------------------------------------
 
 describe("parentAbsoluteUrl on parents subdomain", () => {
@@ -116,7 +166,11 @@ describe("parentAbsoluteUrl on a non-parents host", () => {
   });
 });
 
-// The `typeof window === "undefined"` throw path for parentAbsoluteUrl
-// can't be exercised under happy-dom (a window always exists). The
-// branch is enforced by static analysis — the explicit throw makes the
-// SSR-misuse failure mode loud and obvious.
+describe("parentAbsoluteUrl on the server", () => {
+  it("throws instead of guessing an origin", async () => {
+    setLocation("school.localhost:3000");
+    const { parentAbsoluteUrl } = await import("./parent-url");
+    vi.stubGlobal("window", undefined);
+    expect(() => parentAbsoluteUrl("/children/123")).toThrow(/client-only/);
+  });
+});

@@ -143,14 +143,20 @@ func withFilenameParam(req *http.Request, filename string) *http.Request {
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
 }
 
+// writeEnrollmentLegalDocument plants a document where the application stores
+// it, by resolving the stored URL the same way upload, serve and delete do.
+// Joining "public" against the working directory instead would place the file
+// in the test package's directory while the handler looks under the resolved
+// public dir — the two only ever coincided by accident of call order.
 func writeEnrollmentLegalDocument(t *testing.T, filename string) (string, string) {
 	t.Helper()
-	dir := filepath.Join("public", "uploads", "enrollment-form-legal-documents")
-	require.NoError(t, os.MkdirAll(dir, 0755))
-	path := filepath.Join(dir, filename)
+	url := "/uploads/enrollment-form-legal-documents/" + filename
+	path, err := common.ResolveStoredPath("public", url, "/uploads/enrollment-form-legal-documents/")
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
 	require.NoError(t, os.WriteFile(path, []byte("%PDF-1.4\n%test\n"), 0600))
 	t.Cleanup(func() { _ = os.Remove(path) })
-	return path, "/uploads/enrollment-form-legal-documents/" + filename
+	return path, url
 }
 
 func multipartPDFRequest(t *testing.T, fieldName, fileName string, content []byte) *http.Request {

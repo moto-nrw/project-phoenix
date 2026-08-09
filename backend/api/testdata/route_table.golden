@@ -48,6 +48,7 @@ DELETE /api/staff/{id}/vacation/opening
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
+DELETE /api/students/{id}/documents/{documentId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
 DELETE /api/students/{id}/pickup-notes/{noteId}
@@ -317,6 +318,7 @@ GET /api/staff/{id}/documents/{documentId}/download
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/payroll-number
 GET /api/staff/{id}/schedule
+GET /api/staff/{id}/school-classes
 GET /api/staff/{id}/stammdaten
 GET /api/staff/{id}/stammdaten/bank-steuer
 GET /api/staff/{id}/substitutions
@@ -346,6 +348,8 @@ GET /api/students/{id}/companions
 GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
 GET /api/students/{id}/delete-impact
+GET /api/students/{id}/documents
+GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/in-group-room
 GET /api/students/{id}/photo/{filename}
@@ -385,6 +389,7 @@ GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
 GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
+GET /api/timetable/offering-sources/combined-counts
 GET /api/timetable/operations/active-groups/{id}/roster
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster
@@ -663,6 +668,7 @@ POST /api/students/pickup-times/bulk
 POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
+POST /api/students/{id}/documents
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
@@ -844,6 +850,7 @@ PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule
+PUT /api/staff/{id}/school-classes
 PUT /api/staff/{id}/stammdaten/arbeitsvertrag
 PUT /api/staff/{id}/stammdaten/bank-steuer
 PUT /api/staff/{id}/stammdaten/kontakt

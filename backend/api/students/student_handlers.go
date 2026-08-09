@@ -1798,6 +1798,27 @@ func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student
 // and a child restored by a concurrent revert must not be deleted by a click
 // aimed at a graduate). Sharing one body keeps the companion lock protocol,
 // the photo capture and the person delete identical for both.
+// checkGraduateStateUnderLock re-decides the alumnus question against the
+// locked row, because the gate both delete paths passed ran on a snapshot.
+//
+// An ordinary delete must refuse a child who graduated in the meantime: it
+// HARD-deletes the very row graduation preserved, so a later transition revert
+// could never bring that child back and their history would be gone for good.
+// The purge refuses the mirror image — a revert that committed between the
+// caller picking the child off a list of graduates and this lock puts them
+// back in the roster, and deleting then removes an active child on the
+// strength of a state that no longer holds. Under the row lock the two
+// serialize either way (#405 review).
+func checkGraduateStateUnderLock(purgeGraduate bool, fresh *users.Student) error {
+	if fresh.IsAlumnus() == purgeGraduate {
+		return nil
+	}
+	if purgeGraduate {
+		return errStudentNoLongerGraduated
+	}
+	return errStudentGraduatedUnderLock
+}
+
 func (rs *Resource) deleteStudentTxMode(
 	ctx context.Context,
 	tenantID int64,
@@ -1830,25 +1851,8 @@ func (rs *Resource) deleteStudentTxMode(
 		return err
 	}
 
-	// The pre-transaction alumnus gate (parseAndGetStudent) ran on a snapshot. A
-	// grade transition that commits between that read and this lock turns the
-	// subject into a soft-deleted graduate, and a delete that proceeds anyway
-	// HARD-deletes the very row graduation preserved: the student and person rows
-	// are gone, so a transition revert can never bring that child back and their
-	// history is lost for good. Under the row lock the two serialize — either we
-	// hold the row and the transition waits for a child that no longer exists, or
-	// it committed first and we see the alumnus status and refuse (#405 review).
-	if !purgeGraduate && fresh.IsAlumnus() {
-		return errStudentGraduatedUnderLock
-	}
-
-	// Mirror image for the purge: the caller picked this child off a list of
-	// graduates, but a revert committing between that list and this lock puts
-	// them back in the roster. Deleting then would remove an active child on the
-	// strength of a state that no longer holds, so the purge refuses instead and
-	// the refreshed list simply no longer offers the action.
-	if purgeGraduate && !fresh.IsAlumnus() {
-		return errStudentNoLongerGraduated
+	if err := checkGraduateStateUnderLock(purgeGraduate, fresh); err != nil {
+		return err
 	}
 	if afterLock != nil {
 		if err := afterLock(ctx); err != nil {
@@ -1859,6 +1863,18 @@ func (rs *Resource) deleteStudentTxMode(
 	var photoToRemove string
 	if fresh.PhotoPath != nil {
 		photoToRemove = *fresh.PhotoPath
+	}
+
+	// Documents get the same treatment as the photo above, and for the same
+	// reason: this path hard-deletes the student row, so users.student_documents
+	// cascades away with it. Both recovery sweeps read those rows, so without an
+	// intent queued here — in this transaction, so it rolls back with a failed
+	// delete — the stored bytes would survive with nothing left pointing at
+	// them. That is the erasure this route exists to perform.
+	if rs.StudentDocumentService != nil {
+		if err := rs.StudentDocumentService.QueueCleanupForAllDocuments(ctx, student.ID); err != nil {
+			return err
+		}
 	}
 
 	if err := rs.StudentService.Delete(ctx, student.ID); err != nil {

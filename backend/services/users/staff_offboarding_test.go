@@ -61,6 +61,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		TeacherRepo:            repos.Teacher,
 		GroupSupervisorRepo:    repos.GroupSupervisor,
 		GroupTeacherRepo:       repos.GroupTeacher,
+		ClassTeacherRepo:       repos.ClassTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,

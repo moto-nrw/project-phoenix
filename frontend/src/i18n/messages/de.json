@@ -412,10 +412,13 @@
     "submitting": "Anmeldung läuft...",
     "submit": "Anmelden",
     "forgotPassword": "Passwort vergessen?",
+    "fromStaffBanner": "Elternkonten melden sich hier an. Bitte geben Sie Ihr Passwort noch einmal ein.",
+    "staffLoginLink": "Zur Schul-Anmeldung",
     "errors": {
       "accountInactive": "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie die Schule.",
       "rateLimited": "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
-      "invalidCredentials": "Anmeldung nicht möglich. Bitte prüfen Sie Ihre Zugangsdaten oder verwenden Sie das Schul-Login, falls Sie zum Personal gehören.",
+      "invalidCredentials": "Anmeldung nicht möglich. Bitte prüfen Sie Ihre Zugangsdaten.",
+      "notAGuardian": "Dieses Konto gehört zum Personal einer Schule. Bitte melden Sie sich über die Schul-Anmeldung an.",
       "invalid": "Ungültige Anmeldedaten",
       "generic": "Anmeldefehler. Bitte versuchen Sie es erneut."
     }

@@ -39,6 +39,8 @@ import {
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { FeaturePill } from "~/components/enrollment/feature-pill";
+import { formatOfferingPrice } from "~/lib/care-offering-format";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -72,11 +74,6 @@ const ISO_WEEKDAY_LABELS: Record<number, string> = {
   6: "Sa",
   7: "So",
 };
-
-const EURO_PRICE_FORMATTER = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-});
 
 const KIND_LABELS: Record<Phase["kind"], string> = {
   school_year: "Schuljahr",
@@ -154,8 +151,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
 }
 
 function formatPrice(cents?: number | null): string {
-  if (cents == null) return "Ohne Preis";
-  return EURO_PRICE_FORMATTER.format(cents / 100);
+  return formatOfferingPrice(cents) ?? "Ohne Preis";
 }
 
 function formatDays(days: string[]): string {
@@ -1044,14 +1040,6 @@ function DaysCell({ offering }: Readonly<{ offering: CareOffering }>) {
           : "Fester Wochenrhythmus"}
       </p>
     </div>
-  );
-}
-
-function FeaturePill({ label }: Readonly<{ label: string }>) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-      {label}
-    </span>
   );
 }
 

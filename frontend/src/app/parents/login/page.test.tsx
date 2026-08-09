@@ -8,11 +8,15 @@ const mocks = vi.hoisted(() => ({
   signIn: vi.fn(),
   signOut: vi.fn(),
   useSession: vi.fn(),
+  searchParamsGet: vi.fn((_key: string) => null as string | null),
 }));
 
 vi.mock("next/navigation", () => ({
   redirect: mocks.redirect,
   useRouter: () => ({ push: mocks.push, refresh: vi.fn() }),
+  // Stable object: the page reads it during render, a fresh identity each
+  // call would churn dependent effects.
+  useSearchParams: () => ({ get: mocks.searchParamsGet }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -90,6 +94,7 @@ import ParentLoginPage from "./page";
 describe("ParentLoginPage i18n", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.searchParamsGet.mockReturnValue(null);
     mocks.useSession.mockReturnValue({
       status: "unauthenticated",
       data: null,
@@ -268,5 +273,83 @@ describe("ParentLoginPage i18n", () => {
       resetDialog.getByRole("button", { name: "Send link" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Passwort zurücksetzen")).not.toBeInTheDocument();
+  });
+
+  describe("portal mix-up", () => {
+    it("greets guardians handed over by the staff login", () => {
+      mocks.searchParamsGet.mockImplementation((key: string) =>
+        key === "from" ? "staff" : null,
+      );
+
+      render(<ParentLoginPage />);
+
+      expect(
+        screen.getByText(/Parent accounts sign in here/),
+      ).toBeInTheDocument();
+    });
+
+    it("shows no hand-over banner on a plain visit", () => {
+      render(<ParentLoginPage />);
+
+      expect(
+        screen.queryByText(/Parent accounts sign in here/),
+      ).not.toBeInTheDocument();
+    });
+
+    async function submitLogin() {
+      render(<ParentLoginPage />);
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("Email address"), {
+          target: { value: "staff@example.com" },
+        });
+        fireEvent.change(screen.getByLabelText("Password"), {
+          target: { value: "correct-password" },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      });
+    }
+
+    // Mirror of the tenant-side fix: the backend refuses a staff account
+    // here only AFTER accepting the password, so naming the reason leaks
+    // nothing and saves the user a pointless password reset.
+    it("names the reason when a staff account lands here", async () => {
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "not_a_guardian",
+      });
+
+      await submitLogin();
+
+      expect(
+        screen.getByText(/This account belongs to school staff/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Go to the school login" }),
+      ).toBeInTheDocument();
+      // The masked copy it replaced — must not come back.
+      expect(
+        screen.queryByText(/Please check your credentials/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps a wrong password generic and offers no staff link", async () => {
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "invalid_credentials",
+      });
+
+      await submitLogin();
+
+      expect(
+        screen.getByText(/Please check your credentials/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Go to the school login" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

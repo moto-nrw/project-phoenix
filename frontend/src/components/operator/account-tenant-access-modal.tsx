@@ -13,6 +13,7 @@ import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
+import { isAssignableStaffRole } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   AccountTenantAccessApiError,
@@ -219,7 +220,12 @@ export function AccountTenantAccessModal({
   const needsName = !knowsName;
 
   function rolesForSchool(schoolId: string) {
-    return rolesBySchool[schoolId] ?? [];
+    // The backend admits lehrkraft (#1772) by policy; hide it here like every
+    // other role picker until the class day view ships — an account holding
+    // only that role would land in an app with zero accessible areas.
+    return (rolesBySchool[schoolId] ?? []).filter((role) =>
+      isAssignableStaffRole(role.name),
+    );
   }
 
   async function runMutation(

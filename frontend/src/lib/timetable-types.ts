@@ -438,9 +438,10 @@ export interface TimetableTemplate {
   targetGradeLevel?: number;
   targetSchoolClass?: string;
   targets?: TimetableTarget[];
-  /** Offering-source rule (#2137): set on "angebot" templates whose roster
-   * derives from a Betreuungsangebot; empty grade list = alle Kinder. */
-  sourceCareOfferingId?: string;
+  /** Offering-source rule (#2137, Mehrfach-Quelle): set on "angebot"
+   * templates whose roster derives from one or more Betreuungsangebote;
+   * empty grade list = alle Kinder. */
+  sourceCareOfferingIds?: string[];
   sourceGradeLevels?: number[];
   enrollmentCount: number;
   supervisorCount: number;
@@ -462,6 +463,12 @@ export interface TimetableTemplate {
   weekdayAssignments: TemplateWeekdayAssignment[];
   /** Read-only enrollment-owned child coverage, used when changing roster mode. */
   protectedStudentAssignments?: TemplateProtectedStudentAssignment[];
+  /**
+   * Set when the backend resolved a capped predecessor segment of a split
+   * series forward to this living successor (#2187); holds the id the client
+   * originally requested.
+   */
+  resolvedFromTemplateId?: string;
 }
 
 /** One weekday's staff and child roster of a Regeltermin (#2129). */
@@ -523,7 +530,7 @@ export interface BackendTimetableTemplate {
     education_group_id?: number;
     education_group_name?: string;
   }>;
-  source_care_offering_id?: number;
+  source_care_offering_ids?: number[];
   source_grade_levels?: number[];
   enrollment_count: number;
   supervisor_count: number;
@@ -537,6 +544,7 @@ export interface BackendTimetableTemplate {
   weekday_assignments?: BackendTemplateWeekdayAssignment[] | null;
   protected_student_assignments?:
     BackendTemplateProtectedStudentAssignment[] | null;
+  resolved_from_template_id?: number | null;
 }
 
 interface BackendTemplateWeekdayAssignment {
@@ -946,12 +954,14 @@ export interface CreateTemplateBody {
   target_group_type?: TargetGroupType;
   target_grade_level?: number;
   target_school_class?: string;
-  /** Offering-source rule (#2137, target_group_type "angebot" only). With a
-   * source set, student_ids must be empty — the roster derives from the
-   * offering's approved enrollments. The update endpoint is presence-aware:
-   * an omitted field keeps the stored value, only an explicit null clears
-   * it — so always send null, never undefined, to mean "no source". */
-  source_care_offering_id?: number | null;
+  /** Offering-source rule (#2137, target_group_type "angebot" only). With
+   * sources set, student_ids must be empty — the roster derives from the
+   * union of the offerings' approved enrollments (Mehrfach-Quelle). The
+   * update endpoint is presence-aware: an omitted field keeps the stored
+   * value, only an explicit null clears it — so always send null, never
+   * undefined, to mean "no source". All offerings must belong to the same
+   * enrollment phase. */
+  source_care_offering_ids?: number[] | null;
   source_grade_levels?: number[] | null;
   /**
    * Series start (#2135): schedules get it as valid_from, so no instances
@@ -997,6 +1007,34 @@ export type UpdateTemplateBody = Omit<
    * `null`, not `undefined`, to be honored (#1565).
    */
   list_kind?: TimetableListKind | null;
+  /**
+   * Roster changes in this body additionally take effect from this calendar
+   * day (YYYY-MM-DD) and are reconciled across the split chain's capped
+   * predecessor segments (#2187). Sent only when the template was
+   * chain-resolved.
+   */
+  series_roster_from?: string;
+  /**
+   * The people whose membership this edit actually changed. Only they are
+   * reconciled on the capped predecessor segments — `student_ids`/`staff_ids`
+   * describe the living segment, whose roster may legitimately differ from a
+   * predecessor's, so they are not the predecessor's target set (#2187).
+   */
+  series_roster_scope_student_ids?: number[];
+  series_roster_scope_staff_ids?: number[];
+  /**
+   * The ISO weekdays this edit describes. Sent only for a series that staffs
+   * each weekday separately (#2129), where the occurrence editor shows one
+   * weekday's roster: the predecessor's other weekdays must not be judged
+   * against it. Omitted for a shared roster, which really does cover them all.
+   */
+  series_roster_scope_weekdays?: number[];
+  /**
+   * Set when this edit moved the Hauptbetreuung. `primary_staff_id` always
+   * names the living segment's lead, so it may only be stamped onto a
+   * predecessor row when the user actually changed it (#2187).
+   */
+  series_roster_primary_changed?: boolean;
 };
 
 /**
@@ -1039,6 +1077,21 @@ interface BackendOfferingSourceOption {
 
 export interface BackendOfferingSourcesResponse {
   offerings: BackendOfferingSourceOption[];
+}
+
+/**
+ * Deduplizierte Kinderzahl über eine Auswahl mehrerer Angebote
+ * (Mehrfach-Quelle): ein Kind in zwei gewählten Angeboten zählt einmal.
+ */
+export interface CombinedOfferingCounts {
+  totalCount: number;
+  /** Jahrgang → Anzahl unterschiedlicher Kinder; key 0 = ohne Jahrgang. */
+  gradeCounts: Record<number, number>;
+}
+
+export interface BackendCombinedOfferingCountsResponse {
+  total_count: number;
+  grade_counts: Record<string, number>;
 }
 
 export interface CreateTemplateResult {

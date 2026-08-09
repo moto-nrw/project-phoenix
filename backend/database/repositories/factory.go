@@ -86,7 +86,8 @@ type Factory struct {
 	StaffFinancialData userModels.StaffFinancialDataRepository
 
 	// Staff documents (#1424)
-	StaffDocument userModels.StaffDocumentRepository
+	StaffDocument   userModels.StaffDocumentRepository
+	StudentDocument userModels.StudentDocumentRepository
 
 	NotificationPreference userModels.NotificationPreferenceRepository
 
@@ -96,6 +97,7 @@ type Factory struct {
 	// Education domain
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
+	ClassTeacher      educationModels.ClassTeacherRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
 	GradeTransition   educationModels.GradeTransitionRepository
 
@@ -300,7 +302,8 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
 
 		// Staff documents (#1424)
-		StaffDocument: users.NewStaffDocumentRepository(db),
+		StaffDocument:   users.NewStaffDocumentRepository(db),
+		StudentDocument: users.NewStudentDocumentRepository(db),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
@@ -310,6 +313,7 @@ func NewFactory(db *bun.DB) *Factory {
 		// Education repositories
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
+		ClassTeacher:      education.NewClassTeacherRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 

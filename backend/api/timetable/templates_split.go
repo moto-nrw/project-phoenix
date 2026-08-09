@@ -71,6 +71,24 @@ func (n *nullableIntSlice) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &n.Value)
 }
 
+// nullableInt64Slice is the []int64 member of the tri-state family: it tells
+// an omitted source_care_offering_ids ("keep the stored Quelle") apart from
+// an explicit null or empty list ("clear the source") on the template PUT
+// and the split body (multi-source follow-up to #2147 round 12).
+type nullableInt64Slice struct {
+	Set   bool
+	Value []int64
+}
+
+func (n *nullableInt64Slice) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 // nullableStr is the string analogue of nullableInt: it tells an omitted note
 // ("inherit the source Wochennotiz") apart from an explicit null ("clear the
 // series note") for the split flow (#1837 follow-up). (Named nullableStr to
@@ -127,6 +145,13 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	}
 	if req.EffectiveDate == "" {
 		return errors.New("effective_date is required (YYYY-MM-DD)")
+	}
+	// series_roster_from (#2187) belongs to the in-place update of a chain-
+	// resolved living segment. A split's effective date lies inside its own
+	// open segment, so no predecessor reconciliation can apply — reject the
+	// field loudly instead of silently ignoring it.
+	if req.SeriesRosterFrom != nil {
+		return errors.New("series_roster_from is not supported on a split")
 	}
 	// req.Notes (nullableStr) shadows the embedded updateTemplateRequest.Notes,
 	// so the create/update length guard in the embedded Bind never sees the
@@ -313,14 +338,14 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		// the pass-through an editor save that changes the Quelle or the
 		// Jahrgangsfilter and then picks the "following" scope would silently
 		// keep the old rule on the successor.
-		SourceCareOfferingID:         req.SourceCareOfferingID.Value,
-		SourceCareOfferingIDProvided: req.SourceCareOfferingID.Set,
-		SourceGradeLevels:            req.SourceGradeLevels.Value,
-		SourceGradeLevelsProvided:    req.SourceGradeLevels.Set,
-		Targets:                      targetModels(req.Targets),
-		StudentIDs:                   req.StudentIDs,
-		StaffIDs:                     req.StaffIDs,
-		PrimaryStaffID:               req.PrimaryStaffID,
+		SourceCareOfferingIDs:         req.SourceCareOfferingIDs.Value,
+		SourceCareOfferingIDsProvided: req.SourceCareOfferingIDs.Set,
+		SourceGradeLevels:             req.SourceGradeLevels.Value,
+		SourceGradeLevelsProvided:     req.SourceGradeLevels.Set,
+		Targets:                       targetModels(req.Targets),
+		StudentIDs:                    req.StudentIDs,
+		StaffIDs:                      req.StaffIDs,
+		PrimaryStaffID:                req.PrimaryStaffID,
 		// Per-weekday roster deviations follow the successor (#2129); the
 		// embedded updateTemplateRequest.Bind already validated them against
 		// the submitted weekdays.
@@ -351,7 +376,7 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 	}
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		renderTemplateNotFound(w, r)
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):

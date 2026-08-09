@@ -3,7 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
-import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { getRoleDisplayName, isAssignableStaffRole } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import { FormField, FormError, SelectWithChevron } from "./provisioning-shared";
 
@@ -60,12 +60,7 @@ export function CreateAccountModal({
         const roleList = await operatorProvisioningService.listSystemRoles();
         if (cancelled) return;
         const options = roleList
-          .filter((role) => {
-            const normalizedName = role.name.toLowerCase();
-            return (
-              normalizedName !== "guardian" && normalizedName !== "teacher"
-            );
-          })
+          .filter((role) => isAssignableStaffRole(role.name))
           .map<RoleOption>((role) => ({
             id: Number(role.id),
             label: role.name

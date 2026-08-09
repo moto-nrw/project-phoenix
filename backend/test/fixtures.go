@@ -852,6 +852,28 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 	return gt
 }
 
+// CreateTestClassTeacher creates a staff-to-school-class assignment (#1772).
+func CreateTestClassTeacher(tb testing.TB, db *bun.DB, staffID int64, schoolClass string) *education.ClassTeacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ct := &education.ClassTeacher{
+		StaffID:     staffID,
+		SchoolClass: schoolClass,
+	}
+	ct.SetTenantID(1)
+
+	err := db.NewInsert().
+		Model(ct).
+		ModelTableExpr(`education.class_teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test class teacher assignment")
+
+	return ct
+}
+
 // ============================================================================
 // Active Domain Fixtures (Sessions and Visits)
 // ============================================================================

@@ -13,6 +13,22 @@ import (
 // before they moved to the user role.
 const legacyTeacherRoleName = "teacher"
 
+// lehrkraftRoleName is the school-teacher system role (#1772). Its whole
+// point is holding ONLY class_day:read — no tenant-wide student directory,
+// no caregiver profile. The caregiver upgrade (caregiver_enabled on an
+// invitation adds the user role plus a users.teachers profile) would undo
+// exactly that, so it is refused for this role.
+const lehrkraftRoleName = "lehrkraft"
+
+// IsLehrkraftSystemRole reports whether the role is the platform lehrkraft
+// system role. Name-matched and narrowed to system roles like the legacy
+// teacher block: a school's own custom role that happens to share the label
+// is a different role with school-chosen permissions.
+func IsLehrkraftSystemRole(role *authModels.Role) bool {
+	return role != nil && role.IsSystem &&
+		strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
+}
+
 // Which roles may be handed out when an account is attached to a school. Shared
 // by every path that grants school access — operator provisioning, the
 // operator-led school-access management (issue #1021) and the tenant-side
@@ -38,6 +54,12 @@ var (
 	// assignable at this school, but the acting account is not allowed to hand
 	// it out — granting an admin-tier role requires users:manage.
 	ErrRoleGrantNotPermitted = errors.New("Du darfst diese Rolle nicht vergeben") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrLehrkraftNoCaregiver is returned when an invitation combines the
+	// lehrkraft role with caregiver_enabled — the upgrade would grant the
+	// full user role and a caregiver profile, defeating the role's
+	// class-scoped read-only design (#1772).
+	ErrLehrkraftNoCaregiver = errors.New("Die Rolle 'Lehrkraft' kann nicht mit Betreuungsrechten kombiniert werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ValidateAssignableSchoolRole resolves a role and rejects it when it must not

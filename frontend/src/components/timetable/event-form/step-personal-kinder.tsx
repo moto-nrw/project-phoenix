@@ -71,11 +71,12 @@ export interface StepPersonalKinderProps {
   addTargetCohort: () => void;
   offeringSources: OfferingSourceOption[] | null;
   offeringSourcesError: string | null;
-  selectedOfferingSource: OfferingSourceOption | null;
+  sourcePhaseLockId: string | null;
   sourceGradeOptions: number[];
+  sourceGradeCounts: Record<number, number>;
   sourceFilteredCount: number;
   sourceOverlapWarnings: string[];
-  changeSourceOffering: (offeringId: string) => void;
+  changeSourceOfferings: (offeringIds: string[]) => void;
   toggleSourceGradeLevel: (grade: number) => void;
   conflictWarnings: ConflictWarningItem[];
   coverageWarnings: ShiftCoverageWarningItem[];
@@ -125,11 +126,12 @@ export function StepPersonalKinder({
   addTargetCohort,
   offeringSources,
   offeringSourcesError,
-  selectedOfferingSource,
+  sourcePhaseLockId,
   sourceGradeOptions,
+  sourceGradeCounts,
   sourceFilteredCount,
   sourceOverlapWarnings,
-  changeSourceOffering,
+  changeSourceOfferings,
   toggleSourceGradeLevel,
   conflictWarnings,
   coverageWarnings,
@@ -146,7 +148,20 @@ export function StepPersonalKinder({
   const hasOfferingSource =
     isSeriesFlow &&
     form.targetGroupType === "angebot" &&
-    form.sourceCareOfferingId !== "";
+    form.sourceCareOfferingIds.length > 0;
+  // Stored sources missing from the fetched list (deactivated offering,
+  // other calendar period, load error) must stay removable: rendered as
+  // checked entries, they keep the select enabled and uncheckable, so a
+  // template can always be cleared back to a manual roster.
+  const knownOfferingIds = new Set(
+    (offeringSources ?? []).map((offering) => offering.id),
+  );
+  const unknownSelectedOfferingOptions = form.sourceCareOfferingIds
+    .filter((id) => !knownOfferingIds.has(id))
+    .map((id) => ({
+      value: id,
+      label: `Nicht mehr verfügbares Angebot (ID ${id})`,
+    }));
   // Per-weekday rosters only make sense for a recurring series, and only once
   // the people lists have actually loaded — otherwise a save would write the
   // empty placeholder lists onto every weekday. An offering-sourced template
@@ -405,43 +420,73 @@ export function StepPersonalKinder({
 
           {form.targetGroupType === "angebot" && (
             <div className="mt-1 flex flex-col gap-2">
-              <Field label="Angebot als Quelle" htmlFor="event_source_offering">
-                <CustomSelect
-                  id="event_source_offering"
-                  ariaLabel="Betreuungsangebot"
-                  value={form.sourceCareOfferingId}
+              <Field
+                label="Angebote als Quelle"
+                htmlFor="event_source_offerings"
+              >
+                <MultiCheckboxSelect
+                  id="event_source_offerings"
+                  ariaLabel="Angebote als Quelle"
+                  value={form.sourceCareOfferingIds}
                   options={[
-                    { value: "", label: "Kein Angebot als Quelle" },
+                    ...unknownSelectedOfferingOptions,
                     ...(offeringSources ?? []).map((offering) => ({
                       value: offering.id,
                       label: `${offering.name} (${offering.phaseName || "ohne Phase"}, ${offering.totalCount} ${offering.totalCount === 1 ? "Kind" : "Kinder"})`,
+                      // The union requires one shared enrollment phase; the
+                      // first selection locks the rest of the list to it.
+                      disabled:
+                        sourcePhaseLockId !== null &&
+                        offering.phaseId !== sourcePhaseLockId &&
+                        !form.sourceCareOfferingIds.includes(offering.id),
                     })),
                   ]}
-                  onChange={changeSourceOffering}
+                  onChange={changeSourceOfferings}
                   disabled={offeringSources === null}
-                  placeholder="Angebot wählen …"
+                  emptyLabel="Kein Angebot als Quelle"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Mehrere Angebote lassen sich kombinieren – die Kinder aller
+                  gewählten Angebote werden zusammengeführt, jedes Kind zählt
+                  dabei nur einmal. Alle Angebote müssen zur selben Anmeldephase
+                  gehören.
+                </p>
+                {sourcePhaseLockId !== null &&
+                  (offeringSources ?? []).some(
+                    (offering) =>
+                      offering.phaseId !== sourcePhaseLockId &&
+                      !form.sourceCareOfferingIds.includes(offering.id),
+                  ) && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Angebote anderer Anmeldephasen sind ausgegraut, solange
+                      eine Quelle gewählt ist.
+                    </p>
+                  )}
               </Field>
               {offeringSourcesError ? (
                 <Alert type="warning" message={offeringSourcesError} />
               ) : null}
-              {form.sourceCareOfferingId === "" && (
+              {form.sourceCareOfferingIds.length === 0 && (
                 <p className="text-xs text-gray-500">
-                  Mit einem Angebot als Quelle übernimmt der Regeltermin die
+                  Mit Angeboten als Quelle übernimmt der Regeltermin die
                   angemeldeten Kinder automatisch – auch bei späteren An- und
                   Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die
                   unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld
                   „Regeltermin“).
                 </p>
               )}
-              {selectedOfferingSource && (
+              {/* Gate on the FORM selection, matching hasOfferingSource: a
+                  stored source missing from the fetched list still hides the
+                  manual picker, so the filter fieldset must stay visible and
+                  editable — otherwise neither roster control is reachable. */}
+              {form.sourceCareOfferingIds.length > 0 && (
                 <>
                   <fieldset className="flex flex-col gap-1">
                     <legend className="text-xs font-semibold text-gray-700">
                       Nach Jahrgang filtern
                     </legend>
                     <p className="text-xs text-gray-500">
-                      Keine Auswahl = alle Kinder des Angebots.
+                      Keine Auswahl = alle Kinder der gewählten Angebote.
                     </p>
                     <div className="mt-1 flex flex-wrap gap-3">
                       {sourceGradeOptions.map((grade) => (
@@ -453,13 +498,12 @@ export function StepPersonalKinder({
                             checked={form.sourceGradeLevels.includes(grade)}
                             onChange={() => toggleSourceGradeLevel(grade)}
                           />
-                          Jahrgang {grade} (
-                          {selectedOfferingSource.gradeCounts[grade] ?? 0})
+                          Jahrgang {grade} ({sourceGradeCounts[grade] ?? 0})
                         </label>
                       ))}
                       {sourceGradeOptions.length === 0 && (
                         <p className="text-xs text-gray-500">
-                          Für dieses Angebot sind noch keine Jahrgänge
+                          Für die gewählten Angebote sind noch keine Jahrgänge
                           ableitbar.
                         </p>
                       )}
@@ -576,9 +620,9 @@ export function StepPersonalKinder({
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-700">Kinder</span>
           <p className="text-xs text-gray-500">
-            Die Kinderliste kommt aus dem gewählten Betreuungsangebot und wird
-            automatisch aktuell gehalten. Eine manuelle Auswahl ist bei einem
-            Angebot als Quelle nicht nötig.
+            Die Kinderliste kommt aus den gewählten Betreuungsangeboten und wird
+            automatisch aktuell gehalten. Eine manuelle Auswahl ist bei
+            Angeboten als Quelle nicht nötig.
           </p>
         </div>
       ) : (

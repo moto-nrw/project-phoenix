@@ -118,6 +118,7 @@ type Factory struct {
 	Users                    users.PersonService
 	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
+	StudentDocuments         users.StudentDocumentService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -305,6 +306,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	educationService := education.NewService(
 		repos.Group,
 		repos.GroupTeacher,
+		repos.ClassTeacher,
 		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,
@@ -317,6 +319,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
+	}
+	// Class assignment rewrites scope the Lehrkraft student day view (#1772)
+	// and land in the Stammdaten audit trail.
+	if auditAware, ok := educationService.(interface {
+		SetMasterDataAudit(auditModels.StaffMasterDataChangeCreator)
+	}); ok {
+		auditAware.SetMasterDataAudit(repos.StaffMasterDataChange)
 	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
@@ -335,6 +344,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:       repos.Person,
 		VisitRepo:        repos.ActiveVisit,
 		AttendanceRepo:   repos.Attendance,
+		ClassTeacherRepo: repos.ClassTeacher,
+		StaffRepo:        repos.Staff,
 		RosterReconciler: rosterReconciler,
 		DB:               db,
 	})
@@ -1252,6 +1263,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TeacherRepo:            repos.Teacher,
 		GroupSupervisorRepo:    repos.GroupSupervisor,
 		GroupTeacherRepo:       repos.GroupTeacher,
+		ClassTeacherRepo:       repos.ClassTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
@@ -1287,6 +1299,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
+		ClassTeacherRepo:   repos.ClassTeacher,
 		ActiveService:      activeService,
 		SSESettings:        settingsService,
 	}, usercontextLogger)
@@ -1665,6 +1678,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
 		db,
+	)
+	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
+
+	// Child documents (#777): metadata, per-category authority and the
+	// per-child access gate for the Dokumente tab. Needs the user context to
+	// answer "does this caller supervise this child", so it is wired after it.
+	studentDocumentService := users.NewStudentDocumentService(
+		db,
+		repos.StudentDocument,
+		repos.Student,
+		repos.StudentFieldEdit,
+		repos.DataAccessLog,
+		userContextService,
+		logger.With("service", "student_documents"),
 	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
@@ -2095,6 +2122,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Users:                    usersService,
 		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
+		StudentDocuments:         studentDocumentService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

@@ -21,6 +21,12 @@ const (
 	// the Dokumente tab (#1424): field_name is the category, old/new carry
 	// the display filename (upload: old empty; delete: new empty).
 	StammdatenSectionDokumente = "dokumente"
+	// StammdatenSectionSchoolClasses records rewrites of a staff member's
+	// school class assignments (#1772): old/new carry the joined class
+	// lists. These rows scope the Lehrkraft student day view, so every
+	// change needs a trace. ChangedBy is the authenticated account ID (like
+	// bank-steuer): the users:manage holder need not have a staff mapping.
+	StammdatenSectionSchoolClasses = "school-classes"
 )
 
 // StaffMasterDataChange is an append-only audit row for one changed
@@ -54,7 +60,8 @@ func (c *StaffMasterDataChange) Validate() error {
 	}
 	switch c.Section {
 	case StammdatenSectionPerson, StammdatenSectionKontakt, StammdatenSectionArbeitsvertrag,
-		StammdatenSectionQualifikation, StammdatenSectionBankSteuer, StammdatenSectionDokumente:
+		StammdatenSectionQualifikation, StammdatenSectionBankSteuer, StammdatenSectionDokumente,
+		StammdatenSectionSchoolClasses:
 		// valid
 	default:
 		return errors.New("unknown stammdaten section")

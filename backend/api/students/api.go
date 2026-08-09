@@ -97,10 +97,12 @@ type ResourceConfig struct {
 	ParentEventEmitter *parentmessaging.Emitter
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
-	ListExportService  *listexport.RendererService
-	Logger             *slog.Logger
-	Now                func() time.Time
-	DB                 *bun.DB
+	// StudentDocumentService backs the child's Dokumente tab (#777).
+	StudentDocumentService userService.StudentDocumentService
+	ListExportService      *listexport.RendererService
+	Logger                 *slog.Logger
+	Now                    func() time.Time
+	DB                     *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -252,6 +254,25 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/photo", rs.uploadStudentPhoto)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/photo", rs.deleteStudentPhoto)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/photo/{filename}", rs.serveStudentPhoto)
+
+		// Child documents (#777). The gate only proves the caller may reach
+		// the tab at all. Per-category authority (health → student_documents:health,
+		// Sorgerecht → student_documents:legal, the rest → users:update) is
+		// decided in the document service, which also filters the list down to
+		// the categories the caller may see.
+		//
+		// upload + download skip withTx so a slow 10 MB body or file stream
+		// doesn't pin a bun pool connection; those handlers open their own
+		// short transactions.
+		studentDocumentsGate := authorize.RequiresAnyPermission(
+			permissions.UsersUpdate,
+			permissions.StudentDocumentsHealth,
+			permissions.StudentDocumentsLegal,
+		)
+		r.With(studentDocumentsGate, withTx).Get("/{id}/documents", rs.listStudentDocuments)
+		r.With(studentDocumentsGate).Post("/{id}/documents", rs.uploadStudentDocument)
+		r.With(studentDocumentsGate).Get("/{id}/documents/{documentId}/download", rs.downloadStudentDocument)
+		r.With(studentDocumentsGate, withTx).Delete("/{id}/documents/{documentId}", rs.deleteStudentDocument)
 	})
 
 	// Device-authenticated routes for RFID devices.

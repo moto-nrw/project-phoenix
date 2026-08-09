@@ -162,7 +162,8 @@ func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err err
 	case errors.Is(err, authService.ErrRoleNotAssignable),
 		errors.Is(err, authService.ErrRoleForeignTenant),
 		errors.Is(err, authService.ErrRoleGuardianNotAssignable),
-		errors.Is(err, authService.ErrRoleLegacyTeacherNotAssignable):
+		errors.Is(err, authService.ErrRoleLegacyTeacherNotAssignable),
+		errors.Is(err, authService.ErrLehrkraftNoCaregiver):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return true
 	}

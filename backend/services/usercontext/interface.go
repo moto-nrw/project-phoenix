@@ -44,6 +44,13 @@ type UserContextService interface {
 	// by an equivalence test.
 	GetMyGroups(ctx context.Context) ([]*education.Group, error)
 
+	// GetMySchoolClasses returns the school classes assigned to the current
+	// staff member via education.class_teachers (#1772), as display strings
+	// in class order. Callers comparing against student rows must normalize
+	// both sides with schoolclass.Normalize. An account without a staff
+	// record cleanly resolves to an empty set, mirroring GetMyGroups.
+	GetMySchoolClasses(ctx context.Context) ([]string, error)
+
 	// GetSubstitutedGroupIDs returns the set of education group IDs the current
 	// staff member can access via an active substitution where the regular
 	// staff slot is unassigned. Returns an empty set when the user is not

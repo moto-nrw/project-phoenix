@@ -46,6 +46,7 @@ import {
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
+import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -97,6 +98,7 @@ type StudentTabId =
   | "betreuungsplan"
   | "betreuungszeiten"
   | "anmeldungen"
+  | "dokumente"
   | "historie";
 
 const TAB_LABELS: Record<StudentTabId, string> = {
@@ -106,6 +108,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
   betreuungsplan: "Betreuungsplan",
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
+  dokumente: "Dokumente",
   historie: "Historie",
 };
 
@@ -118,6 +121,7 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "erziehungsberechtigte",
   "betreuungsplan",
   "betreuungszeiten",
+  "dokumente",
   "historie",
 ];
 const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
@@ -132,6 +136,7 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "betreuungsplan",
   "betreuungszeiten",
   "anmeldungen",
+  "dokumente",
   "historie",
 ];
 const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
@@ -165,6 +170,7 @@ function studentTabs(
   hasStudentReadAccess: boolean,
   canViewEnrollments: boolean,
   canViewCarePlan: boolean,
+  canViewDocuments: boolean,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -187,9 +193,19 @@ function studentTabs(
   // would only surface a permanently failing panel, and ?tab=betreuungsplan is
   // clamped away for the same reason. Widening staff access to a child's plan
   // is a backend (gdpr.student_data_scope) decision, not a frontend one.
-  return canViewCarePlan
+  const withCarePlan = canViewCarePlan
     ? base
     : base.filter((tab) => tab !== "betreuungsplan");
+  // Dokumente (#777) mirrors the backend route gate exactly:
+  // RequiresAnyPermission(users:update, student_documents:health,
+  // student_documents:legal). Gating on write access instead would disagree in
+  // both directions — a group supervisor without users:update would see a tab
+  // that only answers 403, and a role holding just student_documents:health
+  // (which the migration exists to make grantable) could never reach the tab
+  // at all.
+  return canViewDocuments
+    ? withCarePlan
+    : withCarePlan.filter((tab) => tab !== "dokumente");
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -356,9 +372,21 @@ function StudentDetailPageContent() {
   const canViewCarePlan =
     sessionStatus === "authenticated" &&
     hasPermission(session, "schedules:read");
+  // Same three permissions the backend route gate accepts (#777).
+  const canViewDocuments =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+      hasPermission(session, "student_documents:health") ||
+      hasPermission(session, "student_documents:legal"));
   const visibleTabs = useMemo(
-    () => studentTabs(hasFullAccess, canViewEnrollments, canViewCarePlan),
-    [canViewEnrollments, canViewCarePlan, hasFullAccess],
+    () =>
+      studentTabs(
+        hasFullAccess,
+        canViewEnrollments,
+        canViewCarePlan,
+        canViewDocuments,
+      ),
+    [canViewEnrollments, canViewCarePlan, hasFullAccess, canViewDocuments],
   );
   const tabResolutionTabs =
     sessionStatus === "loading"
@@ -1396,6 +1424,16 @@ function FullAccessView({
   useEffect(() => {
     if (activeTab === "nachrichten") setMessagesTabSeen(true);
   }, [activeTab]);
+  // Same deal for Dokumente (#777): the list request also sweeps for storage
+  // cleanup left over from an interrupted upload, so firing it on every
+  // student-detail load would put that work behind page views that never open
+  // the tab. Mount on first open, then keep it mounted so revisits don't refetch.
+  const [documentsTabSeen, setDocumentsTabSeen] = useState(
+    activeTab === "dokumente",
+  );
+  useEffect(() => {
+    if (activeTab === "dokumente") setDocumentsTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       {(showCheckout || showCheckin || hasWriteAccess) && (
@@ -1521,6 +1559,10 @@ function FullAccessView({
             <StudentEnrollmentsTab studentId={studentId} />
           </TabsContent>
         ) : null}
+
+        <TabsContent value="dokumente" forceMount className={TAB_CONTENT_CLASS}>
+          {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
+        </TabsContent>
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection

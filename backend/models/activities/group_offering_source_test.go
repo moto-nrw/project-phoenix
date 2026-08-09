@@ -11,16 +11,16 @@ func TestGroupValidateOfferingSource(t *testing.T) {
 		{
 			name: "angebot with source and filter is valid",
 			group: Group{
-				TargetGroupType:      TargetGroupTypeAngebot,
-				SourceCareOfferingID: int64Ptr(5),
-				SourceGradeLevels:    []int{1, 2},
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceGradeLevels:     []int{1, 2},
 			},
 		},
 		{
 			name: "angebot with source and empty filter is valid",
 			group: Group{
-				TargetGroupType:      TargetGroupTypeAngebot,
-				SourceCareOfferingID: int64Ptr(5),
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
 			},
 		},
 		{
@@ -35,40 +35,56 @@ func TestGroupValidateOfferingSource(t *testing.T) {
 				TargetGroupType:   TargetGroupTypeAngebot,
 				SourceGradeLevels: []int{1},
 			},
-			wantErr: "source_grade_levels requires source_care_offering_id",
+			wantErr: "source_grade_levels requires source_care_offering_ids",
 		},
 		{
 			name: "source on non-angebot type is rejected",
 			group: Group{
-				TargetGroupType:      TargetGroupTypeJahrgang,
-				TargetGradeLevel:     int16Ptr(2),
-				SourceCareOfferingID: int64Ptr(5),
+				TargetGroupType:       TargetGroupTypeJahrgang,
+				TargetGradeLevel:      int16Ptr(2),
+				SourceCareOfferingIDs: []int64{5},
 			},
-			wantErr: "source_care_offering_id requires target group type 'angebot'",
+			wantErr: "source_care_offering_ids requires target group type 'angebot'",
 		},
 		{
 			name: "non-positive source id is rejected",
 			group: Group{
-				TargetGroupType:      TargetGroupTypeAngebot,
-				SourceCareOfferingID: int64Ptr(0),
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{0},
 			},
-			wantErr: "source_care_offering_id must be positive when set",
+			wantErr: "source_care_offering_ids entries must be positive",
+		},
+		{
+			name: "duplicate source ids are rejected",
+			group: Group{
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5, 5},
+			},
+			wantErr: "source_care_offering_ids must not contain duplicates",
+		},
+		{
+			name: "several distinct sources are valid",
+			group: Group{
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5, 8, 9},
+				SourceGradeLevels:     []int{1},
+			},
 		},
 		{
 			name: "out-of-range grade is rejected",
 			group: Group{
-				TargetGroupType:      TargetGroupTypeAngebot,
-				SourceCareOfferingID: int64Ptr(5),
-				SourceGradeLevels:    []int{14},
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceGradeLevels:     []int{14},
 			},
 			wantErr: "source_grade_levels entries must be between 1 and 13",
 		},
 		{
 			name: "duplicate grades are rejected",
 			group: Group{
-				TargetGroupType:      TargetGroupTypeAngebot,
-				SourceCareOfferingID: int64Ptr(5),
-				SourceGradeLevels:    []int{2, 2},
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceGradeLevels:     []int{2, 2},
 			},
 			wantErr: "source_grade_levels must not contain duplicates",
 		},
@@ -91,9 +107,9 @@ func TestGroupValidateOfferingSource(t *testing.T) {
 
 func TestGroupValidateOfferingSourceNormalizesEmptyFilter(t *testing.T) {
 	group := Group{
-		TargetGroupType:      TargetGroupTypeAngebot,
-		SourceCareOfferingID: int64Ptr(5),
-		SourceGradeLevels:    []int{},
+		TargetGroupType:       TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{5},
+		SourceGradeLevels:     []int{},
 	}
 	if err := group.ValidateTargetGroup(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -104,15 +120,15 @@ func TestGroupValidateOfferingSourceNormalizesEmptyFilter(t *testing.T) {
 }
 
 func TestGroupMatchesSourceGradeFilter(t *testing.T) {
-	unfiltered := Group{TargetGroupType: TargetGroupTypeAngebot, SourceCareOfferingID: int64Ptr(5)}
+	unfiltered := Group{TargetGroupType: TargetGroupTypeAngebot, SourceCareOfferingIDs: []int64{5}}
 	if !unfiltered.MatchesSourceGradeFilter(nil) || !unfiltered.MatchesSourceGradeFilter(int16Ptr(3)) {
 		t.Fatal("empty filter must admit every child")
 	}
 
 	filtered := Group{
-		TargetGroupType:      TargetGroupTypeAngebot,
-		SourceCareOfferingID: int64Ptr(5),
-		SourceGradeLevels:    []int{1, 2},
+		TargetGroupType:       TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{5},
+		SourceGradeLevels:     []int{1, 2},
 	}
 	if !filtered.MatchesSourceGradeFilter(int16Ptr(2)) {
 		t.Fatal("grade 2 must match filter [1 2]")
@@ -159,6 +175,45 @@ func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
 			for i, level := range levels {
 				if level != tc.want[i] {
 					t.Fatalf("got %v, want %v", levels, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// The list read model also carries the source id array as jsonb text
+// (multi-source follow-up to #2137).
+func TestTemplateListRowParseSourceCareOfferingIDs(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    []int64
+		wantErr bool
+	}{
+		{name: "NULL column yields no source", raw: ""},
+		{name: "empty array yields no source", raw: "[]"},
+		{name: "id list is decoded", raw: "[12,15]", want: []int64{12, 15}},
+		{name: "malformed json is reported", raw: "{oops", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ids, err := TemplateListRow{SourceCareOfferingIDsJSON: tc.raw}.ParseSourceCareOfferingIDs()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected a parse error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(ids) != len(tc.want) {
+				t.Fatalf("got %v, want %v", ids, tc.want)
+			}
+			for i, id := range ids {
+				if id != tc.want[i] {
+					t.Fatalf("got %v, want %v", ids, tc.want)
 				}
 			}
 		})

@@ -36,6 +36,9 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { availableCareOfferings } from "~/lib/care-offering-availability";
+import { formatOfferingPrice } from "~/lib/care-offering-format";
+import { FeaturePill } from "~/components/enrollment/feature-pill";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -287,6 +290,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   key={child.id}
                   requestId={data.id}
                   phaseId={data.phase_id}
+                  phaseName={data.phase_name}
                   child={child}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
@@ -473,6 +477,7 @@ function ChildInformationCard({
   onReasonChange,
   onDelete,
   phaseId,
+  phaseName,
   reason,
   requestId,
   schemaFields,
@@ -482,6 +487,7 @@ function ChildInformationCard({
   child: AdminRequestChild;
   requestId: string;
   phaseId: string;
+  phaseName?: string;
   onDecide: (status: DecisionStatus) => void;
   onDataCorrected: (correctedChild: AdminRequestChild) => void;
   onOfferingsChanged: () => void;
@@ -556,7 +562,12 @@ function ChildInformationCard({
             />
           </div>
         ) : null}
-        <ChildOfferings offerings={child.offerings} />
+        <ChildOfferings
+          offerings={child.offerings}
+          upcomingOfferings={child.upcoming_offerings}
+          unavailable={child.offerings_unavailable}
+          phaseName={phaseName}
+        />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
             requestId={requestId}
@@ -976,40 +987,113 @@ const DAY_LABEL_DE: Record<string, string> = {
 
 export function ChildOfferings({
   offerings,
-}: Readonly<{ offerings?: AdminRequestChildOffering[] }>) {
-  if (!offerings || offerings.length === 0) return null;
+  upcomingOfferings,
+  unavailable,
+  phaseName,
+}: Readonly<{
+  offerings?: AdminRequestChildOffering[];
+  /** Rendered alongside the current selection, flagged "gilt ab …". */
+  upcomingOfferings?: AdminRequestChildOffering[];
+  /**
+   * The lookup failed. Rendered as a warning rather than nothing: staff
+   * decide on this screen, and an absent block reads as "the family booked
+   * nothing" — which is how the wrong decision gets made (#2185).
+   */
+  unavailable?: boolean;
+  phaseName?: string;
+}>) {
+  const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
+  if (unavailable) {
+    return (
+      <div className="mt-3 rounded-lg border border-[#F78C10]/30 bg-[#FFF4E6] p-3">
+        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+          Betreuungsangebote
+        </h4>
+        <p className="mt-1.5 text-sm text-[#8A5600]">
+          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
+          neu laden, bevor Sie über dieses Kind entscheiden.
+        </p>
+      </div>
+    );
+  }
+  if (rows.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
       <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
         Betreuungsangebote
       </h4>
       <ul className="mt-1.5 space-y-2 text-sm">
-        {offerings.map((o) => {
+        {rows.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
           const dayDetails = parentChoice
             ? formatAdminOfferingDaySource(o)
             : formatAdminDays(o.available_days ?? []);
           return (
-            <li
-              key={o.offering_id}
-              className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
-            >
-              <span className="font-medium text-gray-900">
-                {o.offering_name || `Angebot #${o.offering_id}`}
-              </span>
-              {dayDetails ? (
-                <span className="text-xs text-gray-600">
-                  {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
+            <li key={`${o.offering_id}-${o.valid_from ?? "current"}`}>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-medium text-gray-900">
+                  {o.offering_name || `Angebot #${o.offering_id}`}
                 </span>
-              ) : parentChoice ? (
-                <span className="text-moto-red-strong text-xs italic">
-                  Keine Tage gewählt
-                </span>
-              ) : null}
+                {dayDetails ? (
+                  <span className="text-xs text-gray-600">
+                    {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
+                  </span>
+                ) : parentChoice ? (
+                  <span className="text-moto-red-strong text-xs italic">
+                    Keine Tage gewählt
+                  </span>
+                ) : null}
+              </div>
+              <OfferingAttributePills offering={o} />
             </li>
           );
         })}
       </ul>
+      {/* Where the attributes come from. The support case behind #2185 was a
+          coordinator who could not place the "mit Mittagessen" the parents app
+          showed — naming the phase turns the badges into something staff can
+          act on instead of another mystery. */}
+      <p className="mt-2 text-xs text-gray-500">
+        Angaben stammen aus der Angebots-Konfiguration
+        {phaseName
+          ? ` der Anmeldephase „${phaseName}“`
+          : " der Anmeldephase"}{" "}
+        (Anmeldungen → Betreuungsangebote).
+      </p>
+    </div>
+  );
+}
+
+// The offering's attributes and validity, phrased exactly as the parents app
+// phrases them for the same booking (#2185) — "mit Mittagessen", not
+// "Mittagessen" — so a guardian quoting their screen and the staff member
+// reading this row use the same words.
+function OfferingAttributePills({
+  offering,
+}: Readonly<{ offering: AdminRequestChildOffering }>) {
+  const price = formatOfferingPrice(offering.price_cents);
+  const pills: string[] = [];
+  if (offering.includes_lunch) pills.push("mit Mittagessen");
+  if (offering.includes_holiday_care) pills.push("mit Ferienbetreuung");
+  if (price) pills.push(`${price} pro Monat`);
+  if (offering.valid_until) {
+    // Already the inclusive last covered day on the wire.
+    pills.push(`bis ${formatPlainDate(offering.valid_until)}`);
+  }
+  const startsLater = offering.starts_later === true && !!offering.valid_from;
+  if (pills.length === 0 && !startsLater) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      {startsLater ? (
+        <StatusBadge
+          tone="blue"
+          label={`gilt ab ${formatPlainDate(offering.valid_from ?? "")}`}
+          title="Diese Buchung ist noch nicht wirksam, sie beginnt erst zum genannten Datum."
+        />
+      ) : null}
+      {pills.map((label) => (
+        <FeaturePill key={label} label={label} />
+      ))}
     </div>
   );
 }
@@ -1196,17 +1280,24 @@ export function ChildOfferingAdjustment({
               Nachbearbeitung
             </h4>
             <p className="mt-1 text-sm text-gray-600">
-              Angebote können für dieses bestätigte Kind korrigiert werden.
+              {child.offerings_unavailable
+                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden - eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
+                : "Angebote können für dieses bestätigte Kind korrigiert werden."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void openEditor()}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <Pencil className="h-4 w-4" aria-hidden />
-            Bearbeiten
-          </button>
+          {/* Correcting on top of an unknown selection would replace the
+              family's real bookings with whatever the empty editor holds
+              (#2185), so the entry point disappears until the data is back. */}
+          {child.offerings_unavailable ? null : (
+            <button
+              type="button"
+              onClick={() => void openEditor()}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Bearbeiten
+            </button>
+          )}
         </div>
       ) : null}
 

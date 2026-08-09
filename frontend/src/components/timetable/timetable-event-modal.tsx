@@ -218,12 +218,13 @@ export function TimetableEventModal({
     targetClassOptions,
     offeringSources,
     offeringSourcesError,
-    selectedOfferingSource,
+    sourcePhaseLockId,
     sourceGradeOptions,
+    sourceGradeCounts,
     sourceFilteredCount,
     sourceOverlapWarnings,
-    changeSourceOffering,
-    pendingSourceOfferingId,
+    changeSourceOfferings,
+    pendingSourceOfferingIds,
     confirmPendingSourceOffering,
     cancelPendingSourceOffering,
     toggleSourceGradeLevel,
@@ -268,12 +269,13 @@ export function TimetableEventModal({
     closingDayRanges,
   });
 
-  const pendingSourceOfferingName =
-    pendingSourceOfferingId !== null
-      ? (offeringSources?.find(
-          (offering) => offering.id === pendingSourceOfferingId,
-        )?.name ?? null)
-      : null;
+  const pendingSourceOfferingNames =
+    pendingSourceOfferingIds
+      ?.map(
+        (offeringId) =>
+          offeringSources?.find((offering) => offering.id === offeringId)?.name,
+      )
+      .filter((name): name is string => Boolean(name)) ?? [];
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
   // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
@@ -581,11 +583,12 @@ export function TimetableEventModal({
                 addTargetCohort={addTargetCohort}
                 offeringSources={offeringSources}
                 offeringSourcesError={offeringSourcesError}
-                selectedOfferingSource={selectedOfferingSource}
+                sourcePhaseLockId={sourcePhaseLockId}
                 sourceGradeOptions={sourceGradeOptions}
+                sourceGradeCounts={sourceGradeCounts}
                 sourceFilteredCount={sourceFilteredCount}
                 sourceOverlapWarnings={sourceOverlapWarnings}
-                changeSourceOffering={changeSourceOffering}
+                changeSourceOfferings={changeSourceOfferings}
                 toggleSourceGradeLevel={toggleSourceGradeLevel}
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}
@@ -900,7 +903,7 @@ export function TimetableEventModal({
             zusammengelegt; die gemeinsame Besetzung muss danach ausdrücklich
             neu gewählt werden. Das braucht eine ausdrückliche Bestätigung. */}
         <ConfirmationModal
-          isOpen={pendingSourceOfferingId !== null}
+          isOpen={pendingSourceOfferingIds !== null}
           onClose={cancelPendingSourceOffering}
           onConfirm={confirmPendingSourceOffering}
           title="Besetzung je Wochentag wird ersetzt"
@@ -910,9 +913,11 @@ export function TimetableEventModal({
         >
           <p className="text-sm leading-relaxed text-gray-600">
             Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit
-            {pendingSourceOfferingName
-              ? ` dem Angebot „${pendingSourceOfferingName}“ `
-              : " einem Angebot "}
+            {pendingSourceOfferingNames.length === 1
+              ? ` dem Angebot „${pendingSourceOfferingNames[0]}“ `
+              : pendingSourceOfferingNames.length > 1
+                ? ` den Angeboten „${pendingSourceOfferingNames.join("“, „")}“ `
+                : " einem Angebot "}
             als Quelle gilt eine gemeinsame Besetzung für alle Wochentage. Die
             bisherigen Zuweisungen je Wochentag werden entfernt; wähle die
             gemeinsame Besetzung anschließend im Schritt „Personal und Kinder“

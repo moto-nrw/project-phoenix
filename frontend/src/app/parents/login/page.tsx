@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -18,6 +18,7 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
+import { env } from "~/env";
 
 /**
  * Wie lange nach einem erfolgreichen signIn auf die publizierte Session
@@ -27,16 +28,48 @@ import { parentPath } from "~/lib/parent-url";
  */
 const SESSION_HANDOFF_TIMEOUT_MS = 10_000;
 
+/**
+ * Absolute URL der Schul-Anmeldung. Anders als das Elternportal liegt das
+ * Personal-Portal pro Schule auf einer eigenen Subdomain, und welche Schule
+ * gemeint ist, weiss das Elternportal nicht. Deshalb zeigt der Link auf die
+ * Einrichtungs-Auswahl unter der blanken Domain (src/app/page.tsx).
+ *
+ * NEXT_PUBLIC_TENANT_DOMAIN traegt keinen Port, der kommt aus dem aktuellen
+ * Fenster — dieselbe Konstruktion wie in src/app/page.tsx:52-58.
+ */
+function staffLoginUrl(): string {
+  const portSuffix = window.location.port ? `:${window.location.port}` : "";
+  return `${window.location.protocol}//${env.NEXT_PUBLIC_TENANT_DOMAIN}${portSuffix}/`;
+}
+
 export default function ParentLoginPage() {
+  // useSearchParams verlangt eine Suspense-Grenze (siehe frontend/CLAUDE.md).
+  return (
+    <Suspense fallback={null}>
+      <ParentLoginForm />
+    </Suspense>
+  );
+}
+
+function ParentLoginForm() {
   const t = useTranslations("parentLogin");
   const tAuthShell = useTranslations("parentAuthShell");
   const tReset = useTranslations("parentPasswordResetModal");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  // Steuert nur, ob der Fehler den Link zur Schul-Anmeldung mitbekommt.
+  const [isStaffAccount, setIsStaffAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  // Gesetzt, wenn die Personal-Anmeldung ein Elternkonto hierher geschickt hat.
+  const searchParams = useSearchParams();
+  const cameFromStaffLogin = searchParams.get("from") === "staff";
+  // Erst nach dem Mount, weil die URL window.location.port braucht und die
+  // Seite serverseitig vorgerendert wird.
+  const [staffUrl, setStaffUrl] = useState<string | null>(null);
+  useEffect(() => setStaffUrl(staffLoginUrl()), []);
   // True zwischen erfolgreichem signIn und der publizierten Session. Steuert
   // den Watchdog weiter unten.
   const [awaitingSession, setAwaitingSession] = useState(false);
@@ -117,6 +150,7 @@ export default function ParentLoginPage() {
     if (isSessionSettling) return;
     setIsLoading(true);
     setError("");
+    setIsStaffAccount(false);
 
     try {
       const result = await signIn("parent-credentials", {
@@ -129,14 +163,15 @@ export default function ParentLoginPage() {
         const errorMessages: Record<string, string> = {
           account_inactive: t("errors.accountInactive"),
           rate_limited: t("errors.rateLimited"),
-          // ErrAccountNoGuardianRole: backend sends 403 which CredentialsProvider
-          // surfaces here with code "invalid_credentials" by default. A future
-          // refinement could plumb a separate code; for now the German copy
-          // covers both "wrong password" and "not a parent" cases without
-          // leaking which one applies (account-enumeration mask).
           invalid_credentials: t("errors.invalidCredentials"),
+          // ErrAccountNoGuardianRole: Personal-Konto im Elternportal. Der
+          // Backend-Code kommt seit parent-config.ts unmaskiert an — der
+          // 403 setzt eine korrekte Passwortpruefung voraus, verraet also
+          // nichts ueber ein fremdes Konto.
+          not_a_guardian: t("errors.notAGuardian"),
         };
         setError(errorMessages[result.code ?? ""] ?? t("errors.invalid"));
+        setIsStaffAccount(result.code === "not_a_guardian");
         setIsLoading(false);
         return;
       }
@@ -170,7 +205,26 @@ export default function ParentLoginPage() {
           className="space-y-6"
           aria-busy={isSessionSettling || undefined}
         >
-          {error && <Alert type="error" message={error} />}
+          {cameFromStaffLogin && !error && (
+            <Alert type="info" message={t("fromStaffBanner")} />
+          )}
+
+          {error && (
+            <Alert
+              type="error"
+              message={error}
+              action={
+                isStaffAccount && staffUrl ? (
+                  <a
+                    href={staffUrl}
+                    className="font-medium whitespace-nowrap underline underline-offset-2"
+                  >
+                    {t("staffLoginLink")}
+                  </a>
+                ) : undefined
+              }
+            />
+          )}
 
           <div className="space-y-4">
             <div className="text-left">

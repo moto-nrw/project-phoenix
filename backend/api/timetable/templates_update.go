@@ -39,10 +39,10 @@ type updateTemplateRequest struct {
 	// Offering-source rule (#2137) — see createTemplateRequest. Both fields
 	// are presence-aware (#2147 review round 12): an omitted field keeps the
 	// template's stored value, only an explicit null (or explicit empty
-	// filter list) clears it. A client predating these fields must not strip
-	// a template's dynamic Angebots-Belegung by simply not knowing them.
-	SourceCareOfferingID nullableInt64    `json:"source_care_offering_id"`
-	SourceGradeLevels    nullableIntSlice `json:"source_grade_levels"`
+	// list) clears it. A client predating these fields must not strip a
+	// template's dynamic Angebots-Belegung by simply not knowing them.
+	SourceCareOfferingIDs nullableInt64Slice `json:"source_care_offering_ids"`
+	SourceGradeLevels     nullableIntSlice   `json:"source_grade_levels"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -54,6 +54,28 @@ type updateTemplateRequest struct {
 	// WeekdayAssignments overrides the shared roster for individual weekdays
 	// (#2129); omitted/empty resets the series to one shared roster.
 	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
+	// SeriesRosterFrom (#2187, YYYY-MM-DD) extends the saved roster backwards
+	// over the template's split series: bounded predecessor segments
+	// overlapping [series_roster_from, this segment's valid_from) receive the
+	// same roster change. Sent by the editor only when it resolved a capped
+	// predecessor to this living segment AND the roster was edited.
+	SeriesRosterFrom *string `json:"series_roster_from,omitempty"`
+	// SeriesRosterScope* name the people whose membership this edit actually
+	// changed. Only they are reconciled on the predecessor segments:
+	// student_ids / staff_ids above describe THIS segment and may legitimately
+	// differ from a predecessor's roster, so they are not its target set.
+	// Without a scope, series_roster_from mirrors nothing.
+	SeriesRosterScopeStudentIDs []int64 `json:"series_roster_scope_student_ids,omitempty"`
+	SeriesRosterScopeStaffIDs   []int64 `json:"series_roster_scope_staff_ids,omitempty"`
+	// SeriesRosterScopeWeekdays narrows the mirroring to the weekdays this
+	// edit describes. A series that staffs each weekday separately (#2129) is
+	// edited one weekday at a time, so the predecessor's other weekdays must
+	// not be reconciled against it. Omitted = every weekday of the segment.
+	SeriesRosterScopeWeekdays []int `json:"series_roster_scope_weekdays,omitempty"`
+	// SeriesRosterPrimaryChanged marks the Hauptbetreuung as part of this
+	// edit. primary_staff_id always names THIS segment's lead, so it may only
+	// travel to a predecessor row when the user actually moved it.
+	SeriesRosterPrimaryChanged bool `json:"series_roster_primary_changed,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -93,19 +115,19 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	// The merged state is always re-validated service-side
 	// (validateOfferingSourceInput → ErrOfferingSourceInvalid → 400).
 	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
-	if !req.SourceCareOfferingID.Set {
+	if !req.SourceCareOfferingIDs.Set {
 		sourceGradeLevelsForBind = nil
 	}
 	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
 		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingID.Value, sourceGradeLevelsForBind, req.Targets,
+		req.SourceCareOfferingIDs.Value, sourceGradeLevelsForBind, req.Targets,
 	)
 	if err != nil {
 		return err
 	}
 	req.TargetGroupType = targetType
 	req.TargetSchoolClass = schoolClass
-	if req.SourceCareOfferingID.Set {
+	if req.SourceCareOfferingIDs.Set {
 		req.SourceGradeLevels.Value = sourceGradeLevels
 	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
@@ -119,11 +141,12 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 // parsedUpdateTemplate holds the request plus values derived from cheap format
 // validation (clock window, defaulted week pattern and cap).
 type parsedUpdateTemplate struct {
-	req             *updateTemplateRequest
-	startTime       time.Time
-	endTime         time.Time
-	weekPattern     int
-	maxParticipants int
+	req              *updateTemplateRequest
+	startTime        time.Time
+	endTime          time.Time
+	weekPattern      int
+	maxParticipants  int
+	seriesRosterFrom *timezone.Date
 }
 
 // parseUpdateTemplateRequest binds and format-validates the request. Format
@@ -143,12 +166,22 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 	if !ok {
 		return nil, false
 	}
+	var seriesRosterFrom *timezone.Date
+	if req.SeriesRosterFrom != nil {
+		parsedDate, err := timezone.ParseDate(*req.SeriesRosterFrom)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid series_roster_from format, expected YYYY-MM-DD")))
+			return nil, false
+		}
+		seriesRosterFrom = &parsedDate
+	}
 	return &parsedUpdateTemplate{
-		req:             req,
-		startTime:       timing.startTime,
-		endTime:         timing.endTime,
-		weekPattern:     timing.weekPattern,
-		maxParticipants: timing.maxParticipants,
+		req:              req,
+		startTime:        timing.startTime,
+		endTime:          timing.endTime,
+		weekPattern:      timing.weekPattern,
+		maxParticipants:  timing.maxParticipants,
+		seriesRosterFrom: seriesRosterFrom,
 	}, true
 }
 
@@ -175,10 +208,62 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(templates) == 0 {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
-		return
+		templates, ok = rs.resolveTemplateForRead(w, r, id, periodID)
+		if !ok {
+			return
+		}
 	}
 	common.Respond(w, r, http.StatusOK, templates[0], "Template retrieved")
+}
+
+// templateNotFoundCode is the stable error code carried by every template 404
+// so clients can map the message without matching the English text (#2187).
+const templateNotFoundCode = "template_not_found"
+
+func renderTemplateNotFound(w http.ResponseWriter, r *http.Request) {
+	common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("template not found"), templateNotFoundCode))
+}
+
+// resolveTemplateForRead retries an empty period-scoped template read against
+// the living segment of the same split series (#2187): the Betreuungsplan
+// grid hands the editor the template id an occurrence was materialized from,
+// which after a split can be a fully capped predecessor that the
+// valid_until-filtered read models no longer return. The response then
+// carries the living successor plus resolved_from_template_id so the client
+// writes to the right template. Renders the error response itself when it
+// returns ok=false.
+func (rs *Resource) resolveTemplateForRead(
+	w http.ResponseWriter,
+	r *http.Request,
+	requestedID int64,
+	periodID *int64,
+) ([]templateResponse, bool) {
+	resolvedID, changed, err := rs.TimetableData.ResolveLivingTemplateSegment(r.Context(), requestedID)
+	if err != nil {
+		if errors.Is(err, scheduleSvc.ErrTemplateSeriesFullyEnded) {
+			renderTemplateNotFound(w, r)
+			return nil, false
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve template series failed", err))
+		return nil, false
+	}
+	if !changed {
+		// The template itself is the living segment — the empty read was a
+		// genuine miss (e.g. a foreign period_id) and stays a 404.
+		renderTemplateNotFound(w, r)
+		return nil, false
+	}
+	templates, err := rs.loadTemplates(r.Context(), &resolvedID, periodID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
+		return nil, false
+	}
+	if len(templates) == 0 {
+		renderTemplateNotFound(w, r)
+		return nil, false
+	}
+	templates[0].ResolvedFromTemplateID = &requestedID
+	return templates, true
 }
 
 func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +299,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable templates can only be scheduled from Monday to Friday")))
 			return
 		}
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		renderTemplateNotFound(w, r)
 		return
 	}
 	if err := validateLegacyTemplateWorkdays(templates[0].Schedules, parsed.req.Weekdays); err != nil {
@@ -266,16 +351,15 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	if req.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
 		return
 	}
-	if !req.SourceCareOfferingID.Set && existing.SourceCareOfferingID != nil {
-		id := *existing.SourceCareOfferingID
-		req.SourceCareOfferingID.Value = &id
+	if !req.SourceCareOfferingIDs.Set && len(existing.SourceCareOfferingIDs) > 0 {
+		req.SourceCareOfferingIDs.Value = slices.Clone(existing.SourceCareOfferingIDs)
 	}
 	if req.SourceGradeLevels.Set {
 		return
 	}
 	// The filter follows the source: a kept or carried source keeps the stored
 	// filter; a source cleared by explicit null takes the filter down with it.
-	if req.SourceCareOfferingID.Value != nil {
+	if len(req.SourceCareOfferingIDs.Value) > 0 {
 		req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
 	} else {
 		req.SourceGradeLevels.Value = nil
@@ -337,7 +421,7 @@ func buildUpdateTemplateInput(
 			TargetGroupType:         req.TargetGroupType,
 			TargetGradeLevel:        req.TargetGradeLevel,
 			TargetSchoolClass:       req.TargetSchoolClass,
-			SourceCareOfferingID:    req.SourceCareOfferingID.Value,
+			SourceCareOfferingIDs:   req.SourceCareOfferingIDs.Value,
 			SourceGradeLevels:       req.SourceGradeLevels.Value,
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),
@@ -353,6 +437,12 @@ func buildUpdateTemplateInput(
 		Targets:            targetModels(req.Targets),
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		GradeLevelMax:      gradeLevelMax,
+		SeriesRosterFrom:   parsed.seriesRosterFrom,
+
+		SeriesRosterScopeStudentIDs: req.SeriesRosterScopeStudentIDs,
+		SeriesRosterScopeStaffIDs:   req.SeriesRosterScopeStaffIDs,
+		SeriesRosterScopeWeekdays:   req.SeriesRosterScopeWeekdays,
+		SeriesRosterPrimaryChanged:  req.SeriesRosterPrimaryChanged,
 	}
 }
 
@@ -363,7 +453,7 @@ func buildUpdateTemplateInput(
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		renderTemplateNotFound(w, r)
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
@@ -404,7 +494,7 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if n == 0 {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		renderTemplateNotFound(w, r)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]any{"id": id}, "Template archived")

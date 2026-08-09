@@ -265,6 +265,16 @@ func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activiti
 	return r.group, nil
 }
 
+// FindTemplateSeries backs the #2187 end cascade; the unit fixtures model a
+// single-segment lineage (the schedule fake returns no rows, so the cascade
+// finds no bounded predecessor and stays a no-op).
+func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64) ([]*activitiesModel.Group, error) {
+	if r.group == nil {
+		return nil, nil
+	}
+	return []*activitiesModel.Group{r.group}, nil
+}
+
 type templateEndUnitScheduleRepo struct {
 	activitiesModel.ScheduleRepository
 	schedules  []*activitiesModel.Schedule

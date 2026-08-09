@@ -74,7 +74,7 @@ func renderTemplateEndError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		renderTemplateNotFound(w, r)
 	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

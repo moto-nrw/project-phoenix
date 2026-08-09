@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -131,10 +132,10 @@ type TemplateSplitInput struct {
 	// keeps the 'angebot' Zielgruppe; every other type drops the rule (DB
 	// CHECK). resolveSuccessorOfferingSource merges both pairs against the old
 	// template before anything is written.
-	SourceCareOfferingID         *int64
-	SourceCareOfferingIDProvided bool
-	SourceGradeLevels            []int
-	SourceGradeLevelsProvided    bool
+	SourceCareOfferingIDs         []int64
+	SourceCareOfferingIDsProvided bool
+	SourceGradeLevels             []int
+	SourceGradeLevelsProvided     bool
 	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
 	// Group, already normalized (nil = clear). Only applied when NotesProvided
 	// is true; otherwise the successor inherits the source template's note. Same
@@ -217,9 +218,10 @@ type TemplateSplitDependencies struct {
 	// rule (#2137): the offering must exist and its phase must fit the
 	// successor's calendar period. Without it a split into a different
 	// Planungszeitraum could persist a source rule that create/update reject
-	// and later approvals only skip with a warning. Failures wrap
-	// ErrOfferingSourceInvalid.
-	ValidateOfferingSource func(ctx context.Context, offeringID int64, calendarPeriodID *int64) error
+	// and later approvals only skip with a warning. storedOfferingIDs are the
+	// old template's persisted ids: an inherited vanished id passes, a newly
+	// submitted unknown one rejects. Failures wrap ErrOfferingSourceInvalid.
+	ValidateOfferingSource func(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 	// Broadcaster is optional (nil → no SSE). Split/end delete planned
 	// instances outside the CRUD broadcast paths, so they must invalidate the
 	// staffing caches themselves (#1844).
@@ -305,21 +307,22 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 	if in.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
 		// The DB CHECK ties the source to 'angebot': a split away from the
 		// type drops the rule regardless of what the request carried.
-		in.SourceCareOfferingID = nil
+		in.SourceCareOfferingIDs = nil
 		in.SourceGradeLevels = nil
 	} else {
-		if !in.SourceCareOfferingIDProvided {
-			in.SourceCareOfferingID = cloneOptionalInt64(old.SourceCareOfferingID)
+		if !in.SourceCareOfferingIDsProvided {
+			in.SourceCareOfferingIDs = append([]int64(nil), old.SourceCareOfferingIDs...)
 		}
 		switch {
-		case in.SourceCareOfferingID == nil:
+		case len(in.SourceCareOfferingIDs) == 0:
+			in.SourceCareOfferingIDs = nil
 			in.SourceGradeLevels = nil
 		case !in.SourceGradeLevelsProvided:
 			in.SourceGradeLevels = append([]int(nil), old.SourceGradeLevels...)
 		}
 	}
 	if err := validateOfferingSourceInput(
-		in.SourceCareOfferingID, in.SourceGradeLevels, in.TargetGroupType,
+		in.SourceCareOfferingIDs, in.SourceGradeLevels, in.TargetGroupType,
 		in.StudentIDs, in.WeekdayAssignments,
 	); err != nil {
 		return &ScheduleError{Op: "split template: validate offering source", Err: err}
@@ -337,8 +340,9 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 func (s *TemplateSplitService) validateSuccessorOfferingSource(
 	ctx context.Context,
 	in TemplateSplitInput,
+	storedOfferingIDs []int64,
 ) error {
-	if in.SourceCareOfferingID == nil {
+	if len(in.SourceCareOfferingIDs) == 0 {
 		return nil
 	}
 	// Nil only in legacy package-local unit fixtures constructing the struct
@@ -346,7 +350,7 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 	if s.deps.ValidateOfferingSource == nil {
 		return nil
 	}
-	if err := s.deps.ValidateOfferingSource(ctx, *in.SourceCareOfferingID, in.CalendarPeriodID); err != nil {
+	if err := s.deps.ValidateOfferingSource(ctx, in.SourceCareOfferingIDs, storedOfferingIDs, in.CalendarPeriodID); err != nil {
 		// Client-correctable 400: keep TenantTxMiddleware from committing any
 		// provisional split writes that preceded the check.
 		tenant.MarkRollback(ctx)
@@ -381,12 +385,11 @@ func (s *TemplateSplitService) resyncChangedOfferingSource(
 		return &ScheduleError{Op: "split template: resync offering source", Err: errors.New("offering roster resync is not configured")}
 	}
 	if err := s.resyncOfferingRoster(ctx, OfferingRosterResyncInput{
-		TemplateID:         successor.ID,
-		PreviousOfferingID: cloneOptionalInt64(old.SourceCareOfferingID),
-		OfferingID:         cloneOptionalInt64(successor.SourceCareOfferingID),
-		GradeLevels:        append([]int(nil), successor.SourceGradeLevels...),
-		CalendarPeriodID:   in.CalendarPeriodID,
-		EffectiveFrom:      in.EffectiveDate,
+		TemplateID:       successor.ID,
+		OfferingIDs:      append([]int64(nil), successor.SourceCareOfferingIDs...),
+		GradeLevels:      append([]int(nil), successor.SourceGradeLevels...),
+		CalendarPeriodID: in.CalendarPeriodID,
+		EffectiveFrom:    in.EffectiveDate,
 	}); err != nil {
 		return &ScheduleError{Op: "split template: resync offering source", Err: err}
 	}
@@ -398,14 +401,14 @@ func (s *TemplateSplitService) resyncChangedOfferingSource(
 // switched, or its Jahrgangsfilter changed. The filter comparison is
 // order-insensitive — both sides are duplicate-free by validation.
 func offeringRosterFeedChanged(old, successor *activitiesModel.Group) bool {
-	oldID, newID := old.SourceCareOfferingID, successor.SourceCareOfferingID
-	switch {
-	case oldID == nil && newID == nil:
+	// Order-SENSITIVE comparison on purpose: the id array's order is the
+	// union's subtraction order, so a reordered set produces differently
+	// shaped rows and must resync.
+	if !slices.Equal(old.SourceCareOfferingIDs, successor.SourceCareOfferingIDs) {
+		return true
+	}
+	if len(successor.SourceCareOfferingIDs) == 0 {
 		return false
-	case oldID == nil || newID == nil:
-		return true
-	case *oldID != *newID:
-		return true
 	}
 	return !sameGradeLevelSet(old.SourceGradeLevels, successor.SourceGradeLevels)
 }
@@ -484,7 +487,7 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateSuccessorOfferingSource(ctx, in); err != nil {
+	if err := s.validateSuccessorOfferingSource(ctx, in, old.SourceCareOfferingIDs); err != nil {
 		return nil, err
 	}
 	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
@@ -752,6 +755,11 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	if err != nil {
 		return nil, err
 	}
+	// The raw requested date drives the predecessor cascade below: normalize
+	// clamps to THIS segment's valid_from, but "diesen und alle folgenden
+	// löschen" from a date inside an earlier bounded segment must also cap that
+	// segment (#2187).
+	requestedFrom := in.EffectiveDate
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "end template", true)
 	if err != nil {
 		return nil, err
@@ -801,6 +809,11 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
+	cascadeDeleted, err := s.cascadeEndToSeriesSegments(ctx, old.ID, requestedFrom)
+	if err != nil {
+		return nil, err
+	}
+	deleted += cascadeDeleted
 
 	// Ending a series deletes planned instances outside the CRUD broadcast
 	// paths — invalidate the staffing caches (#1844).
@@ -826,6 +839,74 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 		CappedEnrollments: cappedEnrollments,
 		CappedSupervisors: cappedSupervisors,
 	}, nil
+}
+
+// cascadeEndToSeriesSegments caps every OTHER segment of the same split series
+// whose window still reaches into [requestedFrom, ∞) and removes its planned
+// occurrences (#2187). "Diesen und alle folgenden löschen" must leave no live
+// occurrence at or after the chosen date anywhere in the lineage — and the
+// grid renders occurrences with the id of the segment that materialized them,
+// so the request can just as well arrive on a capped predecessor while the
+// living successor carries the later occurrences. The cascade therefore runs
+// over the whole lineage in both directions, the still-open segment included.
+// capAt never inverts a window: a date before the segment start degrades the
+// segment to an empty window (valid_until == valid_from), the same shape a
+// same-day split leaves behind. Returns the planned instances deleted across
+// all cascaded segments.
+func (s *TemplateSplitService) cascadeEndToSeriesSegments(
+	ctx context.Context,
+	templateID int64,
+	requestedFrom timezone.Date,
+) (int64, error) {
+	segments, err := loadTemplateSeriesSegments(ctx, s.deps.GroupRepo, s.deps.ScheduleRepo, s.getLogger(), templateID)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	for i := range segments {
+		seg := &segments[i]
+		if seg.Group == nil || seg.Group.ID == templateID {
+			continue
+		}
+		capAt := requestedFrom
+		if seg.ValidFrom != nil && capAt.Before(*seg.ValidFrom) {
+			capAt = *seg.ValidFrom
+		}
+		if seg.ValidUntil != nil && !capAt.Before(*seg.ValidUntil) {
+			continue // the segment already ends at or before the requested date
+		}
+		enrollments, supervisors, err := s.loadSegmentRosterCandidates(ctx, seg.Group.ID, capAt, seg.ValidUntil)
+		if err != nil {
+			return deleted, err
+		}
+		if err := s.capSplitSource(ctx, seg.Group.ID, capAt, enrollments, supervisors, seg.ValidUntil); err != nil {
+			return deleted, err
+		}
+		// Same guard the requested segment gets: ending a lineage a care
+		// offering still depends on must fail, no matter which segment of it
+		// the request came in on.
+		if err := s.validateCareOfferingSeries(ctx, seg.Group.ID); err != nil {
+			return deleted, templateCareOfferingValidationError(
+				ctx,
+				"end template: validate linked care offerings",
+				"ending the recurrence is incompatible with an existing care offering",
+				err,
+			)
+		}
+		segmentID := seg.Group.ID
+		n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, capAt, nil, &segmentID, false)
+		if err != nil {
+			return deleted, &ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
+		}
+		deleted += n
+		s.getLogger().Info("end cascade capped series segment",
+			slog.Int64("template_id", templateID),
+			slog.Int64("segment_id", segmentID),
+			slog.String("cap_at", capAt.String()),
+			slog.Int64("deleted_instances", n),
+		)
+	}
+	return deleted, nil
 }
 
 // validateSplitInput checks the semantic rules the handler's Bind cannot:
@@ -1212,33 +1293,33 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	// inherit, provided → authoritative, dropped on a Zielgruppe change away
 	// from 'angebot') and validated the result — the successor persists the
 	// merged rule verbatim (#2147 review round 14).
-	sourceCareOfferingID := cloneOptionalInt64(in.SourceCareOfferingID)
+	sourceCareOfferingIDs := append([]int64(nil), in.SourceCareOfferingIDs...)
 	var sourceGradeLevels []int
-	if sourceCareOfferingID != nil && len(in.SourceGradeLevels) > 0 {
+	if len(sourceCareOfferingIDs) > 0 && len(in.SourceGradeLevels) > 0 {
 		sourceGradeLevels = append(sourceGradeLevels, in.SourceGradeLevels...)
 	}
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
-		Name:                 in.Name,
-		MaxParticipants:      maxParticipants,
-		RequiredStaff:        requiredStaff,
-		IsOpen:               old.IsOpen,
-		CategoryID:           in.CategoryID,
-		PlanningTrackID:      planningTrackID,
-		PlannedRoomID:        &roomID,
-		CreatedBy:            old.CreatedBy,
-		Type:                 in.Type,
-		EducationGroupID:     in.EducationGroupID,
-		IsTemplate:           true,
-		SeriesRootID:         &seriesRootID,
-		CalendarPeriodID:     in.CalendarPeriodID,
-		TargetGroupType:      in.TargetGroupType,
-		TargetGradeLevel:     in.TargetGradeLevel,
-		TargetSchoolClass:    in.TargetSchoolClass,
-		SourceCareOfferingID: sourceCareOfferingID,
-		SourceGradeLevels:    sourceGradeLevels,
-		ListKind:             listKind,
-		Notes:                notes,
+		Name:                  in.Name,
+		MaxParticipants:       maxParticipants,
+		RequiredStaff:         requiredStaff,
+		IsOpen:                old.IsOpen,
+		CategoryID:            in.CategoryID,
+		PlanningTrackID:       planningTrackID,
+		PlannedRoomID:         &roomID,
+		CreatedBy:             old.CreatedBy,
+		Type:                  in.Type,
+		EducationGroupID:      in.EducationGroupID,
+		IsTemplate:            true,
+		SeriesRootID:          &seriesRootID,
+		CalendarPeriodID:      in.CalendarPeriodID,
+		TargetGroupType:       in.TargetGroupType,
+		TargetGradeLevel:      in.TargetGradeLevel,
+		TargetSchoolClass:     in.TargetSchoolClass,
+		SourceCareOfferingIDs: sourceCareOfferingIDs,
+		SourceGradeLevels:     sourceGradeLevels,
+		ListKind:              listKind,
+		Notes:                 notes,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {

@@ -39,6 +39,7 @@ import {
   mapInstanceStatusResult,
   mapMaterializeResult,
   materializedRecurrenceDates,
+  mapCombinedOfferingCounts,
   mapOfferingSourceOptions,
   mapReplanWeekResult,
   mapSplitTemplateResult,
@@ -895,6 +896,58 @@ describe("backend mappers", () => {
     });
   });
 
+  it("maps the chain-resolved predecessor id onto a template (#2187)", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 9,
+          name: "Yoga",
+          type: "activity",
+          category_id: 2,
+          category_name: "AG",
+          is_open: true,
+          max_participants: 12,
+          target_group_type: "none",
+          enrollment_count: 0,
+          supervisor_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
+          resolved_from_template_id: 87,
+          schedules: [],
+        },
+      ],
+    }).templates[0];
+
+    expect(tpl?.resolvedFromTemplateId).toBe("87");
+  });
+
+  it("leaves the chain-resolved id undefined when absent or null (#2187)", () => {
+    const base = {
+      id: 9,
+      name: "Yoga",
+      type: "activity" as const,
+      category_id: 2,
+      category_name: "AG",
+      is_open: true,
+      max_participants: 12,
+      target_group_type: "none" as const,
+      enrollment_count: 0,
+      supervisor_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
+      schedules: [],
+    };
+
+    expect(
+      mapTemplates({ templates: [base] }).templates[0]?.resolvedFromTemplateId,
+    ).toBeUndefined();
+    expect(
+      mapTemplates({
+        templates: [{ ...base, resolved_from_template_id: null }],
+      }).templates[0]?.resolvedFromTemplateId,
+    ).toBeUndefined();
+  });
+
   it("maps the offering-source rule and per-weekday rosters (#2137/#2129)", () => {
     const tpl = mapTemplates({
       templates: [
@@ -907,7 +960,7 @@ describe("backend mappers", () => {
           is_open: true,
           max_participants: 20,
           target_group_type: "angebot",
-          source_care_offering_id: 12,
+          source_care_offering_ids: [12, 15],
           source_grade_levels: [1, 2],
           enrollment_count: 9,
           supervisor_count: 1,
@@ -933,7 +986,7 @@ describe("backend mappers", () => {
     }).templates[0];
 
     expect(tpl).toMatchObject({
-      sourceCareOfferingId: "12",
+      sourceCareOfferingIds: ["12", "15"],
       sourceGradeLevels: [1, 2],
       weekdayAssignments: [
         {
@@ -968,7 +1021,7 @@ describe("backend mappers", () => {
           is_open: true,
           max_participants: 12,
           target_group_type: "none",
-          source_care_offering_id: null as never,
+          source_care_offering_ids: null as never,
           source_grade_levels: null as never,
           enrollment_count: 0,
           supervisor_count: 0,
@@ -979,7 +1032,7 @@ describe("backend mappers", () => {
       ],
     }).templates[0];
 
-    expect(tpl?.sourceCareOfferingId).toBeUndefined();
+    expect(tpl?.sourceCareOfferingIds).toBeUndefined();
     expect(tpl?.sourceGradeLevels).toBeUndefined();
   });
 
@@ -1797,5 +1850,28 @@ describe("mapOfferingSourceOptions (#2137)", () => {
         ],
       })[0]?.gradeCounts,
     ).toEqual({});
+  });
+});
+
+describe("mapCombinedOfferingCounts (Mehrfach-Quelle)", () => {
+  it("maps string grade keys to numbers and keeps the deduplicated total", () => {
+    expect(
+      mapCombinedOfferingCounts({
+        total_count: 18,
+        grade_counts: { "0": 2, "1": 9, "2": 7 },
+      }),
+    ).toEqual({
+      totalCount: 18,
+      gradeCounts: { 0: 2, 1: 9, 2: 7 },
+    });
+  });
+
+  it("tolerates missing counts", () => {
+    expect(
+      mapCombinedOfferingCounts({
+        total_count: undefined as never,
+        grade_counts: undefined as never,
+      }),
+    ).toEqual({ totalCount: 0, gradeCounts: {} });
   });
 });

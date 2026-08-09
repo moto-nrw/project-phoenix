@@ -55,6 +55,7 @@ import {
   type LifecycleAction,
 } from "~/components/timetable/instance-detail-modal";
 import { StaffPoolSlideOver } from "~/components/timetable/staff-pool-slide-over";
+import { timetableSeriesErrorMessage } from "~/components/timetable/event-form/scope-error-message";
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -913,9 +914,10 @@ function TimetablesContent() {
           error: err instanceof Error ? err.message : String(err),
         });
         toast.error(
-          err instanceof Error
-            ? err.message
-            : "Folgetermine konnten nicht gelöscht werden",
+          timetableSeriesErrorMessage(
+            err,
+            "Folgetermine konnten nicht gelöscht werden",
+          ),
         );
         throw err;
       }

@@ -23,6 +23,7 @@ import { PasswordToggleButton } from "~/components/shared/password-toggle-button
 import { useTenant } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import {
   login as loginApi,
@@ -40,6 +41,26 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
+
+/**
+ * Grace period before a guardian-only account is sent to the parents
+ * portal. Long enough to read why the page is about to change, short
+ * enough that nobody starts wondering whether the login worked.
+ */
+const PARENT_PORTAL_REDIRECT_MS = 2000;
+
+/**
+ * Set when the backend answered a login with code "use_parent_portal",
+ * i.e. the credentials were correct but this account only exists as a
+ * guardian and belongs on the parents portal.
+ *
+ * redirectUrl is null only if NEXT_PUBLIC_PARENTS_HOSTNAME is missing at
+ * runtime (env.js rejects that at build time). We then still explain the
+ * situation, just without a link or an automatic jump.
+ */
+interface ParentAccountHint {
+  redirectUrl: string | null;
+}
 
 function clearSessionErrorFromUrl() {
   const url = new URL(window.location.href);
@@ -84,6 +105,8 @@ function LoginForm() {
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
+  const [parentAccountHint, setParentAccountHint] =
+    useState<ParentAccountHint | null>(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
@@ -242,6 +265,20 @@ function LoginForm() {
     router.refresh();
   };
 
+  // Hand a guardian-only account over to the parents portal. Done in an
+  // effect rather than a setTimeout inside the submit handler so React
+  // cancels the pending jump if the user navigates away first.
+  useEffect(() => {
+    const target = parentAccountHint?.redirectUrl;
+    if (!target) return;
+
+    const timer = setTimeout(() => {
+      window.location.href = target;
+    }, PARENT_PORTAL_REDIRECT_MS);
+
+    return () => clearTimeout(timer);
+  }, [parentAccountHint]);
+
   const handleMFASuccess = async (tokens: MFATokenResponse) => {
     await seedSessionWithTokens(tokens);
     setMfaStep(null);
@@ -251,6 +288,7 @@ function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setParentAccountHint(null);
 
     try {
       const response = await loginApi("tenant", {
@@ -285,6 +323,24 @@ function LoginForm() {
         refresh_token: response.refresh_token,
       });
     } catch (err) {
+      // Guardian-only account at the staff login. The backend accepted the
+      // password and refused on role, so being specific leaks nothing —
+      // and the generic "Anmeldung fehlgeschlagen" reads like a password
+      // problem, which is what sent parents into repeated reset loops.
+      if (err instanceof MFAApiError && err.code === "use_parent_portal") {
+        let redirectUrl: string | null = null;
+        try {
+          redirectUrl = parentsPortalLoginUrl("?from=staff");
+        } catch (urlErr) {
+          logger.error("parents_portal_url_unavailable", {
+            error: urlErr instanceof Error ? urlErr.message : String(urlErr),
+          });
+        }
+        setParentAccountHint({ redirectUrl });
+        trackLoginEvent("login_failed", { reason: "use_parent_portal" });
+        return;
+      }
+
       if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
         trackLoginEvent("login_failed", { reason: "invalid_credentials" });
@@ -418,7 +474,30 @@ function LoginForm() {
             />
           ) : (
             <form onSubmit={handleSubmit} noValidate className="space-y-6">
-              {error && <Alert type="error" message={error} />}
+              {parentAccountHint ? (
+                <Alert
+                  type="info"
+                  message={
+                    // Kurz halten: das Ziel steht schon auf dem Link daneben,
+                    // sonst quetscht sich die Meldung im Kartenlayout.
+                    parentAccountHint.redirectUrl
+                      ? "Dieses Konto ist ein Elternkonto. Sie werden weitergeleitet."
+                      : "Dieses Konto ist ein Elternkonto. Bitte melden Sie sich im Elternportal an."
+                  }
+                  action={
+                    parentAccountHint.redirectUrl ? (
+                      <a
+                        href={parentAccountHint.redirectUrl}
+                        className="font-medium whitespace-nowrap underline underline-offset-2"
+                      >
+                        Jetzt zum Elternportal
+                      </a>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                error && <Alert type="error" message={error} />
+              )}
 
               <div className="space-y-4">
                 <div className="text-left">
