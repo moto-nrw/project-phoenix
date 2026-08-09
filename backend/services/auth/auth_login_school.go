@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -34,11 +35,10 @@ func isSchoolPortalRole(role *authModels.Role) bool {
 // surface must not silently drop the second factor:
 //   - required + enrolled → email-code challenge with the school challenge
 //     scope; redeemable only at the school verify endpoint.
-//   - required + not enrolled → tenant-scope enrollment token for the
-//     existing /auth/mfa/enroll/* surface. Completing enrollment there
-//     mints tenant tokens (still legitimate for lehrkraft accounts until
-//     the tenant-login cutover); the user then logs in again at the school
-//     portal, now enrolled, and takes the challenge branch.
+//   - required + not enrolled → school-scope enrollment token for the
+//     school enrollment surface (/school/auth/mfa/enroll/*). Confirming
+//     there mints school tokens, so the enrollment detour can never turn
+//     a school login into a tenant session.
 func (s *Service) LoginSchoolWithMFAGate(
 	ctx context.Context,
 	email, password, ipAddress, userAgent, trustedDeviceCookie string,
@@ -86,7 +86,7 @@ func (s *Service) LoginSchoolWithMFAGate(
 	if mfaRequired && !enrolled {
 		enrollmentToken, tokenErr := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
 			AccountID: account.ID,
-			Scope:     jwt.MFAEnrollmentScopeTenant,
+			Scope:     jwt.MFAEnrollmentScopeSchool,
 			TenantID:  portalTenantID,
 		}, MFAEnrollmentTokenTTL)
 		if tokenErr != nil {
@@ -160,7 +160,11 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 	if err != nil {
 		return "", "", err
 	}
-	if !accountHasSchoolPortalRole(account) {
+	hasRole, err := s.hasSchoolPortalRoleAtTenant(ctx, accountID, tenantID)
+	if err != nil {
+		return "", "", err
+	}
+	if !hasRole {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at school token issue")
 		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountNoSchoolPortalRole}
 	}
@@ -208,7 +212,11 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 	if err != nil {
 		return "", "", err
 	}
-	if !accountHasSchoolPortalRole(account) {
+	hasRole, err := s.hasSchoolPortalRoleAtTenant(ctx, accountID, targetTenantID)
+	if err != nil {
+		return "", "", err
+	}
+	if !hasRole {
 		return "", "", &AuthError{Op: "switch school", Err: ErrAccountNoSchoolPortalRole}
 	}
 
@@ -226,32 +234,67 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 // permissions travel into the JWT exactly like a tenant login — that is
 // what lets authorize.RequiresPermission(class_day:read) work unchanged
 // behind /school/*.
+//
+// On top of the shared metadata load (which already rejects soft-deleted
+// schools) this refuses INACTIVE schools: an operator deactivating a school
+// must cut every school-portal token mint — login, switch, MFA verify, and
+// refresh all funnel through here.
 func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
 	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
 	if err != nil {
 		return nil, err
 	}
+	school, err := s.repos.School.FindByID(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("lookup school %d for school metadata: %w", tenantID, err)
+	}
+	if school == nil || !school.Active {
+		return nil, &AuthError{Op: "load school metadata", Err: ErrTenantNotFound}
+	}
 	metadata.scope = tenant.ScopeSchool
 	return metadata, nil
 }
 
-// accountHasSchoolPortalRole checks the hydrated account.Roles (loaded by
-// loadSchoolMetadataForTenant for one specific tenant) for a school-portal
-// role.
-func accountHasSchoolPortalRole(account *authModels.Account) bool {
-	for _, role := range account.Roles {
-		if isSchoolPortalRole(role) {
-			return true
+// hasSchoolPortalRoleAtTenant reports whether the account holds a
+// school-portal role at the tenant. Runs in an admin tx (auth.account_roles
+// is RLS-guarded and the auth flows have no tenant transaction) and — unlike
+// the swallow-and-warn role hydration in ensureAccountRolesLoadedForTenant —
+// PROPAGATES query errors: a transient DB blip must surface as a retryable
+// error, never masquerade as "role revoked" (which on the refresh path would
+// log the user out for good).
+func (s *Service) hasSchoolPortalRoleAtTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	var hasRole bool
+	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		accountRoles, rolesErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, tenantID)
+		if rolesErr != nil {
+			if isNotFoundError(rolesErr) {
+				return nil
+			}
+			return rolesErr
 		}
+		for _, ar := range accountRoles {
+			if ar.Role != nil && isSchoolPortalRole(ar.Role) {
+				hasRole = true
+				return nil
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("load school portal role for account %d at tenant %d: %w", accountID, tenantID, err)
 	}
-	return false
+	return hasRole, nil
 }
 
 // findSchoolPortalTenantForAccount checks every active tenant mapping for a
-// school-portal role and returns the first matching tenant. Mirrors
-// findGuardianTenantForAccount: admin tx because account_tenants +
-// account_roles have RLS that requires app.current_tenant_id, which the
-// public school login does not have yet.
+// school-portal role and returns the first matching tenant whose school is
+// alive. Mirrors findGuardianTenantForAccount (admin tx because
+// account_tenants + account_roles have RLS that requires
+// app.current_tenant_id, which the public school login does not have yet)
+// and resolveAccountTenantDefault's school filter: deactivated or
+// soft-deleted schools are skipped, so an operator turning a school off
+// cuts its Lehrkräfte's logins, and a dead school in the oldest mapping
+// does not shadow a valid second school.
 func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
 	hasPortalRole := false
 	var firstPortalTenantID int64
@@ -261,8 +304,25 @@ func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountI
 		if listErr != nil {
 			return listErr
 		}
+		var lastSchoolLookupErr error
 		for _, m := range mappings {
-			roles, roleErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, m.TenantID)
+			school, schoolErr := s.repos.School.FindByID(adminCtx, m.TenantID)
+			if schoolErr != nil {
+				// Mirror resolveAccountTenantDefault: keep scanning the
+				// remaining mappings, but remember the error so a full
+				// sweep of DB failures is not masked as "no portal role".
+				if !isNotFoundError(schoolErr) {
+					lastSchoolLookupErr = schoolErr
+				}
+				continue
+			}
+			if school == nil || school.IsDeleted() || !school.Active {
+				continue
+			}
+			// FindByAccountIDForTenant hydrates ar.Role via its join —
+			// same mechanism the refresh/switch role checks rely on, no
+			// per-role lookup needed.
+			accountRoles, roleErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, m.TenantID)
 			if roleErr != nil {
 				// A genuine "no roles" result comes back as an empty
 				// slice, not an error. Any error here is a real
@@ -274,26 +334,16 @@ func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountI
 				}
 				return roleErr
 			}
-			for _, ar := range roles {
-				role, lookupErr := s.repos.Role.FindByID(adminCtx, ar.RoleID)
-				if lookupErr != nil {
-					// A missing role row for an existing account_role is a
-					// data inconsistency — treat it as "not this role".
-					// Real DB errors must propagate.
-					if isNotFoundError(lookupErr) {
-						continue
-					}
-					return lookupErr
-				}
-				if role == nil {
-					continue
-				}
-				if isSchoolPortalRole(role) {
+			for _, ar := range accountRoles {
+				if ar.Role != nil && isSchoolPortalRole(ar.Role) {
 					hasPortalRole = true
 					firstPortalTenantID = m.TenantID
 					return nil
 				}
 			}
+		}
+		if !hasPortalRole && lastSchoolLookupErr != nil {
+			return lastSchoolLookupErr
 		}
 		return nil
 	}); err != nil {

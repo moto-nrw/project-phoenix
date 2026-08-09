@@ -1454,7 +1454,11 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	// same reason (#2207) — and additionally re-verify the school-portal
 	// role: a Lehrkraft whose role was revoked keeps a valid refresh token
 	// until expiry, and without this check it would keep minting
-	// school-scope sessions.
+	// school-scope sessions. hasSchoolPortalRoleAtTenant propagates DB
+	// errors as retryable failures — the rotation has already committed at
+	// this point, so mistaking a transient blip for a revocation would be
+	// a permanent logout; a 500 instead lets the client retry and recover
+	// the rotation via the token-family handoff.
 	var metadata *accountMetadata
 	switch {
 	case refreshClaims.Scope == tenant.ScopeSchool:
@@ -1462,7 +1466,11 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		if err != nil {
 			return nil, err
 		}
-		if !accountHasSchoolPortalRole(account) {
+		hasRole, roleErr := s.hasSchoolPortalRoleAtTenant(ctx, int64(refreshClaims.ID), refreshClaims.TenantID)
+		if roleErr != nil {
+			return nil, roleErr
+		}
+		if !hasRole {
 			s.logRefreshDecision("refresh_session_rejected", "school_portal_role_revoked", refreshClaims.ID, refreshClaims.TenantID)
 			return nil, &AuthError{Op: "refresh token", Err: ErrTenantAccessDenied}
 		}

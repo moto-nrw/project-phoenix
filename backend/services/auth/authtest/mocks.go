@@ -34,6 +34,7 @@ type MFAServiceMock struct {
 	VerifyChallengeFn              func(ctx context.Context, challengeToken, code string) (*svcauth.VerifiedChallenge, error)
 	VerifyChallengeForScopeFn      func(ctx context.Context, challengeToken, code, expectedScope string) (*svcauth.VerifiedChallenge, error)
 	ResendChallengeFn              func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
+	ResendChallengeForScopeFn      func(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 	VerifyCodeForAccountFn         func(ctx context.Context, accountID int64, code string) error
 	EnrollFn                       func(ctx context.Context, accountID int64) error
 	DisableFn                      func(ctx context.Context, accountID int64) error
@@ -100,6 +101,13 @@ func (m *MFAServiceMock) VerifyChallengeForScope(ctx context.Context, challengeT
 func (m *MFAServiceMock) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	if m.ResendChallengeFn != nil {
 		return m.ResendChallengeFn(ctx, challengeToken, ip)
+	}
+	return "", nil
+}
+
+func (m *MFAServiceMock) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
+	if m.ResendChallengeForScopeFn != nil {
+		return m.ResendChallengeForScopeFn(ctx, challengeToken, ip, expectedScope)
 	}
 	return "", nil
 }

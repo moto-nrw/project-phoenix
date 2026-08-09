@@ -130,3 +130,63 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "invalid_credentials")
 }
+
+func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
+	// The whole school MFA lifecycle must be scope-tight: a challenge or
+	// enrollment token minted for the tenant portal is refused at every
+	// school MFA endpoint — verify, resend (its code budget must not be
+	// burnable through this surface), and both enroll steps.
+	db, factory := testutil.SetupAPITest(t)
+
+	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource).Router()
+
+	tokenAuth := jwt.MustNewTokenAuth()
+	tenantChallenge, err := tokenAuth.CreateMFAChallengeJWT(jwt.MFAChallengeClaims{
+		AccountID: 42,
+		Scope:     jwt.MFAChallengeScopeTenant,
+		TenantID:  1,
+	}, 5*time.Minute)
+	require.NoError(t, err)
+	tenantEnrollment, err := tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+		AccountID: 42,
+		Scope:     jwt.MFAEnrollmentScopeTenant,
+		TenantID:  1,
+	}, 5*time.Minute)
+	require.NoError(t, err)
+
+	t.Run("tenant challenge on school verify", func(t *testing.T) {
+		body := fmt.Sprintf(`{"challenge_token":%q,"code":"123456"}`, tenantChallenge)
+		req := httptest.NewRequest(http.MethodPost, "/auth/mfa/verify", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		schoolRouter.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	})
+
+	t.Run("tenant challenge on school resend", func(t *testing.T) {
+		body := fmt.Sprintf(`{"challenge_token":%q}`, tenantChallenge)
+		req := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		schoolRouter.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	})
+
+	t.Run("tenant enrollment token on school enroll start", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/auth/mfa/enroll/start", nil)
+		req.Header.Set("Authorization", "Bearer "+tenantEnrollment)
+		rec := httptest.NewRecorder()
+		schoolRouter.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	})
+
+	t.Run("tenant enrollment token on school enroll confirm", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/auth/mfa/enroll/confirm", strings.NewReader(`{"code":"123456"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+tenantEnrollment)
+		rec := httptest.NewRecorder()
+		schoolRouter.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	})
+}

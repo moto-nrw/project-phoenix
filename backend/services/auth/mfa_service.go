@@ -126,6 +126,12 @@ type MFAService interface {
 	// with the renewed JWT (otherwise the user sees a fresh emailed
 	// code that cannot be verified once the old JWT expires).
 	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
+	// ResendChallengeForScope is the scope-enforcing sibling of
+	// ResendChallenge (#2207): the school resend endpoint must not let a
+	// foreign-portal challenge be re-driven (and its 3-codes/15-min budget
+	// burned) through the school surface. Scope mismatch is refused before
+	// any code is sent.
+	ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 
 	// VerifyCodeForAccount is the JWT-less sibling of VerifyChallenge used by
 	// enrollment confirmation, where the user is already authenticated and a
@@ -612,11 +618,29 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	return nil
 }
 
+// ResendChallengeForScope refuses the resend when the challenge was started
+// for a different portal scope — checked straight after parsing, before any
+// account lookup or email dispatch.
+func (s *mfaService) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
+	claims, err := s.parseChallengeToken(challengeToken)
+	if err != nil {
+		return "", ErrMFAChallengeTokenInvalid
+	}
+	if claims.Scope != expectedScope {
+		return "", ErrMFAUnsupportedScope
+	}
+	return s.resendParsedChallenge(ctx, claims, ip)
+}
+
 func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
 		return "", ErrMFAChallengeTokenInvalid
 	}
+	return s.resendParsedChallenge(ctx, claims, ip)
+}
+
+func (s *mfaService) resendParsedChallenge(ctx context.Context, claims *authjwt.MFAChallengeClaims, ip net.IP) (string, error) {
 
 	// No per-resend cooldown gate — the sliding-window cap inside
 	// StartChallenge (3 codes / 15 min) remains as the abuse defense.

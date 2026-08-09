@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const headerUserAgent = "User-Agent"
@@ -155,6 +156,12 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// was accepted, so it leaks nothing about foreign accounts.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				authService.ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+			// The pinned school is deactivated or deleted — same 404 the
+			// switch-school path returns for that state.
+			common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
+		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 		case errors.Is(authErr.Err, authService.ErrMFARateLimited),
 			errors.Is(authErr.Err, authService.ErrMFALocked):
 			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
@@ -191,11 +198,19 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rs.completeSchoolExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
+}
+
+// completeSchoolExchange mints the school-scope token pair once the second
+// factor is proven — shared by the challenge verify and the enrollment
+// confirm, so the role re-check, error mapping, and trusted-device cookie
+// stay in one place.
+func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Request, accountID, tenantID int64, rememberDevice bool) {
 	ipAddress := clientip.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
 	accessToken, refreshToken, err := rs.AuthService.IssueSchoolTokensForAuthenticatedAccount(
-		r.Context(), verified.AccountID, verified.TenantID, ipAddress, userAgent,
+		r.Context(), accountID, tenantID, ipAddress, userAgent,
 	)
 	if err != nil {
 		var authErr *authService.AuthError
@@ -208,6 +223,10 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(authErr.Err, authService.ErrAccountNoSchoolPortalRole):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
 					authService.ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				// School deactivated or deleted between challenge and
+				// exchange — same 404 the other school surfaces return.
+				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
@@ -217,11 +236,11 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.RememberDevice {
-		if err := rs.issueTrustedDeviceCookie(w, r, verified.AccountID, verified.TenantID); err != nil {
+	if rememberDevice {
+		if err := rs.issueTrustedDeviceCookie(w, r, accountID, tenantID); err != nil {
 			// Don't fail the whole login — log and proceed.
 			slog.Default().Warn("failed to issue trusted-device cookie",
-				slog.Int64("account_id", verified.AccountID),
+				slog.Int64("account_id", accountID),
 				slog.String("error", err.Error()),
 			)
 		}
@@ -234,7 +253,9 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 // mfaResend re-issues an email code against the existing challenge token.
-// Rate-limited inside the service; returns the renewed challenge JWT.
+// Rate-limited inside the service; returns the renewed challenge JWT. Scope
+// is enforced like on verify: a tenant- or operator-portal challenge cannot
+// be driven (and its resend budget burned) through the school endpoint.
 func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -244,12 +265,81 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, clientip.ParseClientIP(r))
+	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, clientip.ParseClientIP(r), jwt.MFAChallengeScopeSchool)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
 	render.JSON(w, r, common.MFAResendResponse{ChallengeToken: renewed})
+}
+
+// mfaEnrollStart triggers the enrollment email code for a school-scope
+// enrollment token (minted by the school login for accounts on an
+// MFA-required school without a credential). Mirrors the tenant handler's
+// defense-in-depth: the shared MFAEnrollmentAuthenticator accepts every
+// enrollment scope, so this handler must pin the SCHOOL scope — a tenant-
+// or platform-scope enrollment token is refused even when account_id
+// matches.
+func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeSchool || claims.TenantID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	_, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, clientip.ParseClientIP(r))
+	if err != nil {
+		mapMFAError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// mfaEnrollConfirm verifies the emailed code, marks the account as enrolled,
+// and mints a SCHOOL-scope session — the school sibling of the tenant
+// enroll-confirm, so the enrollment detour never converts a school login
+// into a tenant session.
+func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	// Same defense-in-depth as mfaEnrollStart — school endpoint rejects
+	// tenant- and platform-scope enrollment tokens even when account_id
+	// matches.
+	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeSchool || claims.TenantID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	req := &common.MFAEnrollConfirmRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// The enroll routes run under MFAEnrollmentAuthenticator, NOT the
+	// tenant transaction middleware, so tenant.FromContext is 0 here.
+	// Inject the tenant from the enrollment claims so the MFA audit
+	// events land in audit.auth_events instead of being dropped (mirrors
+	// the tenant enroll-confirm).
+	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
+
+	if err := rs.MFAService.VerifyCodeForAccount(ctx, claims.AccountID, req.Code); err != nil {
+		mapMFAError(w, r, err)
+		return
+	}
+	if err := rs.MFAService.Enroll(ctx, claims.AccountID); err != nil {
+		// Already enrolled is fine — a retried request must still produce
+		// a valid session.
+		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
+			mapMFAError(w, r, err)
+			return
+		}
+	}
+
+	rs.completeSchoolExchange(w, r, claims.AccountID, claims.TenantID, req.RememberDevice)
 }
 
 // switchSchool handles POST /school/auth/switch-school. The account id comes

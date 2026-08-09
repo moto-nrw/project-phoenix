@@ -265,3 +265,93 @@ func TestIssueSchoolTokens_NoPortalRole_Refused(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.ErrorIs(t, authErr.Err, auth.ErrAccountNoSchoolPortalRole)
 }
+
+func TestLoginSchool_InactiveSchool_Refused(t *testing.T) {
+	// An operator deactivating a school must cut its Lehrkräfte's school
+	// logins: the portal-tenant finder skips inactive schools, so an
+	// account whose only lehrkraft school is deactivated is refused.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 44
+	email, accountID := createLehrkraftAccount(t, db, service, "school-inactive", tenantID)
+	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+
+	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.Exec("UPDATE platform.schools SET active = true WHERE id = ?", tenantID)
+	})
+
+	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrAccountNoSchoolPortalRole)
+}
+
+func TestLoginSchool_DeadOldestSchool_PicksNextValidSchool(t *testing.T) {
+	// A soft-deleted school in the OLDEST mapping must not shadow a valid
+	// second school: the finder skips dead schools instead of pinning the
+	// login to them.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupAuthService(t, db)
+
+	const deadTenantID int64 = 44
+	const liveTenantID int64 = 45
+	// Oldest mapping first: the dead school.
+	email, accountID := createLehrkraftAccount(t, db, service, "school-dead-first", deadTenantID)
+	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	testpkg.EnsureTestTenant(t, db, liveTenantID)
+	testpkg.MapAccountToTenant(t, db, accountID, liveTenantID)
+	testpkg.AssignLehrkraftSystemRole(t, db, accountID, liveTenantID)
+
+	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?", deadTenantID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.Exec("UPDATE platform.schools SET deleted_at = NULL WHERE id = ?", deadTenantID)
+	})
+
+	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+
+	require.NoError(t, err)
+	require.Equal(t, auth.LoginStatusAuthenticated, result.Status)
+	_, tokenTenantID := decodeTokenClaims(t, result.AccessToken)
+	assert.Equal(t, liveTenantID, tokenTenantID,
+		"login must pin the surviving school, not fail on the dead oldest mapping")
+}
+
+func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *testing.T) {
+	// MFA required + not enrolled → the enrollment token must carry the
+	// SCHOOL enrollment scope. A tenant-scope token here would let the
+	// enrollment detour convert a school login into a tenant session.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 42
+	email, accountID := createLehrkraftAccount(t, db, service, "school-enroll", tenantID)
+	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+
+	service.SetMFAService(&authtest.MFAServiceMock{
+		IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
+		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
+	})
+	defer service.SetMFAService(nil)
+
+	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+
+	require.NoError(t, err)
+	require.Equal(t, auth.LoginStatusMFAEnrollmentRequired, result.Status)
+	require.NotEmpty(t, result.AccessToken)
+
+	claims, err := authjwt.MustNewTokenAuth().ParseMFAEnrollmentJWT(result.AccessToken)
+	require.NoError(t, err)
+	assert.Equal(t, authjwt.MFAEnrollmentScopeSchool, claims.Scope,
+		"school login must mint a school-scope enrollment token")
+	assert.Equal(t, tenantID, claims.TenantID)
+}

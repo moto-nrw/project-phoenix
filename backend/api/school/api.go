@@ -81,6 +81,21 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/mfa/resend", rs.mfaResend)
 		})
 
+		// Enrollment-only routes: accept the narrow SCHOOL-scope
+		// enrollment JWT the school login mints for accounts on an
+		// MFA-required school that have no credential yet. Own group with
+		// the dedicated enrollment authenticator so the enrollment token
+		// never reaches a fully authenticated handler; the handlers pin
+		// the school enrollment scope on top.
+		r.Group(func(r chi.Router) {
+			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
+			r.Use(jwt.MFAEnrollmentAuthenticator)
+			r.Route("/mfa/enroll", func(r chi.Router) {
+				r.Post("/start", rs.mfaEnrollStart)
+				r.Post("/confirm", rs.mfaEnrollConfirm)
+			})
+		})
+
 		// Protected school-scope routes.
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
