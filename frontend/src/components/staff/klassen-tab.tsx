@@ -199,19 +199,23 @@ export function KlassenTab({
             {assigned.map((klass) => (
               <span
                 key={klass}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-900 shadow-sm"
+                // min-h-8 hält die Chip-Höhe konstant, egal ob der
+                // Entfernen-Button (h-8) daneben steht.
+                className={`inline-flex min-h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white pl-3 text-sm font-medium text-gray-900 shadow-sm ${canEdit ? "pr-1" : "pr-3"}`}
               >
                 {classLabel(klass)}
                 {canEdit && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     aria-label={`Klasse ${klass} entfernen`}
+                    title={`Klasse ${klass} entfernen`}
                     onClick={() => removeClass(klass)}
                     disabled={saving}
-                    className="rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
+                  </Button>
                 )}
               </span>
             ))}

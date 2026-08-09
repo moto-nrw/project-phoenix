@@ -566,31 +566,10 @@ func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context
 }
 
 // hasSchoolCaregiverProfile reports whether the account's identity at the
-// school in ctx includes a live caregiver profile (users.teachers). Walks the
-// same person → staff → teacher chain ensureSchoolIdentity maintains.
+// school in ctx includes a live caregiver profile (users.teachers). Delegates
+// to the shared walk so this guard cannot drift from the tenant RBAC path.
 func (s *operatorProvisioningService) hasSchoolCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
-	if err != nil {
-		return false, err
-	}
-	if person == nil || person.DeletedAt != nil {
-		return false, nil
-	}
-	staff, err := s.StaffRepo.FindByPersonID(ctx, person.ID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, err
-	}
-	if staff == nil || staff.DeletedAt != nil {
-		return false, nil
-	}
-	teacher, err := s.TeacherRepo.FindByStaffID(ctx, staff.ID)
-	if err != nil {
-		return false, err
-	}
-	return teacher != nil && teacher.DeletedAt == nil, nil
+	return authSvc.HasLiveCaregiverProfile(ctx, s.PersonRepo, s.StaffRepo, s.TeacherRepo, accountID)
 }
 
 // ensureSchoolIdentity creates the person, staff and (for caregiver roles)

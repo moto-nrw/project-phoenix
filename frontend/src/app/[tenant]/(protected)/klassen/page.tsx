@@ -20,6 +20,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { getTimeBasedGreeting } from "~/lib/greeting";
 import {
   fetchClassDay,
@@ -47,13 +48,13 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Heute abgemeldet",
 };
 
-// Muted status colors from the brand table (LOCATION_COLORS semantics):
+// Status colors come from the brand table, never as re-typed hexes:
 // SICK amber, CLASS_TRIP blue, EXCUSED purple, CANCELLED neutral gray.
 const STATUS_COLORS: Record<string, string> = {
-  sick: "#EAB308",
-  class_trip: "#5080D8",
-  excused: "#7C3AED",
-  cancelled: "#6B7280",
+  sick: LOCATION_COLORS.SICK,
+  class_trip: LOCATION_COLORS.CLASS_TRIP,
+  excused: LOCATION_COLORS.EXCUSED,
+  cancelled: LOCATION_COLORS.UNKNOWN,
 };
 
 // Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
@@ -114,7 +115,7 @@ function StudentRow({
         {row.status ? (
           <StatusDotBadge
             label={STATUS_LABELS[row.status] ?? row.status}
-            color={STATUS_COLORS[row.status] ?? "#6B7280"}
+            color={STATUS_COLORS[row.status] ?? LOCATION_COLORS.UNKNOWN}
           />
         ) : null}
       </div>

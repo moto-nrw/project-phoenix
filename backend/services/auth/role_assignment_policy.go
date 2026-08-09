@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // legacyTeacherRoleName is the retired system role that caregiver accounts used
@@ -69,6 +71,45 @@ var (
 	// change.
 	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 )
+
+// HasLiveCaregiverProfile reports whether the account's identity at the tenant
+// in ctx includes a live caregiver profile (users.teachers) — the
+// person → staff → teacher chain the staff flows maintain. Soft-deleted
+// (offboarded) records do not count.
+//
+// Shared by every path that guards the Lehrkraft role (#1772): operator
+// grant/update of school access and the tenant RBAC endpoint. One invariant,
+// one walk — the copies drifted apart otherwise.
+func HasLiveCaregiverProfile(
+	ctx context.Context,
+	persons userModels.PersonRepository,
+	staffs userModels.StaffRepository,
+	teachers userModels.TeacherRepository,
+	accountID int64,
+) (bool, error) {
+	person, err := persons.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return false, nil
+	}
+	staff, err := staffs.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if staff == nil || staff.DeletedAt != nil {
+		return false, nil
+	}
+	teacher, err := teachers.FindByStaffID(ctx, staff.ID)
+	if err != nil {
+		return false, err
+	}
+	return teacher != nil && teacher.DeletedAt == nil, nil
+}
 
 // ValidateAssignableSchoolRole resolves a role and rejects it when it must not
 // be assigned for the given school.

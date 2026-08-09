@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 
@@ -143,7 +142,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// GrantAccountTenantAccess / UpdateAccountTenantRole and the
 		// invitation flow.
 		if IsLehrkraftSystemRole(role) {
-			hasProfile, profErr := s.accountHasCaregiverProfile(txCtx, int64(accountID))
+			hasProfile, profErr := HasLiveCaregiverProfile(txCtx, s.repos.Person, s.repos.Staff, s.repos.Teacher, int64(accountID))
 			if profErr != nil {
 				return &AuthError{Op: "assign role", Err: profErr}
 			}
@@ -179,35 +178,6 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 		return nil
 	})
-}
-
-// accountHasCaregiverProfile reports whether the account's identity at the
-// tenant in ctx includes a live caregiver profile (users.teachers) — the
-// person → staff → teacher chain the staff flows maintain. Soft-deleted
-// (offboarded) records do not count.
-func (s *Service) accountHasCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	person, err := s.repos.Person.FindByAccountID(ctx, accountID)
-	if err != nil {
-		return false, err
-	}
-	if person == nil || person.DeletedAt != nil {
-		return false, nil
-	}
-	staff, err := s.repos.Staff.FindByPersonID(ctx, person.ID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, err
-	}
-	if staff == nil || staff.DeletedAt != nil {
-		return false, nil
-	}
-	teacher, err := s.repos.Teacher.FindByStaffID(ctx, staff.ID)
-	if err != nil {
-		return false, err
-	}
-	return teacher != nil && teacher.DeletedAt == nil, nil
 }
 
 // RemoveRoleFromAccount removes a role from an account
