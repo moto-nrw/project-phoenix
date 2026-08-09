@@ -18,7 +18,7 @@ export interface ClassDayRow {
   status?: "sick" | "excused" | "class_trip" | "cancelled" | "";
 }
 
-export interface ClassDayTotals {
+interface ClassDayTotals {
   students: number;
   staying: number;
   leaving: number;
