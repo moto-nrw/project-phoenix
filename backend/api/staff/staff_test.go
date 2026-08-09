@@ -16,6 +16,7 @@ import (
 
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -512,6 +513,83 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 			defer testpkg.CleanupStaffFixtures(t, ctx.db, int64(staffID))
 		}
 	}
+}
+
+// createStaffForAccountPerson posts a staff record for a person that already
+// carries an account. It returns the direct (non-role) permissions the account
+// holds afterwards plus the created staff ID for the caller to clean up — the
+// cleanup has to be deferred in the test body so it runs before the deferred
+// db.Close().
+func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accountID int64) ([]string, int64) {
+	t.Helper()
+
+	body := map[string]interface{}{
+		"person_id":   personID,
+		"staff_notes": "Übergabe nach Unterricht",
+		"is_teacher":  false,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
+		testutil.WithJWTBearer(authToken(t, "users:create")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "create staff response should contain a data object")
+	rawStaffID, ok := data["id"].(float64)
+	require.True(t, ok, "create staff response should contain the staff ID")
+
+	granted, err := ctx.services.Auth.GetAccountDirectPermissions(testpkg.TenantContext(1), int(accountID))
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(granted))
+	for _, perm := range granted {
+		names = append(names, perm.Name)
+	}
+	return names, int64(rawStaffID)
+}
+
+// A Lehrkraft (#1772) holds class_day:read and nothing else. Granting the staff
+// default groups:read would open the tenant-wide group list and every group's
+// student names, far beyond the classes assigned to that Lehrkraft.
+func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Lehrkraft"+uniqueSuffix, "Person")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
+	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "lehrkraft")
+
+	granted, staffID := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staffID)
+
+	assert.NotContains(t, granted, permissions.GroupsRead,
+		"a Lehrkraft account must not be granted groups:read on staff creation")
+}
+
+// The mirror image: a staff account without the Lehrkraft role keeps the
+// existing default, so the guard above cannot quietly disable the grant.
+func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "PlainStaff"+uniqueSuffix, "Person")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
+	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "user")
+
+	granted, staffID := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staffID)
+
+	assert.Contains(t, granted, permissions.GroupsRead,
+		"a regular staff account keeps the groups:read default")
 }
 
 func TestCreateStaff_PersonNotFound(t *testing.T) {

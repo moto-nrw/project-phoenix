@@ -223,8 +223,7 @@ describe("AccountTenantAccessModal", () => {
     mockListAssignableRoles.mockResolvedValue([
       { id: "1", name: "admin" },
       { id: "2", name: "user" },
-      // The backend admits lehrkraft (#1772); the modal must hide it until
-      // the class day view ships.
+      // lehrkraft (#1772) is assignable since the class day view shipped.
       { id: "9", name: "lehrkraft" },
     ]);
   });
@@ -287,7 +286,7 @@ describe("AccountTenantAccessModal", () => {
     expect(options).not.toContain("OGS Nord (Träger Köln)");
   });
 
-  it("never offers the guardian or lehrkraft role", async () => {
+  it("offers lehrkraft but never the guardian role", async () => {
     renderModal();
 
     const schoolSelect = await screen.findByLabelText("account-access-school");
@@ -305,8 +304,10 @@ describe("AccountTenantAccessModal", () => {
 
     expect(options).toContain("Verwaltung");
     expect(options).toContain("Betreuung");
+    // lehrkraft (#1772) is assignable since the class day view shipped —
+    // offered under its German label.
+    expect(options).toContain("Lehrkraft");
     expect(options).not.toContain("guardian");
-    expect(options).not.toContain("lehrkraft");
   });
 
   it("grants access with the selected school and role", async () => {
@@ -359,6 +360,43 @@ describe("AccountTenantAccessModal", () => {
         "Diese Rolle existiert an der Zielschule nicht",
       ),
     );
+  });
+
+  it("never offers lehrkraft as target for an existing non-lehrkraft access", async () => {
+    renderModal();
+
+    // Ein Wechsel auf Lehrkraft würde das Betreuungsprofil (users.teachers)
+    // samt aktiver Gruppen-Aufsichten stranden — gesperrt wie im
+    // role-management-modal.
+    const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
+    const options = Array.from(roleSelect.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+
+    expect(options).toContain("Verwaltung");
+    expect(options).toContain("Betreuung");
+    expect(options).not.toContain("Lehrkraft");
+  });
+
+  it("keeps lehrkraft selectable for an entry that already is lehrkraft", async () => {
+    mockList.mockResolvedValue([
+      access({
+        roles: [{ id: "9", name: "lehrkraft", isSystem: true, baseRole: null }],
+      }),
+    ]);
+    renderModal();
+
+    // Der aktuelle Wert muss anzeigbar bleiben; der Wechsel Richtung
+    // Betreuung/Verwaltung ist erlaubt (das Backend legt das fehlende
+    // Profil über ensureSchoolIdentity an).
+    const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
+    const options = Array.from(roleSelect.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+
+    expect(options).toContain("Lehrkraft");
+    expect(options).toContain("Betreuung");
+    expect((roleSelect as HTMLSelectElement).value).toBe("9");
   });
 
   it("changes the role of an existing school access", async () => {

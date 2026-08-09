@@ -173,14 +173,15 @@ describe("CreateAccountModal", () => {
     fireEvent.click(screen.getByLabelText(/System-Rolle/));
 
     expect(screen.getByRole("option", { name: "admin" })).toBeInTheDocument();
+    // lehrkraft (#1772) is assignable since the class day view shipped.
+    expect(
+      screen.getByRole("option", { name: "lehrkraft" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: "teacher" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: "guardian" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("option", { name: "lehrkraft" }),
     ).not.toBeInTheDocument();
   });
 

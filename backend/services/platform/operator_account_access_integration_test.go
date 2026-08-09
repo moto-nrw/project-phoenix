@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -265,6 +266,64 @@ func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *test
 	entries, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID, userRoleID, operator.ID, testClientIP)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID))
+}
+
+func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account := testpkg.CreateTestAccount(t, db, "access-lehrkraft-regrant")
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	// A live caregiver identity at the target school WITHOUT an active
+	// mapping — exactly the state a revoke leaves behind (person, staff and
+	// teacher rows are deliberately kept for the history, see
+	// RevokeAccountTenantAccess).
+	staff := testpkg.CreateTestStaffForTenant(t, db, accessTargetTenantID, "Gestrandet", "Betreuung")
+	linkPersonToAccount(t, db, staff.PersonID, account.ID)
+	teacher := &userModels.Teacher{StaffID: staff.ID}
+	teacher.SetTenantID(accessTargetTenantID)
+	require.NoError(t, db.NewInsert().Model(teacher).ModelTableExpr(`users.teachers`).Scan(ctx))
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	// Granting the school as Lehrkraft would revive the stranded caregiver
+	// profile under a class_day-only JWT — must be rejected like on the
+	// role-update path.
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid, "a live caregiver profile must block a lehrkraft grant")
+}
+
+func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	// Granting the caregiver role materializes the local person/staff/teacher
+	// identity at the target school.
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "user")}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	// Switching that account to Lehrkraft would strand the users.teachers
+	// profile and its supervisions — the UI blocks it, the service must too.
+	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+		systemRoleID(t, db, "lehrkraft"), operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid, "a caregiver profile must block the switch to lehrkraft")
 }
 
 func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T) {

@@ -1662,6 +1662,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentCompanionRepo:     repos.StudentCompanion,
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
+		StudentStatusDayRepo:     repos.StudentStatusDay,
+		PickupScheduleSvc:        pickupScheduleService,
+		ArrivalScheduleSvc:       arrivalScheduleService,
+		CareDaySvc:               careDayService,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 

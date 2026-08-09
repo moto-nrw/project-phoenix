@@ -101,6 +101,10 @@ function mapBackendStaff(staff: BackendStaffResponse) {
     updated_at: staff.updated_at,
     staff_id: String(staff.id),
     teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+    // Ob ein Betreuungsprofil (users.teachers) existiert — steuert u. a.,
+    // ob das Position-Feld im Edit-Formular angeboten wird (für Lehrkräfte
+    // gibt es keinen Speicherort dafür).
+    is_teacher: staff.is_teacher,
     person_id: staff.person_id,
     was_present_today: staff.was_present_today,
     work_status: staff.work_status,

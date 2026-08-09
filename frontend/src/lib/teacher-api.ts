@@ -407,6 +407,7 @@ class TeacherService {
       specialization?: string | null;
       role?: string | null;
       qualifications?: string | null;
+      is_teacher?: boolean;
     },
     personId: number,
   ): Promise<Teacher> {
@@ -415,7 +416,10 @@ class TeacherService {
       credentials: "include",
       body: JSON.stringify({
         person_id: personId,
-        is_teacher: true,
+        // Lehrkraft (#1772) bekommt kein Betreuungsprofil (users.teachers):
+        // das Formular setzt is_teacher=false, alle anderen Rollen behalten
+        // den bisherigen Default.
+        is_teacher: teacherData.is_teacher ?? true,
         staff_notes: teacherData.staff_notes?.trim() ?? "",
         specialization: teacherData.specialization?.trim() ?? "",
         role: teacherData.role?.trim() ?? "",
@@ -547,7 +551,13 @@ class TeacherService {
   } {
     return {
       person_id: currentTeacher.person_id,
-      is_teacher: true,
+      // Den bestehenden Profil-Zustand erhalten, NIE hart true senden:
+      // PUT /api/staff/{id} legt bei is_teacher=true eine fehlende
+      // users.teachers-Zeile an — eine Lehrkraft (#1772, ohne
+      // Betreuungsprofil) bekäme durch eine bloße Namenskorrektur sonst
+      // stillschweigend eines.
+      is_teacher:
+        currentTeacher.is_teacher ?? Boolean(currentTeacher.teacher_id),
       staff_notes: this.mergeField(
         teacherData.staff_notes,
         currentTeacher.staff_notes,

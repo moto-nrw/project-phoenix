@@ -255,6 +255,10 @@ func (failingAccessLogRepo) Create(context.Context, *auditModels.DataAccessLog) 
 	return errors.New("audit down")
 }
 
+func (failingAccessLogRepo) ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error) {
+	return false, nil
+}
+
 // TestStaffTimeExport_NoFileWithoutAudit: when the access-audit row cannot be
 // written, no file leaves the service (same contract as enrollment exports).
 func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {

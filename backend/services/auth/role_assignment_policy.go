@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // legacyTeacherRoleName is the retired system role that caregiver accounts used
@@ -27,6 +29,24 @@ const lehrkraftRoleName = "lehrkraft"
 func IsLehrkraftSystemRole(role *authModels.Role) bool {
 	return role != nil && role.IsSystem &&
 		strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
+}
+
+// RequiresCaregiverProfile reports whether a role only works on an account
+// that also carries a caregiver profile (users.teachers). These are the roles
+// whose whole surface — GetMyGroups, group supervision, the caregiver landing
+// page — reads through that profile; without it the account holds the
+// permissions but every caregiver screen is empty. Same name set the
+// invitation flow provisions a teacher record for.
+func RequiresCaregiverProfile(role *authModels.Role) bool {
+	if role == nil || !role.IsSystem {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(role.Name)) {
+	case authModels.BaseRoleUser, legacyTeacherRoleName:
+		return true
+	default:
+		return false
+	}
 }
 
 // Which roles may be handed out when an account is attached to a school. Shared
@@ -60,7 +80,63 @@ var (
 	// full user role and a caregiver profile, defeating the role's
 	// class-scoped read-only design (#1772).
 	ErrLehrkraftNoCaregiver = errors.New("Die Rolle 'Lehrkraft' kann nicht mit Betreuungsrechten kombiniert werden") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrRoleCaregiverNeedsProfile is the mirror image of
+	// ErrRoleLehrkraftCaregiverProfile: a Lehrkraft account has person and
+	// staff records but deliberately no users.teachers row, so swapping it
+	// to a caregiver role would leave the full caregiver permissions on an
+	// account that owns no groups and lands on an empty caregiver page. The
+	// operator role change creates the profile first and passes this guard;
+	// the tenant RBAC endpoint cannot, so it is refused there (#1772).
+	ErrRoleCaregiverNeedsProfile = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrRoleLehrkraftCaregiverProfile rejects assigning the Lehrkraft role
+	// to an account whose identity at the school still carries a live
+	// caregiver profile (users.teachers): the swap would strand the profile
+	// and its group supervisions under class_day-only permissions (#1772).
+	// The profile is removed through staff offboarding, never via a role
+	// change.
+	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 )
+
+// HasLiveCaregiverProfile reports whether the account's identity at the tenant
+// in ctx includes a live caregiver profile (users.teachers) — the
+// person → staff → teacher chain the staff flows maintain. Soft-deleted
+// (offboarded) records do not count.
+//
+// Shared by every path that guards the Lehrkraft role (#1772): operator
+// grant/update of school access and the tenant RBAC endpoint. One invariant,
+// one walk — the copies drifted apart otherwise.
+func HasLiveCaregiverProfile(
+	ctx context.Context,
+	persons userModels.PersonRepository,
+	staffs userModels.StaffRepository,
+	teachers userModels.TeacherRepository,
+	accountID int64,
+) (bool, error) {
+	person, err := persons.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return false, nil
+	}
+	staff, err := staffs.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if staff == nil || staff.DeletedAt != nil {
+		return false, nil
+	}
+	teacher, err := teachers.FindByStaffID(ctx, staff.ID)
+	if err != nil {
+		return false, err
+	}
+	return teacher != nil && teacher.DeletedAt == nil, nil
+}
 
 // ValidateAssignableSchoolRole resolves a role and rejects it when it must not
 // be assigned for the given school.
