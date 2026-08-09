@@ -57,7 +57,7 @@ export function resolveFaviconVariant(
   }
 
   if (host === parentsHost || (legacyParents && host === legacyParents)) {
-    return staging ? "eltern-staging" : "eltern";
+    return staging ? "eltern-staging" : "normal";
   }
 
   return staging ? "normal-staging" : "normal";
