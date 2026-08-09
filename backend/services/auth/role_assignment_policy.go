@@ -60,6 +60,14 @@ var (
 	// full user role and a caregiver profile, defeating the role's
 	// class-scoped read-only design (#1772).
 	ErrLehrkraftNoCaregiver = errors.New("Die Rolle 'Lehrkraft' kann nicht mit Betreuungsrechten kombiniert werden") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrRoleLehrkraftCaregiverProfile rejects assigning the Lehrkraft role
+	// to an account whose identity at the school still carries a live
+	// caregiver profile (users.teachers): the swap would strand the profile
+	// and its group supervisions under class_day-only permissions (#1772).
+	// The profile is removed through staff offboarding, never via a role
+	// change.
+	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ValidateAssignableSchoolRole resolves a role and rejects it when it must not

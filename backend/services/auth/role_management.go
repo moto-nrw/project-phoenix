@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -134,6 +135,23 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 			return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 		}
 
+		// Server-side mirror of the operator guards (#1772): the Lehrkraft
+		// role must not land on an account whose identity at this school
+		// carries a live caregiver profile — a direct call to the tenant
+		// RBAC endpoint would otherwise strand users.teachers and its group
+		// supervisions under a class_day-only JWT. Same rule as
+		// GrantAccountTenantAccess / UpdateAccountTenantRole and the
+		// invitation flow.
+		if IsLehrkraftSystemRole(role) {
+			hasProfile, profErr := s.accountHasCaregiverProfile(txCtx, int64(accountID))
+			if profErr != nil {
+				return &AuthError{Op: "assign role", Err: profErr}
+			}
+			if hasProfile {
+				return &AuthError{Op: "assign role", Err: ErrRoleLehrkraftCaregiverProfile}
+			}
+		}
+
 		// Check if role is already assigned using the repository
 		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
 		if err != nil && !strings.Contains(err.Error(), "no rows") {
@@ -161,6 +179,35 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 		return nil
 	})
+}
+
+// accountHasCaregiverProfile reports whether the account's identity at the
+// tenant in ctx includes a live caregiver profile (users.teachers) — the
+// person → staff → teacher chain the staff flows maintain. Soft-deleted
+// (offboarded) records do not count.
+func (s *Service) accountHasCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	person, err := s.repos.Person.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return false, nil
+	}
+	staff, err := s.repos.Staff.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if staff == nil || staff.DeletedAt != nil {
+		return false, nil
+	}
+	teacher, err := s.repos.Teacher.FindByStaffID(ctx, staff.ID)
+	if err != nil {
+		return false, err
+	}
+	return teacher != nil && teacher.DeletedAt == nil, nil
 }
 
 // RemoveRoleFromAccount removes a role from an account
