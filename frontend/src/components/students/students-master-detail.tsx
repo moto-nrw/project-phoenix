@@ -38,6 +38,7 @@ import { StudentEnrollmentsTab } from "./student-enrollments-tab";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { getInitials } from "~/lib/format-utils";
+import { cn } from "~/lib/utils";
 import type { Student } from "~/lib/api";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 
@@ -309,7 +310,12 @@ export function StudentsMasterDetail({
   };
 
   const listNode = (
-    <div className={selectionMode ? "pb-28 md:pb-0" : undefined}>
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col",
+        selectionMode && "pb-28 md:pb-0",
+      )}
+    >
       {selectionMode ? (
         <SelectionBar
           count={selectedStudentIds.size}

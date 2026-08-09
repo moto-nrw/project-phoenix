@@ -301,6 +301,25 @@ describe("StudentsMasterDetail", () => {
     expect(screen.getByText("Keine Kinder gefunden.")).toBeInTheDocument();
   });
 
+  it("keeps the student list constrained to the scrollable master pane", () => {
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1"), makeStudent("2")]}
+        grouping="class"
+        studentsWithArrival={new Set(["1", "2"])}
+        arrivalSummaryById={new Map()}
+      />,
+    );
+
+    expect(screen.getByTestId("list").firstElementChild).toHaveClass(
+      "flex",
+      "min-h-0",
+      "flex-1",
+      "flex-col",
+    );
+  });
+
   it("renders a flat single-group list when grouping is 'none'", () => {
     render(
       <StudentsMasterDetail
