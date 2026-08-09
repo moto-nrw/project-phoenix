@@ -37,6 +37,7 @@ import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -468,10 +469,21 @@ function StudentsPageContent() {
                   </Link>
                 </>
               ) : null}
-              {canUpdateStudents && !selectionMode ? (
+              {canUpdateStudents ? (
                 <Button
+                  type="button"
                   variant="outline"
+                  size="md"
+                  aria-pressed={selectionMode}
+                  className={cn(
+                    "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
+                    selectionMode && "ring-gray-900 hover:ring-gray-900",
+                  )}
                   onClick={() => {
+                    if (selectionMode) {
+                      finishSelection();
+                      return;
+                    }
                     handleSelect(null);
                     setSelectionMode(true);
                   }}
