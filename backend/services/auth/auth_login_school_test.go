@@ -19,34 +19,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// lehrkraftRoleID looks up the seeded lehrkraft system role (#1772). The
-// migration guarantees it exists in every schema the tests run against.
-func lehrkraftRoleID(t *testing.T, db *bun.DB) int64 {
-	t.Helper()
-	var roleID int64
-	err := db.NewSelect().
-		ColumnExpr("id").
-		TableExpr("auth.roles").
-		Where("name = ?", "lehrkraft").
-		Where("is_system = TRUE").
-		Scan(context.Background(), &roleID)
-	require.NoError(t, err, "seeded lehrkraft system role must exist")
-	return roleID
-}
-
-// assignRoleForTenant creates an auth.account_roles row scoped to the tenant.
-// CleanupAuthFixtures removes it by account_id.
-func assignRoleForTenant(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64) {
-	t.Helper()
-	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: roleID}
-	roleAssignment.SetTenantID(tenantID)
-	_, err := db.NewInsert().
-		Model(roleAssignment).
-		ModelTableExpr(`auth.account_roles`).
-		Exec(context.Background())
-	require.NoError(t, err, "failed to assign role for tenant")
-}
-
 // decodeTokenClaims decodes a minted JWT and returns scope + tenant_id.
 func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64) {
 	t.Helper()
@@ -74,7 +46,7 @@ func createLehrkraftAccount(t *testing.T, db *bun.DB, service auth.AuthService, 
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
-	assignRoleForTenant(t, db, account.ID, lehrkraftRoleID(t, db), tenantID)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	return email, account.ID
 }
 
@@ -224,7 +196,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	})
 
 	t.Run("portal role at target switches the pinned school", func(t *testing.T) {
-		assignRoleForTenant(t, db, accountID, lehrkraftRoleID(t, db), tenantB)
+		testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantB)
 
 		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, "t43")
 		require.NoError(t, err)

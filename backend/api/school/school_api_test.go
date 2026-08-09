@@ -112,14 +112,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 
 	// With the lehrkraft system role the same credentials authenticate and
 	// the response carries the token pair.
-	var lehrkraftRoleID int64
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("id").TableExpr("auth.roles").
-		Where("name = ?", "lehrkraft").Where("is_system = TRUE").
-		Scan(testpkg.TenantContext(1), &lehrkraftRoleID))
-	roleRow := map[string]any{"account_id": account.ID, "role_id": lehrkraftRoleID, "tenant_id": int64(1)}
-	_, err = db.NewInsert().Model(&roleRow).TableExpr("auth.account_roles").Exec(testpkg.TenantContext(1))
-	require.NoError(t, err)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, 1)
 
 	req = httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(loginBody))
 	req.Header.Set("Content-Type", "application/json")

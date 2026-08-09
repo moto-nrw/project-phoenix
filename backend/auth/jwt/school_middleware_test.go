@@ -11,6 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Claim fixtures for the pure middleware unit tests below — no DB rows
+// exist behind these values, they only travel through context.
+const (
+	testClaimTenantID int64 = 100
+	testClaimOrgID    int64 = 7
+)
+
 // schoolMiddlewareRequest builds a request whose context carries the
 // given claims, mirroring what the Authenticator middleware would set.
 func schoolMiddlewareRequest(claims jwtpkg.AppClaims) *http.Request {
@@ -41,15 +48,15 @@ func TestSchoolMiddleware_AcceptsSchoolScope(t *testing.T) {
 		ID:       42,
 		Sub:      "lehrkraft@example.test",
 		Scope:    tenant.ScopeSchool,
-		TenantID: 100,
-		OrgID:    7,
+		TenantID: testClaimTenantID,
+		OrgID:    testClaimOrgID,
 	}))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, handlerCalled, "school-scope token must reach the wrapped handler")
-	assert.Equal(t, int64(100), gotTenantID,
+	assert.Equal(t, testClaimTenantID, gotTenantID,
 		"school tokens are tenant-bound; the middleware must set the tenant id for TenantTxMiddleware")
-	assert.Equal(t, int64(7), gotOrgID)
+	assert.Equal(t, testClaimOrgID, gotOrgID)
 	assert.Equal(t, tenant.ScopeSchool, gotScope)
 }
 

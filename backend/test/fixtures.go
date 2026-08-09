@@ -1529,6 +1529,35 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	return role
 }
 
+// AssignLehrkraftSystemRole assigns the seeded lehrkraft system role (#1772)
+// to the account, scoped to the given tenant. The role is created by
+// migration in every schema the tests run against, so the lookup must
+// succeed. Cleanup: CleanupAuthFixtures removes auth.account_roles rows by
+// account_id.
+func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var roleID int64
+	err := db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", "lehrkraft").
+		Where("is_system = TRUE").
+		Scan(ctx, &roleID)
+	require.NoError(tb, err, "seeded lehrkraft system role must exist")
+
+	roleAssignment := &auth.AccountRole{AccountID: accountID, RoleID: roleID}
+	roleAssignment.SetTenantID(tenantID)
+	_, err = db.NewInsert().
+		Model(roleAssignment).
+		ModelTableExpr(`auth.account_roles`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to assign lehrkraft system role")
+}
+
 // CreateTestPermission creates a permission in the database.
 // Note: The database has a unique constraint on (resource, action), so each call
 // creates a unique resource to avoid constraint violations.

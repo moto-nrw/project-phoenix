@@ -3,7 +3,6 @@ package school
 import (
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -91,7 +90,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := getClientIP(r)
+	ipAddress := clientip.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
 	var trustedDeviceCookie string
@@ -192,7 +191,7 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := getClientIP(r)
+	ipAddress := clientip.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
 	accessToken, refreshToken, err := rs.AuthService.IssueSchoolTokensForAuthenticatedAccount(
@@ -245,7 +244,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, parseClientIP(r))
+	renewed, err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, clientip.ParseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -323,7 +322,7 @@ func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 // empty cookie value and no Set-Cookie header is written.
 func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID, tenantID int64) error {
 	cookieValue, expiresAt, err := rs.MFAService.IssueTrustedDevice(
-		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r),
+		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), clientip.ParseClientIP(r),
 	)
 	if err != nil {
 		return err
@@ -342,14 +341,4 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 		SameSite: http.SameSiteLaxMode,
 	})
 	return nil
-}
-
-// getClientIP returns the router-selected client IP for audit/rate-limit flows.
-func getClientIP(r *http.Request) string {
-	return clientip.GetClientIPString(r)
-}
-
-// parseClientIP wraps getClientIP and parses the result as net.IP.
-func parseClientIP(r *http.Request) net.IP {
-	return clientip.ParseClientIP(r)
 }
