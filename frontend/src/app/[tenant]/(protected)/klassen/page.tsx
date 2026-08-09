@@ -35,6 +35,7 @@ import {
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { reconcileSelectedClass } from "./selected-class";
 
 const logger = createLogger({ component: "KlassenPage" });
 
@@ -253,21 +254,22 @@ export default function KlassenPage() {
   const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
   const weekend = isWeekendISO(dateISO);
 
+  // Die Klassenliste MUSS mitrevalidieren (App-Default ist
+  // revalidateOnFocus: false): bliebe sie auf dem Mount-Stand eingefroren,
+  // würde eine entzogene Klasse für immer im Reports-Key stehen (jede
+  // Fokus-Revalidierung liefe in denselben 403 und der Teilausfall-Banner
+  // bliebe bis zum Reload stehen), der Verwaiste-Auswahl-Fallback unten
+  // könnte nie feuern, und eine neu zugewiesene Klasse erschiene nie.
   const {
     data: classes,
     error: classesError,
     isLoading: classesLoading,
-  } = useSWRAuth("class-day-my-classes", fetchMyClasses);
+  } = useSWRAuth("class-day-my-classes", fetchMyClasses, {
+    revalidateOnFocus: true,
+    focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
+  });
 
-  // Auswahl gegen die aktuelle Klassenliste abgleichen: verschwindet die
-  // gewählte Klasse, während die Seite offen ist (Admin entfernt oder
-  // benennt sie um, die Revalidierung zieht die neue Liste nach), fällt
-  // die Ansicht auf die erste Klasse zurück, statt mit einer Auswahl ohne
-  // Report und ohne Fehlerzustand leer zu bleiben.
-  const selectedClass =
-    selectedClassState && classes?.includes(selectedClassState)
-      ? selectedClassState
-      : (classes?.[0] ?? "");
+  const selectedClass = reconcileSelectedClass(selectedClassState, classes);
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Karten oben
   // zeigen jede Klasse, die Listen darunter die ausgewählte. allSettled,
