@@ -76,6 +76,31 @@ type CreateTemplateResult struct {
 	ScheduleIDs []int64
 }
 
+// ConvertInstanceToSeriesInput turns one existing planned occurrence into the
+// seed of a new recurring template. Template contains the complete series
+// definition; InstanceNotes is the per-occurrence note that stays on the seed.
+type ConvertInstanceToSeriesInput struct {
+	InstanceID     int64
+	Template       CreateTemplateInput
+	InstanceNotes  *string
+	ActorAccountID *int64
+}
+
+// ConvertInstanceToSeriesResult identifies both sides of a successful atomic
+// conversion. LinkedInstanceID is always the pre-existing occurrence ID.
+type ConvertInstanceToSeriesResult struct {
+	TemplateID       int64
+	TimeframeID      int64
+	ScheduleIDs      []int64
+	LinkedInstanceID int64
+}
+
+// InstanceSeriesConverter is the single write seam used by the timetable API
+// when a planner changes a one-off occurrence into a recurring series.
+type InstanceSeriesConverter interface {
+	ConvertInstanceToSeries(context.Context, ConvertInstanceToSeriesInput) (*ConvertInstanceToSeriesResult, error)
+}
+
 // CreateTemplate persists a recurring template (activities.groups with
 // is_template=true) together with its weekday schedules, underlying timeframe,
 // and initial roster in one tenant transaction. Grade-limit and education-group

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -37,7 +38,7 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getActivityTypeBadge,
@@ -381,9 +382,21 @@ function InstanceStudentsSection({
   students: InstanceStudentSummary[];
 }>) {
   if (students.length === 0) {
+    const reason = instance.emptyRosterReason;
+    let message = "Keine Kinder geplant.";
+    if (reason?.kind === "before_offering_start" && reason.serviceStartDate) {
+      message = `Dieser Termin liegt vor dem Betreuungsbeginn am ${formatDate(reason.serviceStartDate)}. Die Kinder aus den ausgewählten Angeboten werden erst ab diesem Tag übernommen.`;
+    } else if (reason?.kind === "offering_source_empty") {
+      message =
+        "Aus den ausgewählten Angeboten wurden für diesen Termin keine Kinder übernommen. Das kann an den gebuchten Wochentagen, den gewählten Filtern oder geänderten Anmeldungen liegen.";
+    }
     return (
       <Section title="Kinder">
-        <EmptyLine>Keine Kinder geplant.</EmptyLine>
+        {reason ? (
+          <Alert type="info" message={message} announce="polite" />
+        ) : (
+          <EmptyLine>{message}</EmptyLine>
+        )}
       </Section>
     );
   }

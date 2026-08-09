@@ -1361,10 +1361,10 @@ type OfferingSourceOption struct {
 	Name      string `json:"name"`
 	PhaseID   int64  `json:"phase_id"`
 	PhaseName string `json:"phase_name"`
-	// PhaseServiceStart is the phase's service_start_date (YYYY-MM-DD). Sourced
+	// PhaseServiceStart is the phase's service_start_date. Sourced
 	// enrollments never start earlier, so materialised occurrences before this
 	// day stay empty of offering-fed children (OGS am Berg, 2026-08).
-	PhaseServiceStart string `json:"phase_service_start,omitempty"`
+	PhaseServiceStart timezone.Date
 	// TotalCount is the number of distinct approved children currently or
 	// prospectively enrolled in the offering.
 	TotalCount int `json:"total_count"`
@@ -1386,6 +1386,51 @@ type OfferingSourceCombinedCounts struct {
 	// GradeCounts maps Jahrgang → distinct approved children; key 0 collects
 	// children whose school class carries no derivable grade number.
 	GradeCounts map[int]int `json:"grade_counts"`
+}
+
+const (
+	EmptyOfferingRosterBeforeServiceStart = "before_offering_start"
+	EmptyOfferingRosterSourceEmpty        = "offering_source_empty"
+)
+
+// EmptyOfferingRosterExplanation describes why an occurrence backed by care
+// offerings currently has no concrete children. After the service start the
+// explanation deliberately stays neutral: an empty occurrence can result
+// from weekday/filter rules, changed enrollments, or a stale materialization.
+type EmptyOfferingRosterExplanation struct {
+	Kind             string
+	PhaseName        string
+	ServiceStartDate timezone.Date
+}
+
+// ExplainEmptyOfferingRoster classifies an empty sourced occurrence from the
+// authoritative offering-phase metadata. The API layer only maps this domain
+// result onto its wire representation.
+func ExplainEmptyOfferingRoster(
+	options []OfferingSourceOption,
+	selectedOfferingIDs []int64,
+	date timezone.Date,
+) *EmptyOfferingRosterExplanation {
+	if len(selectedOfferingIDs) == 0 {
+		return nil
+	}
+	selected := make(map[int64]struct{}, len(selectedOfferingIDs))
+	for _, offeringID := range selectedOfferingIDs {
+		selected[offeringID] = struct{}{}
+	}
+	explanation := &EmptyOfferingRosterExplanation{Kind: EmptyOfferingRosterSourceEmpty}
+	for _, option := range options {
+		if _, ok := selected[option.ID]; !ok {
+			continue
+		}
+		explanation.PhaseName = option.PhaseName
+		explanation.ServiceStartDate = option.PhaseServiceStart
+		if !option.PhaseServiceStart.IsZero() && date.Before(option.PhaseServiceStart) {
+			explanation.Kind = EmptyOfferingRosterBeforeServiceStart
+		}
+		return explanation
+	}
+	return explanation
 }
 
 // OfferingSourceOptionLister is the api/timetable-facing view of the editor
@@ -1509,9 +1554,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		}
 		if phase := phases[offering.PhaseID]; phase != nil {
 			option.PhaseName = phase.Name
-			if !phase.ServiceStartDate.IsZero() {
-				option.PhaseServiceStart = phase.ServiceStartDate.String()
-			}
+			option.PhaseServiceStart = phase.ServiceStartDate
 		}
 		if c := counts[offering.ID]; c != nil {
 			option.TotalCount = c.total

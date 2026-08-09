@@ -83,12 +83,16 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 				GradeLevels: tmpl.GradeLevels,
 			})
 		}
+		phaseServiceStart := ""
+		if !option.PhaseServiceStart.IsZero() {
+			phaseServiceStart = option.PhaseServiceStart.String()
+		}
 		resp.Offerings = append(resp.Offerings, offeringSourceOptionResponse{
 			ID:                     option.ID,
 			Name:                   option.Name,
 			PhaseID:                option.PhaseID,
 			PhaseName:              option.PhaseName,
-			PhaseServiceStart:      option.PhaseServiceStart,
+			PhaseServiceStart:      phaseServiceStart,
 			TotalCount:             option.TotalCount,
 			GradeCounts:            gradeCounts,
 			SourcedTemplates:       sourced,

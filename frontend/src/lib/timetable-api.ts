@@ -15,6 +15,7 @@ import type {
   BackendConflictCheckResult,
   BackendShiftCoverageCheckResult,
   BackendCreateTemplateResult,
+  BackendConvertInstanceToSeriesResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
   BackendEnrichedInstance,
@@ -46,6 +47,8 @@ import type {
   CreateInstanceBody,
   CreateTemplateBody,
   CreateTemplateResult,
+  ConvertInstanceToSeriesBody,
+  ConvertInstanceToSeriesResult,
   EndTemplateBody,
   EndTemplateResult,
   EnrichedInstance,
@@ -206,6 +209,36 @@ class TimetableService {
       instances_created: raw.instances_created,
     });
     return mapCreateTemplateResult(raw);
+  }
+
+  /** Atomically creates a series and links the existing one-off occurrence. */
+  async convertInstanceToSeries(
+    instanceId: string,
+    body: ConvertInstanceToSeriesBody,
+  ): Promise<ConvertInstanceToSeriesResult> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/convert-to-series`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+    const raw = await unwrap<BackendConvertInstanceToSeriesResult>(response);
+    logger.info("instance_converted_to_series", {
+      instance_id: raw.linked_instance_id,
+      template_id: raw.template_id,
+    });
+    return {
+      templateId: String(raw.template_id),
+      timeframeId: String(raw.timeframe_id),
+      scheduleIds: (raw.schedule_ids ?? []).map(String),
+      linkedInstanceId: String(raw.linked_instance_id),
+    };
   }
 
   /**

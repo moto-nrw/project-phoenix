@@ -149,7 +149,7 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     ).toBeChecked();
   });
 
-  it("shows the phase-start warning when the series starts before the offering phase", () => {
+  it("renders the phase-start warning supplied by the form", () => {
     renderStep({
       form: {
         ...emptyForm("2026-08-10"),
@@ -173,12 +173,12 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
       sourceGradeCounts: { 1: 26 },
       sourceFilteredCount: 26,
       sourcePhaseKidsFromWarning:
-        "„Schuljahr 2026/2027, 1. Halbjahr“ startet am 13.08.2026. Termine vor diesem Datum haben noch keine Kinder aus dem Angebot.",
+        "Die Betreuung aus „Schuljahr 2026/2027, 1. Halbjahr“ beginnt am 13.08.2026. Termine vor diesem Datum haben noch keine Kinder aus dem Angebot.",
     });
 
     expect(
       screen.getByText(
-        /startet am 13\.08\.2026\. Termine vor diesem Datum haben noch keine Kinder/,
+        /beginnt am 13\.08\.2026\. Termine vor diesem Datum haben noch keine Kinder/,
       ),
     ).toBeInTheDocument();
   });

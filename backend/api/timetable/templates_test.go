@@ -122,6 +122,14 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 		SettingsService:        templateGradeSettings(schoolclass.DefaultGradeLevelMax, nil),
 		DB:                     db,
 	})
+	res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
+		scheduleSvc.InstanceSeriesConversionDependencies{
+			DB:              db,
+			InstanceRepo:    repoFactory.ActivityInstance,
+			InstanceService: res.InstanceService,
+			TimetableData:   res.TimetableData,
+		},
+	)
 
 	cleanup := func() {
 		cleanupTemplatesByPrefix(t, db, "Tpl-")

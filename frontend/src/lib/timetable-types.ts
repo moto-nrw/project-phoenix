@@ -161,6 +161,8 @@ export interface EnrichedInstance {
   cancelReason?: string;
   expectedStudentsCount: number;
   presentStudentsCount: number;
+  /** Why an offering-sourced occurrence intentionally has no children. */
+  emptyRosterReason?: EmptyRosterReason;
   /**
    * Assigned children the care plan does not place in this block on this day
    * (#1747). Excluded from expectedStudentsCount and from the staffing maths,
@@ -183,6 +185,12 @@ export interface EnrichedInstance {
    */
   requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
+}
+
+interface EmptyRosterReason {
+  kind: "before_offering_start" | "offering_source_empty";
+  phaseName?: string;
+  serviceStartDate?: string;
 }
 
 export interface WeeklyInstancesResponse {
@@ -244,6 +252,11 @@ export interface BackendEnrichedInstance {
   cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
+  empty_roster_reason?: {
+    kind: "before_offering_start" | "offering_source_empty";
+    phase_name?: string;
+    service_start_date?: string;
+  };
   not_scheduled_students_count?: number;
   required_staff_count: number;
   assigned_staff_count: number;
@@ -1113,6 +1126,30 @@ export interface BackendCreateTemplateResult {
   instances_created?: number;
   materialized_from?: string;
   materialized_to?: string;
+}
+
+/** Atomic one-off occurrence → recurring series conversion. */
+export type ConvertInstanceToSeriesBody = Omit<
+  CreateTemplateBody,
+  "materialize_from" | "materialize_to"
+> & {
+  start_date: string;
+  /** Per-occurrence note retained on the converted seed. */
+  instance_notes?: string;
+};
+
+export interface ConvertInstanceToSeriesResult {
+  templateId: string;
+  timeframeId: string;
+  scheduleIds: string[];
+  linkedInstanceId: string;
+}
+
+export interface BackendConvertInstanceToSeriesResult {
+  template_id: number;
+  timeframe_id: number;
+  schedule_ids: number[];
+  linked_instance_id: number;
 }
 
 /**

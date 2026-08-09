@@ -518,7 +518,7 @@ export function StepPersonalKinder({
                     <Alert
                       type="warning"
                       message="Der aktuelle Filter erfasst keine Kinder. Der Regeltermin würde ohne Kinder eingeplant."
-                      announce="off"
+                      announce="polite"
                     />
                   ) : (
                     <p className="text-xs text-gray-600" role="status">
@@ -532,7 +532,7 @@ export function StepPersonalKinder({
                     <Alert
                       type="warning"
                       message={sourcePhaseKidsFromWarning}
-                      announce="off"
+                      announce="polite"
                     />
                   ) : null}
                   {sourceOverlapWarnings.map((warning) => (
@@ -540,7 +540,7 @@ export function StepPersonalKinder({
                       key={warning}
                       type="warning"
                       message={`Hinweis: ${warning}`}
-                      announce="off"
+                      announce="polite"
                     />
                   ))}
                 </>

@@ -2179,7 +2179,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	current := findOption(unscoped)
 	require.NotNil(t, current, "the offering must be listed without a period filter")
 	assert.Equal(t, 1, current.TotalCount, "the link is still active today")
-	assert.Equal(t, phaseStart.String(), current.PhaseServiceStart,
+	assert.Equal(t, phaseStart, current.PhaseServiceStart,
 		"editor needs the phase service start so it can warn about empty early occurrences")
 
 	scoped, err := lister.ListOfferingSourceOptions(ctx, &futurePeriod.ID)
@@ -2188,7 +2188,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	require.NotNil(t, future, "the offering's phase fits the future period")
 	assert.Equal(t, 0, future.TotalCount,
 		"a link ending before the period begins must not count for that period")
-	assert.Equal(t, phaseStart.String(), future.PhaseServiceStart)
+	assert.Equal(t, phaseStart, future.PhaseServiceStart)
 }
 
 // #2147 review round 9: sourced rows are phase-bounded (non-null valid_until)
@@ -2233,4 +2233,29 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 	}
 	assert.True(t, foundProtected,
 		"the sourced child must surface as a protected weekday assignment")
+}
+
+func TestExplainEmptyOfferingRoster_UsesServiceStartAndStaysNeutralAfterward(t *testing.T) {
+	sourceID := time.Now().UnixNano()
+	serviceStart := timezone.NewDate(2026, 8, 13)
+	options := []enrollmentService.OfferingSourceOption{{
+		ID:                sourceID,
+		PhaseName:         "Schuljahr 2026/27",
+		PhaseServiceStart: serviceStart,
+	}}
+
+	early := enrollmentService.ExplainEmptyOfferingRoster(
+		options, []int64{sourceID}, timezone.NewDate(2026, 8, 10),
+	)
+	require.NotNil(t, early)
+	assert.Equal(t, enrollmentService.EmptyOfferingRosterBeforeServiceStart, early.Kind)
+	assert.Equal(t, serviceStart, early.ServiceStartDate)
+
+	started := enrollmentService.ExplainEmptyOfferingRoster(
+		options, []int64{sourceID}, serviceStart,
+	)
+	require.NotNil(t, started)
+	assert.Equal(t, enrollmentService.EmptyOfferingRosterSourceEmpty, started.Kind)
+
+	assert.Nil(t, enrollmentService.ExplainEmptyOfferingRoster(options, nil, serviceStart))
 }

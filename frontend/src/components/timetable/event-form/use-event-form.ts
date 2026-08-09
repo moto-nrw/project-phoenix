@@ -39,6 +39,7 @@ import {
   getGermanWeekdayLong,
   latestISODate,
   materializedRecurrenceDates,
+  offeringPhaseStartWarning,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
@@ -2023,17 +2024,15 @@ export function useEventForm({
           : null);
 
       if (seriesSeedInstance) {
-        const created = await timetableService.createTemplate({
-          ...seriesBody(parsed.roomId, parsed.categoryId),
-          // #2135: the repeated instance's date is the series start.
-          start_date: form.date || undefined,
-        });
-        await timetableService.update(seriesSeedInstance.id, {
-          ...instanceBody(parsed.roomId, created.templateId),
-          // The value entered during conversion belongs to the new series.
-          // Keep the seed occurrence unpinned so future series edits apply.
-          required_staff: null,
-        });
+        const created = await timetableService.convertInstanceToSeries(
+          seriesSeedInstance.id,
+          {
+            ...seriesBody(parsed.roomId, parsed.categoryId),
+            // #2135: the repeated instance's date is the series start.
+            start_date: form.date,
+            instance_notes: form.notes.trim() || undefined,
+          },
+        );
         if (await materializePeriodAfterConvert()) {
           toastSuccess(
             convertInstance
@@ -2911,14 +2910,7 @@ export function useEventForm({
   // OGS am Berg: series start before the phase service window leaves the first
   // occurrences empty of offering-fed children (enrollments clamp to phase start).
   const sourcePhaseKidsFromWarning = useMemo(() => {
-    if (selectedOfferingSources.length === 0 || !form.date) return null;
-    const phaseStart = selectedOfferingSources[0]?.phaseServiceStart;
-    if (!phaseStart || form.date >= phaseStart) return null;
-    const phaseName = selectedOfferingSources[0]?.phaseName?.trim();
-    const phaseLabel = phaseName
-      ? `„${phaseName}“`
-      : "Die gewählte Anmeldephase";
-    return `${phaseLabel} startet am ${formatDate(phaseStart)}. Termine vor diesem Datum haben noch keine Kinder aus dem Angebot.`;
+    return offeringPhaseStartWarning(selectedOfferingSources[0], form.date);
   }, [selectedOfferingSources, form.date]);
 
   // Other Termine sourcing the same offering whose Jahrgang subsets overlap
