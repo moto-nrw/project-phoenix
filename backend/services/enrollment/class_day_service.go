@@ -553,15 +553,17 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		// parents struck from the plan beats the approved offering — the
 		// same source the effective times above already come from.
 		stays := len(offerings) > 0 && status == "" && !notScheduled[row.StudentID]
-		departure := row.Departure
+		// The per-day plan is the ONLY departure source. The roster's week
+		// summary (row.Departure) is never empty — classRosterFormatDeparture
+		// floors at "Geht alleine" — so falling back to it would fabricate an
+		// unaccompanied departure for a child without any plan, or print the
+		// whole week ("Mo: Bus, Di: Abholung") on a sheet that answers one
+		// day. Missing data renders as explicit "Keine Angabe"; on a
+		// non-school day the column stays empty entirely (mirror of the
+		// zeroed totals below) — a weekend request must not serve any
+		// departure instruction to non-UI consumers either.
+		departure := ""
 		if weekday != "" {
-			// On a school day the per-day plan is the ONLY departure
-			// source. The roster's week summary (row.Departure) is never
-			// empty — classRosterFormatDeparture floors at "Geht alleine" —
-			// so falling back to it would fabricate an unaccompanied
-			// departure for a child without any plan, or print the whole
-			// week ("Mo: Bus, Di: Abholung") on a sheet that answers one
-			// day. Missing data renders as explicit "Keine Angabe".
 			departure = departures[row.StudentID]
 			if departure == "" {
 				departure = classDayDepartureUnknown

@@ -97,6 +97,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		StudentID:      1,
 		Registered:     true,
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
+		Departure:      "Mo: Bus, Di: Abholung",
 	}}
 
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil, nil)
@@ -105,6 +106,10 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 	assert.Equal(t, "", report.Weekday)
 	require.Len(t, report.Rows, 1)
 	assert.False(t, report.Rows[0].StaysToday)
+	// Kein Schultag: keine Übergabe, also auch keine Abgangs-Aussage — die
+	// Wochen-Zusammenfassung des Rosters darf nicht ins Einzeltag-Feld
+	// durchsickern (auch nicht für Nicht-UI-Consumer des Endpoints).
+	assert.Equal(t, "", report.Rows[0].Departure)
 	// Kein Schultag: nur der Klassenverband ist eine ehrliche Zahl.
 	assert.Equal(t, ClassDayTotals{Students: 1}, report.Totals)
 }
