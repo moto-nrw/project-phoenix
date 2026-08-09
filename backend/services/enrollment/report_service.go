@@ -133,6 +133,14 @@ type ClassRosterFilters struct {
 	// selection, not today's). Nil keeps the export default
 	// reportOfferingDate(phase) — today clamped to the phase window.
 	OfferingDate *timezone.Date `json:"offering_date,omitempty"`
+	// SkipGuardianData omits the guardian-facing enrichments (emergency
+	// contacts, request guardians, companion links). The class day view
+	// keeps only Registered/OfferingsByDay/Arrival-/PickupByDay and serves
+	// no guardian contact data at all (#1772) — and it rebuilds the roster
+	// per covering phase for every class on the teachers' landing page, so
+	// these three queries would be pure fan-out waste there. Internal-only,
+	// never bound from a request.
+	SkipGuardianData bool `json:"-"`
 }
 
 type ClassRosterReport struct {
@@ -451,26 +459,38 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if s.StudentRepo == nil {
 		return nil, fmt.Errorf("class roster report: student repo not configured")
 	}
+	students, err := s.classRosterStudents(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+	return s.classRosterForStudents(ctx, filters, students)
+}
+
+// classRosterForStudents builds the roster for an already-loaded student
+// set. Split out for the class day view (#1772): that view merges the
+// roster of EVERY covering phase for every class on the teachers' landing
+// page, so it loads the class once and reuses it across phases instead of
+// re-querying identical students per phase. Callers pass normalized,
+// validated filters — the public ClassRoster wrapper owns that.
+func (s *reportService) classRosterForStudents(ctx context.Context, filters ClassRosterFilters, students []*userModels.Student) (*ClassRosterReport, error) {
 	if s.PersonRepo == nil {
 		return nil, fmt.Errorf("class roster report: person repo not configured")
 	}
 	if s.EducationGroupRepo == nil {
 		return nil, fmt.Errorf("class roster report: education group repo not configured")
 	}
-	if s.StudentGuardianRepo == nil {
-		return nil, fmt.Errorf("class roster report: student guardian repo not configured")
-	}
-	if s.RequestGuardianRepo == nil {
-		return nil, fmt.Errorf("class roster report: request guardian repo not configured")
+	if !filters.SkipGuardianData {
+		if s.StudentGuardianRepo == nil {
+			return nil, fmt.Errorf("class roster report: student guardian repo not configured")
+		}
+		if s.RequestGuardianRepo == nil {
+			return nil, fmt.Errorf("class roster report: request guardian repo not configured")
+		}
 	}
 
 	phase, err := s.PhaseRepo.FindByID(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
-	}
-	students, err := s.classRosterStudents(ctx, filters)
-	if err != nil {
-		return nil, err
 	}
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
@@ -482,13 +502,17 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		}
 	}
 	studentIDs := classRosterStudentIDs(students)
-	studentGuardianContacts, err := s.classRosterStudentGuardianContacts(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	companions, err := s.classRosterCompanions(ctx, studentIDs)
-	if err != nil {
-		return nil, err
+	studentGuardianContacts := map[int64][]ClassRosterGuardian{}
+	companions := map[int64][]userModels.CompanionLink{}
+	if !filters.SkipGuardianData {
+		studentGuardianContacts, err = s.classRosterStudentGuardianContacts(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
+		companions, err = s.classRosterCompanions(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
 	}
 	persons, err := s.PersonRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
@@ -518,11 +542,13 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list children: %w", err)
 		}
-		requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
-		if err != nil {
-			return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
+		if !filters.SkipGuardianData {
+			requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+			if err != nil {
+				return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
+			}
+			requestGuardiansByID = classRosterRequestGuardiansByRequestID(requestGuardians)
 		}
-		requestGuardiansByID = classRosterRequestGuardiansByRequestID(requestGuardians)
 		children = classRosterChildrenForStudents(children, studentByID)
 		if len(children) > maxReportRows {
 			return nil, fmt.Errorf("class roster report: %d children: %w", len(children), ErrReportExportTooLarge)

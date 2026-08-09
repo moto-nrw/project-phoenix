@@ -237,20 +237,15 @@ func (s *reportService) classDayStatuses(ctx context.Context, studentIDs []int64
 	return out, nil
 }
 
-// classDayRosterRows builds class-roster rows for the class without an
-// enrollment phase: full class list, group names, and the departure plan
-// stored on the student — every "Keine Anmeldung" default the roster row
-// builder produces for a nil enrollment.
-func (s *reportService) classDayRosterRows(ctx context.Context, schoolClass string) ([]ClassRosterRow, error) {
-	if s.StudentRepo == nil || s.PersonRepo == nil || s.EducationGroupRepo == nil {
+// classDayRosterRows builds class-roster rows for an already-loaded class
+// without an enrollment phase: full class list and group names — every
+// "Keine Anmeldung" default the roster row builder produces for a nil
+// enrollment. No companion links: the day view renders departures
+// exclusively from classDayDepartures, the roster's week-summary departure
+// never reaches the sheet.
+func (s *reportService) classDayRosterRows(ctx context.Context, students []*userModels.Student) ([]ClassRosterRow, error) {
+	if s.PersonRepo == nil || s.EducationGroupRepo == nil {
 		return nil, fmt.Errorf("class day report: repos not configured")
-	}
-	students, err := s.classRosterStudents(ctx, ClassRosterFilters{SchoolClass: schoolClass})
-	if err != nil {
-		return nil, err
-	}
-	if len(students) > maxReportRows {
-		return nil, fmt.Errorf("class day report: %d students: %w", len(students), ErrReportExportTooLarge)
 	}
 	persons, err := s.PersonRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
@@ -260,16 +255,12 @@ func (s *reportService) classDayRosterRows(ctx context.Context, schoolClass stri
 	if err != nil {
 		return nil, err
 	}
-	companions, err := s.classRosterCompanions(ctx, classRosterStudentIDs(students))
-	if err != nil {
-		return nil, err
-	}
 	rows := make([]ClassRosterRow, 0, len(students))
 	for _, student := range students {
 		if student == nil {
 			continue
 		}
-		row, err := classRosterRow(student, persons[student.PersonID], classRosterGroupName(student, groups), nil, nil, nil, nil, companions[student.ID])
+		row, err := classRosterRow(student, persons[student.PersonID], classRosterGroupName(student, groups), nil, nil, nil, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -297,6 +288,10 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 		return nil, fmt.Errorf("class day report: status/schedule dependencies not configured")
 	}
 
+	if s.StudentRepo == nil {
+		return nil, fmt.Errorf("class day report: repos not configured")
+	}
+
 	phases, err := s.classDayPhases(ctx, date)
 	if err != nil {
 		return nil, err
@@ -304,16 +299,31 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 
 	weekday := classDayWeekdayKey(date)
 
+	// The class is loaded ONCE and shared across every covering phase's
+	// roster build and the departure rendering below. The view fans out per
+	// class on the teachers' landing page — re-reading identical students
+	// per phase (and again for the departures) was pure query fan-out.
+	students, err := s.classRosterStudents(ctx, ClassRosterFilters{SchoolClass: schoolClass})
+	if err != nil {
+		return nil, err
+	}
+	if len(students) > maxReportRows {
+		return nil, fmt.Errorf("class day report: %d students: %w", len(students), ErrReportExportTooLarge)
+	}
+
 	var rosterRows []ClassRosterRow
 	switch {
 	case len(phases) > 0:
 		// Merge across EVERY covering phase (rollover overlap, parallel
 		// Ferien phase): a child enrolled in only one of them must still
 		// count as registered. OfferingDate pins the selection to the
-		// requested day (Stichtags-Apply, #1665).
+		// requested day (Stichtags-Apply, #1665). SkipGuardianData: the day
+		// view serves no guardian contacts and renders departures from the
+		// live per-day plan, so the roster's guardian/companion queries
+		// would run per phase for nothing.
 		rosters := make([][]ClassRosterRow, 0, len(phases))
 		for _, phase := range phases {
-			roster, err := s.ClassRoster(ctx, ClassRosterFilters{PhaseID: phase.id, SchoolClass: schoolClass, OfferingDate: &date})
+			roster, err := s.classRosterForStudents(ctx, ClassRosterFilters{PhaseID: phase.id, SchoolClass: schoolClass, OfferingDate: &date, SkipGuardianData: true}, students)
 			if err != nil {
 				return nil, err
 			}
@@ -321,7 +331,7 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 		}
 		rosterRows = mergeClassDayRosters(rosters)
 	default:
-		rosterRows, err = s.classDayRosterRows(ctx, schoolClass)
+		rosterRows, err = s.classDayRosterRows(ctx, students)
 		if err != nil {
 			return nil, err
 		}
@@ -344,7 +354,7 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 		if err != nil {
 			return nil, err
 		}
-		departures, err = s.classDayDepartures(ctx, schoolClass, studentIDs, weekday)
+		departures, err = s.classDayDepartures(ctx, students, weekday)
 		if err != nil {
 			return nil, err
 		}
@@ -470,18 +480,15 @@ func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []
 // the requested weekday ("Abholung" instead of "Mo: Abholung, Di: …"): the
 // handoff sheet answers today, not the week. Source is the live student row
 // (AllowedDepartureModes with the DepartureDays fallback) — the current
-// truth, present for every child, enrolled or not. Companion names are
-// attached for days that allow the accompanied mode. Empty map on weekends.
-func (s *reportService) classDayDepartures(ctx context.Context, schoolClass string, studentIDs []int64, weekday string) (map[int64]string, error) {
-	out := make(map[int64]string, len(studentIDs))
-	if weekday == "" || len(studentIDs) == 0 || s.StudentRepo == nil {
+// truth, present for every child, enrolled or not, and already loaded once
+// by ClassDay (no re-query per consumer). Companion names are attached for
+// days that allow the accompanied mode. Empty map on weekends.
+func (s *reportService) classDayDepartures(ctx context.Context, students []*userModels.Student, weekday string) (map[int64]string, error) {
+	out := make(map[int64]string, len(students))
+	if weekday == "" || len(students) == 0 {
 		return out, nil
 	}
-	students, err := s.StudentRepo.FindBySchoolClass(ctx, schoolClass)
-	if err != nil {
-		return nil, fmt.Errorf("class day report: load departure plans: %w", err)
-	}
-	companions, err := s.classRosterCompanions(ctx, studentIDs)
+	companions, err := s.classRosterCompanions(ctx, classRosterStudentIDs(students))
 	if err != nil {
 		return nil, err
 	}
